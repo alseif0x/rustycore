@@ -396,7 +396,9 @@ impl ItemStatsStore {
                 if fi == 42 {
                     required_reputation_faction_offset = pos;
                 }
-                if fi == 48 {
+                // C++ ItemSparseMeta field 46 is AllowableClass; fields 47-48
+                // are ItemRandomSuffixGroupID and RandomSelect.
+                if fi == 46 {
                     allowable_class_offset = pos;
                 }
                 if fi == 41 {
@@ -790,3 +792,7 @@ fn item_sparse_item_level_uses_cpp_field_45_like_cpp() {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "tests/sparse_load.rs"]
+mod sparse_load;

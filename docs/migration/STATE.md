@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43 current summary — 2026-10-27, branch `43-spirit-healer`:**
+**#43 current summary — 2026-10-28, branch `43-spirit-healer`:**
 The macro remains open and has not passed final acceptance. Changes remain
 local to `43-spirit-healer`; this candidate has not been published or deployed.
 Native death now fences canonical save capture, Map retirement and same-GUID
@@ -10,7 +10,9 @@ claim; logout checks it before admitting each finalization step. The existing
 deferred-save intent retains save requests across those phases, including a
 newer request that must survive an older save acknowledgement. These
 guards are committed at `7b09213ca`. The subsequent native-death integration
-is a **local working candidate without final acceptance**.
+is checkpointed locally at `8eb73d12a` (**UNVALIDATED**). Its focused coding
+feedback preceded that commit; no committed-candidate final campaign or live
+acceptance has run.
 Application now admits lethal damage before writing zero health and runs the
 ordered Player death body, including SelfRes initialization and no-death quest
 failure. Fall, void, environmental spell damage, PowerBurn and creature
@@ -263,6 +265,27 @@ from 23:02:46 through 23:06:55 UTC. This is dirty-tree coding feedback, not
 final acceptance or general split/share script parity. Those logs and the
 earlier failed attempts are retained under
 `/tmp/rustycore43-secondary-native-feedback/`.
+
+The bot's existing scripted runner now has typed death/recovery requests,
+raw gameplay evidence with authentication-body redaction, exact packet/route
+expectations and distinct logout/disconnect outcomes. It is checkpointed at
+`befc96261` (**UNVALIDATED**). Its 27 focused tests passed on the preceding
+dirty tree. The initial standalone dependency preparation cost 8m 01s for
+`cargo check` and 6m 47s for the focused test build; these are coding/bootstrap
+costs, not the ordinary warm final campaign. Logs are under
+`/tmp/rustycore43-death-driver-feedback/`. Movement/control ACKs, current-host
+capture orchestration and live lifecycle acceptance remain outstanding.
+
+The selected ItemSparse class-mask correction now reads target field 46,
+not field 48 (`RandomSelect`). A portable sparse WDC4 fixture passed through
+the production loader with distinct neighboring fields, positive and negative
+signed masks, durability, flags and stack size. The same focused test's
+explicit opt-in data probe read class mask `-1` for installed items 2121 and
+17030; the Mage bit 128 is permitted. Item 2121 has durability 40 and reagent
+17030 has stack size 10. The one test passed with 846 filtered; its log is
+`/tmp/rustycore43-item-class-feedback/focused-test.log`. This fixes selected
+fixture admission metadata; it does not prove runtime equipment, creation or
+durability persistence. No fixture or runtime mutation has been performed.
 
 Cohesion review: `crates/wow-world-creature/src/admitted_creature_execution/native_combat.rs`
 has 1,368 lines, including its tests. It owns one admitted combat future and
