@@ -305,6 +305,15 @@ still preserve Aura and trainer provenance without packets. Anchors:
 These six fixture-source edits remain unvalidated, with test identities and
 exact protocol assertions preserved.
 
+The test-only disconnect adapter now supplies the same existing resurrection
+catalogs as production finalization; its former legacy `None` path correctly
+held the two live worldport continuations. The public legacy entry and its
+missing-authority contract are retained (`WorldSession.cpp:544–551`). This
+test-adapter repair is unvalidated. Remaining native-consumer findings are
+known-empty currency authority for the corpse-save receipt and effective
+SpellMisc payload authority for lethal SpellClick; neither permits a weaker
+production guard.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The
