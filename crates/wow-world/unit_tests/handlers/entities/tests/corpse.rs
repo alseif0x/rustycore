@@ -13,6 +13,7 @@ mod death_timer_driver;
 mod live_pet;
 #[path = "corpse/native_death.rs"]
 mod native_death;
+mod reclaim_packet;
 #[path = "corpse/recovery_fences.rs"]
 mod recovery_fences;
 mod release;

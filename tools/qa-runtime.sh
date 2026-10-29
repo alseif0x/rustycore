@@ -585,13 +585,18 @@ create_capture_output_dir() {
 }
 
 write_capture_report() {
-  local outcome="$1" artifacts='[]' journal=null backup=null original=null scenario_report=null report temp
+  local outcome="$1" journal=null backup=null original=null scenario_report=null report temp inventory_file
   local config_restored_json=false runtime_restored_json=false
   report="$CAPTURE_OUTPUT_DIR/capture-report.json"
+  inventory_file="$(mktemp "$CAPTURE_OUTPUT_DIR/.capture-inventory.XXXXXX")" || {
+    warn "could not create private capture inventory at $CAPTURE_OUTPUT_DIR"; return 1;
+  }
   if [[ -d "$CAPTURE_OUTPUT_DIR" && ! -L "$CAPTURE_OUTPUT_DIR" ]]; then
-    artifacts="$(python3 "$QA_CAPTURE_FILEOPS" inventory \
-      --output-dir "$CAPTURE_OUTPUT_DIR" --backend "$CAPTURE_BACKEND" 2>/dev/null)" \
-      || artifacts='[]'
+    python3 "$QA_CAPTURE_FILEOPS" inventory \
+      --output-dir "$CAPTURE_OUTPUT_DIR" --backend "$CAPTURE_BACKEND" \
+      >"$inventory_file" 2>/dev/null || printf '[]\n' >"$inventory_file"
+  else
+    printf '[]\n' >"$inventory_file"
   fi
   if [[ -n "$CAPTURE_JOURNAL_PATH" ]] \
     && { ((CAPTURE_CONFIG_ARMED == 1)) \
@@ -648,8 +653,9 @@ write_capture_report() {
       --arg recovery_journal "$journal" \
       --arg recovery_backup "$backup" \
       --arg recovery_original "$original" \
-      --argjson raw_artifacts "$artifacts" \
-      '{schema: "rustycore-native-capture-v1", collection_only: true,
+      --slurpfile raw_artifacts "$inventory_file" \
+      '$raw_artifacts[0] as $raw_artifacts
+      | {schema: "rustycore-native-capture-v1", collection_only: true,
         gameplay_acceptance: false, outcome: $outcome, backend: $backend,
         source: {repository: $source, head: $head, dirty: $dirty, architecture: $architecture},
         service: $service,
@@ -679,8 +685,9 @@ write_capture_report() {
         raw_artifact_count: ($raw_artifacts | length), raw_artifacts: $raw_artifacts}' \
       >"$temp"
   ) || { warn "could not write private capture report at $report"; return 1; }
-  chmod 600 -- "$temp"
-  mv -f -- "$temp" "$report"
+  chmod 600 -- "$temp" || return 1
+  mv -f -- "$temp" "$report" || return 1
+  rm -- "$inventory_file"
   log "Native capture collection report: $report"
 }
 

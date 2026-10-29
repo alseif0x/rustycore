@@ -405,8 +405,6 @@ fi
 
 death_runtime_start_original || die "original service did not restart after fixture preparation"
 DEATH_STOPPED=0
-DEATH_SCENARIO_STATUS=observed
-DEATH_COLLECTION_STATUS=collected
 for DEATH_INDEX in "${!DEATH_RUNNERS[@]}"; do
   death_runtime_capture_epoch "$((DEATH_INDEX + 1))" "${DEATH_RUNNERS[$DEATH_INDEX]}"
 done

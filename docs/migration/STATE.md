@@ -36,6 +36,43 @@ Preserve that absent-group contract while retaining nonempty partial capture.
 The 147.030-second failed campaign is
 `/tmp/rustycore43-persisted-death-acceptance-cajvlcgl/record.json`; production
 login-owner acceptance and the debug build did not run.
+The corrected candidate `abba63ce7` passed World (4,131, one ignored), Core
+(276), production login-owner (41) and the debug build in 185.582 seconds;
+unchanged Entities/Application retain their `1dde03c7a` results. The record is
+`/tmp/rustycore43-persisted-death-acceptance-uypa03_1/record.json`.
+Rust fall/release attempt 7 passed in 314.052 seconds with real durability
+34/40, health-one ghost, one corpse and graveyard 106. Its full corpse birth
+(166 bytes), death Item/Player delta (133) and release Player delta (55) match
+R6 exactly. All 24 selected control packets also match their complete bodies
+and order per connection. Ghost8326 differs only in its source-proven NORMAL
+CastID low-40-bit counter and CastTime; all remaining raw bytes match.
+`comparison-fall-release-abba/` retains these contracts and unchanged raw
+pairs; strict full-stream/window diffs remain non-clean, including unrelated
+NPC visibility/movement and the explicit L18 achievement boundary. No baseline
+or comparator was weakened, and no whole-stream parity is claimed.
+
+Rust reclaim attempt 1 then failed: the actor remains a ghost, with correct
+durability 34/40. The packet reader incorrectly requires a raw 16-byte GUID;
+the real R6 packets carry packed 2/5-byte GUIDs. `MiscPackets.cpp:274` invokes
+`ObjectGuid.cpp:779–785`, which reads the two masks and packed values. The
+existing packet test and World helper reproduce the same unsupported raw
+assumption and must be corrected with the reader.
+That run also exposed `jq`'s per-argument size limit while writing the native
+artifact inventory. No native report was installed, and the outer guard held
+fixture cleanup. Original runtime/config restoration had completed; scoped
+recovery reused the maintained cleanup functions, restored the journal and
+verified the original stable SHA with no packet dump. The failed 319.585-second
+run, original held report and separate `fixture-cleanup-recovery.json` remain
+under `cases/rust-reclaim-attempt1/`. Empty-epoch "observed/collected" defaults
+are not acceptance evidence. The working QA repair streams the inventory from
+a private file, preserves every artifact/hash and defers status until an epoch
+is actually recorded; its large-inventory/guard regressions are UNVALIDATED.
+The working reclaim repair now uses the existing packed-GUID reader. Packet
+coverage pins both captured request bodies and truncated input; the shared
+World builder now uses the real wire layout. A registered-dispatch regression
+checks ignored GUID hints, range rejection, half-health resurrection, one-time
+corpse deletion and replay rejection. These changes remain UNVALIDATED until
+the committed affected campaign and fresh reclaim run complete.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

@@ -173,6 +173,18 @@ case "$RUSTYCORE_CAPTURE_BACKEND" in
   rust)
     printf 'AUTH-PAYLOAD\n' >"$RUSTYCORE_CAPTURE_DIR/client.bin"
     printf 'fixture metadata\n' >"$RUSTYCORE_CAPTURE_DIR/client.meta"
+    if [[ "${QA_FAKE_CAPTURE_MANY_PAIRS:-0}" == 1 ]]; then
+      python3 - "$RUSTYCORE_CAPTURE_DIR" <<'PY'
+from pathlib import Path
+import sys
+
+output = Path(sys.argv[1])
+for index in range(517):
+    name = f"packet-{index:04d}-" + "x" * 120
+    (output / (name + ".bin")).write_bytes(f"packet-{index}\n".encode())
+    (output / (name + ".meta")).write_text(f"metadata-{index}\n", encoding="utf-8")
+PY
+    fi
     if [[ "${QA_FAKE_CAPTURE_DRIFT:-}" == rust ]]; then
       printf '# concurrent drift\n' >>"${QA_FAKE_DROPIN:?}"
     fi
@@ -467,6 +479,25 @@ check "held death cleanup leaves the fake service stopped" \
   test "$(tail -1 "$WORK/state.log")" = stopped
 check "held death cleanup attempted snapshot and restore in order" \
   test "$(cat "$WORK/state.death-fixture")" = $'prepare\nsnapshot\nrestore'
+CASE_RUN_LOG=""
+
+# An unresolved capture restore cannot count as an observed/collected epoch.
+# Its independent cleanup hold and fixture journal must still be reported.
+reset_state
+EXTRA_ENV=(QA_FAKE_CAPTURE_DRIFT=journal)
+status=0
+CASE_RUN_LOG="$WORK/death-incomplete-epoch.log"
+run_death_qa "$WORK/death-campaign-incomplete" >"$CASE_RUN_LOG" 2>&1 || status=$?
+check "incomplete first death epoch fails" test "$status" -ne 0
+check "empty death epochs are not reported as observed or collected" \
+  jq -e '.scenario_observation.status == "not_run" and .scenario_observation.epochs == []
+    and .native_collection.status == "not_run" and .native_collection.epochs == []
+    and .cleanup.status == "held" and .parity.status == "not_assessed"' \
+    "$WORK/death-campaign-incomplete/death-runtime-report.json" >/dev/null
+check "incomplete epoch retains the prepared fixture journal" \
+  jq -e '.state == "prepared"' "$WORK/death-campaign-incomplete/death-fixture.journal" >/dev/null
+check "incomplete epoch does not claim fixture cleanup" \
+  test ! -e "$WORK/death-campaign-incomplete/death-fixture.journal.cleanup-complete"
 CASE_RUN_LOG=""
 
 # 1. The destructive command refuses without each mandatory flag.
@@ -899,6 +930,38 @@ check "Rust report hashes its stable scenario report" \
 check "capture report omits config secrets and packet payloads" \
   bash -c '! grep -qE "fixture-secret|AUTH-PAYLOAD|PKT-PAYLOAD" "$1"' _ \
     "$WORK/capture-rust/capture-report.json"
+
+# A single argv argument cannot carry this inventory on the development host.
+# Drive the real report writer and compare every retained artifact and hash.
+reset_state
+EXTRA_ENV=(QA_FAKE_CAPTURE_MANY_PAIRS=1)
+status=0
+CASE_RUN_LOG="$WORK/capture-large-inventory.log"
+run_capture_fake rust "$WORK/capture-large" >"$CASE_RUN_LOG" 2>&1 || status=$?
+check "large capture inventory writes its report successfully" test "$status" -eq 0
+python3 "$REPO_ROOT/tools/qa/capture_fileops.py" inventory \
+  --output-dir "$WORK/capture-large" --backend rust >"$WORK/capture-large-expected.json"
+check "large capture inventory exceeds 128 KiB" \
+  test "$(wc -c <"$WORK/capture-large-expected.json")" -gt 131072
+check "large capture report retains every artifact with exact metadata" \
+  jq -e --slurpfile expected "$WORK/capture-large-expected.json" \
+    '.raw_artifact_count == 1036 and .raw_artifacts == $expected[0]
+      and .outcome == "captured-restored" and .runner_exit == 0 and .collection_exit == 0
+      and .original_config_restored == true and .original_runtime_restored == true
+      and .packet_dump_absent_after_restore == true and .gameplay_acceptance == false' \
+    "$WORK/capture-large/capture-report.json" >/dev/null
+check "large capture restores original executable bytes" live_is_original
+check "large capture removes its run-owned drop-in" \
+  test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+check "large capture removes its completed recovery journal" \
+  test ! -e "$WORK/capture-large/.qa-capture-journal.json"
+check "successful report removes only its temporary inventory" \
+  bash -c 'shopt -s nullglob; files=("$1"/.capture-inventory.*); ((${#files[@]} == 0))' _ \
+    "$WORK/capture-large"
+check "large capture output remains private" test "$(stat -c %a "$WORK/capture-large")" = 700
+check "large capture report remains private" \
+  test "$(stat -c %a "$WORK/capture-large/capture-report.json")" = 600
+CASE_RUN_LOG=""
 
 # Runner failure is reported separately and still restores the original runtime.
 reset_state
