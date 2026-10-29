@@ -259,6 +259,18 @@ async fn not_yet_due_logout_timer_does_not_release_or_start_finalization() {
 async fn disconnected_full_self_queues_still_apply_ghost_wisp_and_publish_the_peer_corpse() {
     let (mut session, instance, realm, guid, corpse, save) = pending_death(9_413);
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([])));
+    let (peer, peer_output, _) = super::bones_birth::install_peer(&mut session, 9_414);
+    // Both registration and CombatStop registry synchronization hydrate known spells
+    // from this fixture input; keep its racial consistent with the canonical seed.
+    let mut spell_fixture = session
+        .spell_state
+        .represented_spell_runtime_fixture_like_cpp();
+    spell_fixture
+        .known_spells
+        .push(wow_world_entities::SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP);
+    session
+        .spell_state
+        .store_represented_spell_runtime_fixture_like_cpp(spell_fixture);
     session
         .core
         .with_owned_player_mut_like_cpp(|player| {
@@ -267,7 +279,6 @@ async fn disconnected_full_self_queues_still_apply_ghost_wisp_and_publish_the_pe
             player.replace_spell_runtime_like_cpp(spells);
         })
         .unwrap();
-    let (peer, peer_output, _) = super::bones_birth::install_peer(&mut session, 9_414);
     peer.core.client_visible_guids_like_cpp.insert(guid);
     while session.core.send_tx().try_send(vec![0xFF]).is_ok() {}
     while session.core.realm_route_tx().try_send(vec![0xFE]).is_ok() {}
@@ -275,6 +286,16 @@ async fn disconnected_full_self_queues_still_apply_ghost_wisp_and_publish_the_pe
     let generators = session.id_generators_for_test_like_cpp();
     let creatures = session.creature_spawn_catalogs_for_test_like_cpp();
     let graveyards = wow_data::GraveyardStore::default();
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player
+                .spell_runtime_like_cpp()
+                .known_spells_like_cpp()
+                .contains(&wow_world_entities::SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP)
+        }),
+        Some(true),
+        "canonical HasSpell(20585) must survive peer registration before logout"
+    );
     let report = wow_world_application::finalize_session_with_resurrection_catalogs(
         &mut session,
         Mode::Disconnect,
@@ -298,7 +319,12 @@ async fn disconnected_full_self_queues_still_apply_ghost_wisp_and_publish_the_pe
         assert!(
             auras
                 .iter()
-                .any(|family| family.spell_id == spell && !family.auras.is_empty())
+                .any(|family| family.spell_id == spell && !family.auras.is_empty()),
+            "spell {spell} must have a nonempty saved family; family counts: {:?}",
+            auras
+                .iter()
+                .map(|family| (family.spell_id, family.auras.len()))
+                .collect::<Vec<_>>()
         );
     }
     let expected = {

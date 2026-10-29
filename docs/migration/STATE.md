@@ -10,7 +10,37 @@ pass; mob's retained action passes a separately recorded corrected-contract
 review without relabelling its original failed wrapper. Offer attempt 1
 fails at the reference caster with BAD_TARGETS and restores normally.
 The subsequent native power, sanctuary, AuraState, bones, logout death release
-and initial Flags2 changes still need combined acceptance. No publication or issue closure.
+and initial Flags2 changes have partial combined evidence; one logout fixture
+and architecture metadata still need corrected-candidate acceptance.
+No publication or issue closure.
+
+The second combined acceptance at `dd54ae2cd` also failed: final took 976.424
+seconds and the complete attempted ordinary campaign took 977.780 seconds,
+again exceeding the 600-second target. Evidence is retained in
+`/tmp/rustycore43-combined-final-repair-l_o9v_3e/{final-manifest.json,record.json}`.
+QA Python passed 42 tests with one skipped. Workspace/all-target compilation,
+independent domains, production SQL composition, standalone bot formatting/check,
+the test census and physical-file policy passed. Entities passed all 1,061 tests;
+World passed 4,148 with one failed and one ignored. Other selected suites passed.
+Production-login execution, full standalone-bot tests/build and the debug World
+build did not run because final failed.
+
+The remaining World failure is the closed-self logout fixture: peer registration
+and CombatStop registry synchronization both hydrate canonical known spells from
+the test-only legacy input, which did not contain racial 20585. Reordering only
+the canonical seed was insufficient: the focused feedback executed exactly one
+test and failed, retaining Ghost 8326 with one saved aura and Wisp 20584 with none
+(`/tmp/rustycore43-logout-wisp-feedback-0pQKft/`, 370.376 seconds including
+compilation). Native CombatStop before BuildPlayerRepop and both strict saved-aura
+assertions remain required (`WorldSession.cpp:558–565`, `Player.cpp:4269–4272`).
+The fixture-input repair is implemented, UNVALIDATED. Its census delta adds 26
+lines to that existing test, retaining all 4,150 identities, class/destination
+assignments and ignored states; the reviewed line count is 276,444.
+Architecture repairs sort two
+reviewed registry accesses without changing their values and record the exact
+reviewed Session/Map/Character/Player aggregate growth; existing owners and #584
+retirement conditions remain unchanged. No whole-port completion follows from
+these metadata repairs.
 
 Combined acceptance at `2bea1d3c8` failed: the final runner took 1,321.374 seconds,
 and the complete attempted ordinary campaign took 1,344.580 seconds, exceeding
@@ -44,7 +74,7 @@ The census adds 30 integration identities and removes none; all prior classes,
 destinations and ignored states are retained. The shared fixture/native power
 adapter changes derived blockers in 136 prior rows, with 43 owner-vote changes;
 these are not test moves or domain-completion claims. The exact reviewed delta is
-`/tmp/rustycore43-census-review-yitp1lcs/record.json`. The bounded ceiling records
+`/tmp/rustycore43-census-review-yitp1lcs/record.json`. That repair's bounded ceiling recorded
 276,418 unit-test lines, 4,128 unit-test identities and 22 source tests, including
 the required catalog and phase fixture repairs. No acceptance baseline is claimed
 green until the corrected policy and source pass together.
