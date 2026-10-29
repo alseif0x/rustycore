@@ -405,6 +405,26 @@ counts are Character 1,799/18,923, Loot 884/19,209 and 272,825 unit-test lines,
 with existing retirement conditions retained. Review:
 `/tmp/rustycore43-five-fixture-review-q1im7i13/`. Renewed acceptance is required.
 
+Final at `ecd7574ab` passed architecture, Session syntax, census, all-targets
+compilation and standalone domain checks. Canonical menus exposed a production
+deadlock: GO interaction held the MapManager mutex while the Player phase
+query reacquired it. Three GO gossip tests remained blocked beyond 60 seconds;
+the parent terminated only their owned test binary after verifying its runner
+ancestry. No complete World verdict is claimed. The attempt ended 101 after
+371.056 seconds; manifest:
+`target/validation-v2/manifests/20261029T024944.790196Z-1641559-final.json`.
+Exact binary hash, PID, signal and cause are retained in
+`/tmp/rustycore43-final-20261029-xtnwsq9l/world-test-termination.json`.
+
+The bounded production repair snapshots only the selected immutable GO phase
+under the existing guard, then releases that guard before querying Player
+phase. It preserves represented-phase precedence and every source, in-world,
+phase and distance rejection before Feign removal. Pinned anchors:
+`Player.cpp:1983–2006`, `Object.cpp:1153–1155`, `NPCHandler.cpp:250–289`.
+The existing three canonical GO tests are the regression cases. This repair
+is unvalidated until renewed final execution; no other state, lock or runtime
+owner is added and no baseline is regenerated to excuse the blocked run.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The
