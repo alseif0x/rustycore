@@ -304,6 +304,7 @@ pub(crate) enum ExpectedRule {
 pub(crate) enum TargetExpectation {
     Empty,
     Unit(Guid),
+    CorpseAlly(Guid),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

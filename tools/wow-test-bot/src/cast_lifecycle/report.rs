@@ -374,5 +374,8 @@ fn target_matches(expected: &TargetExpectation, actual: Option<&TargetFact>) -> 
         TargetExpectation::Unit(guid) => {
             actual.flags & 0x2 != 0 && actual.unit == *guid && actual.item.empty()
         }
+        TargetExpectation::CorpseAlly(guid) => {
+            actual.flags & 0x8000 != 0 && actual.unit == *guid && actual.item.empty()
+        }
     }
 }

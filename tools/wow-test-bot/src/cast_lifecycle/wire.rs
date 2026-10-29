@@ -313,11 +313,13 @@ pub(super) fn build_cast_spell_payload(
     body.extend([0u8; 2]); // SendCastFlags, movement, weights, crafting order
 
     // SpellTargetData: 28-bit flags, four option bits, 7-bit name length.
-    // TARGET_FLAG_UNIT is 0x2. C++ always follows this bit section with the
-    // unit and item packed GUIDs, even for an empty target.
+    // Corpse targets use TARGET_FLAG_CORPSE_ALLY (0x8000), ordinary targets
+    // TARGET_FLAG_UNIT (0x2). SpellCastTargets::Write (Spell.cpp:178) puts
+    // either GUID in Unit; both packed GUID fields exist even for no target.
     let mut target_header = [0u8; 5];
-    if target.is_some() {
-        write_msb_bits(&mut target_header, 0, 28, 0x2);
+    if let Some(target) = target {
+        let flags = if target.high >> 58 == 14 { 0x8000 } else { 0x2 };
+        write_msb_bits(&mut target_header, 0, 28, flags);
     }
     body.extend(target_header);
     body.extend(target.unwrap_or(Guid { low: 0, high: 0 }).packed());

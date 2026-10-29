@@ -316,6 +316,28 @@ World compilation hashes with no executable/rlib/rmeta output: only unused,
 single-link DWO/object files were removed. Current binaries, captures and the
 active incremental cache remain intact. The exact file/stat inventory is
 `/tmp/rustycore43-obsolete-debuginfo-retirement-c9zfsywi/record.json`.
+
+The next QA repair is implemented, UNVALIDATED. Offer now performs one bounded
+caster observation, freezes the unique nearby stationary Corpse CREATE with the
+exact journal owner/map and retained packet hash, then targets that actual GUID
+with CORPSE_ALLY. The target source rejects ordinary spells cast at a ghost Player
+(`SpellInfo.cpp:2150–2185`); `SpellEffects.cpp:3599–3627` resolves the corpse owner
+and creates the aura-zero request. Existing ordinary and explicit-empty target
+bytes and the strict event matcher remain unchanged. The offline poll is bounded
+at 90 seconds to include the source's 60-second socket-loss grace and save drain.
+
+C++ Stuck-death attempt 1 fails in 209.773 seconds and restores normally. Its
+first epoch executes native Prepare/Start/Go for both 8690 and 7355, but the plan
+expects only Go with a self Unit target. Native InitExplicitTargets removes that
+explicit target; Hearthstone Go has flags `0x42`, empty Unit and the home destination,
+while Stuck Start/Go have empty targets. The second epoch allows only 10 seconds,
+equal to native 7355's 10,000-ms cast time, and ends before Go. The repaired plans
+require the complete ordered lifecycle and actual targets, verify Hearthstone's
+home destination, and allow a bounded 15 seconds for the second epoch. No native
+Stuck/cooldown behavior or comparator is changed. Fresh reference captures remain
+required after the combined QA/bot acceptance. Between cases the stable runtime
+is verified at PID 2173833, SHA `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`,
+with no packet dump enabled.
 The QA repair now preserves strict pre-finish root/no-release/no-PreResurrect
 evidence and requires the subsequent saved ghost/corpse, with a distinct
 pre-login snapshot for reload epochs. It does not claim unreleased-dead DB

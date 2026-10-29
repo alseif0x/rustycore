@@ -15,6 +15,7 @@ import time
 from typing import Any
 
 import death_fixture
+from death_corpse_target import select_offer_corpse
 
 
 SCENARIOS = {
@@ -46,7 +47,9 @@ AURA_UPDATE = 0x2C1F
 UPDATE_OBJECT = 0x27CB
 PLAYER_GHOST = 0x10
 READY_MARKER = "CAST_LIFECYCLE_READY"
-OFFLINE_SECONDS = 60
+# Native socket loss retains the session for 60s (WorldSession.cpp:137,514-537),
+# then LogoutPlayer still needs bounded time to release, save and go offline.
+OFFLINE_SECONDS = 90
 ACTIVE_BOTS: list[BotPass] = []
 
 
@@ -235,10 +238,18 @@ def plan_for(scenario: str, epoch: int, actor: dict[str, Any], realm_id: int,
                 _wait("instance", MOVE_ROOT, 30_000),
             ]
             expected.extend([
+                # Native InitExplicitTargets removes the supplied self target;
+                # Hearthstone Go retains UNIT|DEST_LOCATION with an empty Unit.
+                {"event": "prepare", "client_cast_id": cast_hearthstone},
+                {"event": "start", "client_cast_id": cast_hearthstone, "spell_id": 8690,
+                 "target": "empty"},
                 {"event": "go", "client_cast_id": cast_hearthstone, "spell_id": 8690,
-                 "target": {"unit": self_guid}},
+                 "target": {"unit": {"low": 0, "high": 0}}},
+                {"event": "prepare", "client_cast_id": cast_stuck},
+                {"event": "start", "client_cast_id": cast_stuck, "spell_id": 7355,
+                 "target": "empty"},
                 {"event": "go", "client_cast_id": cast_stuck, "spell_id": 7355,
-                 "target": {"unit": self_guid}},
+                 "target": "empty"},
             ])
             timeout_ms = 45_000
         else:
@@ -248,9 +259,14 @@ def plan_for(scenario: str, epoch: int, actor: dict[str, Any], realm_id: int,
                  "target": self_guid},
                 {"action": "wait", "milliseconds": 3000},
             ]
-            expected.append({"event": "go", "client_cast_id": cast_stuck,
-                             "spell_id": 7355, "target": {"unit": self_guid}})
-            timeout_ms = 10_000
+            expected.extend([
+                {"event": "prepare", "client_cast_id": cast_stuck},
+                {"event": "start", "client_cast_id": cast_stuck,
+                 "spell_id": 7355, "target": "empty"},
+                {"event": "go", "client_cast_id": cast_stuck,
+                 "spell_id": 7355, "target": "empty"},
+            ])
+            timeout_ms = 15_000
     elif scenario == "stuck-home":
         self_guid = player_guid(actor, realm_id)
         cast_stuck = {"low": 7355003, "high": 0}
@@ -259,8 +275,13 @@ def plan_for(scenario: str, epoch: int, actor: dict[str, Any], realm_id: int,
              "target": self_guid},
             _wait("instance", MOVE_TELEPORT, 30_000),
         ]
-        expected.append({"event": "go", "client_cast_id": cast_stuck,
-                         "spell_id": 7355, "target": {"unit": self_guid}})
+        expected.extend([
+            {"event": "prepare", "client_cast_id": cast_stuck},
+            {"event": "start", "client_cast_id": cast_stuck,
+             "spell_id": 7355, "target": "empty"},
+            {"event": "go", "client_cast_id": cast_stuck,
+             "spell_id": 7355, "target": "empty"},
+        ])
         timeout_ms = 40_000
     if scenario == "automatic-release":
         actions = _fall_actions(actor, release=False) + [_wait("realm", PRE_RESURRECT, 370_000)]
@@ -719,6 +740,20 @@ def _validate_stuck_evidence(scenario: str, epoch: int, actor: dict[str, Any],
         hearthstone_go = _spell_go_events(evidence, 8690)
         if len(hearthstone_go) != 1:
             raise ScenarioFailure("Stuck death setup lacks its one normal Hearthstone SpellGo")
+        target = hearthstone_go[0].get("target") or {}
+        destination = target.get("dst_location") or {}
+        empty = {"low": 0, "high": 0}
+        try:
+            position = tuple(float(destination[key]) for key in ("x", "y", "z"))
+        except (KeyError, TypeError, ValueError):
+            raise ScenarioFailure("Hearthstone SpellGo lacks its native home destination") from None
+        if (target.get("flags") != 0x42 or target.get("unit") != empty
+                or target.get("item") != empty or destination.get("transport") != empty
+                or not all(math.isfinite(value) for value in position)
+                or math.dist(position, actor["home"]) > 0.25
+                or target.get("map_id") not in (None, actor["map"])):
+            raise ScenarioFailure("Hearthstone SpellGo target does not match the native home route")
+        observation["hearthstone_target"] = target
         if not _has_native_8690_category_cooldown(cooldown_8690):
             raise ScenarioFailure("Stuck death setup did not persist the native 8690 category cooldown")
         if 8690 in cooldown_events:
@@ -786,27 +821,34 @@ def _run_offer(identity: dict[str, Any], journal: dict[str, Any], actors: dict[s
                realm_id: int, db: death_fixture.MariaDB, observations: list[dict[str, Any]]) -> None:
     victim = actors["Qadeathfall"]
     caster = actors["Qadeathcast"]
+    probe = BotPass(caster, observer_plan(3000, caster["guid"]), "offer-corpse-probe")
+    evidence = _run_single(probe, identity, db, journal, observations, observer=True)
+    try:
+        target = select_offer_corpse(evidence, victim, player_guid(victim, realm_id))
+    except ValueError as error:
+        raise ScenarioFailure(str(error)) from None
+    observations[-1]["offer_corpse_target"] = target
     victim_pass = BotPass(victim, plan_for("offer", 2, victim, realm_id, 10, actors), "offer-victim")
-    caster_guid = player_guid(victim, realm_id)
+    target_guid = target["guid"]
     cast_a = {"low": 7328001, "high": 0}
     cast_b = {"low": 7328002, "high": 0}
     caster_plan = {"character_guid": caster["guid"], "timeout_ms": 28_000,
         "actions": [
-            {"action": "cast", "spell_id": 7328, "cast_id": cast_a, "target": caster_guid},
+            {"action": "cast", "spell_id": 7328, "cast_id": cast_a, "target": target_guid},
             {"action": "wait", "milliseconds": 12_000},
-            {"action": "cast", "spell_id": 7328, "cast_id": cast_b, "target": caster_guid},
+            {"action": "cast", "spell_id": 7328, "cast_id": cast_b, "target": target_guid},
         ],
         "expect": [
             {"event": "prepare", "client_cast_id": cast_a},
             {"event": "start", "client_cast_id": cast_a, "spell_id": 7328,
-             "target": {"unit": caster_guid}},
+             "target": {"corpse_ally": target_guid}},
             {"event": "go", "client_cast_id": cast_a, "spell_id": 7328,
-             "target": {"unit": caster_guid}},
+             "target": {"corpse_ally": target_guid}},
             {"event": "prepare", "client_cast_id": cast_b},
             {"event": "start", "client_cast_id": cast_b, "spell_id": 7328,
-             "target": {"unit": caster_guid}},
+             "target": {"corpse_ally": target_guid}},
             {"event": "go", "client_cast_id": cast_b, "spell_id": 7328,
-             "target": {"unit": caster_guid}},
+             "target": {"corpse_ally": target_guid}},
             _packet("realm", LOGOUT_COMPLETE),
         ], "finish_policy": "logout"}
     caster_pass = BotPass(caster, caster_plan, "offer-caster")

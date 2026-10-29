@@ -72,11 +72,13 @@ fn go_after_failure_cannot_pass_an_ordered_failure_expectation() {
     evaluate(&mut evidence);
     assert!(evidence.expected_rules[0].matched);
     assert!(!evidence.passed);
-    assert!(evidence
-        .failure
-        .as_deref()
-        .unwrap()
-        .contains("unexpected plan-bound spell_go"));
+    assert!(
+        evidence
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("unexpected plan-bound spell_go")
+    );
 }
 
 #[test]
@@ -229,6 +231,71 @@ fn cast_request_preserves_empty_and_unit_target_wire_shapes() {
     assert_eq!(&empty[target_offset..target_offset + 5], &[0; 5]);
     assert_eq!(&unit[target_offset..target_offset + 5], &[0, 0, 0, 0x20, 0]);
     assert_ne!(empty, unit);
+    let mut explicit_empty = empty.clone();
+    explicit_empty[target_offset + 3] = 0x20;
+    assert_eq!(
+        build_cast_spell_payload(133, guid(1), Some(Guid { low: 0, high: 0 })),
+        explicit_empty
+    );
+    let corpse = Guid {
+        low: 1,
+        high: 14 << 58,
+    };
+    let corpse_request = build_cast_spell_payload(133, guid(1), Some(corpse));
+    let mut expected = empty[..target_offset].to_vec();
+    expected.extend([0, 0x08, 0, 0, 0]); // 28-bit TARGET_FLAG_CORPSE_ALLY
+    expected.extend(corpse.packed());
+    expected.extend([0, 0]); // Item GUID remains empty.
+    assert_eq!(corpse_request, expected);
+    let mut expected_unit = empty[..target_offset].to_vec();
+    expected_unit.extend([0, 0, 0, 0x20, 0]);
+    expected_unit.extend(guid(22).packed());
+    expected_unit.extend([0, 0]);
+    assert_eq!(unit, expected_unit, "ordinary unit bytes stay unchanged");
+}
+
+#[test]
+fn corpse_ally_expectation_requires_corpse_flag_exact_guid_and_empty_item() {
+    let corpse = Guid {
+        low: 1,
+        high: 14 << 58,
+    };
+    let target: TargetExpectation = serde_json::from_value(serde_json::json!({
+        "corpse_ally": {"low": corpse.low, "high": corpse.high}
+    }))
+    .unwrap();
+    for (flags, actual_guid, item, matched) in [
+        (0x8000, corpse, guid(0), true),
+        (0x2, corpse, guid(0), false),
+        (0x8000, guid(22), guid(0), false),
+        (0x8000, corpse, guid(23), false),
+    ] {
+        let mut event = decode_event(
+            0,
+            Connection::Instance,
+            SMSG_SPELL_START,
+            &spell_cast_body(guid(42), Some(corpse), false),
+        );
+        let actual = event.target.as_mut().unwrap();
+        actual.flags = flags;
+        actual.unit = actual_guid;
+        actual.item = item;
+        let mut evidence = Evidence {
+            events: vec![event],
+            expected_rules: vec![expected(ExpectedRule::Start {
+                client_cast_id: None,
+                server_cast_id: Some(guid(42)),
+                spell_id: 133,
+                target: target.clone(),
+                cast_flags: None,
+                cast_flags_ex: None,
+                metadata: None,
+            })],
+            ..Default::default()
+        };
+        evaluate(&mut evidence);
+        assert_eq!(evidence.expected_rules[0].matched, matched);
+    }
 }
 
 #[test]
@@ -270,10 +337,12 @@ fn parser_decodes_prepare_identity_and_optional_sections() {
         &spell_cast_body(server, None, true),
     );
     assert_eq!(empty_go.full_combat_log, Some(false));
-    assert!(empty_go
-        .target
-        .as_ref()
-        .is_some_and(|target| target.flags == 0));
+    assert!(
+        empty_go
+            .target
+            .as_ref()
+            .is_some_and(|target| target.flags == 0)
+    );
     assert!(evidence.events[0].error.is_none());
 }
 
@@ -749,11 +818,13 @@ fn missing_or_misrouted_logout_complete_fails_the_run() {
     not_written.logout_request_completed = false;
     finalize_finish(&mut not_written);
     assert!(!not_written.passed);
-    assert!(not_written
-        .failure
-        .as_deref()
-        .unwrap()
-        .contains("logout request was not locally written"));
+    assert!(
+        not_written
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("logout request was not locally written")
+    );
 }
 
 fn correlated(events: Vec<ObservedEvent>, expected_rules: Vec<ExpectedFact>) -> Evidence {
@@ -1415,11 +1486,13 @@ fn exact_packet_expectations_reject_wrong_route_duplicates_and_route_order() {
     evaluate(&mut wrong_route);
     assert!(!wrong_route.passed);
     assert!(!wrong_route.expected_rules[0].matched);
-    assert!(wrong_route
-        .failure
-        .as_deref()
-        .unwrap()
-        .contains("wrong-route"));
+    assert!(
+        wrong_route
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("wrong-route")
+    );
 
     let mut duplicate = Evidence {
         events: vec![

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
+import struct
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 
 import death_fixture
 import death_scenario as scenario
@@ -23,7 +26,134 @@ def journal_actors() -> dict[str, dict]:
             for index, item in enumerate(death_fixture.ACTORS, 1)}
 
 
+# Native stationary corpse block retained from C++ offer event 69 (at offset 11).
+# The single-block envelope lets the matcher exercise the same 166-byte wire shape.
+CORPSE_CREATE = bytes.fromhex(
+    "0101a00104380a04000000000000d7f011c6299c274366667642000000007900"
+    "00000000000000000000000000803f0000000001a01404080000000031000000"
+    "00000000000000000000000000000000bf400005000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000010008000000000000000001000000"
+)
+
+
+def corpse_probe_event(block: bytes = CORPSE_CREATE, *, map_id: int = 0,
+                       count: int = 1) -> dict:
+    body = struct.pack("<IHBI", count, map_id, 0, len(block)) + bytes(block)
+    return {"sequence": 69, "connection_sequence": 60, "connection": "instance",
+            "opcode": scenario.UPDATE_OBJECT, "body_hex": body.hex(),
+            "body_sha256": hashlib.sha256(body).hexdigest()}
+
+
 class DeathScenarioTests(unittest.TestCase):
+    def test_offer_corpse_probe_validates_native_owner_map_span_and_unique_identity(self) -> None:
+        victim = actor("Qadeathfall", 20)
+        owner = scenario.player_guid(victim, 1)
+        event = corpse_probe_event()
+        self.assertEqual(len(bytes.fromhex(event["body_hex"])), 166)
+        proof = scenario.select_offer_corpse({"events": [event]}, victim, owner)
+        self.assertEqual(proof["owner"], owner)
+        self.assertEqual(proof["guid"]["high"] >> 58, 14)
+        self.assertEqual(proof["source_event_sequence"], 69)
+        self.assertEqual(proof["source_event_sha256"], event["body_sha256"])
+        self.assertEqual(proof["block_offset"], 11)
+        birth = bytearray(CORPSE_CREATE)
+        birth[0] = 2
+        self.assertEqual(scenario.select_offer_corpse(
+            {"events": [corpse_probe_event(birth)]}, victim, owner)["guid"], proof["guid"])
+        another = bytearray(CORPSE_CREATE)
+        another[3] = 2  # A different native corpse, with the same owner.
+        far = bytearray(CORPSE_CREATE)
+        struct.pack_into("<f", far, 14, victim["home"][0] + 10)
+        nonfinite = bytearray(CORPSE_CREATE)
+        struct.pack_into("<f", nonfinite, 14, float("nan"))
+        bad_length = bytearray(CORPSE_CREATE)
+        struct.pack_into("<I", bad_length, 30, 0xFFFFFFFF)
+        invalid = [
+            {"events": []}, {"events": [corpse_probe_event(map_id=1)]},
+            {"events": [corpse_probe_event(CORPSE_CREATE[:-1])]},
+            {"events": [corpse_probe_event(CORPSE_CREATE + another, count=2)]},
+            {"events": [corpse_probe_event(far)]},
+            {"events": [corpse_probe_event(nonfinite)]},
+            {"events": [corpse_probe_event(bad_length)]},
+        ]
+        for evidence in invalid:
+            with self.subTest(evidence=evidence), self.assertRaises(ValueError):
+                scenario.select_offer_corpse(evidence, victim, owner)
+        wrong_owner = scenario.player_guid(actor("Qadeathfall", 21), 1)
+        with self.assertRaises(ValueError):
+            scenario.select_offer_corpse({"events": [event]}, victim, wrong_owner)
+        corrupted = {**event, "body_sha256": "0" * 64}
+        with self.assertRaises(ValueError):
+            scenario.select_offer_corpse({"events": [corrupted]}, victim, owner)
+
+    def test_offer_probes_before_action_passes_and_casts_at_corpse_not_ghost_player(self) -> None:
+        actors = journal_actors()
+        actors["Qadeathfall"]["guid"] = 20
+        events = {"events": [corpse_probe_event()]}
+        order = []
+        observations = []
+        started = []
+
+        def probe(pass_, *_args, **kwargs):
+            self.assertEqual(pass_.label, "offer-corpse-probe")
+            self.assertEqual(pass_.actor, actors["Qadeathcast"])
+            self.assertEqual(pass_.plan, scenario.observer_plan(3000, pass_.actor["guid"]))
+            self.assertTrue(kwargs["observer"])
+            observations.append({"pass": pass_.label})
+            order.append("probe-finished")
+            return events
+
+        def start(pass_, **_kwargs):
+            order.append(pass_.label)
+            started.append(pass_)
+
+        snapshot = {"character_spell": {"columns": ["guid", "spell"],
+                    "rows": [[str(actors["Qadeathcast"]["guid"]), "7328"]]}}
+        identity = {"bot_exec": Path("unused"), "bot_config": Path("unused"),
+                    "capture": Path("unused")}
+        with patch.object(scenario, "_run_single", side_effect=probe), \
+                patch.object(scenario, "start_bot", side_effect=start), \
+                patch.object(scenario, "finish_bot", return_value={}), \
+                patch.object(scenario, "_save_snapshot", return_value=(snapshot, {})):
+            scenario._run_offer(identity, {}, actors, 1, Mock(), observations)
+        self.assertEqual(order, ["probe-finished", "offer-victim", "offer-caster"])
+        caster = next(pass_ for pass_ in started if pass_.label == "offer-caster")
+        target = observations[0]["offer_corpse_target"]["guid"]
+        self.assertNotEqual(target, scenario.player_guid(actors["Qadeathfall"], 1))
+        self.assertEqual([action["target"] for action in caster.plan["actions"]
+                          if action["action"] == "cast"], [target, target])
+        self.assertEqual([rule["target"] for rule in caster.plan["expect"]
+                          if rule["event"] in {"start", "go"}],
+                         [{"corpse_ally": target}] * 4)
+
+    def test_offline_wait_allows_native_socket_grace_but_stays_bounded_and_identity_checked(self) -> None:
+        selected = actor("Qadeathfall", 20)
+        selected["account_id"] = 10
+        self.assertEqual(scenario.OFFLINE_SECONDS, 90)
+        for offline_at, wrong_identity in ((62, False), (None, False), (62, True)):
+            clock = [0.0]
+
+            def sleep(seconds):
+                clock[0] += seconds
+
+            def identities(_journal):
+                online = "0" if offline_at is not None and clock[0] >= offline_at else "1"
+                name = "OtherActor" if wrong_identity else selected["name"]
+                return [["20", "10", name, online]]
+
+            db = Mock()
+            db.character_identities.side_effect = identities
+            with patch.object(scenario.time, "monotonic", side_effect=lambda: clock[0]), \
+                    patch.object(scenario.time, "sleep", side_effect=sleep):
+                if offline_at is None or wrong_identity:
+                    with self.assertRaises(scenario.ScenarioFailure):
+                        scenario._poll_actor_offline(db, {}, selected)
+                    self.assertEqual(clock[0], 90)
+                else:
+                    scenario._poll_actor_offline(db, {}, selected)
+                    self.assertEqual(clock[0], 62)
+
     def test_healer_durability_uses_effective_max_and_rejects_old_raw_prediction(self) -> None:
         selected = actor("Qadeathfall", 73)
         snapshot = {
@@ -142,9 +272,13 @@ class DeathScenarioTests(unittest.TestCase):
                             for action in first["actions"] if action["action"] == "cast"))
         self.assertEqual([(rule.get("event"), rule.get("spell_id"), rule.get("opcode"))
                           for rule in first["expect"]], [
-            ("go", 8690, None), ("go", 7355, None),
+            ("prepare", None, None), ("start", 8690, None), ("go", 8690, None),
+            ("prepare", None, None), ("start", 7355, None), ("go", 7355, None),
             ("packet", None, scenario.LOGOUT_COMPLETE),
         ])
+        self.assertEqual([rule["target"] for rule in first["expect"]
+                          if rule["event"] in {"start", "go"}],
+                         ["empty", {"unit": {"low": 0, "high": 0}}, "empty", "empty"])
         self.assertNotIn(scenario.DURABILITY_DAMAGE_DEATH,
                          [rule.get("opcode") for rule in first["expect"]])
 
@@ -155,6 +289,11 @@ class DeathScenarioTests(unittest.TestCase):
                              for action in second["actions"]))
         self.assertEqual([rule.get("spell_id") for rule in second["expect"]
                           if rule.get("event") == "go"], [7355])
+        self.assertEqual(second["timeout_ms"], 15_000)
+        self.assertEqual([rule["event"] for rule in second["expect"]],
+                         ["prepare", "start", "go", "packet"])
+        self.assertTrue(all(rule["target"] == "empty" for rule in second["expect"]
+                            if rule["event"] in {"start", "go"}))
 
     def test_stuck_home_plan_has_no_hearthstone_cast_or_cooldown_seed_action(self) -> None:
         selected = actor("Qadeathcast", 75)
@@ -166,6 +305,10 @@ class DeathScenarioTests(unittest.TestCase):
         self.assertEqual([rule.get("spell_id") for rule in plan["expect"]
                           if rule.get("event") == "go"], [7355])
         self.assertEqual(plan["finish_policy"], "logout")
+        self.assertEqual([rule["event"] for rule in plan["expect"]],
+                         ["prepare", "start", "go", "packet"])
+        self.assertTrue(all(rule["target"] == "empty" for rule in plan["expect"]
+                            if rule["event"] in {"start", "go"}))
 
     def test_stuck_death_requires_the_explicit_pvp_durability_guard(self) -> None:
         with tempfile.TemporaryDirectory() as root:
@@ -404,7 +547,11 @@ class DeathScenarioTests(unittest.TestCase):
         }}
         evidence = {
             "events": [
-                {"opcode": scenario.SPELL_GO, "spell_id": 8690},
+                {"opcode": scenario.SPELL_GO, "spell_id": 8690, "target": {
+                    "flags": 0x42, "unit": {"low": 0, "high": 0},
+                    "item": {"low": 0, "high": 0},
+                    "dst_location": {"transport": {"low": 0, "high": 0},
+                                     **dict(zip(("x", "y", "z"), selected["home"]))}}},
                 {"opcode": scenario.SPELL_GO, "spell_id": 7355},
                 {"opcode": scenario.MOVE_ROOT},
             ],
@@ -420,6 +567,20 @@ class DeathScenarioTests(unittest.TestCase):
         scenario._validate_stuck_evidence("stuck-death", 1, selected, snapshot,
                                           evidence, observation)
         self.assertEqual(observation["stuck_spell_cooldowns"][0]["categoryid"], 1176)
+        for defect in ("unit", "flags", "destination", "missing_destination"):
+            invalid = copy.deepcopy(evidence)
+            target = invalid["events"][0]["target"]
+            if defect == "unit":
+                target["unit"] = scenario.player_guid(selected, 1)
+            elif defect == "flags":
+                target["flags"] = 2
+            elif defect == "destination":
+                target["dst_location"]["x"] += 1
+            else:
+                del target["dst_location"]
+            with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
+                scenario._validate_stuck_evidence("stuck-death", 1, selected, snapshot,
+                                                  invalid, {})
         durability = copy.deepcopy(evidence)
         durability["events"].append({"opcode": scenario.DURABILITY_DAMAGE_DEATH})
         with self.assertRaises(scenario.ScenarioFailure):

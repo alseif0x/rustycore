@@ -34,6 +34,12 @@ visual. Do not run it blindly against an unrelated character or data set.
 Actions include the existing `cast`, `cancel` and `wait`, `wait_for_packet`, plus
 typed death requests:
 
+- `cast` uses `TARGET_FLAG_CORPSE_ALLY` for an explicit Corpse GUID (HighGuid 14)
+  and retains `TARGET_FLAG_UNIT` for other explicit GUIDs. A missing target keeps
+  the empty target shape. Start/Go expectations can use
+  `{"corpse_ally":{"low":1,"high":4035225266123964416}}` to require the corpse
+  flag, exact GUID and empty item field; discover the actual GUID from the current
+  server's retained CREATE evidence rather than copying this example.
 - `wait_for_packet` takes `connection` (`instance` or `realm`), a numeric `opcode`
   and a positive `timeout_ms` no greater than ten minutes. For example,
   `{"action":"wait_for_packet","connection":"instance","opcode":11769,"timeout_ms":5000}`
