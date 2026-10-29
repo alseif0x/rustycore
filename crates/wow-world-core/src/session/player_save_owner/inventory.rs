@@ -47,6 +47,8 @@ pub(super) fn capture_durability(player: &Player) -> Option<Vec<PlayerItemDurabi
 /// C++ Player.cpp:8034-8081 adds no obtain-spell item costs when the complete
 /// ItemEffect catalog contains no positive pickup effect for these contents.
 /// This receipt covers only resurrection completion, never full Item acknowledgement.
+/// RequestData is included only without an additional aura (Player.cpp:24922-24937;
+/// Spell::EffectResurrect supplies aura 0 at SpellEffects.cpp:3625).
 pub(super) fn resurrection_inventory_covered(
     player: &Player,
     inventory_items: Option<&[PlayerItemSaveLikeCpp]>,
@@ -65,7 +67,11 @@ pub(super) fn resurrection_inventory_covered(
                 current.phase == Phase::SavingPlayer
                     && matches!(
                         current.operation,
-                        Operation::ReclaimCorpse { .. } | Operation::SpiritHealer { .. }
+                        Operation::ReclaimCorpse { .. }
+                            | Operation::SpiritHealer { .. }
+                            | Operation::RequestData(
+                                wow_entities::PlayerResurrectionRequestLikeCpp { aura: 0, .. }
+                            )
                     )
             })
         || !player

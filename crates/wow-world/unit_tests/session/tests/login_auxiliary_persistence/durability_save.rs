@@ -6,16 +6,34 @@ use wow_persistence::{PlayerEquipmentInventoryLoadRowLikeCpp, PlayerInventoryIte
 
 #[tokio::test]
 async fn populated_login_loss_map_drain_and_partial_save_preserve_unrepresented_item_fields() {
-    for (outcome, concurrent) in [
-        (PersistenceOutcomeLikeCpp::Applied { rows: 1 }, false),
-        (PersistenceOutcomeLikeCpp::Applied { rows: 1 }, true),
-        (
-            PersistenceOutcomeLikeCpp::Failed {
-                reason: "controlled rollback".into(),
+    let operations = [
+        wow_entities::PlayerResurrectionOperation::ReclaimCorpse {
+            restore_percent: 0.5,
+        },
+        wow_entities::PlayerResurrectionOperation::RequestData(
+            wow_entities::PlayerResurrectionRequestLikeCpp {
+                resurrecter: ObjectGuid::create_player(1, 77),
+                map_id: 571,
+                position: wow_core::Position::ZERO,
+                health: 100,
+                mana: 0,
+                aura: 0,
             },
-            true,
         ),
-    ] {
+    ];
+    for (operation, outcome, concurrent) in operations.into_iter().flat_map(|operation| {
+        [
+            (PersistenceOutcomeLikeCpp::Applied { rows: 1 }, false),
+            (PersistenceOutcomeLikeCpp::Applied { rows: 1 }, true),
+            (
+                PersistenceOutcomeLikeCpp::Failed {
+                    reason: "controlled rollback".into(),
+                },
+                true,
+            ),
+        ]
+        .map(|(outcome, concurrent)| (operation, outcome, concurrent))
+    }) {
         let (mut session, _, output) = make_session();
         let owner = install_canonical_player_owner_for_test(&mut session, 571, 0);
         session.set_item_store(Arc::new(wow_data::ItemStore::from_records([
@@ -191,9 +209,7 @@ async fn populated_login_loss_map_drain_and_partial_save_preserve_unrepresented_
                 player
                     .resurrection_state_mut_like_cpp()
                     .delayed_after_teleport = Some(wow_entities::PlayerResurrectionContinuation {
-                    operation: wow_entities::PlayerResurrectionOperation::ReclaimCorpse {
-                        restore_percent: 0.5,
-                    },
+                    operation,
                     phase: wow_entities::PlayerResurrectionPhase::SavingPlayer,
                 });
             })

@@ -338,6 +338,22 @@ Stuck/cooldown behavior or comparator is changed. Fresh reference captures remai
 required after the combined QA/bot acceptance. Between cases the stable runtime
 is verified at PID 2173833, SHA `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`,
 with no packet dump enabled.
+
+The aura-zero RequestData save-receipt repair is implemented, UNVALIDATED.
+Production populated login keeps full Item authority incomplete, so the existing
+scoped proof previously admitted reclaim/healer but held accepted requests at
+SavingPlayer after corpse conversion. The same carried-load, coherent-position,
+known no-pickup ItemEffect and same-transaction absolute-durability proof now also
+admits RequestData only when its additional aura is zero (`Player.cpp:24897–24940`,
+`SpellEffects.cpp:3599–3627`). Full Item acknowledgement remains false; committed
+currency coverage, exact continuation/incarnation and all failure/unknown fences
+are preserved. Requests with nonzero aura and SelfRes remain excluded. Existing
+core/entity tables and the populated production-load/save regression cover that
+operation, rollback and concurrent dirty fields without duplicating its fixture.
+All known repairs are now implemented; freeze the committed candidate for one
+combined final/architecture, QA/bot, production-login and debug-build campaign.
+The required exhaustive terminal audit and remaining live pairs are separate
+costs and still outstanding.
 The QA repair now preserves strict pre-finish root/no-release/no-PreResurrect
 evidence and requires the subsequent saved ghost/corpse, with a distinct
 pre-login snapshot for reload epochs. It does not claim unreleased-dead DB

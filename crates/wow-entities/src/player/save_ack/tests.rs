@@ -128,17 +128,48 @@ fn resurrection_inventory_coverage_only_acknowledges_supported_phase_with_curren
         PlayerResurrectionPhase as Phase,
     };
     assert!(!PlayerSavedGroupsLikeCpp::default().resurrection_inventory_covered);
-    for operation in [
-        Operation::ReclaimCorpse {
-            restore_percent: 0.5,
-        },
-        Operation::SpiritHealer {
-            corpse_graveyard: None,
-        },
-        Operation::SelfRes {
-            health: 35,
-            mana: 0,
-        },
+    for (operation, supported) in [
+        (
+            Operation::ReclaimCorpse {
+                restore_percent: 0.5,
+            },
+            true,
+        ),
+        (
+            Operation::SpiritHealer {
+                corpse_graveyard: None,
+            },
+            true,
+        ),
+        (
+            Operation::RequestData(crate::PlayerResurrectionRequestLikeCpp {
+                resurrecter: ObjectGuid::create_player(1, 77),
+                map_id: 571,
+                position: wow_core::Position::ZERO,
+                health: 100,
+                mana: 0,
+                aura: 0,
+            }),
+            true,
+        ),
+        (
+            Operation::RequestData(crate::PlayerResurrectionRequestLikeCpp {
+                resurrecter: ObjectGuid::create_player(1, 77),
+                map_id: 571,
+                position: wow_core::Position::ZERO,
+                health: 100,
+                mana: 0,
+                aura: 1234,
+            }),
+            false,
+        ),
+        (
+            Operation::SelfRes {
+                health: 35,
+                mana: 0,
+            },
+            false,
+        ),
     ] {
         for currencies in [false, true] {
             let mut p = player();
@@ -168,17 +199,18 @@ fn resurrection_inventory_coverage_only_acknowledges_supported_phase_with_curren
                     ..Default::default()
                 },
             );
-            let allowed = currencies && !matches!(operation, Operation::SelfRes { .. });
+            let allowed = currencies && supported;
             assert_eq!(
-                p.resurrection_state_like_cpp()
-                    .delayed_after_teleport
-                    .unwrap()
-                    .phase,
-                if allowed {
-                    Phase::PlayerSaveApplied
-                } else {
-                    Phase::SavingPlayer
-                }
+                p.resurrection_state_like_cpp().delayed_after_teleport,
+                Some(PlayerResurrectionContinuation {
+                    phase: if allowed {
+                        Phase::PlayerSaveApplied
+                    } else {
+                        Phase::SavingPlayer
+                    },
+                    ..captured
+                }),
+                "only the exact supported continuation with committed currencies advances"
             );
             let item = &p.inventory_runtime_like_cpp().item_objects()[&guid];
             assert_eq!(item.update_state(), ItemUpdateState::Changed);

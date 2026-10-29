@@ -285,6 +285,30 @@ fn resurrection_partial_inventory_receipt_requires_known_no_pickup_contents_and_
         .create(guid);
     for (operation, phase, expected) in [
         (
+            Operation::RequestData(wow_entities::PlayerResurrectionRequestLikeCpp {
+                resurrecter: ObjectGuid::create_player(1, 77),
+                map_id: 571,
+                position: wow_core::Position::ZERO,
+                health: 100,
+                mana: 0,
+                aura: 0,
+            }),
+            Phase::SavingPlayer,
+            true,
+        ),
+        (
+            Operation::RequestData(wow_entities::PlayerResurrectionRequestLikeCpp {
+                resurrecter: ObjectGuid::create_player(1, 77),
+                map_id: 571,
+                position: wow_core::Position::ZERO,
+                health: 100,
+                mana: 0,
+                aura: 1234,
+            }),
+            Phase::SavingPlayer,
+            false,
+        ),
+        (
             Operation::SpiritHealer {
                 corpse_graveyard: None,
             },

@@ -161,6 +161,9 @@ impl Player {
                         captured.operation,
                         crate::PlayerResurrectionOperation::ReclaimCorpse { .. }
                             | crate::PlayerResurrectionOperation::SpiritHealer { .. }
+                            | crate::PlayerResurrectionOperation::RequestData(
+                                crate::PlayerResurrectionRequestLikeCpp { aura: 0, .. }
+                            )
                     )))
             && groups.currencies
             && let Some(current) = state.resurrection.delayed_after_teleport.as_mut()
