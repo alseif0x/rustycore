@@ -1,4 +1,5 @@
 use crate::entity_update_bridge::player_values_update_to_update_object;
+use crate::session::SessionState;
 use crate::session::mailbox::SessionCommand;
 use crate::session::set_active_player_update_bit_like_cpp;
 use crate::session::state::SessionCore;
@@ -9,6 +10,10 @@ use wow_entities::Player;
 use wow_entities::PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp;
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::misc::{BuyFailed, SellResponse};
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/publication/disconnected.rs"]
+mod disconnected;
 
 impl SessionCore {
     pub fn represented_void_storage_item_packet_like_cpp(
@@ -89,6 +94,9 @@ impl SessionCore {
     /// to tell a delivered packet from a discarded one. Callers that record a
     /// publication need the difference; the rest ignore the value as before.
     pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
+        if self.state == SessionState::Disconnecting {
+            return false;
+        }
         let data = pkt.to_bytes();
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
@@ -112,6 +120,9 @@ impl SessionCore {
     /// packet API. Object-owned loot uses it while holding its short authority
     /// mutex so a stalled client cannot block every concurrent claim/release.
     pub fn try_send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
+        if self.state == SessionState::Disconnecting {
+            return false;
+        }
         let data = pkt.to_bytes();
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
@@ -178,6 +189,9 @@ impl SessionCore {
     /// Used for packets with dynamic opcodes (e.g. `SetSpellModifier`
     /// which uses the same struct for Flat and Pct variants).
     pub fn send_raw_packet(&self, data: &[u8]) {
+        if self.state == SessionState::Disconnecting {
+            return;
+        }
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             let opcode_text = data
                 .get(0..2)

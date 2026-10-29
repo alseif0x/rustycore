@@ -448,6 +448,29 @@ binaries and evidence remain. Record:
 `/tmp/rustycore43-inactive-cache-cleanup-dut3rpm3/record.json`. Free space is
 about 2.3 GiB, still below the headroom aim; additional builds remain monitored.
 
+At `ad9692ee2`, final passed again in 356.869 seconds; manifest:
+`target/validation-v2/manifests/20261029T032359.766239Z-1684948-final.json`.
+Login-owner integration completed 38 cases, then three positive disconnect
+cases blocked on saturated output. The parent terminated only that owned test
+binary; its PID, hash, verified parent/lock ownership and signal are recorded
+in `/tmp/rustycore43-final-20261029-875r9cyr/production-login-test-termination.json`.
+No complete integration verdict is claimed. The attempt took 512.068 seconds;
+323.062 seconds of unchanged required evidence were credited separately, so
+the complete ordinary acceptance budget is not met. Candidate builds did not run.
+
+The new finding is production send admission: native resurrection reaches a
+blocking realm enqueue after disconnect. C++ closes both sockets on Kick
+(`WorldSession.cpp:698–710`) and rejects a closed socket before enqueue
+(`WorldSocket.cpp:526–534`), while completing native logout work. The bounded
+repair uses the existing Disconnecting state at the five typed/raw client-send
+entries and admits Disconnect mode before its native-transfer step. Connected
+explicit/timed logout, packet bytes/routes, backpressure and peer publication
+retain their contracts. Three native movement self-enqueues now use that same
+guarded raw API; flags, movement counters and peer fanout remain ordered.
+A Core regression uses empty/full separate output queues
+and bounded completion; the three existing integration cases retain saturated
+output. This repair still requires complete committed-candidate acceptance.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

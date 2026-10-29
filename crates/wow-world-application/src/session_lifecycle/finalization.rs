@@ -144,6 +144,9 @@ async fn finalize_session_with_catalogs<H: SessionLifecycleHostLikeCpp>(
         !no_player,
         hub.core.player_handle_like_cpp,
     ));
+    if mode == FinalizationMode::Disconnect {
+        host.set_state(SessionState::Disconnecting);
+    }
 
     while let Some(step) = host.lifecycle_mut().finalization().unwrap().next_step() {
         if !begin_finalization_step_like_cpp(host.lifecycle_mut(), step) {

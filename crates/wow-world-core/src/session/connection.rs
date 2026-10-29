@@ -108,6 +108,9 @@ impl crate::session::state::SessionCore {
 
     /// Send a server packet on the **realm** connection.
     pub fn send_packet_realm(&self, pkt: &impl wow_packet::ServerPacket) {
+        if self.state == crate::session::SessionState::Disconnecting {
+            return;
+        }
         self.transport
             .connection
             .send_realm_bytes(pkt.to_bytes(), self.account_id);
@@ -115,6 +118,9 @@ impl crate::session::state::SessionCore {
 
     /// Send pre-serialized packet bytes on the realm connection.
     pub fn send_raw_packet_realm(&self, data: &[u8]) {
+        if self.state == crate::session::SessionState::Disconnecting {
+            return;
+        }
         self.transport
             .connection
             .send_raw_packet_realm(data, self.account_id);

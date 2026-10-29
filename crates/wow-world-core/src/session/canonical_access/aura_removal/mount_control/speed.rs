@@ -5,7 +5,6 @@ use super::{AuraMountControlAccessLikeCpp, PlayerAuraRemovalAccessLikeCpp};
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 use crate::session::movement_protocol::{PLAYER_BASE_MOVE_SPEED_LIKE_CPP, UnitMoveTypeLikeCpp};
 use std::time::Instant;
-use tracing::warn;
 use wow_constants::{MovementFlag, ServerOpcodes};
 use wow_core::ObjectGuid;
 use wow_entities::RepresentedAuraEffectLikeCpp;
@@ -157,9 +156,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
             sequence_index,
         }
         .to_bytes();
-        if self.core.send_tx().send(self_packet).is_err() {
-            warn!("Send channel closed for account {}", self.core.account_id);
-        }
+        self.core.send_raw_packet(&self_packet);
 
         let Some(status) = self.current_player_movement_info_like_cpp(player_guid) else {
             return;
@@ -313,10 +310,8 @@ impl crate::session::state::SessionCore {
             .map(|key| key.instance_id)
             .unwrap_or(0);
 
-        if self.client_visible_guids_like_cpp.contains(&pet_guid)
-            && self.send_tx().send(packet_bytes.clone()).is_err()
-        {
-            warn!("Send channel closed for account {}", self.account_id);
+        if self.client_visible_guids_like_cpp.contains(&pet_guid) {
+            self.send_raw_packet(&packet_bytes);
         }
 
         let (Some(player_guid), Some(registry)) = (self.player_guid(), self.player_registry())
@@ -635,9 +630,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
             speed,
         }
         .to_bytes();
-        if self.core.send_tx().send(self_packet).is_err() {
-            warn!("Send channel closed for account {}", self.core.account_id);
-        }
+        self.core.send_raw_packet(&self_packet);
 
         let Some(status) = self.current_player_movement_info_like_cpp(player_guid) else {
             return;
