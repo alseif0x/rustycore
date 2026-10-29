@@ -212,7 +212,34 @@ pub(super) fn fixture() -> GhostFixture {
     let player = ObjectGuid::create_player(1, 96_110);
     session.set_player_guid(Some(player));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let canonical = shared_canonical_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    let handle = {
+        let mut manager = canonical.lock().expect("canonical manager");
+        manager.create_world_map(571, 0);
+        let mut source = Box::new(wow_entities::Player::new(Some(1), false));
+        source.unit_mut().world_mut().object_mut().create(player);
+        let handle = manager
+            .install_detached_player_like_cpp(source)
+            .expect("install Ghost fixture's canonical Player owner");
+        manager
+            .attach_player_like_cpp(handle, wow_map::MapKey::new(571, 0), Position::ZERO)
+            .expect("C++ Map::AddPlayerToMap indexes the Ghost fixture source");
+        assert!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .nearby_cell_guids_like_cpp(0.0, 0.0, 0.0)
+                .world
+                .players
+                .contains(&player)
+        );
+        handle
+    };
+    session.core.player_handle_like_cpp = Some(handle);
+    session.core.player_identity_bootstrap_like_cpp = None;
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 0);
     crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
         &mut session,
     );
@@ -239,12 +266,6 @@ pub(super) fn fixture() -> GhostFixture {
     });
     install_spell_catalog(&mut session, []);
     install_wisp_templates(&mut session, &[(WISP_TEMPLATE, 1_825)]);
-    let canonical = session
-        .core
-        .canonical_map_manager
-        .as_ref()
-        .cloned()
-        .expect("canonical Player manager");
     {
         let mut manager = canonical.lock().expect("canonical manager");
         manager
@@ -257,7 +278,7 @@ pub(super) fn fixture() -> GhostFixture {
             .set_display_id(1_000, true);
         let _ = manager.update(1);
     }
-    session.core.client_visible_guids_like_cpp.insert(player);
+    // C++ HaveAtClient(self) is special; Map::AddPlayerToMap clears the discovery ledger.
     let _ = send_rx.try_iter().collect::<Vec<_>>();
     GhostFixture {
         session,

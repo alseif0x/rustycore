@@ -478,18 +478,37 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     let mut other_info = broadcast_info(other_player_guid, other_tx);
     other_info.placement.map_id = 571;
     other_info.placement.position = Position::new(50.0, 50.0, 0.0, 0.0);
-    add_canonical_test_player_on_map(
-        &canonical,
-        other_player_guid,
-        other_info.placement.position,
-        571,
-        0,
-    );
-    let peer_handle = canonical
-        .lock()
-        .unwrap()
-        .adopt_active_player_like_cpp(other_player_guid)
-        .expect("visible peer has a canonical Player owner");
+    let peer_handle = {
+        let mut manager = canonical.lock().unwrap();
+        let mut peer = Box::new(wow_entities::Player::new(Some(1), false));
+        peer.unit_mut().world_mut().object_mut().create(other_player_guid);
+        peer.unit_mut().world_mut().set_name("InstanceOwner");
+        let handle = manager
+            .install_detached_player_like_cpp(peer)
+            .expect("visible peer has a canonical Player owner");
+        manager
+            .attach_player_like_cpp(
+                handle,
+                wow_map::MapKey::new(571, 0),
+                other_info.placement.position,
+            )
+            .expect("C++ Map::AddPlayerToMap indexes the visible peer");
+        assert!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .nearby_cell_guids_like_cpp(
+                    other_info.placement.position.x,
+                    other_info.placement.position.y,
+                    0.0,
+                )
+                .world
+                .players
+                .contains(&other_player_guid)
+        );
+        handle
+    };
     let identity = other_info.identity;
     other_info.identity = PlayerDirectoryIdentityLikeCpp::new_with_bnet(
         identity.player_name,

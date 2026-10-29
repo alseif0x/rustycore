@@ -287,6 +287,15 @@ The private save helper is now named `item_capture`, with the same physical
 This repair remains unvalidated; exact policy/count reconciliation is deferred
 until the remaining World fixtures are repaired together.
 
+The seven-case visibility repair now gives the Ghost source and map peer
+native cell membership, retains exact Player handles and clears the replaced
+bootstrap identity. Exit cleanup reuses its registry's MapManager. SelfRes
+checks completed forced scanning rather than the non-forced notification bit;
+the Ghost discovery ledger excludes self. Stationary recipient obligations,
+both peer GUID assertions, real Ghost removal and deferred native VALUES remain
+asserted. Anchors: `Player.cpp:23322–23343,23029`, `Map.cpp:427,450,777,1929`.
+These five test-source edits are unvalidated; no production behavior changed.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

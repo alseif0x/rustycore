@@ -58,6 +58,7 @@ fn configure_native_self_resurrect_player_like_cpp(
             player.clear_data_changes();
         })
         .expect("canonical Player owns the SelfRes field");
+    assert_eq!(session.visibility.last_visibility_pos_like_cpp(), None);
 }
 
 fn publish_native_resurrection_values_from_map_like_cpp(
@@ -87,7 +88,11 @@ fn publish_native_resurrection_values_from_map_like_cpp(
                 object.is_object_updated(),
                 "native setters mark the Map owner"
             );
-            assert!(object.is_need_notify(wow_entities::ObjectNotifyFlags::VISIBILITY_CHANGED));
+            assert_eq!(
+                session.visibility.last_visibility_pos_like_cpp(),
+                Some(player.unit().world().position()),
+                "C++ forced visibility completes before the Map publishes native fields"
+            );
             [
                 PowerType::Mana,
                 PowerType::Rage,

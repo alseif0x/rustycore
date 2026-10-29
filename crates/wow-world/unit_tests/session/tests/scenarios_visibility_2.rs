@@ -529,20 +529,32 @@ fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
     let (nearby_command_tx, nearby_command_rx) = flume::bounded(1);
 
     session.set_player_guid(Some(guid));
-    let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+    let canonical = registry
+        .fixture_canonical_map_manager_like_cpp()
+        .expect("registry and cleanup session share one canonical MapManager");
     session.set_canonical_map_manager(Arc::clone(&canonical));
     assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     session.set_player_registry(Arc::clone(&registry));
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::ZERO);
-    add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 0, 0);
-    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    let self_handle = {
+        let mut manager = canonical.lock().unwrap();
+        manager.create_world_map(0, 0);
+        let mut player = Box::new(wow_entities::Player::new(Some(1), false));
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_name("InstanceOwner");
+        let handle = manager
+            .install_detached_player_like_cpp(player)
+            .expect("cleanup session owns its canonical Player");
+        manager
+            .attach_player_like_cpp(handle, wow_map::MapKey::new(0, 0), Position::ZERO)
+            .expect("cleanup Player enters the native map and cell");
+        handle
+    };
+    session.core.player_handle_like_cpp = Some(self_handle);
+    session.core.player_identity_bootstrap_like_cpp = None;
 
     let (self_tx, _self_rx) = flume::bounded(1);
-    let self_handle = session
-        .core
-        .player_handle_like_cpp
-        .expect("cleanup session owns its canonical Player handle");
     // Cleanup unregisters through the owning control channel (#243), so this
     // session's own entry must carry its command sender.
     let mut self_info = broadcast_info_with_command(guid, self_tx, session.session_command_tx());

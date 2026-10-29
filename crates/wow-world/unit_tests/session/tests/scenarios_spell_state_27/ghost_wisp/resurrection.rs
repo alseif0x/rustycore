@@ -268,6 +268,14 @@ async fn resurrection_native_failure_holds_when_applied_order_reference_is_missi
 #[tokio::test]
 async fn resurrection_request_clears_ghost_and_wisp_before_completing() {
     let mut fixture = fixture();
+    assert!(
+        !fixture
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&fixture.player),
+        "C++ HaveAtClient(self) does not seed the discovery ledger"
+    );
     cast_selected(&mut fixture, WISP, None).await;
     cast_selected(&mut fixture, GHOST, None).await;
     outgoing(&fixture);
@@ -302,6 +310,11 @@ async fn resurrection_request_clears_ghost_and_wisp_before_completing() {
     assert_eq!(fixture.session.player_health_like_cpp(), 450);
     assert_eq!(selected_slots(&fixture), (None, None));
     assert_eq!(continuation_phase(&fixture), None);
+    assert_eq!(
+        fixture.session.visibility.last_visibility_pos_like_cpp(),
+        Some(Position::ZERO),
+        "forced visibility completes while native health and power VALUES remain dirty"
+    );
     let direct_packets = outgoing(&fixture);
     assert!(
         direct_packets
@@ -447,6 +460,7 @@ async fn kill_player_forces_stationary_self_and_recipient_visibility_like_cpp() 
         None,
         false,
     );
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut observer.session, 0);
     let source_position = fixture
         .session
         .core
@@ -540,6 +554,15 @@ async fn kill_player_forces_stationary_self_and_recipient_visibility_like_cpp() 
         "forced visibility does not move the recipient"
     );
 
+    assert!(
+        observer
+            .session
+            .core
+            .flags
+            .visibility_refresh_pending_like_cpp
+            .load(std::sync::atomic::Ordering::Acquire),
+        "the stationary recipient retains the forced visibility obligation before its pump"
+    );
     super::observers::flush_observer(&mut observer).await;
     assert!(
         observer
@@ -569,6 +592,7 @@ async fn resurrection_forces_stationary_self_and_recipient_visibility_like_cpp()
         None,
         false,
     );
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut observer.session, 0);
     cast_selected(&mut fixture, GHOST, None).await;
     assert!(selected_slots(&fixture).0.is_some(), "Ghost Aura is active");
     let _ = outgoing(&fixture);
@@ -659,6 +683,15 @@ async fn resurrection_forces_stationary_self_and_recipient_visibility_like_cpp()
         "forced visibility does not move the recipient"
     );
 
+    assert!(
+        observer
+            .session
+            .core
+            .flags
+            .visibility_refresh_pending_like_cpp
+            .load(std::sync::atomic::Ordering::Acquire),
+        "the stationary recipient retains the forced visibility obligation before its pump"
+    );
     super::observers::flush_observer(&mut observer).await;
     assert!(
         observer
