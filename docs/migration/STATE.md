@@ -88,6 +88,18 @@ Durability loss marks the canonical item Changed together with its new value.
 QA now requires the real fall/recovery equipment/backpack values 34/40 and
 the source-derived healer values 19/25. Native item publication is the remaining
 part of this repair; no new direct UI packet was added at the mutation site.
+Native durability publication is now implemented, also UNVALIDATED. A private
+GUID queue in the canonical Player inventory records only pending publication
+work, without copying durability values or adding a runtime owner or lock.
+The existing Map VALUES snapshot reads the current Item value and the viewer
+adapter batches owner-only Item blocks before the Player block. Removed,
+replaced or foreign-owned items cannot redirect a queued update; repeated loss
+coalesces to the latest value. Unrelated Item dirty fields and the existing
+repair publication path are preserved. The native healer's separate immediate
+Item send is retired to avoid duplicate publication. Source anchors are
+`Item.cpp:1315–1320,1419–1426` and `Map.cpp:1930–1948`; authored regression
+coverage includes owner/peer filtering, exact mask0/12, batching, item-only
+updates and one-time consumption on the existing Map rail.
 
 Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
 ignored), Application (31), Entities (2), Spell (181), bot (248), production

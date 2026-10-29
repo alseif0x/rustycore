@@ -7,9 +7,10 @@ use wow_entities::{
     PlayerValuesUpdate, TYPEID_ACTIVE_PLAYER, TYPEID_OBJECT, TYPEID_PLAYER, TYPEID_UNIT,
     UnitValuesUpdate, UpdateFieldSectionKind, UpdateFieldVisibilityFlags, filter_disallowed_fields,
 };
-use wow_packet::ServerPacket;
+use wow_packet::{ServerPacket, packets::update::UpdateObject};
 use wow_world_core::entity_update_bridge::{
-    player_values_update_to_update_object, unit_values_update_to_update_object,
+    item_values_update_to_update_object, player_values_update_to_update_object,
+    unit_values_update_to_update_object,
 };
 use wow_world_core::session::HubMut;
 
@@ -165,6 +166,12 @@ impl VisibilityState {
             if !viewer.unit().world().object().is_in_world() {
                 return 0;
             }
+            let viewer_is_current_owner = hub.core.player_handle_like_cpp.is_some_and(|handle| {
+                handle.guid() == viewer_guid
+                    && manager
+                        .with_player_like_cpp(handle, |owned| std::ptr::eq(owned, viewer))
+                        .unwrap_or(false)
+            });
             let viewer_world = viewer.unit().world();
             let viewer_phase = viewer_world.phase_shift().clone();
             let viewer_position = viewer_world.position();
@@ -220,12 +227,44 @@ impl VisibilityState {
                             source_group_guid,
                         ),
                 );
-                let Some(update) = player_values_update_to_update_object(
+                let mut blocks = Vec::new();
+                if source_is_viewer && viewer_is_current_owner {
+                    for (item_guid, item_update) in represented_update.owned_item_durability_updates
+                    {
+                        let current_item = viewer
+                            .inventory_runtime_like_cpp()
+                            .item_objects()
+                            .get(&item_guid);
+                        if !current_item.is_some_and(|item| {
+                            item.object().guid() == item_guid && item.owner_guid() == viewer_guid
+                        }) {
+                            continue;
+                        }
+                        if let Some(update) = item_values_update_to_update_object(
+                            item_guid,
+                            packet_map_id,
+                            &item_update,
+                        ) {
+                            blocks.extend(update.blocks);
+                        }
+                    }
+                }
+                if let Some(update) = player_values_update_to_update_object(
                     source_guid,
                     packet_map_id,
                     &values_update,
-                ) else {
+                ) {
+                    blocks.extend(update.blocks);
+                }
+                if blocks.is_empty() {
                     continue;
+                }
+                let update = UpdateObject {
+                    map_id: packet_map_id,
+                    num_updates: blocks.len() as u32,
+                    blocks,
+                    destroy_guids: Vec::new(),
+                    out_of_range_guids: Vec::new(),
                 };
                 packets.push((source_guid, update.to_bytes()));
             }

@@ -11,10 +11,14 @@
 use wow_constants::ItemUpdateState;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
-    ItemDataUpdate, ItemValuesUpdate, TYPEID_ITEM, UpdateMask, is_equipment_packed_pos,
-    make_item_pos,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, is_equipment_packed_pos, make_item_pos,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_entities::{
+    ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT, ItemDataUpdate, ItemValuesUpdate, TYPEID_ITEM,
+    UpdateMask,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::entity_update_bridge::item_values_update_to_update_object;
 
 use super::item_mods::{
@@ -44,8 +48,8 @@ pub fn apply_represented_durability_loss_all_like_cpp<H: VendorSessionHostLikeCp
     affected
 }
 
-/// Spirit-healer `Player::DurabilityLossAll(0.25f, true)` with item and stat
-/// publication at the WorldSession boundary.
+/// Spirit-healer `Player::DurabilityLossAll(0.25f, true)`; native item VALUES
+/// are batched by the owner's Map, while stat callbacks retain their order.
 pub fn apply_spirit_healer_durability_loss<H: VendorSessionHostLikeCpp>(host: &mut H) -> usize {
     let targets = {
         let (state, hub) = host.split_inventory_ref();
@@ -66,38 +70,32 @@ pub fn apply_spirit_healer_durability_loss<H: VendorSessionHostLikeCpp>(host: &m
             continue;
         }
         affected += 1;
-        let _ = {
-            let (state, mut hub) = host.split_inventory_mut();
-            state.apply_inventory_item_object_updates_like_cpp(
-                &mut hub,
-                item_guid,
-                &[wow_entities::ItemObjectUpdateLikeCpp::SetState(
-                    ItemUpdateState::Changed,
-                )],
-            )
-        };
 
         if let Some(item) = {
             let (state, hub) = host.split_inventory_ref();
             state.resolved_inventory_item_object_like_cpp(hub, item_guid)
         } {
             equipped_became_broken |= equipped && !was_broken && item.is_broken();
-            let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
-            item_data_mask.set(ITEM_DATA_DURABILITY_BIT);
-            let durability_update = ItemValuesUpdate {
-                changed_object_type_mask: 1 << TYPEID_ITEM,
-                object_data: None,
-                item_data: Some(ItemDataUpdate {
-                    mask: item_data_mask,
-                    values: item.data().clone(),
-                }),
-            };
-            if let Some(update) = item_values_update_to_update_object(
-                item_guid,
-                host.core().player_map_id_like_cpp(),
-                &durability_update,
-            ) {
-                host.send_packet(&update);
+            // Handle-less legacy fixtures have no native Map publication owner.
+            #[cfg(any(test, feature = "test-fixtures"))]
+            if host.core().player_handle_like_cpp.is_none() {
+                let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
+                item_data_mask.set(ITEM_DATA_DURABILITY_BIT);
+                let durability_update = ItemValuesUpdate {
+                    changed_object_type_mask: 1 << TYPEID_ITEM,
+                    object_data: None,
+                    item_data: Some(ItemDataUpdate {
+                        mask: item_data_mask,
+                        values: item.data().clone(),
+                    }),
+                };
+                if let Some(update) = item_values_update_to_update_object(
+                    item_guid,
+                    host.core().player_map_id_like_cpp(),
+                    &durability_update,
+                ) {
+                    host.send_packet(&update);
+                }
             }
         }
     }
@@ -241,6 +239,7 @@ fn apply_represented_durability_points_loss_like_cpp<H: VendorSessionHostLikeCpp
                     u32::try_from(new_durability).unwrap_or(0),
                 ),
                 wow_entities::ItemObjectUpdateLikeCpp::SetState(ItemUpdateState::Changed),
+                wow_entities::ItemObjectUpdateLikeCpp::QueueDurabilityUpdate,
             ],
         )
     };

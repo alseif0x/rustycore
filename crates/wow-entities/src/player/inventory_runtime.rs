@@ -14,7 +14,7 @@ use super::{
 };
 use crate::Item;
 use crate::SocketedGem;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use wow_core::ObjectGuid;
 
 /// Concrete item/object runtime owned by the canonical Player.
@@ -33,6 +33,7 @@ pub struct PlayerInventoryRuntime {
     buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     current_buyback_slot: u8,
     item_objects: HashMap<ObjectGuid, Item>,
+    pending_durability_updates: HashSet<ObjectGuid>,
 }
 
 /// A closed set of item-object mutations owned by the canonical Player.
@@ -49,6 +50,7 @@ pub enum ItemObjectUpdateLikeCpp {
     SetSlot(u8),
     SetCount(u32),
     SetDurability(u32),
+    QueueDurabilityUpdate,
     SetMaxDurability(u32),
     SetExpiration(u32),
     SetLootGenerated(bool),
@@ -122,6 +124,7 @@ impl PlayerInventoryRuntime {
     pub fn clear_items_and_objects_like_cpp(&mut self) {
         self.inventory_items.clear();
         self.item_objects.clear();
+        self.pending_durability_updates.clear();
     }
 
     /// Refresh the entry and inventory type recorded for one slot, only when
@@ -264,6 +267,7 @@ impl PlayerInventoryRuntime {
     /// Returns any object already held under the same guid.
     pub fn store_item_object_like_cpp(&mut self, item: Item) -> Option<Item> {
         let item_guid = item.object().guid();
+        self.pending_durability_updates.remove(&item_guid);
         self.item_objects.insert(item_guid, item)
     }
 
@@ -272,6 +276,7 @@ impl PlayerInventoryRuntime {
     /// `Player::RemoveItem` (:11553). Returns the released object so the caller
     /// can finish whatever C++ does with the pointer it took out.
     pub fn remove_item_object_like_cpp(&mut self, item_guid: ObjectGuid) -> Option<Item> {
+        self.pending_durability_updates.remove(&item_guid);
         self.item_objects.remove(&item_guid)
     }
 
@@ -281,6 +286,13 @@ impl PlayerInventoryRuntime {
 
     pub fn item_objects_mut(&mut self) -> &mut HashMap<ObjectGuid, Item> {
         &mut self.item_objects
+    }
+
+    /// Consume identities at the owning Map's existing VALUES snapshot phase.
+    pub fn take_pending_durability_update_guids_like_cpp(&mut self) -> Vec<ObjectGuid> {
+        let mut guids = self.pending_durability_updates.drain().collect::<Vec<_>>();
+        guids.sort_unstable();
+        guids
     }
 
     /// Apply one complete, owner-defined sequence of item-object mutations.
@@ -304,6 +316,9 @@ impl PlayerInventoryRuntime {
                 ItemObjectUpdateLikeCpp::SetCount(count) => item.set_count(*count),
                 ItemObjectUpdateLikeCpp::SetDurability(durability) => {
                     item.set_durability(*durability)
+                }
+                ItemObjectUpdateLikeCpp::QueueDurabilityUpdate => {
+                    self.pending_durability_updates.insert(item_guid);
                 }
                 ItemObjectUpdateLikeCpp::SetMaxDurability(max_durability) => {
                     item.set_max_durability(*max_durability)
@@ -351,6 +366,7 @@ impl PlayerInventoryRuntime {
                     let _ = item.set_state(*state);
                 }
                 ItemObjectUpdateLikeCpp::Replace(replacement) => {
+                    self.pending_durability_updates.remove(&item_guid);
                     *item = replacement.as_ref().clone();
                 }
                 ItemObjectUpdateLikeCpp::RelocateBagExchangeChild {
@@ -389,6 +405,23 @@ impl PlayerInventoryRuntime {
     }
 }
 
+impl super::Player {
+    /// Item.cpp:1419-1426 queues owned item changes on the owner's Map.
+    pub fn with_inventory_runtime_mut_like_cpp<R>(
+        &mut self,
+        update: impl FnOnce(&mut PlayerInventoryRuntime) -> R,
+    ) -> R {
+        let result = update(&mut self.inventory_runtime);
+        if !self.inventory_runtime.pending_durability_updates.is_empty() {
+            self.unit_mut()
+                .world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
+        }
+        result
+    }
+}
+
 impl Default for PlayerInventoryRuntime {
     fn default() -> Self {
         Self {
@@ -399,6 +432,7 @@ impl Default for PlayerInventoryRuntime {
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             current_buyback_slot: BUYBACK_SLOT_START,
             item_objects: HashMap::new(),
+            pending_durability_updates: HashSet::new(),
         }
     }
 }
@@ -408,6 +442,92 @@ mod tests {
     use super::*;
     use crate::ItemCreateInfo;
     use wow_constants::ItemContext;
+
+    #[test]
+    fn durability_queue_coalesces_and_follows_item_lifetime() {
+        let guid = ObjectGuid::create_item(1, 703);
+        let owner = ObjectGuid::create_player(1, 42);
+        let mut player = super::super::Player::new(Some(42), false);
+        player.unit_mut().world_mut().object_mut().create(owner);
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        let mut item = Item::default();
+        item.object_mut().create(guid);
+        item.set_owner_guid(owner);
+        item.set_max_durability(60);
+        item.set_durability(40);
+        item.force_state(ItemUpdateState::Unchanged);
+        player
+            .inventory_runtime_mut_like_cpp()
+            .store_item_object_like_cpp(item.clone());
+        player.clear_data_changes();
+        assert!(player.with_inventory_runtime_mut_like_cpp(|runtime| {
+            runtime.apply_item_object_updates_like_cpp(
+                guid,
+                &[ItemObjectUpdateLikeCpp::SetDurability(39)],
+            )
+        }));
+        assert!(
+            !player.unit().world().object().is_object_updated(),
+            "ordinary durability setters used by repair retain their publication owner"
+        );
+        for durability in [34, 19] {
+            assert!(player.with_inventory_runtime_mut_like_cpp(|runtime| {
+                runtime.apply_item_object_updates_like_cpp(
+                    guid,
+                    &[
+                        ItemObjectUpdateLikeCpp::SetDurability(durability),
+                        ItemObjectUpdateLikeCpp::SetState(ItemUpdateState::Changed),
+                        ItemObjectUpdateLikeCpp::QueueDurabilityUpdate,
+                    ],
+                )
+            }));
+        }
+        assert!(player.unit().world().object().is_object_updated());
+        let runtime = player.inventory_runtime_mut_like_cpp();
+        assert_eq!(runtime.item_objects()[&guid].data().durability, 19);
+        assert_eq!(
+            runtime.item_objects()[&guid].update_state(),
+            ItemUpdateState::Changed
+        );
+        assert_eq!(
+            runtime.take_pending_durability_update_guids_like_cpp(),
+            vec![guid]
+        );
+        assert!(
+            runtime
+                .take_pending_durability_update_guids_like_cpp()
+                .is_empty()
+        );
+        for removal in 0..3 {
+            runtime.apply_item_object_updates_like_cpp(
+                guid,
+                &[ItemObjectUpdateLikeCpp::QueueDurabilityUpdate],
+            );
+            match removal {
+                0 => {
+                    runtime.store_item_object_like_cpp(item.clone());
+                }
+                1 => {
+                    runtime.apply_item_object_updates_like_cpp(
+                        guid,
+                        &[ItemObjectUpdateLikeCpp::Replace(Box::new(item.clone()))],
+                    );
+                }
+                _ => {
+                    runtime.remove_item_object_like_cpp(guid);
+                }
+            }
+            assert!(
+                runtime
+                    .take_pending_durability_update_guids_like_cpp()
+                    .is_empty()
+            );
+        }
+        assert!(!runtime.apply_item_object_updates_like_cpp(
+            guid,
+            &[ItemObjectUpdateLikeCpp::QueueDurabilityUpdate]
+        ));
+    }
 
     #[test]
     fn item_object_commands_apply_inside_the_player_owner() {
