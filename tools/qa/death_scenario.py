@@ -522,20 +522,17 @@ def validate_state(scenario: str, epoch: int, actor: dict[str, Any],
     owned_corpses = [item for item in corpse_rows
                      if owner_index >= 0 and len(item) == len(corpse_columns)
                      and item[owner_index] == str(actor["guid"])]
-    ghost_required = scenario in {"fall-release", "automatic-release", "recovery-ghost"} or (
-        scenario == "wisp" and epoch == 1)
+    # WorldSession.cpp:558-565 releases a running death timer during LogoutPlayer,
+    # including disconnect cleanup, before the offline character save.
+    ghost_required = scenario in {"fall-release", "automatic-release", "recovery-ghost",
+                                   "mob", "recovery-dead", "stuck-death"} or (
+        scenario in {"wisp", "offer"} and epoch == 1)
     alive_required = scenario in {"reclaim", "healer", "reincarnation", "stuck-home"} or (
         (scenario == "wisp" or scenario == "offer") and epoch == 2)
-    if scenario == "recovery-dead" and epoch == 2:
-        ghost_required = False
     if ghost_required and (health != 1 or not flags & PLAYER_GHOST or len(owned_corpses) != 1):
         raise ScenarioFailure("released ghost must persist health one, the ghost flag, and one owned corpse")
     if alive_required and (health <= 0 or flags & PLAYER_GHOST or owned_corpses):
         raise ScenarioFailure("required alive state or corpse cleanup was not persisted")
-    unreleased_dead = scenario in {"mob", "recovery-dead", "stuck-death"} or (
-        scenario == "offer" and epoch == 1)
-    if unreleased_dead and (health != 0 or flags & PLAYER_GHOST or owned_corpses):
-        raise ScenarioFailure("unreleased dead state must have zero health, no ghost flag, and no owned corpse")
     return {"guid": actor["guid"], "health": health, "player_flags": flags,
             "ghost": bool(flags & PLAYER_GHOST), "owned_corpse_count": len(owned_corpses),
             "position": {key: row.get(key) for key in
@@ -568,6 +565,65 @@ def _save_snapshot(db: death_fixture.MariaDB, journal: dict[str, Any], actor: di
 def _events(evidence: dict[str, Any], opcode: int) -> list[dict[str, Any]]:
     return [event for event in evidence.get("events", [])
             if isinstance(event, dict) and event.get("opcode") == opcode]
+
+
+def _validate_death_shutdown_evidence(scenario: str, epoch: int, plan: dict[str, Any],
+                                      evidence: dict[str, Any], observation: dict[str, Any],
+                                      reload_input: dict[str, Any] | None = None) -> None:
+    new_death = epoch == 1 and scenario in {"mob", "offer", "recovery-dead", "stuck-death"}
+    reload_ghost = epoch == 2 and scenario in {"recovery-dead", "stuck-death"}
+    if not new_death and not reload_ghost:
+        return
+    trace = evidence.get("trace", [])
+    if (any(action.get("action") == "release_spirit" for action in plan.get("actions", []))
+            or any(packet.get("action") == "release_spirit"
+                   for packet in evidence.get("sent_packets", []))
+            or any(item.get("action") == "release_spirit" for item in trace)):
+        raise ScenarioFailure("unreleased-death plan sent or scheduled an explicit manual release")
+    finish = plan.get("finish_policy")
+    starts = [item for item in trace if item.get("kind") == "action_started"
+              and item.get("action") == f"finish_{finish}"
+              and type(item.get("sequence")) is int and item["sequence"] >= 0]
+    if finish not in {"logout", "disconnect"} or len(starts) != 1:
+        raise ScenarioFailure("death plan lacks its exact native shutdown boundary")
+    boundary = starts[0]["sequence"]
+    packets = [item for item in trace
+               if item.get("kind") in {"packet_observed", "packet_redacted"}
+               and type(item.get("sequence")) is int and item["sequence"] >= 0]
+    pre_res = [item["sequence"] for item in packets if item.get("opcode") == PRE_RESURRECT]
+    if new_death:
+        for event in _events(evidence, PRE_RESURRECT):
+            if not any(item.get("opcode") == PRE_RESURRECT
+                       and item.get("event_sequence") == event.get("sequence")
+                       and event.get("sequence") is not None for item in packets):
+                raise ScenarioFailure("PreResurrect evidence lacks its ordered packet trace")
+        roots = [item["sequence"] for item in packets if item.get("opcode") == MOVE_ROOT
+                 and item.get("connection") == "instance" and item["sequence"] < boundary]
+        if not roots:
+            raise ScenarioFailure("native death/root was not observed before finish began")
+        if any(sequence < boundary for sequence in pre_res):
+            raise ScenarioFailure("unreleased death received PreResurrect before finish began")
+        observation["pre_shutdown"] = {
+            "phase": "PreShutdown", "state": "unreleased_death", "proof": "wire",
+            "root_trace_sequences": roots, "finish_started_trace_sequence": boundary,
+            "manual_release_sent": False, "pre_resurrect_before_finish": False,
+        }
+    else:
+        state = (reload_input or {}).get("state", {})
+        if (state.get("guid") != plan.get("character_guid") or state.get("health") != 1
+                or state.get("ghost") is not True or state.get("owned_corpse_count") != 1):
+            raise ScenarioFailure("reload epoch lacks its owned persisted ghost/corpse input")
+        observation["pre_shutdown"] = {
+            "phase": "PreShutdown", "state": "persisted_ghost", "proof": "pre_login_snapshot",
+            "reload_input": reload_input, "finish_started_trace_sequence": boundary,
+            "manual_release_sent": False,
+        }
+    observation["shutdown_persistence_phase"] = {
+        "phase": "ShutdownPersistencePhase", "finish_policy": finish,
+        "offline_state": observation["state"],
+        "pre_resurrect_during_finish_trace_sequences": [sequence for sequence in pre_res
+                                                        if sequence > boundary],
+    }
 
 
 def _owned_spell_cooldowns(snapshot: dict[str, Any], actor: dict[str, Any]) -> list[dict[str, int]]:
@@ -975,11 +1031,19 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
         actor = actors[actor_name]
         pass_ = BotPass(actor, plan_for(scenario, epoch, actor, realm_id, durability_percent),
                         f"{scenario}-{identity['epoch']:03d}")
+        reload_input = None
+        if epoch == 2 and scenario in {"recovery-dead", "stuck-death"}:
+            label = f"{pass_.label}-before-login"
+            _, state = _save_snapshot(db, journal, actor, scenario, epoch, identity["capture"], label)
+            reload_input = {"state": state, "snapshot_sha256": _sha256(_snapshot_path(
+                identity["capture"], scenario, epoch, actor, label))}
         evidence = _run_single(pass_, identity, db, journal, observations)
         snapshot_path = _snapshot_path(identity["capture"], scenario, epoch, actor, pass_.label)
         snapshot = _load_snapshot(snapshot_path)
         _check_special_state(scenario, epoch, actor, snapshot, observations)
         _validate_stuck_evidence(scenario, epoch, actor, snapshot, evidence, observations[-1])
+        _validate_death_shutdown_evidence(scenario, epoch, pass_.plan, evidence,
+                                          observations[-1], reload_input)
         if scenario == "automatic-release":
             sent = evidence.get("sent_packets", [])
             if any(packet.get("action") == "release_spirit" for packet in sent):
@@ -1023,16 +1087,20 @@ def _validate_mob_evidence(evidence: dict[str, Any], observation: dict[str, Any]
                        default=-1)
     if attack_start < 0:
         raise ScenarioFailure("mob plan did not retain its observed-target attack boundary")
+    finish_start = min((int(item["sequence"]) for item in trace
+                        if item.get("action") == "finish_logout"
+                        and item.get("kind") == "action_started"), default=-1)
+    if finish_start < 0:
+        raise ScenarioFailure("mob evidence lacks its pre-shutdown observation boundary")
     attack_events = [event for event in evidence.get("events", [])
                      if event.get("opcode") == ATTACKER_STATE_UPDATE
                      and int(event.get("body_bytes", 0)) > 0]
     event_traces = {item.get("event_sequence"): item for item in trace
                     if item.get("event_sequence") is not None}
-    root_entries = [item for item in trace if item.get("opcode") == MOVE_ROOT]
-    if not root_entries:
-        root_entries = [event_traces[event.get("sequence")] for event in evidence.get("events", [])
-                        if event.get("opcode") == MOVE_ROOT
-                        and event.get("sequence") in event_traces]
+    root_entries = [item for item in trace if item.get("opcode") == MOVE_ROOT
+                    and item.get("kind") in {"packet_observed", "packet_redacted"}
+                    and item.get("connection") == "instance"
+                    and 0 <= int(item.get("sequence", -1)) < finish_start]
     if not attack_events or not root_entries:
         raise ScenarioFailure("mob evidence lacks retained damage or movement-root packets")
     damage_phases = []
@@ -1040,9 +1108,13 @@ def _validate_mob_evidence(evidence: dict[str, Any], observation: dict[str, Any]
         packet_trace = event_traces.get(event.get("sequence"))
         if packet_trace is None:
             raise ScenarioFailure("mob damage packet has no retained trace phase")
+        if int(packet_trace["sequence"]) >= finish_start:
+            continue
         phase = ("login_observation" if int(packet_trace["sequence"]) < attack_start
                  else "post_attack_observation")
         damage_phases.append({"phase": phase, "event": event})
+    if not damage_phases:
+        raise ScenarioFailure("mob evidence lacks retained damage before finish began")
     root_phases = ["login_observation" if int(item.get("sequence", -1)) < attack_start
                    else "post_attack_observation" for item in root_entries]
     selections = [item for item in evidence.get("target_selections", [])

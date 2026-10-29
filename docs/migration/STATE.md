@@ -249,6 +249,22 @@ the spell's maximum stays 600,000. The existing Rust sickness path already
 applies total duration then remaining duration; no new production change is
 justified by this reference failure. Correct the two QA assertions and retain
 the required 75-second expiry/relogin and observer checks for the fresh run.
+C++ reincarnation attempt 1 passes its real resource/cooldown scenario,
+collection and restoration in 136.909 seconds. C++ mob attempt 1 stopped in
+157.205 seconds with normal restoration, despite a passing bot: the actor is
+correctly saved as health-one ghost with one corpse. The trace places death
+root at 2416, finish-logout at 3033, PreResurrect at 4118 and LogoutComplete at
+4127. Target `WorldSession.cpp:558–565` releases a running death timer during
+logout before saving. The harness's post-logout unreleased-health-zero
+expectation is unsupported; death-before-finish and shutdown persistence need
+separate assertions. This also applies to offer/dead-recovery/Stuck teardown.
+The QA repair now preserves strict pre-finish root/no-release/no-PreResurrect
+evidence and requires the subsequent saved ghost/corpse, with a distinct
+pre-login snapshot for reload epochs. It does not claim unreleased-dead DB
+durability from graceful logout. Its combined hermetic checks remain UNRUN.
+Current Rust finalization also omits that native logout release between loot
+settlement and the character save; integrate that exact participant before
+running the completed Rust candidate. No other logout redesign is required.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

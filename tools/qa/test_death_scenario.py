@@ -273,42 +273,115 @@ class DeathScenarioTests(unittest.TestCase):
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_state("wisp", 1, selected, wrong_owner)
 
-    def test_unreleased_deaths_require_zero_health_without_ghost_or_corpse(self) -> None:
+    def test_native_logout_persists_ghost_after_unreleased_wire_death(self) -> None:
         selected = actor("Qadeathfall", 55)
-        dead = {"characters": {"columns": ["guid", "health", "playerFlags"],
-                                "rows": [["55", "0", "0"]]},
-                "corpse": {"columns": ["guid"], "rows": []}}
-        self.assertEqual(scenario.validate_state("offer", 1, selected, dead)["health"], 0)
-        with_corpse = copy.deepcopy(dead)
-        with_corpse["corpse"]["rows"] = [["55"]]
-        for case, epoch in (("offer", 1), ("mob", 1), ("recovery-dead", 2)):
-            with self.assertRaises(scenario.ScenarioFailure):
-                scenario.validate_state(case, epoch, selected, with_corpse)
+        ghost = {"characters": {"columns": ["guid", "health", "playerFlags"],
+                                 "rows": [["55", "1", str(scenario.PLAYER_GHOST)]]},
+                 "corpse": {"columns": ["guid"], "rows": [["55"]]}}
+        for case, epoch in (("offer", 1), ("mob", 1), ("recovery-dead", 1),
+                            ("recovery-dead", 2)):
+            self.assertEqual(scenario.validate_state(case, epoch, selected, ghost)["health"], 1)
+            bad_states = []
+            for field, value in ((1, "0"), (1, "100"), (2, "0")):
+                bad = copy.deepcopy(ghost)
+                bad["characters"]["rows"][0][field] = value
+                bad_states.append(bad)
+            for rows in ([], [["56"]], [["55"], ["55"]]):
+                bad = copy.deepcopy(ghost)
+                bad["corpse"]["rows"] = rows
+                bad_states.append(bad)
+            for bad in bad_states:
+                with self.subTest(case=case, epoch=epoch), self.assertRaises(scenario.ScenarioFailure):
+                    scenario.validate_state(case, epoch, selected, bad)
 
-    def test_stuck_state_requires_dead_no_corpse_or_live_home_result(self) -> None:
+    def test_stuck_death_logout_requires_ghost_while_home_remains_alive(self) -> None:
         selected = actor("Qadeathcast", 56)
-        dead = {"characters": {"columns": ["guid", "health", "playerFlags"],
-                                "rows": [["56", "0", "0"]]},
-                "corpse": {"columns": ["guid"], "rows": []}}
+        ghost = {"characters": {"columns": ["guid", "health", "playerFlags"],
+                                 "rows": [["56", "1", str(scenario.PLAYER_GHOST)]]},
+                 "corpse": {"columns": ["guid"], "rows": [["56"]]}}
         for epoch in (1, 2):
-            self.assertEqual(scenario.validate_state("stuck-death", epoch, selected, dead)["health"], 0)
+            self.assertEqual(scenario.validate_state("stuck-death", epoch, selected, ghost)["health"], 1)
         alive = {"characters": {"columns": ["guid", "health", "playerFlags"],
                                  "rows": [["56", "100", "0"]]},
                  "corpse": {"columns": ["guid"], "rows": []}}
         self.assertEqual(scenario.validate_state("stuck-home", 1, selected, alive)["health"], 100)
-        ghost = copy.deepcopy(dead)
-        ghost["characters"]["rows"][0][2] = str(scenario.PLAYER_GHOST)
-        corpse = copy.deepcopy(dead)
-        corpse["corpse"]["rows"] = [["56"]]
-        living_death = copy.deepcopy(dead)
-        living_death["characters"]["rows"][0][1] = "1"
+        dead = copy.deepcopy(alive)
+        dead["characters"]["rows"][0][1] = "0"
+        no_corpse = copy.deepcopy(ghost)
+        no_corpse["corpse"]["rows"] = []
         dead_home = copy.deepcopy(alive)
         dead_home["characters"]["rows"][0][1] = "0"
-        for bad in (ghost, corpse, living_death):
+        for bad in (dead, no_corpse, alive):
             with self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_state("stuck-death", 2, selected, bad)
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_state("stuck-home", 1, selected, dead_home)
+
+    def test_new_death_is_proven_before_finish_and_native_release_belongs_to_shutdown(self) -> None:
+        actors = journal_actors()
+        for case, name in (("mob", "Qadeathmob"), ("offer", "Qadeathfall"),
+                           ("recovery-dead", "Qadeathfall"), ("stuck-death", "Qadeathcast")):
+            selected = actors[name]
+            plan = scenario.plan_for(case, 1, selected, 1, 10)
+            evidence = {"trace": [
+                {"sequence": 2416, "kind": "packet_redacted", "connection": "instance",
+                 "opcode": scenario.MOVE_ROOT},
+                {"sequence": 3033, "kind": "action_started",
+                 "action": f"finish_{plan['finish_policy']}"},
+            ], "sent_packets": []}
+            if plan["finish_policy"] == "logout":
+                evidence["trace"].append({"sequence": 4118, "kind": "packet_observed",
+                                          "connection": "realm", "opcode": scenario.PRE_RESURRECT})
+            persisted = {"guid": selected["guid"], "health": 1, "ghost": True,
+                         "owned_corpse_count": 1}
+            observation = {"state": persisted}
+            scenario._validate_death_shutdown_evidence(case, 1, plan, evidence, observation)
+            self.assertEqual(observation["pre_shutdown"]["phase"], "PreShutdown")
+            self.assertEqual(observation["pre_shutdown"]["state"], "unreleased_death")
+            self.assertEqual(observation["pre_shutdown"]["root_trace_sequences"], [2416])
+            shutdown = observation["shutdown_persistence_phase"]
+            self.assertEqual(shutdown["phase"], "ShutdownPersistencePhase")
+            self.assertEqual(shutdown["offline_state"], persisted)
+            for invalid in ("no_root", "late_root", "early_pre_res", "untraced_pre_res",
+                            "release", "no_finish"):
+                bad = copy.deepcopy(evidence)
+                if invalid == "no_root":
+                    bad["trace"] = bad["trace"][1:]
+                elif invalid == "late_root":
+                    bad["trace"][0]["sequence"] = 3034
+                elif invalid == "early_pre_res":
+                    bad["trace"].append({"sequence": 3032, "kind": "packet_observed",
+                                         "connection": "realm", "opcode": scenario.PRE_RESURRECT})
+                elif invalid == "untraced_pre_res":
+                    bad["events"] = [{"sequence": 0, "opcode": scenario.PRE_RESURRECT}]
+                elif invalid == "release":
+                    bad["sent_packets"].append({"action": "release_spirit"})
+                else:
+                    bad["trace"] = [item for item in bad["trace"] if item.get("kind") != "action_started"]
+                with self.subTest(case=case, invalid=invalid), self.assertRaises(scenario.ScenarioFailure):
+                    scenario._validate_death_shutdown_evidence(case, 1, plan, bad, {"state": persisted})
+            manual_plan = copy.deepcopy(plan)
+            manual_plan["actions"].append({"action": "release_spirit"})
+            with self.assertRaises(scenario.ScenarioFailure):
+                scenario._validate_death_shutdown_evidence(case, 1, manual_plan, evidence, {"state": persisted})
+
+    def test_reload_epochs_prove_existing_ghost_without_requiring_a_new_death_root(self) -> None:
+        for case, name in (("recovery-dead", "Qadeathfall"), ("stuck-death", "Qadeathcast")):
+            selected = actor(name, 56)
+            plan = scenario.plan_for(case, 2, selected, 1, 10)
+            evidence = {"trace": [{"sequence": 1, "kind": "action_started", "action": "finish_logout"}],
+                        "sent_packets": []}
+            state = {"guid": 56, "health": 1, "ghost": True, "owned_corpse_count": 1}
+            reload_input = {"state": state, "snapshot_sha256": "a" * 64}
+            observation = {"state": copy.deepcopy(state)}
+            scenario._validate_death_shutdown_evidence(case, 2, plan, evidence, observation, reload_input)
+            self.assertEqual(observation["pre_shutdown"]["state"], "persisted_ghost")
+            self.assertNotIn("root_trace_sequences", observation["pre_shutdown"])
+            for invalid in (None, {"state": {**state, "guid": 57}},
+                            {"state": {**state, "ghost": False}},
+                            {"state": {**state, "owned_corpse_count": 0}}):
+                with self.assertRaises(scenario.ScenarioFailure):
+                    scenario._validate_death_shutdown_evidence(case, 2, plan, evidence, {"state": state}, invalid)
 
     def test_stuck_graveyard_position_uses_quarter_yard_tolerance(self) -> None:
         selected = actor("Qadeathcast", 57)
@@ -422,9 +495,11 @@ class DeathScenarioTests(unittest.TestCase):
             "trace": [
                 {"sequence": 1, "kind": "packet_observed", "opcode": scenario.ATTACKER_STATE_UPDATE,
                  "event_sequence": 0},
-                {"sequence": 2, "kind": "packet_redacted", "opcode": scenario.MOVE_ROOT},
+                {"sequence": 2, "kind": "packet_redacted", "opcode": scenario.MOVE_ROOT,
+                 "connection": "instance"},
                 {"sequence": 3, "kind": "action_started", "action": "attack_swing"},
                 {"sequence": 4, "kind": "send_attempted", "action": "attack_swing"},
+                {"sequence": 5, "kind": "action_started", "action": "finish_logout"},
             ],
             "events": [{"sequence": 0, "opcode": scenario.ATTACKER_STATE_UPDATE,
                         "body_bytes": 24, "body_hex": "aa"}],
@@ -437,6 +512,16 @@ class DeathScenarioTests(unittest.TestCase):
         self.assertEqual(observed["mob_evidence"]["damage_phases"],
                          [{"phase": "login_observation", "event": evidence["events"][0]}])
         self.assertEqual(observed["mob_evidence"]["root_phases"], ["login_observation"])
+        for invalid in ("late_damage", "late_root", "missing_target"):
+            bad = copy.deepcopy(evidence)
+            if invalid == "late_damage":
+                bad["trace"][0]["sequence"] = 6
+            elif invalid == "late_root":
+                bad["trace"][1]["sequence"] = 6
+            else:
+                bad["target_selections"] = []
+            with self.subTest(invalid=invalid), self.assertRaises(scenario.ScenarioFailure):
+                scenario._validate_mob_evidence(bad, {})
 
     def test_snapshot_pass_names_do_not_collide_and_wisp_expiry_uses_owner_rows(self) -> None:
         selected = actor("Qadeathwisp", 44)
