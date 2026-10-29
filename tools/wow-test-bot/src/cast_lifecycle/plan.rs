@@ -160,6 +160,8 @@ pub(crate) enum Action {
     AttackSwing {
         target: CreatureTarget,
     },
+    /// CMSG_ATTACK_STOP carries no target or payload; it stops this player's attack.
+    AttackStop,
     /// One finite client movement packet. The opcode comes from the closed
     /// `MovementKind` set; control flags remain owned by the live controller.
     Movement {
@@ -701,6 +703,7 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             Action::AttackSwing { target } => {
                 validate_creature_target(target, "attack_swing.target")?;
             }
+            Action::AttackStop => {}
             Action::Movement {
                 kind,
                 x,

@@ -30,6 +30,7 @@ const CMSG_SPIRIT_HEALER_ACTIVATE: u16 = 0x34AF;
 const CMSG_RESURRECT_RESPONSE: u16 = 0x3685;
 const CMSG_SELF_RES: u16 = 0x3531;
 const CMSG_ATTACK_SWING: u16 = 0x3255;
+const CMSG_ATTACK_STOP: u16 = 0x3256;
 const SMSG_SPELL_PREPARE: u16 = 0x2C35;
 const SMSG_SPELL_GO: u16 = 0x2C36;
 const SMSG_SPELL_START: u16 = 0x2C37;
@@ -152,7 +153,8 @@ pub(super) async fn execute(
             | Action::SpiritHealerActivate { .. }
             | Action::ResurrectResponse { .. }
             | Action::SelfRes { .. }
-            | Action::AttackSwing { .. } => {
+            | Action::AttackSwing { .. }
+            | Action::AttackStop => {
                 match resolve_action_targets(&mut controller.evidence, action_index, action)
                     .map(|resolved| build_action_packet(&resolved))
                 {
@@ -504,6 +506,7 @@ fn action_name(action: &Action) -> &'static str {
         Action::ResurrectResponse { .. } => "resurrect_response",
         Action::SelfRes { .. } => "self_res",
         Action::AttackSwing { .. } => "attack_swing",
+        Action::AttackStop => "attack_stop",
         Action::Movement { kind, .. } => match kind {
             MovementKind::Heartbeat => "movement_heartbeat",
             MovementKind::StartForward => "movement_start_forward",

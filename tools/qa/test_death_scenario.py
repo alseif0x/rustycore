@@ -370,7 +370,16 @@ class DeathScenarioTests(unittest.TestCase):
         self.assertEqual(scenario.plan_for("fall-release", 1, actors["Qadeathfall"], 1, 10)["timeout_ms"], 10_000)
         self.assertEqual(scenario.plan_for("reclaim", 1, actors["Qadeathfall"], 1, 10)["timeout_ms"], 45_000)
         self.assertEqual(scenario.plan_for("healer", 2, actors["Qadeathfall"], 1, 10)["timeout_ms"], 3_000)
-        self.assertEqual(scenario.plan_for("mob", 1, actors["Qadeathmob"], 1, 10)["timeout_ms"], 30_000)
+        mob = scenario.plan_for("mob", 1, actors["Qadeathmob"], 1, 10)
+        self.assertEqual(mob["timeout_ms"], 105_000)
+        self.assertEqual([action["action"] for action in mob["actions"]],
+                         ["attack_swing", "wait_for_packet", "attack_stop", "wait_for_packet"])
+        self.assertEqual(
+            [(action.get("connection"), action.get("opcode"), action.get("timeout_ms"))
+             for action in mob["actions"] if action["action"] == "wait_for_packet"],
+            [("instance", scenario.ATTACKER_STATE_UPDATE, 10_000),
+             ("instance", scenario.MOVE_ROOT, 90_000)],
+        )
         automatic = scenario.plan_for("automatic-release", 1, actors["Qadeathfall"], 1, 10)
         self.assertEqual(automatic["timeout_ms"], 390_000)
         self.assertFalse(any(action["action"] == "release_spirit" for action in automatic["actions"]))
@@ -651,16 +660,23 @@ class DeathScenarioTests(unittest.TestCase):
                 scenario._validate_stuck_evidence("stuck-death", 2, selected, bad_snapshot,
                                                   evidence, {})
 
-    def test_mob_accepts_damage_and_root_during_login_drain(self) -> None:
+    def test_mob_requires_combat_attack_stop_then_root_before_finish(self) -> None:
         evidence = {
             "trace": [
-                {"sequence": 1, "kind": "packet_observed", "opcode": scenario.ATTACKER_STATE_UPDATE,
-                 "event_sequence": 0},
-                {"sequence": 2, "kind": "packet_redacted", "opcode": scenario.MOVE_ROOT,
+                {"sequence": 1, "kind": "action_started", "action": "attack_swing"},
+                {"sequence": 2, "kind": "send_attempted", "action": "attack_swing"},
+                {"sequence": 3, "kind": "action_completed", "action": "attack_swing"},
+                {"sequence": 4, "kind": "packet_observed", "opcode": scenario.ATTACKER_STATE_UPDATE,
+                 "connection": "instance", "event_sequence": 0},
+                {"sequence": 5, "kind": "action_started", "action": "attack_stop"},
+                {"sequence": 6, "kind": "send_attempted", "action": "attack_stop",
+                 "opcode": scenario.ATTACK_STOP, "connection": "instance", "body_bytes": 0},
+                {"sequence": 7, "kind": "local_write_completed", "action": "attack_stop",
+                 "opcode": scenario.ATTACK_STOP, "connection": "instance", "body_bytes": 0},
+                {"sequence": 8, "kind": "action_completed", "action": "attack_stop"},
+                {"sequence": 9, "kind": "packet_observed", "opcode": scenario.MOVE_ROOT,
                  "connection": "instance"},
-                {"sequence": 3, "kind": "action_started", "action": "attack_swing"},
-                {"sequence": 4, "kind": "send_attempted", "action": "attack_swing"},
-                {"sequence": 5, "kind": "action_started", "action": "finish_logout"},
+                {"sequence": 10, "kind": "action_started", "action": "finish_logout"},
             ],
             "events": [{"sequence": 0, "opcode": scenario.ATTACKER_STATE_UPDATE,
                         "body_bytes": 24, "body_hex": "aa"}],
@@ -671,14 +687,23 @@ class DeathScenarioTests(unittest.TestCase):
         observed: dict = {}
         scenario._validate_mob_evidence(evidence, observed)
         self.assertEqual(observed["mob_evidence"]["damage_phases"],
-                         [{"phase": "login_observation", "event": evidence["events"][0]}])
-        self.assertEqual(observed["mob_evidence"]["root_phases"], ["login_observation"])
-        for invalid in ("late_damage", "late_root", "missing_target"):
+                         [{"phase": "post_attack_observation", "event": evidence["events"][0]}])
+        self.assertEqual(observed["mob_evidence"]["root_phases"], ["post_attack_observation"])
+        self.assertEqual(observed["mob_evidence"]["attack_stop_trace_sequence"], 6)
+        for invalid in ("stale_combat", "missing_attack_stop", "stop_before_attack",
+                        "root_before_stop", "late_root", "missing_target"):
             bad = copy.deepcopy(evidence)
-            if invalid == "late_damage":
-                bad["trace"][0]["sequence"] = 6
+            if invalid == "stale_combat":
+                bad["trace"][3]["sequence"] = 0
+            elif invalid == "missing_attack_stop":
+                bad["trace"] = [item for item in bad["trace"]
+                                 if item.get("action") != "attack_stop"]
+            elif invalid == "stop_before_attack":
+                bad["trace"][5]["sequence"] = 0
+            elif invalid == "root_before_stop":
+                bad["trace"][8]["sequence"] = 5
             elif invalid == "late_root":
-                bad["trace"][1]["sequence"] = 6
+                bad["trace"][8]["sequence"] = 11
             else:
                 bad["target_selections"] = []
             with self.subTest(invalid=invalid), self.assertRaises(scenario.ScenarioFailure):

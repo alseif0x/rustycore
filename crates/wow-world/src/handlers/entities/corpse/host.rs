@@ -244,6 +244,14 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
                 },
             )
             .await
+            .inspect_err(|reason| {
+                tracing::warn!(
+                    account = self.core.account_id,
+                    spell_id,
+                    reason = *reason,
+                    "Triggered self spell execution failed"
+                )
+            })
             .is_ok()
         }
     }

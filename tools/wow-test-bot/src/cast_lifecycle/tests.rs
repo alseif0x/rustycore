@@ -1343,6 +1343,21 @@ fn death_action_builders_preserve_target_wire_bytes() {
 }
 
 #[test]
+fn attack_stop_preserves_native_empty_request_shape() {
+    let plan: Plan = serde_json::from_str(
+        r#"{"actions":[{"action":"attack_stop"}],"expect":[{"event":"packet","connection":"realm","opcode":9860,"body_hex":""}]}"#,
+    )
+    .unwrap();
+    plan::validate_plan(&plan).unwrap();
+    assert!(matches!(plan.actions.as_slice(), [Action::AttackStop]));
+    assert_eq!(
+        serde_json::to_value(&plan.actions[0]).unwrap(),
+        serde_json::json!({"action":"attack_stop"})
+    );
+    assert_eq!(build_action_packet(&plan.actions[0]), (0x3256, Vec::new()));
+}
+
+#[test]
 fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
     let plan: Plan = serde_json::from_str(
         r#"{

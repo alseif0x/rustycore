@@ -43,6 +43,7 @@ SPELL_GO = 0x2C36
 COOLDOWN_EVENT = 0x26B9
 RESURRECT_REQUEST = 0x257E
 ATTACKER_STATE_UPDATE = 0x2952
+ATTACK_STOP = 0x3256
 AURA_UPDATE = 0x2C1F
 UPDATE_OBJECT = 0x27CB
 PLAYER_GHOST = 0x10
@@ -187,9 +188,11 @@ def plan_for(scenario: str, epoch: int, actor: dict[str, Any], realm_id: int,
         actions = [
             {"action": "attack_swing", "target": {"entry": 6, "map_id": 0,
              "near_xyz": [-8783.05, -161.565, 82.0352], "radius": 40.0}},
-            {"action": "wait", "milliseconds": 30_000},
+            _wait("instance", ATTACKER_STATE_UPDATE, 10_000),
+            {"action": "attack_stop"},
+            _wait("instance", MOVE_ROOT, 90_000),
         ]
-        timeout_ms = 30_000
+        timeout_ms = 105_000
     elif scenario == "automatic-release":
         actions = _fall_actions(actor, release=False) + [_wait("realm", PRE_RESURRECT, 370_000)]
         timeout_ms = 390_000
@@ -1134,6 +1137,18 @@ def _validate_mob_evidence(evidence: dict[str, Any], observation: dict[str, Any]
                         and item.get("kind") == "action_started"), default=-1)
     if finish_start < 0:
         raise ScenarioFailure("mob evidence lacks its pre-shutdown observation boundary")
+    attack_stops = [item for item in trace
+                    if item.get("kind") == "send_attempted"
+                    and item.get("action") == "attack_stop"
+                    and item.get("opcode") == ATTACK_STOP
+                    and item.get("connection") == "instance"
+                    and item.get("body_bytes") == 0
+                    and type(item.get("sequence")) is int]
+    if len(attack_stops) != 1:
+        raise ScenarioFailure("mob evidence lacks exactly one typed empty AttackStop send")
+    attack_stop_sequence = attack_stops[0]["sequence"]
+    if not attack_start < attack_stop_sequence < finish_start:
+        raise ScenarioFailure("mob AttackStop was not sent after attack and before finish")
     attack_events = [event for event in evidence.get("events", [])
                      if event.get("opcode") == ATTACKER_STATE_UPDATE
                      and int(event.get("body_bytes", 0)) > 0]
@@ -1145,6 +1160,19 @@ def _validate_mob_evidence(evidence: dict[str, Any], observation: dict[str, Any]
                     and 0 <= int(item.get("sequence", -1)) < finish_start]
     if not attack_events or not root_entries:
         raise ScenarioFailure("mob evidence lacks retained damage or movement-root packets")
+    combat_confirmations = []
+    for event in attack_events:
+        packet_trace = event_traces.get(event.get("sequence"))
+        if (packet_trace is not None
+                and packet_trace.get("connection") == "instance"
+                and attack_start < int(packet_trace.get("sequence", -1)) < attack_stop_sequence):
+            combat_confirmations.append(packet_trace)
+    if not combat_confirmations:
+        raise ScenarioFailure("mob attack lacks an Instance combat update before AttackStop")
+    post_stop_roots = [item for item in root_entries
+                       if int(item.get("sequence", -1)) > attack_stop_sequence]
+    if not post_stop_roots:
+        raise ScenarioFailure("mob root was not observed after AttackStop and before finish")
     damage_phases = []
     for event in attack_events:
         packet_trace = event_traces.get(event.get("sequence"))
@@ -1170,6 +1198,9 @@ def _validate_mob_evidence(evidence: dict[str, Any], observation: dict[str, Any]
         raise ScenarioFailure("mob observed creature selection did not retain a nonempty runtime GUID")
     observation["mob_evidence"] = {"damage_phases": damage_phases,
         "root_phases": root_phases, "selected_creature_guid": selected_guid,
+        "combat_confirmation_trace_sequences": [item["sequence"] for item in combat_confirmations],
+        "attack_stop_trace_sequence": attack_stop_sequence,
+        "post_stop_root_trace_sequences": [item["sequence"] for item in post_stop_roots],
         "selected_target_source_event_sha256": selections[0].get("source_event_sha256")}
 
 

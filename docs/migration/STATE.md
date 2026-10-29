@@ -1,19 +1,81 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
-Latest accepted local candidate: `63d8c8f2e`; Rust reclaim attempt 4 completes
-resurrection, database checks, capture collection and restoration. Fall/release
-retains its actual `abba63ce7` bounded actor/control evidence below. Ten other
-paired scenarios and the last-candidate full final/terminal acceptance remain
-outstanding. C++ healer attempt 2, wisp attempt 2 and automatic release now
-pass; mob's retained action passes a separately recorded corrected-contract
-review without relabelling its original failed wrapper. Offer attempt 1
-fails at the reference caster with BAD_TARGETS and restores normally.
-The subsequent native power, sanctuary, AuraState, bones, logout death release
-and initial Flags2 changes have partial combined evidence. The corrected World
-suite and architecture checks pass; production integration, bot/build and live
-acceptance still need completion.
+Latest accepted local code candidate: `6dc547c98`. Rust fall/release attempt 8
+and reclaim attempt 5 complete their functional, DB, capture and restoration
+checks. The selected fall actor bodies and all 24 controls match native bytes
+without normalization. Reclaim fixes LocalFlags and retains the recorded timed
+Mana publication differences. C++ offer attempt 3 and both corrected Stuck
+references pass. Mob attempt 2 is a failed fixture: it finishes while the actor
+is still alive, and its post-validator correctly rejects the logout root.
+The bounded bot/plan correction is UNVALIDATED. Rust healer attempt 1 exposes
+a real sickness-cast failure despite successful resurrection, durability and
+corpse cleanup. Its exact trigger error needs diagnosis; Reincarnation is being
+exercised independently at the accepted code candidate. Ten Rust scenario
+responsibilities, remaining comparisons and full publication/terminal acceptance
+remain unfinished.
 No publication or issue closure.
+
+The affected campaign at `6dc547c98` passed in 252.968 seconds on aarch64 with
+two Cargo jobs: QA Python 42 tests (one optional skip), Entities 1,065/1,065,
+World 4,150 passed/one ignored, World Entities 2/2, World Instances 1/1,
+production login 42/42, bot 252/252, both debug builds, final and manifest
+verification. The 600-second ordinary target is met. The exact record is
+`/tmp/rustycore43-affected-6dc547-w4wsd6zi/{record.json,final-manifest.json}`.
+Architecture/syntax evidence retains its passing SHA `3350a552d`, followed by
+the reviewed qualified-path and fixture-only corrections. This is affected local
+acceptance, not the origin-base publication or exhaustive terminal campaign.
+
+Rust fall/release attempt 8 passed/restored in 314.237 seconds. Native frames
+653/662/674 and Rust sequences 142/148/161 have identical 133/166/55-byte full
+bodies and original connection 1. All 24 selected controls match order and full
+bodies on both original connections, without CastID/time normalization. The
+review is `comparison-fall-release-6dc547/capture-review.json` under the live
+campaign. Ambient movement and non-actor out-of-range traffic still differ;
+this is not a clean full-stream verdict.
+
+Rust reclaim attempt 5 passed/restored in 352.902 seconds. Parent-recomputed
+`comparison-reclaim-6dc547/{actor-controls.json,core-full-bodies.json,reclaim-values-field-review.json}`
+confirms exact 133/166/55/166-byte death, corpse, release and bones bodies.
+All 30 control opcodes retain per-connection order; 29 full bodies match and
+one Ghost AuraUpdate differs only in the previously source-proven NORMAL CastID
+low-40 counter. Post-reclaim health 210, AuraState/PvP/PlayerFlags zero and Active
+bits 0/12/38/69 match, including LocalFlags tail `0000000008800000`. The owner
+packet remains 90 C++ versus 98 Rust bytes: Rust includes timed Power137=13456.
+Later health 221/232 matches while Mana field publication differs across the
+native two-second window. No regen arithmetic/clock redesign or full-stream
+parity is inferred from these observations.
+
+C++ offer attempt 3 passed both epochs/restoration in 338.911 seconds with the
+accepted full-Mana fixture; both ordinary casts and all seven caster rules pass.
+C++ Stuck-death attempt 2 passed both epochs/restoration in 257.998 seconds and
+Stuck-home attempt 1 passed/restored in 166.692 seconds. Native references exist
+for all twelve responsibilities, preserving mob's failed-wrapper boundary.
+The additional mob attempt 2 failed/restored in 161.005 seconds: actor 21 saved
+alive at 20 HP with no corpse; its only root trace 2758 follows finish trace
+2751. The fixed 30-second wait is not death evidence. The selected correction
+uses native empty AttackStop (`Opcodes.h:71`, `CombatPackets.h:53–59`,
+`CombatHandler.cpp:63–66`, `Unit.cpp:5756–5785`) and waits for actual death before
+finish, preserving the opposing creature's attack and all persistence checks.
+
+Rust healer attempt 1 failed/restored in 562.958 seconds using the isolated
+clean accepted QA checkout. The first bot plan passes, actor 20 saves alive
+at 385 HP with no ghost/corpse, and chest/backpack durability is correctly 19/25.
+No Aura 15007 is saved. SpellGo 15007 reports actor 20 as a hit, but captured
+PID 2353215 logs `Resurrection sickness triggered cast failed`. The current
+corpse host erases the static execution error through `is_ok()`; preserve that
+reason for the next diagnostic instead of guessing or weakening the sickness
+requirement. The existing generic failed report is not a pass.
+
+The next QA/diagnostic candidate is frozen, UNVALIDATED. The bot adds the
+native typed empty AttackStop request, its literal opcode/serialization test,
+and an observed combat/stop/root plan with positive and negative phase checks.
+The corpse host retains the existing boolean result and logs only the static
+trigger error, account ID and spell ID before `is_ok()`. This is diagnostic
+visibility, not a sickness gameplay repair. Server sources otherwise retain
+the accepted `6dc547c98` behavior. The independent Reincarnation attempt uses
+that exact older code and immutable binaries from the clean isolated checkout;
+it does not execute these unvalidated edits.
 
 The complete affected local campaign at `63d8c8f2e` passed in 447.907 seconds
 (aarch64, two Cargo jobs, ordinary 600-second target met). Production login passed
