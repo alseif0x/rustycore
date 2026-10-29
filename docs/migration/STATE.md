@@ -1,5 +1,105 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #43 closure execution plan — 2026-10-29
+
+The operator resumed implementation after reviewing the two live failures and
+requested this complete plan. Baseline: `d9d4364309be3739d1faf9fc77d99bc71945b430`,
+branch `43-spirit-healer`; issue #43 remains OPEN and unpublished. This section
+supersedes the older current-summary wording below, not its dated evidence.
+Documentation and new explanatory comments remain in English.
+
+### Verified starting point and decisions
+
+- Affected local acceptance at `d9d436430` passed in 294.215 seconds on aarch64:
+  `/tmp/rustycore43-affected-d9d436-4t50qh5a/record.json`. This is not full
+  publication or live acceptance. The corrected mob plan is locally tested,
+  but has no successful live run yet.
+- The existing healer diagnostic identified the exact rejection:
+  `Selected aura may have applicable class-mask SpellMods`. The selected-aura
+  admission rejects potential class-mask modifiers without evaluating their
+  applicability. C++ `Aura::CalcMaxCharges` and `SpellInfo::IsAffectedBySpellMod`
+  are the contract; do not bypass charges or special-case spell 15007 blindly.
+- Reincarnation rejects before resource debit because populated login lacks
+  complete item-save authority. The loader omits values that full Item saves
+  overwrite. Complete the existing load/save projection and its native auxiliary
+  checks; retain the existing transaction and acknowledgement owners. Do not
+  grant authority from topology alone or add a second Ankh-specific save path.
+- The diagnostic is failed evidence, not healer acceptance. A read-only check
+  after it confirmed the active server executable matches original stable SHA
+  `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`.
+
+### Ordered work and exit conditions
+
+1. **Resolve selected-aura modifier admission.** Compare exact native modifier
+   family/mask/label/operation and caster rules with the loaded effective data.
+   Implement the smallest faithful calculation or demonstrated absence proof
+   for the operation. Preserve unknown-metadata rejection. Add a reproduction
+   using nonzero class flags and negative applicable/unknown modifier cases;
+   exercise the production sickness consumer. No new generic spell framework.
+2. **Complete populated item hydration.** Extend the existing equipment and bag
+   projections, decoder and canonical Item hydration with creator/gift creator,
+   text, battle-pet modifiers, transmog and native soulbound-trade validation.
+   Missing or malformed data must not become known zero. Grant the existing
+   authority only after both loads, coherent topology, payload and auxiliary
+   checks succeed for the same Player incarnation. Preserve failed/partial load
+   behavior and existing persistence fences. SQL/DTO work may proceed while the
+   parent settles step 1; no dependent authority is enabled early.
+3. **Prove the integrated repair.** Test load/save round trips with nonzero
+   metadata, partial-load rejection, reagent stack decrement and last-item
+   deletion, duplicate/stale self-resurrection and existing rollback,
+   unknown-COMMIT/cancellation/acknowledgement contracts. Add or adapt tests in
+   existing owners; do not build a second lifecycle or persistence mechanism.
+   Review the actual diff and consumers against pinned C++ `a5f8da2eb`.
+4. **Freeze and validate the repair candidate.** Commit coherent implementation;
+   execute one scheduled affected acceptance including real production-login
+   integration, required QA/bot checks and debug artifacts. Credit suites
+   already run by final. Record exact SHA, commands, exits and complete duration;
+   the ordinary warm campaign target remains 600 seconds. Fix grouped findings
+   and rerun affected evidence only. Worker feedback is not acceptance.
+5. **Exercise the known failures first.** Use the existing guarded fixture and
+   runtime driver, serially: healer with relog, Reincarnation with durable debit,
+   and the corrected native/Rust mob case. Include last-Ankh coverage in the
+   owned fixture/QA mechanism without increasing actor scope. Preserve snapshots,
+   actual failed attempts, capture provenance, cleanup and stable restoration.
+   A new failure must produce a bounded cause and repair before another retry.
+6. **Finish the scenario matrix and comparisons below.** Reuse exact unchanged
+   reference evidence; assess invalidation explicitly after shared hydration or
+   aura changes. Compare action bytes, metadata, connection and observable order.
+   Retain timed/ambient differences as boundaries, never silently normalize them
+   into a whole-stream pass. Resolve any action-relevant mismatch before closure.
+7. **Final delivery gate.** Once all required scenarios pass, execute the scoped
+   exhaustive terminal check and origin/3.4.3 publication final with architecture,
+   manifest verification and uncovered production integration. Plan coverage
+   once; reuse eligible unchanged evidence under the validation guide, preserving
+   actual tested SHAs. Record live/exhaustive costs separately from ordinary
+   acceptance. Update this owning record and the existing issue checkpoint.
+8. **Publish and close under the recovered conditional authorization.** Push the
+   validated issue branch, create/update one PR targeting `3.4.3` with `Closes #43`,
+   resolve actionable findings and required checks, then merge and verify issue
+   closure. Do not publish an incomplete candidate or permanently deploy it.
+
+### Required live matrix (12 responsibilities, 18 standard epochs per backend)
+
+| Scenario | Epochs | Existing evidence / remaining work |
+|---|---:|---|
+| fall-release | 1 | Native and Rust pass; assess shared-change invalidation |
+| reclaim | 1 | Native and Rust pass; retain timed Mana boundary and assess invalidation |
+| healer | 2 | Native reference exists; Rust sickness rejection must be repaired and rerun |
+| wisp | 2 | Native reference exists; Rust pending |
+| reincarnation | 1 | Native reference exists; Rust debit rejection must be repaired and rerun |
+| mob | 1 | Earlier native wrappers failed; corrected native and Rust runs pending |
+| automatic-release | 1 | Native reference exists; Rust pending |
+| offer | 2 | Corrected native pass; Rust pending |
+| recovery-dead | 2 | Native reference exists; Rust pending |
+| recovery-ghost | 2 | Native reference exists; Rust pending |
+| stuck-death | 2 | Corrected native pass; Rust pending |
+| stuck-home | 1 | Corrected native pass; Rust pending |
+
+Status: steps 1–2 in progress; no new implementation or live acceptance claimed.
+One bounded worker at a time; the parent owns decisions, review, Git and all
+heavy/runtime scheduling. No broad inventory/spell rewrite, unrelated architecture
+audit, extra macro-issues or repeated unchanged campaigns are part of this plan.
+
 **#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
 Latest accepted local code candidate: `6dc547c98`. Rust fall/release attempt 8
 and reclaim attempt 5 complete their functional, DB, capture and restoration
