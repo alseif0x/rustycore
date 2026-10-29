@@ -48,6 +48,38 @@ Its authored coverage and fixture correction remain UNVALIDATED. The decoded
 source/hash record is `comparison-fall-release-repaired/owner-values-diagnostic/decoded-contract.json`
 under the private live campaign.
 
+Affected acceptance at `f2039b498` passed Entities (1,050), World (4,126,
+one ignored) and World-Entities (2), then built the debug server. The run took
+271.303 seconds; its record and artifact pins are under
+`/tmp/rustycore43-corpse-birth-acceptance-fanzvczw/`. Unchanged earlier suites
+retain their actual SHAs. This is affected evidence, not a new full final.
+Rust fall/release attempt 5 then completed in 315.817 seconds with native
+collection and stable/fixture restoration. Its complete 166-byte corpse birth
+packet matches the unchanged R6 capture exactly. The full strict comparison is
+still non-clean; results remain in `comparison-fall-release-f203/`.
+
+The fresh post-release VALUES is 51 rather than C++'s 55 bytes: Flags41 was
+marked without its required parent32, so its value was omitted. The follow-up
+fix uses the existing nested mask operation and adds serialized-byte coverage.
+KillPlayer's canonical LocalFlags mutation also had no dirty ActivePlayerData
+projection; the follow-up carries the same gameplay value into an immutable
+delta and marks parent38/LocalFlags69. Its authored coverage preserves the
+transport-time bit and exercises world/instance/prevent-resurrection cases.
+These follow-up edits remain UNVALIDATED.
+
+Real DB comparison found a separate required failure: Rust retains item 2121
+durability 40 after the fall, while C++ saves 34 (backpack remains 40).
+The generic loss helper omits C++'s `SetState(ITEM_CHANGED)` at
+`Player.cpp:4616`. The effective maximum also differs: R6's initial Item CREATE
+(packet 73) sends maximum durability 60, although the raw ItemSparse field is
+40. The reader is correct; `ObjectMgr.cpp:2978–3063,3265` computes the effective
+template maximum before `Item.cpp:650` uses it. The captured value, source
+anchors and hashes are in `effective-item-durability-contract.json` under the
+new comparison. Existing healer QA expectations 26/30 came from the raw value;
+60 implies 19/25 after fall plus healer, still awaiting live healer observation.
+Fix effective-template selection, item persistence and its native publication
+before claiming durability acceptance. Eleven other paired scenarios remain.
+
 Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
 ignored), Application (31), Entities (2), Spell (181), bot (248), production
 registry (8) and production login-owner (41). The record is

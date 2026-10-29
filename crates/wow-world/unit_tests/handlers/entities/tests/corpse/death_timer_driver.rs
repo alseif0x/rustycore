@@ -5,6 +5,27 @@
 
 use super::*;
 
+fn assert_local_flags_pending_for_map(session: &WorldSession, flags: u32) {
+    let update = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            assert!(player.unit().world().object().is_in_world());
+            assert_eq!(player.gameplay_state().active_local_flags, flags);
+            player.values_update(true)
+        })
+        .expect("current native KillPlayer owner");
+    let packet = wow_world_core::entity_update_bridge::player_values_update_to_packet(&update)
+        .expect("KillPlayer retains VALUES for Map tail");
+    let active = packet.active_player_data.expect("LocalFlags publication");
+    assert_eq!(active.local_flags, flags);
+    assert_ne!(active.active_player_data_mask[1] & (1 << 6), 0, "parent38");
+    assert_ne!(
+        active.active_player_data_mask[2] & (1 << 5),
+        0,
+        "LocalFlags69"
+    );
+}
+
 fn install_prevent_resurrection_aura_for_driver(session: &mut WorldSession) {
     let spell_id = 94_300;
     let aura_type = wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION;
@@ -101,6 +122,8 @@ async fn driver_kill_player_runs_once_after_regeneration_and_waits_for_timer() {
     let _packet_tx = keep_driver_input_open(&mut session);
     session.core.state = crate::session::SessionState::LoggedIn;
     session.core.with_owned_player_mut_like_cpp(|player| {
+        player.gameplay_state_mut().active_local_flags = 0x8000;
+        player.clear_active_player_data_changes();
         player
             .unit_mut()
             .set_death_state(wow_constants::DeathState::JustDied);
@@ -126,6 +149,7 @@ async fn driver_kill_player_runs_once_after_regeneration_and_waits_for_timer() {
         0,
         "KillPlayer sets PLAYER_LOCAL_FLAG_RELEASE_TIMER on a world map"
     );
+    assert_local_flags_pending_for_map(&session, 0x8008);
 
     session.update(25).await;
     assert_eq!(death_timer_from_driver(&session), 359_975);
@@ -240,6 +264,8 @@ async fn driver_death_timer_freezes_in_instance_maps_and_with_prevent_resurrecti
     instance_session
         .core
         .with_owned_player_mut_like_cpp(|player| {
+            player.gameplay_state_mut().active_local_flags = 0x8008;
+            player.clear_active_player_data_changes();
             player
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::JustDied);
@@ -251,12 +277,15 @@ async fn driver_death_timer_freezes_in_instance_maps_and_with_prevent_resurrecti
         0,
         "KillPlayer clears PLAYER_LOCAL_FLAG_RELEASE_TIMER in instances"
     );
+    assert_local_flags_pending_for_map(&instance_session, 0x8000);
 
     let (mut aura_session, ..) = dead_player_session_with_graveyard_like_cpp(4_313);
     let _aura_packet_tx = keep_driver_input_open(&mut aura_session);
     aura_session.core.state = crate::session::SessionState::LoggedIn;
     install_prevent_resurrection_aura_for_driver(&mut aura_session);
     aura_session.core.with_owned_player_mut_like_cpp(|player| {
+        player.gameplay_state_mut().active_local_flags = 0x8008;
+        player.clear_active_player_data_changes();
         player
             .unit_mut()
             .set_death_state(wow_constants::DeathState::JustDied);
@@ -269,6 +298,7 @@ async fn driver_death_timer_freezes_in_instance_maps_and_with_prevent_resurrecti
         0,
         "KillPlayer clears PLAYER_LOCAL_FLAG_RELEASE_TIMER with PreventResurrection"
     );
+    assert_local_flags_pending_for_map(&aura_session, 0x8000);
 }
 
 #[tokio::test]

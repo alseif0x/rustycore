@@ -132,6 +132,7 @@ pub(super) fn active_player_data_update_to_packet(
         &mut packet_update.active_player_data_mask,
     );
     packet_update.coinage = update.values.coinage;
+    packet_update.local_flags = update.local_flags;
     packet_update.xp = update.values.xp;
     packet_update.next_level_xp = update.values.next_level_xp;
     packet_update.character_points = update.values.character_points;

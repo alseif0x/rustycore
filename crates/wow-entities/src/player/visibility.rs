@@ -7,7 +7,27 @@
 
 use super::*;
 
+const ACTIVE_PLAYER_DATA_LOCAL_FLAGS_PARENT_BIT: usize = 38;
+const ACTIVE_PLAYER_DATA_LOCAL_FLAGS_BIT: usize = 69;
+
 impl Player {
+    /// Player.h:2760 / UpdateField.h:262 marks LocalFlags even on a no-op.
+    pub fn set_player_local_flags_like_cpp(&mut self, flags: u32) {
+        self.gameplay_state.active_local_flags |= flags;
+        self.mark_active_player_data_section(
+            ACTIVE_PLAYER_DATA_LOCAL_FLAGS_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_LOCAL_FLAGS_BIT,
+        );
+    }
+
+    pub fn remove_player_local_flags_like_cpp(&mut self, flags: u32) {
+        self.gameplay_state.active_local_flags &= !flags;
+        self.mark_active_player_data_section(
+            ACTIVE_PLAYER_DATA_LOCAL_FLAGS_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_LOCAL_FLAGS_BIT,
+        );
+    }
+
     pub fn sync_farsight_visibility_detection_like_cpp(&mut self) {
         let farsight_object = self.active_data.farsight_object;
         self.unit_mut()
@@ -33,6 +53,7 @@ impl Player {
             .then(|| ActivePlayerDataUpdate {
                 mask: self.active_player_data_changes.clone(),
                 values: self.active_data.clone(),
+                local_flags: self.gameplay_state.active_local_flags,
                 rest_info_change_masks: self.rest_info_change_masks,
             }),
             derived_stats: self.derived_stats_values_update(include_active_player),

@@ -25,7 +25,7 @@ fn remove_unit_flags_marks_absent_flags_and_preserves_other_bits_like_cpp() {
             .values_update()
             .unit_data
             .expect("RemoveUnitFlag dirties Flags even for a no-op");
-        assert!(delta.mask.is_set(UNIT_DATA_PARENT_BIT));
+        assert!(delta.mask.is_set(UNIT_DATA_STAND_STATE_PARENT_BIT));
         assert!(delta.mask.is_set(UNIT_DATA_FLAGS_BIT));
         assert_eq!(delta.values.flags, remaining.bits());
         unit.clear_unit_data_changes();

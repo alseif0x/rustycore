@@ -335,15 +335,16 @@ pub async fn kill_player_like_cpp<H: CorpseHostLikeCpp>(
                 wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION,
             )
             .is_some_and(|effects| !effects.is_empty());
-    let _ = host
-        .hub_mut()
-        .mutate_active_player_update_state_like_cpp(|state| {
-            if release_timer {
-                state.active_local_flags |= crate::PLAYER_LOCAL_FLAG_RELEASE_TIMER;
-            } else {
-                state.active_local_flags &= !crate::PLAYER_LOCAL_FLAG_RELEASE_TIMER;
-            }
-        });
+    let changed = host.core().with_owned_player_mut_like_cpp(|player| {
+        if release_timer {
+            player.set_player_local_flags_like_cpp(crate::PLAYER_LOCAL_FLAG_RELEASE_TIMER);
+        } else {
+            player.remove_player_local_flags_like_cpp(crate::PLAYER_LOCAL_FLAG_RELEASE_TIMER);
+        }
+    });
+    if changed.is_none() {
+        return false;
+    }
 
     let changed = host.core().with_owned_player_mut_like_cpp(|player| {
         let state = player.resurrection_state_mut_like_cpp();

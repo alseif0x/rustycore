@@ -525,7 +525,7 @@ impl Unit {
     /// Unit.h:812 / UpdateField.h:262 marks Flags even when none were present.
     pub fn remove_unit_flags_like_cpp(&mut self, flags: UnitFlags) {
         self.data.flags &= !flags.bits();
-        self.mark_unit_data(UNIT_DATA_FLAGS_BIT);
+        self.mark_unit_data_nested(UNIT_DATA_STAND_STATE_PARENT_BIT, UNIT_DATA_FLAGS_BIT);
     }
     pub fn unit_flags_like_cpp(&self) -> UnitFlags {
         UnitFlags::from_bits_truncate(self.data.flags)

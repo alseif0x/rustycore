@@ -5,6 +5,63 @@
 use super::*;
 
 #[test]
+fn removed_unit_flags_serialize_parent_mask_and_flags_even_for_noop() {
+    use wow_constants::UnitFlags;
+    for present in [false, true] {
+        let mut unit = wow_entities::Unit::new(true);
+        unit.set_unit_flags_like_cpp(
+            UnitFlags::PLAYER_CONTROLLED
+                | if present {
+                    UnitFlags::SKINNABLE
+                } else {
+                    UnitFlags::empty()
+                },
+        );
+        unit.clear_unit_data_changes();
+        unit.remove_unit_flags_like_cpp(UnitFlags::SKINNABLE);
+        let packet =
+            unit_values_update_to_update_object(ObjectGuid::EMPTY, 0, &unit.values_update())
+                .unwrap()
+                .to_bytes();
+        // The empty GUID puts UnitData at byte 24. C++ uses word 1, parent32/Flags41.
+        assert_eq!(&packet[24..], &[2, 0, 0, 2, 1, 8, 0, 0, 0]);
+    }
+}
+
+#[test]
+fn bridges_canonical_local_flags_through_native_active_player_mask() {
+    let mut player = Player::new(Some(7), false);
+    player.gameplay_state_mut().active_local_flags = 0x8000;
+    for set in [true, false] {
+        player.clear_data_changes();
+        if set {
+            player.set_player_local_flags_like_cpp(8);
+        } else {
+            player.remove_player_local_flags_like_cpp(8);
+        }
+        let update = player.values_update(true);
+        let projected = player_values_update_to_packet(&update).unwrap();
+        assert_eq!(
+            projected.changed_object_type_mask,
+            1 << TYPEID_ACTIVE_PLAYER
+        );
+        let active = projected.active_player_data.unwrap();
+        let flags = if set { 0x8008_u32 } else { 0x8000_u32 };
+        assert_eq!(active.local_flags, flags);
+        assert!(mask_has(&active.active_player_data_mask, 38));
+        assert!(mask_has(&active.active_player_data_mask, 69));
+        let packet = player_values_update_to_update_object(ObjectGuid::EMPTY, 0, &update)
+            .unwrap()
+            .to_bytes();
+        assert_eq!(
+            &packet[24..42],
+            &[7, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0x40, 0, 0, 0, 0x20]
+        );
+        assert_eq!(&packet[42..], &flags.to_le_bytes());
+    }
+}
+
+#[test]
 fn bridges_canonical_unit_critter_guid_like_cpp() {
     let mut player = Player::new(Some(7), false);
     let critter = ObjectGuid::new(7, 12);

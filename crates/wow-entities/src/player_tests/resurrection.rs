@@ -3,6 +3,26 @@
 use super::*;
 
 #[test]
+fn local_flags_keep_one_canonical_value_and_mark_native_section_on_noops() {
+    let mut player = Player::new(Some(1), false);
+    player.gameplay_state_mut().active_local_flags = 0x8000;
+    for enable in [true, true, false, false] {
+        player.clear_active_player_data_changes();
+        if enable {
+            player.set_player_local_flags_like_cpp(8);
+        } else {
+            player.remove_player_local_flags_like_cpp(8);
+        }
+        let flags = if enable { 0x8008 } else { 0x8000 };
+        assert_eq!(player.gameplay_state().active_local_flags, flags);
+        let update = player.values_update(true).active_player_data.unwrap();
+        assert_eq!(update.local_flags, flags);
+        assert!(update.mask.is_set(38) && update.mask.is_set(69));
+        assert!(player.values_update(false).active_player_data.is_none());
+    }
+}
+
+#[test]
 fn self_res_spells_append_in_order_and_remove_only_the_first_duplicate() {
     let mut player = Player::new(Some(1), false);
     player.add_self_res_spell(3026);

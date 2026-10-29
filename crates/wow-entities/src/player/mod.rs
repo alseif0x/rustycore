@@ -3551,6 +3551,8 @@ pub struct PlayerDataUpdate {
 pub struct ActivePlayerDataUpdate {
     pub mask: UpdateMask,
     pub values: ActivePlayerDataValues,
+    /// Immutable projection of the canonical gameplay field for this delta.
+    pub local_flags: u32,
     pub rest_info_change_masks: [u8; 2],
 }
 
