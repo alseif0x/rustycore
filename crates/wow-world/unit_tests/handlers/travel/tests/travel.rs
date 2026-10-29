@@ -331,7 +331,7 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
     // UpdateObject after TimeSyncRequest is SendInitSelf (the player's own ActivePlayer
     // create for the destination map — C++ Map::AddPlayerToMap initPlayer=true). The final
     // send_stat_update emits nothing in this minimal test (no stat stores configured).
-    // Delayed ResurrectPlayer then sends DeathReleaseLoc, land-walk, and unroot.
+    // Delayed resurrection sends release location, movement controls, then native power.
     let packets: Vec<_> = send_rx.try_iter().collect();
     let create = packets
         .iter()
@@ -394,7 +394,16 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
             ServerOpcodes::DeathReleaseLoc as u16,
             ServerOpcodes::MoveSetLandWalk as u16,
             ServerOpcodes::MoveUnroot as u16,
+            ServerOpcodes::PowerUpdate as u16,
         ]
+    );
+    assert_eq!(
+        packets.last().unwrap(),
+        &wow_packet::packets::combat::PowerUpdate {
+            guid: player_guid,
+            powers: vec![(0, wow_constants::PowerType::Mana as u8)],
+        }
+        .to_bytes()
     );
 }
 

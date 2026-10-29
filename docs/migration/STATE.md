@@ -167,6 +167,21 @@ existing `session::mailbox::SessionCommand` re-export. No suite execution,
 production integration or debug build is claimed from that failed run
 (`/tmp/rustycore43-resurrection-power-acceptance-zcib7hnz/record.json`). The two
 test paths are corrected; the affected batch requires a fresh committed run.
+The corrected `ca113f530` batch compiled and completed all selected suites in
+79.904 seconds: Entities 1,056, Application 31, Character 3, Core 277, World
+Entities 2, Inventory 36 and Spell 181 passed. World passed 4,128 with five
+failures and one ignored. Four exact publication assertions still omit the
+new native PowerUpdate; the new out-of-world test incorrectly expects the
+one-shot wrapper to pass its existing residence fence. Preserve that fence and
+assert the rejected continuation plus suppressed power publication. The failed
+record is `/tmp/rustycore43-resurrection-power-acceptance-9l_eswzl/record.json`;
+production login-owner and the debug build did not run.
+Read-only source review also confirms that bones conversion discards its new
+bones GUID and falls back to ordinary Create1 discovery instead of immediate
+object-only Create2. The repair must retain the deletion commit and residence
+fences, publish only bones and handle same-GUID removal/recreation. AuraState,
+sanctuary and bones publication are the remaining demonstrated packet findings;
+finish those coherent repairs before the next affected acceptance/build.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

@@ -165,7 +165,7 @@ async fn native_resurrection_success_returns_ok_for_canonical_player() {
             .unwrap();
         let generators = session.id_generators_for_test_like_cpp();
         let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
-        wow_world_entities::resurrect_player_like_cpp(
+        let result = wow_world_entities::resurrect_player_like_cpp(
             &mut session,
             wow_world_entities::ResurrectionOperationCatalogs {
                 item_guid_generator: generators.item.as_ref(),
@@ -175,12 +175,25 @@ async fn native_resurrection_success_returns_ok_for_canonical_player() {
             percent,
             false,
         )
-        .await
-        .expect("native resurrection succeeds with the loaded Ghost/Wisp metadata");
+        .await;
+        if in_world {
+            result.expect("native resurrection succeeds with the loaded Ghost/Wisp metadata");
+        } else {
+            assert_eq!(
+                result,
+                Err("canonical Player incarnation or residence changed after visibility update")
+            );
+        }
         assert!(session.player_is_alive_like_cpp());
         session
             .core
             .with_owned_player_like_cpp(|player| {
+                assert_eq!(player.unit().world().object().is_in_world(), in_world);
+                let max_health = player.unit().data().max_health;
+                assert_eq!(
+                    player.unit().data().health,
+                    ((max_health as f32 * percent) as u64).min(max_health)
+                );
                 assert_eq!(player.get_power(wow_constants::PowerType::Mana), expected);
                 assert_eq!(player.get_power(wow_constants::PowerType::Rage), 0);
                 for bit in [116, 137 + 3, 137 + 1] {

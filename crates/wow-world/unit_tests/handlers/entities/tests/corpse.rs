@@ -1618,6 +1618,11 @@ async fn repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp() {
             wow_packet::packets::misc::StopMirrorTimer { timer: 1 }.to_bytes(),
             wow_packet::packets::misc::StopMirrorTimer { timer: 2 }.to_bytes(),
             wow_packet::packets::misc::DeathReleaseLoc::cleared_like_cpp().to_bytes(),
+            wow_packet::packets::combat::PowerUpdate {
+                guid: player_guid,
+                powers: vec![(0, wow_constants::PowerType::Mana as u8)],
+            }
+            .to_bytes(),
             wow_packet::packets::combat::CancelCombat.to_bytes(),
         ],
         "BuildPlayerRepop precedes ResurrectPlayer's cleared DeathReleaseLoc; no grave destination packet is emitted after revival"
@@ -1833,10 +1838,17 @@ async fn reclaim_corpse_in_range_resurrects_half_and_spawns_bones_like_cpp() {
         Some((500, 1_000))
     );
     assert_eq!(death_timer_from_driver(&session), 0);
-    // SMSG_DEATH_RELEASE_LOC(-1) on the realm connection (Opcodes.cpp:1333).
+    // Native SetPower publishes supported zero mana after the realm release location.
     assert_eq!(
-        sent_opcodes(&realm_rx),
-        vec![ServerOpcodes::DeathReleaseLoc as u16]
+        realm_rx.try_iter().collect::<Vec<_>>(),
+        vec![
+            wow_packet::packets::misc::DeathReleaseLoc::cleared_like_cpp().to_bytes(),
+            wow_packet::packets::combat::PowerUpdate {
+                guid: player_guid,
+                powers: vec![(0, wow_constants::PowerType::Mana as u8)],
+            }
+            .to_bytes(),
+        ]
     );
     let opcodes = sent_opcodes(&send_rx);
     let land_walk = opcodes

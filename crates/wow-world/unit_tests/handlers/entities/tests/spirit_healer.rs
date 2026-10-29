@@ -409,10 +409,15 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         ItemUpdateState::Unchanged,
     );
     let _ = session.send_stat_update();
-    let pre_resurrection_max_health = session
+    let (pre_resurrection_max_health, pre_resurrection_max_mana) = session
         .core
-        .with_owned_player_like_cpp(|player| player.unit().data().max_health)
-        .expect("canonical Player maximum health");
+        .with_owned_player_like_cpp(|player| {
+            (
+                player.unit().data().max_health,
+                player.get_max_power(wow_constants::PowerType::Mana),
+            )
+        })
+        .expect("canonical Player pre-sickness health and mana maxima");
     assert_eq!(
         session
             .canonical_player_effective_combat_stats_like_cpp()
@@ -555,7 +560,21 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
             .iter()
             .map(|bytes| packet_opcode(bytes))
             .collect::<Vec<_>>(),
-        vec![ServerOpcodes::DeathReleaseLoc as u16]
+        vec![
+            ServerOpcodes::DeathReleaseLoc as u16,
+            ServerOpcodes::PowerUpdate as u16
+        ]
+    );
+    assert_eq!(
+        realm_packets[1],
+        wow_packet::packets::combat::PowerUpdate {
+            guid: player_guid,
+            powers: vec![(
+                (pre_resurrection_max_mana as f32 * 0.5) as i32,
+                wow_constants::PowerType::Mana as u8
+            )],
+        }
+        .to_bytes()
     );
     assert!(
         first_packets
