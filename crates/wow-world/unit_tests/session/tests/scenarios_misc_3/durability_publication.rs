@@ -18,7 +18,12 @@ fn native_durability_values_are_owner_only_batched_before_player_and_consumed_on
             assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
         }
         peer.core.client_visible_guids_like_cpp.insert(owner_guid);
-        owner.set_player_aura_authority_complete_like_cpp(true);
+        owner
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_player_aura_authority_complete_like_cpp(true);
+            })
+            .expect("canonical durability publication Aura owner");
         owner
             .with_owned_player_mut_like_cpp(|player| {
                 player.unit_mut().set_max_health(100);

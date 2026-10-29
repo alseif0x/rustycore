@@ -9,7 +9,12 @@ fn durability_loss_marks_canonical_item_changed_for_full_save_like_cpp() {
         0,
     );
     session.core.current_map_id = 571;
-    session.set_player_aura_authority_complete_like_cpp(true);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_player_aura_authority_complete_like_cpp(true);
+        })
+        .expect("canonical durability fixture Aura owner");
     session.set_item_effect_store(Arc::new(wow_data::ItemEffectStore::from_entries([])));
     let item_guid = ObjectGuid::create_item(1, 9121);
     session

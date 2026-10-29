@@ -118,6 +118,14 @@ caches, Packet's unchanged test executable and all runtime/reference artifacts
 were preserved. The retirement record is
 `/tmp/rustycore43-corpse-birth-acceptance-fanzvczw/completed-inactive-suite-executable-retirement.json`.
 Available space was 2.8 GiB; the documented 30-GiB aim remains unmet.
+The completed-batch campaign at `1d73abacd` passed QA Python (36) and runtime
+guard fakes (202), then stopped during World test compilation. Two new item
+fixtures called the CharacterLoginHost aura-authority method without bringing
+that trait into scope. No library suite or debug build ran. The 203.997-second
+failure is retained in
+`/tmp/rustycore43-native-death-publication-acceptance-p7ampbxf/record.json`.
+The correction uses the existing generation-checked Player operation in those fixtures;
+it does not add a Session thunk or change production authority.
 
 Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
 ignored), Application (31), Entities (2), Spell (181), bot (248), production
