@@ -235,6 +235,21 @@ raised a missing `tempfile` import (0.226 seconds for the attempt). The log is
 `/tmp/rustycore43-final-20261029-ynb9_t0o/qa-python.log`. The import repair and
 renewed candidate acceptance remain required; no Rust or runtime result is claimed.
 
+At `39dc59c78`, all 34 Python tests and 195 runtime-guard fake checks passed.
+Architecture policy and exact Session syntax passed (70.623 and 55.988 seconds).
+The census then reported stale rows/ceilings; workspace test compilation found
+two u32/i32 mismatches in the home Stuck fixture. The parent stopped that owned
+runner before another compilation of the known failure. The attempt took
+287.701 seconds and ended 130; its manifest is
+`target/validation-v2/manifests/20261029T011021.172635Z-1574992-final.json` and
+logs/termination identity are in `/tmp/rustycore43-final-20261029-hh8e6i2n/`.
+It is not a final pass. The repair uses checked protocol-ID conversions and
+records the reviewed census as 4,120 tests (same one ignored): four added cases,
+one existing Stuck rename, and 87 derived owner/blocker rows. The only class
+change is one W-to-H pet test after fake Spell host setters were removed.
+The exact census review is under the candidate-reconcile directory above;
+no test coverage was deleted and #584's outstanding boundaries are retained.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

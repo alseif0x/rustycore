@@ -362,7 +362,7 @@ async fn spell_stuck_teleports_home_and_ignores_hearthstone_cooldown_like_cpp() 
     set_stuck_spell_store_like_cpp(&mut session, spell_id, false, 0);
     session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
     session.set_active_spell_cast_like_cpp(Some(wow_entities::SpellCastState {
-        spell_id: current_cast_spell,
+        spell_id: i32::try_from(current_cast_spell).expect("fixed fixture spell ID fits i32"),
         target_guid: player_guid,
         target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
         cast_id: ObjectGuid::EMPTY,
@@ -402,7 +402,7 @@ async fn spell_stuck_teleports_home_and_ignores_hearthstone_cooldown_like_cpp() 
         session
             .active_spell_cast_snapshot_like_cpp()
             .map(|cast| cast.spell_id),
-        Some(current_cast_spell),
+        Some(i32::try_from(current_cast_spell).expect("fixed fixture spell ID fits i32")),
         "C++ TELE_TO_SPELL preserves an in-progress non-melee cast"
     );
     assert_eq!(

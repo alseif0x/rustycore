@@ -125,6 +125,16 @@
    "unit_tests_lines": 270837,
    "unit_tests_tests": 4094,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-12",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "#43 acceptance repair: add three stationary forced-visibility cases and one native-u64/category-only Stuck case; retain the existing home Stuck case under its corrected FULLMASK no-cooldown name. Net +4 tests, 4120 total including the same one ignored case. The 1658 additional test lines supply canonical Player handles, complete Aura keys/effects, carried-inventory authority and native Map-tail/death expectations in existing tests. Review of 87 derived rows preserves all other identities: 68 blocker and 28 owner-vote deltas (overlapping), one W-to-H pet case after removing the ambiguous fake Spell host setters, and one battleground reason change. These classifier changes do not move production authority or discharge #584. Required Entities visibility adds one host method and Stuck replaces two fake setters with one operation; ceilings equal actual metrics without headroom. Execution acceptance remains pending.",
+   "unit_tests_lines": 272495,
+   "unit_tests_tests": 4098,
+   "src_tests": 22
   }
  ]
 }
