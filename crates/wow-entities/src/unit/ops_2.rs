@@ -674,9 +674,9 @@ impl Unit {
     /// even when unchanged, without replacing the remaining native PvP flags.
     pub fn set_sanctuary_from_area_like_cpp(&mut self, sanctuary: bool) {
         if sanctuary {
-            self.set_pvp_flag_like_cpp(UnitPvpFlags::SANCTUARY);
+            self.data.pvp_flags |= UnitPvpFlags::SANCTUARY.bits();
         } else {
-            self.remove_pvp_flag_like_cpp(UnitPvpFlags::SANCTUARY);
+            self.data.pvp_flags &= !UnitPvpFlags::SANCTUARY.bits();
         }
         self.mark_unit_data_nested(UNIT_DATA_MODS_PARENT_BIT, UNIT_DATA_PVP_FLAGS_BIT);
     }

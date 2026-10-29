@@ -33,10 +33,7 @@ pub use commands::{
     present_committed_creature_melee_hit_like_cpp, publish_creature_melee_prefix_like_cpp,
 };
 use damage::publish_melee_absorb_consumption_like_cpp;
-#[cfg(any(test, feature = "test-fixtures"))]
 pub use damage::send_player_power_update_like_cpp;
-#[cfg(not(any(test, feature = "test-fixtures")))]
-use damage::send_player_power_update_like_cpp;
 pub use pvp_state::{
     apply_represented_ffa_pvp_login_state_like_cpp, combat_stop_like_cpp,
     reset_contested_pvp_like_cpp, set_represented_ffa_pvp_flag_like_cpp, update_pvp_flag_like_cpp,

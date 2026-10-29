@@ -72,13 +72,11 @@ fn go_after_failure_cannot_pass_an_ordered_failure_expectation() {
     evaluate(&mut evidence);
     assert!(evidence.expected_rules[0].matched);
     assert!(!evidence.passed);
-    assert!(
-        evidence
-            .failure
-            .as_deref()
-            .unwrap()
-            .contains("unexpected plan-bound spell_go")
-    );
+    assert!(evidence
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("unexpected plan-bound spell_go"));
 }
 
 #[test]
@@ -337,12 +335,10 @@ fn parser_decodes_prepare_identity_and_optional_sections() {
         &spell_cast_body(server, None, true),
     );
     assert_eq!(empty_go.full_combat_log, Some(false));
-    assert!(
-        empty_go
-            .target
-            .as_ref()
-            .is_some_and(|target| target.flags == 0)
-    );
+    assert!(empty_go
+        .target
+        .as_ref()
+        .is_some_and(|target| target.flags == 0));
     assert!(evidence.events[0].error.is_none());
 }
 
@@ -818,13 +814,11 @@ fn missing_or_misrouted_logout_complete_fails_the_run() {
     not_written.logout_request_completed = false;
     finalize_finish(&mut not_written);
     assert!(!not_written.passed);
-    assert!(
-        not_written
-            .failure
-            .as_deref()
-            .unwrap()
-            .contains("logout request was not locally written")
-    );
+    assert!(not_written
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("logout request was not locally written"));
 }
 
 fn correlated(events: Vec<ObservedEvent>, expected_rules: Vec<ExpectedFact>) -> Evidence {
@@ -1486,13 +1480,11 @@ fn exact_packet_expectations_reject_wrong_route_duplicates_and_route_order() {
     evaluate(&mut wrong_route);
     assert!(!wrong_route.passed);
     assert!(!wrong_route.expected_rules[0].matched);
-    assert!(
-        wrong_route
-            .failure
-            .as_deref()
-            .unwrap()
-            .contains("wrong-route")
-    );
+    assert!(wrong_route
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("wrong-route"));
 
     let mut duplicate = Evidence {
         events: vec![

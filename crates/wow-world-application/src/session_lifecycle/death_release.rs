@@ -2,9 +2,7 @@
 
 use wow_map::{MapKey, PlayerHandle};
 use wow_world_core::session::SessionState;
-use wow_world_entities::{
-    CorpseHostLikeCpp, CorpseLifecycleCatalogsLikeCpp, ResurrectionOperationCatalogs,
-};
+use wow_world_entities::{CorpseLifecycleCatalogsLikeCpp, ResurrectionOperationCatalogs};
 use wow_world_lifecycle::{FinalizationMode, FinalizationOutcome};
 
 use super::SessionLifecycleHostLikeCpp;

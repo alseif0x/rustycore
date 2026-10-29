@@ -12,6 +12,43 @@ fails at the reference caster with BAD_TARGETS and restores normally.
 The subsequent native power, sanctuary, AuraState, bones, logout death release
 and initial Flags2 changes still need combined acceptance. No publication or issue closure.
 
+Combined acceptance at `2bea1d3c8` failed: the final runner took 1,321.374 seconds,
+and the complete attempted ordinary campaign took 1,344.580 seconds, exceeding
+the 600-second target. The exact manifest and record are
+`/tmp/rustycore43-combined-final-22apo_50/{final-manifest.json,record.json}`.
+QA Python passed 42 tests with one skipped. Workspace/all-target and independent
+domain compilation passed. Entities passed 1,060 with one failure; World passed
+4,146 with three failures and one ignored. Other selected library suites passed,
+including Packet 776, Core 279 and Application 31. Production-login execution,
+full standalone-bot tests/build and the debug World build did not run.
+
+The failed campaign exposed one native sanctuary dirty-mask bug: calling the
+ordinary setter marked Unit bit 0 before 64/78, adding an unwanted four-byte mask
+word. The repair assigns the same canonical byte and unconditionally marks only
+64/78, retaining the strict ten-byte oracle (`UpdateFields.h:278`,
+`Player.cpp:7327–7333`). Two fixture repairs supply the positive logout test's
+missing DifficultyStore and run the native caster health-state phase before
+Drain Soul (`Unit.cpp:469–476,6765–6768`); its expected 700 HP is preserved.
+SQL composition additionally caught a production compile error hidden by the
+workspace's unified test-fixtures feature: the existing power sender was
+re-exported only for tests. Its two existing re-export levels are now available
+to the production trait adapter, without changing the sender or other API gates.
+Standalone bot formatting uses its own edition 2021. These repairs are implemented,
+UNVALIDATED, pending the corrected-candidate acceptance.
+
+The acceptance metadata is reviewed against the actual source delta: three thin
+trait adapters, one test-only eleven-argument Session factory site, and two
+private corpse-publication registry accesses. The Player root grows only two
+lines for the immutable LocalFlags snapshot; the existing #584 C4 exit remains.
+The census adds 30 integration identities and removes none; all prior classes,
+destinations and ignored states are retained. The shared fixture/native power
+adapter changes derived blockers in 136 prior rows, with 43 owner-vote changes;
+these are not test moves or domain-completion claims. The exact reviewed delta is
+`/tmp/rustycore43-census-review-yitp1lcs/record.json`. The bounded ceiling records
+276,418 unit-test lines, 4,128 unit-test identities and 22 source tests, including
+the required catalog and phase fixture repairs. No acceptance baseline is claimed
+green until the corrected policy and source pass together.
+
 Earlier candidate `b0f2dadd6` passed the complete World library suite (4,130
 passed, one ignored) and built the debug server in a 328.993-second affected
 campaign (`/tmp/rustycore43-native-death-publication-acceptance-9lh5imhg/record.json`).

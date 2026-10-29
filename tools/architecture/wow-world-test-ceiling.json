@@ -165,6 +165,16 @@
    "unit_tests_lines": 272825,
    "unit_tests_tests": 4098,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-15",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "Reviewed #43 acceptance repairs: native corpse birth and bones ordering, logout death release, populated-inventory durability and save receipts, canonical sanctuary/health-state and CREATE projections, and exact spell/control oracles. Thirty new World integration identities preserve all prior identities and require World ownership fixtures. All prior classes/destinations and ignored states remain unchanged; 136 prior rows have derived blocker updates, including 43 owner-vote changes, through the shared corpse fixture boundary and the native power adapter. The final fixture repairs add the required DifficultyStore and caster Unit phase. No blanket ceiling refresh or domain completion claim.",
+   "unit_tests_lines": 276418,
+   "unit_tests_tests": 4128,
+   "src_tests": 22
   }
  ]
 }

@@ -78,8 +78,6 @@ pub use catalogs::CreatureSpawnCatalogsLikeCpp;
 pub use combat_handlers::{
     CombatHandlerCxLikeCpp, CombatHandlerHostLikeCpp, register_combat_handlers_like_cpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use combat_session::send_player_power_update_like_cpp;
 pub use combat_session::{
     CombatSessionHostLikeCpp, apply_represented_ffa_pvp_login_state_like_cpp, combat_stop_like_cpp,
     handle_apply_creature_melee_damage_like_cpp_command_like_cpp,
@@ -88,8 +86,9 @@ pub use combat_session::{
     handle_reconcile_pvp_combat_expiry_like_cpp,
     present_committed_creature_melee_hit_at_stage_like_cpp,
     present_committed_creature_melee_hit_like_cpp, publish_creature_melee_prefix_like_cpp,
-    reset_contested_pvp_like_cpp, set_represented_ffa_pvp_flag_like_cpp,
-    tick_player_regeneration_like_cpp, update_pvp_flag_like_cpp,
+    reset_contested_pvp_like_cpp, send_player_power_update_like_cpp,
+    set_represented_ffa_pvp_flag_like_cpp, tick_player_regeneration_like_cpp,
+    update_pvp_flag_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use contracts::RepresentedCreatureKillEventLikeCpp;

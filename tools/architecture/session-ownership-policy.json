@@ -41463,6 +41463,47 @@
             "external_impl",
             "trait_impl"
           ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "finish_player_non_alive_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn finish_player_non_alive_state_like_cpp (& mut self) -> Result < () , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "send_player_power_update_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_player_power_update_like_cpp (& self , guid : wow_core :: ObjectGuid , power : wow_constants :: PowerType , value : i32 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SessionLifecycleHostLikeCpp",
+          "kind": "method",
+          "name": "stop_combat_for_logout_death_release_like_cpp",
+          "visibility": "private",
+          "signature": "fn stop_combat_for_logout_death_release_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
         }
       ]
     },
@@ -47827,6 +47868,16 @@
         },
         {
           "module": "crate::tests::scenarios_16",
+          "callee": "WorldSession::new",
+          "argument_count": 11,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 1
+        },
+        {
+          "module": "crate::handlers::entities::tests::corpse",
           "callee": "WorldSession::new",
           "argument_count": 11,
           "cfg": [
@@ -61326,6 +61377,32 @@
           "operation": "local_alias",
           "symbol": "registry",
           "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::visibility_session::corpse_birth",
+          "source": "crates/wow-world-entities/src/visibility_session/corpse_birth.rs",
+          "enclosing": "fn publish_to_recipient",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::visibility_session::corpse_birth",
+          "source": "crates/wow-world-entities/src/visibility_session/corpse_birth.rs",
+          "enclosing": "fn publish_to_recipient",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
           "count": 1

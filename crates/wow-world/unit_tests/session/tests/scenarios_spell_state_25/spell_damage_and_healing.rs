@@ -211,6 +211,12 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
     // The scripted term reads the *caster's* wounded state, not the victim's.
     session.set_player_health_like_cpp(50, 100);
     session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().update_health_aura_states_like_cpp();
+        })
+        .expect("native caster Unit health phase");
+    session
         .execute_spell(spell_id, guid)
         .await
         .expect("Drain Soul from a healthy caster");
@@ -225,6 +231,12 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
     );
 
     session.set_player_health_like_cpp(10, 100);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().update_health_aura_states_like_cpp();
+        })
+        .expect("native caster Unit health phase");
     session
         .execute_spell(spell_id, guid)
         .await

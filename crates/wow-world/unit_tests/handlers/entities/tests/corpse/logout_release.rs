@@ -258,6 +258,7 @@ async fn not_yet_due_logout_timer_does_not_release_or_start_finalization() {
 #[tokio::test]
 async fn disconnected_full_self_queues_still_apply_ghost_wisp_and_publish_the_peer_corpse() {
     let (mut session, instance, realm, guid, corpse, save) = pending_death(9_413);
+    session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([])));
     session
         .core
         .with_owned_player_mut_like_cpp(|player| {
