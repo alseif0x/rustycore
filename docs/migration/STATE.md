@@ -120,7 +120,7 @@ This extends a bounded absence proof; it does not claim the general SpellMod
 engine is implemented. Required live cases must establish whether any further
 applicable modifier is an actual dependency of this lifecycle.
 
-Step 1 is implemented and UNVALIDATED. The selected-creation caller now consults
+Step 1 passed the affected local acceptance recorded below. The caller consults
 the existing canonical Player aura snapshot only after a potential-modifier
 rejection. Unit cases cover applicable flat/percent/label and area-aura modifiers,
 irrelevant operations/masks/families, source/target difficulty differences and
@@ -130,10 +130,10 @@ Parent diff review corrected test aura-type constants before execution. The
 expanded charge-test file remains below 2,000 lines; its next natural split is
 the active-modifier fixtures/cases if that responsibility grows further.
 
-Step 2 is implemented and UNVALIDATED: equipment and bag queries
+Step 2 passed the affected local acceptance recorded below: equipment and bag queries
 append the missing item payload; both decode through existing native-width
 field getters. Missing/malformed fields retain incomplete authority. Four new
-decoder/projection tests are written but unrun. Canonical hydration now covers
+decoder/projection tests passed with the Database suite. Canonical hydration covers
 both row families, including native refund/BOP ordering, tradeable registration
 and final create flags. Authority is granted only at the successful final load
 proof. Invalid context/high-bit gem representations, unavailable effective
@@ -166,7 +166,7 @@ claimed as byte parity for that divergent transmog case or as completion of the
 transmog product. Distinct primary/secondary values are retained by the decoder
 test and must survive the integrated load/save round-trip test.
 
-Step 3 regression tests are written and UNVALIDATED: five new World cases exercise
+Step 3 regression tests passed affected local acceptance: five new World cases exercise
 production login through canonical debit/full-save capture and acknowledgement,
 distinct nonzero item metadata in backpack and bag contents, Ankh counts 10/1
 under Applied/Failed/Unknown outcomes, incomplete inputs, refund ordering and
@@ -175,9 +175,11 @@ with a failed bag query. The existing partial-durability test remains unchanged.
 Parent review replaced a wire-only count mutation in the round-trip fixture with
 the canonical debit operation and supplied the preceding login backpack capacity.
 Existing SelfRes/recovery and save-receipt suites retain packet, cancellation and
-incarnation coverage; execution is pending in the complete affected campaign.
+incarnation coverage; their owning suites passed in the complete affected campaign.
 
-Status: steps 1–3 and the last-Ankh QA variant are implemented and unvalidated.
+Status: steps 1–4 and the last-Ankh QA variant have passed affected local
+acceptance at `ee8ef17fd6deb3d599b4d02049899a84c3f2a533`; live matrix and
+publication/terminal acceptance remain open.
 The wrapper/fixture accepts initial Ankh counts 1 or 10, records the count in
 the existing journal, and retains default 10 for legacy journals. Scenario
 checks require the exact owned reserved row/link at count 9 or their complete
@@ -186,7 +188,22 @@ reserved item identities even if their owner changes, so orphan rows cannot
 silently disappear from this evidence. Cleanup remains identity-bound. Parent
 review corrected strict integer checks and a test's allocated owner ID. New
 hermetic cases cover both variants, journal drift, cleanup and row/link failures.
-No new acceptance or live success is claimed; the frozen candidate is next.
+The current accepted local evidence follows; no new live success is claimed.
+The complete retry passed in **574.965 seconds** (600-second target met),
+22:31:04–22:40:39 UTC on 2026-10-29, aarch64, two Cargo jobs after observing a
+5,225,368 KiB peak child RSS and at least 16 GiB available memory in the prior
+run. Record: `/tmp/rustycore43-repair-ee8ef17fd-gmn9jm8d/record.json`, with
+`final-manifest.json` and command logs beside it. All seven commands passed:
+47 QA tests; affected final with architecture (173.992 seconds) and manifest
+verification; 42 production-login integration tests; 253 bot tests; bot and
+World debug builds. The six library suites passed: Database 430/9 ignored,
+Persistence 36, World 4,155/1 ignored, Character 3, Core 279, Spell 186.
+World executable SHA-256:
+`57d4e4bcc5dd2b31e466334812d1e57fa816d72ed8347f125f4a503d346eb1c6`;
+bot SHA-256:
+`1690d9b93ac36f4791a262a367adf31e8844f9c6d77b0704ef6d94e1fcac7947`.
+Both artifacts are pinned to the tested code SHA. This is affected local
+acceptance, not origin-base publication or exhaustive terminal acceptance.
 Affected campaign at `f355af6d82ccb1eac0d59dd0c39619e0bbc0d03e` finished
 FAILED in 1,233.546 seconds on aarch64 with one Cargo job (600-second target
 not met). Record: `/tmp/rustycore43-repair-f355af6d8-o590lpa9/record.json`.
@@ -199,9 +216,9 @@ fixture/test lines, production unchanged) and the existing Core LocalFlags byte
 oracle. C++ `UpdateFields.h:687` selects parent38/field69; `UpdateFields.cpp:
 3151–3158,3725–3727` serializes only nonzero mask words. The oracle incorrectly
 includes word0; production correctly emits block-presence 6 and two mask words.
-Correct only that oracle and the reviewed test ceiling, then rerun affected
-acceptance. Production-login integration and debug builds were not reached;
-no binary from this failed campaign is authorized as a live candidate.
+The accepted retry above corrects only that oracle and the reviewed test
+ceiling. This failed run did not reach production-login integration or debug
+builds; its artifacts were not used as a live candidate.
 Acceptance preparation formatted the changed Rust files and reviewed the test
 census delta: 4,151 → 4,156 identities, one ignored unchanged; five added login
 composition tests and one selected-charge test rename, with no other identity or
