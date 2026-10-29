@@ -85,6 +85,11 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
             player
                 .unit_mut()
                 .add_unit_state(UnitState::ATTACK_PLAYER.bits());
+            let _ = player
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .set_in_combat_with(selected_guid, false, false);
         })
         .unwrap();
     session.fixtures.combat.player_contested_pvp_timer_like_cpp = 77;
@@ -784,6 +789,7 @@ async fn teleport_to_far_map_delays_when_can_delay_teleport_is_set_like_cpp() {
 #[tokio::test]
 async fn update_processes_alive_delayed_far_teleport_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 827);
     let source = Position::new(10.0, 20.0, 30.0, 0.0);
     let destination = Position::new(109.0, 209.0, 39.0, 2.4);
@@ -809,6 +815,7 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
     ])));
     session.core.expansion = 1;
     session.core.state = SessionState::LoggedIn;
+    session.set_canonical_map_manager(Arc::clone(&canonical));
     session.core.admission.socket_timeout_deadline_like_cpp =
         Instant::now() + Duration::from_secs(60);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -821,6 +828,8 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
         80,
         0,
     ));
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_health_like_cpp(100, 100);
     session.fixtures.combat.in_combat = true;
     session.set_represented_can_delay_teleport_like_cpp(true);

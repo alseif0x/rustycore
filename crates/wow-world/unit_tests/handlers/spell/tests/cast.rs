@@ -92,6 +92,9 @@ async fn self_res_listed_spell_casts_and_removes_self_res_spell_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 20_001);
 
     install_canonical_player(&mut session, &canonical, player_guid);
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     session.set_spell_store(self_res_spell_store(spell_id));
     session
         .core

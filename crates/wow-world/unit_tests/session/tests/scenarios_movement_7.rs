@@ -411,6 +411,9 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
         session
             .ensure_canonical_player_owner_for_map_like_cpp(wow_map::MapKey::new(571, 0), source,)
     );
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_max_health(400);

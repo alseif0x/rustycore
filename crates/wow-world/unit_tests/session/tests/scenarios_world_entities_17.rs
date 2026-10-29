@@ -555,6 +555,9 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
                 slot: 0,
             },
         );
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
 
     assert!(
         session
@@ -566,6 +569,10 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
                 wow_entities::GooberUseSource::default(),
             )
             .await
+    );
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
     );
 
     assert!(
@@ -600,9 +607,9 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
     assert_eq!(

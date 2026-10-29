@@ -485,6 +485,24 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
         571,
         0,
     );
+    let peer_handle = canonical
+        .lock()
+        .unwrap()
+        .adopt_active_player_like_cpp(other_player_guid)
+        .expect("visible peer has a canonical Player owner");
+    let identity = other_info.identity;
+    other_info.identity = PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+        identity.player_name,
+        identity.account_id,
+        identity.battlenet_account_id,
+        identity.recruiter_id,
+        identity.race,
+        identity.class,
+        identity.sex,
+        identity.active_expansion,
+        identity.locale,
+        Some(peer_handle),
+    );
     registry.register_or_replace(other_player_guid, other_info, Default::default());
 
     session.update_visibility().await;

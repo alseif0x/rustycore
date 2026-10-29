@@ -35,6 +35,7 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
         0,
         80,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     let manager = session
         .core
         .canonical_map_manager

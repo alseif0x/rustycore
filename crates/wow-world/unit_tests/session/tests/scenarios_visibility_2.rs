@@ -529,15 +529,40 @@ fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
     let (nearby_command_tx, nearby_command_rx) = flume::bounded(1);
 
     session.set_player_guid(Some(guid));
+    let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     session.set_player_registry(Arc::clone(&registry));
+    session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::ZERO);
+    add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 0, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
     let (self_tx, _self_rx) = flume::bounded(1);
+    let self_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("cleanup session owns its canonical Player handle");
     // Cleanup unregisters through the owning control channel (#243), so this
     // session's own entry must carry its command sender.
+    let mut self_info =
+        broadcast_info_with_command(guid, self_tx, session.session_command_tx());
+    let identity = self_info.identity;
+    self_info.identity = crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+        identity.player_name,
+        identity.account_id,
+        identity.battlenet_account_id,
+        identity.recruiter_id,
+        identity.race,
+        identity.class,
+        identity.sex,
+        identity.active_expansion,
+        identity.locale,
+        Some(self_handle),
+    );
     registry.register_or_replace(
         guid,
-        broadcast_info_with_command(guid, self_tx, session.session_command_tx()),
+        self_info,
         Default::default(),
     );
     registry.register_or_replace(

@@ -625,7 +625,9 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
         |entry| entry == 9008,
         |spell| spell == u32::try_from(spell_id).unwrap(),
     )));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (spell_id as u32, 0),
+    ]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -643,6 +645,7 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
             effects: Vec::new(),
         },
     );
+    spell_store.insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
     session.set_spell_store(Arc::new(spell_store));
 
     let plan = session.represented_handle_spell_click_plan_like_cpp(creature_guid);
@@ -694,6 +697,7 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
     );
 
     // Source Unit::Kill must not skip the Player update's KillPlayer phase.
+    crate::native_death_test_fixtures::prepare(&mut session);
     session.mutate_canonical_player_like_cpp(|player| player.unit_mut().set_health(5));
     let outcome = session
         .execute_represented_spell_click_plan_like_cpp(creature_guid, &plan)
@@ -705,6 +709,17 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
             player.unit().death_state(),
         )),
         Some((0, wow_constants::DeathState::JustDied))
+    );
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::CancelCombat,
+            ServerOpcodes::PowerUpdate,
+            ServerOpcodes::StandStateUpdate,
+            ServerOpcodes::DurabilityDamageDeath,
+        ],
+        "lethal creature-caster damage completes the native death packets before returning"
     );
 }
 #[tokio::test]

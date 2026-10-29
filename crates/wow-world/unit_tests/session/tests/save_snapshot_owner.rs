@@ -396,6 +396,8 @@ fn save_snapshot_captures_only_dirty_owned_non_buyback_durability_in_guid_order(
 
     let incomplete = session.prepare_player_save_like_cpp(123).unwrap().request;
     assert_eq!(incomplete.item_durability, None);
+    assert_eq!(incomplete.inventory_items, None);
+    session.set_item_effect_store(Arc::new(wow_data::ItemEffectStore::from_entries([])));
 
     session
         .with_owned_player_mut_like_cpp(|player| {
@@ -406,35 +408,72 @@ fn save_snapshot_captures_only_dirty_owned_non_buyback_durability_in_guid_order(
         .unwrap();
     let request = session.prepare_player_save_like_cpp(123).unwrap().request;
     assert_eq!(
-        request.item_durability,
-        Some(vec![
-            wow_persistence::PlayerItemDurabilitySave {
-                item_guid: 20,
-                durability: 37,
-            },
-            wow_persistence::PlayerItemDurabilitySave {
-                item_guid: 30,
-                durability: 70,
-            },
-            wow_persistence::PlayerItemDurabilitySave {
-                item_guid: 50,
-                durability: 45,
-            },
-            wow_persistence::PlayerItemDurabilitySave {
-                item_guid: 60,
-                durability: 31,
-            },
-        ])
+        request
+            .inventory_items
+            .as_ref()
+            .expect("complete item-effect metadata allows full inventory capture")
+            .iter()
+            .map(|row| (row.item_guid, row.state, row.durability, row.bag_guid))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                20,
+                wow_persistence::PlayerItemSaveStateLikeCpp::New,
+                37,
+                0,
+            ),
+            (
+                30,
+                wow_persistence::PlayerItemSaveStateLikeCpp::Changed,
+                70,
+                0,
+            ),
+            (
+                50,
+                wow_persistence::PlayerItemSaveStateLikeCpp::Changed,
+                45,
+                40,
+            ),
+            (
+                60,
+                wow_persistence::PlayerItemSaveStateLikeCpp::Changed,
+                31,
+                0,
+            ),
+            (
+                80,
+                wow_persistence::PlayerItemSaveStateLikeCpp::Removed,
+                6,
+                0,
+            ),
+            (
+                90,
+                wow_persistence::PlayerItemSaveStateLikeCpp::Changed,
+                0,
+                0,
+            ),
+        ],
+        "the full owner snapshot is sorted and includes owned New, Changed, Removed and bag-child rows, while excluding unchanged, foreign and buyback items"
     );
+    assert_eq!(request.item_durability, Some(Vec::new()));
     session
         .with_owned_player_like_cpp(|player| {
-            assert_eq!(
-                player.inventory_runtime_like_cpp().item_objects()
-                    [&wow_core::ObjectGuid::create_item(1, 20)]
-                    .update_state(),
-                wow_constants::ItemUpdateState::New,
-                "full-save capture must not acknowledge item update state"
-            );
+            let objects = player.inventory_runtime_like_cpp().item_objects();
+            for (item_id, expected) in [
+                (20, wow_constants::ItemUpdateState::New),
+                (30, wow_constants::ItemUpdateState::Changed),
+                (40, wow_constants::ItemUpdateState::Unchanged),
+                (50, wow_constants::ItemUpdateState::Changed),
+                (60, wow_constants::ItemUpdateState::Changed),
+                (80, wow_constants::ItemUpdateState::Removed),
+                (90, wow_constants::ItemUpdateState::Changed),
+            ] {
+                assert_eq!(
+                    objects[&wow_core::ObjectGuid::create_item(1, item_id)].update_state(),
+                    expected,
+                    "full-save capture must preserve each item's update state"
+                );
+            }
         })
         .unwrap();
 }

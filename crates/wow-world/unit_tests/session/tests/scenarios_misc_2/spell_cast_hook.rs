@@ -209,6 +209,7 @@ async fn a_creature_caster_override_raises_no_spell_cast() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     let probe = install_cast_probe(&mut session, &canonical);
 
     session

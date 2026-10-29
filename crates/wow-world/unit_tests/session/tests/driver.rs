@@ -228,7 +228,6 @@ async fn empty_pass_records_the_frozen_session_phase_order_like_cpp() {
             Phase::PendingCreatureSpawn,
             Phase::DispatchQueuedPackets,
             Phase::CharacterRenameCallbacks,
-            Phase::PeriodicPlayerSave,
         ]
     );
 }
@@ -246,7 +245,7 @@ async fn sustained_load_keeps_the_phase_order_and_dispatches_in_the_same_pass_li
     assert_eq!(processed, 3);
     let trace = session.driver_phase_trace_like_cpp();
     assert_eq!(trace.first(), Some(&Phase::DrainPrimaryPackets));
-    assert_eq!(trace.last(), Some(&Phase::PeriodicPlayerSave));
+    assert_eq!(trace.last(), Some(&Phase::CharacterRenameCallbacks));
     // Ingestion strictly precedes dispatch: a packet read this pass is
     // dispatched this pass, never before it was read.
     let ingest = trace

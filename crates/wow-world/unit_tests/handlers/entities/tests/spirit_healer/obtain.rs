@@ -184,6 +184,7 @@ fn add_bag_obtain_item(
             let mut bag = wow_entities::Item::default();
             bag.object_mut().create(bag_guid);
             bag.set_owner_guid(owner_guid);
+            bag.set_count(1);
             player
                 .inventory_runtime_mut_like_cpp()
                 .store_item_object_like_cpp(bag);
@@ -192,6 +193,7 @@ fn add_bag_obtain_item(
             child.object_mut().create(item_guid);
             child.object_mut().set_entry(OBTAIN_ITEM);
             child.set_owner_guid(owner_guid);
+            child.set_count(1);
             child.set_container_guid_and_slot(bag_guid, 0);
             player
                 .inventory_runtime_mut_like_cpp()

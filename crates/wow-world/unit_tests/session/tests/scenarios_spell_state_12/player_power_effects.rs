@@ -380,12 +380,14 @@ async fn spell_power_burn_effect_drains_power_and_damages_player_like_cpp_bounda
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::SpellGo,
+            ServerOpcodes::HealthUpdate,
             ServerOpcodes::SpellExecuteLog,
             ServerOpcodes::CooldownEvent
         ]
     );
 
     // Unit::Kill enters JUST_DIED; Player::KillPlayer must still run before CORPSE.
+    crate::native_death_test_fixtures::prepare(&mut session);
     session.mutate_canonical_player_like_cpp(|player| player.unit_mut().set_health(5));
     session.execute_spell(spell_id, player_guid).await.unwrap();
     assert_eq!(
@@ -394,6 +396,18 @@ async fn spell_power_burn_effect_drains_power_and_damages_player_like_cpp_bounda
             player.unit().death_state(),
         )),
         Some((0, wow_constants::DeathState::JustDied))
+    );
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::CancelCombat,
+            ServerOpcodes::PowerUpdate,
+            ServerOpcodes::StandStateUpdate,
+            ServerOpcodes::SpellExecuteLog,
+            ServerOpcodes::CooldownEvent,
+        ],
+        "lethal EffectPowerBurn completes the native death prefix before its execute log and cooldown"
     );
 }
 

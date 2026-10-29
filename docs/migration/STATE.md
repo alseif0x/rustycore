@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43 current summary — 2026-10-28, branch `43-spirit-healer`:**
+**#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
 Local closeout preparation now includes native capture collection under the
 existing systemd swap/restore guard (`645499a92`), observed NPC and in-memory
 character selection (`603e911c5`), disposable fixture preparation/recovery
@@ -162,6 +162,18 @@ Three new, unrun tests cover stationary death, real Ghost removal on
 resurrection and an out-of-world no-op, with visibility caches already at the
 current positions. Native health/power fields retain Map-tail publication.
 This reviewed implementation is unvalidated and does not establish capture parity.
+
+The next reviewed, unvalidated fixture repair covers 25 World test sources at
+`eac4704dd`; its patch, source hashes and preserved function identities are in
+`/tmp/rustycore43-consumer-fixture-review-zc79ry20/`. Quest fields are observed at
+Map-tail publication (`Player.cpp:14756`, `Map.cpp:777,1929`); native death packet
+prefixes precede the environmental log (`Player.cpp:621–681`). Player handles,
+reciprocal combat references, known-empty faction/inventory data and physical
+item counts now satisfy the operations being tested. Full inventory saves and
+partial durability saves are asserted disjoint. Unsupported mixed Aura casts
+must reject without packets or a partial application. No tests were executed
+for this repair. The remaining loot-money/Aura fixtures and the real Stuck
+death/recovery consumer still precede completed-delivery acceptance.
 
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.

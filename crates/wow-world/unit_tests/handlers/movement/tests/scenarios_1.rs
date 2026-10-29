@@ -32,6 +32,7 @@ async fn apply_movement_side_effects_like_cpp(
 #[tokio::test]
 async fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
     let mut session = make_session();
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 41)));
     session.fixtures.auras.visible_auras.insert(
         1,
         visible_aura(1, SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, 0),
@@ -492,6 +493,7 @@ async fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() 
 #[tokio::test]
 async fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     let mut session = make_session();
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 44)));
     session.set_player_health_like_cpp(1_000, 1_000);
     crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 150.0);
     session.fixtures.auras.visible_auras.insert(
@@ -521,6 +523,7 @@ async fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     assert_eq!(session.player_health_like_cpp(), 762);
 
     let mut guarded = make_session();
+    guarded.set_player_guid(Some(ObjectGuid::create_player(1, 45)));
     guarded.set_player_health_like_cpp(1_000, 1_000);
     guarded.set_fall_information_like_cpp(1_200, 150.0);
     guarded.fixtures.auras.visible_auras.insert(
@@ -576,6 +579,7 @@ async fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     assert!(immune.fall_damage_events_like_cpp().is_empty());
 
     let mut environmental = make_session();
+    environmental.set_player_guid(Some(ObjectGuid::create_player(1, 46)));
     environmental.set_player_health_like_cpp(1_000, 1_000);
     environmental.set_fall_information_like_cpp(1_200, 150.0);
     environmental.set_player_environmental_damage_immune_like_cpp(true);

@@ -656,7 +656,7 @@ async fn generic_apply_aura_multi_row_waits_for_effect_mask_grouping_like_cpp() 
     );
     session.set_spell_store(Arc::new(spell_store));
 
-    session
+    let error = session
         .execute_spell_with_visual_and_target_data(
             spell_id,
             player_guid,
@@ -668,28 +668,24 @@ async fn generic_apply_aura_multi_row_waits_for_effect_mask_grouping_like_cpp() 
             SpellTargetData::default(),
         )
         .await
-        .expect("represented apply-aura rows should not fabricate extra generic aura slots");
-
+        .expect_err("unsupported mixed apply-aura rows fail as one cast");
+    assert_eq!(error, "normal cast contains an unimplemented spell effect");
+    assert!(send_rx.is_empty(), "a rejected cast emits no packets");
     assert!(
-        session.has_represented_aura_effect_with_misc_value_like_cpp(
+        !session.has_represented_aura_effect_with_misc_value_like_cpp(
             RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
             182
         ),
-        "special represented aura row still executes"
+        "a rejected grouped aura leaves no represented ProvideSpellFocus application"
     );
-    assert_eq!(
-        session.fixtures.auras.visible_auras.len(),
-        1,
-        "C++ groups apply-aura rows through one AuraApplication effect mask; Rust must not fabricate a second generic slot"
-    );
-    let opcodes = drain_server_opcodes(&send_rx);
-    assert_eq!(
-        opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::AuraUpdate,
-            ServerOpcodes::CooldownEvent
-        ]
+    assert!(
+        session
+            .fixtures
+            .auras
+            .visible_auras
+            .values()
+            .all(|aura| aura.spell_id != spell_id),
+        "a rejected grouped aura does not leave a partial application"
     );
 }
 #[tokio::test]

@@ -242,6 +242,9 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     assert!(session.set_pending_teleport_like_cpp(Some((0, destination))));
     session.set_player_health_like_cpp(135_791, 2_000_000);

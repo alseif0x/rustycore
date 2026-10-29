@@ -67,6 +67,13 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
     ])));
     session.set_player_guid(Some(guid));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    session.set_player_position_like_cpp(position);
+    set_priest_level80_stats(&mut session, 1000, 20);
+    assert!(session.player_stat_changes_like_cpp().is_some());
     if closure == OutputClosure::SelectedAuraUnavailable {
         session
             .core
@@ -97,10 +104,6 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
             })
             .expect("canonical Player owns the selected initial aura");
     }
-    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
-    session.set_player_position_like_cpp(position);
-    set_priest_level80_stats(&mut session, 1000, 20);
-    assert!(session.player_stat_changes_like_cpp().is_some());
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     let canonical = session.core.canonical_map_manager.as_ref().unwrap().clone();
     let port = CollectionLoadPortLikeCpp::for_initial_world_states([]);

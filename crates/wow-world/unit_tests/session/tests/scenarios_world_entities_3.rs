@@ -47,9 +47,15 @@ async fn talked_to_creature_tracking_event_objective_auto_rewards_like_cpp() {
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session
         .talked_to_creature_like_cpp(creature_entry, creature_guid)
         .await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
@@ -74,9 +80,9 @@ async fn talked_to_creature_tracking_event_objective_auto_rewards_like_cpp() {
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }
@@ -344,6 +350,7 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
             .unwrap();
     }
     session.set_canonical_map_manager(canonical);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     let explicit_transport_offset = Position::new(5.0, -3.0, 2.0, 0.25);
     assert_eq!(
         session.represented_transport_destination_world_position_like_cpp(
@@ -435,6 +442,7 @@ async fn creature_cast_db_destination_without_row_keeps_effective_caster_like_cp
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
     session
         .execute_spell_with_visual_and_target_data_with_metadata(
