@@ -902,9 +902,19 @@ def _check_special_state(scenario: str, epoch: int, actor: dict[str, Any],
         observations[-1]["mana"] = actor_row.get("power1")
         durability = _durability_by_slot(snapshot, actor)
         observations[-1]["durability_by_slot"] = durability
-        if durability.get(4) != {"entry": 2121, "durability": 26} or \
-                durability.get(35) != {"entry": 2121, "durability": 30}:
+        # ObjectMgr::FillMaxDurability gives entry2121 max60, independently of
+        # raw Sparse40. Player::DurabilityLoss removes six on the fall and
+        # fifteen on healer resurrection (Player.cpp:4546-4562/4320-4376).
+        if durability.get(4) != {"entry": 2121, "durability": 19} or \
+                durability.get(35) != {"entry": 2121, "durability": 25}:
             raise ScenarioFailure("healer pass did not persist the reviewed 2121 durability results")
+    if actor["name"] == "Qadeathfall" and scenario in {
+            "fall-release", "reclaim", "automatic-release", "recovery-dead", "recovery-ghost"}:
+        durability = _durability_by_slot(snapshot, actor)
+        observations[-1]["durability_by_slot"] = durability
+        if durability.get(4) != {"entry": 2121, "durability": 34} or \
+                durability.get(35) != {"entry": 2121, "durability": 40}:
+            raise ScenarioFailure("fall/recovery pass did not persist equipped34 and backpack40")
 
 
 def _spell_rows(snapshot: dict[str, Any], actor: dict[str, Any]) -> set[int]:

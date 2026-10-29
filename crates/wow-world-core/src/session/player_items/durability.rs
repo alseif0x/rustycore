@@ -101,12 +101,30 @@ impl crate::session::state::SessionWorldConfig {
 
 impl crate::session::state::SessionCatalogs {
     pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
-        self.items
-            .stats_store
+        let Some(stats) = self.items.stats_store.as_ref() else {
+            return 0;
+        };
+        let Some(sparse) = stats.sparse_template(item_id) else {
+            return 0;
+        };
+        if let Some((basic, random)) = self
+            .items
+            .store
             .as_ref()
-            .and_then(|store| store.sparse_template(item_id))
-            .map(|template| template.max_durability)
-            .unwrap_or(0)
+            .and_then(|store| store.get(item_id))
+            .zip(stats.random_property_template(item_id))
+        {
+            return wow_data::item::fill_max_durability_like_cpp(
+                u32::from(basic.class_id),
+                u32::from(basic.subclass_id),
+                u32::from(sparse.inventory_type as u8),
+                u32::from(random.quality as u8),
+                u32::from(random.item_level),
+            );
+        }
+        // Partial legacy catalogs retain their raw sparse compatibility value;
+        // production's complete Basic/Sparse/quality/level inputs use FillMaxDurability.
+        sparse.max_durability
     }
 }
 
@@ -116,3 +134,7 @@ impl crate::session::state::SessionWorldConfig {
         self.stats_limits_like_cpp
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/durability.rs"]
+mod tests;

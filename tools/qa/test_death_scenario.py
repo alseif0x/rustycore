@@ -24,6 +24,53 @@ def journal_actors() -> dict[str, dict]:
 
 
 class DeathScenarioTests(unittest.TestCase):
+    def test_healer_durability_uses_effective_max_and_rejects_old_raw_prediction(self) -> None:
+        selected = actor("Qadeathfall", 73)
+        snapshot = {
+            "characters": {"columns": ["guid", "health", "power1"],
+                           "rows": [["73", "500", "250"]]},
+            "character_aura": {"columns": ["guid", "spell", "maxduration"],
+                               "rows": [["73", "15007", "600000"]]},
+            "character_inventory": {"columns": ["guid", "bag", "slot", "item"],
+                                    "rows": [["73", "0", "4", "100"], ["73", "0", "35", "101"]]},
+            "item_instance": {"columns": ["guid", "itementry", "durability"],
+                              "rows": [["100", "2121", "19"], ["101", "2121", "25"]]},
+        }
+        for epoch in (1, 2):
+            observations = [{}]
+            scenario._check_special_state("healer", epoch, selected, snapshot, observations)
+            self.assertEqual(observations[0]["durability_by_slot"][4]["durability"], 19)
+            bad = copy.deepcopy(snapshot)
+            bad["item_instance"]["rows"][0][2] = "26"
+            bad["item_instance"]["rows"][1][2] = "30"
+            with self.assertRaises(scenario.ScenarioFailure):
+                scenario._check_special_state("healer", epoch, selected, bad, [{}])
+
+    def test_fall_and_recovery_require_saved_equipment_loss_not_backpack_loss(self) -> None:
+        selected = actor("Qadeathfall", 73)
+        snapshot = {
+            "character_inventory": {"columns": ["guid", "bag", "slot", "item"],
+                                    "rows": [["73", "0", "4", "100"], ["73", "0", "35", "101"]]},
+            "item_instance": {"columns": ["guid", "itementry", "durability"],
+                              "rows": [["100", "2121", "34"], ["101", "2121", "40"]]},
+        }
+        for case, epochs in (("fall-release", (1,)), ("reclaim", (1,)),
+                             ("automatic-release", (1,)), ("recovery-dead", (1, 2)),
+                             ("recovery-ghost", (1, 2))):
+            for epoch in epochs:
+                with self.subTest(case=case, epoch=epoch):
+                    scenario._check_special_state(case, epoch, selected, snapshot, [{}])
+                    for slot, invalid in ((0, "40"), (1, "34")):
+                        bad = copy.deepcopy(snapshot)
+                        bad["item_instance"]["rows"][slot][2] = invalid
+                        with self.assertRaises(scenario.ScenarioFailure):
+                            scenario._check_special_state(case, epoch, selected, bad, [{}])
+                    with self.assertRaises(scenario.ScenarioFailure):
+                        scenario._check_special_state(case, epoch, selected, {}, [{}])
+        # Other actors do not inherit Qadeathfall's equipment assumptions.
+        for name, case in (("Qadeathcast", "stuck-death"), ("Qadeathwisp", "wisp")):
+            scenario._check_special_state(case, 1, actor(name, 74), {}, [{}])
+
     def test_packed_player_guid_and_legal_wisp_seed(self) -> None:
         wisp = actor("Qadeathwisp", 0x123456)
         guid = scenario.player_guid(wisp, 7)

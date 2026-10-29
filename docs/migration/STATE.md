@@ -79,6 +79,15 @@ new comparison. Existing healer QA expectations 26/30 came from the raw value;
 60 implies 19/25 after fall plus healer, still awaiting live healer observation.
 Fix effective-template selection, item persistence and its native publication
 before claiming durability acceptance. Eleven other paired scenarios remain.
+The effective-template and save-state repair is now implemented, UNVALIDATED:
+the exact f32 `FillMaxDurability` tables feed the existing catalog accessor and
+concrete vendor creation/list consumers. Raw Sparse data remains unchanged.
+Incomplete legacy catalogs retain their existing raw compatibility value;
+complete production inputs use the computed value, including a computed zero.
+Durability loss marks the canonical item Changed together with its new value.
+QA now requires the real fall/recovery equipment/backpack values 34/40 and
+the source-derived healer values 19/25. Native item publication is the remaining
+part of this repair; no new direct UI packet was added at the mutation site.
 
 Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
 ignored), Application (31), Entities (2), Spell (181), bot (248), production

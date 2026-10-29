@@ -232,12 +232,16 @@ fn apply_represented_durability_points_loss_like_cpp<H: VendorSessionHostLikeCpp
     }
     let updated = {
         let (state, mut hub) = host.split_inventory_mut();
+        // Player.cpp:4610-4616 commits the durability and persistent Changed state together.
         state.apply_inventory_item_object_updates_like_cpp(
             &mut hub,
             item_guid,
-            &[wow_entities::ItemObjectUpdateLikeCpp::SetDurability(
-                u32::try_from(new_durability).unwrap_or(0),
-            )],
+            &[
+                wow_entities::ItemObjectUpdateLikeCpp::SetDurability(
+                    u32::try_from(new_durability).unwrap_or(0),
+                ),
+                wow_entities::ItemObjectUpdateLikeCpp::SetState(ItemUpdateState::Changed),
+            ],
         )
     };
     if new_durability > 0 && old_durability == 0 && equipped {
