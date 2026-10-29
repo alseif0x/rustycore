@@ -347,6 +347,17 @@ the goober case replaces only its obsolete fixture-state reader. Anchors remain
 `Player.cpp:14756` and `Map.cpp:777,1929`. These three test-source edits are
 unvalidated and do not change production publication.
 
+The last four recorded World failures now have fixture/oracle repairs:
+worldport retains its eleven exact initialization/resurrection packets;
+far-transfer combat uses an adopted Player and reciprocal native references;
+the delayed request proves combat remains active until Player update; and
+same-map revival proves native vitals remain dirty until one Map-tail VALUES
+packet after teleport. Anchors: `Player.cpp:1328–1332,1494` and
+`Map.cpp:777,1929`. These three test-source edits are unvalidated.
+All 45 recorded World failures and the checker source-guard finding now have
+reviewed local repairs. This is implementation completion only: formatting,
+exact metadata reconciliation and renewed committed-candidate acceptance remain.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

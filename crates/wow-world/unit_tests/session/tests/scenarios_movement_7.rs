@@ -437,6 +437,8 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
             player.unit_mut().set_power(PowerType::Focus, 0);
         })
         .expect("canonical player exists");
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
 
     session
         .teleport_to_with_options_and_resurrection(
@@ -446,17 +448,6 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
         )
         .await;
 
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::DeathReleaseLoc,
-            ServerOpcodes::MoveSetLandWalk,
-            ServerOpcodes::MoveUnroot,
-            ServerOpcodes::UpdateObject,
-            ServerOpcodes::CancelCombat,
-            ServerOpcodes::MoveTeleport,
-        ]
-    );
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(session.player_health_like_cpp(), 200);
     assert_eq!(
@@ -477,6 +468,28 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
     assert!(
         crate::session::hub_ref(&session).near_teleport_pending_like_cpp(),
         "the native revive effects and restored vitals precede near-transfer admission"
+    );
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player.unit().world().object().is_object_updated()
+        }),
+        Some(true),
+        "restored native health and powers await Map SendObjectUpdates"
+    );
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![
+            ServerOpcodes::DeathReleaseLoc,
+            ServerOpcodes::MoveSetLandWalk,
+            ServerOpcodes::MoveUnroot,
+            ServerOpcodes::CancelCombat,
+            ServerOpcodes::MoveTeleport,
+            ServerOpcodes::UpdateObject,
+        ]
     );
 }
 #[tokio::test]

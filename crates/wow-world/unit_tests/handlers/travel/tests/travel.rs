@@ -331,6 +331,7 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
     // UpdateObject after TimeSyncRequest is SendInitSelf (the player's own ActivePlayer
     // create for the destination map — C++ Map::AddPlayerToMap initPlayer=true). The final
     // send_stat_update emits nothing in this minimal test (no stat stores configured).
+    // Delayed ResurrectPlayer then sends DeathReleaseLoc, land-walk, and unroot.
     let packets: Vec<_> = send_rx.try_iter().collect();
     let create = packets
         .iter()
@@ -390,6 +391,9 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
             ServerOpcodes::InitWorldStates as u16,
             ServerOpcodes::LoadCufProfiles as u16,
             ServerOpcodes::PhaseShiftChange as u16,
+            ServerOpcodes::DeathReleaseLoc as u16,
+            ServerOpcodes::MoveSetLandWalk as u16,
+            ServerOpcodes::MoveUnroot as u16,
         ]
     );
 }

@@ -67,7 +67,6 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
     let destination = Position::new(5791.0, 2091.0, 637.0, 3.2);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.set_player_registry(Arc::clone(&player_registry));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportAccessAllow".to_string(),
@@ -79,9 +78,15 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         0,
     ));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session.set_player_registry(Arc::clone(&player_registry));
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.set_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
+            player
+                .gameplay_state_mut()
+                .world_local
+                .set_contested_pvp_timer_like_cpp(77);
             player
                 .unit_mut()
                 .add_unit_state(UnitState::ATTACK_PLAYER.bits());
@@ -92,7 +97,6 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
                 .set_in_combat_with(selected_guid, false, false);
         })
         .unwrap();
-    session.fixtures.combat.player_contested_pvp_timer_like_cpp = 77;
     session.register_in_player_registry();
     crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(selected_guid));
     session.register_world_creature(
@@ -124,7 +128,10 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
                 .add_threat(player_guid, 25.0);
         })
         .unwrap();
-    assert!(session.fixtures.combat.in_combat);
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(true)
+    );
     session
         .instances
         .set_fixture_raid_difficulty_for_test_like_cpp(3);
@@ -152,7 +159,10 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         "C++ far Player::TeleportTo clears selection after entry preflight and before transfer"
     );
     assert_eq!(
-        session.fixtures.combat.player_contested_pvp_timer_like_cpp, 0,
+        session.core.with_owned_player_like_cpp(|player| {
+            player.gameplay_state().world_local.contested_pvp_timer_like_cpp()
+        }),
+        Some(0),
         "C++ far Player::TeleportTo calls ResetContestedPvP before transfer"
     );
     {
@@ -186,7 +196,10 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         );
     }
     assert_eq!(session.fixtures.combat.combat_target, None);
-    assert!(!session.fixtures.combat.in_combat);
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(false)
+    );
     assert!(
         canonical.lock().unwrap().find_map(631, 0).is_none(),
         "C++ Player::TeleportTo only preflights entry rights; map materialization happens later"
@@ -791,6 +804,7 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 827);
+    let combat_peer_guid = test_creature_guid(82_701);
     let source = Position::new(10.0, 20.0, 30.0, 0.0);
     let destination = Position::new(109.0, 209.0, 39.0, 2.4);
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
@@ -831,10 +845,39 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_health_like_cpp(100, 100);
-    session.fixtures.combat.in_combat = true;
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        combat_peer_guid,
+        82_701,
+        Position::new(1_010.0, 20.0, 30.0, 0.0),
+        571,
+        0,
+        80,
+    );
+    {
+        let mut manager = canonical.lock().unwrap();
+        let map = manager.find_map_mut(571, 0).unwrap().map_mut();
+        assert!(wow_world_core::session::begin_combat_ref_on_map_like_cpp(
+            map,
+            player_guid,
+            combat_peer_guid,
+            false,
+            false,
+            false,
+        ));
+    }
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(true)
+    );
     session.set_represented_can_delay_teleport_like_cpp(true);
     session.teleport_to(0, destination).await;
     assert!(send_rx.try_recv().is_err());
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(true),
+        "the delayed request leaves native combat intact until Player update"
+    );
 
     session.update(50).await;
 
@@ -851,5 +894,8 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
     assert!(crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
-    assert!(!session.fixtures.combat.in_combat);
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(false)
+    );
 }
