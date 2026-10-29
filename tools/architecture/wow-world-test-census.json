@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4150,
+  "tests": 4151,
   "ignored": 1,
-  "session": 3846,
-  "shims": 3666,
+  "session": 3847,
+  "shims": 3667,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3671
+   "W": 3672
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3465
+   "W-world-logic": 3466
   },
   "by_owner": {
    "wow-world": {
@@ -88,7 +88,7 @@
    "wow-world-inventory": {
     "P": 26,
     "H": 19,
-    "W": 410
+    "W": 411
    },
    "wow-world-lifecycle": {
     "P": 38,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3671
+    "W": 3672
    },
    "wow-world-application": {
     "P": 27,
@@ -3016,6 +3016,7 @@
   ["unit_tests/session/tests/scenarios_misc_9.rs::update_zone_coalesces_faction_to_city_zero_crossings_into_one_final_update_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["build_initial_player_for_owner_like_cpp", "ensure_login_player_controller_like_cpp", "set_area_table_store", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_misc_9.rs::update_zone_with_overlapping_tavern_flag_does_not_dirty_player_flags_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["ensure_login_player_controller_like_cpp", "set_area_table_store", "update_zone_represented_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_misc_9.rs::update_zone_missing_zone_keeps_area_criteria_but_skips_top_level_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["ensure_login_player_controller_like_cpp", "set_area_table_store", "update_zone_represented_like_cpp"], []],
+  ["unit_tests/session/tests/scenarios_misc_9.rs::update_zone_recovers_disabled_war_mode_only_for_known_zone_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "build_initial_player_for_owner_like_cpp", "ensure_login_player_controller_like_cpp", "set_area_table_store"], []],
   ["unit_tests/session/tests/scenarios_misc_9.rs::check_area_explore_marks_block_sends_update_and_records_criteria_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "build_initial_player_for_owner_like_cpp", "check_area_explore_and_outdoor_represented_like_cpp", "ensure_login_player_controller_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_misc_9.rs::check_area_explore_awards_exploration_xp_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["check_area_explore_and_outdoor_represented_like_cpp", "ensure_login_player_controller_like_cpp", "set_area_table_store"], []],
   ["unit_tests/session/tests/scenarios_misc_9.rs::check_area_explore_max_level_sends_zero_exploration_xp_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["check_area_explore_and_outdoor_represented_like_cpp", "ensure_login_player_controller_like_cpp", "set_area_table_store"], []],

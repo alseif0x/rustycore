@@ -77,7 +77,8 @@ ACTORS = (
      "home": [233.264, -4793.62, 10.1872]},
     {"name": "Qadeathcast", "account_id": 9, "race": 1, "class": 2,
      "level": 80, "role": "caster", "x": -9340.21, "y": 167.61, "z": 61.60,
-     "map": 0, "zone": 12, "health": 100, "power1": 1000,
+     # Full native Mana lets both normal Redemption casts use natural regeneration.
+     "map": 0, "zone": 12, "health": 100, "power1": 6100,
      "home": [-9340.21, 167.61, 61.60]},
 )
 ITEM_SEEDS = (

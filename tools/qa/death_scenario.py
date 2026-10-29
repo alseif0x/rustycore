@@ -208,12 +208,12 @@ def plan_for(scenario: str, epoch: int, actor: dict[str, Any], realm_id: int,
                 _wait("realm", RESURRECT_REQUEST, 40_000),
                 {"action": "resurrect_response", "offerer": wrong_guid, "response": 0},
                 {"action": "resurrect_response", "offerer": wrong_guid, "response": 1},
-                _wait("realm", RESURRECT_REQUEST, 40_000),
+                _wait("realm", RESURRECT_REQUEST, 90_000),
                 {"action": "resurrect_response", "offerer": caster_guid, "response": 0},
                 {"action": "resurrect_response", "offerer": caster_guid, "response": 0},
                 {"action": "wait", "milliseconds": 3000},
             ]
-            timeout_ms = 30_000
+            timeout_ms = 105_000
     elif scenario in {"recovery-dead", "recovery-ghost"}:
         if epoch == 1:
             actions = _fall_actions(actor, release=(scenario == "recovery-ghost"))
@@ -832,10 +832,10 @@ def _run_offer(identity: dict[str, Any], journal: dict[str, Any], actors: dict[s
     target_guid = target["guid"]
     cast_a = {"low": 7328001, "high": 0}
     cast_b = {"low": 7328002, "high": 0}
-    caster_plan = {"character_guid": caster["guid"], "timeout_ms": 28_000,
+    caster_plan = {"character_guid": caster["guid"], "timeout_ms": 95_000,
         "actions": [
             {"action": "cast", "spell_id": 7328, "cast_id": cast_a, "target": target_guid},
-            {"action": "wait", "milliseconds": 12_000},
+            {"action": "wait", "milliseconds": 70_000},
             {"action": "cast", "spell_id": 7328, "cast_id": cast_b, "target": target_guid},
         ],
         "expect": [
@@ -856,7 +856,7 @@ def _run_offer(identity: dict[str, Any], journal: dict[str, Any], actors: dict[s
               output=identity["capture"])
     start_bot(caster_pass, bot_exec=identity["bot_exec"], bot_config=identity["bot_config"],
               output=identity["capture"])
-    caster_evidence = finish_bot(caster_pass, timeout_seconds=60, actor=caster)
+    caster_evidence = finish_bot(caster_pass, timeout_seconds=150, actor=caster)
     caster_snapshot, caster_state = _save_snapshot(db, journal, caster, "offer", 2,
                                                     identity["capture"], caster_pass.label)
     if 7328 not in _spell_rows(caster_snapshot, caster):
@@ -864,7 +864,7 @@ def _run_offer(identity: dict[str, Any], journal: dict[str, Any], actors: dict[s
     observations.append({"pass": caster_pass.label, "actor": caster["name"],
                          "report_sha256": caster_pass.report_hash, "state": caster_state,
                          "lifecycle": _evidence_digest(caster_evidence)})
-    victim_evidence = finish_bot(victim_pass, timeout_seconds=60, actor=victim)
+    victim_evidence = finish_bot(victim_pass, timeout_seconds=150, actor=victim)
     _, victim_state = _save_snapshot(db, journal, victim, "offer", 2,
                                      identity["capture"], victim_pass.label)
     observations.append({"pass": victim_pass.label, "actor": victim["name"],

@@ -660,9 +660,15 @@ impl Unit {
         }
     }
     pub fn replace_all_pvp_flags_like_cpp(&mut self, flags: UnitPvpFlags) {
-        self.set_u8_field(UNIT_DATA_PVP_FLAGS_BIT, flags.bits(), |data| {
-            &mut data.pvp_flags
-        });
+        let previous = self.data.pvp_flags;
+        self.data.pvp_flags = flags.bits();
+        self.unit_data_changes.set(UNIT_DATA_MODS_PARENT_BIT);
+        self.unit_data_changes.set(UNIT_DATA_PVP_FLAGS_BIT);
+        if self.data.pvp_flags != previous {
+            self.world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
+        }
     }
     pub fn set_pvp_flag_like_cpp(&mut self, flags: UnitPvpFlags) {
         self.replace_all_pvp_flags_like_cpp(self.pvp_flags_like_cpp() | flags);
@@ -672,13 +678,13 @@ impl Unit {
     }
     /// Player.cpp:7327-7333 / Unit.h:844-845 mark the area sanctuary flag
     /// even when unchanged, without replacing the remaining native PvP flags.
+    /// Object update admission still follows whether the canonical value changed.
     pub fn set_sanctuary_from_area_like_cpp(&mut self, sanctuary: bool) {
         if sanctuary {
-            self.data.pvp_flags |= UnitPvpFlags::SANCTUARY.bits();
+            self.set_pvp_flag_like_cpp(UnitPvpFlags::SANCTUARY);
         } else {
-            self.data.pvp_flags &= !UnitPvpFlags::SANCTUARY.bits();
+            self.remove_pvp_flag_like_cpp(UnitPvpFlags::SANCTUARY);
         }
-        self.mark_unit_data_nested(UNIT_DATA_MODS_PARENT_BIT, UNIT_DATA_PVP_FLAGS_BIT);
     }
     pub fn pvp_flags_like_cpp(&self) -> UnitPvpFlags {
         UnitPvpFlags::from_bits_retain(self.data.pvp_flags)
@@ -836,14 +842,25 @@ impl Unit {
             self.mark_unit_data_array(UNIT_DATA_POWER_PARENT_BIT, UNIT_DATA_POWER_FIRST_BIT, index);
         }
     }
-    /// Unit.cpp:9287-9300 marks supported power on native death/resurrection
-    /// transitions even when unchanged. The operation owner publishes outside its guard.
+    /// Unit.cpp:9287-9306 marks supported power even when unchanged; its
+    /// immediate power packet is independent of object update admission. Queue
+    /// the values update only when the clamped canonical value changes.
     pub fn set_power_for_native_transition_like_cpp(&mut self, power: PowerType, value: i32) {
         let Some(index) = self.get_power_index(power) else {
             return;
         };
-        self.set_power(power, value);
-        self.mark_unit_data_array(UNIT_DATA_POWER_PARENT_BIT, UNIT_DATA_POWER_FIRST_BIT, index);
+        let max = self.data.max_power[index];
+        let value = value.min(max);
+        let changed = self.data.power[index] != value;
+        self.data.power[index] = value;
+        self.unit_data_changes.set(UNIT_DATA_POWER_PARENT_BIT);
+        self.unit_data_changes
+            .set(UNIT_DATA_POWER_FIRST_BIT + index);
+        if changed {
+            self.world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
+        }
     }
     /// C++ `Player::Regenerate` throttled write: `SetUpdateFieldValue` for
     /// `UnitData::Power` followed by `ClearChanged` inside

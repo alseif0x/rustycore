@@ -446,7 +446,12 @@ pub async fn handle_movement_info_with_catalogs_like_cpp<H: PlayerMovementHostLi
         ) {
             Ok((zone_id, area_id)) => {
                 if area_id != 0 {
-                    host.update_zone_represented_like_cpp(zone_id, area_id);
+                    // Keep normal movement identity-gated like C++
+                    // Player::Update (Player.cpp:1016-1040). Explicit ACK and
+                    // resurrection callers retain unconditional UpdateZone.
+                    if host.hub_ref().player_zone_area_like_cpp() != Some((zone_id, area_id)) {
+                        host.update_zone_represented_like_cpp(zone_id, area_id);
+                    }
                     area_id
                 } else {
                     let Some((_, current_area_id)) = host.hub_ref().player_zone_area_like_cpp()

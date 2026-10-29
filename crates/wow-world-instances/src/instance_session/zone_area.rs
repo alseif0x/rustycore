@@ -7,7 +7,9 @@
 //! World `session/world_state/operations.rs` and `session/rest_progression.rs`).
 
 use wow_constants::Team;
-use wow_world_core::session::player_team_for_race_cpp;
+use wow_world_core::session::{
+    PLAYER_FLAGS_IN_PVP_LIKE_CPP, PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP, player_team_for_race_cpp,
+};
 use wow_world_spell::AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP;
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -23,6 +25,50 @@ use super::{
     AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, InstanceSessionHostLikeCpp, REST_FLAG_IN_CITY_LIKE_CPP,
     REST_FLAG_IN_FACTION_AREA_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP,
 };
+
+const PLAYER_FLAGS_WAR_MODE_ACTIVE_LIKE_CPP: u32 = 0x0000_0400;
+const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
+const WAR_MODE_ENLISTED_SPELL_OUTSIDE_LIKE_CPP: i32 = 269_083;
+const WAR_MODE_AURA_INSIDE_LIKE_CPP: i32 = 282_559;
+const WAR_MODE_LEAVE_INTERRUPT_FLAGS2_LIKE_CPP: u32 = 0x0002_0000;
+
+/// C++ `Player::UpdateWarModeAuras`' disabled branch (Player.cpp:28934-28966).
+/// UpdateZone calls it after finding the zone row and before hostile-area state.
+fn update_represented_war_mode_auras_like_cpp<H: InstanceSessionHostLikeCpp>(host: &mut H) {
+    let Some(war_mode_desired) = host.core().with_owned_player_like_cpp(|player| {
+        player.has_player_flag(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP)
+    }) else {
+        return;
+    };
+    if war_mode_desired {
+        return;
+    }
+
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        player.remove_player_local_flags_like_cpp(PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP);
+    });
+    let _ = wow_world_spell::remove_represented_auras_due_to_spell_like_cpp(
+        host,
+        WAR_MODE_ENLISTED_SPELL_OUTSIDE_LIKE_CPP,
+    );
+    let _ = wow_world_spell::remove_represented_auras_due_to_spell_like_cpp(
+        host,
+        WAR_MODE_AURA_INSIDE_LIKE_CPP,
+    );
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        player.remove_player_flags_like_cpp(PLAYER_FLAGS_WAR_MODE_ACTIVE_LIKE_CPP);
+        if !player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP) {
+            player
+                .unit_mut()
+                .remove_pvp_flag_like_cpp(wow_entities::UnitPvpFlags::PVP);
+        }
+    });
+    let _ = wow_world_spell::remove_auras_with_interrupt_flags_like_cpp(
+        host,
+        0,
+        WAR_MODE_LEAVE_INTERRUPT_FLAGS2_LIKE_CPP,
+    );
+}
 
 fn update_represented_hostile_area_state_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &mut H,
@@ -253,6 +299,7 @@ fn update_zone_represented_with_rest_update_like_cpp<H: InstanceSessionHostLikeC
         return true;
     };
 
+    update_represented_war_mode_auras_like_cpp(host);
     update_represented_hostile_area_state_like_cpp(host, &zone);
     let Some(world_local) = host.hub_ref().player_world_local_state_like_cpp() else {
         return false;

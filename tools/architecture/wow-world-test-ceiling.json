@@ -171,9 +171,9 @@
    "kind": "raise",
    "issue": 43,
    "reviewed_at": "2026-10-29",
-   "reason": "Reviewed #43 acceptance repairs: native corpse birth and bones ordering, logout death release, populated-inventory durability and save receipts, canonical sanctuary/health-state and CREATE projections, and exact spell/control oracles. Thirty new World integration identities preserve all prior identities and require World ownership fixtures. All prior classes/destinations and ignored states remain unchanged; 136 prior rows have derived blocker updates, including 43 owner-vote changes, through the shared corpse fixture boundary and the native power adapter. The final fixture repairs add the required DifficultyStore and caster Unit phase. The closed-self logout case adds 26 lines for consistent racial input across test-only registration/CombatStop hydration, its canonical precondition and exact family diagnostics; identities, class, destination and ignored state are unchanged. No blanket ceiling refresh or domain completion claim.",
-   "unit_tests_lines": 276444,
-   "unit_tests_tests": 4128,
+   "reason": "Reviewed #43 acceptance repairs: native corpse birth and bones ordering, logout death release, populated-inventory durability and save receipts, canonical sanctuary/health-state and CREATE projections, and exact spell/control oracles. Thirty new World integration identities preserve all prior identities and require World ownership fixtures. All prior classes/destinations and ignored states remain unchanged; 136 prior rows have derived blocker updates, including 43 owner-vote changes, through the shared corpse fixture boundary and the native power adapter. The final fixture repairs add the required DifficultyStore and caster Unit phase. The closed-self logout case adds 26 lines for consistent racial input across test-only registration/CombatStop hydration, its canonical precondition and exact family diagnostics; identities, class, destination and ignored state are unchanged. No blanket ceiling refresh or domain completion claim. The native no-op publication repair adds 199 World test lines: 124 for one disabled-zone composition identity and 75 within the existing movement identity. All prior identities, classes, destinations and ignored states are retained; no prior census row changes. The corresponding source contract separates dirty masks from existing Object update admission.",
+   "unit_tests_lines": 276643,
+   "unit_tests_tests": 4129,
    "src_tests": 22
   }
  ]

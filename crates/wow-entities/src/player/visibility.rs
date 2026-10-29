@@ -13,25 +13,47 @@ const ACTIVE_PLAYER_DATA_LOCAL_FLAGS_BIT: usize = 69;
 impl Player {
     /// Player.h:2760 / UpdateField.h:262 marks LocalFlags even on a no-op.
     pub fn set_player_local_flags_like_cpp(&mut self, flags: u32) {
+        let previous = self.gameplay_state.active_local_flags;
         self.gameplay_state.active_local_flags |= flags;
-        self.mark_active_player_data_section(
-            ACTIVE_PLAYER_DATA_LOCAL_FLAGS_PARENT_BIT,
-            ACTIVE_PLAYER_DATA_LOCAL_FLAGS_BIT,
-        );
+        self.active_player_data_changes
+            .set(ACTIVE_PLAYER_DATA_LOCAL_FLAGS_PARENT_BIT);
+        self.active_player_data_changes
+            .set(ACTIVE_PLAYER_DATA_LOCAL_FLAGS_BIT);
+        if self.gameplay_state.active_local_flags != previous {
+            self.unit
+                .world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
+        }
     }
 
     pub fn remove_player_local_flags_like_cpp(&mut self, flags: u32) {
+        let previous = self.gameplay_state.active_local_flags;
         self.gameplay_state.active_local_flags &= !flags;
-        self.mark_active_player_data_section(
-            ACTIVE_PLAYER_DATA_LOCAL_FLAGS_PARENT_BIT,
-            ACTIVE_PLAYER_DATA_LOCAL_FLAGS_BIT,
-        );
+        self.active_player_data_changes
+            .set(ACTIVE_PLAYER_DATA_LOCAL_FLAGS_PARENT_BIT);
+        self.active_player_data_changes
+            .set(ACTIVE_PLAYER_DATA_LOCAL_FLAGS_BIT);
+        if self.gameplay_state.active_local_flags != previous {
+            self.unit
+                .world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
+        }
     }
 
     /// C++ RemovePlayerFlag marks the native UpdateField even for an absent flag.
     pub fn remove_player_flags_like_cpp(&mut self, flags: u32) {
+        let previous = self.data.player_flags;
         self.data.player_flags &= !flags;
-        self.mark_player_data(PLAYER_DATA_FLAGS_BIT);
+        self.player_data_changes.set(PLAYER_DATA_PARENT_BIT);
+        self.player_data_changes.set(PLAYER_DATA_FLAGS_BIT);
+        if self.data.player_flags != previous {
+            self.unit
+                .world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
+        }
     }
 
     pub fn sync_farsight_visibility_detection_like_cpp(&mut self) {

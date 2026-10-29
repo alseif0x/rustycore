@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
-Latest accepted local candidate: `5f9caf658`; Rust reclaim attempt 3 now completes
+Latest accepted local candidate: `63d8c8f2e`; Rust reclaim attempt 4 completes
 resurrection, database checks, capture collection and restoration. Fall/release
 retains its actual `abba63ce7` bounded actor/control evidence below. Ten other
 paired scenarios and the last-candidate full final/terminal acceptance remain
@@ -14,6 +14,63 @@ and initial Flags2 changes have partial combined evidence. The corrected World
 suite and architecture checks pass; production integration, bot/build and live
 acceptance still need completion.
 No publication or issue closure.
+
+The complete affected local campaign at `63d8c8f2e` passed in 447.907 seconds
+(aarch64, two Cargo jobs, ordinary 600-second target met). Production login passed
+42/42, the standalone bot passed 252/252, both debug executables built, and the
+affected final passed, including all 4,149 active World tests (one ignored).
+The exact record is
+`/tmp/rustycore43-accepted-delivery-63d8-1eebzoea/{record.json,final-manifest.json}`.
+Architecture evidence remains at `bc0e863d2`; production library evidence at
+`dd54ae2cd` is retained at its tested SHA. This is not the origin-base publication
+campaign or terminal/live completion.
+
+Rust reclaim attempt 4 passed in 351.609 seconds and restored the stable server.
+Its final DB state is alive, 402 HP, no ghost and no owned corpse. All 30 selected
+actor controls have native per-connection opcode order; 29 full bodies match and
+the remaining Ghost AuraUpdate differs only in its source-proven NORMAL CastID
+low-40 counter. Corpse and bones births and the release owner block match native
+full bodies. Raw comparisons are retained under the live campaign's
+`comparison-reclaim-63d8/`; strict whole-stream comparisons still fail and are not
+relabeled as parity. The captured VALUE differences expose excess Object update
+admission on no-op forced fields and a redundant unchanged movement zone update.
+Their repairs are implemented, UNVALIDATED. The native disabled-war-mode zone
+tail also marks LocalFlags (69), absent from Rust's post-reclaim mask; its bounded
+participant is under repair. Immediate restored Mana is 13,455; final Mana is
+13,652 C++ versus 13,653 Rust, with identical final HP. The first VALUES Power[0]
+mask differs across the regen publication window (`Player.cpp:1818–1826`);
+no regeneration arithmetic change is justified by that timed observation.
+
+The native field/zone repairs are frozen, UNVALIDATED: preserve dirty masks on
+no-op assignments without newly admitting the existing Object update queue;
+use exact Unit PvP bits 64/78 and Player LocalFlags bits 38/69; skip unchanged
+normal-movement zone updates while retaining explicit teleport/resurrection
+updates; run the native disabled War Mode tail before zone hostility. The enabled
+War Mode product is unchanged and is not established by this default recovery
+participant (`Player.cpp:7394,28934–28966`, `UpdateField.h:105,262`). No state,
+clock, lock, task or public API is added. The census adds one World composition
+identity and removes none; all prior rows are unchanged. The reviewed totals are
+276,643 unit-test lines, 4,129 unit-test identities and 22 source tests. Session
+logical growth is 124 test lines; Player growth is 22 production and 96 test
+lines, retaining the existing #584 exits. Ordinary cohesion review retains the
+1,094-line Unit value helper file, 1,084-line movement fixture group and 1,025-line
+zone/criteria fixture group below the 2,000-line terminal budget. Their next
+natural splits remain value-family operations and domain-host zone/movement
+fixtures under the existing #584 programme; this correctness repair adds no
+separate decomposition delivery or general size allowance.
+
+Reference recovery-dead attempt 2 and recovery-ghost attempt 1 now pass both
+epochs, capture and restoration in 249.420 and 253.117 seconds respectively.
+Reference offer attempt 2 fails/restores in 250.717 seconds: the corpse target
+now reaches normal cast cost checking, which returns NO_POWER (108). Its native
+caster CREATE records current/maximum Mana 1,000/6,100 (packet 75, body offset
+1103); `caster-resource-review.json` retains the source/hash/field evidence.
+The fixture now supplies 6,100 Mana and permits natural regeneration before the
+second ordinary Redemption cast, retaining normal costs and all response cases.
+The bounded 70-second interval and matching offer/finish deadlines are implemented,
+UNVALIDATED. No failed run is relabeled. Native reference acceptance remains
+pending for offer and both Stuck scenarios; ten other Rust scenarios, fresh
+last-candidate comparisons and final/terminal acceptance remain outstanding.
 
 Affected final acceptance at `bc0e863d2` passed in 543.665 seconds, based on
 `dd54ae2cd`, with architecture policy/fixtures, syntax ownership, census,

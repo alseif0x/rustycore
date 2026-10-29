@@ -6,7 +6,7 @@ use super::*;
 use crate::{Creature, Player};
 
 #[test]
-fn native_death_power_marks_zero_and_changed_mapped_values_with_existing_clamps() {
+fn native_death_power_marks_supported_values_and_queues_only_changes() {
     for index in [0, 3] {
         for (before, requested, expected) in [(0, 0, 0), (37, 0, 0), (0, 200, 100), (37, -3, -3)] {
             let mut unit = Unit::new(true);
@@ -23,7 +23,11 @@ fn native_death_power_marks_zero_and_changed_mapped_values_with_existing_clamps(
                 assert_eq!(update.mask.is_set(bit), [116, 137 + index].contains(&bit));
             }
             assert_eq!(update.values.power[index], expected);
-            assert!(unit.world().object().is_object_updated());
+            assert_eq!(
+                unit.world().object().is_object_updated(),
+                before != expected,
+                "only a changed clamped power value admits the object to updates"
+            );
             unit.clear_unit_data_changes();
             unit.set_power(PowerType::Mana, expected);
             assert!(
@@ -174,8 +178,59 @@ fn pvp_flags_match_cpp_unit_pvp_state_helpers() {
 }
 
 #[test]
-fn area_sanctuary_preserves_other_flags_and_marks_native_parent_even_for_noop() {
-    let other = UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP | UnitPvpFlags::UNK1;
+fn native_pvp_flag_helpers_mark_nested_bits_but_admit_only_changes() {
+    let mut unit = Unit::new(true);
+    let initial_flags = UnitPvpFlags::PVP
+        | UnitPvpFlags::FFA_PVP
+        | UnitPvpFlags::UNK1
+        | UnitPvpFlags::from_bits_retain(0x80);
+    unit.replace_all_pvp_flags_like_cpp(initial_flags);
+    unit.world_mut().object_mut().add_to_world();
+    unit.clear_unit_data_changes();
+    unit.world_mut().object_mut().clear_update_mask(false);
+
+    for operation in [0, 1, 2] {
+        match operation {
+            0 => unit.replace_all_pvp_flags_like_cpp(initial_flags),
+            1 => unit.set_pvp_flag_like_cpp(UnitPvpFlags::PVP),
+            _ => unit.remove_pvp_flag_like_cpp(UnitPvpFlags::SANCTUARY),
+        }
+        for bit in 0..UNIT_DATA_BITS {
+            assert_eq!(
+                unit.unit_data_changes_mask().is_set(bit),
+                [64, 78].contains(&bit),
+                "native PvP helper {operation} marks only nested bits 64 and 78"
+            );
+        }
+        assert!(!unit.world().object().is_object_updated());
+        unit.clear_unit_data_changes();
+    }
+
+    unit.set_pvp_flag_like_cpp(UnitPvpFlags::SANCTUARY);
+    assert!(unit.world().object().is_object_updated());
+    assert!(unit.unit_data_changes_mask().is_set(64));
+    assert!(unit.unit_data_changes_mask().is_set(78));
+    assert_eq!(
+        unit.pvp_flags_like_cpp(),
+        initial_flags | UnitPvpFlags::SANCTUARY
+    );
+
+    unit.world_mut().object_mut().clear_update_mask(false);
+    unit.clear_unit_data_changes();
+    unit.set_level(12);
+    unit.replace_all_pvp_flags_like_cpp(unit.pvp_flags_like_cpp());
+    assert!(unit.world().object().is_object_updated());
+    assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_LEVEL_BIT));
+    assert!(unit.unit_data_changes_mask().is_set(64));
+    assert!(unit.unit_data_changes_mask().is_set(78));
+}
+
+#[test]
+fn area_sanctuary_preserves_other_flags_and_queues_only_changes() {
+    let other = UnitPvpFlags::PVP
+        | UnitPvpFlags::FFA_PVP
+        | UnitPvpFlags::UNK1
+        | UnitPvpFlags::from_bits_retain(0x80);
     for before in [false, true] {
         for sanctuary in [false, true] {
             let mut unit = Unit::new(true);
@@ -203,15 +258,64 @@ fn area_sanctuary_preserves_other_flags_and_marks_native_parent_even_for_noop() 
             for bit in 0..UNIT_DATA_BITS {
                 assert_eq!(update.mask.is_set(bit), [64, 78].contains(&bit));
             }
-            assert!(unit.world().object().is_object_updated());
+            assert_eq!(
+                unit.world().object().is_object_updated(),
+                before != sanctuary,
+                "only a changed sanctuary flag admits the object to updates"
+            );
             unit.clear_unit_data_changes();
             unit.replace_all_pvp_flags_like_cpp(expected);
-            assert!(
-                !unit.unit_data_changes_mask().is_any_set(),
-                "general no-op setter stays unchanged"
-            );
+            for bit in 0..UNIT_DATA_BITS {
+                assert_eq!(
+                    unit.unit_data_changes_mask().is_set(bit),
+                    [64, 78].contains(&bit),
+                    "native no-op setter retains only the nested PvP field bits"
+                );
+            }
         }
     }
+}
+
+#[test]
+fn forced_native_field_noops_preserve_pending_bits_and_object_queue_state() {
+    let mut unit = Unit::new(true);
+    unit.set_level(12);
+    unit.set_power_index(PowerType::Mana, Some(0));
+    unit.set_max_power(PowerType::Mana, 100);
+    unit.set_power(PowerType::Mana, 25);
+    unit.replace_all_pvp_flags_like_cpp(UnitPvpFlags::PVP | UnitPvpFlags::SANCTUARY);
+    unit.world_mut().object_mut().add_to_world();
+    assert!(!unit.world().object().is_object_updated());
+
+    unit.set_power_for_native_transition_like_cpp(PowerType::Mana, 25);
+    unit.set_sanctuary_from_area_like_cpp(true);
+
+    assert!(!unit.world().object().is_object_updated());
+    assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_LEVEL_BIT));
+    assert!(
+        unit.unit_data_changes_mask()
+            .is_set(UNIT_DATA_PVP_FLAGS_BIT)
+    );
+    assert!(
+        unit.unit_data_changes_mask()
+            .is_set(UNIT_DATA_POWER_FIRST_BIT)
+    );
+
+    unit.set_level(13);
+    assert!(unit.world().object().is_object_updated());
+    unit.set_power_for_native_transition_like_cpp(PowerType::Mana, 25);
+    unit.set_sanctuary_from_area_like_cpp(true);
+
+    assert!(unit.world().object().is_object_updated());
+    assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_LEVEL_BIT));
+    assert!(
+        unit.unit_data_changes_mask()
+            .is_set(UNIT_DATA_PVP_FLAGS_BIT)
+    );
+    assert!(
+        unit.unit_data_changes_mask()
+            .is_set(UNIT_DATA_POWER_FIRST_BIT)
+    );
 }
 
 #[test]
