@@ -189,7 +189,7 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     let mut spell_store =
         crate::selected_spell_fixtures::canonical_spell_store([(84_301, 0), (84_302, 0)]);
     let mut finite_info = test_spell_info_like_cpp(84_301);
-    finite_info.effects = [0, 2, 4]
+    finite_info.effects = [0, 1, 2]
         .into_iter()
         .map(|effect_index| wow_data::SpellEffectInfo {
             effect_index,

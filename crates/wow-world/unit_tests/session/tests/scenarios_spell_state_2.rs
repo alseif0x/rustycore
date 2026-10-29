@@ -40,9 +40,6 @@ fn remove_known_spell_clears_titan_grip_and_penalty_aura_like_cpp() {
     let _ = session.mutate_canonical_player_like_cpp(|player| {
         player.set_can_titan_grip(true, penalty_spell_id as u32);
     });
-    session
-        .apply_aura(penalty_spell_id, player_guid, 0, 0)
-        .expect("represented penalty aura");
 
     let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
         (spell_id as u32, 0),
@@ -70,12 +67,24 @@ fn remove_known_spell_clears_titan_grip_and_penalty_aura_like_cpp() {
             }],
         },
     );
-    spell_store.insert(penalty_spell_id, test_spell_info_like_cpp(penalty_spell_id));
+    let mut penalty_info = test_spell_info_like_cpp(penalty_spell_id);
+    penalty_info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+    penalty_info.aura_type = Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY);
+    penalty_info.effects = vec![wow_data::SpellEffectInfo {
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+        ..Default::default()
+    }];
+    spell_store.insert(penalty_spell_id, penalty_info);
     let mut attributes = [0_u32; 15];
     attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
     spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
     session.set_spell_store(Arc::new(spell_store));
     session.set_known_spells_like_cpp(vec![spell_id]);
+    session
+        .apply_aura(penalty_spell_id, player_guid, 0, 0)
+        .expect("represented penalty aura");
 
     wow_world_spell::remove_known_spell_like_cpp(&mut session, spell_id);
 

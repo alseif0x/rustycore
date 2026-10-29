@@ -95,7 +95,11 @@ async fn self_res_listed_spell_casts_and_removes_self_res_spell_like_cpp() {
     crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
         &mut session,
     );
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     session.set_spell_store(self_res_spell_store(spell_id));
+    session.set_serverside_spell_store(Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()));
+    session.set_spell_category_store(Arc::new(wow_data::SpellCategoryStore::from_entries([])));
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
     session
         .core
         .with_owned_player_mut_like_cpp(|player| {

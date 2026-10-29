@@ -330,7 +330,7 @@ fn indexed_sickness_save_uses_known_difficulty_zero_fallback() {
     ));
     session.set_spell_store(std::sync::Arc::new(store));
     session.set_difficulty_store(std::sync::Arc::new(
-        wow_data::DifficultyStore::from_entries([difficulty(0, 3)]),
+        wow_data::DifficultyStore::from_entries([difficulty(0, 3), difficulty(3, 0)]),
     ));
     session
         .with_owned_player_mut_like_cpp(|player| {
@@ -341,7 +341,12 @@ fn indexed_sickness_save_uses_known_difficulty_zero_fallback() {
     insert_sickness_application(
         &mut session,
         application(player_guid, spell_id, 1, 0b111, 0, 60_000, 45_000),
-        Some(vec![(1, 80, 11, 0), (2, 79, 22, 0), (4, 159, 33, 0)]),
+        // Threat snapshots store effect bits for indices 0, 1, and 2.
+        Some(vec![
+            (1 << 0, 80, 11, 0),
+            (1 << 1, 79, 22, 0),
+            (1 << 2, 159, 33, 0),
+        ]),
     );
 
     let saved =

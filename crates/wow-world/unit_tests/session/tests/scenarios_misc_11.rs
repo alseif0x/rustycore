@@ -52,7 +52,16 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 39);
 
     let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(50_327, 0)]);
-    spell_store.insert(50_327, test_spell_info_like_cpp(50_327));
+    let mut presence_info = test_spell_info_like_cpp(50_327);
+    presence_info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+    presence_info.aura_type = Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY);
+    presence_info.effects = vec![wow_data::SpellEffectInfo {
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+        ..Default::default()
+    }];
+    spell_store.insert(50_327, presence_info);
     session.set_spell_store(Arc::new(spell_store));
     session.set_player_faction_template_like_cpp(1);
     session.record_represented_gameobject_faction_template_like_cpp(gameobject_guid, 2);

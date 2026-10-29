@@ -322,6 +322,16 @@ index-zero school-damage row (nine damage), rather than manually inserting an
 attribute map without loaded authority (`Unit.cpp:11912`, `SpellInfo.cpp:1167–1173`).
 Its nonlethal and lethal caster/target, packet and native-state assertions remain.
 
+The next nine-case fixture repair supplies exact scale/speed catalog keys,
+matches Aura duration's effect mask, and installs penalty metadata before
+application. Inert presence fixtures declare DUMMY explicitly; flagstand
+fixtures declare matching stealth/invisibility effects. The sickness fallback
+keeps its valid effect-bit masks and amounts, adding the missing known target
+difficulty. Listed SelfRes now has complete empty Aura authority and effective
+ALLOW_CAST_WHILE_DEAD/normal-cast inputs while preserving unlisted and missing
+metadata rejection (`SpellHandler.cpp:331–354,416–429`, `Spell.cpp:5643`).
+These eight fixture-source edits are unvalidated; no production guard changed.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The
