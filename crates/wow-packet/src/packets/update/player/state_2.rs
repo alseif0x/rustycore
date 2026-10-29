@@ -219,7 +219,7 @@ impl PlayerCreateData {
 
         // Flags, Flags2, Flags3, AuraState
         buf.write_uint32(0x0000_0008); // UnitFlags: UNIT_FLAG_PLAYER_CONTROLLED
-        buf.write_uint32(0); // Flags2
+        buf.write_uint32(self.unit_flags2);
         buf.write_uint32(0); // Flags3
         // C++ BuildAuraStateUpdateForTarget uses existing native state, not health here.
         buf.write_uint32(self.aura_state);

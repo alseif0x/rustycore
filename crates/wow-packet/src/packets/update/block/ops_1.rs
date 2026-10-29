@@ -630,6 +630,7 @@ impl UpdateObject {
             max_health: combat.max_health,
             // Creation does not run Unit::Update. A fresh Unit starts at zero.
             aura_state: 0,
+            unit_flags2: 0,
             faction_template: faction,
             current_area_id: zone_id,
             player_flags: 0,
@@ -738,6 +739,15 @@ impl UpdateObject {
             }],
         }
     }
+    /// Populate the canonical Unit::Flags2 without recreating login defaults.
+    pub fn set_player_unit_flags2_like_cpp(&mut self, flags: u32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject { create_data, .. } = block {
+                create_data.unit_flags2 = flags;
+            }
+        }
+    }
+
     /// Populate the already maintained, viewer-projected Unit::AuraState.
     pub fn set_player_aura_state_like_cpp(&mut self, aura_state: u32) {
         for block in &mut self.blocks {

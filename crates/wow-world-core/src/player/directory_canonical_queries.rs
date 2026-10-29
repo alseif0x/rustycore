@@ -125,6 +125,7 @@ impl PlayerRegistry {
         CanonicalPlayerPresentationLikeCpp,
         ObjectGuid,
         u32,
+        u32,
     )> {
         self.canonical_at(guid, map_id, instance_id, |player| {
             (
@@ -137,6 +138,7 @@ impl PlayerRegistry {
                     .subsystems()
                     .auras
                     .build_aura_state_update_for_target(viewer_guid),
+                player.unit().data().flags2,
             )
         })
     }

@@ -349,6 +349,26 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
         }
         let _ = apply_represented_group_leader_flag_like_cpp(host);
     }
+    // Player::LoadFromDB runs InitStatsForLevel before rest/skills/auras
+    // (Player.cpp:2507,17687-17695). Later aura effects may remove this flag.
+    let initialized = host
+        .core()
+        .with_owned_player_mut_like_cpp(|player| {
+            if player.guid() != guid {
+                return false;
+            }
+            let unit = player.unit_mut();
+            let flags = wow_constants::UnitFlags2::from_bits_retain(unit.data().flags2)
+                | wow_constants::UnitFlags2::REGENERATE_POWER;
+            unit.set_unit_flags2_like_cpp(flags);
+            true
+        })
+        .unwrap_or(false);
+    if !initialized {
+        host.core_mut()
+            .kick("canonical Player unavailable during native login flags initialization");
+        return;
+    }
     wow_world_instances::load_represented_xp_rest_bonus_like_cpp(
         host,
         saved_rest_state,

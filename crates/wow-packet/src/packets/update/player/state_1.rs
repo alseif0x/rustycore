@@ -805,6 +805,7 @@ pub struct PlayerCreateData {
     pub max_health: i64,
     /// Native Unit::AuraState projected for this CREATE's viewer.
     pub aura_state: u32,
+    pub unit_flags2: u32,
     pub faction_template: i32,
     pub current_area_id: u32,
     /// PlayerData::PlayerFlags.

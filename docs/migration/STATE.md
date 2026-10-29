@@ -9,8 +9,8 @@ outstanding. C++ healer attempt 2, wisp attempt 2 and automatic release now
 pass; mob's retained action passes a separately recorded corrected-contract
 review without relabelling its original failed wrapper. Offer attempt 1
 fails at the reference caster with BAD_TARGETS and restores normally.
-The subsequent native power, sanctuary, AuraState, bones and logout death
-release changes still need combined acceptance. No publication or issue closure.
+The subsequent native power, sanctuary, AuraState, bones, logout death release
+and initial Flags2 changes still need combined acceptance. No publication or issue closure.
 
 Earlier candidate `b0f2dadd6` passed the complete World library suite (4,130
 passed, one ignored) and built the debug server in a 328.993-second affected
@@ -293,6 +293,29 @@ Inspected inactive artifacts were retired to recover 898.5 MiB before the next
 build; current runtime binaries, reference captures and the active incremental
 cache are preserved. Exact sizes/hashes and unused-file checks are recorded at
 `/tmp/rustycore43-storage-retirement-0_6mhuhz/record.json`.
+
+The Flags2 repair is implemented, UNVALIDATED. At the existing canonical login
+load boundary, before rest/skills/auras, it preserves unrelated Flags2 bits and
+assigns REGENERATE_POWER (`Player.cpp:2507,17687–17695`). Login, teleport and
+nearby-player CREATE snapshots then carry the actual canonical scalar, including
+later aura removal; packet construction does not recreate the login default.
+Packet, production-login, travel and nearby-visibility regressions still need
+the combined final campaign. The fresh Player/bootstrap defaults are unchanged.
+
+C++ recovery-dead attempt 1 fails its wrapper in 247.327 seconds and restores
+normally. Both bot passes succeed, and epoch 2 proves the persisted ghost/corpse
+input and output; epoch 1 never writes its post-disconnect snapshot. The QA
+offline poll allows only 60 seconds, while target `WorldSession.cpp:137,514–537`
+retains a lost-socket session for 60 seconds before deletion/logout and saving.
+The poll requires a bounded margin beyond that native grace. Do not credit a
+post-restart snapshot as proof that the failed pre-restart poll completed.
+The two recovery cases require the corrected QA wait and fresh captures.
+
+A second inspected artifact retirement recovered 9.010 GiB from four obsolete
+World compilation hashes with no executable/rlib/rmeta output: only unused,
+single-link DWO/object files were removed. Current binaries, captures and the
+active incremental cache remain intact. The exact file/stat inventory is
+`/tmp/rustycore43-obsolete-debuginfo-retirement-c9zfsywi/record.json`.
 The QA repair now preserves strict pre-finish root/no-release/no-PreResurrect
 evidence and requires the subsequent saved ghost/corpse, with a distinct
 pre-login snapshot for reload epochs. It does not claim unreleased-dead DB

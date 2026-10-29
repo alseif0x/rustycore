@@ -646,16 +646,22 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         else {
             return false;
         };
-        let Some(aura_state) = host.core().canonical_player_snapshot_like_cpp(|player| {
-            player
-                .unit()
-                .subsystems()
-                .auras
-                .build_aura_state_update_for_target(guid)
-        }) else {
+        let Some((aura_state, unit_flags2)) =
+            host.core().canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player
+                        .unit()
+                        .subsystems()
+                        .auras
+                        .build_aura_state_update_for_target(guid),
+                    player.unit().data().flags2,
+                )
+            })
+        else {
             return false;
         };
         player_pkt.set_player_aura_state_like_cpp(aura_state);
+        player_pkt.set_player_unit_flags2_like_cpp(unit_flags2);
         player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
         player_pkt.set_player_current_power0_like_cpp(current_power0);
         player_pkt.set_player_xp_like_cpp(player_xp.min(i32::MAX as u32) as i32);

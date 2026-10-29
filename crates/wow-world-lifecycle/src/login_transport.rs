@@ -197,6 +197,7 @@ pub fn player_visibility_create_update_from_snapshot_like_cpp(
         player.party_member_party_type,
     );
     update.set_player_aura_state_like_cpp(player.aura_state);
+    update.set_player_unit_flags2_like_cpp(player.unit_flags2);
     update.set_player_current_power0_like_cpp(i32::from(player.current_power));
     update.set_player_summon_guid_like_cpp(player.summon);
     update.set_player_customizations_like_cpp(player.customizations.as_ref().clone());

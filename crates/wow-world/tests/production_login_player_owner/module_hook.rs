@@ -108,6 +108,7 @@ fn fixture() -> Fixture {
         manager: Arc::clone(&manager),
         full_login: AtomicBool::new(true),
         seed_self_res_spells_on_customizations_load: AtomicBool::new(false),
+        unit_flags2_load_probe: std::sync::Mutex::new(None),
         events: std::sync::Mutex::new(Vec::new()),
     });
     let maps = Arc::new(MapStore::from_entries([MapEntry {
@@ -338,4 +339,44 @@ async fn production_login_create_projects_ordered_self_res_spells() {
         vec![3026, 21169, 3026],
         "building login CREATE reads without reinitializing the canonical list"
     );
+}
+
+#[tokio::test]
+async fn native_login_seeds_flags2_before_auras_and_never_restores_a_later_removal() {
+    const UNRELATED: u32 = 0x8000_0000;
+    for remove_at_aura_load in [false, true] {
+        let mut fixture = fixture();
+        *fixture.port.unit_flags2_load_probe.lock().unwrap() =
+            Some((UNRELATED, remove_at_aura_load));
+        run_login(&mut fixture.session, &fixture.maps).await;
+        assert!(
+            fixture
+                .port
+                .events
+                .lock()
+                .unwrap()
+                .contains(&"flags2-before-auras")
+        );
+        assert_eq!(fixture.session.state(), SessionState::LoggedIn);
+        let (handle, _) = fixture
+            .manager
+            .lock()
+            .unwrap()
+            .current_player_admission_like_cpp(ObjectGuid::create_player(1, 42))
+            .unwrap();
+        let expected = UNRELATED
+            | if remove_at_aura_load {
+                0
+            } else {
+                wow_constants::UnitFlags2::REGENERATE_POWER.bits()
+            };
+        assert_eq!(
+            fixture
+                .manager
+                .lock()
+                .unwrap()
+                .with_player_like_cpp(handle, |player| player.unit().data().flags2),
+            Some(expected)
+        );
+    }
 }

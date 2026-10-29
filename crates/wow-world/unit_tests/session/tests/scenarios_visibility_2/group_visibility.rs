@@ -27,6 +27,9 @@ fn nearby_player_create_uses_frozen_viewer_aura_state_instead_of_current_health(
         .player_active_residence_revision_like_cpp(fixture.target_handle)
         .unwrap();
     set_player_state(&fixture.manager, fixture.target_handle, |player| {
+        player
+            .unit_mut()
+            .set_unit_flags2_like_cpp(wow_constants::UnitFlags2::from_bits_retain(0x8000_0800));
         let auras = &mut player.unit_mut().subsystems_mut().auras;
         auras.register_applied_aura(
             wow_entities::AppliedAuraRef::new(800, fixture.viewer, 0, 1),
@@ -57,6 +60,7 @@ fn nearby_player_create_uses_frozen_viewer_aura_state_instead_of_current_health(
             )
             .unwrap();
         assert_eq!(snapshot.aura_state, expected);
+        assert_eq!(snapshot.unit_flags2, 0x8000_0800);
         let update = wow_world_lifecycle::login_transport::player_visibility_create_update_from_snapshot_like_cpp(&snapshot, MAP_ID as u16);
         let wow_packet::packets::update::UpdateBlock::CreateObject { create_data, .. } =
             &update.blocks[0]
@@ -64,7 +68,30 @@ fn nearby_player_create_uses_frozen_viewer_aura_state_instead_of_current_health(
             panic!("native Player CREATE");
         };
         assert_eq!(create_data.aura_state, expected);
+        assert_eq!(create_data.unit_flags2, 0x8000_0800);
     }
+    set_player_state(&fixture.manager, fixture.target_handle, |player| {
+        player
+            .unit_mut()
+            .set_unit_flags2_like_cpp(wow_constants::UnitFlags2::from_bits_retain(0x8000_0000));
+    });
+    let snapshot = fixture
+        .registry
+        .player_visibility_create_snapshot_for_candidate(
+            registration,
+            fixture.target_handle,
+            map_key,
+            revision,
+            fixture.viewer,
+        )
+        .unwrap();
+    let update = wow_world_lifecycle::login_transport::player_visibility_create_update_from_snapshot_like_cpp(&snapshot, MAP_ID as u16);
+    let wow_packet::packets::update::UpdateBlock::CreateObject { create_data, .. } =
+        &update.blocks[0]
+    else {
+        panic!("native nearby CREATE after aura removal");
+    };
+    assert_eq!(create_data.unit_flags2, 0x8000_0000);
 }
 
 fn fixture() -> Fixture {

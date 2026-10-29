@@ -100,6 +100,9 @@ async fn far_teleport_self_create_projects_native_quest_log_and_live_self_res_sp
             player.add_self_res_spell(3026);
             player.add_self_res_spell(21169);
             player.add_self_res_spell(3026);
+            player
+                .unit_mut()
+                .set_unit_flags2_like_cpp(wow_constants::UnitFlags2::from_bits_retain(0x8000_0800));
             assert!(player.set_quest_slot_like_cpp(4, 0x1234_5678));
             assert!(player.set_quest_slot_end_time_like_cpp(4, 86_400));
             assert!(player.set_quest_slot_counter_like_cpp(4, 7, 0x1234));
@@ -136,9 +139,15 @@ async fn far_teleport_self_create_projects_native_quest_log_and_live_self_res_sp
         }),
         "self CREATE projects native Player QuestLog values"
     );
-    let prepared = wow_world_character::prepare_player_self_create_for_teleport_like_cpp(&session)
-        .unwrap()
-        .to_bytes();
+    let prepared_update =
+        wow_world_character::prepare_player_self_create_for_teleport_like_cpp(&session).unwrap();
+    let wow_packet::packets::update::UpdateBlock::CreateObject { create_data, .. } =
+        &prepared_update.blocks[0]
+    else {
+        panic!("native self CREATE");
+    };
+    assert_eq!(create_data.unit_flags2, 0x8000_0800);
+    let prepared = prepared_update.to_bytes();
     assert!(send_rx.is_empty(), "building a CREATE must not publish it");
 
     assert_eq!(
@@ -195,6 +204,22 @@ async fn far_teleport_self_create_projects_native_quest_log_and_live_self_res_sp
         Some(false),
         "closed delivery is separate from successful construction"
     );
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_unit_flags2_like_cpp(wow_constants::UnitFlags2::from_bits_retain(0x8000_0000));
+        })
+        .unwrap();
+    let after_removal =
+        wow_world_character::prepare_player_self_create_for_teleport_like_cpp(&session).unwrap();
+    let wow_packet::packets::update::UpdateBlock::CreateObject { create_data, .. } =
+        &after_removal.blocks[0]
+    else {
+        panic!("native self CREATE after aura removal");
+    };
+    assert_eq!(create_data.unit_flags2, 0x8000_0000);
 }
 
 #[tokio::test]

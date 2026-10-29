@@ -303,6 +303,28 @@ fn creature_create_serializes() {
 }
 
 #[test]
+fn player_create_flags2_serializes_native_flags_without_restoring_removed_regeneration() {
+    for owner in [false, true] {
+        let mut data = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        let flags = u8::from(owner);
+        let offset = if owner { 361 } else { 279 };
+        let mut baseline = WorldPacket::new_empty();
+        data.write_unit_data(&mut baseline, flags);
+        baseline.flush_bits();
+        assert_eq!(&baseline.data()[offset..offset + 4], &[0; 4]);
+        for native in [0x8000_0800_u32, 0x8000_0000, 0] {
+            data.unit_flags2 = native;
+            let mut wire = WorldPacket::new_empty();
+            data.write_unit_data(&mut wire, flags);
+            wire.flush_bits();
+            let mut expected = baseline.data().to_vec();
+            expected[offset..offset + 4].copy_from_slice(&native.to_le_bytes());
+            assert_eq!(wire.data(), expected, "Flags2 is the only changed field");
+        }
+    }
+}
+
+#[test]
 fn creature_create_serializes_cpp_anim_kit_block_when_any_anim_kit_is_set() {
     let guid =
         ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 0, 1, 1234, 5678);

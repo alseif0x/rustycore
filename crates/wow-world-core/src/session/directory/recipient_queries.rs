@@ -18,6 +18,7 @@ fn player_visibility_snapshot_from_projection(
     presentation: crate::canonical_player_access::CanonicalPlayerPresentationLikeCpp,
     transport: Option<TransportInfo>,
     aura_state: u32,
+    unit_flags2: u32,
 ) -> PlayerVisibilityCreateSnapshot {
     let (display_id, visible_items, _, zone_id, customizations) = presentation;
     PlayerVisibilityCreateSnapshot {
@@ -33,6 +34,7 @@ fn player_visibility_snapshot_from_projection(
         current_health: vitals.current_health,
         max_health: vitals.max_health,
         aura_state,
+        unit_flags2,
         power_type: vitals.power_type,
         current_power: vitals.current_power,
         max_power: vitals.max_power,
@@ -594,6 +596,7 @@ impl PlayerRegistry {
                     (display_id, visible_items, _, zone_id, customizations),
                     summon,
                     aura_state,
+                    unit_flags2,
                 ) = self.create_state(
                     guid,
                     placement.map_id,
@@ -613,6 +616,7 @@ impl PlayerRegistry {
                     current_health: vitals.current_health,
                     max_health: vitals.max_health,
                     aura_state,
+                    unit_flags2,
                     power_type: vitals.power_type,
                     current_power: vitals.current_power,
                     max_power: vitals.max_power,
@@ -871,12 +875,8 @@ impl PlayerRegistry {
                 if dx * dx + dy * dy >= reach * reach {
                     return None;
                 }
-                let (vitals, party_type, presentation, summon, aura_state) = self.create_state(
-                    guid,
-                    placement.map_id,
-                    placement.instance_id,
-                    excluded_guid,
-                )?;
+                let (vitals, party_type, presentation, summon, aura_state, unit_flags2) = self
+                    .create_state(guid, placement.map_id, placement.instance_id, excluded_guid)?;
                 let transport = self
                     .canonical_at(guid, placement.map_id, placement.instance_id, |player| {
                         player.gameplay_state().transport.clone()
@@ -903,6 +903,7 @@ impl PlayerRegistry {
                     presentation,
                     transport,
                     aura_state,
+                    unit_flags2,
                 ))
             })
             .collect()
@@ -979,6 +980,7 @@ impl PlayerRegistry {
                         .subsystems()
                         .auras
                         .build_aura_state_update_for_target(viewer_guid),
+                    player.unit().data().flags2,
                 ))
             })??
         };
@@ -991,8 +993,17 @@ impl PlayerRegistry {
         {
             return None;
         }
-        let (position, level, vitals, party_type, presentation, transport, summon, aura_state) =
-            projection;
+        let (
+            position,
+            level,
+            vitals,
+            party_type,
+            presentation,
+            transport,
+            summon,
+            aura_state,
+            unit_flags2,
+        ) = projection;
         Some(player_visibility_snapshot_from_projection(
             registration.guid(),
             summon,
@@ -1004,6 +1015,7 @@ impl PlayerRegistry {
             presentation,
             transport,
             aura_state,
+            unit_flags2,
         ))
     }
 }

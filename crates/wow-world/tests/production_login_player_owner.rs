@@ -33,6 +33,7 @@ struct LoginPort {
     /// and the online mark is recorded instead of refused.
     full_login: AtomicBool,
     seed_self_res_spells_on_customizations_load: AtomicBool,
+    unit_flags2_load_probe: std::sync::Mutex<Option<(u32, bool)>>,
     events: std::sync::Mutex<Vec<&'static str>>,
 }
 
@@ -303,6 +304,45 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
         if self.full_login.load(Ordering::SeqCst) {
+            let probe = *self.unit_flags2_load_probe.lock().unwrap();
+            if let Some((unrelated, remove_on_aura_load)) = probe {
+                let seed = matches!(
+                    &request,
+                    PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable { .. }
+                );
+                let aura_load = matches!(
+                    &request,
+                    PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras { .. }
+                );
+                if seed || aura_load {
+                    let mut manager = self.manager.lock().unwrap();
+                    let (handle, _) = manager
+                        .current_player_admission_like_cpp(ObjectGuid::create_player(1, 42))
+                        .unwrap();
+                    manager
+                        .with_player_mut_like_cpp(handle, |player| {
+                            let unit = player.unit_mut();
+                            if seed {
+                                unit.set_unit_flags2_like_cpp(
+                                    wow_constants::UnitFlags2::from_bits_retain(unrelated),
+                                );
+                            } else {
+                                assert_eq!(
+                                    unit.data().flags2,
+                                    unrelated | wow_constants::UnitFlags2::REGENERATE_POWER.bits(),
+                                    "InitStats load seed must precede aura loading"
+                                );
+                                if remove_on_aura_load {
+                                    unit.set_unit_flags2_like_cpp(
+                                        wow_constants::UnitFlags2::from_bits_retain(unrelated),
+                                    );
+                                }
+                                self.events.lock().unwrap().push("flags2-before-auras");
+                            }
+                        })
+                        .unwrap();
+                }
+            }
             if matches!(
                 &request,
                 PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { .. }
@@ -412,6 +452,7 @@ async fn hydrate(
         manager: Arc::clone(&manager),
         full_login: AtomicBool::new(false),
         seed_self_res_spells_on_customizations_load: AtomicBool::new(false),
+        unit_flags2_load_probe: std::sync::Mutex::new(None),
         events: std::sync::Mutex::new(Vec::new()),
     });
     let maps = Arc::new(MapStore::from_entries([MapEntry {
