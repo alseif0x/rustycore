@@ -23,6 +23,8 @@ use wow_world_inventory::loaded_item_support::{
 };
 use wow_world_inventory::vendor::{LoadedItemRefundDecision, loaded_item_refund_decision};
 
+mod carried_proof;
+
 pub struct LoginInventorySnapshotLikeCpp {
     pub visible_items: [(i32, u16, u16); 19],
     pub inv_slots: [ObjectGuid; 141],
@@ -45,6 +47,10 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
     let mut login_bag_create_index_by_slot: HashMap<u8, usize> = HashMap::new();
     let mut loaded_inventory_item_guids: Vec<ObjectGuid> = Vec::new();
     let mut loaded_equipped_item_guids: Vec<ObjectGuid> = Vec::new();
+    let loading_owner = host.hub_ref().core.player_handle_like_cpp;
+    let mut equipment_loaded = false;
+    let mut bags_loaded = false;
+    let mut carried_rows_coherent = true;
     {
         let (state, mut hub) = host.split_inventory_mut();
         state.clear_inventory_items_and_objects_like_cpp(&mut hub)
@@ -71,12 +77,22 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                 wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::EquipmentInventory(rows),
             ) => {
                 let equipment_inventory_source_is_proven_empty = rows.is_empty();
+                equipment_loaded = true;
                 for row in rows {
                     let slot = row.slot;
                     let item = row.item;
                     let item_entry = item.item_entry;
                     let item_db_guid = item.item_db_guid;
                     let item_count = item.count;
+                    let row_guid = ObjectGuid::create_item(realm_id, item_db_guid as i64);
+                    carried_rows_coherent &= item_entry > 0
+                        && item_db_guid > 0
+                        && row_guid.counter() as u64 == item_db_guid
+                        && item_count > 0
+                        && inv_slots
+                            .get(slot as usize)
+                            .is_some_and(|guid| guid.is_empty())
+                        && !loaded_inventory_item_guids.contains(&row_guid);
                     let item_durability = item.durability;
                     let item_context =
                         <ItemContext as num_traits::FromPrimitive>::from_u8(item.context)
@@ -162,6 +178,12 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                                 }
                             });
                         let is_bag_container = inventory_type == Some(InventoryType::Bag as u8);
+                        if is_represented_bag_slot(slot) || is_bag_container {
+                            carried_rows_coherent &= is_bag_container
+                                && storage_template.as_ref().is_some_and(|template| {
+                                    template.container_slots > 0 && template.container_slots <= 36
+                                });
+                        }
                         let container_slots = if is_bag_container {
                             storage_template
                                 .as_ref()
@@ -328,6 +350,7 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                 wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
                     wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::BagInventory(rows),
                 ) => {
+                    bags_loaded = true;
                     for row in rows {
                         let bag_slot = row.bag_slot;
                         let inner_slot = row.inner_slot;
@@ -335,6 +358,19 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                         let item_entry = item.item_entry;
                         let item_db_guid = item.item_db_guid;
                         let item_count = item.count;
+                        let row_guid = ObjectGuid::create_item(realm_id, item_db_guid as i64);
+                        carried_rows_coherent &= item_entry > 0
+                            && item_db_guid > 0
+                            && row_guid.counter() as u64 == item_db_guid
+                            && item_count > 0
+                            && !loaded_inventory_item_guids.contains(&row_guid)
+                            && login_bag_create_index_by_slot.get(&bag_slot).is_some_and(
+                                |&index| {
+                                    let bag = &item_creates[index];
+                                    u32::from(inner_slot) < bag.container_slots
+                                        && bag.container_item_guids[inner_slot as usize].is_empty()
+                                },
+                            );
                         let item_durability = item.durability;
                         let item_context =
                             <ItemContext as num_traits::FromPrimitive>::from_u8(item.context)
@@ -667,6 +703,17 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
             &loaded_inventory_item_guids,
             &loaded_equipped_item_guids,
         );
+
+    if equipment_loaded && bags_loaded && carried_rows_coherent && loading_owner.is_some() {
+        let (_, mut hub) = host.split_inventory_mut();
+        if hub.core.player_handle_like_cpp == loading_owner {
+            hub.core.mutate_canonical_player_like_cpp(|player| {
+                if player.guid() == guid {
+                    carried_proof::finish_carried_load_like_cpp(player, &inv_slots, &item_creates);
+                }
+            });
+        }
+    }
 
     Some(LoginInventorySnapshotLikeCpp {
         visible_items,

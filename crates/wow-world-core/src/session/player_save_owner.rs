@@ -106,6 +106,7 @@ pub struct PlayerSaveReceiptLikeCpp {
     handle: PlayerHandle,
     owner: wow_entities::PlayerSaveAcknowledgementLikeCpp,
     expected: PlayerCharacterCommittedGroupsLikeCpp,
+    resurrection_inventory_covered: bool,
     tutorials: Option<PlayerTutorialsSaveLikeCpp>,
 }
 
@@ -248,6 +249,12 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
             Some(CapturedPlayerSaveLikeCpp {
                 receipt: PlayerSaveReceiptLikeCpp {
                     handle,
+                    resurrection_inventory_covered: item_capture::resurrection_inventory_covered(
+                        player,
+                        request.inventory_items.as_deref(),
+                        request.item_durability.as_deref(),
+                        self.item_effect_store,
+                    ),
                     owner: player.capture_save_acknowledgement_with_quest_status_like_cpp(
                         &saved_item_guids,
                         &saved_currency_ids,
@@ -389,6 +396,7 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                             equipment: groups.equipment_sets,
                             reputations: groups.reputation,
                             inventory_items: groups.inventory_items,
+                            resurrection_inventory_covered: receipt.resurrection_inventory_covered,
                             currencies: groups.currencies,
                             quest_statuses: groups.quest_statuses,
                         },

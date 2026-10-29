@@ -42,6 +42,7 @@ impl Player {
         if !self
             .inventory_runtime
             .equipment_inventory_authority_complete_like_cpp()
+            && !self.inventory_runtime.carried_inventory_loaded_like_cpp()
         {
             return None;
         }
@@ -58,6 +59,7 @@ impl Player {
         if !self
             .inventory_runtime
             .equipment_inventory_authority_complete_like_cpp()
+            && !self.inventory_runtime.carried_inventory_loaded_like_cpp()
             || !(INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&bag_slot)
         {
             return None;
@@ -74,7 +76,8 @@ impl Player {
             (None, None) => Some(None),
             (Some(guid), Some(storage)) if storage.bag_guid == guid => {
                 let bag_item = self.inventory_runtime.item_objects().get(&guid)?;
-                if bag_item.owner_guid() != self.guid()
+                if bag_item.object().guid() != guid
+                    || bag_item.owner_guid() != self.guid()
                     || bag_item.update_state() == ItemUpdateState::Removed
                 {
                     return None;
@@ -98,6 +101,7 @@ impl Player {
         if !self
             .inventory_runtime
             .equipment_inventory_authority_complete_like_cpp()
+            && !self.inventory_runtime.carried_inventory_loaded_like_cpp()
         {
             return None;
         }
@@ -120,7 +124,10 @@ impl Player {
             return Some(None);
         };
         let item = self.inventory_runtime.item_objects().get(&item_guid)?;
-        if item.owner_guid() != self.guid() || item.update_state() == ItemUpdateState::Removed {
+        if item.object().guid() != item_guid
+            || item.owner_guid() != self.guid()
+            || item.update_state() == ItemUpdateState::Removed
+        {
             return None;
         }
         Some(Some(item_guid))

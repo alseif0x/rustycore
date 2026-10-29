@@ -5,6 +5,8 @@
 
 use super::*;
 
+#[path = "login_auxiliary_persistence/carried_readiness.rs"]
+mod carried_readiness;
 #[path = "login_auxiliary_persistence/durability_save.rs"]
 mod durability_save;
 

@@ -64,6 +64,8 @@ pub struct PlayerSavedGroupsLikeCpp {
     pub equipment: bool,
     pub reputations: bool,
     pub inventory_items: bool,
+    /// Internal receipt proof for no-pickup resurrection costs; never acknowledges Items.
+    pub resurrection_inventory_covered: bool,
     pub currencies: bool,
     pub quest_statuses: bool,
 }
@@ -153,7 +155,13 @@ impl Player {
         let state = &mut self.gameplay_state;
         if let Some(captured) = saved.resurrection
             && captured.phase == crate::PlayerResurrectionPhase::SavingPlayer
-            && groups.inventory_items
+            && (groups.inventory_items
+                || (groups.resurrection_inventory_covered
+                    && matches!(
+                        captured.operation,
+                        crate::PlayerResurrectionOperation::ReclaimCorpse { .. }
+                            | crate::PlayerResurrectionOperation::SpiritHealer { .. }
+                    )))
             && groups.currencies
             && let Some(current) = state.resurrection.delayed_after_teleport.as_mut()
             && *current == captured

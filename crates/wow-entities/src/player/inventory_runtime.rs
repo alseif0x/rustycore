@@ -27,6 +27,8 @@ pub struct PlayerInventoryRuntime {
     /// True only after the persisted equipment query completed coherently for
     /// this Player lifetime. An empty runtime inventory is not source proof.
     equipment_inventory_authority_complete_like_cpp: bool,
+    /// Successful, coherent login load of carried positions; not full Item save authority.
+    carried_inventory_loaded_like_cpp: bool,
     inventory_items: HashMap<u8, PlayerInventoryItem>,
     buyback_items: HashMap<u8, PlayerInventoryItem>,
     buyback_price: [u32; BUYBACK_SLOT_COUNT],
@@ -93,6 +95,14 @@ impl PlayerInventoryRuntime {
         self.equipment_inventory_authority_complete_like_cpp = complete;
     }
 
+    pub const fn carried_inventory_loaded_like_cpp(&self) -> bool {
+        self.carried_inventory_loaded_like_cpp
+    }
+
+    pub fn set_carried_inventory_loaded_like_cpp(&mut self, loaded: bool) {
+        self.carried_inventory_loaded_like_cpp = loaded;
+    }
+
     /// C++ installs an item into one of the Player's own slots in
     /// `Player::_StoreItem` (`m_items[slot] = pItem`, Player.cpp:11277) and
     /// `Player::VisualizeItem` (:11535). Returns whatever occupied the slot, as
@@ -122,6 +132,7 @@ impl PlayerInventoryRuntime {
     /// the Player is torn down (`delete m_items[i]`, Player.cpp:360) and when a
     /// fresh Player starts from empty slots (`Player::Create`, :403-404).
     pub fn clear_items_and_objects_like_cpp(&mut self) {
+        self.carried_inventory_loaded_like_cpp = false;
         self.inventory_items.clear();
         self.item_objects.clear();
         self.pending_durability_updates.clear();
@@ -426,6 +437,7 @@ impl Default for PlayerInventoryRuntime {
     fn default() -> Self {
         Self {
             equipment_inventory_authority_complete_like_cpp: false,
+            carried_inventory_loaded_like_cpp: false,
             inventory_items: HashMap::new(),
             buyback_items: HashMap::new(),
             buyback_price: [0; BUYBACK_SLOT_COUNT],

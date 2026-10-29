@@ -117,6 +117,34 @@ async fn populated_login_loss_map_drain_and_partial_save_preserve_unrepresented_
         wow_world_character::load_inventory_for_login_like_cpp(&mut session, &load_port, owner, 1)
             .await
             .expect("populated production inventory load");
+        session.set_item_effect_store(Arc::new(wow_data::ItemEffectStore::from_entries([])));
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                assert!(
+                    player
+                        .inventory_runtime_like_cpp()
+                        .carried_inventory_loaded_like_cpp()
+                );
+                player.set_inventory_slot_count(16);
+                assert_eq!(
+                    player.get_item_by_pos(
+                        wow_entities::INVENTORY_SLOT_BAG_0,
+                        wow_entities::INVENTORY_SLOT_ITEM_START
+                    ),
+                    Some(ObjectGuid::create_item(1, 9122))
+                );
+            })
+            .unwrap();
+        let generators = session.id_generators_for_test_like_cpp();
+        let creatures = session.creature_spawn_catalogs_for_test_like_cpp();
+        wow_world_spell::cast_all_obtain_spells_like_cpp(
+            &mut session,
+            generators.item.as_ref(),
+            &creatures,
+        )
+        .await
+        .expect("loaded carried 2121 has no obtain effects without full Item save authority");
         let item_guid = ObjectGuid::create_item(1, 9121);
         let backpack_guid = ObjectGuid::create_item(1, 9122);
         session
@@ -154,6 +182,22 @@ async fn populated_login_loss_map_drain_and_partial_save_preserve_unrepresented_
 
         let save_port = crate::session::RecordingPlayerLifecyclePort::new(outcome.clone());
         session.set_player_lifecycle_port_like_cpp(save_port.clone());
+        crate::player_inventory_test_fixture::complete_known_empty_player_currencies_like_cpp(
+            &mut session,
+        );
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .resurrection_state_mut_like_cpp()
+                    .delayed_after_teleport = Some(wow_entities::PlayerResurrectionContinuation {
+                    operation: wow_entities::PlayerResurrectionOperation::ReclaimCorpse {
+                        restore_percent: 0.5,
+                    },
+                    phase: wow_entities::PlayerResurrectionPhase::SavingPlayer,
+                });
+            })
+            .unwrap();
         session
             .core
             .owned_inventory_access_like_cpp()
@@ -207,6 +251,18 @@ async fn populated_login_loss_map_drain_and_partial_save_preserve_unrepresented_
                         .inventory_runtime_like_cpp()
                         .equipment_inventory_authority_complete_like_cpp()
                 );
+                assert_eq!(
+                    player
+                        .resurrection_state_like_cpp()
+                        .delayed_after_teleport
+                        .unwrap()
+                        .phase,
+                    if matches!(outcome, PersistenceOutcomeLikeCpp::Applied { .. }) {
+                        wow_entities::PlayerResurrectionPhase::PlayerSaveApplied
+                    } else {
+                        wow_entities::PlayerResurrectionPhase::SavingPlayer
+                    }
+                );
                 let item = &player.inventory_runtime_like_cpp().item_objects()[&item_guid];
                 assert_eq!(item.data().durability, if concurrent { 19 } else { 34 });
                 assert_eq!(item.count(), if concurrent { 8 } else { 7 });
@@ -224,6 +280,14 @@ async fn populated_login_loss_map_drain_and_partial_save_preserve_unrepresented_
             })
             .unwrap();
         if matches!(outcome, PersistenceOutcomeLikeCpp::Applied { .. }) {
+            session
+                .core
+                .with_owned_player_mut_like_cpp(|player| {
+                    player
+                        .resurrection_state_mut_like_cpp()
+                        .delayed_after_teleport = None;
+                })
+                .unwrap();
             session.save_current_player_to_db_like_cpp().await;
             assert_eq!(
                 save_port.character_save_requests()[1].item_durability,

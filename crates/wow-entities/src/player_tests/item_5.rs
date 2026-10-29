@@ -112,6 +112,91 @@ fn cast_all_obtain_scan_freezes_backpack_end_and_resolves_live_bags_and_slots() 
         ),
         None
     );
+    player
+        .inventory_runtime_mut_like_cpp()
+        .set_carried_inventory_loaded_like_cpp(true);
+    assert_eq!(
+        player.cast_all_obtain_backpack_end_like_cpp(),
+        Some(backpack_end)
+    );
+    assert_eq!(
+        player.cast_all_obtain_bag_like_cpp(INVENTORY_SLOT_BAG_START),
+        Some(Some((bag_guid, 2)))
+    );
+    assert_eq!(
+        player.cast_all_obtain_item_at_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            None
+        ),
+        Some(Some(backpack[0]))
+    );
+    assert!(
+        !player
+            .inventory_runtime_like_cpp()
+            .equipment_inventory_authority_complete_like_cpp()
+    );
+    player
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&backpack[0])
+        .unwrap()
+        .set_owner_guid(ObjectGuid::create_player(1, 999));
+    assert_eq!(
+        player.cast_all_obtain_item_at_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            None
+        ),
+        None,
+        "loaded proof cannot authorize a foreign item"
+    );
+    assert_eq!(
+        player.cast_all_obtain_item_at_like_cpp(
+            INVENTORY_SLOT_BAG_START,
+            1,
+            Some(ObjectGuid::create_item(1, 999))
+        ),
+        None,
+        "bag identity fence remains exact"
+    );
+    let item = player
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&backpack[0])
+        .unwrap();
+    item.set_owner_guid(player_guid);
+    item.object_mut().create(ObjectGuid::create_item(1, 998));
+    assert_eq!(
+        player.cast_all_obtain_item_at_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            None
+        ),
+        None,
+        "the item map key cannot redirect a loaded slot"
+    );
+    player
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&bag_guid)
+        .unwrap()
+        .object_mut()
+        .create(ObjectGuid::create_item(1, 997));
+    assert_eq!(
+        player.cast_all_obtain_bag_like_cpp(INVENTORY_SLOT_BAG_START),
+        None,
+        "the bag map key must match the current native Item identity"
+    );
+    player
+        .inventory_runtime_mut_like_cpp()
+        .clear_items_and_objects_like_cpp();
+    assert!(
+        !player
+            .inventory_runtime_like_cpp()
+            .carried_inventory_loaded_like_cpp()
+    );
+    assert_eq!(player.cast_all_obtain_backpack_end_like_cpp(), None);
 }
 
 #[test]

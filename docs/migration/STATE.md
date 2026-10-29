@@ -1,7 +1,13 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
-Current candidate `b0f2dadd6` passed the complete World library suite (4,130
+Latest accepted local candidate: `bd79e14b3`; the fresh reclaim run still fails
+at obtain-scan admission. Fall/release is accepted at its actual `abba63ce7`
+candidate in the bounded actor/control contract below. The working carried-load
+and receipt repair is UNVALIDATED; eleven paired scenarios and the last-candidate
+full final/terminal acceptance remain outstanding. No publication or issue closure.
+
+Earlier candidate `b0f2dadd6` passed the complete World library suite (4,130
 passed, one ignored) and built the debug server in a 328.993-second affected
 campaign (`/tmp/rustycore43-native-death-publication-acceptance-9lh5imhg/record.json`).
 Rust fall/release attempt 6 then failed its new real-DB assertion: equipped
@@ -73,6 +79,33 @@ World builder now uses the real wire layout. A registered-dispatch regression
 checks ignored GUID hints, range rejection, half-health resurrection, one-time
 corpse deletion and replay rejection. These changes remain UNVALIDATED until
 the committed affected campaign and fresh reclaim run complete.
+Affected acceptance at `bd79e14b3` passed the 215 runtime-guard checks,
+Packet (775), World (4,132, one ignored) and the debug build in 185.668 seconds
+(`/tmp/rustycore43-reclaim-wire-acceptance-pt8wsx2w/record.json`). Rust reclaim
+attempt 2 then reached native resurrection with no GUID parse failures, but
+held at `CastAllObtainSpells`: populated login never proves the backpack/bag
+positions to that reader. The exact native error is "complete backpack and
+bag inventory authority unavailable". The 378.926-second failed run installed
+its complete 752-artifact report and restored the runtime and fixture normally.
+
+The working repair now proves carried positions only after both successful,
+coherent queries and current canonical identity/placement checks. Its one
+Player-owned load-proof flag admits only the three obtain-position readers;
+full Item persistence authority remains unchanged. The adjacent save receipt
+also needs a bounded proof for reclaim/healer with no pickup effects and
+durability covered by the same transaction. This proof must never acknowledge
+whole Item rows or bypass missing currency receipts, new/removed/traded items,
+unknown metadata, dangling positions or incarnation/continuation fences.
+Both parts and their regression coverage remain UNVALIDATED in the working tree.
+The implemented receipt proof is limited to reclaim/healer, a successful
+carried load with every live position resolving, a known no-pickup ItemEffect
+catalog, and every Changed item covered by the same absolute-durability request.
+It rejects new/removed/traded, invalid-identity and uncovered items. Confirmed
+currency coverage and the exact incarnation/continuation remain mandatory;
+full Item acknowledgement remains false and preserves other dirty fields.
+Native placement follows `Player.cpp:11277,11535` and the obtain scan follows
+`Player.cpp:8034–8081` at the pinned target source. This is a repair of the
+observed operation's admission/receipt, not full inventory port acceptance.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

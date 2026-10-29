@@ -31,6 +31,7 @@ fn all() -> PlayerSavedGroupsLikeCpp {
         equipment: true,
         reputations: true,
         inventory_items: true,
+        resurrection_inventory_covered: false,
         currencies: true,
         quest_statuses: true,
     }
@@ -118,6 +119,76 @@ fn save_ack_promotes_only_the_exact_saving_resurrection_continuation() {
             .delayed_after_teleport
             .is_none()
     );
+}
+
+#[test]
+fn resurrection_inventory_coverage_only_acknowledges_supported_phase_with_currencies_not_items() {
+    use crate::{
+        PlayerResurrectionContinuation, PlayerResurrectionOperation as Operation,
+        PlayerResurrectionPhase as Phase,
+    };
+    assert!(!PlayerSavedGroupsLikeCpp::default().resurrection_inventory_covered);
+    for operation in [
+        Operation::ReclaimCorpse {
+            restore_percent: 0.5,
+        },
+        Operation::SpiritHealer {
+            corpse_graveyard: None,
+        },
+        Operation::SelfRes {
+            health: 35,
+            mana: 0,
+        },
+    ] {
+        for currencies in [false, true] {
+            let mut p = player();
+            let guid = ObjectGuid::create_item(1, 101);
+            dirty_item(&mut p, guid);
+            p.inventory_runtime_mut_like_cpp()
+                .item_objects_mut()
+                .get_mut(&guid)
+                .unwrap()
+                .force_state(ItemUpdateState::Changed);
+            let captured = PlayerResurrectionContinuation {
+                operation,
+                phase: Phase::SavingPlayer,
+            };
+            p.resurrection_state_mut_like_cpp().delayed_after_teleport = Some(captured);
+            let receipt = p.capture_save_acknowledgement_with_inventory_like_cpp(&[guid], &[]);
+            p.inventory_runtime_mut_like_cpp()
+                .item_objects_mut()
+                .get_mut(&guid)
+                .unwrap()
+                .set_count(7);
+            p.acknowledge_saved_projection_like_cpp(
+                receipt,
+                PlayerSavedGroupsLikeCpp {
+                    resurrection_inventory_covered: true,
+                    currencies,
+                    ..Default::default()
+                },
+            );
+            let allowed = currencies && !matches!(operation, Operation::SelfRes { .. });
+            assert_eq!(
+                p.resurrection_state_like_cpp()
+                    .delayed_after_teleport
+                    .unwrap()
+                    .phase,
+                if allowed {
+                    Phase::PlayerSaveApplied
+                } else {
+                    Phase::SavingPlayer
+                }
+            );
+            let item = &p.inventory_runtime_like_cpp().item_objects()[&guid];
+            assert_eq!(item.update_state(), ItemUpdateState::Changed);
+            assert_eq!(item.count(), 7);
+            assert!(
+                item.item_data_changes_mask()
+                    .is_set(crate::ITEM_DATA_STACK_COUNT_BIT)
+            );
+        }
+    }
 }
 
 #[test]

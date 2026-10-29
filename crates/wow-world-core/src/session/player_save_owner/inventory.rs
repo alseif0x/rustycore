@@ -44,6 +44,107 @@ pub(super) fn capture_durability(player: &Player) -> Option<Vec<PlayerItemDurabi
     }
 }
 
+/// C++ Player.cpp:8034-8081 adds no obtain-spell item costs when the complete
+/// ItemEffect catalog contains no positive pickup effect for these contents.
+/// This receipt covers only resurrection completion, never full Item acknowledgement.
+pub(super) fn resurrection_inventory_covered(
+    player: &Player,
+    inventory_items: Option<&[PlayerItemSaveLikeCpp]>,
+    durability: Option<&[PlayerItemDurabilitySave]>,
+    effects: Option<&wow_data::ItemEffectStore>,
+) -> bool {
+    use wow_constants::{ItemSpelltriggerType, ItemUpdateState};
+    use wow_entities::{
+        PlayerResurrectionOperation as Operation, PlayerResurrectionPhase as Phase,
+    };
+    if inventory_items.is_some()
+        || !player
+            .resurrection_state_like_cpp()
+            .delayed_after_teleport
+            .is_some_and(|current| {
+                current.phase == Phase::SavingPlayer
+                    && matches!(
+                        current.operation,
+                        Operation::ReclaimCorpse { .. } | Operation::SpiritHealer { .. }
+                    )
+            })
+        || !player
+            .inventory_runtime_like_cpp()
+            .carried_inventory_loaded_like_cpp()
+    {
+        return false;
+    }
+    let Some(effects) = effects else {
+        return false;
+    };
+    // A successful load is not proof that every live position still resolves.
+    // Reuse the native obtain readers so missing/replaced objects fail closed.
+    let Some(backpack_end) = player.cast_all_obtain_backpack_end_like_cpp() else {
+        return false;
+    };
+    for slot in wow_entities::INVENTORY_SLOT_ITEM_START..backpack_end {
+        if player
+            .cast_all_obtain_item_at_like_cpp(wow_entities::INVENTORY_SLOT_BAG_0, slot, None)
+            .is_none()
+        {
+            return false;
+        }
+    }
+    for slot in wow_entities::INVENTORY_SLOT_BAG_START..wow_entities::INVENTORY_SLOT_BAG_END {
+        let Some(bag) = player.cast_all_obtain_bag_like_cpp(slot) else {
+            return false;
+        };
+        if let Some((guid, size)) = bag {
+            for inner in 0..size {
+                if player
+                    .cast_all_obtain_item_at_like_cpp(slot, inner, Some(guid))
+                    .is_none()
+                {
+                    return false;
+                }
+            }
+        }
+    }
+    let runtime = player.inventory_runtime_like_cpp();
+    let buyback = runtime
+        .buyback_items()
+        .values()
+        .map(|item| item.guid)
+        .collect::<HashSet<_>>();
+    runtime.item_objects().iter().all(|(&guid, item)| {
+        if !guid.is_item()
+            || guid.counter() == 0
+            || item.object().guid() != guid
+            || item.owner_guid() != player.guid()
+            || item.object().entry() == 0
+            || item.is_in_trade()
+            || effects
+                .item_effects_for_item_id_like_cpp(item.object().entry())
+                .iter()
+                .any(|effect| {
+                    effect.trigger_type == ItemSpelltriggerType::OnPickup as i8
+                        && effect.spell_id > 0
+                })
+        {
+            return false;
+        }
+        match item.update_state() {
+            ItemUpdateState::Unchanged => true,
+            ItemUpdateState::Changed => {
+                !buyback.contains(&guid)
+                    && item.data().max_durability > 0
+                    && durability.is_some_and(|rows| {
+                        rows.iter().any(|row| {
+                            row.item_guid == guid.counter() as u64
+                                && row.durability == item.data().durability
+                        })
+                    })
+            }
+            ItemUpdateState::New | ItemUpdateState::Removed => false,
+        }
+    })
+}
+
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_save_owner/durability.rs"]
 mod durability_tests;
