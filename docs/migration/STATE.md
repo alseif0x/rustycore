@@ -187,6 +187,21 @@ silently disappear from this evidence. Cleanup remains identity-bound. Parent
 review corrected strict integer checks and a test's allocated owner ID. New
 hermetic cases cover both variants, journal drift, cleanup and row/link failures.
 No new acceptance or live success is claimed; the frozen candidate is next.
+Affected campaign at `f355af6d82ccb1eac0d59dd0c39619e0bbc0d03e` finished
+FAILED in 1,233.546 seconds on aarch64 with one Cargo job (600-second target
+not met). Record: `/tmp/rustycore43-repair-f355af6d8-o590lpa9/record.json`.
+QA passed 47/47 with no skips; downstream compilation passed in 745.226 seconds.
+Library results: Database 430 passed/9 ignored, Persistence 36 passed, World
+4,155 passed/1 ignored, Character 3 passed, Spell 186 passed; Core 278 passed
+and one failed. Syntax ownership, physical files and the test census passed.
+The failures are the Session test-line ceiling (+1,061 reviewed composition
+fixture/test lines, production unchanged) and the existing Core LocalFlags byte
+oracle. C++ `UpdateFields.h:687` selects parent38/field69; `UpdateFields.cpp:
+3151–3158,3725–3727` serializes only nonzero mask words. The oracle incorrectly
+includes word0; production correctly emits block-presence 6 and two mask words.
+Correct only that oracle and the reviewed test ceiling, then rerun affected
+acceptance. Production-login integration and debug builds were not reached;
+no binary from this failed campaign is authorized as a live candidate.
 Acceptance preparation formatted the changed Rust files and reviewed the test
 census delta: 4,151 → 4,156 identities, one ignored unchanged; five added login
 composition tests and one selected-charge test rename, with no other identity or

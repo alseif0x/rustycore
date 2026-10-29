@@ -151,14 +151,17 @@ fn bridges_canonical_local_flags_through_native_active_player_mask() {
         assert_eq!(active.local_flags, flags);
         assert!(mask_has(&active.active_player_data_mask, 38));
         assert!(mask_has(&active.active_player_data_mask, 69));
+        assert!(!mask_has(&active.active_player_data_mask, 0));
         let packet = player_values_update_to_update_object(ObjectGuid::EMPTY, 0, &update)
             .unwrap()
             .to_bytes();
+        // C++ emits only present words; LocalFlags is parent 38/field 69, so word 0
+        // is absent (UpdateFields.cpp:3151-3158, 3727; UpdateFields.h:687).
         assert_eq!(
-            &packet[24..42],
-            &[7, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0x40, 0, 0, 0, 0x20]
+            &packet[24..38],
+            &[6, 0, 0, 0, 0, 0, 0, 0, 0, 0x40, 0, 0, 0, 0x20]
         );
-        assert_eq!(&packet[42..], &flags.to_le_bytes());
+        assert_eq!(&packet[38..], &flags.to_le_bytes());
     }
 }
 
