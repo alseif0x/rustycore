@@ -17,13 +17,13 @@ async fn release_publishes_exact_corpse_before_dead_cleanup_and_water_walk() {
         dead_player_session_with_graveyard_like_cpp(9_244);
     let own_output = session.core.send_tx().clone();
     session.install_realm_send_channel_for_test(own_output);
-    let registry = Arc::new(crate::session::PlayerRegistry::new());
+    let registry = Arc::new(wow_world_core::player_directory::PlayerRegistry::new());
     session.set_player_registry(Arc::clone(&registry));
     session.core.state = crate::session::SessionState::LoggedIn;
     session
         .core
         .with_owned_player_mut_like_cpp(|player| {
-            player.unit_mut().world_mut().set_name("CorpseOwner".into());
+            player.unit_mut().world_mut().set_name("CorpseOwner");
         })
         .unwrap();
     session.register_in_player_registry();
@@ -38,7 +38,7 @@ async fn release_publishes_exact_corpse_before_dead_cleanup_and_water_walk() {
         let mut manager = canonical.lock().unwrap();
         let mut player = Box::new(wow_entities::Player::new(Some(1), false));
         player.unit_mut().world_mut().object_mut().create(peer_guid);
-        player.unit_mut().world_mut().set_name("CorpsePeer".into());
+        player.unit_mut().world_mut().set_name("CorpsePeer");
         player.unit_mut().set_max_health(100);
         player.unit_mut().set_health(100);
         let handle = manager.install_detached_player_like_cpp(player).unwrap();

@@ -21,6 +21,12 @@ and `Item.cpp:1985,2048–2072`, including missing-transmog-display fallback.
 Birth serialization follows `Object.cpp:130`, `Map.cpp:573–575` and
 `GridNotifiers.cpp:91–121`. This follow-up and its authored regression tests
 are UNVALIDATED until their committed candidate campaign runs.
+The first affected campaign at `127954f60` stopped during World test compilation:
+the new peer fixture imported a private registry re-export and supplied ambiguous
+`set_name(...into())` arguments. No library suite or candidate build ran. Its
+162.438-second failure is retained in
+`/tmp/rustycore43-corpse-birth-acceptance-0afb_n9w/record.json`; the correction
+uses the existing public registry path and direct string arguments.
 
 Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
 ignored), Application (31), Entities (2), Spell (181), bot (248), production
