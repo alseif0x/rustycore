@@ -69,7 +69,31 @@ class DeathScenarioTests(unittest.TestCase):
                         scenario._check_special_state(case, epoch, selected, {}, [{}])
         # Other actors do not inherit Qadeathfall's equipment assumptions.
         for name, case in (("Qadeathcast", "stuck-death"), ("Qadeathwisp", "wisp")):
-            scenario._check_special_state(case, 1, actor(name, 74), {}, [{}])
+            snapshot = {}
+            if case == "wisp":
+                snapshot = {"character_aura": {"columns": ["guid", "spell"],
+                                               "rows": [["74", "8326"], ["74", "20584"]]}}
+            scenario._check_special_state(case, 1, actor(name, 74), snapshot, [{}])
+
+    def test_wisp_release_requires_both_actual_actor_auras_not_a_persisted_passive(self) -> None:
+        selected = actor("Qadeathwisp", 74)
+        snapshot = {
+            "character_aura": {"columns": ["guid", "spell"],
+                               "rows": [["74", "8326"], ["74", "20584"]]},
+            "character_spell": {"columns": ["guid", "spell"], "rows": []},
+        }
+        observations = [{}]
+        scenario._check_special_state("wisp", 1, selected, snapshot, observations)
+        self.assertEqual({row["spell"] for row in observations[0]["auras"]}, {8326, 20584})
+        for missing in (8326, 20584):
+            bad = copy.deepcopy(snapshot)
+            bad["character_aura"]["rows"] = [row for row in bad["character_aura"]["rows"]
+                                             if row[1] != str(missing)]
+            bad["character_aura"]["rows"].append(["75", str(missing)])
+            with self.subTest(missing=missing), self.assertRaises(scenario.ScenarioFailure):
+                scenario._check_special_state("wisp", 1, selected, bad, [{}])
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario._check_special_state("wisp", 1, selected, {}, [{}])
 
     def test_packed_player_guid_and_legal_wisp_seed(self) -> None:
         wisp = actor("Qadeathwisp", 0x123456)
@@ -420,17 +444,22 @@ class DeathScenarioTests(unittest.TestCase):
         first = scenario._snapshot_path(output, "wisp", 2, selected, "wisp-healer")
         second = scenario._snapshot_path(output, "wisp", 2, selected, "wisp-expiry-relogin")
         self.assertNotEqual(first, second)
-        healer = {"auras": [{"spell": 15007, "maxduration": 60_000}]}
+        healer = {"auras": [{"spell": 15007, "maxduration": 600_000, "remaintime": 35_098}]}
         expiry = {"auras": []}
-        healer["auras"][0]["remaintime"] = 58_000
         facts = scenario._validate_wisp_sickness(healer, expiry)
         self.assertEqual(facts["expiry_relogin_wait_ms"], 75_000)
-        healer["auras"][0]["remaintime"] = 0
-        with self.assertRaises(scenario.ScenarioFailure):
-            scenario._validate_wisp_sickness(healer, expiry)
-        paladin = {"auras": [{"spell": 15007, "maxduration": 60_000}]}
-        with self.assertRaises(scenario.ScenarioFailure):
-            scenario._validate_wisp_sickness(healer, paladin)
+        self.assertEqual(facts["initial_max_duration_ms"], 600_000)
+        full_minute = copy.deepcopy(healer)
+        full_minute["auras"][0]["remaintime"] = 60_000
+        scenario._validate_wisp_sickness(full_minute, expiry)
+        for field, value in (("maxduration", 60_000), ("maxduration", 0),
+                             ("remaintime", 0), ("remaintime", -1), ("remaintime", 60_001)):
+            bad = copy.deepcopy(healer)
+            bad["auras"][0][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(scenario.ScenarioFailure):
+                scenario._validate_wisp_sickness(bad, expiry)
+        with self.assertRaisesRegex(scenario.ScenarioFailure, "remained"):
+            scenario._validate_wisp_sickness(healer, copy.deepcopy(healer))
 
     def test_observer_nonzero_exit_requires_observe_only_evidence_and_failure_is_private(self) -> None:
         self.assertTrue(scenario._observer_exit_allowed(1))

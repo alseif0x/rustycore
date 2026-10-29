@@ -785,10 +785,8 @@ def _run_wisp(identity: dict[str, Any], journal: dict[str, Any], actors: dict[st
     heal = BotPass(wisp, plan_for("wisp", 2, wisp, realm_id, 10), "wisp-healer")
     heal_evidence = _run_single(heal, identity, db, journal, observations)
     healer_observation = observations[-1]
-    heal_snapshot = _load_snapshot(identity["capture"] /
-        f"epoch-{identity['epoch']:03d}-wisp-{wisp['name']}-{heal.label}-snapshot.json")
-    if 20585 not in _spell_rows(heal_snapshot, wisp):
-        raise ScenarioFailure("wisp fixture lacks its legal Night Elf racial spell seed")
+    # Player::_SaveSpells (20405-20416) omits dependent spells. The seeded
+    # runtime HasSpell(20585) proof is the first epoch's actual Wisp aura.
     expiry_plan = wisp_expiry_plan(wisp)
     expiry = BotPass(wisp, expiry_plan, "wisp-expiry-relogin")
     expiry_evidence = _run_single(expiry, identity, db, journal, observations)
@@ -822,9 +820,11 @@ def _validate_wisp_sickness(healer_observation: dict[str, Any],
                             expiry_observation: dict[str, Any]) -> dict[str, Any]:
     initial = _find_aura_rows(healer_observation, 15007)
     expired = _find_aura_rows(expiry_observation, 15007)
-    if (not initial or int(initial[0].get("maxduration", 0)) != 60_000
+    # Player.cpp:4394-4402 changes only remaining duration at level 11;
+    # the Spell's ten-minute maximum remains intact.
+    if (not initial or int(initial[0].get("maxduration", 0)) != 600_000
             or not 0 < int(initial[0].get("remaintime", 0)) <= 60_000):
-        raise ScenarioFailure("wisp healer pass did not preserve the live 60-second sickness row")
+        raise ScenarioFailure("wisp healer pass lacks sickness with 600000ms maximum and live remaining time up to 60000ms")
     if expired:
         raise ScenarioFailure("wisp sickness aura remained after the bounded 75-second relog")
     return {"initial_max_duration_ms": int(initial[0]["maxduration"]),
@@ -867,6 +867,14 @@ def _load_snapshot(path: Path) -> dict[str, Any]:
 
 def _check_special_state(scenario: str, epoch: int, actor: dict[str, Any],
                          snapshot: dict[str, Any], observations: list[dict[str, Any]]) -> None:
+    if scenario == "wisp" and epoch == 1:
+        facts = _snapshot_facts(snapshot, actor)
+        observations[-1]["auras"] = facts["auras"]
+        # BuildPlayerRepop (Player.cpp:4269-4272) casts Wisp only when
+        # HasSpell(20585), then Ghost. Persisted actor auras prove both casts.
+        spells = {row["spell"] for row in facts["auras"]}
+        if not {8326, 20584} <= spells:
+            raise ScenarioFailure("wisp release did not persist both Ghost8326 and Wisp20584 auras")
     if scenario == "reincarnation":
         inventory = snapshot.get("character_inventory", {})
         item_rows = snapshot.get("item_instance", {})
