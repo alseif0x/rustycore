@@ -31,6 +31,7 @@ JOURNAL_SCHEMA = "rustycore-death-fixture-v1"
 MAX_COUNTER = (1 << 40) - 1
 ENCHANTMENT_FIELD_COUNT = 13 * 3
 ACK_TEXT = "--ack-disposable-death-fixture"
+REINCARNATION_ANKH_COUNT_KEY = "reincarnation_ankh_initial_count"
 
 # Existing character GUIDs are checked and retained, never edited.
 ACCOUNTS = (
@@ -418,8 +419,15 @@ class MariaDB:
             key = item_ids if kind == "item" else ids
             columns = [line.split("\t", 1)[0]
                        for line in self.execute(f"SHOW COLUMNS FROM {table}").splitlines()]
-            rows = [line.split("\t") for line in self.execute(
-                f"SELECT * FROM {table} WHERE {owner} IN ({key}) ORDER BY {owner}").splitlines() if line]
+            if table == "item_instance":
+                query = (f"SELECT * FROM {table} WHERE {owner} IN ({ids}) OR guid IN ({item_ids}) "
+                         f"ORDER BY guid")
+            elif table == "character_inventory":
+                query = (f"SELECT * FROM {table} WHERE {owner} IN ({ids}) OR item IN ({item_ids}) "
+                         f"ORDER BY {owner},item")
+            else:
+                query = f"SELECT * FROM {table} WHERE {owner} IN ({key}) ORDER BY {owner}"
+            rows = [line.split("\t") for line in self.execute(query).splitlines() if line]
             result[table] = {"columns": columns, "rows": rows}
         return result
 
@@ -466,15 +474,37 @@ def allocate_ids(info: dict[str, Any]) -> tuple[list[int], list[int]]:
     return char_ids, item_ids
 
 
+def validate_reincarnation_ankh_count(value: Any) -> int:
+    if type(value) is not int or value not in (1, 10):
+        raise FixtureError("reincarnation Ankh count must be the integer 1 or 10")
+    return value
+
+
+def journal_reincarnation_ankh_initial_count(journal: dict[str, Any]) -> int:
+    seed_facts = journal.get("seed_facts", {})
+    if not isinstance(seed_facts, dict):
+        raise FixtureError("death fixture seed facts are invalid")
+    return validate_reincarnation_ankh_count(seed_facts.get(REINCARNATION_ANKH_COUNT_KEY, 10))
+
+
+def item_seeds_for_reincarnation_ankh_count(initial_count: int) -> list[dict[str, Any]]:
+    initial_count = validate_reincarnation_ankh_count(initial_count)
+    return [{**seed, **({"count": initial_count} if seed["entry"] == 17030 else {})}
+            for seed in ITEM_SEEDS]
+
+
 def seed_record(char_ids: list[int], item_ids: list[int], slots: list[int],
-                target_database: dict[str, str]) -> dict[str, Any]:
+                target_database: dict[str, str], *,
+                reincarnation_ankh_count: int = 10) -> dict[str, Any]:
+    reincarnation_ankh_count = validate_reincarnation_ankh_count(reincarnation_ankh_count)
     target_database = validate_target_database(target_database)
     actors = []
     for seed, guid, slot in zip(ACTORS, char_ids, slots, strict=True):
         actors.append({**seed, "guid": checked_counter(guid), "slot": slot})
     items = []
     actor_guid = {actor["name"]: actor["guid"] for actor in actors}
-    for seed, guid in zip(ITEM_SEEDS, item_ids, strict=True):
+    for seed, guid in zip(item_seeds_for_reincarnation_ankh_count(reincarnation_ankh_count),
+                          item_ids, strict=True):
         items.append({**seed, "guid": checked_counter(guid), "owner_guid": actor_guid[seed["actor"]]})
     return {"journal_schema": JOURNAL_SCHEMA, "state": "reserved",
             "target_database": dict(target_database), "actors": actors,
@@ -488,6 +518,7 @@ def seed_record(char_ids: list[int], item_ids: list[int], slots: list[int],
                 "playerFlags": 0, "inventorySlots": 16, "customizations": "empty; source-valid",
                 "homebind": "actor map/zone and ground position",
                 "item_slots": {"chest": 4, "backpack_start": 35},
+                REINCARNATION_ANKH_COUNT_KEY: reincarnation_ankh_count,
                 "spells": list(SPELL_SEEDS), "achievements": list(ACHIEVEMENT_SEEDS),
                 "world_stopped_asserted": True}}
 
@@ -502,6 +533,7 @@ def validate_journal(journal: dict[str, Any], path: Path) -> None:
             or len(journal["items"]) != len(ITEM_SEEDS)):
         raise FixtureError("unrecognized death fixture journal")
     validate_target_database(journal.get("target_database"))
+    reincarnation_ankh_count = journal_reincarnation_ankh_initial_count(journal)
     if [a.get("name") for a in journal["actors"]] != [a["name"] for a in ACTORS]:
         raise FixtureError("death fixture journal identity drifted")
     if journal.get("state") not in {"prepare-attempted", "prepared", "restore-attempted", "restored"}:
@@ -514,8 +546,11 @@ def validate_journal(journal: dict[str, Any], path: Path) -> None:
             raise FixtureError("death fixture character slot is invalid")
         actor_ids.append(checked_counter(actor.get("guid")))
     item_ids = []
-    for expected, item in zip(ITEM_SEEDS, journal["items"], strict=True):
-        if any(item.get(key) != value for key, value in expected.items()):
+    expected_items = item_seeds_for_reincarnation_ankh_count(reincarnation_ankh_count)
+    for expected, item in zip(expected_items, journal["items"], strict=True):
+        if (any(item.get(key) != value for key, value in expected.items())
+                or type(item.get("count")) is not int
+                or item["count"] != expected["count"]):
             raise FixtureError("death fixture item identity drifted")
         actor = next(a for a in journal["actors"] if a["name"] == expected["actor"])
         if item.get("owner_guid") != actor["guid"]:
@@ -615,13 +650,16 @@ def require_offline_acknowledgement(ack: bool, world_stopped: bool) -> None:
 
 
 def prepare(db: Any, config_raw: dict[str, Any], journal_path: Path, *,
-            ack: bool = False, world_stopped: bool = False) -> dict[str, Any]:
+            ack: bool = False, world_stopped: bool = False,
+            reincarnation_ankh_count: int = 10) -> dict[str, Any]:
     require_offline_acknowledgement(ack, world_stopped)
+    reincarnation_ankh_count = validate_reincarnation_ankh_count(reincarnation_ankh_count)
     info = db.inspect()
     validate_inspection(info)
     char_ids, item_ids = allocate_ids(info)
     db.assert_ids_unoccupied(char_ids, item_ids)
-    record = seed_record(char_ids, item_ids, assign_slots(info), db.target_database)
+    record = seed_record(char_ids, item_ids, assign_slots(info), db.target_database,
+                         reincarnation_ankh_count=reincarnation_ankh_count)
     record["state"] = "prepare-attempted"
     create_journal(journal_path, record)
     # Recheck identities, slots, names and reservations after the durable journal exists.
@@ -729,19 +767,23 @@ def restore(db: Any, journal_path: Path, *, ack: bool = False, world_stopped: bo
     sync_directory(marker.parent)
 
 
-def safe_plan(db: Any) -> dict[str, Any]:
+def safe_plan(db: Any, reincarnation_ankh_count: int = 10) -> dict[str, Any]:
+    reincarnation_ankh_count = validate_reincarnation_ankh_count(reincarnation_ankh_count)
     info = db.inspect()
     validate_inspection(info)
     char_ids, item_ids = allocate_ids(info)
     db.assert_ids_unoccupied(char_ids, item_ids)
     slots = assign_slots(info)
+    proposed_items = [{**seed, "proposed_guid": guid} for seed, guid in zip(
+        item_seeds_for_reincarnation_ankh_count(reincarnation_ankh_count), item_ids, strict=True)]
     return {"mode": "read-only-plan", "target_database": dict(db.target_database),
             "account_bindings": [
                 {"email": a["email"], "account_id": a["account_id"], "preserved_character_guid": a["old_guid"]}
                 for a in ACCOUNTS],
             "proposed_actors": [{**a, "proposed_guid": guid, "proposed_slot": slot}
                                 for a, guid, slot in zip(ACTORS, char_ids, slots)],
-            "proposed_item_guids": item_ids, "current_facts": info,
+            "proposed_item_guids": item_ids, "proposed_items": proposed_items,
+            REINCARNATION_ANKH_COUNT_KEY: reincarnation_ankh_count, "current_facts": info,
             "runtime_selection": {"in_memory_only": True, "credential_config_rewritten": False,
                                   "accounts": sorted({a["account_id"] for a in ACTORS})}}
 
@@ -752,6 +794,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bot-config", type=Path, default=DEFAULT_BOT_CONFIG)
     parser.add_argument("--world-config", type=Path, default=DEFAULT_WORLD_CONFIG)
     parser.add_argument("--journal", type=Path)
+    parser.add_argument("--reincarnation-ankh-count", type=int, choices=(1, 10), default=10)
     parser.add_argument(ACK_TEXT, dest="ack", action="store_true")
     parser.add_argument("--world-stopped", action="store_true",
                         help="caller assertion only; the parent runtime guard must verify every PID and port")
@@ -764,7 +807,7 @@ def main(argv: list[str] | None = None, db_factory=MariaDB) -> int:
         bot_raw = validate_private_bot_config(args.bot_config)
         db = db_factory(parse_db_info(args.world_config))
         if args.mode == "plan":
-            result = safe_plan(db)
+            result = safe_plan(db, args.reincarnation_ankh_count)
         elif args.mode == "snapshot":
             if not args.journal:
                 raise FixtureError("snapshot requires --journal")
@@ -780,7 +823,8 @@ def main(argv: list[str] | None = None, db_factory=MariaDB) -> int:
                 raise FixtureError(f"{args.mode} requires --journal")
             if args.mode == "prepare":
                 prepared = prepare(db, bot_raw, args.journal,
-                                   ack=args.ack, world_stopped=args.world_stopped)
+                                   ack=args.ack, world_stopped=args.world_stopped,
+                                   reincarnation_ankh_count=args.reincarnation_ankh_count)
                 result = {"mode": "prepared", "journal": str(args.journal),
                           "actors": [{"name": a["name"], "guid": a["guid"], "account_id": a["account_id"]}
                                      for a in prepared["actors"]]}

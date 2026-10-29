@@ -1082,6 +1082,15 @@ expiry relog after its 75-second wait, and up to 390 seconds for automatic
 release, plus normal logout completion. Observer captures stay explicitly
 `observe_only` and never report a scenario pass.
 
+For the additional last-Ankh Reincarnation case, pass
+`--reincarnation-ankh-count 1` to the wrapper. The default is 10; these are the
+only supported initial counts. The fixture journal records the selected count,
+and older journals retain the original default of 10. This variant uses the same
+owned actors and item identities in one extra epoch per backend. After the
+duplicate self-resurrection request and logout, the standard case must retain
+nine Ankhs; the last-Ankh case must have neither the reserved item instance nor
+its inventory link. Both cases retain the spell and saved cooldown checks.
+
 Reports separate scenario observations from native collection and cleanup.
 They set `parity_assessed` to `false`; collected packets do not establish
 Rust/C++ parity or full death-issue acceptance. Review paired exact captures

@@ -26,6 +26,46 @@ def journal_actors() -> dict[str, dict]:
             for index, item in enumerate(death_fixture.ACTORS, 1)}
 
 
+def reincarnation_journal(initial_count: int = 10) -> dict:
+    journal = death_fixture.seed_record(
+        [1001, 1002, 1003, 1004, 1005], [2001, 2002, 2003], [1, 1, 2, 1, 1],
+        {"host": "127.0.0.1", "port": "3306", "schema": "characters"},
+        reincarnation_ankh_count=initial_count)
+    journal.update({"journal": "/tmp/death-scenario-fixture.journal", "state": "prepared"})
+    death_fixture.validate_journal(journal, Path(journal["journal"]))
+    return journal
+
+
+def reincarnation_snapshot(journal: dict, *, item_row: bool = True, inventory_link: bool = True,
+                           item_count: int = 9, item_owner: int | None = None,
+                           inventory_owner: int | None = None,
+                           extra_item_rows: list[list[str]] | None = None) -> dict:
+    selected = next(item for item in journal["actors"] if item["name"] == "Qadeathreinc")
+    ankh = next(item for item in journal["items"] if item["entry"] == 17030)
+    item_rows = []
+    inventory_rows = []
+    if item_row:
+        item_owner = selected["guid"] if item_owner is None else item_owner
+        item_rows.append([str(ankh["guid"]), "17030", str(item_owner),
+                          str(item_count), "0"])
+    if extra_item_rows:
+        item_rows.extend(extra_item_rows)
+    if inventory_link:
+        inventory_owner = selected["guid"] if inventory_owner is None else inventory_owner
+        inventory_rows.append([str(inventory_owner), "0", "35",
+                               str(ankh["guid"])])
+    return {
+        "character_inventory": {"columns": ["guid", "bag", "slot", "item"],
+                                "rows": inventory_rows},
+        "item_instance": {"columns": ["guid", "itemEntry", "owner_guid", "count", "durability"],
+                          "rows": item_rows},
+        "character_spell": {"columns": ["guid", "spell"],
+                            "rows": [[str(selected["guid"]), "20608"]]},
+        "character_spell_cooldown": {"columns": ["guid", "spell"],
+                                     "rows": [[str(selected["guid"]), "21169"]]},
+    }
+
+
 # Native stationary corpse block retained from C++ offer event 69 (at offset 11).
 # The single-block envelope lets the matcher exercise the same 166-byte wire shape.
 CORPSE_CREATE = bytes.fromhex(
@@ -175,6 +215,60 @@ class DeathScenarioTests(unittest.TestCase):
             bad["item_instance"]["rows"][1][2] = "30"
             with self.assertRaises(scenario.ScenarioFailure):
                 scenario._check_special_state("healer", epoch, selected, bad, [{}])
+
+    def test_reincarnation_ankh_uses_reserved_row_and_link_proof_for_both_counts(self) -> None:
+        for initial_count, snapshot, expected in (
+                (10, reincarnation_snapshot(reincarnation_journal(10), item_count=9),
+                 {"initial": 10, "remaining": 9, "removed": 1}),
+                (1, reincarnation_snapshot(reincarnation_journal(1), item_row=False,
+                                           inventory_link=False),
+                 {"initial": 1, "remaining": 0, "removed": 1})):
+            with self.subTest(initial_count=initial_count):
+                journal = reincarnation_journal(initial_count)
+                selected = next(item for item in journal["actors"] if item["name"] == "Qadeathreinc")
+                observations = [{}]
+                scenario._check_special_state("reincarnation", 1, selected, snapshot,
+                                              observations, journal)
+                self.assertEqual(observations[0]["reincarnation_ankh"], expected)
+
+        invalid_snapshots = (
+            (1, reincarnation_snapshot(reincarnation_journal(1), item_row=True,
+                                       inventory_link=False, item_count=1)),
+            (1, reincarnation_snapshot(reincarnation_journal(1), item_row=False,
+                                       inventory_link=True)),
+            (10, reincarnation_snapshot(reincarnation_journal(10), item_count=8)),
+            (10, reincarnation_snapshot(reincarnation_journal(10), item_row=False,
+                                        inventory_link=True)),
+            (10, reincarnation_snapshot(reincarnation_journal(10), item_row=True,
+                                        inventory_link=False)),
+            (10, reincarnation_snapshot(reincarnation_journal(10), item_count=9,
+                                        item_owner=1005)),
+            (10, reincarnation_snapshot(reincarnation_journal(10), item_count=9,
+                                        inventory_owner=1005)),
+            (1, reincarnation_snapshot(reincarnation_journal(1), item_row=False,
+                                       inventory_link=False,
+                                       extra_item_rows=[[2999, "17030", "1004", "1", "0"]])),
+        )
+        for initial_count, snapshot in invalid_snapshots:
+            journal = reincarnation_journal(initial_count)
+            selected = next(item for item in journal["actors"] if item["name"] == "Qadeathreinc")
+            with self.subTest(initial_count=initial_count, snapshot=snapshot), \
+                    self.assertRaises(scenario.ScenarioFailure):
+                scenario._check_special_state("reincarnation", 1, selected, snapshot, [{}], journal)
+
+        journal = reincarnation_journal(10)
+        selected = next(item for item in journal["actors"] if item["name"] == "Qadeathreinc")
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario._check_special_state("reincarnation", 1, selected,
+                                          reincarnation_snapshot(journal), [{}])
+        for initial_count, invalid_seed_count in ((1, True), (10, 9)):
+            drifted = reincarnation_journal(initial_count)
+            drifted["items"][2]["count"] = invalid_seed_count
+            selected = next(item for item in drifted["actors"] if item["name"] == "Qadeathreinc")
+            with self.subTest(seed_count=invalid_seed_count), \
+                    self.assertRaises(scenario.ScenarioFailure):
+                scenario._check_special_state("reincarnation", 1, selected,
+                                              reincarnation_snapshot(drifted), [{}], drifted)
 
     def test_fall_and_recovery_require_saved_equipment_loss_not_backpack_loss(self) -> None:
         selected = actor("Qadeathfall", 73)

@@ -966,8 +966,87 @@ def _load_snapshot(path: Path) -> dict[str, Any]:
         raise ScenarioFailure("private database snapshot could not be read") from None
 
 
+def _reincarnation_ankh_observation(actor: dict[str, Any], snapshot: dict[str, Any],
+                                   journal: dict[str, Any]) -> dict[str, int]:
+    try:
+        initial_count = death_fixture.journal_reincarnation_ankh_initial_count(journal)
+    except death_fixture.FixtureError:
+        raise ScenarioFailure("reincarnation journal Ankh seed proof is invalid") from None
+    actor_guid = actor["guid"]
+    seeds = [item for item in journal.get("items", [])
+             if item.get("actor") == actor["name"] and item.get("entry") == 17030]
+    if (len(seeds) != 1 or seeds[0].get("owner_guid") != actor_guid
+            or type(seeds[0].get("guid")) is not int
+            or type(seeds[0].get("count")) is not int
+            or seeds[0].get("count") != initial_count):
+        raise ScenarioFailure("reincarnation journal lacks its owned reserved Ankh seed")
+    reserved_guid = str(seeds[0]["guid"])
+
+    inventory = snapshot.get("character_inventory", {})
+    item_table = snapshot.get("item_instance", {})
+    inv_columns = [str(value).casefold() for value in inventory.get("columns", [])]
+    item_columns = [str(value).casefold() for value in item_table.get("columns", [])]
+    if any(name not in inv_columns for name in ("guid", "item")) or any(
+            name not in item_columns for name in ("guid", "owner_guid", "itementry", "count")):
+        raise ScenarioFailure("reincarnation Ankh snapshot has an unexpected schema")
+
+    item_guid_index = item_columns.index("guid")
+    item_owner_index = item_columns.index("owner_guid")
+    item_entry_index = item_columns.index("itementry")
+    item_count_index = item_columns.index("count")
+    reserved_rows = []
+    actor_ankh_total = 0
+    for row in item_table.get("rows", []):
+        if len(row) != len(item_columns):
+            raise ScenarioFailure("reincarnation item snapshot has a malformed row")
+        if row[item_guid_index] == reserved_guid:
+            reserved_rows.append(row)
+        if (row[item_owner_index] == str(actor_guid)
+                and row[item_entry_index] == "17030"):
+            try:
+                actor_ankh_total += int(row[item_count_index])
+            except (TypeError, ValueError):
+                raise ScenarioFailure("reincarnation Ankh count is malformed") from None
+
+    inv_guid_index = inv_columns.index("guid")
+    inv_item_index = inv_columns.index("item")
+    reserved_links = []
+    for row in inventory.get("rows", []):
+        if len(row) != len(inv_columns):
+            raise ScenarioFailure("reincarnation inventory snapshot has a malformed row")
+        if row[inv_item_index] == reserved_guid:
+            reserved_links.append(row)
+
+    if initial_count == 10:
+        if len(reserved_rows) != 1:
+            raise ScenarioFailure("reincarnation reserved Ankh item row is missing or duplicated")
+        item_row = reserved_rows[0]
+        if (item_row[item_owner_index] != str(actor_guid)
+                or item_row[item_entry_index] != "17030"):
+            raise ScenarioFailure("reincarnation reserved Ankh item owner or entry drifted")
+        try:
+            remaining_count = int(item_row[item_count_index])
+        except (TypeError, ValueError):
+            raise ScenarioFailure("reincarnation Ankh count is malformed") from None
+        if remaining_count != initial_count - 1 or actor_ankh_total != remaining_count:
+            raise ScenarioFailure("reincarnation pass did not persist exactly nine owned Ankh items")
+        if (len(reserved_links) != 1
+                or reserved_links[0][inv_guid_index] != str(actor_guid)):
+            raise ScenarioFailure("reincarnation reserved Ankh inventory link is missing or misowned")
+    else:
+        if reserved_rows or reserved_links:
+            raise ScenarioFailure("consumed reincarnation Ankh retains an item row or inventory link")
+        if actor_ankh_total != 0:
+            raise ScenarioFailure("reincarnation actor retains Ankh items after consuming its reserved stack")
+        remaining_count = 0
+
+    return {"initial": initial_count, "remaining": remaining_count,
+            "removed": initial_count - remaining_count}
+
+
 def _check_special_state(scenario: str, epoch: int, actor: dict[str, Any],
-                         snapshot: dict[str, Any], observations: list[dict[str, Any]]) -> None:
+                         snapshot: dict[str, Any], observations: list[dict[str, Any]],
+                         journal: dict[str, Any] | None = None) -> None:
     if scenario == "wisp" and epoch == 1:
         facts = _snapshot_facts(snapshot, actor)
         observations[-1]["auras"] = facts["auras"]
@@ -977,20 +1056,10 @@ def _check_special_state(scenario: str, epoch: int, actor: dict[str, Any],
         if not {8326, 20584} <= spells:
             raise ScenarioFailure("wisp release did not persist both Ghost8326 and Wisp20584 auras")
     if scenario == "reincarnation":
-        inventory = snapshot.get("character_inventory", {})
-        item_rows = snapshot.get("item_instance", {})
-        item_by_id = {row[0]: row for row in item_rows.get("rows", []) if row}
-        inv_cols = [str(value).casefold() for value in inventory.get("columns", [])]
-        item_col = inv_cols.index("item") if "item" in inv_cols else -1
-        bag_rows = inventory.get("rows", [])
-        ankh_ids = [row[item_col] for row in bag_rows if item_col >= 0 and len(row) == len(inv_cols)
-                    and row[inv_cols.index("guid")] == str(actor["guid"])]
-        count_index = [str(value).casefold() for value in item_rows.get("columns", [])].index("count")
-        entry_index = [str(value).casefold() for value in item_rows.get("columns", [])].index("itementry")
-        ankh_count = sum(int(item_by_id[item][count_index]) for item in ankh_ids if item in item_by_id
-                         and int(item_by_id[item][entry_index]) == 17030)
-        if ankh_count != 9:
-            raise ScenarioFailure("reincarnation pass did not persist exactly nine Ankh items")
+        if journal is None:
+            raise ScenarioFailure("reincarnation check requires validated journal Ankh seed proof")
+        observations[-1]["reincarnation_ankh"] = _reincarnation_ankh_observation(
+            actor, snapshot, journal)
         known_spells = _spell_rows(snapshot, actor)
         if 20608 not in known_spells or 21169 in known_spells:
             raise ScenarioFailure("reincarnation passive proof or known-spell boundary is invalid")
@@ -1085,7 +1154,7 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
         evidence = _run_single(pass_, identity, db, journal, observations)
         snapshot_path = _snapshot_path(identity["capture"], scenario, epoch, actor, pass_.label)
         snapshot = _load_snapshot(snapshot_path)
-        _check_special_state(scenario, epoch, actor, snapshot, observations)
+        _check_special_state(scenario, epoch, actor, snapshot, observations, journal)
         _validate_stuck_evidence(scenario, epoch, actor, snapshot, evidence, observations[-1])
         _validate_death_shutdown_evidence(scenario, epoch, pass_.plan, evidence,
                                           observations[-1], reload_input)

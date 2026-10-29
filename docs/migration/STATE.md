@@ -177,8 +177,16 @@ the canonical debit operation and supplied the preceding login backpack capacity
 Existing SelfRes/recovery and save-receipt suites retain packet, cancellation and
 incarnation coverage; execution is pending in the complete affected campaign.
 
-Status: steps 1–3 implementation is complete and unvalidated; the last-Ankh QA
-variant precedes the frozen acceptance candidate. No new acceptance claimed.
+Status: steps 1–3 and the last-Ankh QA variant are implemented and unvalidated.
+The wrapper/fixture accepts initial Ankh counts 1 or 10, records the count in
+the existing journal, and retains default 10 for legacy journals. Scenario
+checks require the exact owned reserved row/link at count 9 or their complete
+absence at count 0, plus the existing spell/cooldown proof. Snapshots include
+reserved item identities even if their owner changes, so orphan rows cannot
+silently disappear from this evidence. Cleanup remains identity-bound. Parent
+review corrected strict integer checks and a test's allocated owner ID. New
+hermetic cases cover both variants, journal drift, cleanup and row/link failures.
+No new acceptance or live success is claimed; the frozen candidate is next.
 Acceptance preparation formatted the changed Rust files and reviewed the test
 census delta: 4,151 → 4,156 identities, one ignored unchanged; five added login
 composition tests and one selected-charge test rename, with no other identity or

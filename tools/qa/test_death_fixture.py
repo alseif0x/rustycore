@@ -101,9 +101,10 @@ class DeathFixtureTests(unittest.TestCase):
             {"account": "TESTBOT5@bot.local", "account_id": 12, "character_guid": 18, "password": "secret"},
         ]}
 
-    def prepare_fixture(self, db, directory):
+    def prepare_fixture(self, db, directory, reincarnation_ankh_count=10):
         path = directory / "death-fixture.journal"
-        record = fixture.prepare(db, self.bot_config(), path, ack=True, world_stopped=True)
+        record = fixture.prepare(db, self.bot_config(), path, ack=True, world_stopped=True,
+                                 reincarnation_ankh_count=reincarnation_ankh_count)
         return path, record
 
     def maria_db_with_fake_execute(self, account_rows):
@@ -155,6 +156,83 @@ class DeathFixtureTests(unittest.TestCase):
                                    for account_id, email in reviewed_rows]
                 plan = fixture.safe_plan(db)
                 self.assertEqual(plan["mode"], "read-only-plan")
+        plan = fixture.safe_plan(FakeDB(), reincarnation_ankh_count=1)
+        self.assertEqual(plan[fixture.REINCARNATION_ANKH_COUNT_KEY], 1)
+        self.assertEqual([item["count"] for item in plan["proposed_items"]], [1, 1, 1])
+
+    def test_reincarnation_ankh_variant_is_journaled_and_cleanup_stays_reserved(self):
+        for initial_count in (10, 1):
+            with self.subTest(initial_count=initial_count), tempfile.TemporaryDirectory() as root:
+                directory = self.private_journal_dir(root)
+                db = FakeDB()
+                journal_path, journal = self.prepare_fixture(db, directory, initial_count)
+                self.assertEqual(len(journal["actors"]), 5)
+                self.assertEqual(len(journal["items"]), 3)
+                self.assertEqual([item["count"] for item in journal["items"]],
+                                 [1, 1, initial_count])
+                self.assertEqual(journal["seed_facts"][fixture.REINCARNATION_ANKH_COUNT_KEY],
+                                 initial_count)
+                ankh_insert = next(statement for statement in db.statements
+                                   if statement.startswith("INSERT INTO item_instance ")
+                                   and ",17030," in statement)
+                self.assertIn(f"VALUES (93,17030,34,0,0,{initial_count},", ankh_insert)
+                restored = fixture.read_journal(journal_path)
+                self.assertEqual(restored["seed_facts"][fixture.REINCARNATION_ANKH_COUNT_KEY],
+                                 initial_count)
+                fixture.restore(db, journal_path, ack=True, world_stopped=True)
+                self.assertTrue(Path(str(journal_path) + ".cleanup-complete").is_file())
+                self.assertFalse(any(db.rows_under_ids(restored).values()))
+
+    def test_reincarnation_ankh_journal_count_is_strict_and_legacy_defaults_to_ten(self):
+        args = ([31, 32, 33, 34, 35], [91, 92, 93], [1, 1, 2, 1, 1],
+                {"host": "127.0.0.1", "port": "3306", "schema": "characters"})
+        path = Path("/tmp/legacy-death-fixture.journal")
+        legacy = fixture.seed_record(*args)
+        legacy.update({"journal": str(path), "state": "prepared"})
+        del legacy["seed_facts"][fixture.REINCARNATION_ANKH_COUNT_KEY]
+        fixture.validate_journal(legacy, path)
+        self.assertEqual(fixture.journal_reincarnation_ankh_initial_count(legacy), 10)
+
+        for value in (0, 2, True, "1", 1.0):
+            with self.subTest(value=value), self.assertRaises(fixture.FixtureError):
+                fixture.seed_record(*args, reincarnation_ankh_count=value)
+        for value in (0, 2, True, "1", 1.0):
+            drifted = fixture.seed_record(*args)
+            drifted.update({"journal": str(path), "state": "prepared"})
+            drifted["seed_facts"][fixture.REINCARNATION_ANKH_COUNT_KEY] = value
+            with self.subTest(journal_value=value), self.assertRaises(fixture.FixtureError):
+                fixture.validate_journal(drifted, path)
+
+        bool_item_count = fixture.seed_record(*args)
+        bool_item_count.update({"journal": str(path), "state": "prepared"})
+        bool_item_count["items"][0]["count"] = True
+        with self.assertRaises(fixture.FixtureError):
+            fixture.validate_journal(bool_item_count, path)
+
+        mismatched = fixture.seed_record(*args, reincarnation_ankh_count=1)
+        mismatched.update({"journal": str(path), "state": "prepared"})
+        mismatched["items"][2]["count"] = 10
+        with self.assertRaises(fixture.FixtureError):
+            fixture.validate_journal(mismatched, path)
+
+    def test_snapshot_selects_reserved_item_rows_and_inventory_links_by_item_id(self):
+        db = object.__new__(fixture.MariaDB)
+        db.target_database = {"host": "127.0.0.1", "port": "3306", "schema": "characters"}
+        queries = []
+
+        def execute(statement):
+            queries.append(statement)
+            return "guid\tbigint" if statement.startswith("SHOW COLUMNS FROM ") else ""
+
+        db.execute = execute
+        journal = fixture.seed_record(
+            [31, 32, 33, 34, 35], [91, 92, 93], [1, 1, 2, 1, 1], db.target_database)
+        db.snapshot(journal)
+        item_query = next(query for query in queries if query.startswith("SELECT * FROM item_instance "))
+        inventory_query = next(query for query in queries
+                               if query.startswith("SELECT * FROM character_inventory "))
+        self.assertIn("owner_guid IN (31,32,33,34,35) OR guid IN (91,92,93)", item_query)
+        self.assertIn("guid IN (31,32,33,34,35) OR item IN (91,92,93)", inventory_query)
 
     def test_mariadb_restore_verification_accepts_case_but_rejects_wrong_bindings(self):
         reviewed_rows = FakeDB().account_rows
@@ -261,6 +339,7 @@ class DeathFixtureTests(unittest.TestCase):
                 status = fixture.main([
                     "prepare", "--bot-config", str(bot_config), "--world-config", str(world_config),
                     "--journal", str(journal_path), fixture.ACK_TEXT, "--world-stopped",
+                    "--reincarnation-ankh-count", "1",
                 ], db_factory=lambda _db_info: db)
 
             self.assertEqual(status, 0)
@@ -270,8 +349,24 @@ class DeathFixtureTests(unittest.TestCase):
             self.assertEqual([actor["name"] for actor in result["actors"]],
                              [actor["name"] for actor in fixture.ACTORS])
             self.assertEqual([actor["guid"] for actor in result["actors"]], [31, 32, 33, 34, 35])
+            self.assertEqual(fixture.read_journal(journal_path)["items"][2]["count"], 1)
             self.assertNotIn("cli-bot-secret-927", stdout.getvalue() + stderr.getvalue())
             self.assertNotIn("cli-db-secret-491", stdout.getvalue() + stderr.getvalue())
+
+    def test_cli_rejects_ankh_count_before_config_or_database_access(self):
+        self.assertEqual(fixture.build_parser().parse_args(["plan"]).reincarnation_ankh_count, 10)
+        db_factory_called = False
+
+        def db_factory(_):
+            nonlocal db_factory_called
+            db_factory_called = True
+            self.fail("invalid CLI count reached database construction")
+
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as caught:
+            fixture.main(["plan", "--reincarnation-ankh-count", "2",
+                          "--bot-config", "/missing/private-config.json"], db_factory=db_factory)
+        self.assertEqual(caught.exception.code, 2)
+        self.assertFalse(db_factory_called)
 
     def test_wrong_item_owner_holds_restore_and_retains_journal(self):
         with tempfile.TemporaryDirectory() as root:

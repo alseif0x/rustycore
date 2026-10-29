@@ -17,6 +17,7 @@ DEATH_OUTPUT=""
 DEATH_BOT_CONFIG="${QA_DEATH_BOT_CONFIG:-$REPO_ROOT/tools/wow-test-bot/config.json}"
 DEATH_RUNNERS=()
 DEATH_OFFLINE_TIMEOUT=60
+DEATH_REINCARNATION_ANKH_COUNT=10
 DEATH_JOURNAL=""
 DEATH_ORIGINAL_SHA=""
 DEATH_CONFIG_SHA=""
@@ -49,6 +50,7 @@ Options:
   --world-config PATH          Active config used by capture and fixture helper.
   --bot-config PATH            Existing private config; never rewritten.
   --offline-timeout-seconds N  Bounded wait for fixture actors to go offline (default 60).
+  --reincarnation-ankh-count N Initial Ankh stack for the reincarnation case: 1 or 10 (default 10).
   -h, --help                   Show this help.
 
 The output directory must be fresh, canonical, mode 0700 and outside this checkout.
@@ -77,6 +79,10 @@ while (($#)); do
     --offline-timeout-seconds)
       (($# >= 2)) || die "--offline-timeout-seconds needs a positive integer"
       DEATH_OFFLINE_TIMEOUT="$2"; shift 2 ;;
+    --reincarnation-ankh-count)
+      (($# >= 2)) || die "--reincarnation-ankh-count needs 1 or 10"
+      [[ "$2" =~ ^(1|10)$ ]] || die "--reincarnation-ankh-count must be 1 or 10"
+      DEATH_REINCARNATION_ANKH_COUNT="$2"; shift 2 ;;
     -h|--help) usage_death_runtime; exit 0 ;;
     *) die "unknown option: $1" ;;
   esac
@@ -394,6 +400,7 @@ DEATH_STOPPED=1
 if python3 "$DEATH_FIXTURE_SCRIPT" prepare \
   --world-config "$QA_CAPTURE_WORLD_CONFIG" --bot-config "$DEATH_BOT_CONFIG" \
   --journal "$DEATH_JOURNAL" --ack-disposable-death-fixture --world-stopped \
+  --reincarnation-ankh-count "$DEATH_REINCARNATION_ANKH_COUNT" \
   >"$DEATH_OUTPUT/fixture-prepare.json" 2>"$DEATH_OUTPUT/fixture-prepare.stderr"; then
   DEATH_PREPARED=1
 else
