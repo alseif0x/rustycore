@@ -3,6 +3,7 @@
 //! controlled, not MariaDB; partial login hydration is not full login/relogin QA.
 use super::*;
 use std::sync::Mutex;
+use wow_packet::ServerPacket;
 #[path = "save/logout.rs"]
 mod logout;
 
@@ -611,9 +612,10 @@ async fn pending_far_disconnect(
                 .get_typed_player(guid)
                 .is_none()
         );
+        let packets = receiver.try_iter().collect::<Vec<_>>();
         assert_eq!(
-            receiver
-                .try_iter()
+            packets
+                .iter()
                 .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
                 .collect::<Vec<_>>(),
             vec![
@@ -621,8 +623,18 @@ async fn pending_far_disconnect(
                 wow_constants::ServerOpcodes::DeathReleaseLoc as u16,
                 wow_constants::ServerOpcodes::MoveSetLandWalk as u16,
                 wow_constants::ServerOpcodes::MoveUnroot as u16,
+                wow_constants::ServerOpcodes::PowerUpdate as u16,
                 wow_constants::ServerOpcodes::LogoutComplete as u16
             ]
+        );
+        // C++ Player.cpp:24909-24932 calls SetPower(RAGE, 0) during resurrection.
+        assert_eq!(
+            packets[4],
+            wow_packet::packets::combat::PowerUpdate {
+                guid,
+                powers: vec![(0, wow_constants::PowerType::Rage as u8)],
+            }
+            .to_bytes()
         );
         return;
     }

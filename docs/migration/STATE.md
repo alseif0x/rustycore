@@ -10,9 +10,27 @@ pass; mob's retained action passes a separately recorded corrected-contract
 review without relabelling its original failed wrapper. Offer attempt 1
 fails at the reference caster with BAD_TARGETS and restores normally.
 The subsequent native power, sanctuary, AuraState, bones, logout death release
-and initial Flags2 changes have partial combined evidence; one logout fixture
-and architecture metadata still need corrected-candidate acceptance.
+and initial Flags2 changes have partial combined evidence. The corrected World
+suite and architecture checks pass; production integration, bot/build and live
+acceptance still need completion.
 No publication or issue closure.
+
+Affected final acceptance at `bc0e863d2` passed in 543.665 seconds, based on
+`dd54ae2cd`, with architecture policy/fixtures, syntax ownership, census,
+downstream test compilation and the complete World suite (4,149 passed, one
+ignored). This includes the corrected closed-self Wisp case. Evidence is
+`/tmp/rustycore43-affected-bc0e-d7pzfyki/{final-manifest.json,record.json}`.
+The following production-login target ran 42 tests: 41 passed and one failed
+because its retained-transfer logout oracle omitted the native zero-Rage
+PowerUpdate introduced by the earlier SetPower repair. The observed sequence
+contains that packet before LogoutComplete, as required by
+`Player.cpp:24909–24932` and `Unit.cpp:9287–9306`. The strict sequence and exact
+power payload oracle now require that update; this repair is UNVALIDATED.
+Login replaces the fixture's
+default Unit mapping with class-1 Rage in slot 0; unmapped Mana is skipped.
+No production change follows from this finding. The complete attempted campaign stopped at 557.226 seconds,
+within the time target but FAILED; standalone bot tests/build and the debug World
+build did not run. This affected final is not a publication or live acceptance.
 
 The second combined acceptance at `dd54ae2cd` also failed: final took 976.424
 seconds and the complete attempted ordinary campaign took 977.780 seconds,
