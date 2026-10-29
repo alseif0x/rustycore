@@ -32350,10 +32350,8 @@
           "name": "set_graveyard_store",
           "visibility": "pub",
           "signature": "fn set_graveyard_store (& mut self , store : Arc < GraveyardStore >)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "setter",
             "visible"

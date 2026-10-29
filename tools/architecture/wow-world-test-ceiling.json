@@ -135,6 +135,16 @@
    "unit_tests_lines": 272495,
    "unit_tests_tests": 4098,
    "src_tests": 22
+  },
+  {
+   "id": "tighten-43-1",
+   "kind": "tighten",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "#43 production graveyard-catalog setter replaces its four-line cfg(test) shim. Test identities, classes, destinations and the one ignored case are unchanged; unit_tests physical lines decrease to 272491. This exact ceiling retirement is not execution evidence.",
+   "unit_tests_lines": 272491,
+   "unit_tests_tests": 4098,
+   "src_tests": 22
   }
  ]
 }

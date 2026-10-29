@@ -75,6 +75,9 @@ impl WorldSession {
     pub fn set_world_safe_loc_store_like_cpp(&mut self, store: Arc<WorldSafeLocStore>) {
         self.catalogs.world_safe_loc_store_like_cpp = Some(store);
     }
+    pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
+        self.catalogs.set_graveyard_store(store);
+    }
     pub fn set_access_requirement_store(&mut self, store: Arc<AccessRequirementStoreLikeCpp>) {
         self.catalogs.access_requirement_store = Some(store);
     }

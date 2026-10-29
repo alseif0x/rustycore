@@ -250,6 +250,18 @@ change is one W-to-H pet test after fake Spell host setters were removed.
 The exact census review is under the candidate-reconcile directory above;
 no test coverage was deleted and #584's outstanding boundaries are retained.
 
+The next attempt at `50d97fb6e` passed architecture, exact Session syntax and
+the repaired census, then found a missing production graveyard setter while
+checking Server. The parent stopped the known-failing candidate after 280.744
+seconds (exit 130); logs are in `/tmp/rustycore43-final-20261029-mefn75xl/` and
+the manifest is
+`target/validation-v2/manifests/20261029T011633.592037Z-1577058-final.json`.
+The repair promotes the existing three-line catalog setter, removes its
+four-line test shim, and updates only that method's cfg/source classification
+and the exact logical counts. The census has identical identities/classes and
+272,491 unit-test lines. This closes a production composition omission, not a
+new gameplay operation. Renewed Rust execution evidence is still required.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

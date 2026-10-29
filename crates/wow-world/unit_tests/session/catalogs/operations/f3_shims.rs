@@ -16,10 +16,6 @@ impl crate::session::WorldSession {
         self.catalogs.set_tact_key_store(store)
     }
     #[cfg(test)]
-    pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
-        self.catalogs.set_graveyard_store(store)
-    }
-    #[cfg(test)]
     pub fn set_battlemaster_list_store(&mut self, store: Arc<BattlemasterListStore>) {
         self.catalogs.set_battlemaster_list_store(store)
     }
