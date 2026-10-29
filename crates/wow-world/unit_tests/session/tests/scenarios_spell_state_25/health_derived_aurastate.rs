@@ -128,6 +128,12 @@ fn represented_aura_state_unions_health_and_aura_bits_like_cpp() {
 
     // 50% health keeps every `Unit::Update` wounded/healthy bit clear.
     session.set_player_health_like_cpp(50, 100);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().update_health_aura_states_like_cpp();
+        })
+        .expect("native Unit phase");
     assert_eq!(
         wow_world_spell::represented_player_aura_state_mask_like_cpp(&session),
         Some(0)
@@ -137,6 +143,12 @@ fn represented_aura_state_unions_health_and_aura_bits_like_cpp() {
     )));
 
     session.set_player_health_like_cpp(10, 100);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().update_health_aura_states_like_cpp();
+        })
+        .expect("native Unit phase");
     let mask = wow_world_spell::represented_player_aura_state_mask_like_cpp(&session)
         .expect("canonical player aura state mask");
     assert!(
@@ -196,9 +208,21 @@ fn login_passive_cast_gate_uses_health_derived_caster_aura_state_like_cpp() {
     ));
 
     // C++ `Spell::CheckCast` reads `Unit::m_unitData->AuraState`, which is the
-    // union of the aura-driven bits and the `Unit::Update` health bits.
+    // canonical aura mask after the admitted Unit health phase.
     session.set_player_health_like_cpp(50, 100);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().update_health_aura_states_like_cpp();
+        })
+        .expect("native Unit phase");
     assert!(!session.represented_login_passive_spell_cast_gate_like_cpp(spell_id));
     session.set_player_health_like_cpp(10, 100);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().update_health_aura_states_like_cpp();
+        })
+        .expect("native Unit phase");
     assert!(session.represented_login_passive_spell_cast_gate_like_cpp(spell_id));
 }

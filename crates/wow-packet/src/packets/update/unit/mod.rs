@@ -25,9 +25,9 @@ pub(super) use create::{
 };
 
 pub(super) use values_update::{
-    VALUES_TYPE_UNIT, health_aura_state_like_cpp, power_type_for_class,
-    write_creature_health_update_block, write_full_unit_values_update_block,
-    write_unit_data_values_update, write_unit_data_values_update_section,
+    VALUES_TYPE_UNIT, power_type_for_class, write_creature_health_update_block,
+    write_full_unit_values_update_block, write_unit_data_values_update,
+    write_unit_data_values_update_section,
 };
 
 use channels_and_pets::write_unit_channel_values_update;

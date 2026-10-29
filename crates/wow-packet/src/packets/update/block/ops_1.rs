@@ -628,6 +628,8 @@ impl UpdateObject {
             native_display_id: display_id,
             health: combat.health,
             max_health: combat.max_health,
+            // Creation does not run Unit::Update. A fresh Unit starts at zero.
+            aura_state: 0,
             faction_template: faction,
             current_area_id: zone_id,
             player_flags: 0,
@@ -736,11 +738,16 @@ impl UpdateObject {
             }],
         }
     }
-    /// Populate PlayerData::PlayerFlags and PlayerData::PlayerFlagsEx on the
-    /// self CREATE block.
-    ///
-    /// C++ `Player::LoadFromDB` restores these into `m_playerData` before
-    /// `Map::SendInitSelf` calls `Player::BuildCreateUpdateBlockForPlayer`.
+    /// Populate the already maintained, viewer-projected Unit::AuraState.
+    pub fn set_player_aura_state_like_cpp(&mut self, aura_state: u32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject { create_data, .. } = block {
+                create_data.aura_state = aura_state;
+            }
+        }
+    }
+
+    /// Populate PlayerData flags restored before Map::SendInitSelf.
     pub fn set_player_flags_like_cpp(&mut self, player_flags: u32, player_flags_ex: u32) {
         for block in &mut self.blocks {
             if let UpdateBlock::CreateObject {

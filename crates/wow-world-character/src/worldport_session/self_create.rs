@@ -178,6 +178,14 @@ pub fn prepare_player_self_create_for_teleport_like_cpp<H: WorldportHostLikeCpp>
     else {
         return None;
     };
+    let aura_state = host.core().canonical_player_snapshot_like_cpp(|player| {
+        player
+            .unit()
+            .subsystems()
+            .auras
+            .build_aura_state_update_for_target(guid)
+    })?;
+    player_pkt.set_player_aura_state_like_cpp(aura_state);
     player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
     player_pkt.set_player_xp_like_cpp(player_xp.min(i32::MAX as u32) as i32);
     player_pkt.set_player_next_level_xp_like_cpp(player_next_level_xp.min(i32::MAX as u32) as i32);

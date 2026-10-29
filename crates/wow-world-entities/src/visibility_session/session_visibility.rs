@@ -251,6 +251,7 @@ pub fn visible_other_players_from_registry_like_cpp<H: VisibilitySessionHostLike
                 handle,
                 map_key,
                 residence_revision,
+                viewer_guid,
             )?;
             Some((guid, candidate))
         })

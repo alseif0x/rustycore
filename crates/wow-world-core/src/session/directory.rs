@@ -449,6 +449,7 @@ pub struct PlayerVisibilityCreateSnapshot {
     pub zone_id: u32,
     pub current_health: u32,
     pub max_health: u32,
+    pub aura_state: u32,
     pub power_type: u8,
     pub current_power: u16,
     pub max_power: u16,

@@ -221,13 +221,8 @@ impl PlayerCreateData {
         buf.write_uint32(0x0000_0008); // UnitFlags: UNIT_FLAG_PLAYER_CONTROLLED
         buf.write_uint32(0); // Flags2
         buf.write_uint32(0); // Flags3
-        // AuraState — C++ Unit::Update/ModifyAuraState applies health-based aura states to
-        // EVERY alive unit incl. the player (Unit.cpp:469-476); full HP => 0x00D00000.
-        buf.write_uint32(health_aura_state_like_cpp(
-            self.health,
-            self.max_health,
-            self.health > 0,
-        )); // AuraState
+        // C++ BuildAuraStateUpdateForTarget uses existing native state, not health here.
+        buf.write_uint32(self.aura_state);
 
         // AttackRoundBaseTime[2]
         buf.write_uint32(2000); // MainHand

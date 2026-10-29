@@ -1104,13 +1104,17 @@ impl AuraSubsystem {
     }
 
     pub fn unapply_aura(&mut self, aura: AppliedAuraRef, remove_mode_marker: u8) -> bool {
+        let previous_aura_states = self
+            .aura_state_auras
+            .keys()
+            .fold(0, |mask, state| mask | (1_u32 << (*state - 1)));
         let removed = self.remove_applied(aura);
         if removed {
             self.mark_removed(aura.aura_ref());
             if remove_mode_marker != 0 {
                 self.removed_auras_count = self.removed_auras_count.saturating_add(0);
             }
-            self.rebuild_aura_state_mask();
+            self.rebuild_aura_state_mask(previous_aura_states);
         }
         removed
     }
@@ -1181,6 +1185,19 @@ impl AuraSubsystem {
         aura_states
     }
 
+    pub(crate) fn aura_state_per_caster_contributions_like_cpp(&self) -> Vec<(ObjectGuid, u32)> {
+        let mut contributions = Vec::new();
+        for (state, auras) in &self.aura_state_auras {
+            let mask = 1_u32 << (*state - 1);
+            if mask & PER_CASTER_AURA_STATE_MASK != 0 {
+                contributions.extend(auras.iter().map(|aura| (aura.caster_guid, mask)));
+            }
+        }
+        contributions.sort_unstable();
+        contributions.dedup();
+        contributions
+    }
+
     pub fn can_proc(&self) -> bool {
         self.proc_depth == 0
     }
@@ -1247,8 +1264,10 @@ impl AuraSubsystem {
         }
     }
 
-    fn rebuild_aura_state_mask(&mut self) {
-        self.aura_state_mask = 0;
+    fn rebuild_aura_state_mask(&mut self, previous_aura_states: u32) {
+        // Aura removal owns only previously contributed bits. Health/reactive
+        // states maintained by Unit::Update must survive unrelated removals.
+        self.aura_state_mask &= !previous_aura_states;
         let states: Vec<_> = self.aura_state_auras.keys().copied().collect();
         for state in states {
             self.modify_aura_state(state, true);

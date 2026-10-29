@@ -614,6 +614,7 @@ pub(super) fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataVal
     packet_update.flags = update.values.flags;
     packet_update.flags2 = update.values.flags2;
     packet_update.flags3 = update.values.flags3;
+    packet_update.aura_state = update.aura_state;
     packet_update.npc_flags = update.values.npc_flags;
     packet_update.bounding_radius = update.values.bounding_radius;
     packet_update.combat_reach = update.values.combat_reach;

@@ -803,6 +803,8 @@ pub struct PlayerCreateData {
     pub native_display_id: u32,
     pub health: i64,
     pub max_health: i64,
+    /// Native Unit::AuraState projected for this CREATE's viewer.
+    pub aura_state: u32,
     pub faction_template: i32,
     pub current_area_id: u32,
     /// PlayerData::PlayerFlags.

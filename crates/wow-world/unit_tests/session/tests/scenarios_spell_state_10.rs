@@ -1011,7 +1011,12 @@ fn represented_unit_values_update_filters_spellclick_npc_flags_delta_like_cpp() 
     let update = UnitValuesUpdate {
         changed_object_type_mask: 1 << TYPEID_UNIT,
         object_data: None,
-        unit_data: Some(UnitDataUpdate { mask, values }),
+        unit_data: Some(UnitDataUpdate {
+            mask,
+            values,
+            aura_state: 0,
+            aura_state_per_caster: Vec::new(),
+        }),
     };
 
     let packet = wow_world_quest::unit_update_publication::represented_unit_values_update_to_update_object_like_cpp(&session, creature_guid, 571, &update)

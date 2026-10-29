@@ -62,6 +62,8 @@ pub const UNIT_DATA_FLAGS2_BIT: usize = 42;
 
 pub const UNIT_DATA_FLAGS3_BIT: usize = 43;
 
+pub const UNIT_DATA_AURA_STATE_BIT: usize = 44;
+
 pub const UNIT_DATA_BOUNDING_RADIUS_BIT: usize = 46;
 
 pub const UNIT_DATA_COMBAT_REACH_BIT: usize = 47;
@@ -252,6 +254,20 @@ impl Default for UnitDataValues {
 pub struct UnitDataUpdate {
     pub mask: UpdateMask,
     pub values: UnitDataValues,
+    /// Frozen owner projection and caster contributions (Unit.cpp:5916).
+    pub aura_state: u32,
+    pub aura_state_per_caster: Vec<(ObjectGuid, u32)>,
+}
+
+impl UnitDataUpdate {
+    pub fn project_aura_state_for_target_like_cpp(&mut self, target: ObjectGuid) {
+        self.aura_state &= !crate::PER_CASTER_AURA_STATE_MASK;
+        for (caster, states) in &self.aura_state_per_caster {
+            if *caster == target {
+                self.aura_state |= states;
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

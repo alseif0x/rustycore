@@ -17,6 +17,7 @@ fn player_visibility_snapshot_from_projection(
     party_member_party_type: [u8; 2],
     presentation: crate::canonical_player_access::CanonicalPlayerPresentationLikeCpp,
     transport: Option<TransportInfo>,
+    aura_state: u32,
 ) -> PlayerVisibilityCreateSnapshot {
     let (display_id, visible_items, _, zone_id, customizations) = presentation;
     PlayerVisibilityCreateSnapshot {
@@ -31,6 +32,7 @@ fn player_visibility_snapshot_from_projection(
         zone_id,
         current_health: vitals.current_health,
         max_health: vitals.max_health,
+        aura_state,
         power_type: vitals.power_type,
         current_power: vitals.current_power,
         max_power: vitals.max_power,
@@ -591,7 +593,13 @@ impl PlayerRegistry {
                     party_type,
                     (display_id, visible_items, _, zone_id, customizations),
                     summon,
-                ) = self.create_state(guid, placement.map_id, placement.instance_id)?;
+                    aura_state,
+                ) = self.create_state(
+                    guid,
+                    placement.map_id,
+                    placement.instance_id,
+                    excluded_guid,
+                )?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
                     summon,
@@ -604,6 +612,7 @@ impl PlayerRegistry {
                     zone_id,
                     current_health: vitals.current_health,
                     max_health: vitals.max_health,
+                    aura_state,
                     power_type: vitals.power_type,
                     current_power: vitals.current_power,
                     max_power: vitals.max_power,
@@ -862,8 +871,12 @@ impl PlayerRegistry {
                 if dx * dx + dy * dy >= reach * reach {
                     return None;
                 }
-                let (vitals, party_type, presentation, summon) =
-                    self.create_state(guid, placement.map_id, placement.instance_id)?;
+                let (vitals, party_type, presentation, summon, aura_state) = self.create_state(
+                    guid,
+                    placement.map_id,
+                    placement.instance_id,
+                    excluded_guid,
+                )?;
                 let transport = self
                     .canonical_at(guid, placement.map_id, placement.instance_id, |player| {
                         player.gameplay_state().transport.clone()
@@ -889,6 +902,7 @@ impl PlayerRegistry {
                     party_type,
                     presentation,
                     transport,
+                    aura_state,
                 ))
             })
             .collect()
@@ -903,6 +917,7 @@ impl PlayerRegistry {
         expected_handle: PlayerHandle,
         expected_map: wow_map::MapKey,
         expected_residence_revision: u64,
+        viewer_guid: ObjectGuid,
     ) -> Option<PlayerVisibilityCreateSnapshot> {
         if registration.guid() != expected_handle.guid() {
             return None;
@@ -959,6 +974,11 @@ impl PlayerRegistry {
                     canonical_player_presentation_like_cpp(player),
                     transport,
                     player.unit().data().summon,
+                    player
+                        .unit()
+                        .subsystems()
+                        .auras
+                        .build_aura_state_update_for_target(viewer_guid),
                 ))
             })??
         };
@@ -971,7 +991,8 @@ impl PlayerRegistry {
         {
             return None;
         }
-        let (position, level, vitals, party_type, presentation, transport, summon) = projection;
+        let (position, level, vitals, party_type, presentation, transport, summon, aura_state) =
+            projection;
         Some(player_visibility_snapshot_from_projection(
             registration.guid(),
             summon,
@@ -982,6 +1003,7 @@ impl PlayerRegistry {
             party_type,
             presentation,
             transport,
+            aura_state,
         ))
     }
 }

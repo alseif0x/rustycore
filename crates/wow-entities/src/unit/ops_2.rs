@@ -941,6 +941,32 @@ impl Unit {
                 0
             }
     }
+    /// Unit.cpp:469-476 maintains these six states only during an alive Unit update.
+    pub fn update_health_aura_states_like_cpp(&mut self) {
+        if !self.is_alive() {
+            return;
+        }
+        const HEALTH_STATES: u32 = 0x00D0_1022;
+        let health_states = crate::Creature::health_aura_state_like_cpp(
+            self.data.health,
+            self.data.max_health,
+            true,
+        );
+        let previous = self.subsystems.auras.aura_state_mask;
+        let current = (previous & !HEALTH_STATES) | health_states;
+        if previous != current {
+            for state in [2, 6, 13, 21, 23, 24] {
+                let mask = 1_u32 << (state - 1);
+                if (previous ^ current) & mask != 0 {
+                    self.subsystems
+                        .auras
+                        .modify_aura_state(state, current & mask != 0);
+                }
+            }
+            self.mark_unit_data_nested(UNIT_DATA_STAND_STATE_PARENT_BIT, UNIT_DATA_AURA_STATE_BIT);
+        }
+    }
+
     pub fn values_update(&self) -> UnitValuesUpdate {
         let object_update = self.world.object().values_update();
         UnitValuesUpdate {
@@ -949,6 +975,14 @@ impl Unit {
             unit_data: self.unit_data_changes.is_any_set().then(|| UnitDataUpdate {
                 mask: self.unit_data_changes.clone(),
                 values: self.data,
+                aura_state: self
+                    .subsystems
+                    .auras
+                    .build_aura_state_update_for_target(self.world.object().guid()),
+                aura_state_per_caster: self
+                    .subsystems
+                    .auras
+                    .aura_state_per_caster_contributions_like_cpp(),
             }),
         }
     }

@@ -820,6 +820,10 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     assert_eq!(create_data.summon, summon);
     assert_eq!(create_data.health, 1_234);
     assert_eq!(create_data.max_health, 4_567);
+    assert_eq!(
+        create_data.aura_state, 0,
+        "CREATE does not derive state from current health"
+    );
     assert_eq!(create_data.current_power0, 321);
     assert_eq!(create_data.max_mana, 789);
     assert_eq!(create_data.base_mana, 456);

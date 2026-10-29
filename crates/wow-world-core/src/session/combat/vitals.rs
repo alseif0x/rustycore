@@ -41,6 +41,8 @@ impl SessionCore {
             object_data: None,
             unit_data: Some(UnitDataUpdate {
                 mask,
+                aura_state: 0,
+                aura_state_per_caster: Vec::new(),
                 values: UnitDataValues {
                     health,
                     ..Default::default()

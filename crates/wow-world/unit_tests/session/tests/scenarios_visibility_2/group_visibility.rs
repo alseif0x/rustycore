@@ -12,6 +12,61 @@ struct Fixture {
     target_handle: wow_map::PlayerHandle,
 }
 
+#[test]
+fn nearby_player_create_uses_frozen_viewer_aura_state_instead_of_current_health() {
+    let fixture = fixture();
+    let registration = fixture
+        .registry
+        .control_address(fixture.target)
+        .unwrap()
+        .registration();
+    let (map_key, revision) = fixture
+        .manager
+        .lock()
+        .unwrap()
+        .player_active_residence_revision_like_cpp(fixture.target_handle)
+        .unwrap();
+    set_player_state(&fixture.manager, fixture.target_handle, |player| {
+        let auras = &mut player.unit_mut().subsystems_mut().auras;
+        auras.register_applied_aura(
+            wow_entities::AppliedAuraRef::new(800, fixture.viewer, 0, 1),
+            Some(14),
+            0,
+            0,
+        );
+        auras.register_applied_aura(
+            wow_entities::AppliedAuraRef::new(801, fixture.target, 1, 1),
+            Some(16),
+            0,
+            0,
+        );
+    });
+    for (viewer, expected) in [
+        (fixture.viewer, 1 << 13),
+        (fixture.target, 1 << 15),
+        (ObjectGuid::EMPTY, 0),
+    ] {
+        let snapshot = fixture
+            .registry
+            .player_visibility_create_snapshot_for_candidate(
+                registration,
+                fixture.target_handle,
+                map_key,
+                revision,
+                viewer,
+            )
+            .unwrap();
+        assert_eq!(snapshot.aura_state, expected);
+        let update = wow_world_lifecycle::login_transport::player_visibility_create_update_from_snapshot_like_cpp(&snapshot, MAP_ID as u16);
+        let wow_packet::packets::update::UpdateBlock::CreateObject { create_data, .. } =
+            &update.blocks[0]
+        else {
+            panic!("native Player CREATE");
+        };
+        assert_eq!(create_data.aura_state, expected);
+    }
+}
+
 fn fixture() -> Fixture {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
@@ -517,6 +572,7 @@ fn directory_projection_rejects_old_residence_revision_after_same_map_reattach()
                 fixture.target_handle,
                 map_key,
                 old_revision,
+                fixture.viewer,
             )
             .is_none()
     );
@@ -528,6 +584,7 @@ fn directory_projection_rejects_old_residence_revision_after_same_map_reattach()
                 fixture.target_handle,
                 current_key,
                 current_revision,
+                fixture.viewer,
             )
             .is_some()
     );
@@ -596,6 +653,7 @@ fn directory_projection_rejects_old_candidate_after_same_guid_replacement_and_re
                 fixture.target_handle,
                 old_map,
                 old_revision,
+                fixture.viewer,
             )
             .is_none()
     );
@@ -607,6 +665,7 @@ fn directory_projection_rejects_old_candidate_after_same_guid_replacement_and_re
                 fixture.target_handle,
                 old_map,
                 old_revision,
+                fixture.viewer,
             )
             .is_none()
     );
@@ -618,6 +677,7 @@ fn directory_projection_rejects_old_candidate_after_same_guid_replacement_and_re
                 new_handle,
                 new_map,
                 new_revision,
+                fixture.viewer,
             )
             .is_some()
     );

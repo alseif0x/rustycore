@@ -6,35 +6,6 @@ use super::*;
 
 // ── ItemCreateData ──────────────────────────────────────────────────
 
-/// C++ `Unit::Update` → `ModifyAuraState` health-derived `UNIT_FIELD_AURASTATE` bits
-/// (Unit.cpp:469-476), applied to EVERY alive unit including the player. A full-HP unit
-/// yields 0x00D00000. Mirrors `WorldCreature::health_aura_state_like_cpp` in wow-world
-/// (both implement the same AURA_STATE 1-based-index bit math; kept in sync).
-pub(in crate::packets::update) fn health_aura_state_like_cpp(
-    health: i64,
-    max_health: i64,
-    alive: bool,
-) -> u32 {
-    if !alive || max_health <= 0 {
-        return 0;
-    }
-    let below = |p: i64| health.saturating_mul(100) < max_health.saturating_mul(p);
-    let above = |p: i64| health.saturating_mul(100) > max_health.saturating_mul(p);
-    let mut state = 0u32;
-    let mut set = |idx: u32, on: bool| {
-        if on {
-            state |= 1 << (idx - 1);
-        }
-    };
-    set(2, below(20)); // AURA_STATE_WOUNDED_20_PERCENT
-    set(6, below(25)); // AURA_STATE_WOUNDED_25_PERCENT
-    set(13, below(35)); // AURA_STATE_WOUNDED_35_PERCENT
-    set(21, below(20) || above(80)); // AURA_STATE_WOUND_HEALTH_20_80
-    set(23, above(75)); // AURA_STATE_HEALTHY_75_PERCENT
-    set(24, below(35) || above(80)); // AURA_STATE_WOUND_HEALTH_35_80
-    state
-}
-
 /// Get power type for a class (0=mana, 1=rage, 3=energy).
 pub(in crate::packets::update) fn power_type_for_class(class: u8) -> u8 {
     match class {

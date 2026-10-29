@@ -188,6 +188,37 @@ bits 64/78, including same-area reentry. Missing rows in an available catalog
 clear it; an unavailable catalog does not authorize clearing. The general PvP
 setter and the other native flags remain unchanged. Coverage includes exact
 Map-published mask/value, same-area, missing-row and missing-catalog cases.
+The initial reclaim CREATE comparison additionally confirms AuraState zero in
+C++ (packet 73, body offset 1897), versus Rust's recalculated `0x00901022`
+(sequence 64). The native snapshot must supply that value; deriving it again
+from current health changes the observed phase. At offset 1889, C++ Flags2 is
+`0x800` and Rust is zero; target `Player.cpp:470,2507` explicitly assigns
+`UNIT_FLAG2_REGENERATE_POWER`. This existing CREATE/default finding remains
+separate from the in-progress health-state operation; no full CREATE parity is
+claimed from the matched initial health or mana values.
+For bones, `Map.cpp:3757` calls `CommitTransaction` before adding the object,
+but `DatabaseWorkerPool.cpp:302–325` enqueues that transaction asynchronously.
+The source does not prove a synchronous commit acknowledgement before birth.
+Retain Rust's existing confirmed-delete completion fence and unknown-outcome
+hold; distinguish it from C++ call order when reviewing the publication repair.
+The health AuraState repair is implemented, UNVALIDATED. The existing admitted
+Unit phase maintains the six native health bits while alive, preserves them
+while dead, invalidates cached aura authority on changes and marks Unit 32/44.
+VALUES and login/teleport/nearby-player CREATE freeze/project that canonical
+state; per-caster states 14/16 remain viewer-dependent. Aura removal preserves
+unrelated native states. No extra clock, mutable state mirror or lock is added.
+Source review and the new phase/threshold/frozen-wire regressions still require
+the next combined affected acceptance after the bones repair.
+
+Bones comparison now pins the full 166-byte pair: C++ packet 1486 and Rust
+sequence 364 differ only at type byte 11 (Create2 versus Create1) and scale
+bytes 56/57 (zero versus one). C++ orders destroy 1485, birth 1486, actor 1487;
+Rust orders destroy 354, actor 355, birth 364. The selected repair is immediate
+object-only destroy/recreate publication outside the Map borrow, using existing
+canonical bones and new-object state. It preserves the existing awaited-delete
+completion fence; current Map conversion already exposes in-world bones before
+that await. Native CREATE is not a durable completion receipt. Hidden staging,
+a new DB task and a second publication scheduler are unnecessary here.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

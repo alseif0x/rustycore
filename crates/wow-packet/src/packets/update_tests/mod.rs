@@ -136,6 +136,7 @@ fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerC
         native_display_id: 49,
         health: 100,
         max_health: 100,
+        aura_state: 0,
         faction_template: PlayerCreateData::faction_for_race(1),
         current_area_id: 12,
         player_flags: 0,

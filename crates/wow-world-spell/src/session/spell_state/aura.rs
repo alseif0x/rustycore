@@ -97,8 +97,7 @@ impl SessionSpellState {
             new_form,
         })
     }
-    /// C++ `Unit::HasAuraState(flag)` for the represented Caster: the union of
-    /// the unit's aura-driven state bits and its health-derived bits.
+    /// C++ `Unit::HasAuraState(flag)` reads the canonical Unit-phase state.
     pub fn represented_has_aura_state_like_cpp(&self, hub: HubRef<'_>, aura_state: u32) -> bool {
         let Some(flag) = u8::try_from(aura_state).ok().filter(|flag| *flag != 0) else {
             return false;
@@ -113,24 +112,14 @@ impl SessionSpellState {
     }
 
     /// C++ `Unit::m_unitData->AuraState` for the canonical session player: the
-    /// aura-driven bits owned by the represented aura subsystem plus the
-    /// alive-health bits `Unit::Update` maintains (WOUNDED_* / HEALTHY_75).
+    /// aura subsystem includes the health bits maintained by `Unit::Update`.
     ///
     /// `None` when the canonical Player owner is unavailable, so callers fail
     /// closed instead of reading an empty mask as an authoritative zero.
     pub fn represented_player_aura_state_mask_like_cpp(&self, hub: HubRef<'_>) -> Option<u32> {
-        let aura_driven = hub.core.canonical_player_snapshot_like_cpp(|player| {
+        hub.core.canonical_player_snapshot_like_cpp(|player| {
             player.unit().subsystems().auras.aura_state_mask
-        })?;
-        let (health, max_health, alive) = hub.resolved_player_vitals_like_cpp()?;
-        Some(
-            aura_driven
-                | wow_entities::Creature::health_aura_state_like_cpp(
-                    u64::from(health),
-                    u64::from(max_health),
-                    alive,
-                ),
-        )
+        })
     }
 
     /// Whether any effect of the spell applies `SPELL_AURA_MOD_SHAPESHIFT`, the

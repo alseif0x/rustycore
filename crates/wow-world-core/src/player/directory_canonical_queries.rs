@@ -118,11 +118,13 @@ impl PlayerRegistry {
         guid: ObjectGuid,
         map_id: u16,
         instance_id: u32,
+        viewer_guid: ObjectGuid,
     ) -> Option<(
         CanonicalPlayerVitalsLikeCpp,
         [u8; 2],
         CanonicalPlayerPresentationLikeCpp,
         ObjectGuid,
+        u32,
     )> {
         self.canonical_at(guid, map_id, instance_id, |player| {
             (
@@ -130,6 +132,11 @@ impl PlayerRegistry {
                 player.data().party_type,
                 canonical_player_presentation_like_cpp(player),
                 player.unit().data().summon,
+                player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .build_aura_state_update_for_target(viewer_guid),
             )
         })
     }

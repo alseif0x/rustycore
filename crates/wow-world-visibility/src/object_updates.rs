@@ -212,6 +212,9 @@ impl VisibilityState {
                 }
 
                 let mut values_update = represented_update.values_update;
+                if let Some(unit) = values_update.unit_data.as_mut() {
+                    unit.project_aura_state_for_target_like_cpp(viewer_guid);
+                }
                 // `BuildValuesUpdate` filters UnitData/PlayerData by the
                 // receiver's flags and exposes ActivePlayerData only to the
                 // owner. Current group members also receive PARTY_MEMBER
@@ -295,6 +298,9 @@ impl VisibilityState {
                     continue;
                 }
                 let mut values_update = represented_update.values_update;
+                if let Some(unit) = values_update.unit_data.as_mut() {
+                    unit.project_aura_state_for_target_like_cpp(viewer_guid);
+                }
                 filter_unit_values_update_for_target_like_cpp(
                     &mut values_update,
                     source_visibility.1,

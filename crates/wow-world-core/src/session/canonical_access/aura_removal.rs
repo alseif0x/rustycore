@@ -588,6 +588,8 @@ impl SessionCore {
             object_data: None,
             unit_data: Some(wow_entities::UnitDataUpdate {
                 mask,
+                aura_state: 0,
+                aura_state_per_caster: Vec::new(),
                 values: wow_entities::UnitDataValues {
                     display_power: current,
                     ..Default::default()

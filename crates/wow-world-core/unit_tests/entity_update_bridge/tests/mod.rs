@@ -39,6 +39,7 @@ fn mask_has_u64(mask: u64, bit: usize) -> bool {
     (mask & (1u64 << bit)) != 0
 }
 
+mod aura_state;
 mod scenarios_1;
 mod scenarios_2;
 mod scenarios_3;

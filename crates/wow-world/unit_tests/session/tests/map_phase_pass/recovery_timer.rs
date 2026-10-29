@@ -6,6 +6,8 @@ use crate::session::mailbox::{
 use crate::session::tests::lifecycle_persistence::RecordingPortLikeCpp;
 use wow_persistence::PersistenceOutcomeLikeCpp;
 
+#[path = "recovery_timer/health_aura_state.rs"]
+mod health_aura_state;
 #[path = "recovery_timer/native_death.rs"]
 mod native_death;
 #[path = "recovery_timer/native_spell_history.rs"]

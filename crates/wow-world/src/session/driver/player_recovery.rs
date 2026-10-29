@@ -366,6 +366,29 @@ fn run_selected_unit_update(
         let mut manager = manager
             .lock()
             .map_err(|_| "Selected aura map manager lock is unavailable")?;
+        if manager.map_incarnation_like_cpp(binding.map_key) != Some(binding.map_incarnation)
+            || manager.player_active_residence_revision_like_cpp(handle)
+                != Some((binding.map_key, binding.residence_revision))
+        {
+            return Err("Health AuraState Unit update has no current admitted residence");
+        }
+        let current = manager
+            .with_player_mut_like_cpp(handle, |player| {
+                let world = player.unit().world();
+                if player.guid() != binding.guid
+                    || !world.object().is_in_world()
+                    || !world.has_current_map()
+                    || MapKey::new(world.map_id(), world.instance_id()) != binding.map_key
+                {
+                    return false;
+                }
+                player.unit_mut().update_health_aura_states_like_cpp();
+                true
+            })
+            .unwrap_or(false);
+        if !current {
+            return Err("Health AuraState Unit update has no current Player");
+        }
         wow_world_spell::collect_player_pending_selected_aura_updates(
             &mut manager,
             handle,
