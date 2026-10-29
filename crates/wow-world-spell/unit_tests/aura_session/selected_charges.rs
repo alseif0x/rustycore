@@ -6,10 +6,10 @@ use super::{
 };
 use wow_core::ObjectGuid;
 use wow_data::{
-    DifficultyEntry, DifficultyStore, SpellAuraOptionsEntry, SpellAuraOptionsStore,
-    SpellClassOptionsEntry, SpellClassOptionsStore, SpellLabelEntry, SpellLabelStore,
-    ServersideSpellEffectKeyLikeCpp, ServersideSpellEffectLikeCpp, ServersideSpellInfoLikeCpp,
-    ServersideSpellRowLikeCpp, ServersideSpellStoreLikeCpp, SpellStore,
+    DifficultyEntry, DifficultyStore, ServersideSpellEffectKeyLikeCpp,
+    ServersideSpellEffectLikeCpp, ServersideSpellInfoLikeCpp, ServersideSpellRowLikeCpp,
+    ServersideSpellStoreLikeCpp, SpellAuraOptionsEntry, SpellAuraOptionsStore,
+    SpellClassOptionsEntry, SpellClassOptionsStore, SpellLabelEntry, SpellLabelStore, SpellStore,
     spell::{
         ImplicitSpellProcEffectLikeCpp, ImplicitSpellProcSourceLikeCpp, SpellProcRowLikeCpp,
         SpellProcSourceSpellInfoLikeCpp, SpellProcStoreLikeCpp as ProcStore,
@@ -17,9 +17,7 @@ use wow_data::{
             SPELL_AURA_ADD_FLAT_MODIFIER, SPELL_AURA_ADD_PCT_MODIFIER,
             SPELL_AURA_PROC_TRIGGER_SPELL,
         },
-        spell_effect_types::{
-            SPELL_EFFECT_APPLY_AREA_AURA_PARTY, SPELL_EFFECT_APPLY_AURA,
-        },
+        spell_effect_types::{SPELL_EFFECT_APPLY_AREA_AURA_PARTY, SPELL_EFFECT_APPLY_AURA},
     },
 };
 use wow_entities::{AuraApplicationLikeCpp, AuraSubsystem};
@@ -727,9 +725,7 @@ fn server_info(
 }
 
 fn server_store(
-    entries: impl IntoIterator<
-        Item = (u32, u8, u32, Vec<ServersideSpellEffectLikeCpp>),
-    >,
+    entries: impl IntoIterator<Item = (u32, u8, u32, Vec<ServersideSpellEffectLikeCpp>)>,
 ) -> ServersideSpellStoreLikeCpp {
     let mut store = ServersideSpellStoreLikeCpp::default();
     for (spell_id, difficulty_id, family, effects) in entries {
@@ -924,11 +920,7 @@ fn only_active_proc_charge_class_modifiers_block_including_area_aura_effects() {
         cases.into_iter().enumerate()
     {
         let auras = aura_snapshot(
-            [active_aura(
-                MODIFIER_SPELL_ID,
-                0,
-                active_mask,
-            )],
+            [active_aura(MODIFIER_SPELL_ID, 0, active_mask)],
             true,
             false,
         );
@@ -1017,12 +1009,7 @@ fn only_matching_active_label_proc_charge_modifiers_block() {
 fn source_family_uses_target_difficulty_while_modifier_effect_uses_aura_difficulty() {
     let difficulties = DifficultyStore::from_entries([difficulty(3, 0), difficulty(4, 0)]);
     let servers = server_store([
-        (
-            MODIFIER_SPELL_ID,
-            3,
-            1,
-            Vec::new(),
-        ),
+        (MODIFIER_SPELL_ID, 3, 1, Vec::new()),
         (
             MODIFIER_SPELL_ID,
             4,
@@ -1087,52 +1074,60 @@ fn source_family_uses_target_difficulty_while_modifier_effect_uses_aura_difficul
 fn incomplete_tombstoned_foreign_and_unresolved_aura_sources_stay_rejected() {
     let incomplete = aura_snapshot([], false, false);
     let tombstoned = aura_snapshot([], true, true);
-    assert!(validate_with_auras(
-        Some(&incomplete),
-        player_guid(),
-        0,
-        1,
-        [1, 0, 0, 0],
-        &[],
-        None,
-        None,
-    )
-    .is_err());
-    assert!(validate_with_auras(
-        Some(&tombstoned),
-        player_guid(),
-        0,
-        1,
-        [1, 0, 0, 0],
-        &[],
-        None,
-        None,
-    )
-    .is_err());
-    assert!(validate_with_auras(
-        Some(&aura_snapshot([], true, false)),
-        ObjectGuid::create_player(1, 82_046),
-        0,
-        1,
-        [1, 0, 0, 0],
-        &[],
-        None,
-        None,
-    )
-    .is_err());
+    assert!(
+        validate_with_auras(
+            Some(&incomplete),
+            player_guid(),
+            0,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            None,
+            None,
+        )
+        .is_err()
+    );
+    assert!(
+        validate_with_auras(
+            Some(&tombstoned),
+            player_guid(),
+            0,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            None,
+            None,
+        )
+        .is_err()
+    );
+    assert!(
+        validate_with_auras(
+            Some(&aura_snapshot([], true, false)),
+            ObjectGuid::create_player(1, 82_046),
+            0,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            None,
+            None,
+        )
+        .is_err()
+    );
 
     let unknown_key = aura_snapshot([active_aura(MODIFIER_SPELL_ID, 0, 1)], true, false);
-    assert!(validate_with_auras(
-        Some(&unknown_key),
-        player_guid(),
-        0,
-        1,
-        [1, 0, 0, 0],
-        &[],
-        None,
-        None,
-    )
-    .is_err());
+    assert!(
+        validate_with_auras(
+            Some(&unknown_key),
+            player_guid(),
+            0,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            None,
+            None,
+        )
+        .is_err()
+    );
 
     let unknown_effect = aura_snapshot([active_aura(MODIFIER_SPELL_ID, 0, 2)], true, false);
     let known_spell = server_store([(
@@ -1149,17 +1144,19 @@ fn incomplete_tombstoned_foreign_and_unresolved_aura_sources_stay_rejected() {
             [1, 0, 0, 0],
         )],
     )]);
-    assert!(validate_with_auras(
-        Some(&unknown_effect),
-        player_guid(),
-        0,
-        1,
-        [1, 0, 0, 0],
-        &[],
-        Some(&known_spell),
-        None,
-    )
-    .is_err());
+    assert!(
+        validate_with_auras(
+            Some(&unknown_effect),
+            player_guid(),
+            0,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            Some(&known_spell),
+            None,
+        )
+        .is_err()
+    );
 
     let inert_effect = aura_snapshot([active_aura(MODIFIER_SPELL_ID, 0, 1)], true, false);
     let inert_spell = server_store([(
@@ -1176,17 +1173,19 @@ fn incomplete_tombstoned_foreign_and_unresolved_aura_sources_stay_rejected() {
             [1, 0, 0, 0],
         )],
     )]);
-    assert!(validate_with_auras(
-        Some(&inert_effect),
-        player_guid(),
-        0,
-        1,
-        [1, 0, 0, 0],
-        &[],
-        Some(&inert_spell),
-        None,
-    )
-    .is_err());
+    assert!(
+        validate_with_auras(
+            Some(&inert_effect),
+            player_guid(),
+            0,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            Some(&inert_spell),
+            None,
+        )
+        .is_err()
+    );
 
     let mismatched_effect_difficulty =
         aura_snapshot([active_aura(MODIFIER_SPELL_ID, 0, 1)], true, false);
@@ -1204,28 +1203,32 @@ fn incomplete_tombstoned_foreign_and_unresolved_aura_sources_stay_rejected() {
             [1, 0, 0, 0],
         )],
     )]);
-    assert!(validate_with_auras(
-        Some(&mismatched_effect_difficulty),
-        player_guid(),
-        0,
-        1,
-        [1, 0, 0, 0],
-        &[],
-        Some(&mismatched_spell),
-        None,
-    )
-    .is_err());
+    assert!(
+        validate_with_auras(
+            Some(&mismatched_effect_difficulty),
+            player_guid(),
+            0,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            Some(&mismatched_spell),
+            None,
+        )
+        .is_err()
+    );
 
     let unknown_difficulty = aura_snapshot([active_aura(MODIFIER_SPELL_ID, 4, 1)], true, false);
-    assert!(validate_with_auras(
-        Some(&unknown_difficulty),
-        player_guid(),
-        0,
-        1,
-        [1, 0, 0, 0],
-        &[],
-        Some(&known_spell),
-        None,
-    )
-    .is_err());
+    assert!(
+        validate_with_auras(
+            Some(&unknown_difficulty),
+            player_guid(),
+            0,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            Some(&known_spell),
+            None,
+        )
+        .is_err()
+    );
 }

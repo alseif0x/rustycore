@@ -646,11 +646,7 @@ async fn selected_charge_refresh_preserves_original_key_after_modifier_absence_p
         0,
         0,
         vec![difficulty(0, 3), difficulty(3, 0), difficulty(4, 3)],
-        &[
-            (0, 0x88, 0),
-            (3, 0x88, 0),
-            (4, 0x88, 0),
-        ],
+        &[(0, 0x88, 0), (3, 0x88, 0), (4, 0x88, 0)],
     )
     .await;
     install_aura_options(&mut session, &[(0, 5), (3, 5), (4, 9)]);
@@ -684,10 +680,7 @@ async fn selected_charge_refresh_preserves_original_key_after_modifier_absence_p
         },
     ])));
     assert!(install_generated_proc_store(&mut session) >= 2);
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true,
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true,));
 
     let spell_store = session.catalogs.spell_store().expect("selected SpellStore");
     for difficulty_id in [0, 3, 4] {

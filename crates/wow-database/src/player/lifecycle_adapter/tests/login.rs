@@ -337,7 +337,9 @@ fn inventory_queries_preserve_legacy_offsets_and_append_the_shared_item_payload(
             .split_once("ii.creatorGuid, ")
             .map(|(_, suffix)| format!("ii.creatorGuid, {suffix}"))
             .and_then(|suffix| {
-                suffix.split_once(" FROM character_inventory").map(|(p, _)| p.to_owned())
+                suffix
+                    .split_once(" FROM character_inventory")
+                    .map(|(p, _)| p.to_owned())
             })
             .expect("appended payload before inventory joins");
         assert_eq!(appended, expected_payload);

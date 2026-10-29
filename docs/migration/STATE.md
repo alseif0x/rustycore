@@ -138,7 +138,7 @@ both row families, including native refund/BOP ordering, tradeable registration
 and final create flags. Authority is granted only at the successful final load
 proof. Invalid context/high-bit gem representations, unavailable effective
 catalogs and failed/unknown repairs retain partial authority. An unknown BOP
-template preserves its existing flag. Integrated tests are next.
+template preserves its existing flag. Integrated tests are recorded below.
 The parent corrected an owned-string lifetime in
 the SQL projection test during diff review, before any compiler run.
 
@@ -179,6 +179,13 @@ incarnation coverage; execution is pending in the complete affected campaign.
 
 Status: steps 1–3 implementation is complete and unvalidated; the last-Ankh QA
 variant precedes the frozen acceptance candidate. No new acceptance claimed.
+Acceptance preparation formatted the changed Rust files and reviewed the test
+census delta: 4,151 → 4,156 identities, one ignored unchanged; five added login
+composition tests and one selected-charge test rename, with no other identity or
+classification change. The reviewed unit-test line ceiling is 277,723. The new
+1,023-line complete-item-save suite is cohesive around production login through
+save acknowledgement; if it grows, its natural split is auxiliary refund/BOP
+cases from payload/debit cases. This census update is not test execution.
 One bounded worker at a time; the parent owns decisions, review, Git and all
 heavy/runtime scheduling. No broad inventory/spell rewrite, unrelated architecture
 audit, extra macro-issues or repeated unchanged campaigns are part of this plan.

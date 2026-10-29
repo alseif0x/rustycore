@@ -93,8 +93,8 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                     let item_context = item_context_value.unwrap_or(ItemContext::None);
                     let item_enchantment_values =
                         loaded_item_enchantments_like_cpp(&item.enchantments);
-                    let item_enchantments_are_representable = item.enchantments.trim().is_empty()
-                        || item_enchantment_values.is_some();
+                    let item_enchantments_are_representable =
+                        item.enchantments.trim().is_empty() || item_enchantment_values.is_some();
                     let item_gem_ids_are_representable =
                         item.gems.iter().all(|(item_id, _, _)| *item_id >= 0);
                     let storage_template =
@@ -305,25 +305,25 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                             item_flags,
                             realm_id,
                         );
-                        let bop_registry_complete =
-                            item_payload::apply_bop_trade_metadata_like_cpp(
-                                &mut item_object,
-                                bop_allowed_players,
-                                item_flags,
-                                storage_template.as_ref().map(|template| template.max_stack_size),
-                                realm_id,
-                                |loaded_item| {
-                                    let loading_owner_is_current = loading_owner.is_some()
-                                        && host.hub_ref().core.player_handle_like_cpp
-                                            == loading_owner;
-                                    item_payload::register_tradeable_item_like_cpp(
-                                        host,
-                                        guid,
-                                        loaded_item,
-                                        loading_owner_is_current,
-                                    )
-                                },
-                            );
+                        let bop_registry_complete = item_payload::apply_bop_trade_metadata_like_cpp(
+                            &mut item_object,
+                            bop_allowed_players,
+                            item_flags,
+                            storage_template
+                                .as_ref()
+                                .map(|template| template.max_stack_size),
+                            realm_id,
+                            |loaded_item| {
+                                let loading_owner_is_current = loading_owner.is_some()
+                                    && host.hub_ref().core.player_handle_like_cpp == loading_owner;
+                                item_payload::register_tradeable_item_like_cpp(
+                                    host,
+                                    guid,
+                                    loaded_item,
+                                    loading_owner_is_current,
+                                )
+                            },
+                        );
                         tradeable_item_registry_complete &= bop_registry_complete;
                         if expiration_needs_save {
                             refund_cleanup_actions.push(
@@ -412,8 +412,9 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                         let item_context = item_context_value.unwrap_or(ItemContext::None);
                         let item_enchantment_values =
                             loaded_item_enchantments_like_cpp(&item.enchantments);
-                        let item_enchantments_are_representable = item.enchantments.trim().is_empty()
-                            || item_enchantment_values.is_some();
+                        let item_enchantments_are_representable =
+                            item.enchantments.trim().is_empty()
+                                || item_enchantment_values.is_some();
                         let item_gem_ids_are_representable =
                             item.gems.iter().all(|(item_id, _, _)| *item_id >= 0);
                         let storage_template =

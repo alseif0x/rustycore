@@ -14,11 +14,12 @@ use wow_data::{
     SpellAuraOptionsStore, SpellClassOptionsStore, SpellLabelStore, SpellProcStoreLikeCpp,
     SpellStore,
     spell::{
-        DataSpellCatalogResolutionError, SpellProcKeyLikeCpp, resolve_spell_effect_rows,
+        DataSpellCatalogResolutionError, SpellProcKeyLikeCpp,
         aura_types::{
             SPELL_AURA_ADD_FLAT_MODIFIER, SPELL_AURA_ADD_PCT_MODIFIER,
             SPELL_AURA_ADD_PCT_MODIFIER_BY_SPELL_LABEL,
         },
+        resolve_spell_effect_rows,
     },
 };
 use wow_entities::{AuraApplicationLikeCpp, AuraSubsystem};
@@ -30,7 +31,8 @@ use super::selected_catalog::{
 
 const IGNORE_CASTER_MODIFIERS_ATTRIBUTE: u32 = 0x2000_0000;
 const PROC_CHARGES_OPERATION: i32 = 4;
-const CLASS_MODIFIER_ADMISSION_ERROR: &str = "Selected aura may have applicable class-mask SpellMods";
+const CLASS_MODIFIER_ADMISSION_ERROR: &str =
+    "Selected aura may have applicable class-mask SpellMods";
 const LABEL_MODIFIER_ADMISSION_ERROR: &str = "Selected aura may have applicable label SpellMods";
 const MODIFIER_ABSENCE_UNPROVEN: &str =
     "Selected aura modifier absence is not proven by canonical Player auras";
@@ -180,7 +182,8 @@ pub(crate) fn validate_selected_aura_modifier_absence_from_player_auras(
     ) {
         Ok(()) => return Ok(()),
         Err(error)
-            if error == CLASS_MODIFIER_ADMISSION_ERROR || error == LABEL_MODIFIER_ADMISSION_ERROR =>
+            if error == CLASS_MODIFIER_ADMISSION_ERROR
+                || error == LABEL_MODIFIER_ADMISSION_ERROR =>
         {
             error
         }
@@ -209,12 +212,8 @@ pub(crate) fn validate_selected_aura_modifier_absence_from_player_auras(
     let target_labels = selected_native_labels(spell_id, actual_difficulty, labels, difficulties)?;
 
     for aura in player_auras.runtime_applications_like_cpp().values() {
-        let effects = resolve_active_aura_effects(
-            aura,
-            regular_spells,
-            serverside_spells,
-            difficulties,
-        )?;
+        let effects =
+            resolve_active_aura_effects(aura, regular_spells, serverside_spells, difficulties)?;
 
         if let Some(modifier_error) = selected_modifier_match(
             aura.effect_mask,
@@ -311,9 +310,7 @@ fn select_spell_source<'a>(
             match (regular_key, server_spell) {
                 (true, Some(_)) => Some(Err(MODIFIER_ABSENCE_UNPROVEN)),
                 (true, None) => Some(Ok(SelectedSpellSource::Regular(difficulty))),
-                (false, Some(spell)) => {
-                    Some(Ok(SelectedSpellSource::Server(spell, difficulty)))
-                }
+                (false, Some(spell)) => Some(Ok(SelectedSpellSource::Server(spell, difficulty))),
                 (false, None) => None,
             }
         },
@@ -341,13 +338,9 @@ fn resolve_active_aura_effects(
     match source {
         SelectedSpellSource::Regular(actual_difficulty) => {
             let store = regular_spells.ok_or(MODIFIER_ABSENCE_UNPROVEN)?;
-            let rows = resolve_spell_effect_rows(
-                store,
-                aura.spell_id,
-                actual_difficulty,
-                difficulties,
-            )
-            .map_err(|_| MODIFIER_ABSENCE_UNPROVEN)?;
+            let rows =
+                resolve_spell_effect_rows(store, aura.spell_id, actual_difficulty, difficulties)
+                    .map_err(|_| MODIFIER_ABSENCE_UNPROVEN)?;
             Ok(rows
                 .into_iter()
                 .map(|effect| SelectedAuraEffect {
@@ -386,13 +379,9 @@ fn selected_source_family(
     };
     match source {
         SelectedSpellSource::Regular(source_difficulty) => {
-            let (family, _) = selected_spell_family(
-                class_options,
-                spell_id,
-                source_difficulty,
-                difficulties,
-            )
-            .map_err(catalog_error)?;
+            let (family, _) =
+                selected_spell_family(class_options, spell_id, source_difficulty, difficulties)
+                    .map_err(catalog_error)?;
             Ok(Some(u32::from(family)))
         }
         SelectedSpellSource::Server(spell, _) => Ok(Some(spell.row.spell_family_name)),
@@ -409,8 +398,7 @@ fn server_effect_rows(
         if effect.difficulty_id != u32::from(actual_difficulty) {
             return Err(MODIFIER_ABSENCE_UNPROVEN);
         }
-        let index = usize::try_from(effect.effect_index)
-            .map_err(|_| MODIFIER_ABSENCE_UNPROVEN)?;
+        let index = usize::try_from(effect.effect_index).map_err(|_| MODIFIER_ABSENCE_UNPROVEN)?;
         let Some(seen_effect) = seen.get_mut(index) else {
             return Err(MODIFIER_ABSENCE_UNPROVEN);
         };

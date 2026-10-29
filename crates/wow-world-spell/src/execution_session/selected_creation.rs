@@ -78,10 +78,7 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
                 label_store,
                 difficulties,
                 Some(spell_store.as_ref()),
-                catalogs
-                    .spell_catalogs
-                    .serverside_spell_store
-                    .as_deref(),
+                catalogs.spell_catalogs.serverside_spell_store.as_deref(),
                 player_auras.as_ref(),
             )?;
         }

@@ -35,7 +35,7 @@ pub(super) fn row_save_inputs_known_like_cpp(
 
 pub(super) fn effective_enchantment_catalog_is_known_like_cpp(
     enchantments: &[wow_packet::packets::update::ItemEnchantmentValuesUpdate;
-        wow_entities::MAX_ENCHANTMENT_SLOT],
+         wow_entities::MAX_ENCHANTMENT_SLOT],
     catalogs: &wow_world_core::session::SessionCatalogs,
 ) -> bool {
     !enchantments.iter().any(|enchantment| enchantment.id != 0)
@@ -88,10 +88,22 @@ pub(super) fn hydrate_complete_payload_like_cpp(
     item.set_creator(creator_guid);
     item.set_gift_creator(gift_creator_guid);
     item.set_text(payload.text.unwrap_or_default());
-    item.set_modifier(ItemModifier::BattlePetSpeciesId, payload.battle_pet_species_id);
-    item.set_modifier(ItemModifier::BattlePetBreedData, payload.battle_pet_breed_data);
-    item.set_modifier(ItemModifier::BattlePetLevel, u32::from(payload.battle_pet_level));
-    item.set_modifier(ItemModifier::BattlePetDisplayId, payload.battle_pet_display_id);
+    item.set_modifier(
+        ItemModifier::BattlePetSpeciesId,
+        payload.battle_pet_species_id,
+    );
+    item.set_modifier(
+        ItemModifier::BattlePetBreedData,
+        payload.battle_pet_breed_data,
+    );
+    item.set_modifier(
+        ItemModifier::BattlePetLevel,
+        u32::from(payload.battle_pet_level),
+    );
+    item.set_modifier(
+        ItemModifier::BattlePetDisplayId,
+        payload.battle_pet_display_id,
+    );
 
     const APPEARANCE_MODIFIERS: [ItemModifier; 6] = [
         ItemModifier::TransmogAppearanceAllSpecs,
@@ -168,9 +180,7 @@ pub(super) fn apply_bop_trade_metadata_like_cpp(
     let allowed_players = allowed_players
         .split(' ')
         .filter(|token| !token.is_empty())
-        .map(|token| {
-            ObjectGuid::create_player(realm_id, token.parse::<u64>().unwrap_or(0) as i64)
-        })
+        .map(|token| ObjectGuid::create_player(realm_id, token.parse::<u64>().unwrap_or(0) as i64))
         .collect::<HashSet<_>>();
     if allowed_players.len() > 1 && template_max_stack_size == 1 && item.is_soul_bound() {
         item.set_soulbound_tradeable(allowed_players);

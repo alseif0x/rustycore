@@ -110,7 +110,10 @@ fn legacy_inventory_projection_guid(
     for column in [11, 14, 17] {
         optional_text(row, first_column + column)?;
     }
-    let present_gem_columns = gem_numeric_present.iter().filter(|&&present| present).count();
+    let present_gem_columns = gem_numeric_present
+        .iter()
+        .filter(|&&present| present)
+        .count();
     if present_gem_columns != 0 && present_gem_columns != gem_numeric_present.len() {
         return None;
     }
@@ -122,7 +125,8 @@ fn legacy_inventory_projection_guid(
         return None;
     }
 
-    let paid_money = nullable_number::<u64>(row, first_column + 19, "item_refund_instance.paidMoney")?;
+    let paid_money =
+        nullable_number::<u64>(row, first_column + 19, "item_refund_instance.paidMoney")?;
     let paid_cost = nullable_number::<u16>(
         row,
         first_column + 20,
@@ -175,11 +179,8 @@ fn decode_inventory_item_payload(
         }
         Some(guid) if guid == item_guid => {
             for (index, name) in TRANSMOG_COLUMNS.iter().enumerate() {
-                transmog_modifiers[index] = required_number::<u32>(
-                    row,
-                    legacy_end + 8 + index,
-                    name,
-                )?;
+                transmog_modifiers[index] =
+                    required_number::<u32>(row, legacy_end + 8 + index, name)?;
             }
         }
         Some(_) => return None,
@@ -656,8 +657,8 @@ pub(super) fn player_character_base_load_row_like_cpp(
 
 #[cfg(test)]
 mod inventory_payload_tests {
-    use super::*;
     use super::NativeFieldLikeCpp as Native;
+    use super::*;
 
     fn inventory_row() -> Vec<NativeFieldLikeCpp> {
         let mut row = vec![
@@ -694,10 +695,7 @@ mod inventory_payload_tests {
             Native::UInt64(9301),
         ];
         row.extend((1000..1018).map(Native::Int32));
-        row.extend([
-            Native::UInt64(9301),
-            Native::Text("42 77 9001".into()),
-        ]);
+        row.extend([Native::UInt64(9301), Native::Text("42 77 9001".into())]);
         row
     }
 
@@ -718,7 +716,10 @@ mod inventory_payload_tests {
         assert_eq!(payload.battle_pet_breed_data, 0x0102_0304);
         assert_eq!(payload.battle_pet_level, 25);
         assert_eq!(payload.battle_pet_display_id, 98765);
-        assert_eq!(payload.transmog_appearance, [1000, 1001, 1002, 1003, 1004, 1005]);
+        assert_eq!(
+            payload.transmog_appearance,
+            [1000, 1001, 1002, 1003, 1004, 1005]
+        );
         assert_eq!(
             payload.transmog_enchant_illusion,
             [1006, 1007, 1008, 1009, 1010, 1011]

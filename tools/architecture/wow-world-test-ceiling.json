@@ -175,6 +175,16 @@
    "unit_tests_lines": 276665,
    "unit_tests_tests": 4129,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-16",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "Five production-login item hydration/debit/save acknowledgement regressions and the reviewed selected-aura modifier-absence test identity; preserve existing test coverage.",
+   "unit_tests_lines": 277723,
+   "unit_tests_tests": 4134,
+   "src_tests": 22
   }
  ]
 }

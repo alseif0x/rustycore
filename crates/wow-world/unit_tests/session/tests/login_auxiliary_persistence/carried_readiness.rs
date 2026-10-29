@@ -52,7 +52,12 @@ async fn carried_obtain_readiness_requires_both_queries_and_coherent_rows() {
         (equipment(vec![]), failed(), false, false),
         (equipment(vec![top()]), failed(), false, false),
         (equipment(vec![skipped]), bags(vec![]), false, false),
-        (equipment(vec![top(), conflicting]), bags(vec![]), false, false),
+        (
+            equipment(vec![top(), conflicting]),
+            bags(vec![]),
+            false,
+            false,
+        ),
         (
             equipment(vec![top()]),
             bags(vec![PlayerBagInventoryLoadRowLikeCpp {
@@ -108,7 +113,10 @@ async fn carried_obtain_readiness_requires_both_queries_and_coherent_rows() {
                         .equipment_inventory_authority_complete_like_cpp(),
                     save_authority
                 );
-                assert_eq!(player.cast_all_obtain_backpack_end_like_cpp().is_some(), carried_ready);
+                assert_eq!(
+                    player.cast_all_obtain_backpack_end_like_cpp().is_some(),
+                    carried_ready
+                );
                 if carried_ready && !save_authority {
                     assert!(
                         player

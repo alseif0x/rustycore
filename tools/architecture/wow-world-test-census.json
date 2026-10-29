@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4151,
+  "tests": 4156,
   "ignored": 1,
-  "session": 3847,
-  "shims": 3667,
+  "session": 3852,
+  "shims": 3672,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3672
+   "W": 3677
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3466
+   "W-world-logic": 3471
   },
   "by_owner": {
    "wow-world": {
@@ -58,7 +58,7 @@
    "wow-world-character": {
     "P": 36,
     "H": 21,
-    "W": 373
+    "W": 378
    },
    "wow-world-core": {
     "P": 14,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3672
+    "W": 3677
    },
    "wow-world-application": {
     "P": 27,
@@ -1275,7 +1275,7 @@
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_charges.rs::selected_charge_transient_payload_rejects_channelled_or_incomplete_shape_before_spell_go", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_charges.rs::selected_charge_generated_exact_zero_stops_nonzero_proc_fallback", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_charges.rs::selected_wisp_charge_generation_uses_transform_proc_metadata", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
-  ["unit_tests/handlers/entities/tests/spirit_healer/selected_charges.rs::selected_charge_refresh_uses_original_key_and_ignores_fresh_modifier_failure", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
+  ["unit_tests/handlers/entities/tests/spirit_healer/selected_charges.rs::selected_charge_refresh_preserves_original_key_after_modifier_absence_proof", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_charges.rs::selected_charge_non_timer_refresh_needs_no_proc_store_and_keeps_old_charges", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_charges.rs::selected_charge_failure_keeps_conflicting_foreign_aura", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_creation.rs::selected_creation_sickness_uses_source_base_flags_and_finite_wire_flags", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
@@ -2507,6 +2507,11 @@
   ["unit_tests/session/tests/login_auxiliary_persistence/auxiliary_login_reads.rs::failed_auxiliary_login_reads_do_not_publish_or_preserve_stale_values", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["load_completed_achievements_like_cpp", "load_instance_time_restrictions_like_cpp", "set_player_guid"], []],
   ["unit_tests/session/tests/login_auxiliary_persistence/auxiliary_login_reads.rs::missing_auxiliary_login_port_means_unknown_and_clears_session_caches", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["load_completed_achievements_like_cpp", "load_instance_time_restrictions_like_cpp", "set_player_guid"], []],
   ["unit_tests/session/tests/login_auxiliary_persistence/carried_readiness.rs::carried_obtain_readiness_requires_both_queries_and_coherent_rows", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/login_auxiliary_persistence/complete_item_save.rs::canonical_login_items_roundtrip_full_payload_through_full_save_ack", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "save_current_player_to_db_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/login_auxiliary_persistence/complete_item_save.rs::loaded_ankh_debit_uses_full_save_dto_and_only_applied_ack_clears_dirty_state", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "save_current_player_to_db_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/login_auxiliary_persistence/complete_item_save.rs::incomplete_item_save_inputs_keep_coherent_carried_load_but_reject_reagents", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/login_auxiliary_persistence/complete_item_save.rs::login_refund_repair_and_refundable_before_bop_precedence_apply_to_bag_children", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/login_auxiliary_persistence/complete_item_save.rs::login_bop_allowlist_registers_only_with_known_template_and_complete_owner", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/login_auxiliary_persistence/durability_save.rs::populated_login_loss_map_drain_and_partial_save_preserve_unrepresented_item_fields", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "apply_represented_durability_loss_all_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/session/tests/login_auxiliary_persistence/spell_history.rs::spell_history_loads_preserve_cpp_order_expiry_and_charge_aggregation", "W", "wow-world", "wow-world-spell", "W-multi-domain", true, true, false, ["wow-world-character", "wow-world-lifecycle"], []],
   ["unit_tests/session/tests/login_auxiliary_persistence/spell_history.rs::spell_history_cooldown_failure_does_not_suppress_independent_charges_like_cpp", "W", "wow-world", "wow-world-spell", "W-multi-domain", true, true, false, ["wow-world-character", "wow-world-lifecycle"], []],

@@ -9,11 +9,11 @@ use std::sync::Arc;
 use wow_constants::{InventoryType, ItemContext, ItemFieldFlags, ItemUpdateState};
 use wow_persistence::{
     PersistenceOutcomeLikeCpp, PlayerBagInventoryLoadRowLikeCpp,
-    PlayerEquipmentInventoryLoadRowLikeCpp,
-    PlayerInventoryItemLoadPayload, PlayerInventoryItemLoadRowLikeCpp, PlayerItemGemSaveLikeCpp,
-    PlayerItemSaveStateLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerEquipmentInventoryLoadRowLikeCpp, PlayerInventoryItemLoadPayload,
+    PlayerInventoryItemLoadRowLikeCpp, PlayerItemGemSaveLikeCpp, PlayerItemSaveStateLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
     PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairActionLikeCpp,
-    PlayerLoginItemRepairRequestLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginItemRepairRequestLikeCpp,
 };
 
 fn payload(
@@ -67,56 +67,60 @@ fn install_catalogs(
     item_effects_known: bool,
 ) {
     session.set_item_store(Arc::new(wow_data::ItemStore::from_records(
-        entries.iter().map(|&(id, inventory_type, _, _, _)| wow_data::ItemRecord {
-            id,
-            class_id: if inventory_type == InventoryType::Bag as i8 {
-                1
-            } else {
-                4
-            },
-            subclass_id: 0,
-            material: 0,
-            inventory_type,
-            sheathe_type: 0,
-            random_select: 0,
-            random_suffix_group_id: 0,
-            scaling_stat_distribution_id: 0,
-            scaling_stat_value: 0,
-        }),
+        entries
+            .iter()
+            .map(|&(id, inventory_type, _, _, _)| wow_data::ItemRecord {
+                id,
+                class_id: if inventory_type == InventoryType::Bag as i8 {
+                    1
+                } else {
+                    4
+                },
+                subclass_id: 0,
+                material: 0,
+                inventory_type,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
+            }),
     )));
     session.set_item_stats_store(Arc::new(wow_data::ItemStatsStore::from_sparse_templates(
-        entries.iter().map(|&(id, inventory_type, slots, stackable, durability)| {
-            (
-                id,
-                wow_data::ItemSparseTemplateEntry {
-                    flags: [0; 4],
-                    bag_family: 0,
-                    start_quest_id: 0,
-                    stackable,
-                    max_count: 0,
-                    lock_id: 0,
-                    required_reputation_rank: 0,
-                    sell_price: 0,
-                    buy_price: 0,
-                    vendor_stack_count: 1,
-                    price_variance: 1.0,
-                    price_random_value: 0.0,
-                    max_durability: durability,
-                    other_faction_item_id: 0,
-                    content_tuning_id: 0,
-                    player_level_to_item_level_curve_id: 0,
-                    limit_category: 0,
-                    instance_bound: 0,
-                    zone_bound: [0; 2],
-                    required_reputation_faction: 0,
-                    allowable_class: -1,
-                    required_expansion: 0,
-                    bonding: 0,
-                    container_slots: slots,
-                    inventory_type,
-                },
-            )
-        }),
+        entries
+            .iter()
+            .map(|&(id, inventory_type, slots, stackable, durability)| {
+                (
+                    id,
+                    wow_data::ItemSparseTemplateEntry {
+                        flags: [0; 4],
+                        bag_family: 0,
+                        start_quest_id: 0,
+                        stackable,
+                        max_count: 0,
+                        lock_id: 0,
+                        required_reputation_rank: 0,
+                        sell_price: 0,
+                        buy_price: 0,
+                        vendor_stack_count: 1,
+                        price_variance: 1.0,
+                        price_random_value: 0.0,
+                        max_durability: durability,
+                        other_faction_item_id: 0,
+                        content_tuning_id: 0,
+                        player_level_to_item_level_curve_id: 0,
+                        limit_category: 0,
+                        instance_bound: 0,
+                        zone_bound: [0; 2],
+                        required_reputation_faction: 0,
+                        allowable_class: -1,
+                        required_expansion: 0,
+                        bonding: 0,
+                        container_slots: slots,
+                        inventory_type,
+                    },
+                )
+            }),
     )));
     if item_effects_known {
         session.set_item_effect_store(Arc::new(wow_data::ItemEffectStore::from_entries(
@@ -186,14 +190,10 @@ async fn load_rows(
     ]);
     port.set_repair_outcome(repair_outcome);
     let lifecycle_port: Arc<dyn PlayerLifecyclePortLikeCpp> = port.clone();
-    let snapshot = wow_world_character::load_inventory_for_login_like_cpp(
-        session,
-        &lifecycle_port,
-        owner,
-        1,
-    )
-    .await
-    .expect("the production login snapshot remains available");
+    let snapshot =
+        wow_world_character::load_inventory_for_login_like_cpp(session, &lifecycle_port, owner, 1)
+            .await
+            .expect("the production login snapshot remains available");
     (snapshot, port)
 }
 
@@ -299,9 +299,11 @@ async fn canonical_login_items_roundtrip_full_payload_through_full_save_ack() {
     session
         .core
         .with_owned_player_mut_like_cpp(|player| {
-            assert!(player
-                .inventory_runtime_like_cpp()
-                .equipment_inventory_authority_complete_like_cpp());
+            assert!(
+                player
+                    .inventory_runtime_like_cpp()
+                    .equipment_inventory_authority_complete_like_cpp()
+            );
             assert_eq!(
                 player.get_item_by_pos(wow_entities::INVENTORY_SLOT_BAG_0, 35),
                 Some(top_guid)
@@ -311,11 +313,26 @@ async fn canonical_login_items_roundtrip_full_payload_through_full_save_ack() {
                 Some(child_guid)
             );
             let items = player.inventory_runtime_like_cpp().item_objects();
-            assert!(items[&bag_guid].text().is_empty(), "a proven SQL NULL text hydrates as empty");
-            assert_eq!(items[&top_guid].data().creator, wow_core::ObjectGuid::create_player(1, 60_001));
-            assert_eq!(items[&child_guid].data().creator, wow_core::ObjectGuid::create_item(1, 60_003));
-            assert_eq!(items[&top_guid].data().gift_creator, wow_core::ObjectGuid::create_player(1, 60_002));
-            assert_eq!(items[&child_guid].data().gift_creator, wow_core::ObjectGuid::create_player(1, 60_004));
+            assert!(
+                items[&bag_guid].text().is_empty(),
+                "a proven SQL NULL text hydrates as empty"
+            );
+            assert_eq!(
+                items[&top_guid].data().creator,
+                wow_core::ObjectGuid::create_player(1, 60_001)
+            );
+            assert_eq!(
+                items[&child_guid].data().creator,
+                wow_core::ObjectGuid::create_item(1, 60_003)
+            );
+            assert_eq!(
+                items[&top_guid].data().gift_creator,
+                wow_core::ObjectGuid::create_player(1, 60_002)
+            );
+            assert_eq!(
+                items[&child_guid].data().gift_creator,
+                wow_core::ObjectGuid::create_player(1, 60_004)
+            );
         })
         .unwrap();
     let debit_plan = session
@@ -325,17 +342,20 @@ async fn canonical_login_items_roundtrip_full_payload_through_full_save_ack() {
         })
         .unwrap()
         .expect("complete production login hydration authorizes the canonical debit plan");
-    assert!(session
-        .core
-        .with_owned_player_mut_like_cpp(|player| {
-            player.apply_spell_cast_resource_debits_like_cpp(&debit_plan)
-        })
-        .unwrap()
-        .is_some());
-
-    let save_port = crate::session::RecordingPlayerLifecyclePort::new(
-        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    assert!(
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.apply_spell_cast_resource_debits_like_cpp(&debit_plan)
+            })
+            .unwrap()
+            .is_some()
     );
+
+    let save_port =
+        crate::session::RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+            rows: 1,
+        });
     session.set_player_lifecycle_port_like_cpp(save_port.clone());
     crate::player_inventory_test_fixture::complete_known_empty_player_currencies_like_cpp(
         &mut session,
@@ -359,45 +379,130 @@ async fn canonical_login_items_roundtrip_full_payload_through_full_save_ack() {
     assert_eq!(saved.len(), 2);
     let top = saved.iter().find(|item| item.item_guid == 61_001).unwrap();
     assert_eq!(top.state, PlayerItemSaveStateLikeCpp::Changed);
-    assert_eq!((top.item_entry, top.owner_guid, top.count, top.durability), (41_001, owner.counter() as u64, 2, 31));
+    assert_eq!(
+        (top.item_entry, top.owner_guid, top.count, top.durability),
+        (41_001, owner.counter() as u64, 2, 31)
+    );
     assert_eq!((top.creator_guid, top.gift_creator_guid), (60_001, 60_002));
     assert_eq!(top.text, "backpack inscription");
-    assert_eq!((top.battle_pet_species_id, top.battle_pet_breed_data, top.battle_pet_level, top.battle_pet_display_id), (11, 22, 33, 44));
-    assert_eq!(top.transmog, Some([
-        11, 12, 13, 14, 15, 16, 21, 22, 23, 24, 25, 26, 31, 32, 33, 34, 35, 36,
-    ]));
-    assert_eq!((top.bag_guid, top.slot, top.context, top.played_time), (0, 35, ItemContext::Vendor as u8, 44));
-    assert_eq!((top.expiration, top.random_properties_id, top.property_seed, top.dynamic_flags, top.wrapped), (0, 0, 0, 0, false));
+    assert_eq!(
+        (
+            top.battle_pet_species_id,
+            top.battle_pet_breed_data,
+            top.battle_pet_level,
+            top.battle_pet_display_id
+        ),
+        (11, 22, 33, 44)
+    );
+    assert_eq!(
+        top.transmog,
+        Some([
+            11, 12, 13, 14, 15, 16, 21, 22, 23, 24, 25, 26, 31, 32, 33, 34, 35, 36,
+        ])
+    );
+    assert_eq!(
+        (top.bag_guid, top.slot, top.context, top.played_time),
+        (0, 35, ItemContext::Vendor as u8, 44)
+    );
+    assert_eq!(
+        (
+            top.expiration,
+            top.random_properties_id,
+            top.property_seed,
+            top.dynamic_flags,
+            top.wrapped
+        ),
+        (0, 0, 0, 0, false)
+    );
 
     let child = saved.iter().find(|item| item.item_guid == 61_003).unwrap();
     assert_eq!(child.state, PlayerItemSaveStateLikeCpp::Changed);
-    assert_eq!((child.item_entry, child.owner_guid, child.count, child.durability), (41_003, owner.counter() as u64, 1, 27));
-    assert_eq!((child.creator_guid, child.gift_creator_guid), (60_003, 60_004));
+    assert_eq!(
+        (
+            child.item_entry,
+            child.owner_guid,
+            child.count,
+            child.durability
+        ),
+        (41_003, owner.counter() as u64, 1, 27)
+    );
+    assert_eq!(
+        (child.creator_guid, child.gift_creator_guid),
+        (60_003, 60_004)
+    );
     assert_eq!(child.text, "bag inscription");
-    assert_eq!((child.battle_pet_species_id, child.battle_pet_breed_data, child.battle_pet_level, child.battle_pet_display_id), (51, 52, 53, 54));
-    assert_eq!(child.transmog, Some([
-        101, 102, 103, 104, 105, 106, 201, 202, 203, 204, 205, 206, 301, 302, 303, 304, 305, 306,
-    ]));
-    assert_eq!((child.bag_guid, child.slot, child.context, child.played_time), (bag_guid.counter() as u64, 2, ItemContext::Vendor as u8, 55));
+    assert_eq!(
+        (
+            child.battle_pet_species_id,
+            child.battle_pet_breed_data,
+            child.battle_pet_level,
+            child.battle_pet_display_id
+        ),
+        (51, 52, 53, 54)
+    );
+    assert_eq!(
+        child.transmog,
+        Some([
+            101, 102, 103, 104, 105, 106, 201, 202, 203, 204, 205, 206, 301, 302, 303, 304, 305,
+            306,
+        ])
+    );
+    assert_eq!(
+        (child.bag_guid, child.slot, child.context, child.played_time),
+        (bag_guid.counter() as u64, 2, ItemContext::Vendor as u8, 55)
+    );
     assert_eq!(child.enchantments, enchantments_string(990, 3_600, 2));
     assert_eq!(child.dynamic_flags, item_flags(ItemFieldFlags::CHILD));
     assert_eq!(child.charges, "7 ");
     assert_eq!(
         child.gems,
         Some([
-            PlayerItemGemSaveLikeCpp { item_id: 4_050, bonus_list_ids: "710 711 ".to_owned(), context: 3 },
-            PlayerItemGemSaveLikeCpp { item_id: 0, bonus_list_ids: String::new(), context: 0 },
-            PlayerItemGemSaveLikeCpp { item_id: 0, bonus_list_ids: String::new(), context: 0 },
+            PlayerItemGemSaveLikeCpp {
+                item_id: 4_050,
+                bonus_list_ids: "710 711 ".to_owned(),
+                context: 3
+            },
+            PlayerItemGemSaveLikeCpp {
+                item_id: 0,
+                bonus_list_ids: String::new(),
+                context: 0
+            },
+            PlayerItemGemSaveLikeCpp {
+                item_id: 0,
+                bonus_list_ids: String::new(),
+                context: 0
+            },
         ])
     );
-    assert!(snapshot.item_creates.iter().any(|create| create.item_guid == child_guid && create.dynamic_flags == item_flags(ItemFieldFlags::CHILD)));
+    assert!(
+        snapshot
+            .item_creates
+            .iter()
+            .any(|create| create.item_guid == child_guid
+                && create.dynamic_flags == item_flags(ItemFieldFlags::CHILD))
+    );
     session
         .core
         .with_owned_player_like_cpp(|player| {
-            assert_eq!(player.inventory_runtime_like_cpp().item_objects()[&top_guid].update_state(), ItemUpdateState::Unchanged);
-            assert_eq!(player.inventory_runtime_like_cpp().item_objects()[&child_guid].update_state(), ItemUpdateState::Unchanged);
-            assert_eq!(player.get_item_by_pos(wow_entities::INVENTORY_SLOT_BAG_START, 2), Some(child_guid));
-            assert_eq!(player.get_item_by_pos(wow_entities::INVENTORY_SLOT_BAG_0, wow_entities::INVENTORY_SLOT_BAG_START), Some(bag_guid));
+            assert_eq!(
+                player.inventory_runtime_like_cpp().item_objects()[&top_guid].update_state(),
+                ItemUpdateState::Unchanged
+            );
+            assert_eq!(
+                player.inventory_runtime_like_cpp().item_objects()[&child_guid].update_state(),
+                ItemUpdateState::Unchanged
+            );
+            assert_eq!(
+                player.get_item_by_pos(wow_entities::INVENTORY_SLOT_BAG_START, 2),
+                Some(child_guid)
+            );
+            assert_eq!(
+                player.get_item_by_pos(
+                    wow_entities::INVENTORY_SLOT_BAG_0,
+                    wow_entities::INVENTORY_SLOT_BAG_START
+                ),
+                Some(bag_guid)
+            );
         })
         .unwrap();
 }
@@ -407,10 +512,30 @@ async fn loaded_ankh_debit_uses_full_save_dto_and_only_applied_ack_clears_dirty_
     for (initial_count, outcome) in [
         (10, PersistenceOutcomeLikeCpp::Applied { rows: 1 }),
         (1, PersistenceOutcomeLikeCpp::Applied { rows: 1 }),
-        (10, PersistenceOutcomeLikeCpp::Failed { reason: "controlled failure".into() }),
-        (1, PersistenceOutcomeLikeCpp::Failed { reason: "controlled failure".into() }),
-        (10, PersistenceOutcomeLikeCpp::Unknown { reason: "controlled unknown commit".into() }),
-        (1, PersistenceOutcomeLikeCpp::Unknown { reason: "controlled unknown commit".into() }),
+        (
+            10,
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "controlled failure".into(),
+            },
+        ),
+        (
+            1,
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "controlled failure".into(),
+            },
+        ),
+        (
+            10,
+            PersistenceOutcomeLikeCpp::Unknown {
+                reason: "controlled unknown commit".into(),
+            },
+        ),
+        (
+            1,
+            PersistenceOutcomeLikeCpp::Unknown {
+                reason: "controlled unknown commit".into(),
+            },
+        ),
     ] {
         let (mut session, _, _) = make_session();
         let owner = install_canonical_player_owner_for_test(&mut session, 571, 0);
@@ -431,16 +556,23 @@ async fn loaded_ankh_debit_uses_full_save_dto_and_only_applied_ack_clears_dirty_
         session
             .core
             .with_owned_player_mut_like_cpp(|player| {
-                assert!(player
-                    .inventory_runtime_like_cpp()
-                    .equipment_inventory_authority_complete_like_cpp());
+                assert!(
+                    player
+                        .inventory_runtime_like_cpp()
+                        .equipment_inventory_authority_complete_like_cpp()
+                );
                 assert_eq!(
                     player.get_item_by_pos(wow_entities::INVENTORY_SLOT_BAG_0, 35),
                     Some(item_guid)
                 );
             })
             .unwrap();
-        assert!(snapshot.item_creates.iter().any(|item| item.item_guid == item_guid));
+        assert!(
+            snapshot
+                .item_creates
+                .iter()
+                .any(|item| item.item_guid == item_guid)
+        );
         crate::player_inventory_test_fixture::complete_known_empty_player_currencies_like_cpp(
             &mut session,
         );
@@ -465,25 +597,35 @@ async fn loaded_ankh_debit_uses_full_save_dto_and_only_applied_ack_clears_dirty_
             })
             .unwrap();
         assert!(applied.is_some());
-        assert!(session
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.apply_spell_cast_resource_debits_like_cpp(&plan)
-            })
-            .unwrap()
-            .is_none(), "the same immutable plan cannot be applied twice");
+        assert!(
+            session
+                .core
+                .with_owned_player_mut_like_cpp(|player| {
+                    player.apply_spell_cast_resource_debits_like_cpp(&plan)
+                })
+                .unwrap()
+                .is_none(),
+            "the same immutable plan cannot be applied twice"
+        );
 
         let save_port = crate::session::RecordingPlayerLifecyclePort::new(outcome.clone());
         session.set_player_lifecycle_port_like_cpp(save_port.clone());
         let _ = session.save_current_player_to_db_like_cpp().await;
         let requests = save_port.character_save_requests();
-        let saved = requests[0].inventory_items.as_ref().expect("full save captured the loaded Item");
+        let saved = requests[0]
+            .inventory_items
+            .as_ref()
+            .expect("full save captured the loaded Item");
         assert_eq!(saved.len(), 1);
         assert_eq!(saved[0].item_guid, 70_001);
         assert_eq!(saved[0].count, if initial_count == 10 { 9 } else { 1 });
         assert_eq!(
             saved[0].state,
-            if initial_count == 10 { PlayerItemSaveStateLikeCpp::Changed } else { PlayerItemSaveStateLikeCpp::Removed }
+            if initial_count == 10 {
+                PlayerItemSaveStateLikeCpp::Changed
+            } else {
+                PlayerItemSaveStateLikeCpp::Removed
+            }
         );
 
         let applied_save = matches!(outcome, PersistenceOutcomeLikeCpp::Applied { .. });
@@ -493,10 +635,24 @@ async fn loaded_ankh_debit_uses_full_save_dto_and_only_applied_ack_clears_dirty_
                 let items = player.inventory_runtime_like_cpp().item_objects();
                 if initial_count == 10 {
                     assert_eq!(items[&item_guid].count(), 9);
-                    assert_eq!(items[&item_guid].update_state(), if applied_save { ItemUpdateState::Unchanged } else { ItemUpdateState::Changed });
+                    assert_eq!(
+                        items[&item_guid].update_state(),
+                        if applied_save {
+                            ItemUpdateState::Unchanged
+                        } else {
+                            ItemUpdateState::Changed
+                        }
+                    );
                 } else if applied_save {
-                    assert!(!items.contains_key(&item_guid), "applied tombstone acknowledgement retires the Item");
-                    assert!(player.get_item_by_pos(wow_entities::INVENTORY_SLOT_BAG_0, 35).is_none());
+                    assert!(
+                        !items.contains_key(&item_guid),
+                        "applied tombstone acknowledgement retires the Item"
+                    );
+                    assert!(
+                        player
+                            .get_item_by_pos(wow_entities::INVENTORY_SLOT_BAG_0, 35)
+                            .is_none()
+                    );
                 } else {
                     assert_eq!(items[&item_guid].update_state(), ItemUpdateState::Removed);
                 }
@@ -524,25 +680,59 @@ async fn incomplete_item_save_inputs_keep_coherent_carried_load_but_reject_reage
 
     let cases = [
         ("missing complete payload", InputCase::MissingPayload, false),
-        ("missing ItemEffect catalog", InputCase::MissingEffectCatalog, false),
-        ("missing ItemSparse template", InputCase::MissingItemTemplate, false),
-        ("unrepresentable ItemContext", InputCase::InvalidContext, false),
+        (
+            "missing ItemEffect catalog",
+            InputCase::MissingEffectCatalog,
+            false,
+        ),
+        (
+            "missing ItemSparse template",
+            InputCase::MissingItemTemplate,
+            false,
+        ),
+        (
+            "unrepresentable ItemContext",
+            InputCase::InvalidContext,
+            false,
+        ),
         ("unsigned high-bit gem id", InputCase::HighBitGem, false),
-        ("missing raw enchantment catalog", InputCase::MissingRawEnchantStore, false),
-        ("random-property effective enchantment without enchantment catalog", InputCase::MissingRandomPropertyEnchantStore, false),
-        ("random-suffix effective enchantment without enchantment catalog", InputCase::MissingRandomSuffixEnchantStore, false),
-        ("failed required refund repair", InputCase::FailedRepair, false),
-        ("unknown required refund repair", InputCase::UnknownRepair, false),
-        ("known-absent random-property row", InputCase::KnownAbsentRandomProperty, true),
+        (
+            "missing raw enchantment catalog",
+            InputCase::MissingRawEnchantStore,
+            false,
+        ),
+        (
+            "random-property effective enchantment without enchantment catalog",
+            InputCase::MissingRandomPropertyEnchantStore,
+            false,
+        ),
+        (
+            "random-suffix effective enchantment without enchantment catalog",
+            InputCase::MissingRandomSuffixEnchantStore,
+            false,
+        ),
+        (
+            "failed required refund repair",
+            InputCase::FailedRepair,
+            false,
+        ),
+        (
+            "unknown required refund repair",
+            InputCase::UnknownRepair,
+            false,
+        ),
+        (
+            "known-absent random-property row",
+            InputCase::KnownAbsentRandomProperty,
+            true,
+        ),
     ];
     for (label, case, expected_authority) in cases {
         let (mut session, _, _) = make_session();
         let owner = install_canonical_player_owner_for_test(&mut session, 571, 0);
         install_catalogs(
             &mut session,
-            &[
-                (42_001, InventoryType::NonEquip as i8, 0, 20, 40),
-            ],
+            &[(42_001, InventoryType::NonEquip as i8, 0, 20, 40)],
             !matches!(case, InputCase::MissingEffectCatalog),
         );
         if matches!(case, InputCase::MissingItemTemplate) {
@@ -558,12 +748,17 @@ async fn incomplete_item_save_inputs_keep_coherent_carried_load_but_reject_reage
             InputCase::MissingPayload => loaded.complete_payload = None,
             InputCase::InvalidContext => loaded.context = u8::MAX,
             InputCase::HighBitGem => loaded.gems[0] = (i32::MIN, String::new(), 0),
-            InputCase::MissingRawEnchantStore => loaded.enchantments = enchantments_string(991, 0, 0),
+            InputCase::MissingRawEnchantStore => {
+                loaded.enchantments = enchantments_string(991, 0, 0)
+            }
             InputCase::MissingRandomPropertyEnchantStore => {
                 loaded.random_properties_id = 701;
                 session.set_item_random_properties_store(Arc::new(
                     wow_data::ItemRandomPropertiesStore::from_entries([
-                        wow_data::ItemRandomPropertiesEntry { id: 701, enchantments: [991, 0, 0, 0, 0] },
+                        wow_data::ItemRandomPropertiesEntry {
+                            id: 701,
+                            enchantments: [991, 0, 0, 0, 0],
+                        },
                     ]),
                 ));
             }
@@ -571,7 +766,11 @@ async fn incomplete_item_save_inputs_keep_coherent_carried_load_but_reject_reage
                 loaded.random_properties_id = -702;
                 session.set_item_random_suffix_store(Arc::new(
                     wow_data::ItemRandomSuffixStore::from_entries([
-                        wow_data::ItemRandomSuffixEntry { id: 702, enchantments: [992, 0, 0, 0, 0], allocation_pct: [0; 5] },
+                        wow_data::ItemRandomSuffixEntry {
+                            id: 702,
+                            enchantments: [992, 0, 0, 0, 0],
+                            allocation_pct: [0; 5],
+                        },
                     ]),
                 ));
             }
@@ -590,8 +789,12 @@ async fn incomplete_item_save_inputs_keep_coherent_carried_load_but_reject_reage
             InputCase::MissingEffectCatalog | InputCase::MissingItemTemplate => {}
         }
         let repair_outcome = match case {
-            InputCase::FailedRepair => PersistenceOutcomeLikeCpp::Failed { reason: "repair failed".into() },
-            InputCase::UnknownRepair => PersistenceOutcomeLikeCpp::Unknown { reason: "repair commit unknown".into() },
+            InputCase::FailedRepair => PersistenceOutcomeLikeCpp::Failed {
+                reason: "repair failed".into(),
+            },
+            InputCase::UnknownRepair => PersistenceOutcomeLikeCpp::Unknown {
+                reason: "repair commit unknown".into(),
+            },
             _ => PersistenceOutcomeLikeCpp::Applied { rows: 0 },
         };
         let item_guid = wow_core::ObjectGuid::create_item(1, 72_001);
@@ -607,21 +810,42 @@ async fn incomplete_item_save_inputs_keep_coherent_carried_load_but_reject_reage
             .core
             .with_owned_player_like_cpp(|player| {
                 (
-                    player.inventory_runtime_like_cpp().carried_inventory_loaded_like_cpp(),
-                    player.inventory_runtime_like_cpp().equipment_inventory_authority_complete_like_cpp(),
-                    player.plan_spell_cast_resource_debits_like_cpp(&[(42_001, 1)], &[]).is_some(),
-                    player.inventory_runtime_like_cpp().item_objects().get(&item_guid).map(|item| item.data().random_properties_id),
+                    player
+                        .inventory_runtime_like_cpp()
+                        .carried_inventory_loaded_like_cpp(),
+                    player
+                        .inventory_runtime_like_cpp()
+                        .equipment_inventory_authority_complete_like_cpp(),
+                    player
+                        .plan_spell_cast_resource_debits_like_cpp(&[(42_001, 1)], &[])
+                        .is_some(),
+                    player
+                        .inventory_runtime_like_cpp()
+                        .item_objects()
+                        .get(&item_guid)
+                        .map(|item| item.data().random_properties_id),
                 )
             })
             .unwrap();
         assert!(carried, "{label}: coherent carried topology remains loaded");
         assert_eq!(complete, expected_authority, "{label}");
-        assert_eq!(plan_available, expected_authority, "{label}: planner must follow full-save authority");
+        assert_eq!(
+            plan_available, expected_authority,
+            "{label}: planner must follow full-save authority"
+        );
         if matches!(case, InputCase::KnownAbsentRandomProperty) {
-            assert_eq!(random_id, Some(0), "a row absent from a complete random-property catalog keeps native zero/default behavior");
+            assert_eq!(
+                random_id,
+                Some(0),
+                "a row absent from a complete random-property catalog keeps native zero/default behavior"
+            );
         }
         if matches!(case, InputCase::FailedRepair | InputCase::UnknownRepair) {
-            assert_eq!(port.repair_requests().len(), 1, "{label}: the required repair was submitted");
+            assert_eq!(
+                port.repair_requests().len(),
+                1,
+                "{label}: the required repair was submitted"
+            );
         }
     }
 }
@@ -639,9 +863,8 @@ async fn login_refund_repair_and_refundable_before_bop_precedence_apply_to_bag_c
         ],
         true,
     );
-    let refundable_trade_flags = ItemFieldFlags::SOULBOUND
-        | ItemFieldFlags::REFUNDABLE
-        | ItemFieldFlags::BOP_TRADEABLE;
+    let refundable_trade_flags =
+        ItemFieldFlags::SOULBOUND | ItemFieldFlags::REFUNDABLE | ItemFieldFlags::BOP_TRADEABLE;
     let mut valid_refund = row(43_001, 73_001, 1);
     valid_refund.flags = item_flags(refundable_trade_flags);
     valid_refund.played_time = 3;
@@ -651,8 +874,11 @@ async fn login_refund_repair_and_refundable_before_bop_precedence_apply_to_bag_c
     let mut expired_child = row(43_003, 73_003, 1);
     expired_child.flags = item_flags(refundable_trade_flags);
     expired_child.played_time = 7_201;
-    expired_child.complete_payload.as_mut().unwrap().soulbound_trade_allowed_players =
-        Some("80 81".to_owned());
+    expired_child
+        .complete_payload
+        .as_mut()
+        .unwrap()
+        .soulbound_trade_allowed_players = Some("80 81".to_owned());
     let (snapshot, port) = load_rows(
         &mut session,
         owner,
@@ -660,7 +886,11 @@ async fn login_refund_repair_and_refundable_before_bop_precedence_apply_to_bag_c
             equipment(35, valid_refund),
             equipment(wow_entities::INVENTORY_SLOT_BAG_START, bag_item),
         ],
-        vec![bag(wow_entities::INVENTORY_SLOT_BAG_START, 1, expired_child)],
+        vec![bag(
+            wow_entities::INVENTORY_SLOT_BAG_START,
+            1,
+            expired_child,
+        )],
         PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     )
     .await;
@@ -682,9 +912,11 @@ async fn login_refund_repair_and_refundable_before_bop_precedence_apply_to_bag_c
             assert!(expired.has_item_flag(ItemFieldFlags::BOP_TRADEABLE));
             assert!(expired.soulbound_trade_allowed_guids().is_empty());
             assert!(!player.soulbound_tradeable_items().contains(&child_guid));
-            assert!(player
-                .inventory_runtime_like_cpp()
-                .equipment_inventory_authority_complete_like_cpp());
+            assert!(
+                player
+                    .inventory_runtime_like_cpp()
+                    .equipment_inventory_authority_complete_like_cpp()
+            );
         })
         .unwrap();
     assert_eq!(
@@ -696,7 +928,14 @@ async fn login_refund_repair_and_refundable_before_bop_precedence_apply_to_bag_c
             }],
         }]
     );
-    assert!(snapshot.item_creates.iter().any(|item| item.item_guid == child_guid && item.dynamic_flags == item_flags(ItemFieldFlags::SOULBOUND | ItemFieldFlags::BOP_TRADEABLE)));
+    assert!(
+        snapshot
+            .item_creates
+            .iter()
+            .any(|item| item.item_guid == child_guid
+                && item.dynamic_flags
+                    == item_flags(ItemFieldFlags::SOULBOUND | ItemFieldFlags::BOP_TRADEABLE))
+    );
 }
 
 #[tokio::test]
@@ -711,12 +950,18 @@ async fn login_bop_allowlist_registers_only_with_known_template_and_complete_own
     let flags = item_flags(ItemFieldFlags::SOULBOUND | ItemFieldFlags::BOP_TRADEABLE);
     let mut valid = row(44_001, 74_001, 1);
     valid.flags = flags;
-    valid.complete_payload.as_mut().unwrap().soulbound_trade_allowed_players =
-        Some("5001 5002 5001".to_owned());
+    valid
+        .complete_payload
+        .as_mut()
+        .unwrap()
+        .soulbound_trade_allowed_players = Some("5001 5002 5001".to_owned());
     let mut unknown = row(44_002, 74_002, 1);
     unknown.flags = flags;
-    unknown.complete_payload.as_mut().unwrap().soulbound_trade_allowed_players =
-        Some("6001 6002".to_owned());
+    unknown
+        .complete_payload
+        .as_mut()
+        .unwrap()
+        .soulbound_trade_allowed_players = Some("6001 6002".to_owned());
     let (snapshot, port) = load_rows(
         &mut session,
         owner,
@@ -740,14 +985,39 @@ async fn login_bop_allowlist_registers_only_with_known_template_and_complete_own
                 ])
             );
             assert!(player.soulbound_tradeable_items().contains(&valid_guid));
-            assert!(items[&unknown_guid].is_bop_tradeable(), "unknown template preserves the persisted flag");
-            assert!(items[&unknown_guid].soulbound_trade_allowed_guids().is_empty());
+            assert!(
+                items[&unknown_guid].is_bop_tradeable(),
+                "unknown template preserves the persisted flag"
+            );
+            assert!(
+                items[&unknown_guid]
+                    .soulbound_trade_allowed_guids()
+                    .is_empty()
+            );
             assert!(!player.soulbound_tradeable_items().contains(&unknown_guid));
-            assert!(player.inventory_runtime_like_cpp().carried_inventory_loaded_like_cpp());
-            assert!(!player.inventory_runtime_like_cpp().equipment_inventory_authority_complete_like_cpp());
+            assert!(
+                player
+                    .inventory_runtime_like_cpp()
+                    .carried_inventory_loaded_like_cpp()
+            );
+            assert!(
+                !player
+                    .inventory_runtime_like_cpp()
+                    .equipment_inventory_authority_complete_like_cpp()
+            );
         })
         .unwrap();
-    assert!(snapshot.item_creates.iter().any(|item| item.item_guid == valid_guid && item.dynamic_flags & flags == flags));
-    assert!(snapshot.item_creates.iter().any(|item| item.item_guid == unknown_guid && item.dynamic_flags & flags == flags));
+    assert!(
+        snapshot
+            .item_creates
+            .iter()
+            .any(|item| item.item_guid == valid_guid && item.dynamic_flags & flags == flags)
+    );
+    assert!(
+        snapshot
+            .item_creates
+            .iter()
+            .any(|item| item.item_guid == unknown_guid && item.dynamic_flags & flags == flags)
+    );
     assert!(port.repair_requests().is_empty());
 }
