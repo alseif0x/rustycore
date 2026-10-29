@@ -640,15 +640,15 @@ async fn selected_wisp_charge_generation_uses_transform_proc_metadata() {
 }
 
 #[tokio::test]
-async fn selected_charge_refresh_uses_original_key_and_ignores_fresh_modifier_failure() {
+async fn selected_charge_refresh_preserves_original_key_after_modifier_absence_proof() {
     let (mut session, _send_rx, player_guid) = selected_sickness_session(
         45_301,
         0,
         0,
         vec![difficulty(0, 3), difficulty(3, 0), difficulty(4, 3)],
         &[
-            (0, 0x88, IGNORE_CASTER_MODIFIERS),
-            (3, 0x88, IGNORE_CASTER_MODIFIERS),
+            (0, 0x88, 0),
+            (3, 0x88, 0),
             (4, 0x88, 0),
         ],
     )
@@ -684,6 +684,10 @@ async fn selected_charge_refresh_uses_original_key_and_ignores_fresh_modifier_fa
         },
     ])));
     assert!(install_generated_proc_store(&mut session) >= 2);
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
+        &mut session,
+        true,
+    ));
 
     let spell_store = session.catalogs.spell_store().expect("selected SpellStore");
     for difficulty_id in [0, 3, 4] {
@@ -710,17 +714,17 @@ async fn selected_charge_refresh_uses_original_key_and_ignores_fresh_modifier_fa
     let _packet_peer = keep_recovery_input_open(&mut session);
     cast_full_sickness(&mut session, player_guid, None)
         .await
-        .expect("initial selected sickness uses the ignored-modifier Info");
+        .expect("self-cast sickness proves its nonzero class mask has no active modifier");
     assert_eq!(application_charge(&session), (0, 5));
     install_player_on_difficulty_map(&mut session, 4);
     cast_full_sickness(&mut session, player_guid, None)
         .await
-        .expect("matching refresh keeps working after fresh modifier admission fails");
+        .expect("matching refresh retains the original aura after the absence proof");
 
     assert_eq!(
         application_charge(&session),
         (0, 5),
-        "refresh looks up charges from its stored raw difficulty, not the new cast's key"
+        "refresh preserves charges from the aura's original selected key"
     );
 }
 

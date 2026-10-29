@@ -99,7 +99,10 @@ Step 1 implementation contract: retain the metadata-only absence fast path;
 when it cannot exclude modifiers, a self-cast may consult the complete,
 untombstoned canonical Player aura applications. Resolve active source effects
 at their own selected difficulty and check `ProcCharges` (operation 4), native
-family/mask matching (107/108), and label matching (218). Only demonstrated
+family/mask matching (107/108), and label matching (218). Family matching reads
+the modifier spell at the target SpellInfo difficulty (`SpellInfo.cpp:1794`);
+its active mask/operation still come from the source aura. Area-aura effects
+are not excluded merely because their effect opcode is not APPLY_AURA. Only demonstrated
 absence admits the existing charge calculation. Matching modifiers, unknown
 source effects, incomplete authority and an unresolved foreign caster remain
 explicit errors; do not use the target's applications as a foreign caster's.
@@ -110,12 +113,35 @@ This extends a bounded absence proof; it does not claim the general SpellMod
 engine is implemented. Required live cases must establish whether any further
 applicable modifier is an actual dependency of this lifecycle.
 
+Step 1 is implemented and UNVALIDATED. The selected-creation caller now consults
+the existing canonical Player aura snapshot only after a potential-modifier
+rejection. Unit cases cover applicable flat/percent/label and area-aura modifiers,
+irrelevant operations/masks/families, source/target difficulty differences and
+unknown or incomplete authority. The production sickness test now casts without
+the ignore-modifiers attribute and retains original-key charges on refresh.
+Parent diff review corrected test aura-type constants before execution. The
+expanded charge-test file remains below 2,000 lines; its next natural split is
+the active-modifier fixtures/cases if that responsibility grows further.
+
 Step 2 SQL/DTO unit is implemented and UNVALIDATED: equipment and bag queries
 append the missing item payload; both decode through existing native-width
 field getters. Missing/malformed fields retain incomplete authority. Four new
 decoder/projection tests are written but unrun. Canonical hydration and authority
 enabling are still pending. The parent corrected an owned-string lifetime in
 the SQL projection test during diff review, before any compiler run.
+
+Step 2 hydration contract: materialize the appended payload on each existing
+canonical Item before collection hooks, visible-field derivation and insertion;
+retain native creator GUID kind and all distinct modifiers. Reuse the existing
+refund decision/repair path for bag rows as well as top-level rows. Validate BOP
+trade data with the native refundable/BOP branch order and register valid
+tradeable items with the existing Player owner. Grant full item authority only
+after both successful row families, complete payloads/effective item catalogs,
+successful required load repairs, coherent carried topology and unchanged Player
+incarnation. Empty equipment alone is insufficient when the bag load failed.
+Partial loads retain their existing bounded durability path. No change to
+resource-debit ordering, full-save SQL/transaction or acknowledgement semantics
+is authorized by this hydration unit.
 
 Explicit load/save contract for one reference defect: pinned
 `CharacterDatabase.cpp:30` selects primary `itemModifiedAppearanceSpec5` twice,
@@ -128,10 +154,18 @@ claimed as byte parity for that divergent transmog case or as completion of the
 transmog product. Distinct primary/secondary values are retained by the decoder
 test and must survive the integrated load/save round-trip test.
 
-Status: steps 1–2 in progress; no new acceptance claimed.
+Status: step 1 implemented; step 2 canonical hydration and step 3 integrated
+evidence remain in progress. No new acceptance claimed.
 One bounded worker at a time; the parent owns decisions, review, Git and all
 heavy/runtime scheduling. No broad inventory/spell rewrite, unrelated architecture
 audit, extra macro-issues or repeated unchanged campaigns are part of this plan.
+
+Acceptance preparation reclaimed 10,312 MiB from 93 superseded pre-October-29
+incremental variants for six crates rebuilt by the current accepted campaigns.
+Every current-day variant, binary, dependency artifact, capture and manifest was
+preserved. The exclusive host lock and process/open-descriptor checks preceded
+cleanup. Free space increased to 12.75 GiB; recheck before building. Record:
+`/tmp/rustycore43-inactive-incremental-02acjlep.json`.
 
 **#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
 Latest accepted local code candidate: `6dc547c98`. Rust fall/release attempt 8

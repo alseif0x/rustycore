@@ -1,16 +1,36 @@
-use super::{selected_aura_max_charges, validate_selected_aura_modifier_absence};
+use std::time::Instant;
+
+use super::{
+    selected_aura_max_charges, validate_selected_aura_modifier_absence,
+    validate_selected_aura_modifier_absence_from_player_auras,
+};
+use wow_core::ObjectGuid;
 use wow_data::{
     DifficultyEntry, DifficultyStore, SpellAuraOptionsEntry, SpellAuraOptionsStore,
     SpellClassOptionsEntry, SpellClassOptionsStore, SpellLabelEntry, SpellLabelStore,
+    ServersideSpellEffectKeyLikeCpp, ServersideSpellEffectLikeCpp, ServersideSpellInfoLikeCpp,
+    ServersideSpellRowLikeCpp, ServersideSpellStoreLikeCpp, SpellStore,
     spell::{
         ImplicitSpellProcEffectLikeCpp, ImplicitSpellProcSourceLikeCpp, SpellProcRowLikeCpp,
         SpellProcSourceSpellInfoLikeCpp, SpellProcStoreLikeCpp as ProcStore,
-        aura_types::SPELL_AURA_PROC_TRIGGER_SPELL,
+        aura_types::{
+            SPELL_AURA_ADD_FLAT_MODIFIER, SPELL_AURA_ADD_PCT_MODIFIER,
+            SPELL_AURA_PROC_TRIGGER_SPELL,
+        },
+        spell_effect_types::{
+            SPELL_EFFECT_APPLY_AREA_AURA_PARTY, SPELL_EFFECT_APPLY_AURA,
+        },
     },
 };
+use wow_entities::{AuraApplicationLikeCpp, AuraSubsystem};
 
 const SPELL_ID: u32 = 82_041;
 const OTHER_SPELL_ID: u32 = 82_042;
+const MODIFIER_SPELL_ID: u32 = 82_043;
+
+fn player_guid() -> ObjectGuid {
+    ObjectGuid::create_player(1, 82_044)
+}
 
 fn difficulty(id: u32, fallback_difficulty_id: u8) -> DifficultyEntry {
     DifficultyEntry {
@@ -585,4 +605,627 @@ fn unresolved_class_or_label_metadata_is_an_error_not_modifier_absence() {
         )
         .is_err()
     );
+}
+
+fn modifier_effect(
+    index: i32,
+    difficulty_id: u8,
+    effect_type: i32,
+    aura_type: i32,
+    operation: i32,
+    label: i32,
+    class_mask: [u32; 4],
+) -> ServersideSpellEffectLikeCpp {
+    ServersideSpellEffectLikeCpp {
+        effect_index: index,
+        difficulty_id: u32::from(difficulty_id),
+        effect: effect_type,
+        effect_aura: aura_type,
+        effect_amplitude: 0.0,
+        effect_attributes: 0,
+        effect_aura_period: 0,
+        effect_bonus_coefficient: 0.0,
+        effect_chain_amplitude: 0.0,
+        effect_chain_targets: 0,
+        effect_item_type: 0,
+        effect_mechanic: 0,
+        effect_points_per_resource: 0.0,
+        effect_pos_facing: 0.0,
+        effect_real_points_per_level: 0.0,
+        effect_trigger_spell: 0,
+        bonus_coefficient_from_ap: 0.0,
+        pvp_multiplier: 0.0,
+        coefficient: 0.0,
+        variance: 0.0,
+        resource_coefficient: 0.0,
+        group_size_base_points_coefficient: 0.0,
+        effect_base_points: 0,
+        effect_misc_value: [operation, label],
+        effect_radius_index: [0; 2],
+        effect_spell_class_mask: class_mask.map(|word| word as i32),
+        implicit_target: [0; 2],
+    }
+}
+
+fn server_info(
+    spell_id: u32,
+    difficulty_id: u8,
+    family: u32,
+    effects: Vec<ServersideSpellEffectLikeCpp>,
+) -> (ServersideSpellEffectKeyLikeCpp, ServersideSpellInfoLikeCpp) {
+    let row = ServersideSpellRowLikeCpp {
+        spell_id,
+        difficulty_id: u32::from(difficulty_id),
+        category_id: 0,
+        dispel: 0,
+        mechanic: 0,
+        attributes: 0,
+        attributes_ex: [0; 14],
+        stances: 0,
+        stances_not: 0,
+        targets: 0,
+        target_creature_type: 0,
+        requires_spell_focus: 0,
+        facing_caster_flags: 0,
+        caster_aura_state: 0,
+        target_aura_state: 0,
+        exclude_caster_aura_state: 0,
+        exclude_target_aura_state: 0,
+        caster_aura_spell: 0,
+        target_aura_spell: 0,
+        exclude_caster_aura_spell: 0,
+        exclude_target_aura_spell: 0,
+        caster_aura_type: 0,
+        target_aura_type: 0,
+        exclude_caster_aura_type: 0,
+        exclude_target_aura_type: 0,
+        casting_time_index: 0,
+        recovery_time: 0,
+        category_recovery_time: 0,
+        start_recovery_category: 0,
+        start_recovery_time: 0,
+        interrupt_flags: 0,
+        aura_interrupt_flags: [0; 2],
+        channel_interrupt_flags: [0; 2],
+        proc_flags: [0; 2],
+        proc_chance: 0,
+        proc_charges: 0,
+        proc_cooldown: 0,
+        proc_base_ppm: 0.0,
+        max_level: 0,
+        base_level: 0,
+        spell_level: 0,
+        duration_index: 0,
+        range_index: 0,
+        speed: 0.0,
+        launch_delay: 0.0,
+        stack_amount: 0,
+        equipped_item_class: 0,
+        equipped_item_sub_class_mask: 0,
+        equipped_item_inventory_type_mask: 0,
+        content_tuning_id: 0,
+        spell_name: String::new(),
+        cone_angle: 0.0,
+        cone_width: 0.0,
+        max_target_level: 0,
+        max_affected_targets: 0,
+        spell_family_name: family,
+        spell_family_flags: [0; 4],
+        dmg_class: 0,
+        prevention_type: 0,
+        area_group_id: 0,
+        school_mask: 0,
+        charge_category_id: 0,
+    };
+    (
+        ServersideSpellEffectKeyLikeCpp {
+            spell_id,
+            difficulty_id: u32::from(difficulty_id),
+        },
+        ServersideSpellInfoLikeCpp { row, effects },
+    )
+}
+
+fn server_store(
+    entries: impl IntoIterator<
+        Item = (u32, u8, u32, Vec<ServersideSpellEffectLikeCpp>),
+    >,
+) -> ServersideSpellStoreLikeCpp {
+    let mut store = ServersideSpellStoreLikeCpp::default();
+    for (spell_id, difficulty_id, family, effects) in entries {
+        let (key, info) = server_info(spell_id, difficulty_id, family, effects);
+        store.spell_infos_by_spell_and_difficulty.insert(key, info);
+    }
+    store
+}
+
+fn active_aura(spell_id: u32, difficulty_id: u8, effect_mask: u32) -> AuraApplicationLikeCpp {
+    AuraApplicationLikeCpp {
+        spell_id: spell_id as i32,
+        difficulty_id,
+        caster_guid: ObjectGuid::create_player(1, 82_045),
+        slot: 0,
+        duration_total: 60_000,
+        duration_remaining: 60_000,
+        stack_count: 1,
+        aura_flags: 0,
+        effect_mask,
+        aura_interrupt_flags: 0,
+        aura_interrupt_flags2: 0,
+        represented_effect: None,
+        represented_amount: 0,
+        represented_effect_amounts: Vec::new(),
+        represented_misc_value: None,
+        represented_multiplier: 1.0,
+        applied_at: Instant::now(),
+    }
+}
+
+fn aura_snapshot(
+    applications: impl IntoIterator<Item = AuraApplicationLikeCpp>,
+    complete: bool,
+    tombstoned: bool,
+) -> AuraSubsystem {
+    let mut auras = AuraSubsystem::default();
+    for application in applications {
+        auras.insert_runtime_application_like_cpp(application);
+    }
+    auras.set_persisted_player_aura_authority_complete_like_cpp(complete);
+    if tombstoned {
+        auras.tombstone_spell_hit_aura_authority_like_cpp();
+    }
+    auras
+}
+
+fn validate_with_auras(
+    auras: Option<&AuraSubsystem>,
+    caster_guid: ObjectGuid,
+    actual_difficulty: u8,
+    target_family: u8,
+    target_flags: [u32; 4],
+    target_labels: &[u32],
+    server_spells: Option<&ServersideSpellStoreLikeCpp>,
+    difficulties: Option<&DifficultyStore>,
+) -> Result<(), &'static str> {
+    let classes = SpellClassOptionsStore::from_entries([SpellClassOptionsEntry {
+        id: 90_001,
+        spell_id: SPELL_ID as i32,
+        modal_next_spell: 0,
+        spell_class_set: target_family,
+        spell_class_mask: target_flags,
+    }]);
+    let labels = SpellLabelStore::from_entries(
+        target_labels
+            .iter()
+            .enumerate()
+            .map(|(index, &label_id)| label_row(90_010 + index as u32, SPELL_ID, label_id)),
+    );
+    validate_selected_aura_modifier_absence_from_player_auras(
+        SPELL_ID,
+        actual_difficulty,
+        [0; 15],
+        caster_guid,
+        player_guid(),
+        Some(&classes),
+        Some(&labels),
+        difficulties,
+        Some(&SpellStore::new()),
+        server_spells,
+        auras,
+    )
+}
+
+#[test]
+fn complete_self_aura_snapshot_proves_nonzero_target_mask_absent_and_keeps_charges() {
+    let auras = aura_snapshot([], true, false);
+    assert_eq!(
+        validate_with_auras(
+            Some(&auras),
+            player_guid(),
+            0,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            None,
+            None,
+        ),
+        Ok(()),
+    );
+    assert_eq!(
+        selected_aura_max_charges(
+            SPELL_ID,
+            0,
+            Some(&SpellAuraOptionsStore::from_entries([aura_options_row(
+                90_020, 0, SPELL_ID, 5,
+            )])),
+            Some(&ProcStore::default()),
+            None,
+        ),
+        Ok(5),
+    );
+}
+
+#[test]
+fn only_active_proc_charge_class_modifiers_block_including_area_aura_effects() {
+    let cases = [
+        (
+            "matching flat modifier",
+            SPELL_AURA_ADD_FLAT_MODIFIER,
+            SPELL_EFFECT_APPLY_AURA as i32,
+            4,
+            [1, 0, 0, 0],
+            1,
+            1,
+            Err("Selected aura may have applicable class-mask SpellMods"),
+        ),
+        (
+            "matching percent modifier",
+            SPELL_AURA_ADD_PCT_MODIFIER,
+            SPELL_EFFECT_APPLY_AURA as i32,
+            4,
+            [1, 0, 0, 0],
+            1,
+            1,
+            Err("Selected aura may have applicable class-mask SpellMods"),
+        ),
+        (
+            "matching area-aura modifier",
+            SPELL_AURA_ADD_FLAT_MODIFIER,
+            SPELL_EFFECT_APPLY_AREA_AURA_PARTY as i32,
+            4,
+            [1, 0, 0, 0],
+            1,
+            1,
+            Err("Selected aura may have applicable class-mask SpellMods"),
+        ),
+        (
+            "different family",
+            SPELL_AURA_ADD_FLAT_MODIFIER,
+            SPELL_EFFECT_APPLY_AURA as i32,
+            4,
+            [1, 0, 0, 0],
+            2,
+            1,
+            Ok(()),
+        ),
+        (
+            "disjoint class mask",
+            SPELL_AURA_ADD_FLAT_MODIFIER,
+            SPELL_EFFECT_APPLY_AURA as i32,
+            4,
+            [2, 0, 0, 0],
+            1,
+            1,
+            Ok(()),
+        ),
+        (
+            "different operation",
+            SPELL_AURA_ADD_FLAT_MODIFIER,
+            SPELL_EFFECT_APPLY_AURA as i32,
+            3,
+            [1, 0, 0, 0],
+            1,
+            1,
+            Ok(()),
+        ),
+        (
+            "inactive effect",
+            SPELL_AURA_ADD_FLAT_MODIFIER,
+            SPELL_EFFECT_APPLY_AURA as i32,
+            4,
+            [1, 0, 0, 0],
+            1,
+            0,
+            Ok(()),
+        ),
+    ];
+
+    for (index, (name, aura_type, effect_type, operation, mask, family, active_mask, expected)) in
+        cases.into_iter().enumerate()
+    {
+        let auras = aura_snapshot(
+            [active_aura(
+                MODIFIER_SPELL_ID,
+                0,
+                active_mask,
+            )],
+            true,
+            false,
+        );
+        let servers = server_store([(
+            MODIFIER_SPELL_ID,
+            0,
+            family,
+            vec![modifier_effect(
+                0,
+                0,
+                effect_type,
+                aura_type,
+                operation,
+                0,
+                mask,
+            )],
+        )]);
+        assert_eq!(
+            validate_with_auras(
+                Some(&auras),
+                player_guid(),
+                0,
+                1,
+                [1, 0, 0, 0],
+                &[],
+                Some(&servers),
+                None,
+            ),
+            expected,
+            "{name} (case {index})",
+        );
+    }
+}
+
+#[test]
+fn only_matching_active_label_proc_charge_modifiers_block() {
+    for (name, label, operation, active_mask, expected) in [
+        (
+            "matching label",
+            77,
+            4,
+            1,
+            Err("Selected aura may have applicable label SpellMods"),
+        ),
+        ("different label", 78, 4, 1, Ok(())),
+        ("different operation", 77, 3, 1, Ok(())),
+        ("inactive effect", 77, 4, 0, Ok(())),
+    ] {
+        let auras = aura_snapshot(
+            [active_aura(MODIFIER_SPELL_ID, 0, active_mask)],
+            true,
+            false,
+        );
+        let servers = server_store([(
+            MODIFIER_SPELL_ID,
+            0,
+            0,
+            vec![modifier_effect(
+                0,
+                0,
+                SPELL_EFFECT_APPLY_AURA as i32,
+                wow_data::spell::aura_types::SPELL_AURA_ADD_PCT_MODIFIER_BY_SPELL_LABEL,
+                operation,
+                label,
+                [0; 4],
+            )],
+        )]);
+        assert_eq!(
+            validate_with_auras(
+                Some(&auras),
+                player_guid(),
+                0,
+                0,
+                [0; 4],
+                &[77],
+                Some(&servers),
+                None,
+            ),
+            expected,
+            "{name}",
+        );
+    }
+}
+
+#[test]
+fn source_family_uses_target_difficulty_while_modifier_effect_uses_aura_difficulty() {
+    let difficulties = DifficultyStore::from_entries([difficulty(3, 0), difficulty(4, 0)]);
+    let servers = server_store([
+        (
+            MODIFIER_SPELL_ID,
+            3,
+            1,
+            Vec::new(),
+        ),
+        (
+            MODIFIER_SPELL_ID,
+            4,
+            2,
+            vec![modifier_effect(
+                0,
+                4,
+                SPELL_EFFECT_APPLY_AREA_AURA_PARTY as i32,
+                wow_data::spell::aura_types::SPELL_AURA_ADD_FLAT_MODIFIER,
+                4,
+                0,
+                [1, 0, 0, 0],
+            )],
+        ),
+    ]);
+    let auras = aura_snapshot([active_aura(MODIFIER_SPELL_ID, 4, 1)], true, false);
+    assert_eq!(
+        validate_with_auras(
+            Some(&auras),
+            player_guid(),
+            3,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            Some(&servers),
+            Some(&difficulties),
+        ),
+        Err("Selected aura may have applicable class-mask SpellMods"),
+    );
+
+    let source_only_at_aura_difficulty = server_store([(
+        MODIFIER_SPELL_ID,
+        4,
+        2,
+        vec![modifier_effect(
+            0,
+            4,
+            SPELL_EFFECT_APPLY_AREA_AURA_PARTY as i32,
+            wow_data::spell::aura_types::SPELL_AURA_ADD_FLAT_MODIFIER,
+            4,
+            0,
+            [1, 0, 0, 0],
+        )],
+    )]);
+    assert_eq!(
+        validate_with_auras(
+            Some(&auras),
+            player_guid(),
+            3,
+            1,
+            [1, 0, 0, 0],
+            &[],
+            Some(&source_only_at_aura_difficulty),
+            Some(&difficulties),
+        ),
+        Ok(()),
+        "native GetSpellInfo lookup is absent at the target difficulty",
+    );
+}
+
+#[test]
+fn incomplete_tombstoned_foreign_and_unresolved_aura_sources_stay_rejected() {
+    let incomplete = aura_snapshot([], false, false);
+    let tombstoned = aura_snapshot([], true, true);
+    assert!(validate_with_auras(
+        Some(&incomplete),
+        player_guid(),
+        0,
+        1,
+        [1, 0, 0, 0],
+        &[],
+        None,
+        None,
+    )
+    .is_err());
+    assert!(validate_with_auras(
+        Some(&tombstoned),
+        player_guid(),
+        0,
+        1,
+        [1, 0, 0, 0],
+        &[],
+        None,
+        None,
+    )
+    .is_err());
+    assert!(validate_with_auras(
+        Some(&aura_snapshot([], true, false)),
+        ObjectGuid::create_player(1, 82_046),
+        0,
+        1,
+        [1, 0, 0, 0],
+        &[],
+        None,
+        None,
+    )
+    .is_err());
+
+    let unknown_key = aura_snapshot([active_aura(MODIFIER_SPELL_ID, 0, 1)], true, false);
+    assert!(validate_with_auras(
+        Some(&unknown_key),
+        player_guid(),
+        0,
+        1,
+        [1, 0, 0, 0],
+        &[],
+        None,
+        None,
+    )
+    .is_err());
+
+    let unknown_effect = aura_snapshot([active_aura(MODIFIER_SPELL_ID, 0, 2)], true, false);
+    let known_spell = server_store([(
+        MODIFIER_SPELL_ID,
+        0,
+        1,
+        vec![modifier_effect(
+            0,
+            0,
+            SPELL_EFFECT_APPLY_AURA as i32,
+            wow_data::spell::aura_types::SPELL_AURA_ADD_FLAT_MODIFIER,
+            4,
+            0,
+            [1, 0, 0, 0],
+        )],
+    )]);
+    assert!(validate_with_auras(
+        Some(&unknown_effect),
+        player_guid(),
+        0,
+        1,
+        [1, 0, 0, 0],
+        &[],
+        Some(&known_spell),
+        None,
+    )
+    .is_err());
+
+    let inert_effect = aura_snapshot([active_aura(MODIFIER_SPELL_ID, 0, 1)], true, false);
+    let inert_spell = server_store([(
+        MODIFIER_SPELL_ID,
+        0,
+        1,
+        vec![modifier_effect(
+            0,
+            0,
+            0,
+            SPELL_AURA_ADD_FLAT_MODIFIER,
+            4,
+            0,
+            [1, 0, 0, 0],
+        )],
+    )]);
+    assert!(validate_with_auras(
+        Some(&inert_effect),
+        player_guid(),
+        0,
+        1,
+        [1, 0, 0, 0],
+        &[],
+        Some(&inert_spell),
+        None,
+    )
+    .is_err());
+
+    let mismatched_effect_difficulty =
+        aura_snapshot([active_aura(MODIFIER_SPELL_ID, 0, 1)], true, false);
+    let mismatched_spell = server_store([(
+        MODIFIER_SPELL_ID,
+        0,
+        1,
+        vec![modifier_effect(
+            0,
+            1,
+            SPELL_EFFECT_APPLY_AURA as i32,
+            SPELL_AURA_ADD_FLAT_MODIFIER,
+            4,
+            0,
+            [1, 0, 0, 0],
+        )],
+    )]);
+    assert!(validate_with_auras(
+        Some(&mismatched_effect_difficulty),
+        player_guid(),
+        0,
+        1,
+        [1, 0, 0, 0],
+        &[],
+        Some(&mismatched_spell),
+        None,
+    )
+    .is_err());
+
+    let unknown_difficulty = aura_snapshot([active_aura(MODIFIER_SPELL_ID, 4, 1)], true, false);
+    assert!(validate_with_auras(
+        Some(&unknown_difficulty),
+        player_guid(),
+        0,
+        1,
+        [1, 0, 0, 0],
+        &[],
+        Some(&known_spell),
+        None,
+    )
+    .is_err());
 }

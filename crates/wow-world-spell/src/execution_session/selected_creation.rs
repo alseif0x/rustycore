@@ -15,7 +15,8 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
     active_effect_mask: u32,
     cast_id: ObjectGuid,
 ) -> Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str> {
-    host.player_guid()
+    let canonical_player_guid = host
+        .player_guid()
         .ok_or("Missing canonical Player for selected aura creation")?;
     let spell_id_u32 = u32::try_from(spell_id).map_err(|_| "Invalid selected aura spell id")?;
     let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
@@ -47,17 +48,45 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
         difficulties,
     )
     .map_err(|_| "Unable to resolve selected aura polarity metadata")?;
-    crate::aura_session::validate_selected_aura_modifier_absence(
+    let label_store = catalogs
+        .spell_catalogs
+        .spell_label_store()
+        .map(AsRef::as_ref);
+    let modifier_absence = crate::aura_session::validate_selected_aura_modifier_absence(
         spell_id_u32,
         actual_difficulty,
         metadata.attributes,
         class_options,
-        catalogs
-            .spell_catalogs
-            .spell_label_store()
-            .map(AsRef::as_ref),
+        label_store,
         difficulties,
-    )?;
+    );
+    match modifier_absence {
+        Ok(()) => {}
+        Err(error)
+            if error == "Selected aura may have applicable class-mask SpellMods"
+                || error == "Selected aura may have applicable label SpellMods" =>
+        {
+            let hub = host.hub_ref();
+            let player_auras = hub.player_aura_subsystem_snapshot_like_cpp();
+            crate::aura_session::validate_selected_aura_modifier_absence_from_player_auras(
+                spell_id_u32,
+                actual_difficulty,
+                metadata.attributes,
+                caster_guid,
+                canonical_player_guid,
+                class_options,
+                label_store,
+                difficulties,
+                Some(spell_store.as_ref()),
+                catalogs
+                    .spell_catalogs
+                    .serverside_spell_store
+                    .as_deref(),
+                player_auras.as_ref(),
+            )?;
+        }
+        Err(error) => return Err(error),
+    }
     let charges = crate::aura_session::selected_aura_max_charges(
         spell_id_u32,
         actual_difficulty,
