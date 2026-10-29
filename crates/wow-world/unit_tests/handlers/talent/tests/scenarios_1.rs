@@ -880,6 +880,7 @@ async fn learn_talent_upgrade_removes_previous_rank_spell_and_trigger_like_cpp()
 #[tokio::test]
 async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(4);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
     let talent_spell = session
         .spell_store()
@@ -887,7 +888,6 @@ async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
         .get(50_101)
         .cloned()
         .expect("learned talent SpellInfo payload");
-    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     session.mark_represented_talents_loaded_like_cpp();
     let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
         (50_101, 0),

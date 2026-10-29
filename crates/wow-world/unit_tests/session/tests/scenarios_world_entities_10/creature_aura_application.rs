@@ -195,6 +195,7 @@ async fn creature_aura_without_original_caster_keeps_caster_override_like_cpp() 
     ));
     session.set_player_health_like_cpp(100, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     add_canonical_test_creature_indexed_on_map_with_level(
         &canonical,
         creature_guid,
@@ -217,7 +218,8 @@ async fn creature_aura_without_original_caster_keeps_caster_override_like_cpp() 
         7,
     );
     aura.effects[0].effect_aura = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(spell_id, aura);
     session.set_spell_store(Arc::new(spell_store));
 

@@ -391,6 +391,18 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
         None,
     );
     feign_death.spell_id = 5384;
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(5384, 0)]);
+    let mut feign_info = test_spell_info_like_cpp(5384);
+    feign_info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+    feign_info.aura_type = Some(66); // Pinned C++ SPELL_AURA_FEIGN_DEATH is 66.
+    feign_info.effects = vec![wow_data::SpellEffectInfo {
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        effect_aura: 66,
+        ..Default::default()
+    }];
+    spell_store.insert(5384, feign_info);
+    session.set_spell_store(Arc::new(spell_store));
     assert!(session.insert_player_visible_aura_like_cpp(feign_death));
 
     session

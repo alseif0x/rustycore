@@ -332,6 +332,14 @@ ALLOW_CAST_WHILE_DEAD/normal-cast inputs while preserving unlisted and missing
 metadata rejection (`SpellHandler.cpp:331–354,416–429`, `Spell.cpp:5643`).
 These eight fixture-source edits are unvalidated; no production guard changed.
 
+The remaining eight Aura consumer cases now provide the required positive
+inputs: living native looter, talent identity before configuration, Feign
+metadata for repair, exact indoor/outdoor/standing/mount keys and effects, and
+the creature-cast Player's current handle. Standing tests retain both graphs,
+difficulty overlays and resolved interrupt snapshots; existing before/after,
+channel cancellation and packet fanout assertions are unchanged. These seven
+fixture-source edits remain unvalidated and add no production behavior.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

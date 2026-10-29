@@ -102,6 +102,13 @@ async fn loot_unit_valid_target_removes_looting_interrupt_auras_like_cpp() {
     let loot_guid = test_creature_guid(19_035);
     session.set_player_guid(Some(player_guid));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+        })
+        .expect("alive canonical looting Player");
     let mut spell_store =
         crate::selected_spell_fixtures::canonical_spell_store([(777, 0), (778, 0)]);
     for spell_id in [777, 778] {
