@@ -625,26 +625,61 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
         |entry| entry == 9008,
         |spell| spell == u32::try_from(spell_id).unwrap(),
     )));
-    let mut spell_store =
-        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
-    spell_store.insert(
-        spell_id,
-        wow_data::SpellInfo {
-            spell_id,
-            cast_time_ms: 0,
-            cooldown_ms: 0,
-            recovery_time_ms: 0,
-            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
-            effect_base_points: 9,
-            effect_bonus_coefficient: 0.0,
-            aura_type: None,
-            display_flags: 0,
-            requires_spell_focus: 0,
-            power_costs: Vec::new(),
-            effects: Vec::new(),
-        },
+    let effect = wow_data::spell_db2::SpellEffectDb2Entry {
+        id: 1,
+        difficulty_id: 0,
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+        effect_amplitude: 0.0,
+        effect_attributes: 0,
+        effect_aura: 0,
+        effect_aura_period: 0,
+        effect_base_points: 9,
+        effect_bonus_coefficient: 0.0,
+        effect_chain_amplitude: 0.0,
+        effect_chain_targets: 0,
+        effect_die_sides: 0,
+        effect_item_type: 0,
+        effect_mechanic: 0,
+        effect_points_per_resource: 0.0,
+        effect_pos_facing: 0.0,
+        effect_real_points_per_level: 0.0,
+        effect_trigger_spell: 0,
+        bonus_coefficient_from_ap: 0.0,
+        pvp_multiplier: 0.0,
+        coefficient: 0.0,
+        variance: 0.0,
+        resource_coefficient: 0.0,
+        group_size_base_points_coefficient: 0.0,
+        effect_misc_value: [0; 2],
+        effect_radius_index: [0; 2],
+        effect_spell_class_mask: [0; 4],
+        implicit_target: [0; 2],
+        spell_id: spell_id as u32,
+    };
+    let effective = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
+        wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
+        wow_data::spell_db2::SpellMiscStore::from_entries([
+            wow_data::spell_db2::SpellMiscEntry {
+                id: 1,
+                difficulty_id: 0,
+                attributes: [0; 15],
+                spell_id: spell_id as u32,
+                ..Default::default()
+            },
+        ]),
+        wow_data::spell_db2::SpellEffectDb2Store::from_entries([effect]),
+        wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
+        wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastTimesStore::from_entries([]),
+        wow_data::spell_db2::SpellCooldownsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastingRequirementsStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
     );
-    spell_store.insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
+    let spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)])
+            .hydrate_effective_core_db2_like_cpp(effective);
     session.set_spell_store(Arc::new(spell_store));
 
     let plan = session.represented_handle_spell_click_plan_like_cpp(creature_guid);

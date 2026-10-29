@@ -314,6 +314,14 @@ known-empty currency authority for the corpse-save receipt and effective
 SpellMisc payload authority for lethal SpellClick; neither permits a weaker
 production guard.
 
+Two further native-consumer fixtures are repaired, still unvalidated. The
+corpse-transfer save declares its new Player's known-empty currency state, so
+the recording receipt can acknowledge that group (`Player.cpp:4509–4515,
+19632–19654`). SpellClick 914 now hydrates effective Misc attributes and its
+index-zero school-damage row (nine damage), rather than manually inserting an
+attribute map without loaded authority (`Unit.cpp:11912`, `SpellInfo.cpp:1167–1173`).
+Its nonlethal and lethal caster/target, packet and native-state assertions remain.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

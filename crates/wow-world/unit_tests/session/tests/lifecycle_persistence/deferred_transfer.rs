@@ -109,6 +109,9 @@ async fn exercise(
     crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
         &mut session,
     );
+    crate::player_inventory_test_fixture::complete_known_empty_player_currencies_like_cpp(
+        &mut session,
+    );
     session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
     session.set_player_position_like_cpp(position);
     session.set_spell_store(Arc::new(wow_data::SpellStore::new()));
