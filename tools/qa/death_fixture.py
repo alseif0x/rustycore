@@ -87,6 +87,8 @@ ITEM_SEEDS = (
 )
 SPELL_SEEDS = (
     {"actor": "Qadeathcast", "spell": 7328},
+    {"actor": "Qadeathcast", "spell": 7355},
+    {"actor": "Qadeathcast", "spell": 8690},
     {"actor": "Qadeathreinc", "spell": 20608},
     # Night Elf racial Wisp form; ghost-only spell 20584 is not seeded.
     {"actor": "Qadeathwisp", "spell": 20585},

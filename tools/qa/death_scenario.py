@@ -28,11 +28,18 @@ SCENARIOS = {
     "offer": 2,
     "recovery-dead": 2,
     "recovery-ghost": 2,
+    "stuck-death": 2,
+    "stuck-home": 1,
 }
 LOGOUT_COMPLETE = 0x2684
 PRE_RESURRECT = 0x276B
 DURABILITY_DAMAGE_DEATH = 0x2745
 MOVE_ROOT = 0x2DF9
+MOVE_TELEPORT = 0x2E04
+MOVE_TELEPORT_ACK = 0x39FA
+DEATH_RELEASE_LOC = 0x26D3
+SPELL_GO = 0x2C36
+COOLDOWN_EVENT = 0x26B9
 RESURRECT_REQUEST = 0x257E
 ATTACKER_STATE_UPDATE = 0x2952
 AURA_UPDATE = 0x2C1F
@@ -116,6 +123,8 @@ def plan_for(scenario: str, epoch: int, actor: dict[str, Any], realm_id: int,
              durability_percent: int,
              actors: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     """Build one plain existing cast-lifecycle plan; there is no plan DSL."""
+    if scenario not in SCENARIOS or not 1 <= epoch <= SCENARIOS[scenario]:
+        raise ScenarioFailure("scenario epoch is outside the bounded case set")
     guid = player_guid(actor, realm_id)
     actions: list[dict[str, Any]] = []
     expected: list[dict[str, Any]] = []
@@ -211,6 +220,48 @@ def plan_for(scenario: str, epoch: int, actor: dict[str, Any], realm_id: int,
             expected = []
             actions = []
             timeout_ms = 3_000
+    elif scenario == "stuck-death":
+        self_guid = player_guid(actor, realm_id)
+        if epoch == 1:
+            cast_hearthstone = {"low": 8690001, "high": 0}
+            cast_stuck = {"low": 7355001, "high": 0}
+            actions = [
+                {"action": "cast", "spell_id": 8690, "cast_id": cast_hearthstone,
+                 "target": self_guid},
+                _wait("instance", MOVE_TELEPORT, 30_000),
+                {"action": "wait", "milliseconds": 2000},
+                {"action": "cast", "spell_id": 7355, "cast_id": cast_stuck,
+                 "target": self_guid},
+                _wait("instance", MOVE_ROOT, 30_000),
+            ]
+            expected.extend([
+                {"event": "go", "client_cast_id": cast_hearthstone, "spell_id": 8690,
+                 "target": {"unit": self_guid}},
+                {"event": "go", "client_cast_id": cast_stuck, "spell_id": 7355,
+                 "target": {"unit": self_guid}},
+            ])
+            timeout_ms = 45_000
+        else:
+            cast_stuck = {"low": 7355002, "high": 0}
+            actions = [
+                {"action": "cast", "spell_id": 7355, "cast_id": cast_stuck,
+                 "target": self_guid},
+                {"action": "wait", "milliseconds": 3000},
+            ]
+            expected.append({"event": "go", "client_cast_id": cast_stuck,
+                             "spell_id": 7355, "target": {"unit": self_guid}})
+            timeout_ms = 10_000
+    elif scenario == "stuck-home":
+        self_guid = player_guid(actor, realm_id)
+        cast_stuck = {"low": 7355003, "high": 0}
+        actions = [
+            {"action": "cast", "spell_id": 7355, "cast_id": cast_stuck,
+             "target": self_guid},
+            _wait("instance", MOVE_TELEPORT, 30_000),
+        ]
+        expected.append({"event": "go", "client_cast_id": cast_stuck,
+                         "spell_id": 7355, "target": {"unit": self_guid}})
+        timeout_ms = 40_000
     if scenario == "automatic-release":
         actions = _fall_actions(actor, release=False) + [_wait("realm", PRE_RESURRECT, 370_000)]
     if scenario == "healer" and epoch == 2:
@@ -473,7 +524,7 @@ def validate_state(scenario: str, epoch: int, actor: dict[str, Any],
                      and item[owner_index] == str(actor["guid"])]
     ghost_required = scenario in {"fall-release", "automatic-release", "recovery-ghost"} or (
         scenario == "wisp" and epoch == 1)
-    alive_required = scenario in {"reclaim", "healer", "reincarnation"} or (
+    alive_required = scenario in {"reclaim", "healer", "reincarnation", "stuck-home"} or (
         (scenario == "wisp" or scenario == "offer") and epoch == 2)
     if scenario == "recovery-dead" and epoch == 2:
         ghost_required = False
@@ -481,7 +532,8 @@ def validate_state(scenario: str, epoch: int, actor: dict[str, Any],
         raise ScenarioFailure("released ghost must persist health one, the ghost flag, and one owned corpse")
     if alive_required and (health <= 0 or flags & PLAYER_GHOST or owned_corpses):
         raise ScenarioFailure("required alive state or corpse cleanup was not persisted")
-    unreleased_dead = scenario in {"mob", "recovery-dead"} or (scenario == "offer" and epoch == 1)
+    unreleased_dead = scenario in {"mob", "recovery-dead", "stuck-death"} or (
+        scenario == "offer" and epoch == 1)
     if unreleased_dead and (health != 0 or flags & PLAYER_GHOST or owned_corpses):
         raise ScenarioFailure("unreleased dead state must have zero health, no ghost flag, and no owned corpse")
     return {"guid": actor["guid"], "health": health, "player_flags": flags,
@@ -516,6 +568,129 @@ def _save_snapshot(db: death_fixture.MariaDB, journal: dict[str, Any], actor: di
 def _events(evidence: dict[str, Any], opcode: int) -> list[dict[str, Any]]:
     return [event for event in evidence.get("events", [])
             if isinstance(event, dict) and event.get("opcode") == opcode]
+
+
+def _owned_spell_cooldowns(snapshot: dict[str, Any], actor: dict[str, Any]) -> list[dict[str, int]]:
+    table = snapshot.get("character_spell_cooldown", {})
+    columns = [str(value).casefold() for value in table.get("columns", [])]
+    required = ("guid", "spell", "time", "categoryid", "categoryend")
+    if any(name not in columns for name in required):
+        raise ScenarioFailure("spell cooldown snapshot has an unexpected schema")
+    rows = []
+    for row in table.get("rows", []):
+        if len(row) != len(columns) or row[columns.index("guid")] != str(actor["guid"]):
+            continue
+        try:
+            rows.append({name: int(row[columns.index(name)]) for name in required[1:]})
+        except ValueError:
+            raise ScenarioFailure("spell cooldown snapshot contains a malformed owner row") from None
+    return rows
+
+
+def _has_native_8690_category_cooldown(rows: list[dict[str, int]]) -> bool:
+    return (len(rows) == 1 and rows[0]["categoryid"] == 1176
+            and rows[0]["time"] > 0 and rows[0]["categoryend"] > 0)
+
+
+def _cooldown_event_spell_ids(evidence: dict[str, Any]) -> list[int]:
+    spell_ids = []
+    for event in _events(evidence, COOLDOWN_EVENT):
+        body_hex = event.get("body_hex")
+        try:
+            body = bytes.fromhex(body_hex) if isinstance(body_hex, str) else b""
+        except ValueError:
+            body = b""
+        if len(body) < 4:
+            raise ScenarioFailure("cooldown event has no complete spell ID")
+        spell_ids.append(int.from_bytes(body[:4], "little", signed=True))
+    return spell_ids
+
+
+def _spell_go_events(evidence: dict[str, Any], spell_id: int) -> list[dict[str, Any]]:
+    return [event for event in _events(evidence, SPELL_GO)
+            if event.get("spell_id") == spell_id]
+
+
+def _completed_teleport_ack_indexes(evidence: dict[str, Any]) -> list[int]:
+    return [index for index, packet in enumerate(evidence.get("sent_packets", []))
+            if isinstance(packet, dict) and packet.get("action") == "ack_move_teleport"
+            and packet.get("opcode") == MOVE_TELEPORT_ACK
+            and packet.get("connection") == "instance"
+            and packet.get("write_attempted") is True
+            and packet.get("write_completed") is True
+            and packet.get("write_error") is None]
+
+
+def _validate_stuck_graveyard_position(snapshot: dict[str, Any],
+                                       actor: dict[str, Any]) -> dict[str, float | int]:
+    row = _actor_snapshot(snapshot, actor)
+    try:
+        map_id = int(row["map"])
+        position = tuple(float(row[key]) for key in ("position_x", "position_y", "position_z"))
+    except (KeyError, ValueError):
+        raise ScenarioFailure("Stuck repop snapshot lacks a valid map position") from None
+    expected = (-9339.72, 170.2, 61.5622)
+    distance = math.dist(position, expected)
+    if map_id != 0 or not math.isfinite(distance) or distance > 0.25:
+        raise ScenarioFailure("Stuck repop did not persist the Alliance graveyard 106 position")
+    return {"map": map_id, "x": position[0], "y": position[1], "z": position[2],
+            "distance_from_graveyard_106": distance}
+
+
+def _validate_stuck_evidence(scenario: str, epoch: int, actor: dict[str, Any],
+                             snapshot: dict[str, Any], evidence: dict[str, Any],
+                             observation: dict[str, Any]) -> None:
+    if scenario not in {"stuck-death", "stuck-home"}:
+        return
+    cooldown_rows = _owned_spell_cooldowns(snapshot, actor)
+    cooldown_8690 = [row for row in cooldown_rows if row["spell"] == 8690]
+    cooldown_events = _cooldown_event_spell_ids(evidence)
+    stuck_go = _spell_go_events(evidence, 7355)
+    if len(stuck_go) != 1:
+        raise ScenarioFailure("Stuck plan must record exactly one successful 7355 SpellGo")
+    if any(event.get("opcode") == DURABILITY_DAMAGE_DEATH
+           for event in evidence.get("events", []) if isinstance(event, dict)):
+        raise ScenarioFailure("Stuck self-death emitted a death durability packet")
+    observation["stuck_spell_cooldowns"] = [row for row in cooldown_rows
+                                            if row["spell"] in {7355, 8690}]
+    if scenario == "stuck-home":
+        if cooldown_8690 or 8690 in cooldown_events or _spell_go_events(evidence, 8690):
+            raise ScenarioFailure("home Stuck case unexpectedly used or saved Hearthstone cooldown")
+        if not _completed_teleport_ack_indexes(evidence):
+            raise ScenarioFailure("home Stuck case lacks a completed native teleport ACK")
+        return
+    if epoch == 1:
+        hearthstone_go = _spell_go_events(evidence, 8690)
+        if len(hearthstone_go) != 1:
+            raise ScenarioFailure("Stuck death setup lacks its one normal Hearthstone SpellGo")
+        if not _has_native_8690_category_cooldown(cooldown_8690):
+            raise ScenarioFailure("Stuck death setup did not persist the native 8690 category cooldown")
+        if 8690 in cooldown_events:
+            raise ScenarioFailure("Stuck death setup emitted an unexpected 8690 cooldown event")
+        acknowledgements = _completed_teleport_ack_indexes(evidence)
+        sent = evidence.get("sent_packets", [])
+        casts = [index for index, packet in enumerate(sent)
+                 if isinstance(packet, dict) and packet.get("action") == "cast"]
+        if (len(casts) != 2 or not acknowledgements
+                or not casts[0] < acknowledgements[0] < casts[1]):
+            raise ScenarioFailure("Hearthstone teleport ACK did not precede the lethal 7355 cast")
+        if not _events(evidence, MOVE_ROOT):
+            raise ScenarioFailure("Stuck self-death did not observe the native movement-root packet")
+        return
+    if cooldown_events.count(8690) > 0:
+        raise ScenarioFailure("dead-player repop emitted an unrelated 8690 cooldown event")
+    if not _has_native_8690_category_cooldown(cooldown_8690):
+        raise ScenarioFailure("dead-player repop did not retain the saved 8690 category cooldown")
+    graveyard_position = _validate_stuck_graveyard_position(snapshot, actor)
+    observation["graveyard_position"] = graveyard_position
+    if not _completed_teleport_ack_indexes(evidence) and not _events(evidence, DEATH_RELEASE_LOC):
+        raise ScenarioFailure("Stuck repop lacks teleport ACK or DeathReleaseLoc evidence")
+
+
+def _require_stuck_death_config(scenario: str, world_config: Path) -> None:
+    if scenario == "stuck-death" and \
+            _read_world_setting(world_config, "DurabilityLoss.InPvP") != "0":
+        raise ScenarioFailure("Stuck self-death requires DurabilityLoss.InPvP = 0")
 
 
 def _evidence_digest(evidence: dict[str, Any]) -> dict[str, Any]:
@@ -777,7 +952,8 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
         actor_name = {"fall-release": "Qadeathfall", "reclaim": "Qadeathfall",
             "healer": "Qadeathfall", "wisp": "Qadeathwisp", "reincarnation": "Qadeathreinc",
             "mob": "Qadeathmob", "automatic-release": "Qadeathfall", "offer": "Qadeathfall",
-            "recovery-dead": "Qadeathfall", "recovery-ghost": "Qadeathfall"}[scenario]
+            "recovery-dead": "Qadeathfall", "recovery-ghost": "Qadeathfall",
+            "stuck-death": "Qadeathcast", "stuck-home": "Qadeathcast"}[scenario]
         actor = actors[actor_name]
         pass_ = BotPass(actor, plan_for(scenario, epoch, actor, realm_id, durability_percent),
                         f"{scenario}-{identity['epoch']:03d}")
@@ -785,6 +961,7 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
         snapshot_path = _snapshot_path(identity["capture"], scenario, epoch, actor, pass_.label)
         snapshot = _load_snapshot(snapshot_path)
         _check_special_state(scenario, epoch, actor, snapshot, observations)
+        _validate_stuck_evidence(scenario, epoch, actor, snapshot, evidence, observations[-1])
         if scenario == "automatic-release":
             sent = evidence.get("sent_packets", [])
             if any(packet.get("action") == "release_spirit" for packet in sent):
@@ -908,6 +1085,7 @@ def run() -> int:
             raise ScenarioFailure("death durability setting is invalid") from None
         if not math.isfinite(durability_value) or durability_value != 10.0:
             raise ScenarioFailure("death durability setting must be the reviewed 10 percent")
+        _require_stuck_death_config(identity["scenario"], identity["world_config"])
         scenario_report = _run_case(identity, journal, int(realm_text), int(durability_value), db)
         if _sha256(identity["bot_config"]) != bot_config_hash:
             raise ScenarioFailure("private bot config changed during scenario execution")

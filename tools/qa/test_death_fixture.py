@@ -290,7 +290,7 @@ class DeathFixtureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             directory = self.private_journal_dir(root)
             db = FakeDB()
-            self.prepare_fixture(db, directory)
+            _, journal = self.prepare_fixture(db, directory)
             allowed = {"characters", "character_homebind", "item_instance",
                        "character_inventory", "character_spell"}
             tables = {statement.split(" INTO ", 1)[1].split(" ", 1)[0]
@@ -302,6 +302,18 @@ class DeathFixtureTests(unittest.TestCase):
             self.assertTrue(all(statement.startswith("INSERT INTO ") for statement in db.statements))
             self.assertFalse(any("guid=15" in statement or "guid=16" in statement or "guid=18" in statement
                                  for statement in db.statements))
+            self.assertEqual({(item["actor"], item["spell"]) for item in fixture.SPELL_SEEDS}, {
+                ("Qadeathcast", 7328), ("Qadeathcast", 7355), ("Qadeathcast", 8690),
+                ("Qadeathreinc", 20608), ("Qadeathwisp", 20585),
+            })
+            actor_guids = {item["name"]: item["guid"] for item in journal["actors"]}
+            spell_rows = {statement for statement in db.statements
+                          if statement.startswith("INSERT INTO character_spell ")}
+            self.assertEqual(spell_rows, {
+                f"INSERT INTO character_spell (guid,spell,active,disabled) VALUES "
+                f"({actor_guids[seed['actor']]},{seed['spell']},1,0)"
+                for seed in fixture.SPELL_SEEDS
+            })
 
     def test_bad_private_config_error_does_not_echo_credential_text(self):
         with tempfile.TemporaryDirectory() as root:

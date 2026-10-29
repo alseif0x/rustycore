@@ -33,6 +33,79 @@ class DeathScenarioTests(unittest.TestCase):
         self.assertIn(("Qadeathwisp", 20585), seeds)
         self.assertNotIn(("Qadeathwisp", 20584), seeds)
 
+    def test_stuck_cases_keep_original_scenarios_and_bind_to_journal_caster(self) -> None:
+        self.assertEqual(len(scenario.SCENARIOS), 12)
+        self.assertEqual(sum(scenario.SCENARIOS.values()), 18)
+        self.assertEqual({name: count for name, count in scenario.SCENARIOS.items()
+                          if name not in {"stuck-death", "stuck-home"}}, {
+            "fall-release": 1, "reclaim": 1, "healer": 2, "wisp": 2,
+            "reincarnation": 1, "mob": 1, "automatic-release": 1, "offer": 2,
+            "recovery-dead": 2, "recovery-ghost": 2,
+        })
+        self.assertEqual(scenario.SCENARIOS["stuck-death"], 2)
+        self.assertEqual(scenario.SCENARIOS["stuck-home"], 1)
+        selected = actor("Qadeathcast", 73)
+        death_first = scenario.plan_for("stuck-death", 1, selected, 1, 10)
+        death_second = scenario.plan_for("stuck-death", 2, selected, 1, 10)
+        home = scenario.plan_for("stuck-home", 1, selected, 1, 10)
+        for plan in (death_first, death_second, home):
+            self.assertEqual(plan["character_guid"], selected["guid"])
+            self.assertEqual(plan["finish_policy"], "logout")
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.plan_for("stuck-death", 3, selected, 1, 10)
+
+    def test_stuck_death_plans_cast_hearthstone_then_kill_and_later_repop(self) -> None:
+        selected = actor("Qadeathcast", 74)
+        first = scenario.plan_for("stuck-death", 1, selected, 2, 10)
+        self.assertEqual([action["action"] for action in first["actions"]],
+                         ["cast", "wait_for_packet", "wait", "cast", "wait_for_packet"])
+        self.assertEqual([action["spell_id"] for action in first["actions"]
+                          if action["action"] == "cast"], [8690, 7355])
+        self.assertEqual([action["opcode"] for action in first["actions"]
+                          if action["action"] == "wait_for_packet"],
+                         [scenario.MOVE_TELEPORT, scenario.MOVE_ROOT])
+        self.assertEqual([action["milliseconds"] for action in first["actions"]
+                          if action["action"] == "wait"], [2000])
+        self.assertTrue(all(action.get("target") == scenario.player_guid(selected, 2)
+                            for action in first["actions"] if action["action"] == "cast"))
+        self.assertEqual([(rule.get("event"), rule.get("spell_id"), rule.get("opcode"))
+                          for rule in first["expect"]], [
+            ("go", 8690, None), ("go", 7355, None),
+            ("packet", None, scenario.LOGOUT_COMPLETE),
+        ])
+        self.assertNotIn(scenario.DURABILITY_DAMAGE_DEATH,
+                         [rule.get("opcode") for rule in first["expect"]])
+
+        second = scenario.plan_for("stuck-death", 2, selected, 2, 10)
+        self.assertEqual([action["spell_id"] for action in second["actions"]
+                          if action["action"] == "cast"], [7355])
+        self.assertFalse(any(action["action"] in {"release_spirit", "spirit_healer_activate", "self_res"}
+                             for action in second["actions"]))
+        self.assertEqual([rule.get("spell_id") for rule in second["expect"]
+                          if rule.get("event") == "go"], [7355])
+
+    def test_stuck_home_plan_has_no_hearthstone_cast_or_cooldown_seed_action(self) -> None:
+        selected = actor("Qadeathcast", 75)
+        plan = scenario.plan_for("stuck-home", 1, selected, 1, 10)
+        self.assertEqual([action["spell_id"] for action in plan["actions"]
+                          if action["action"] == "cast"], [7355])
+        self.assertEqual([action["opcode"] for action in plan["actions"]
+                          if action["action"] == "wait_for_packet"], [scenario.MOVE_TELEPORT])
+        self.assertEqual([rule.get("spell_id") for rule in plan["expect"]
+                          if rule.get("event") == "go"], [7355])
+        self.assertEqual(plan["finish_policy"], "logout")
+
+    def test_stuck_death_requires_the_explicit_pvp_durability_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            config = Path(root) / "worldserver.conf"
+            config.write_text("DurabilityLoss.InPvP = 0\n", encoding="utf-8")
+            scenario._require_stuck_death_config("stuck-death", config)
+            scenario._require_stuck_death_config("stuck-home", config)
+            for setting in ("1", "true", ""):
+                config.write_text(f"DurabilityLoss.InPvP = {setting}\n", encoding="utf-8")
+                with self.subTest(setting=setting), self.assertRaises(scenario.ScenarioFailure):
+                    scenario._require_stuck_death_config("stuck-death", config)
+
     def test_expected_packet_order_and_nonrelease_deaths(self) -> None:
         actors = journal_actors()
         fall = scenario.plan_for("fall-release", 1, actors["Qadeathfall"], 1, 10)
@@ -139,6 +212,138 @@ class DeathScenarioTests(unittest.TestCase):
         for case, epoch in (("offer", 1), ("mob", 1), ("recovery-dead", 2)):
             with self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_state(case, epoch, selected, with_corpse)
+
+    def test_stuck_state_requires_dead_no_corpse_or_live_home_result(self) -> None:
+        selected = actor("Qadeathcast", 56)
+        dead = {"characters": {"columns": ["guid", "health", "playerFlags"],
+                                "rows": [["56", "0", "0"]]},
+                "corpse": {"columns": ["guid"], "rows": []}}
+        for epoch in (1, 2):
+            self.assertEqual(scenario.validate_state("stuck-death", epoch, selected, dead)["health"], 0)
+        alive = {"characters": {"columns": ["guid", "health", "playerFlags"],
+                                 "rows": [["56", "100", "0"]]},
+                 "corpse": {"columns": ["guid"], "rows": []}}
+        self.assertEqual(scenario.validate_state("stuck-home", 1, selected, alive)["health"], 100)
+        ghost = copy.deepcopy(dead)
+        ghost["characters"]["rows"][0][2] = str(scenario.PLAYER_GHOST)
+        corpse = copy.deepcopy(dead)
+        corpse["corpse"]["rows"] = [["56"]]
+        living_death = copy.deepcopy(dead)
+        living_death["characters"]["rows"][0][1] = "1"
+        dead_home = copy.deepcopy(alive)
+        dead_home["characters"]["rows"][0][1] = "0"
+        for bad in (ghost, corpse, living_death):
+            with self.assertRaises(scenario.ScenarioFailure):
+                scenario.validate_state("stuck-death", 2, selected, bad)
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_state("stuck-home", 1, selected, dead_home)
+
+    def test_stuck_graveyard_position_uses_quarter_yard_tolerance(self) -> None:
+        selected = actor("Qadeathcast", 57)
+        snapshot = {"characters": {"columns": ["guid", "map", "position_x", "position_y",
+                                                 "position_z"],
+                                    "rows": [["57", "0", "-9339.72", "170.2", "61.5622"]]}}
+        position = scenario._validate_stuck_graveyard_position(snapshot, selected)
+        self.assertEqual(position["map"], 0)
+        self.assertLessEqual(position["distance_from_graveyard_106"], 0.25)
+        near_home = copy.deepcopy(snapshot)
+        near_home["characters"]["rows"][0][2:] = ["-9340.21", "167.61", "61.60"]
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario._validate_stuck_graveyard_position(near_home, selected)
+
+    def test_stuck_first_epoch_proves_hearthstone_cooldown_and_ack_before_kill(self) -> None:
+        selected = actor("Qadeathcast", 58)
+        snapshot = {"character_spell_cooldown": {
+            "columns": ["guid", "spell", "time", "categoryId", "categoryEnd"],
+            "rows": [["58", "8690", "2000000000", "1176", "2000000000"]],
+        }}
+        evidence = {
+            "events": [
+                {"opcode": scenario.SPELL_GO, "spell_id": 8690},
+                {"opcode": scenario.SPELL_GO, "spell_id": 7355},
+                {"opcode": scenario.MOVE_ROOT},
+            ],
+            "sent_packets": [
+                {"action": "cast", "action_index": 0},
+                {"action": "ack_move_teleport", "opcode": scenario.MOVE_TELEPORT_ACK,
+                 "connection": "instance", "write_attempted": True,
+                 "write_completed": True, "write_error": None},
+                {"action": "cast", "action_index": 2},
+            ],
+        }
+        observation: dict = {}
+        scenario._validate_stuck_evidence("stuck-death", 1, selected, snapshot,
+                                          evidence, observation)
+        self.assertEqual(observation["stuck_spell_cooldowns"][0]["categoryid"], 1176)
+        durability = copy.deepcopy(evidence)
+        durability["events"].append({"opcode": scenario.DURABILITY_DAMAGE_DEATH})
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario._validate_stuck_evidence("stuck-death", 1, selected, snapshot,
+                                              durability, {})
+
+    def test_stuck_home_rejects_any_saved_or_emitted_hearthstone_cooldown(self) -> None:
+        selected = actor("Qadeathcast", 59)
+        empty_snapshot = {"character_spell_cooldown": {
+            "columns": ["guid", "spell", "time", "categoryId", "categoryEnd"], "rows": []}}
+        evidence = {
+            "events": [{"opcode": scenario.SPELL_GO, "spell_id": 7355}],
+            "sent_packets": [
+                {"action": "cast", "action_index": 0},
+                {"action": "ack_move_teleport", "opcode": scenario.MOVE_TELEPORT_ACK,
+                 "connection": "instance", "write_attempted": True,
+                 "write_completed": True, "write_error": None},
+            ],
+        }
+        scenario._validate_stuck_evidence("stuck-home", 1, selected, empty_snapshot,
+                                          evidence, {})
+        emitted = copy.deepcopy(evidence)
+        emitted["events"].append({"opcode": scenario.COOLDOWN_EVENT,
+                                  "body_hex": (8690).to_bytes(4, "little", signed=True).hex() + "00"})
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario._validate_stuck_evidence("stuck-home", 1, selected, empty_snapshot,
+                                              emitted, {})
+        saved = {"character_spell_cooldown": {
+            "columns": ["guid", "spell", "time", "categoryId", "categoryEnd"],
+            "rows": [["59", "8690", "2000000000", "1176", "2000000000"]],
+        }}
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario._validate_stuck_evidence("stuck-home", 1, selected, saved,
+                                              evidence, {})
+
+    def test_dead_stuck_repop_requires_packet_evidence_and_exact_graveyard(self) -> None:
+        selected = actor("Qadeathcast", 60)
+        snapshot = {"characters": {"columns": ["guid", "map", "position_x", "position_y",
+                                                 "position_z"],
+                                    "rows": [["60", "0", "-9339.72", "170.2", "61.5622"]]},
+                    "character_spell_cooldown": {
+                        "columns": ["guid", "spell", "time", "categoryId", "categoryEnd"],
+                        "rows": [["60", "8690", "2000000000", "1176", "2000000000"]]}}
+        evidence = {"events": [{"opcode": scenario.SPELL_GO, "spell_id": 7355}],
+                    "sent_packets": []}
+        observation: dict = {}
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario._validate_stuck_evidence("stuck-death", 2, selected, snapshot,
+                                              evidence, observation)
+        evidence["events"].append({"opcode": scenario.DEATH_RELEASE_LOC})
+        scenario._validate_stuck_evidence("stuck-death", 2, selected, snapshot,
+                                          evidence, observation)
+        self.assertEqual(observation["graveyard_position"]["map"], 0)
+        self.assertEqual(observation["stuck_spell_cooldowns"], [{
+            "spell": 8690, "time": 2_000_000_000,
+            "categoryid": 1176, "categoryend": 2_000_000_000,
+        }])
+        absent = copy.deepcopy(snapshot)
+        absent["character_spell_cooldown"]["rows"] = []
+        invalid_category = copy.deepcopy(snapshot)
+        invalid_category["character_spell_cooldown"]["rows"][0][3] = "0"
+        invalid_time = copy.deepcopy(snapshot)
+        invalid_time["character_spell_cooldown"]["rows"][0][2] = "0"
+        invalid_category_end = copy.deepcopy(snapshot)
+        invalid_category_end["character_spell_cooldown"]["rows"][0][4] = "0"
+        for bad_snapshot in (absent, invalid_category, invalid_time, invalid_category_end):
+            with self.assertRaises(scenario.ScenarioFailure):
+                scenario._validate_stuck_evidence("stuck-death", 2, selected, bad_snapshot,
+                                                  evidence, {})
 
     def test_mob_accepts_damage_and_root_during_login_drain(self) -> None:
         evidence = {

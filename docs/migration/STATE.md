@@ -221,6 +221,15 @@ and reviewed policy patches are retained under
 `/tmp/rustycore43-candidate-reconcile-5t9qvhyx/`. This is implementation review,
 not acceptance. No new architecture scope or runtime authority is implied.
 
+The existing death QA runner now includes two unvalidated Stuck cases, bringing
+the bounded set to 12 scenarios and 18 epochs. Only Qadeathcast gains known
+spells 7355/8690. Normal Hearthstone supplies the death case's cooldown; both
+logout/relogin epochs require its persisted category 1176 row. Dead repop must
+reach graveyard 106 within 0.25 yards, while home Stuck requires a completed
+teleport ACK and no Hearthstone cooldown. No fixture, capture or runtime action
+has been executed. Hermetic tests and the full committed-candidate campaign
+remain required before any accepted result is recorded.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

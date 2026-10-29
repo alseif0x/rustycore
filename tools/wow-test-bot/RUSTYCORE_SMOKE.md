@@ -41,7 +41,7 @@ existing accounts, with account provisioning disabled:
 | TESTBOT3 (10) | Qadeathmob, Human Mage, level 1 | Ordinary lethal creature damage without downgrading an existing character. |
 | TESTBOT3 (10) | Qadeathwisp, Night Elf Hunter, level 11 | Wisp Spirit and the one-minute sickness duration. |
 | TESTBOT5 (12) | Qadeathreinc, Orc Shaman, level 80 | Legal Reincarnation and its real reagent/cooldown checks. |
-| TESTBOT2 (9) | Qadeathcast, Human Paladin, level 80 | Observer and legal Redemption caster. |
+| TESTBOT2 (9) | Qadeathcast, Human Paladin, level 80 | Observer, legal Redemption caster, and journal-bound Stuck actor. |
 
 The 2026-10-28 preparation uses a fifth new disposable character for the caster
 instead of altering character 15. This keeps existing character rows and spell
@@ -1033,13 +1033,30 @@ the two identities are interchangeable.
 host lock and the existing capture/fixture cleanup protocol. Set
 `RUSTYCORE_DEATH_SCENARIO` to exactly one of `fall-release`, `reclaim`,
 `healer`, `wisp`, `reincarnation`, `mob`, `automatic-release`, `offer`,
-`recovery-dead`, or `recovery-ghost`. Do not invoke
+`recovery-dead`, `recovery-ghost`, `stuck-death`, or `stuck-home`. The fixture
+adds only known-spell seeds 7355 and 8690 to the existing Qadeathcast seed list;
+the journal remains the source of that actor's GUID. Do not invoke
 `tools/qa/death_scenario.py` directly: the outer wrapper supplies the prepared
 journal, canonical private bot/world configs, capture identity and epoch number.
 
 Use one runner path for one capture epoch and repeat it twice for scenarios
 with a restart/relogin boundary (`healer`, `wisp`, `offer`, `recovery-dead`,
-`recovery-ghost`). The wrapper requires a fresh canonical mode-0700 output
+`recovery-ghost`, `stuck-death`). `stuck-death` casts seeded Hearthstone 8690
+normally in epoch 1, records SpellGo, its saved native cooldown, and the
+completed teleport ACK, waits two seconds past its 1500ms GCD, then casts 7355
+once and waits for movement root before logout. After the wrapper restarts the
+server and relogs the same dead actor,
+epoch 2 casts 7355 once to repop at Alliance graveyard 106 on map 0
+`(-9339.72, 170.2, 61.5622)`, then logs out. The saved position must be within
+0.25 yards and the capture must retain teleport ACK or DeathReleaseLoc evidence;
+the actor's homebind is only about 2.6 yards away, so a wider proximity check
+would not prove repop. Neither epoch releases spirit or resurrects the actor.
+The death case requires the existing `DurabilityLoss.OnDeath = 10` guard and
+`DurabilityLoss.InPvP = 0`; it expects no death durability packet. `stuck-home`
+is one fresh-actor epoch: cast 7355 once, observe its teleport ACK, and verify
+positive health with no ghost, corpse, or saved/event Hearthstone cooldown.
+
+The wrapper requires a fresh canonical mode-0700 output
 directory outside the checkout, explicit runtime and disposable-fixture
 acknowledgements, the server executable and SHA-256 pin, and the selected
 backend. For example, after choosing the local executable, its verified hash,
