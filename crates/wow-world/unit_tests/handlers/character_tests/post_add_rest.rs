@@ -88,9 +88,12 @@ fn same_area_sanctuary_uses_known_catalog_and_publishes_only_native_map_values()
         let count = session
             .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
             );
-        if mode == "missing_catalog" {
-            assert_eq!(count, 0);
-            assert!(output.try_recv().is_err());
+        if mode == "missing_catalog" || mode == "normal_noop" {
+            assert_eq!(count, 0, "no Object update is queued for {mode}");
+            assert!(
+                output.try_recv().is_err(),
+                "no UpdateObject packet is emitted for {mode}"
+            );
             continue;
         }
         assert_eq!(count, 1);

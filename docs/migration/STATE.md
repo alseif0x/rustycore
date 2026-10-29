@@ -70,6 +70,29 @@ or executable build is credited from this failed run. Its exact record is
 The corrected candidate remains UNVALIDATED; the unchanged architecture evidence
 retains its actual SHA and the qualified-path-only delta is reviewed separately.
 
+The corrected campaign at `2f6574782` failed in 254.083 seconds. Compilation
+passed; Entities passed 1,065/1,065, World Entities 2/2 and World Instances 1/1.
+World passed 4,148 with two failures and one ignored test. The same-area
+sanctuary fixture still expected Object queue admission for its no-op case;
+the new disabled-zone fixture inserted applications without the SpellInfo
+authority required by the existing Aura removal path. Both fixture repairs
+preserve native dirty bits, exact changed-value packets and all selected aura
+removal assertions. Production integration, bot/build and live acceptance did
+not run. The failed record is
+`/tmp/rustycore43-affected-2f657-hntbb8x5/{record.json,final-manifest.json}`.
+
+The fixture-only correction is frozen, UNVALIDATED: 19 lines supply the
+canonical keys and inert active-effect rows for the existing zone test, and
+three lines make the existing sanctuary no-op packet diagnostics explicit.
+The initial focused worker run still failed before the active-effect rows were
+supplied; it is not passing evidence. The final diff retains every assertion
+about selected removals, preserved flags and changed-value payloads. The reviewed
+census has 276,665 lines and identical test rows, classes, destinations and
+ignored states. Session test growth is 19 lines and Character handler test
+growth is three, with unchanged production counts and #584 exits. The zone
+fixture group is now 1,044 lines; its existing cohesion review and terminal
+budget remain applicable. No production code changes follow from these fixtures.
+
 Reference recovery-dead attempt 2 and recovery-ghost attempt 1 now pass both
 epochs, capture and restoration in 249.420 and 253.117 seconds respectively.
 Reference offer attempt 2 fails/restores in 250.717 seconds: the corpse target

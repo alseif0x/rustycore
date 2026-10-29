@@ -170,6 +170,23 @@ fn update_zone_recovers_disabled_war_mode_only_for_known_zone_like_cpp() {
     const LOCAL_WAR_MODE: u32 = 0x0000_0800;
     const LOCAL_FLAGS_PRESERVED: u32 = 0x0000_8088;
     const OTHER_PLAYER_FLAG: u32 = 0x0000_0040;
+    let aura_spell_ids = [269_083, 282_559, 90_003, 90_004];
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store(
+        aura_spell_ids.map(|spell_id| (spell_id as u32, 0)),
+    );
+    for spell_id in aura_spell_ids {
+        let mut info = test_spell_info_like_cpp(spell_id);
+        info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+        info.aura_type = Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY);
+        info.effects.push(wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+            ..Default::default()
+        });
+        spell_store.insert(spell_id, info);
+    }
+    let spell_store = Arc::new(spell_store);
 
     for (desired, in_pvp, known_zone) in [
         (false, false, true),
@@ -179,6 +196,8 @@ fn update_zone_recovers_disabled_war_mode_only_for_known_zone_like_cpp() {
     ] {
         let (mut session, _, _player_guid) = session_with_canonical_player_for_away_like_cpp();
         assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+        // Removal preflight resolves catalog effects even for inert auras.
+        session.set_spell_store(Arc::clone(&spell_store));
         crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 101);
         let rows = if known_zone {
             vec![
