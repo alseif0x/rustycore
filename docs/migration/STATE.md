@@ -5,9 +5,10 @@ Latest accepted local candidate: `5f9caf658`; Rust reclaim attempt 3 now complet
 resurrection, database checks, capture collection and restoration. Fall/release
 retains its actual `abba63ce7` bounded actor/control evidence below. Ten other
 paired scenarios and the last-candidate full final/terminal acceptance remain
-outstanding. C++ healer attempt 1 persisted the expected effects, but its first
-epoch exposed a bot logout observation race; it is not accepted. No publication
-or issue closure.
+outstanding. C++ healer attempt 2 is accepted with the repaired bot; wisp's
+reference run restored normally but exposed two unsupported QA expectations.
+The subsequent native power, sanctuary, AuraState and bones changes still need
+combined acceptance. No publication or issue closure.
 
 Earlier candidate `b0f2dadd6` passed the complete World library suite (4,130
 passed, one ignored) and built the debug server in a 328.993-second affected
@@ -219,6 +220,35 @@ canonical bones and new-object state. It preserves the existing awaited-delete
 completion fence; current Map conversion already exposes in-world bones before
 that await. Native CREATE is not a durable completion receipt. Hidden staging,
 a new DB task and a second publication scheduler are unnecessary here.
+C++ healer attempt 2 now passes both epochs with the repaired bot: real realm
+logout acknowledgement, persisted sickness/durability, native collection and
+verified restoration in 209.087 seconds. It runs from the clean detached QA
+checkout `/tmp/rustycore43-cpp-capture-c70b662a8`, using the unchanged pinned R6
+binary and bot compiled at `a6f8172d5`; this is reference-only evidence, not a
+claim that the unvalidated Rust candidate passed healer. The isolated checkout
+keeps the QA source fixed while Rust-only implementation proceeds separately.
+The reference driver is continuing the remaining C++ scenarios under the same
+exclusive runtime/build lock and disposable-fixture/restoration guards.
+The bones repair is implemented, UNVALIDATED: it consumes only the replaced
+corpse's destroy intent, enqueues out-of-range before object-only Create2,
+assigns the source/capture-proven zero scale and ends its native new-object
+scope after fanout. Existing deletion acknowledgement, exact continuation and
+residence checks still gate completion. Coverage includes observer delivery,
+same-GUID rediscovery, gated deletion, failed publication and stale residence.
+
+C++ wisp attempt 1 stopped after 215.877 seconds and restored the runtime and
+fixture. Both bot logouts passed. Epoch 1 persisted ghost auras 8326/20584;
+epoch 2 saved sickness with maximum duration 600,000 and remaining time 35,098.
+The harness wrongly requires a persisted 20585 row after healer and a 60,000
+maximum duration. Target `Player.cpp:4269` requires runtime HasSpell(20585),
+not that database row: `AddSpell:2813–2819` and `_SaveSpells:20405–20419` can
+delete a changed dependent row without reinserting it. Keep the legal fixture
+seed and prove the racial operation with the actual ghost aura. At
+`Player.cpp:4394–4402`, level 11 changes only remaining duration to 60,000;
+the spell's maximum stays 600,000. The existing Rust sickness path already
+applies total duration then remaining duration; no new production change is
+justified by this reference failure. Correct the two QA assertions and retain
+the required 75-second expiry/relogin and observer checks for the fresh run.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

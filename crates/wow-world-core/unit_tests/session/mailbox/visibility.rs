@@ -2,6 +2,29 @@ use super::*;
 use std::cell::Cell;
 
 #[test]
+fn replacement_destroy_and_birth_keep_exact_order_and_do_not_ack_failed_enqueues() {
+    let visible = SharedClientVisibleGuidsLikeCpp::default();
+    let corpse = ObjectGuid::new(14_i64 << 58, 1);
+    let unrelated = ObjectGuid::create_player(1, 2);
+    visible.insert(corpse);
+    visible.insert(unrelated);
+    assert!(!visible.publish_known_destroy_like_cpp(corpse, || false));
+    assert!(visible.contains(&corpse));
+    let (tx, rx) = flume::bounded(2);
+    assert!(visible.publish_known_destroy_like_cpp(corpse, || tx.try_send(vec![0]).is_ok()));
+    assert!(!visible.contains(&corpse));
+    assert!(visible.publish_known_destroy_like_cpp(corpse, || panic!("unknown old corpse")));
+    assert!(!visible.publish_unseen_create_like_cpp(corpse, || false));
+    assert!(!visible.contains(&corpse));
+    assert!(visible.publish_unseen_create_like_cpp(corpse, || tx.try_send(vec![2]).is_ok()));
+    assert_eq!(rx.try_iter().collect::<Vec<_>>(), vec![vec![0], vec![2]]);
+    assert_eq!(
+        visible.snapshot_like_cpp(),
+        HashSet::from([corpse, unrelated])
+    );
+}
+
+#[test]
 fn unseen_create_deduplicates_and_never_discovers_a_failed_enqueue() {
     let visible = SharedClientVisibleGuidsLikeCpp::default();
     let corpse = ObjectGuid::new(14_i64 << 58, 1);

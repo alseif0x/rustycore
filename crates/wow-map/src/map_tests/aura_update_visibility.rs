@@ -85,6 +85,26 @@ fn corpse_birth_selects_owner_peer_and_shared_seer_with_exact_phase_and_range() 
         recipients.contains(&owner) && recipients.contains(&peer) && recipients.contains(&shared)
     );
     assert!(!recipients.contains(&wrong_phase) && !recipients.contains(&far));
+    let bones = map
+        .convert_corpse_to_bones_like_cpp(owner, true, 2_000)
+        .unwrap()
+        .bones_guid
+        .unwrap();
+    assert_eq!(
+        map.corpse_birth_visibility_recipients_like_cpp(bones),
+        recipients
+    );
+    map.get_typed_player_mut(owner)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(300.0, 300.0, 30.0));
+    let bones_recipients = map.corpse_birth_visibility_recipients_like_cpp(bones);
+    assert!(
+        !bones_recipients.contains(&owner),
+        "far owner is not required for bones visibility"
+    );
+    assert!(bones_recipients.contains(&peer) && bones_recipients.contains(&shared));
     map.get_typed_player_mut(peer)
         .unwrap()
         .unit_mut()

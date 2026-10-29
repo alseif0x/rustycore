@@ -81,6 +81,11 @@ fn convert_corpse_to_bones_replaces_corpse_with_flagged_bones_like_cpp() {
     assert_eq!(bones.data().display_id, 49);
     assert_eq!(bones.data().flags, 0x04 | crate::CORPSE_FLAG_BONES_LIKE_CPP);
     assert_eq!(bones.world().position(), position);
+    assert_eq!(bones.world().object().scale(), 0.0);
+    assert!(
+        bones.world().object().is_new_object(),
+        "birth remains pending after AddToMap"
+    );
 
     // No second corpse to convert.
     assert!(
@@ -110,4 +115,24 @@ fn convert_corpse_to_bones_without_bones_only_removes_like_cpp() {
 fn removal_grid_matches_missing_grid_like_cpp() {
     let map = Map::new(571, 0, 0, 60_000);
     assert!(map.is_removal_grid_like_cpp(10.0, 20.0));
+}
+
+#[test]
+fn converting_a_corpse_in_a_removal_grid_never_births_bones() {
+    let mut map = Map::new(571, 0, 0, 60_000);
+    let owner = ObjectGuid::create_player(1, 44);
+    let position = Position::new(10.0, 20.0, 30.0, 0.0);
+    let corpse = player_corpse(owner, 9, position);
+    let guid = corpse.world().guid();
+    map.add_corpse_to_map_like_cpp(corpse).unwrap();
+    let cell = Cell::from_world(position.x, position.y);
+    map.get_ngrid_mut(GridCoord::new(cell.grid_x(), cell.grid_y()))
+        .unwrap()
+        .set_state(GridStateKind::Removal);
+    let outcome = map
+        .convert_corpse_to_bones_like_cpp(owner, true, 5_000)
+        .unwrap();
+    assert_eq!(outcome.corpse_guid, guid);
+    assert_eq!(outcome.bones_guid, None);
+    assert!(map.get_typed_corpse(guid).is_none());
 }

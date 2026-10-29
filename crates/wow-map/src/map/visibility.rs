@@ -390,6 +390,31 @@ where
             .len()
     }
 
+    /// Take only one object's removal intent before a same-GUID replacement
+    /// is immediately published. Unrelated deferred removals remain queued.
+    pub fn take_object_visibility_destroy_for_guid_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Option<ObjectVisibilityDestroyRecipientsLikeCpp> {
+        let mut recipients = Vec::new();
+        let mut found = false;
+        self.pending_object_visibility_destroy_recipients_like_cpp
+            .retain(|intent| {
+                if intent.object_guid != guid {
+                    return true;
+                }
+                found = true;
+                recipients.extend_from_slice(&intent.recipient_guids);
+                false
+            });
+        recipients.sort_unstable();
+        recipients.dedup();
+        found.then_some(ObjectVisibilityDestroyRecipientsLikeCpp {
+            object_guid: guid,
+            recipient_guids: recipients,
+        })
+    }
+
     /// Drain object destroy recipients captured during map-owned removals.
     pub fn take_object_visibility_destroy_recipients_like_cpp(
         &mut self,

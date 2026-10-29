@@ -17,7 +17,7 @@ pub enum RecoveryResumeState {
 pub(crate) struct Owner {
     pub(crate) handle: wow_map::PlayerHandle,
     pub(crate) guid: ObjectGuid,
-    residence: Option<(wow_map::MapKey, u64)>,
+    pub(crate) residence: Option<(wow_map::MapKey, u64)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

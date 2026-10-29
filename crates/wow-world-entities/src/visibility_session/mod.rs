@@ -40,6 +40,9 @@ pub use canonical_objects::{
     visible_dynamic_objects_from_canonical_map_like_cpp,
 };
 pub use corpse_birth::publish_corpse_birth_visibility_like_cpp;
+pub(crate) use corpse_birth::{
+    CorpseBirthKind, prepare_corpse_visibility_like_cpp, publish_corpse_visibility_like_cpp,
+};
 pub use deferred::{
     apply_deferred_player_visibility_refresh_like_cpp,
     flush_pending_visibility_refresh_with_catalogs_like_cpp,

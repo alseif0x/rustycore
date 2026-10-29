@@ -8,6 +8,8 @@ use crate::session::WorldSession;
 
 #[path = "corpse/birth_visibility.rs"]
 mod birth_visibility;
+#[path = "corpse/bones_birth.rs"]
+mod bones_birth;
 mod death_timer_driver;
 #[path = "corpse/live_pet.rs"]
 mod live_pet;

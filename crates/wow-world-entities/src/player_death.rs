@@ -430,7 +430,16 @@ pub(crate) async fn convert_corpse_to_bones_for_resurrection<H: CorpseHostLikeCp
     host: &mut H,
 ) -> CorpseBonesConversion {
     set_player_corpse_location_like_cpp(host, None);
-    let Some(owner) = host.player_guid() else {
+    let Some(binding) = crate::recovery_fences::owner(host) else {
+        return CorpseBonesConversion::Unavailable;
+    };
+    if !crate::recovery_fences::owner_is_current_in_residence(host, binding) {
+        return CorpseBonesConversion::Unavailable;
+    }
+    let owner = binding.guid;
+    let Some(continuation) = host.core().with_owned_player_like_cpp(|player| {
+        player.resurrection_state_like_cpp().delayed_after_teleport
+    }) else {
         return CorpseBonesConversion::Unavailable;
     };
     let policy = host.hub_ref().config.death_policy_like_cpp;
@@ -441,19 +450,59 @@ pub(crate) async fn convert_corpse_to_bones_for_resurrection<H: CorpseHostLikeCp
             policy.bones_world
         };
     let now = unix_now();
-    let Some(converted) = with_current_map_like_cpp(host, |map| {
-        map.convert_corpse_to_bones_like_cpp(owner, bones_enabled, now)
-    }) else {
+    let Some(manager) = host.core().canonical_map_manager.as_ref().cloned() else {
         return CorpseBonesConversion::Unavailable;
     };
-    let Some(_converted) = converted else {
-        // No corpse exists on this current map; C++ SpawnCorpseBones has no
-        // persistence work to wait for and its caller may finish normally.
-        return CorpseBonesConversion::NoCorpse;
+    let prepared = {
+        let Ok(mut manager) = manager.lock() else {
+            return CorpseBonesConversion::Unavailable;
+        };
+        let Some((key, revision)) =
+            manager.player_active_residence_revision_like_cpp(binding.handle)
+        else {
+            return CorpseBonesConversion::Unavailable;
+        };
+        if binding.residence != Some((key, revision))
+            || !manager
+                .with_player_like_cpp(binding.handle, |player| {
+                    let world = player.unit().world();
+                    player.guid() == owner
+                        && world.object().is_in_world()
+                        && world.has_current_map()
+                        && wow_map::MapKey::new(world.map_id(), world.instance_id()) == key
+                        && player.resurrection_state_like_cpp().delayed_after_teleport
+                            == continuation
+                })
+                .unwrap_or(false)
+        {
+            return CorpseBonesConversion::Unavailable;
+        }
+        let Some(map) = manager.find_map_mut(key.map_id, key.instance_id) else {
+            return CorpseBonesConversion::Unavailable;
+        };
+        let map = map.map_mut();
+        let Some(converted) = map.convert_corpse_to_bones_like_cpp(owner, bones_enabled, now)
+        else {
+            return CorpseBonesConversion::NoCorpse;
+        };
+        let destroyed = map.take_object_visibility_destroy_for_guid_like_cpp(converted.corpse_guid);
+        crate::visibility_session::prepare_corpse_visibility_like_cpp(
+            &manager,
+            binding.handle,
+            converted.bones_guid,
+            destroyed,
+            crate::visibility_session::CorpseBirthKind::Bones,
+        )
     };
+    // C++ enqueues the delete transaction (DBPool.cpp:302-325), then Map::AddToMap
+    // immediately publishes bones. Native visibility is not the durable receipt.
+    let published = crate::recovery_fences::owner_is_current_in_residence(host, binding)
+        && prepared.as_ref().is_some_and(|prepared| {
+            crate::visibility_session::publish_corpse_visibility_like_cpp(host, prepared)
+        });
 
-    // C++ `Map::ConvertCorpseToBones` commits `Corpse::DeleteFromDB` in its
-    // own transaction.
+    // Preserve the existing Rust completion fence even when publication failed:
+    // the committed native conversion still requires its delete attempt.
     let Some(port) = host.map_corpse_persistence_port_like_cpp() else {
         return CorpseBonesConversion::Unavailable;
     };
@@ -466,6 +515,14 @@ pub(crate) async fn convert_corpse_to_bones_for_resurrection<H: CorpseHostLikeCp
         );
         // The port cannot distinguish a returned error before COMMIT from
         // an error after COMMIT. Neither outcome authorizes completion.
+        return CorpseBonesConversion::Unavailable;
+    }
+    if !published
+        || !crate::recovery_fences::owner_is_current_in_residence(host, binding)
+        || host.core().with_owned_player_like_cpp(|player| {
+            player.resurrection_state_like_cpp().delayed_after_teleport
+        }) != Some(continuation)
+    {
         return CorpseBonesConversion::Unavailable;
     }
     CorpseBonesConversion::Converted
