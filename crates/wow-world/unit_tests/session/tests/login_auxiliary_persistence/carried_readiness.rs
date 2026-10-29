@@ -47,11 +47,12 @@ async fn carried_obtain_readiness_requires_both_queries_and_coherent_rows() {
     skipped.item.item_entry = 0;
     let mut conflicting = top();
     conflicting.item.item_db_guid = 9302;
-    for (equipment_result, bag_result, ready) in [
-        (failed(), bags(vec![]), false),
-        (equipment(vec![top()]), failed(), false),
-        (equipment(vec![skipped]), bags(vec![]), false),
-        (equipment(vec![top(), conflicting]), bags(vec![]), false),
+    for (equipment_result, bag_result, carried_ready, save_authority) in [
+        (failed(), bags(vec![]), false, false),
+        (equipment(vec![]), failed(), false, false),
+        (equipment(vec![top()]), failed(), false, false),
+        (equipment(vec![skipped]), bags(vec![]), false, false),
+        (equipment(vec![top(), conflicting]), bags(vec![]), false, false),
         (
             equipment(vec![top()]),
             bags(vec![PlayerBagInventoryLoadRowLikeCpp {
@@ -60,8 +61,10 @@ async fn carried_obtain_readiness_requires_both_queries_and_coherent_rows() {
                 item: row(9303),
             }]),
             false,
+            false,
         ),
-        (equipment(vec![]), bags(vec![]), true),
+        (equipment(vec![top()]), bags(vec![]), true, false),
+        (equipment(vec![]), bags(vec![]), true, true),
     ] {
         let (mut session, _, _) = make_session();
         let owner = install_canonical_player_owner_for_test(&mut session, 571, 0);
@@ -88,23 +91,32 @@ async fn carried_obtain_readiness_requires_both_queries_and_coherent_rows() {
             .expect("the existing login snapshot remains available");
         session
             .core
+            .with_owned_player_mut_like_cpp(|player| player.set_inventory_slot_count(16))
+            .unwrap();
+        session
+            .core
             .with_owned_player_like_cpp(|player| {
                 assert_eq!(
                     player
                         .inventory_runtime_like_cpp()
                         .carried_inventory_loaded_like_cpp(),
-                    ready
+                    carried_ready
                 );
                 assert_eq!(
                     player
                         .inventory_runtime_like_cpp()
                         .equipment_inventory_authority_complete_like_cpp(),
-                    ready
+                    save_authority
                 );
-                assert_eq!(
-                    player.cast_all_obtain_backpack_end_like_cpp().is_some(),
-                    ready
-                );
+                assert_eq!(player.cast_all_obtain_backpack_end_like_cpp().is_some(), carried_ready);
+                if carried_ready && !save_authority {
+                    assert!(
+                        player
+                            .plan_spell_cast_resource_debits_like_cpp(&[(2121, 1)], &[])
+                            .is_none(),
+                        "a coherent partial load cannot authorize a reagent debit"
+                    );
+                }
             })
             .unwrap();
     }

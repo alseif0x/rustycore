@@ -7,6 +7,8 @@ use super::*;
 
 #[path = "login_auxiliary_persistence/carried_readiness.rs"]
 mod carried_readiness;
+#[path = "login_auxiliary_persistence/complete_item_save.rs"]
+mod complete_item_save;
 #[path = "login_auxiliary_persistence/durability_save.rs"]
 mod durability_save;
 
@@ -30,6 +32,8 @@ use wow_persistence::{
 struct AuxiliaryLoadPortLikeCpp {
     requests: Mutex<Vec<PlayerLoginAuxiliaryLoadRequestLikeCpp>>,
     outcomes: Mutex<VecDeque<PlayerLoginAuxiliaryLoadOutcomeLikeCpp>>,
+    repair_requests: Mutex<Vec<PlayerLoginItemRepairRequestLikeCpp>>,
+    repair_outcome: Mutex<PersistenceOutcomeLikeCpp>,
 }
 
 impl AuxiliaryLoadPortLikeCpp {
@@ -39,11 +43,21 @@ impl AuxiliaryLoadPortLikeCpp {
         Arc::new(Self {
             requests: Mutex::new(Vec::new()),
             outcomes: Mutex::new(outcomes.into_iter().collect()),
+            repair_requests: Mutex::new(Vec::new()),
+            repair_outcome: Mutex::new(PersistenceOutcomeLikeCpp::Applied { rows: 0 }),
         })
     }
 
     fn requests(&self) -> Vec<PlayerLoginAuxiliaryLoadRequestLikeCpp> {
         self.requests.lock().unwrap().clone()
+    }
+
+    fn set_repair_outcome(&self, outcome: PersistenceOutcomeLikeCpp) {
+        *self.repair_outcome.lock().unwrap() = outcome;
+    }
+
+    fn repair_requests(&self) -> Vec<PlayerLoginItemRepairRequestLikeCpp> {
+        self.repair_requests.lock().unwrap().clone()
     }
 }
 
@@ -268,9 +282,11 @@ impl PlayerLifecyclePortLikeCpp for AuxiliaryLoadPortLikeCpp {
 
     fn persist_login_item_repairs_like_cpp<'a>(
         &'a self,
-        _request: PlayerLoginItemRepairRequestLikeCpp,
+        request: PlayerLoginItemRepairRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
-        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+        self.repair_requests.lock().unwrap().push(request);
+        let outcome = self.repair_outcome.lock().unwrap().clone();
+        Box::pin(async move { outcome })
     }
 
     fn reset_login_pet_talents_like_cpp<'a>(

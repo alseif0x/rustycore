@@ -166,8 +166,19 @@ claimed as byte parity for that divergent transmog case or as completion of the
 transmog product. Distinct primary/secondary values are retained by the decoder
 test and must survive the integrated load/save round-trip test.
 
-Status: steps 1–2 implemented; step 3 integrated evidence and the last-Ankh QA
-variant are next. No new acceptance claimed.
+Step 3 regression tests are written and UNVALIDATED: five new World cases exercise
+production login through canonical debit/full-save capture and acknowledgement,
+distinct nonzero item metadata in backpack and bag contents, Ankh counts 10/1
+under Applied/Failed/Unknown outcomes, incomplete inputs, refund ordering and
+BOP registration. The existing carried-readiness case now covers empty equipment
+with a failed bag query. The existing partial-durability test remains unchanged.
+Parent review replaced a wire-only count mutation in the round-trip fixture with
+the canonical debit operation and supplied the preceding login backpack capacity.
+Existing SelfRes/recovery and save-receipt suites retain packet, cancellation and
+incarnation coverage; execution is pending in the complete affected campaign.
+
+Status: steps 1–3 implementation is complete and unvalidated; the last-Ankh QA
+variant precedes the frozen acceptance candidate. No new acceptance claimed.
 One bounded worker at a time; the parent owns decisions, review, Git and all
 heavy/runtime scheduling. No broad inventory/spell rewrite, unrelated architecture
 audit, extra macro-issues or repeated unchanged campaigns are part of this plan.
