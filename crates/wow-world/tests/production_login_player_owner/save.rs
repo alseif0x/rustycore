@@ -428,11 +428,15 @@ async fn pending_far_disconnect(
         if retain_resurrection {
             // This fixture stops at PetStable before class power hydration.
             assert_eq!(
-                player.unit().get_power_index(wow_constants::PowerType::Mana),
+                player
+                    .unit()
+                    .get_power_index(wow_constants::PowerType::Mana),
                 Some(0)
             );
             assert_eq!(
-                player.unit().get_power_index(wow_constants::PowerType::Rage),
+                player
+                    .unit()
+                    .get_power_index(wow_constants::PowerType::Rage),
                 None
             );
             player

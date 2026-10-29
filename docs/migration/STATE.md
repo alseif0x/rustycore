@@ -45,6 +45,11 @@ The attempted campaign stopped FAILED after 95.742 seconds; no bot tests/build
 or debug World build ran. Evidence is
 `/tmp/rustycore43-affected-8417-gggm0h0k/{final-manifest.json,record.json}`.
 
+At `2d4c816d4`, affected final failed only rustfmt (83.171 seconds); compilation,
+policy and all 4,149 active World tests passed. The two new power-index assertions
+need rustfmt's method-chain layout. No integration/bot/build step ran. The failed
+record is `/tmp/rustycore43-affected-2d4c-68m9uj4o/record.json` (83.200 seconds).
+
 The second combined acceptance at `dd54ae2cd` also failed: final took 976.424
 seconds and the complete attempted ordinary campaign took 977.780 seconds,
 again exceeding the 600-second target. Evidence is retained in
