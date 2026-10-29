@@ -1163,13 +1163,17 @@ async fn repop_request_creates_saved_corpse_and_releases_to_graveyard_like_cpp()
         session.fixtures.combat.represented_repop_at_graveyard_count,
         1
     );
-    // SMSG_PRE_RESSURECT and SMSG_DEATH_RELEASE_LOC go on the realm
-    // connection (Opcodes.cpp:1915, :1333); the reclaim delay and the
-    // teleport stay on the instance connection.
+    // PreRessurect, the unconditional mirror stops, teleport's CancelCombat
+    // and DeathReleaseLoc use realm; reclaim delay and teleport use instance.
     assert_eq!(
         sent_opcodes(&realm_rx),
         vec![
             ServerOpcodes::PreRessurect as u16,
+            ServerOpcodes::CancelCombat as u16,
+            ServerOpcodes::StopMirrorTimer as u16,
+            ServerOpcodes::StopMirrorTimer as u16,
+            ServerOpcodes::StopMirrorTimer as u16,
+            ServerOpcodes::CancelCombat as u16,
             ServerOpcodes::DeathReleaseLoc as u16,
         ]
     );
@@ -1508,7 +1512,12 @@ async fn repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp() {
             wow_packet::ServerPacket::to_bytes(&wow_packet::packets::misc::PreRessurect {
                 player_guid,
             }),
+            wow_packet::packets::combat::CancelCombat.to_bytes(),
+            wow_packet::packets::misc::StopMirrorTimer { timer: 0 }.to_bytes(),
+            wow_packet::packets::misc::StopMirrorTimer { timer: 1 }.to_bytes(),
+            wow_packet::packets::misc::StopMirrorTimer { timer: 2 }.to_bytes(),
             wow_packet::packets::misc::DeathReleaseLoc::cleared_like_cpp().to_bytes(),
+            wow_packet::packets::combat::CancelCombat.to_bytes(),
         ],
         "BuildPlayerRepop precedes ResurrectPlayer's cleared DeathReleaseLoc; no grave destination packet is emitted after revival"
     );
@@ -1525,6 +1534,9 @@ async fn repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp() {
 async fn repop_of_just_died_player_runs_kill_player_first_like_cpp() {
     let (mut session, send_rx, _realm_rx, _player_guid, _port) =
         dead_player_session_with_graveyard_like_cpp(4_305);
+    // One FIFO exposes the native cross-operation order without a socket race.
+    let own_output = session.core.send_tx().clone();
+    session.install_realm_send_channel_for_test(own_output);
     let _ = crate::session::hub_ref(&session)
         .core
         .with_owned_player_mut_like_cpp(|player| {
@@ -1536,7 +1548,11 @@ async fn repop_of_just_died_player_runs_kill_player_first_like_cpp() {
     handle_repop_request(&mut session, repop_request_packet(true)).await;
 
     // KillPlayer and BuildPlayerRepop each send SMSG_CORPSE_RECLAIM_DELAY.
-    let opcodes = sent_opcodes(&send_rx);
+    let packets = send_rx.try_iter().collect::<Vec<_>>();
+    let opcodes = packets
+        .iter()
+        .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+        .collect::<Vec<_>>();
     assert_eq!(
         opcodes
             .iter()
@@ -1557,6 +1573,37 @@ async fn repop_of_just_died_player_runs_kill_player_first_like_cpp() {
         .position(|opcode| *opcode == ServerOpcodes::MoveUnroot as u16)
         .expect("BuildPlayerRepop unroots when logout and stun guards allow it");
     assert!(root < water_walk && water_walk < unroot);
+    assert_eq!(
+        &opcodes[root + 1..root + 5],
+        &[
+            ServerOpcodes::StopMirrorTimer as u16,
+            ServerOpcodes::StopMirrorTimer as u16,
+            ServerOpcodes::StopMirrorTimer as u16,
+            ServerOpcodes::CancelCombat as u16,
+        ],
+        "root precedes mirror stops and CORPSE's native CombatStop"
+    );
+    let release_delay = opcodes
+        .iter()
+        .rposition(|opcode| *opcode == ServerOpcodes::CorpseReclaimDelay as u16)
+        .expect("BuildPlayerRepop reclaim delay");
+    assert_eq!(
+        &opcodes[release_delay + 1..release_delay + 4],
+        &[ServerOpcodes::StopMirrorTimer as u16; 3],
+        "BuildPlayerRepop stops mirror timers after reclaim delay and ghost-time reset"
+    );
+    let mirror_timers = packets
+        .iter()
+        .filter_map(|bytes| {
+            let mut packet = WorldPacket::from_bytes(bytes);
+            (packet.read_uint16().unwrap() == ServerOpcodes::StopMirrorTimer as u16).then(|| {
+                let timer = packet.read_int32().expect("int32 mirror timer type");
+                assert!(packet.is_empty());
+                timer
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(mirror_timers, [0, 1, 2, 0, 1, 2]);
     assert!(
         crate::session::hub_ref(&session)
             .player_movement_flags_like_cpp()

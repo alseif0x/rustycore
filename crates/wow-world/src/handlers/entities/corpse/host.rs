@@ -168,6 +168,10 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         Ok(removed)
     }
 
+    fn finish_player_non_alive_state_like_cpp(&mut self) -> Result<(), &'static str> {
+        wow_world_application::finish_player_non_alive_state_like_cpp(self)
+    }
+
     fn force_player_visibility_with_catalogs_like_cpp<'a>(
         &'a mut self,
         creature_spawns: &'a wow_world_entities::CreatureSpawnCatalogsLikeCpp,

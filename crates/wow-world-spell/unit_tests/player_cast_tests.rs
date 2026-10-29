@@ -655,3 +655,30 @@ fn server_normal_spell_go_keeps_empty_original_cast_id() {
         "existing non-normal behavior retains its fallback"
     );
 }
+
+#[test]
+fn selected_full_spell_go_keeps_explicit_original_without_ordinary_fallback() {
+    let cast_id = ObjectGuid::new(6, 0xCA57);
+    let original = ObjectGuid::new(6, 0xA11);
+    for original_cast_id in [ObjectGuid::EMPTY, original] {
+        let metadata = SpellCastMetadata {
+            trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
+            original_cast_id,
+            ..Default::default()
+        };
+        assert_eq!(
+            crate::execution_session::spell_go_original_cast_id_like_cpp(metadata, cast_id, true),
+            original_cast_id,
+            "selected FULL self auras preserve the caller's original, including EMPTY"
+        );
+        assert_eq!(
+            crate::execution_session::spell_go_original_cast_id_like_cpp(metadata, cast_id, false),
+            if original_cast_id.is_empty() {
+                cast_id
+            } else {
+                original
+            },
+            "ordinary server casts retain their established fallback"
+        );
+    }
+}

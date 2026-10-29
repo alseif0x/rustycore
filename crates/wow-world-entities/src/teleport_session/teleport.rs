@@ -7,7 +7,7 @@
 //! (#1363 slice 11a; moved from the World `session/movement/transfer.rs`).
 
 use tracing::{info, warn};
-use wow_core::Position;
+use wow_core::{ObjectGuid, Position};
 use wow_world_core::session::SessionState;
 use wow_world_core::session::movement_protocol::{
     TELE_TO_SEAMLESS_LIKE_CPP, TeleportToOptionsLikeCpp,
@@ -492,7 +492,8 @@ async fn initiate_same_map_near_teleport_like_cpp<H: PlayerTeleportHostLikeCpp>(
                 facing: destination.orientation,
                 sequence_index,
                 preload_world: 0,
-                transport_guid: None,
+                // Unit::SendTeleportPacket engages this optional even without a transport.
+                transport_guid: Some(ObjectGuid::EMPTY),
             });
         }
     }

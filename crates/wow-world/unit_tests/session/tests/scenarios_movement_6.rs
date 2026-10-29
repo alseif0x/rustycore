@@ -670,7 +670,7 @@ async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp
             facing: destination.orientation,
             sequence_index: 0,
             preload_world: 0,
-            transport_guid: None,
+            transport_guid: Some(ObjectGuid::EMPTY),
         }
         .to_bytes()
     );

@@ -140,6 +140,54 @@ fn login_transfer_and_worldport_controls_use_cpp_routes_and_order() {
 }
 
 #[test]
+fn near_teleport_accepts_cpp_empty_transport_and_rejects_malformed_or_unsupported_data() {
+    let mover = test_player_mover();
+    let mut prefix = mover.packed();
+    prefix.extend(5u32.to_le_bytes());
+    for coordinate in [-9339.7197f32, 170.2, 61.5622, 4.4964] {
+        prefix.extend(coordinate.to_le_bytes());
+    }
+    prefix.push(0); // PreloadWorld
+    let mut native = prefix.clone();
+    native.extend([0x80, 0x00, 0x00]); // engaged empty packed transport, no vehicle
+    let mut controller = movement_controller();
+    seed_movement_login(&mut controller);
+    let response = controller
+        .process_packet(Connection::Instance, SMSG_MOVE_TELEPORT, &native)
+        .unwrap();
+    assert_eq!(response.len(), 1);
+    assert_eq!(response[0].connection, Connection::Instance);
+    assert_eq!(response[0].opcode, 0x39FA);
+    let mut expected_ack = mover.packed();
+    expected_ack.extend(5u32.to_le_bytes());
+    expected_ack.extend(0u32.to_le_bytes());
+    assert_eq!(response[0].body, expected_ack);
+    let position = controller.evidence.movement_state.unwrap();
+    assert_eq!(position.map_id, Some(530));
+    assert_eq!(position.x, Some(-9339.7197));
+    assert_eq!(position.y, Some(170.2));
+    assert_eq!(position.z, Some(61.5622));
+    assert_eq!(position.orientation, Some(4.4964));
+
+    for (suffix, message) in [
+        (vec![0x80], "truncated packed ObjectGuid"),
+        (vec![0x80, 0x00], "truncated packed ObjectGuid"),
+        (vec![0x80, 0x01, 0x00, 0x01], "nonempty transport"),
+        (vec![0x40], "vehicle data are unsupported"),
+        (vec![0xC0, 0x00, 0x00], "vehicle data are unsupported"),
+    ] {
+        let mut payload = prefix.clone();
+        payload.extend(suffix);
+        let mut controller = movement_controller();
+        seed_movement_login(&mut controller);
+        let error = controller
+            .process_packet(Connection::Instance, SMSG_MOVE_TELEPORT, &payload)
+            .unwrap_err();
+        assert!(format!("{error:#}").contains(message), "{error:#}");
+    }
+}
+
+#[test]
 fn initial_controller_failure_handoff_retains_the_failing_packet() {
     let mut controller = movement_controller();
     let failed_body = [0xAA, 0xBB];
@@ -446,7 +494,10 @@ fn near_teleport_and_typed_movement_preserve_control_flags_and_fall_layout() {
         Some(530)
     );
 
-    for optional_bits in [0x40, 0x80] {
+    for (optional_bits, message) in [
+        (0x40, "vehicle data are unsupported"),
+        (0x80, "truncated packed ObjectGuid"),
+    ] {
         let mut unsupported_teleport = mover.packed();
         unsupported_teleport.extend(9u32.to_le_bytes());
         for value in [3.0f32, 4.0, 5.0, 1.25] {
@@ -460,9 +511,7 @@ fn near_teleport_and_typed_movement_preserve_control_flags_and_fall_layout() {
                 &unsupported_teleport,
             )
             .unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("transport and vehicle data are unsupported"));
+        assert!(format!("{error:#}").contains(message), "{error:#}");
     }
 }
 

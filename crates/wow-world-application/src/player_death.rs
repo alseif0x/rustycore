@@ -430,9 +430,7 @@ where
             player.unit_mut().set_death_state(DeathState::JustDied)
         })
         .ok_or("Native death Unit owner is unavailable")?;
-    wow_world_entities::combat_stop_like_cpp(host);
-    crate::interrupt_non_melee_spell_cast_for_loot_like_cpp(host);
-    remove_death_auras(host)?;
+    finish_player_non_alive_state_like_cpp(host)?;
     let power = host
         .core()
         .with_owned_player_mut_like_cpp(|player| {
@@ -495,6 +493,40 @@ fn clear_power<H: CombatSessionHostLikeCpp>(
         };
         host.core().send_packet_realm(&packet);
         host.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.to_bytes());
+    }
+    Ok(())
+}
+
+/// Unit.cpp:8527–8550 repeats these effects for every nonalive transition.
+/// JUST_DIED-only health, power, stand and quest effects remain in their owner.
+pub fn finish_player_non_alive_state_like_cpp<H>(host: &mut H) -> Result<(), &'static str>
+where
+    H: PlayerCastHostLikeCpp + CombatSessionHostLikeCpp,
+{
+    let handle = host
+        .core()
+        .player_handle_like_cpp
+        .ok_or("Nonalive Player owner is unavailable")?;
+    let state = host
+        .core()
+        .with_owned_player_like_cpp(|player| player.unit().death_state())
+        .ok_or("Nonalive Player incarnation is unavailable")?;
+    if host.player_guid() != Some(handle.guid())
+        || matches!(state, DeathState::Alive | DeathState::JustRespawned)
+    {
+        return Err("Nonalive Player state is not admitted");
+    }
+    wow_world_entities::combat_stop_like_cpp(host);
+    crate::interrupt_non_melee_spell_cast_for_loot_like_cpp(host);
+    remove_death_auras(host)?;
+    if host.core().player_handle_like_cpp != Some(handle)
+        || host.player_guid() != Some(handle.guid())
+        || host
+            .core()
+            .with_owned_player_like_cpp(|player| player.unit().death_state())
+            != Some(state)
+    {
+        return Err("Nonalive Player owner changed during cleanup");
     }
     Ok(())
 }

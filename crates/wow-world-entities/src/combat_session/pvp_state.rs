@@ -189,7 +189,8 @@ fn finish_combat_stop_like_cpp<H: CombatSessionHostLikeCpp>(
             now_dead: false,
         });
     }
-    host.send_packet(&wow_packet::packets::combat::CancelCombat);
+    host.core()
+        .send_packet_realm(&wow_packet::packets::combat::CancelCombat);
     host.sync_player_registry_state_like_cpp();
 }
 pub fn reset_contested_pvp_like_cpp<H: CombatSessionHostLikeCpp>(host: &mut H) {

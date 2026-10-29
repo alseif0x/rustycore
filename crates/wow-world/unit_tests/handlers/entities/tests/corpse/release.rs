@@ -12,6 +12,119 @@ use wow_persistence::{
 };
 
 #[tokio::test]
+async fn release_publishes_exact_corpse_before_dead_cleanup_and_water_walk() {
+    let (mut session, send_rx, _realm_rx, owner, port) =
+        dead_player_session_with_graveyard_like_cpp(9_244);
+    let own_output = session.core.send_tx().clone();
+    session.install_realm_send_channel_for_test(own_output);
+    let generators = session.id_generators_for_test_like_cpp();
+    let creatures = session.creature_spawn_catalogs_for_test_like_cpp();
+    let graveyards = wow_data::GraveyardStore::default();
+
+    assert!(
+        wow_world_entities::build_player_repop_like_cpp(
+            &mut session,
+            wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creatures,
+                graveyards: &graveyards,
+            },
+        )
+        .await
+    );
+
+    let corpse_guid = current_corpse_guid_like_cpp(&session, owner).unwrap();
+    let create_data = {
+        let manager = session
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap();
+        let corpse = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_corpse(corpse_guid)
+            .unwrap();
+        wow_world_core::entity_update_bridge::corpse_create_data_from_entity_like_cpp(corpse)
+    };
+    let expected_create = wow_packet::packets::update::UpdateObject {
+        map_id: 571,
+        num_updates: 1,
+        destroy_guids: Vec::new(),
+        out_of_range_guids: Vec::new(),
+        blocks: vec![wow_packet::packets::update::UpdateObject::create_corpse_block(create_data)],
+    }
+    .to_bytes();
+    let packets = send_rx.try_iter().collect::<Vec<_>>();
+    let create = packets
+        .iter()
+        .position(|bytes| bytes == &expected_create)
+        .expect("the committed corpse's exact CREATE is published without another Map tick");
+    assert_eq!(
+        packets
+            .iter()
+            .filter(|bytes| *bytes == &expected_create)
+            .count(),
+        1
+    );
+    assert_eq!(
+        packets[create + 1],
+        wow_packet::packets::combat::CancelCombat.to_bytes()
+    );
+    assert_eq!(
+        u16::from_le_bytes([packets[create + 2][0], packets[create + 2][1]]),
+        ServerOpcodes::MoveSetWaterWalk as u16,
+        "DEAD cleanup follows CREATE and precedes ghost movement"
+    );
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&corpse_guid)
+    );
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| (
+            player.unit().death_state(),
+            player.unit().data().health,
+            player.resurrection_state_like_cpp().delayed_after_teleport,
+        )),
+        Some((wow_constants::DeathState::Dead, 1, None))
+    );
+    assert_eq!(port.saves.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn standalone_create_corpse_preserves_native_state_without_visibility_catalogs() {
+    let (mut session, send_rx, realm_rx, owner, _) =
+        dead_player_session_with_graveyard_like_cpp(9_245);
+    let before = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            (player.unit().death_state(), player.unit().data().health)
+        })
+        .unwrap();
+    let generators = session.id_generators_for_test_like_cpp();
+    let corpse = wow_world_entities::create_corpse_like_cpp(&mut session, generators.item.as_ref())
+        .await
+        .expect("standalone corpse creation");
+    assert_eq!(current_corpse_guid_like_cpp(&session, owner), Some(corpse));
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| (
+            player.unit().death_state(),
+            player.unit().data().health,
+        )),
+        Some(before)
+    );
+    assert!(!session.core.client_visible_guids_like_cpp.contains(&corpse));
+    assert!(send_rx.is_empty());
+    assert!(realm_rx.is_empty());
+    assert_eq!(release_phase(&session), None);
+}
+
+#[tokio::test]
 async fn release_clears_absent_pet_stable_slot_without_erasing_stale_guid() {
     let (mut session, _send_rx, _realm_rx, _owner, port) =
         dead_player_session_with_graveyard_like_cpp(9_240);

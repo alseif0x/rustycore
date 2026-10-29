@@ -71,6 +71,9 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     ) -> Option<std::sync::Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>;
     /// C++ `Unit::RemoveAurasDueToSpell(spellId)`.
     fn remove_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> Result<usize, &'static str>;
+    /// The shared nonalive Unit::setDeathState combat, cast and Aura cleanup.
+    /// The caller assigns the native state before invoking these effects.
+    fn finish_player_non_alive_state_like_cpp(&mut self) -> Result<(), &'static str>;
     /// C++ `Player::UpdateObjectVisibility(true)` followed by
     /// `UpdateVisibilityForPlayer` for death and resurrection transitions.
     fn force_player_visibility_with_catalogs_like_cpp<'a>(

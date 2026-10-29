@@ -292,11 +292,11 @@ class DeathFixtureTests(unittest.TestCase):
             db = FakeDB()
             _, journal = self.prepare_fixture(db, directory)
             allowed = {"characters", "character_homebind", "item_instance",
-                       "character_inventory", "character_spell"}
+                       "character_inventory", "character_spell", "character_achievement"}
             tables = {statement.split(" INTO ", 1)[1].split(" ", 1)[0]
                       for statement in db.statements if statement.startswith("INSERT INTO ")}
             self.assertLessEqual(tables, allowed)
-            self.assertEqual(len(tables), 5)
+            self.assertEqual(len(tables), 6)
             self.assertTrue(all("auth." not in statement and "world." not in statement
                                 for statement in db.statements))
             self.assertTrue(all(statement.startswith("INSERT INTO ") for statement in db.statements))
@@ -314,6 +314,22 @@ class DeathFixtureTests(unittest.TestCase):
                 f"({actor_guids[seed['actor']]},{seed['spell']},1,0)"
                 for seed in fixture.SPELL_SEEDS
             })
+            self.assertEqual(fixture.ACHIEVEMENT_SEEDS, (
+                {"actor": "Qadeathfall", "achievement": 13},
+                {"actor": "Qadeathreinc", "achievement": 13},
+                {"actor": "Qadeathcast", "achievement": 13},
+            ))
+            self.assertEqual({seed["actor"] for seed in fixture.ACHIEVEMENT_SEEDS},
+                             {actor["name"] for actor in journal["actors"] if actor["level"] == 80})
+            self.assertEqual(journal["seed_facts"]["achievements"], list(fixture.ACHIEVEMENT_SEEDS))
+            self.assertEqual(
+                {statement for statement in db.statements
+                 if statement.startswith("INSERT INTO character_achievement ")},
+                {f"INSERT INTO character_achievement (guid,achievement,date) VALUES "
+                 f"({actor_guids[seed['actor']]},13,UNIX_TIMESTAMP())"
+                 for seed in fixture.ACHIEVEMENT_SEEDS},
+            )
+            self.assertIn(("character_achievement", "guid"), fixture.CHAR_OWNER_TABLES)
 
     def test_bad_private_config_error_does_not_echo_credential_text(self):
         with tempfile.TemporaryDirectory() as root:

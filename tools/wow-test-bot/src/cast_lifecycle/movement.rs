@@ -725,10 +725,13 @@ fn parse_move_teleport(payload: &[u8]) -> Result<(Guid, u32, Position)> {
     );
     let has_transport = optional & 0x80 != 0;
     let has_vehicle = optional & 0x40 != 0;
-    ensure!(
-        !has_transport && !has_vehicle,
-        "MOVE_TELEPORT transport and vehicle data are unsupported"
-    );
+    ensure!(!has_vehicle, "MOVE_TELEPORT vehicle data are unsupported");
+    if has_transport {
+        ensure!(
+            cursor.guid()?.empty(),
+            "MOVE_TELEPORT nonempty transport is unsupported"
+        );
+    }
     cursor.finish("MoveTeleport")?;
     Ok((mover, sequence, position))
 }

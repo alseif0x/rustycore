@@ -18,12 +18,11 @@
 //! through [`wow_persistence::MapCorpsePersistencePortLikeCpp`] after the Map
 //! guard is released. No Map guard crosses an await.
 //!
-//! Not represented here (no Rust owner yet; tracked in #43's follow-ups):
-//! the Player-specific `setDeathState(JUST_DIED)` cleanup (`Player.cpp:1177`;
-//! its lethal callers need a central audit),
-//! live-Pet persistence/cleanup inside `RemovePet`, `StopMirrorTimers` (no
-//! canonical mirror-timer owner or effective inputs are available yet),
-//! battleground/battlefield graveyard selectors and `OnPlayerRepop`.
+//! Native JUST_DIED cleanup belongs to Application's admitted death operation;
+//! repop delegates RemovePet to `CorpseHostLikeCpp::remove_pet_for_repop_like_cpp`.
+//! Wider controlled-unit/pet effects, ongoing mirror-timer progression and
+//! drowning, battleground/battlefield graveyard selectors and `OnPlayerRepop`
+//! remain follow-ups. The unconditional mirror-stop packets are represented.
 
 use std::sync::Arc;
 
@@ -289,8 +288,8 @@ fn send_corpse_reclaim_delay_like_cpp<H: CorpseHostLikeCpp>(host: &H, delay_ms: 
 /// `UpdateCorpseReclaimDelay`, and send the reclaim delay. The Rust death
 /// bookkeeping is updated here; rooting is published here too. The six-minute
 /// `m_deathTimer` countdown advances separately in PlayerUpdate, after SaveTimer.
-/// Forced visibility follows the reclaim-delay packet; fall and mirror timers
-/// remain outside this operation.
+/// Forced visibility follows the reclaim-delay packet; falling and ongoing
+/// mirror-timer progression remain outside this operation.
 pub async fn kill_player_like_cpp<H: CorpseHostLikeCpp>(
     host: &mut H,
     creature_spawns: &CreatureSpawnCatalogsLikeCpp,
@@ -303,10 +302,19 @@ pub async fn kill_player_like_cpp<H: CorpseHostLikeCpp>(
     let pvp = player_pvp_death_like_cpp(host);
     // C++ `Player::KillPlayer` roots before changing JUST_DIED to CORPSE.
     host.hub_mut().set_player_rooted_like_cpp(true);
+    stop_mirror_timers_like_cpp(host);
     let changed = host.core().with_owned_player_mut_like_cpp(|player| {
         player
             .unit_mut()
             .set_death_state(wow_constants::DeathState::Corpse);
+    });
+    if changed.is_none()
+        || host.finish_player_non_alive_state_like_cpp().is_err()
+        || !crate::recovery_fences::owner_is_current(host, owner)
+    {
+        return false;
+    }
+    let changed = host.core().with_owned_player_mut_like_cpp(|player| {
         player
             .unit_mut()
             .world_mut()
@@ -364,6 +372,14 @@ pub async fn kill_player_like_cpp<H: CorpseHostLikeCpp>(
     }
 
     crate::recovery_fences::owner_is_current(host, owner)
+}
+
+pub(crate) fn stop_mirror_timers_like_cpp<H: CorpseHostLikeCpp>(host: &H) {
+    // Player.cpp:609,711 sends every type unconditionally, even without an active bar.
+    for timer in 0..3 {
+        host.core()
+            .send_packet_realm(&wow_packet::packets::misc::StopMirrorTimer { timer });
+    }
 }
 
 pub(crate) fn current_player_is_in_world_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> bool {

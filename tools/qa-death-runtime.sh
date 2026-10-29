@@ -360,10 +360,11 @@ death_runtime_exit() {
     DEATH_HOLD=1; DEATH_CLEANUP_STATUS=held_capture_in_progress
   fi
   if ((DEATH_HOLD == 0 && DEATH_CLEANUP_DONE == 0)); then
-    set +e
-    death_runtime_finalize
-    cleanup_status=$?
-    set -e
+    if death_runtime_finalize; then
+      cleanup_status=0
+    else
+      cleanup_status=$?
+    fi
     ((cleanup_status == 0)) || status=70
   elif ((DEATH_HOLD == 1)); then
     DEATH_CLEANUP_STATUS=held

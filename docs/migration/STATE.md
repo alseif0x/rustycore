@@ -20,15 +20,63 @@ the ENOSPC build and storage repair remain recorded below at their actual
 boundaries; this does not erase their cost.
 
 The documentation delta and committed-head debug artifact pins are bound in
-`/tmp/rustycore43-local-closeout-ready-vnd8r0ak/record.json`. Runtime acceptance
-is still on hold: no current authority has been given for temporary Rust/R6
-service swaps/restarts, real captures or disposable fixture writes. The bounded
-plan is 12 paired scenarios, 18 epochs per backend, and five new actors on
-accounts 9/10/12, followed by verified stable-server restoration and owned-data
-cleanup. Read-only planning at 04:44 UTC confirmed GUIDs 20–24 remain available
-and original characters 15/16/18 are preserved. No live parity, real durability,
+`/tmp/rustycore43-local-closeout-ready-vnd8r0ak/record.json`. The user then
+explicitly authorized the scoped Rust/R6 swaps, restarts, captures and disposable
+fixture writes. The live campaign is
+`/tmp/rustycore43-live-20261029-iua0lcwr/campaign.json`: 12 paired scenarios,
+18 epochs per backend and five new actors on accounts 9/10/12, followed by
+verified stable-server restoration and owned-data cleanup.
+
+The first two debug Rust attempts expired before the runner began. The default
+60-second and then 180-second startup allowances were insufficient: the second
+journal shows 123 seconds in spell-proc loading alone. With the existing
+`QA_READY_TIMEOUT_SECONDS=600` setting, the third attempt reached the real
+fall/release scenario and collected 162 packet pairs at `d47829662` before the
+bot rejected MoveTeleport. The paired R6 run also collected its native PKT and
+failed at that control packet. These are failed observations, not acceptance.
+Diagnostic comparisons retain their nonzero strict-diff exits under
+`comparison-first-finding/`. The stable binary/config were restored; the five
+fixture actors were removed after each run. C++ generated achievement-13 reward
+mail for actor 20 (mail 1, item 2000129/41426, sender 16128). The helper held its
+unsupported-row fence. The parent verified the exact World reward and
+`AchievementMgr.cpp:510–549` provenance, journaled those rows, removed only that
+owned reward under the stopped-service guard, then completed normal fixture
+cleanup and verified the stable server serving again at 09:01 UTC.
+
+The observed repair uses packed mover/transport GUIDs in MoveTeleport and the
+engaged empty transport optional emitted by `Unit::SendTeleportPacket`
+(`MovementPackets.cpp:705`, `ObjectGuid.cpp:758`, `Unit.cpp:12227`). The bot
+accepts that empty optional while continuing to reject actual transport or
+vehicle payloads. The level-80 fixtures seed their already-earned achievement
+13 to isolate death from unrelated first-login reward mail; generic unsupported
+mail cleanup remains forbidden. The cleanup trap now records failed restore
+outcomes even when its snapshot helper re-enables shell errexit.
+
+The observed publication findings are also implemented: CancelCombat uses the
+realm channel; KillPlayer and BuildPlayerRepop send mirror-stop types 0/1/2 at
+their C++ phases (`Player.cpp:609,711`). CORPSE and DEAD reuse the existing
+Application combat/cast/death-Aura cleanup (`Unit.cpp:8527`) through one thin
+CorpseHost callback. Committed corpse insertion now forces its visibility before
+DEAD cleanup, health 1 and ghost movement (`Map.cpp:530`), with canonical owner
+and continuation checks retained. The native Map visibility branch returns
+before the legacy database fallback awaits; no artificial suspension hook was
+added for that path.
+
+Selected FULL self-aura Go metadata now uses effective cooldown data and the
+IGNORE_COOLDOWN bit, preserving an explicitly empty OriginalCastID. Only spell
+8326 receives the UNIT/empty target shape observed in the R6 packet; this is
+not inferred as a generic target rule. Its independent decoded wire contract
+is `observed-ghost-go-contract.json`, reference PKT SHA-256
+`116b724cafe4639647d5b2814ba4074a53c2bfc045205d4721b0498556a22f11`.
+The diagnostic missing CriteriaUpdate packets retain their existing progression
+owner, PORT_PLAN L18; the previously recorded achievement exclusion remains
+explicit and no achievement parity is claimed.
+
+These repairs are UNVALIDATED; the earlier green local evidence does not cover
+their changed inputs. No live parity, real durability,
 manual-test readiness or issue completion is claimed. The issue remains open;
-these changes have not been pushed, merged or deployed.
+these changes have not been pushed or merged, and the original stable build is
+restored rather than permanently deploying the test candidate.
 
 **Earlier preparation and acceptance evidence, retained at its actual SHAs:**
 

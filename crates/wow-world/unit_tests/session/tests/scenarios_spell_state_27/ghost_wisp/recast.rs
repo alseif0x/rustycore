@@ -17,6 +17,171 @@ fn spell_go_cast_rows(packets: &[Vec<u8>]) -> Vec<(i32, ObjectGuid)> {
         .collect()
 }
 
+fn assert_stable_spell_go(
+    packets: &[Vec<u8>],
+    mut expected: wow_packet::packets::spell::SpellGoPkt,
+) {
+    let frames = packets
+        .iter()
+        .filter(|bytes| opcode(bytes) == ServerOpcodes::SpellGo as u16)
+        .collect::<Vec<_>>();
+    assert_eq!(frames.len(), 1, "one native Go for the selected cast");
+    let mut packet = wow_packet::WorldPacket::from_bytes(frames[0]);
+    packet.read_uint16().unwrap();
+    packet.read_packed_guid().unwrap(); // CasterGUID
+    packet.read_packed_guid().unwrap(); // CasterUnit
+    expected.cast_id = packet.read_packed_guid().unwrap();
+    assert!(!expected.cast_id.is_empty(), "native Map allocates CastID");
+    packet.read_packed_guid().unwrap(); // OriginalCastID remains exact below.
+    packet.read_int32().unwrap();
+    wow_packet::packets::spell::SpellCastVisual::read(&mut packet).unwrap();
+    packet.read_uint32().unwrap(); // CastFlags
+    packet.read_uint32().unwrap(); // CastFlagsEx
+    expected.cast_time_ms = packet.read_uint32().unwrap();
+    // Only the allocated CastID and sampled timestamp vary between executions.
+    assert_eq!(frames[0], &expected.to_bytes());
+}
+
+#[tokio::test]
+async fn selected_full_ghost_wisp_go_preserves_native_flags_original_and_target_shape() {
+    for spell_id in [GHOST, WISP] {
+        for start_recovery_time in [0, 1_500] {
+            for original_cast_id in [ObjectGuid::EMPTY, ObjectGuid::new(6, 0xA11)] {
+                let caller_flags_ex = if original_cast_id.is_empty() { 0 } else { 0x40 };
+                let mut fixture = fixture();
+                let mut config = crate::session::hub_ref(&fixture.session)
+                    .config
+                    .creature_aggro_config_like_cpp
+                    .clone();
+                let ghost_visual = config
+                    .spell_x_spell_visual_store
+                    .as_ref()
+                    .unwrap()
+                    .entries_like_cpp()
+                    .next()
+                    .unwrap()
+                    .clone();
+                let mut wisp_visual = ghost_visual.clone();
+                wisp_visual.id += 1;
+                wisp_visual.spell_id = WISP as u32;
+                let visual_row = if spell_id == GHOST {
+                    ghost_visual.id
+                } else {
+                    wisp_visual.id
+                };
+                // An unconditional fixture visual lets Wisp's IsNeedSendToClient admit Go.
+                config.spell_x_spell_visual_store =
+                    Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries([
+                        ghost_visual,
+                        wisp_visual,
+                    ])));
+                config.spell_cooldowns_store =
+                    Some(Arc::new(wow_data::SpellCooldownsStore::from_entries([
+                        wow_data::SpellCooldownsEntry {
+                            id: spell_id as u32,
+                            spell_id: spell_id as u32,
+                            start_recovery_time,
+                            ..Default::default()
+                        },
+                    ])));
+                fixture.session.set_creature_aggro_config_like_cpp(config);
+                let generators = fixture.session.id_generators_for_test_like_cpp();
+                let creatures = fixture.session.creature_spawn_catalogs_for_test_like_cpp();
+                let target = fixture.player;
+                wow_world_spell::execute_server_triggered_spell_like_cpp(
+                    &mut fixture.session,
+                    generators.item.as_ref(),
+                    &creatures,
+                    spell_id,
+                    target,
+                    SpellCastMetadata {
+                        trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
+                        original_cast_id,
+                        cast_flags_ex: caller_flags_ex,
+                        ..Default::default()
+                    },
+                )
+                .await
+                .expect("selected FULL self-aura execution");
+                assert_stable_spell_go(
+                    &outgoing(&fixture),
+                    wow_packet::packets::spell::SpellGoPkt {
+                        caster: target,
+                        cast_id: ObjectGuid::EMPTY,
+                        original_cast_id,
+                        spell_id,
+                        visual: wow_packet::packets::spell::SpellCastVisual {
+                            spell_visual_id: visual_row,
+                            script_visual_id: 0,
+                        },
+                        cast_flags: if start_recovery_time == 0 {
+                            0x0004_0101
+                        } else {
+                            0x0000_0101
+                        },
+                        cast_flags_ex: 0x200 | caller_flags_ex,
+                        cast_time_ms: 0,
+                        target: wow_packet::packets::spell::SpellTargetData {
+                            flags: if spell_id == GHOST { 0x2 } else { 0 },
+                            ..Default::default()
+                        },
+                        cast_data: Default::default(),
+                        hit_targets: vec![target],
+                        miss_targets: Vec::new(),
+                    },
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn ordinary_server_full_cast_keeps_caller_go_metadata() {
+    let mut fixture = fixture();
+    let spell_id = 99_991;
+    let mut spell = aura_spell(spell_id, []);
+    spell.effect_type = 0; // Source's NULL effect is inert, with no Aura application.
+    spell.aura_type = None;
+    install_spell_catalog(&mut fixture.session, [spell]);
+    let generators = fixture.session.id_generators_for_test_like_cpp();
+    let creatures = fixture.session.creature_spawn_catalogs_for_test_like_cpp();
+    let target = fixture.player;
+    let original_cast_id = ObjectGuid::new(6, 0xA22);
+    wow_world_spell::execute_server_triggered_spell_like_cpp(
+        &mut fixture.session,
+        generators.item.as_ref(),
+        &creatures,
+        spell_id,
+        target,
+        SpellCastMetadata {
+            trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
+            cast_flags: 0x100,
+            cast_flags_ex: 0x40,
+            original_cast_id,
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("ordinary server-triggered NULL effect");
+    assert_stable_spell_go(
+        &outgoing(&fixture),
+        wow_packet::packets::spell::SpellGoPkt {
+            caster: target,
+            cast_id: ObjectGuid::EMPTY,
+            original_cast_id,
+            spell_id,
+            visual: Default::default(),
+            cast_flags: 0x100,
+            cast_flags_ex: 0x40,
+            cast_time_ms: 0,
+            target: Default::default(),
+            cast_data: Default::default(),
+            hit_targets: vec![target],
+            miss_targets: Vec::new(),
+        },
+    );
+}
+
 fn aura_update_cast_rows(packets: &[Vec<u8>]) -> Vec<(u8, i32, ObjectGuid, i32)> {
     packets
         .iter()

@@ -93,6 +93,11 @@ SPELL_SEEDS = (
     # Night Elf racial Wisp form; ghost-only spell 20584 is not seeded.
     {"actor": "Qadeathwisp", "spell": 20585},
 )
+ACHIEVEMENT_SEEDS = (
+    {"actor": "Qadeathfall", "achievement": 13},
+    {"actor": "Qadeathreinc", "achievement": 13},
+    {"actor": "Qadeathcast", "achievement": 13},
+)
 
 # These are explicit owner-key tables from Player::DeleteFromDB/save paths.
 # Tables with cross-character/account ownership are deliberately excluded.
@@ -482,7 +487,8 @@ def seed_record(char_ids: list[int], item_ids: list[int], slots: list[int],
                 "playerFlags": 0, "inventorySlots": 16, "customizations": "empty; source-valid",
                 "homebind": "actor map/zone and ground position",
                 "item_slots": {"chest": 4, "backpack_start": 35},
-                "spells": list(SPELL_SEEDS), "world_stopped_asserted": True}}
+                "spells": list(SPELL_SEEDS), "achievements": list(ACHIEVEMENT_SEEDS),
+                "world_stopped_asserted": True}}
 
 
 def validate_journal(journal: dict[str, Any], path: Path) -> None:
@@ -563,6 +569,12 @@ def seed_statements(journal: dict[str, Any]) -> list[str]:
         actor = next(a for a in journal["actors"] if a["name"] == spell["actor"])
         out.append(f"INSERT INTO character_spell (guid,spell,active,disabled) "
                    f"VALUES ({actor['guid']},{spell['spell']},1,0)")
+    # Established level-80 actors already earned achievement 13. C++ skips
+    # CompletedAchievement rewards when HasAchieved is true, avoiding unrelated login mail.
+    for achievement in ACHIEVEMENT_SEEDS:
+        actor = next(a for a in journal["actors"] if a["name"] == achievement["actor"])
+        out.append("INSERT INTO character_achievement (guid,achievement,date) "
+                   f"VALUES ({actor['guid']},{achievement['achievement']},UNIX_TIMESTAMP())")
     return out
 
 

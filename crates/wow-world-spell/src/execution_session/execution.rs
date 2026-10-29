@@ -10,9 +10,9 @@ use super::*;
 pub(crate) fn spell_go_original_cast_id_like_cpp(
     metadata: SpellCastMetadata,
     cast_id: ObjectGuid,
-    server_triggered_resurrection_sickness: bool,
+    selected_full_server_aura: bool,
 ) -> ObjectGuid {
-    if metadata.server_normal_cast_like_cpp || server_triggered_resurrection_sickness {
+    if metadata.server_normal_cast_like_cpp || selected_full_server_aura {
         metadata.original_cast_id
     } else {
         metadata.original_cast_id_or(cast_id)
@@ -298,7 +298,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             original_cast_id: spell_go_original_cast_id_like_cpp(
                 metadata,
                 cast_id,
-                server_triggered_resurrection_sickness,
+                selected_full_server_aura,
             ),
             spell_id,
             visual: spell_visual,

@@ -66,7 +66,7 @@ fn install_prevent_resurrection_aura_for_driver(session: &mut WorldSession) {
 
 #[tokio::test]
 async fn driver_kill_player_runs_once_after_regeneration_and_waits_for_timer() {
-    let (mut session, send_rx, _realm_rx, _player_guid, _port) =
+    let (mut session, send_rx, realm_rx, _player_guid, _port) =
         dead_player_session_with_graveyard_like_cpp(4_310);
     let _packet_tx = keep_driver_input_open(&mut session);
     session.core.state = crate::session::SessionState::LoggedIn;
@@ -117,6 +117,16 @@ async fn driver_kill_player_runs_once_after_regeneration_and_waits_for_timer() {
     assert_eq!(
         session.fixtures.combat.represented_repop_at_graveyard_count,
         0
+    );
+    assert_eq!(
+        realm_rx.try_iter().collect::<Vec<_>>(),
+        vec![
+            wow_packet::packets::misc::StopMirrorTimer { timer: 0 }.to_bytes(),
+            wow_packet::packets::misc::StopMirrorTimer { timer: 1 }.to_bytes(),
+            wow_packet::packets::misc::StopMirrorTimer { timer: 2 }.to_bytes(),
+            wow_packet::packets::combat::CancelCombat.to_bytes(),
+        ],
+        "KillPlayer stops every mirror timer before CORPSE's CombatStop, once, on realm"
     );
 }
 
@@ -173,6 +183,11 @@ async fn driver_death_timer_expires_at_the_exact_six_minute_boundary() {
         sent_opcodes(&realm_rx),
         vec![
             ServerOpcodes::PreRessurect as u16,
+            ServerOpcodes::CancelCombat as u16,
+            ServerOpcodes::StopMirrorTimer as u16,
+            ServerOpcodes::StopMirrorTimer as u16,
+            ServerOpcodes::StopMirrorTimer as u16,
+            ServerOpcodes::CancelCombat as u16,
             ServerOpcodes::DeathReleaseLoc as u16,
         ]
     );

@@ -63,15 +63,31 @@ pub async fn execute_server_triggered_spell_like_cpp<H: SpellExecutionHostLikeCp
     use wow_packet::packets::spell::SpellCastVisual;
     let player_guid = host.player_guid().ok_or("No player GUID")?;
     let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
-    if !metadata.from_client
-        && metadata.trigger_cast_flags_like_cpp == wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP
-        && target_guid == player_guid
-        && caster_guid == player_guid
-        && super::resurrection_sickness::is_resurrection_sickness_spell(host, spell_id)
-    {
+    let selected_routes = super::execution_support::selected_aura_execution_routes_like_cpp(
+        host,
+        spell_id,
+        player_guid,
+        target_guid,
+        caster_guid,
+        metadata,
+    );
+    if selected_routes.selected_full_server_aura() {
         metadata.cast_flags =
             super::resurrection_sickness::resurrection_sickness_cast_flags(host, spell_id)?;
+        // Spell.cpp:560–563 derives IGNORE_COOLDOWN from the FULL trigger flags.
+        metadata.cast_flags_ex |= 0x0000_0200;
     }
+    let target_data = if selected_routes.server_triggered_player_ghost_wisp && spell_id == 8326 {
+        // Observed R6 Ghost Go: UNIT flag with an empty explicit Unit.
+        // observed-ghost-go-contract.json, PKT SHA-256:
+        // 116b724cafe4639647d5b2814ba4074a53c2bfc045205d4721b0498556a22f11.
+        SpellTargetData {
+            flags: 0x0000_0002,
+            ..Default::default()
+        }
+    } else {
+        Default::default()
+    };
     let Some(cast_id) = host.next_represented_spell_cast_guid_like_cpp(spell_id) else {
         return Err("canonical Map cast identity unavailable for a triggered cast");
     };
@@ -86,7 +102,7 @@ pub async fn execute_server_triggered_spell_like_cpp<H: SpellExecutionHostLikeCp
             spell_visual_id: 0,
             script_visual_id: 0,
         },
-        Default::default(),
+        target_data,
         metadata,
     )
     .await

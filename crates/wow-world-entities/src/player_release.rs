@@ -106,7 +106,7 @@ pub async fn create_corpse_like_cpp<H: CorpseHostLikeCpp>(
         binding,
         ReleaseOperation::CreateCorpse,
         item_guid_generator,
-        false,
+        None,
     )
     .await
 }
@@ -222,7 +222,7 @@ pub async fn build_player_repop_like_cpp<H: CorpseHostLikeCpp>(
         binding,
         ReleaseOperation::Repop,
         catalogs.item_guid_generator,
-        true,
+        Some(catalogs.creature_spawns),
     )
     .await
     .is_some()
@@ -233,8 +233,9 @@ async fn create_and_publish<H: CorpseHostLikeCpp>(
     binding: OwnerBinding,
     operation: ReleaseOperation,
     item_guid_generator: &ObjectGuidGenerator,
-    ghost_projection: bool,
+    creature_spawns: Option<&crate::CreatureSpawnCatalogsLikeCpp>,
 ) -> Option<ObjectGuid> {
+    let ghost_projection = creature_spawns.is_some();
     let player_guid = binding.handle.guid();
     let conversion = crate::player_death::convert_corpse_to_bones_for_resurrection(host).await;
     if !owner_is_current(host, binding) {
@@ -322,8 +323,7 @@ async fn create_and_publish<H: CorpseHostLikeCpp>(
         }
     }
 
-    let Some(corpse_guid) = publish_corpse(host, binding, operation, created, ghost_projection)
-    else {
+    let Some(corpse_guid) = publish_corpse(host, binding, operation, created) else {
         failed(
             host,
             player_guid,
@@ -332,8 +332,43 @@ async fn create_and_publish<H: CorpseHostLikeCpp>(
         return None;
     };
 
-    if ghost_projection {
-        if !publish_ghost_side_effects(host, player_guid) {
+    if let Some(creature_spawns) = creature_spawns {
+        // Map::AddToMap publishes the corpse before DEAD cleanup or movement.
+        if !host
+            .force_player_visibility_with_catalogs_like_cpp(creature_spawns)
+            .await
+            || !advance(
+                host,
+                binding,
+                operation,
+                PlayerResurrectionPhase::CorpsePublished,
+                PlayerResurrectionPhase::CorpsePublished,
+            )
+        {
+            failed(host, player_guid, "Player changed during corpse visibility");
+            return None;
+        }
+        if with_bound_player_mut(host, binding, |player| {
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Dead);
+        })
+        .is_none()
+            || host.finish_player_non_alive_state_like_cpp().is_err()
+            || !advance(
+                host,
+                binding,
+                operation,
+                PlayerResurrectionPhase::CorpsePublished,
+                PlayerResurrectionPhase::CorpsePublished,
+            )
+        {
+            failed(host, player_guid, "DEAD Player cleanup was not confirmed");
+            return None;
+        }
+        if with_bound_player_mut(host, binding, |player| player.unit_mut().set_health(1)).is_none()
+            || !publish_ghost_side_effects(host, player_guid)
+        {
             failed(
                 host,
                 player_guid,
@@ -573,7 +608,6 @@ fn publish_corpse<H: CorpseHostLikeCpp>(
     binding: OwnerBinding,
     operation: ReleaseOperation,
     created: CreatedCorpse,
-    ghost_projection: bool,
 ) -> Option<ObjectGuid> {
     let key = binding.active_key()?;
     let hub = host.hub_ref();
@@ -608,12 +642,6 @@ fn publish_corpse<H: CorpseHostLikeCpp>(
     }
     manager.with_player_mut_like_cpp(binding.handle, |player| {
         player.set_pvp_death_like_cpp(false);
-        if ghost_projection {
-            player
-                .unit_mut()
-                .set_death_state(wow_constants::DeathState::Dead);
-            player.unit_mut().set_health(1);
-        }
         let state = player.resurrection_state_mut_like_cpp();
         state.corpse_location = Some(location);
         let continuation = state.delayed_after_teleport.as_mut()?;
@@ -658,6 +686,9 @@ fn publish_ghost_side_effects<H: CorpseHostLikeCpp>(host: &mut H, player_guid: O
         Some(())
     })
     .flatten();
+    if reset.is_some() {
+        crate::player_death::stop_mirror_timers_like_cpp(host);
+    }
     reset.is_some()
 }
 

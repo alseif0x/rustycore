@@ -12,6 +12,20 @@
 
 use super::*;
 
+/// C++ `Player::StopMirrorTimer`, `MiscPackets.cpp:372`: one signed timer type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StopMirrorTimer {
+    pub timer: i32,
+}
+
+impl ServerPacket for StopMirrorTimer {
+    const OPCODE: ServerOpcodes = ServerOpcodes::StopMirrorTimer;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.timer);
+    }
+}
+
 /// C++ `SMSG_CORPSE_RECLAIM_DELAY` (`MiscPackets.cpp:252-257`): the remaining
 /// reclaim delay in milliseconds (`Player::SendCorpseReclaimDelay`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +93,15 @@ impl ServerPacket for PreRessurect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stop_mirror_timer_writes_exact_cpp_timer_types() {
+        for (timer, body) in [(0, [0, 0, 0, 0]), (1, [1, 0, 0, 0]), (2, [2, 0, 0, 0])] {
+            let bytes = StopMirrorTimer { timer }.to_bytes();
+            assert_eq!(&bytes[..2], &[0x11, 0x27]);
+            assert_eq!(&bytes[2..], &body);
+        }
+    }
 
     #[test]
     fn corpse_reclaim_delay_writes_cpp_remaining_like_cpp() {

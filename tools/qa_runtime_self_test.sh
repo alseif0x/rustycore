@@ -214,6 +214,8 @@ elif mode == "snapshot":
     print(json.dumps({"mode": "read-only-snapshot", "owned_state": {"characters": {
         "columns": ["guid", "online"], "rows": [["901", "0"], ["902", "0"]]}}}))
 elif mode == "restore":
+    if os.environ.get("QA_FAKE_DEATH_RESTORE_FAILS") == "1":
+        raise SystemExit(1)
     record = json.loads(journal.read_text(encoding="utf-8"))
     record["state"] = "restored"
     journal.write_text(json.dumps(record), encoding="utf-8")
@@ -318,6 +320,7 @@ run_qa() {
 }
 
 run_death_qa() {
+  local output_dir="${1:-$WORK/death-campaign}"
   env \
     QA_SYSTEMCTL="$WORK/bin/systemctl" QA_SERVICE=fake-world \
     QA_LIVE_DIR="$WORK/live" QA_LIVE_NAME=world-server QA_BOT="$WORK/bin/bot" \
@@ -332,10 +335,11 @@ run_death_qa() {
     QA_FAKE_DROPIN="$WORK/systemd/fake-world.service.d/43-qa-capture.conf" \
     QA_DEATH_FIXTURE_SCRIPT="$WORK/bin/death-fixture" \
     QA_FAKE_CAPTURE_STATUS=3 QA_FAKE_OMIT_CAPTURE_REPORT=1 \
+    "${EXTRA_ENV[@]}" \
     "$REPO_ROOT/tools/qa-death-runtime.sh" \
     --allow-runtime-qa --ack-disposable-death-fixture --backend rust \
     --world-exec "$WORK/candidate" --candidate-sha256 "$CAPTURE_CANDIDATE_SHA" \
-    --output-dir "$WORK/death-campaign" --bot-config "$WORK/death-bot-config.json" \
+    --output-dir "$output_dir" --bot-config "$WORK/death-bot-config.json" \
     --scenario-runner "$WORK/bin/capture-runner"
 }
 
@@ -439,6 +443,29 @@ check "death wrapper reports cleanup separately from scenario failure" \
   jq -e '.scenario_observation.status == "failed" and .cleanup.status == "restored" and .parity.status == "not_assessed"' \
     "$WORK/death-campaign/death-runtime-report.json" >/dev/null
 check "all death fixture operations use the injected helper" \
+  test "$(cat "$WORK/state.death-fixture")" = $'prepare\nsnapshot\nrestore'
+CASE_RUN_LOG=""
+
+# Snapshot re-enables errexit internally; failed restore must still write the
+# held report rather than aborting the EXIT trap before recording its outcome.
+reset_state
+EXTRA_ENV=(QA_FAKE_DEATH_RESTORE_FAILS=1)
+status=0
+CASE_RUN_LOG="$WORK/death-restore-failure.log"
+run_death_qa "$WORK/death-campaign-restore-fail" >"$CASE_RUN_LOG" 2>&1 || status=$?
+check "death fixture restore failure retains exit 70" test "$status" -eq 70
+check "death fixture restore failure still writes its held report" \
+  jq -e '.cleanup.status == "held_fixture_restore" and .scenario_observation.status == "failed"
+    and .parity.status == "not_assessed" and .parity.full_issue_claim == false' \
+    "$WORK/death-campaign-restore-fail/death-runtime-report.json" >/dev/null
+check "held death cleanup retains the prepared fixture journal" \
+  jq -e '.state == "prepared"' "$WORK/death-campaign-restore-fail/death-fixture.journal" >/dev/null
+check "held death cleanup cannot write a successful cleanup marker" \
+  test ! -e "$WORK/death-campaign-restore-fail/death-fixture.journal.cleanup-complete"
+check "held death cleanup preserves original executable bytes" live_is_original
+check "held death cleanup leaves the fake service stopped" \
+  test "$(tail -1 "$WORK/state.log")" = stopped
+check "held death cleanup attempted snapshot and restore in order" \
   test "$(cat "$WORK/state.death-fixture")" = $'prepare\nsnapshot\nrestore'
 CASE_RUN_LOG=""
 
