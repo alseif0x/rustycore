@@ -32,20 +32,87 @@ async fn apply_movement_side_effects_like_cpp(
 #[tokio::test]
 async fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
     let mut session = make_session();
-    session.set_player_guid(Some(ObjectGuid::create_player(1, 41)));
-    session.fixtures.auras.visible_auras.insert(
-        1,
-        visible_aura(1, SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, 0),
+    let player_guid = ObjectGuid::create_player(1, 41);
+    let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+    session.set_player_guid(Some(player_guid));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    install_canonical_player_on_map_zero_for_test(
+        &canonical,
+        player_guid,
+        Position::new(0.0, 0.0, 0.0, 0.0),
     );
-    session.fixtures.auras.visible_auras.insert(
-        2,
-        visible_aura(2, 0, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP),
-    );
-    session
-        .fixtures
-        .auras
-        .visible_auras
-        .insert(3, visible_aura(3, 0, 0));
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (1_001, 0),
+        (1_002, 0),
+        (1_003, 0),
+    ]);
+    for spell_id in [1_001, 1_002, 1_003] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(4), // Pinned C++ SPELL_AURA_DUMMY is 4.
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: 4, // Pinned C++ SPELL_AURA_DUMMY is 4.
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
+        &mut session,
+        true
+    ));
+    let aura = |slot, spell_id, interrupt_flags, interrupt_flags2| AuraApplication {
+        spell_id,
+        difficulty_id: 0,
+        caster_guid: player_guid,
+        slot,
+        duration_total: 30_000,
+        duration_remaining: 30_000,
+        stack_count: 1,
+        aura_flags: 0x0000_0001,
+        effect_mask: 0x0000_0001,
+        aura_interrupt_flags: interrupt_flags,
+        aura_interrupt_flags2: interrupt_flags2,
+        represented_effect: None,
+        represented_amount: 0,
+        represented_effect_amounts: Vec::new(),
+        represented_misc_value: None,
+        represented_multiplier: 1.0,
+        applied_at: std::time::Instant::now(),
+    };
+    for aura in [
+        aura(
+            1,
+            1_001,
+            SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP,
+            0,
+        ),
+        aura(2, 1_002, 0, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP),
+        aura(3, 1_003, 0, 0),
+    ] {
+        assert!(session.insert_player_visible_aura_like_cpp(aura));
+    }
+    let active_auras = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
+    assert_eq!(active_auras.len(), 3);
+    drop(active_auras);
 
     apply_movement_side_effects_like_cpp(
         &mut session,
@@ -54,9 +121,13 @@ async fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
         &Default::default(),
     )
     .await;
-    assert!(!session.fixtures.auras.visible_auras.contains_key(&1));
-    assert!(session.fixtures.auras.visible_auras.contains_key(&2));
-    assert!(session.fixtures.auras.visible_auras.contains_key(&3));
+    let active_auras = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
+    assert!(!active_auras.contains_key(&1));
+    assert!(active_auras.contains_key(&2));
+    assert!(active_auras.contains_key(&3));
+    drop(active_auras);
 
     apply_movement_side_effects_like_cpp(
         &mut session,
@@ -65,8 +136,11 @@ async fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
         &Default::default(),
     )
     .await;
-    assert!(!session.fixtures.auras.visible_auras.contains_key(&2));
-    assert!(session.fixtures.auras.visible_auras.contains_key(&3));
+    let active_auras = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
+    assert!(!active_auras.contains_key(&2));
+    assert!(active_auras.contains_key(&3));
     assert_eq!(session.movement_jump_proc_requests_like_cpp(), 1);
 }
 

@@ -191,8 +191,26 @@ The reviewed 18-path patch and source hashes are under
 failed on a private visibility-helper export (00:24:28–00:24:39 UTC, exit 101).
 After repair, `cargo check -p wow-world-application --locked` passed at dirty
 `e13430771` (00:27:54–00:28:28 UTC; log
-`/tmp/rustycore43-stuck-app-check-20261029-002754.log`). World/Server and the
-new branch regressions remain unexecuted. This is not final acceptance.
+`/tmp/rustycore43-stuck-app-check-20261029-002754.log`). That feedback did not
+check World/Server or execute the branch regressions. It is not final acceptance.
+
+The remaining Aura/interrupt/mount and loot-money fixture repair now covers 13
+World test sources at `d440e0c02`. Static review retains their function identities;
+the patch and hashes are in `/tmp/rustycore43-aura-fixture-review-jpjwlbkh/`.
+Inert active Auras use APPLY_AURA/DUMMY rows, and far teleport checks the same
+three applications and their applied-index projections. Negative cancellation
+and unknown-metadata cases remain. The worker started an unplanned World
+check/focused-test wrapper at 00:46:59 UTC despite the scheduling instruction;
+it was interrupted with exit 130. No individual test result was retained, and
+no acceptance pass is claimed (`/tmp/rustycore-aura-interrupt-loot-feedback-20261029.log`).
+
+Read-only inspection through unchanged production DB2 readers confirms that
+installed spell 7355 allows casting while dead and has a 1,500 ms cooldown;
+8690 uses category 1176 with a 1,800,000 ms category cooldown. The three input
+file hashes, reader-library hash and command results are retained under
+`/tmp/rustycore43-stuck-data-c2miecxc/`. No local scalar override or matching
+hotfix-removal record was found for those selected rows. Fresh action captures
+remain required; this data inspection is not runtime acceptance.
 
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.

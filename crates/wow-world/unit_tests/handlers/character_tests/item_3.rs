@@ -676,9 +676,8 @@ async fn banker_activate_removes_feign_after_validation_before_open_like_cpp() {
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
@@ -709,9 +708,8 @@ async fn banker_activate_invalid_source_preserves_feign_and_provenance_like_cpp(
     assert!(send_rx.try_recv().is_err());
     assert!(
         session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(canonical_player_has_died_state_like_cpp(&mut session));

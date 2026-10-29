@@ -15,9 +15,14 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
     let represented_moving_slot = 11;
     let represented_turning_slot = 12;
     let represented_kept_slot = 13;
-    let canonical_moving = wow_entities::AppliedAuraRef::new(62_807, player_guid, 0, 0x1);
-    let canonical_turning = wow_entities::AppliedAuraRef::new(62_808, player_guid, 1, 0x1);
-    let canonical_kept = wow_entities::AppliedAuraRef::new(62_809, player_guid, 2, 0x1);
+    // Each visible AuraApplication projects one active effect into the
+    // canonical AuraSubsystem index; these refs are not extra Auras.
+    let canonical_moving =
+        wow_entities::AppliedAuraRef::new(62_817, player_guid, represented_moving_slot, 0x1);
+    let canonical_turning =
+        wow_entities::AppliedAuraRef::new(62_818, player_guid, represented_turning_slot, 0x1);
+    let canonical_kept =
+        wow_entities::AppliedAuraRef::new(62_819, player_guid, represented_kept_slot, 0x1);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
@@ -41,6 +46,35 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
         },
     ])));
     session.core.expansion = 1;
+    let active_spell_ids = [62_817_u32, 62_818, 62_819];
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store(
+        active_spell_ids.into_iter().map(|spell_id| (spell_id, 0)),
+    );
+    for spell_id in active_spell_ids {
+        spell_store.insert(
+            spell_id as i32,
+            wow_data::SpellInfo {
+                spell_id: spell_id as i32,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(4), // Pinned 3.4.3 SPELL_AURA_DUMMY.
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: 4,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportRemoveInterruptAuras".to_string(),
@@ -50,6 +84,12 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
         1,
         80,
         0,
+    ));
+    add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
+        &mut session,
+        true
     ));
     for (slot, spell_id, flags) in [
         (
@@ -64,30 +104,26 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
         ),
         (represented_kept_slot, 62_819, 0),
     ] {
-        session.fixtures.auras.visible_auras.insert(
+        assert!(session.insert_player_visible_aura_like_cpp(AuraApplication {
+            spell_id,
+            difficulty_id: 0,
+            caster_guid: player_guid,
             slot,
-            AuraApplication {
-                spell_id,
-                difficulty_id: 0,
-                caster_guid: player_guid,
-                slot,
-                duration_total: 30_000,
-                duration_remaining: 30_000,
-                stack_count: 1,
-                aura_flags: 0x1,
-                effect_mask: 0x1,
-                aura_interrupt_flags: flags,
-                aura_interrupt_flags2: 0,
-                represented_effect: None,
-                represented_amount: 0,
-                represented_effect_amounts: Vec::new(),
-                represented_misc_value: None,
-                represented_multiplier: 1.0,
-                applied_at: Instant::now(),
-            },
-        );
+            duration_total: 30_000,
+            duration_remaining: 30_000,
+            stack_count: 1,
+            aura_flags: 0x1,
+            effect_mask: 0x1,
+            aura_interrupt_flags: flags,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        }));
     }
-    add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
     session.mutate_canonical_player_like_cpp(|player| {
         let auras = &mut player.unit_mut().subsystems_mut().auras;
         auras.register_applied_aura(
@@ -103,6 +139,34 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
             0,
         );
         auras.register_applied_aura(canonical_kept, None, 0, 0);
+    });
+    let visible_before = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player AuraSubsystem");
+    assert_eq!(
+        visible_before
+            .get(&represented_moving_slot)
+            .map(|aura| aura.spell_id),
+        Some(62_817)
+    );
+    assert_eq!(
+        visible_before
+            .get(&represented_turning_slot)
+            .map(|aura| aura.spell_id),
+        Some(62_818)
+    );
+    assert_eq!(
+        visible_before
+            .get(&represented_kept_slot)
+            .map(|aura| aura.spell_id),
+        Some(62_819)
+    );
+    drop(visible_before);
+    session.mutate_canonical_player_like_cpp(|player| {
+        let auras = &player.unit().subsystems().auras;
+        assert!(auras.has_applied(canonical_moving));
+        assert!(auras.has_applied(canonical_turning));
+        assert!(auras.has_applied(canonical_kept));
     });
 
     session.teleport_to(0, destination).await;
@@ -120,23 +184,20 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&represented_moving_slot)
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&represented_turning_slot)
     );
     assert!(
         session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&represented_kept_slot)
     );
     session.mutate_canonical_player_like_cpp(|player| {

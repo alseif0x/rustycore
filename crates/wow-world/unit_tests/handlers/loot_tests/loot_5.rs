@@ -634,65 +634,85 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session
-        .quest_state
-        .fixture_insert_player_quest_status_like_cpp(
-            quest_id,
-            crate::handlers::quest::PlayerQuestStatus {
-                quest_id,
-                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-                explored: false,
-                accept_time_secs: 0,
-                end_time_secs: 0,
-                objective_counts: Vec::new(),
-                slot: 0,
-            },
-        );
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let status = wow_entities::PlayerQuestStatusRecord {
+        quest_id,
+        status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        explored: false,
+        accept_time_secs: 0,
+        end_time_secs: 0,
+        objective_counts: Vec::new(),
+        slot: 0,
+    };
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|quests| {
+                quests.insert_status_like_cpp(quest_id, status);
+            })
+            .is_some()
+    );
+    assert_eq!(
+        session
+            .core
+            .quest_objective_access_like_cpp()
+            .set_quest_slot_like_cpp(0, quest_id),
+        Some(true),
+        "the accepted tracking quest must occupy the canonical Player quest-log slot"
+    );
     insert_allowed_coin_loot_like_cpp(&mut session, loot_guid, player_guid, 7);
+
+    let map_manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .cloned()
+        .expect("canonical Player Map manager");
+    {
+        let mut map_manager = map_manager.lock().expect("canonical Map manager");
+        let _ = map_manager.update(1);
+    }
+    let _ = session
+        .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp();
+    let _ = drain_server_opcodes_like_cpp(&send_rx);
 
     session.handle_loot_money(loot_money_packet()).await;
 
     assert_eq!(session.player_gold_like_cpp(), 7);
     assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
+        session
+            .player_quest_gameplay_snapshot_like_cpp()
+            .expect("canonical Player quest state")
+            .status_like_cpp(quest_id)
+            .is_none()
     );
     assert!(
         session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
+            .player_quest_gameplay_snapshot_like_cpp()
+            .expect("canonical Player quest state")
+            .rewarded_quest_ids_like_cpp()
+            .contains(&quest_id)
     );
 
-    let sent = send_rx.try_recv().unwrap();
-    let mut sent = WorldPacket::from_bytes(&sent);
+    {
+        let mut map_manager = map_manager.lock().expect("canonical Map manager");
+        let _ = map_manager.update(1);
+    }
     assert_eq!(
-        sent.read_uint16().unwrap(),
-        wow_constants::ServerOpcodes::CoinRemoved as u16
+        session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        1,
+        "Map SendObjectUpdates publishes the completed quest-log slot at the producer tail"
     );
-    let sent = send_rx.try_recv().unwrap();
-    let mut sent = WorldPacket::from_bytes(&sent);
     assert_eq!(
-        sent.read_uint16().unwrap(),
-        wow_constants::ServerOpcodes::LootMoneyNotify as u16
-    );
-    let sent = send_rx.try_recv().unwrap();
-    let mut sent = WorldPacket::from_bytes(&sent);
-    assert_eq!(
-        sent.read_uint16().unwrap(),
-        wow_constants::ServerOpcodes::UpdateObject as u16
-    );
-    let sent = send_rx.try_recv().unwrap();
-    let mut sent = WorldPacket::from_bytes(&sent);
-    assert_eq!(
-        sent.read_uint16().unwrap(),
-        wow_constants::ServerOpcodes::QuestGiverQuestComplete as u16
-    );
-    let sent = send_rx.try_recv().unwrap();
-    let mut sent = WorldPacket::from_bytes(&sent);
-    assert_eq!(
-        sent.read_uint16().unwrap(),
-        wow_constants::ServerOpcodes::QuestUpdateComplete as u16
+        drain_server_opcodes_like_cpp(&send_rx),
+        vec![
+            ServerOpcodes::CoinRemoved as u16,
+            ServerOpcodes::LootMoneyNotify as u16,
+            ServerOpcodes::QuestGiverQuestComplete as u16,
+            ServerOpcodes::QuestUpdateComplete as u16,
+            ServerOpcodes::UpdateObject as u16,
+        ],
+        "loot and tracking-objective packets precede the Map-tail QuestLog values update"
     );
 }
 #[tokio::test]

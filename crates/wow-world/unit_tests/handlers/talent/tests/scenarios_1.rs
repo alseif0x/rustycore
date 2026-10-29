@@ -378,30 +378,57 @@ async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_lik
     let other_spell_id = 9202;
 
     session.set_player_guid(Some(player_guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (118, 0),
+        (source_spell_id as u32, 0),
+        (other_spell_id as u32, 0),
+    ]);
+    spell_store.insert(118, test_spell_info_like_cpp(118));
+    for spell_id in [source_spell_id, other_spell_id] {
+        let mut spell = test_spell_info_like_cpp(spell_id);
+        spell.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+        spell.aura_type = Some(4); // Pinned C++ SPELL_AURA_DUMMY is 4.
+        spell.effects = vec![wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: 4, // Pinned C++ SPELL_AURA_DUMMY is 4.
+            ..Default::default()
+        }];
+        spell_store.insert(spell_id, spell);
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
+        &mut session,
+        true
+    ));
     let mut quest = test_quest_template_like_cpp(quest_id);
     quest.reward_spell = u32::MAX;
     quest.source_spell_id = source_spell_id as u32;
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session
-        .quest_state
-        .fixture_set_rewarded_quest_like_cpp(quest_id, true);
-    session
-        .fixtures
-        .auras
-        .visible_auras
-        .insert(1, test_visible_aura_like_cpp(1, source_spell_id));
-    session
-        .fixtures
-        .auras
-        .visible_auras
-        .insert(2, test_visible_aura_like_cpp(2, source_spell_id));
-    session
-        .fixtures
-        .auras
-        .visible_auras
-        .insert(3, test_visible_aura_like_cpp(3, other_spell_id));
+    assert!(session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.set_rewarded_like_cpp(quest_id, true);
+        })
+        .is_some());
+    let mut source_self = test_visible_aura_like_cpp(1, source_spell_id);
+    source_self.caster_guid = player_guid;
+    let mut source_other = test_visible_aura_like_cpp(2, source_spell_id);
+    source_other.caster_guid = ObjectGuid::create_player(1, 7004);
+    let mut unrelated = test_visible_aura_like_cpp(3, other_spell_id);
+    unrelated.caster_guid = player_guid;
+    for aura in [source_self, source_other, unrelated] {
+        assert!(session.insert_player_visible_aura_like_cpp(aura));
+    }
+    assert_eq!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .len(),
+        3
+    );
     session.set_known_spells_like_cpp(vec![118]);
     session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP);
 
@@ -419,28 +446,30 @@ async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_lik
         .try_recv()
         .expect("C++ still notifies after ResetSpells");
 
+    let auras_after = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
     assert!(
-        session
-            .fixtures
-            .auras
-            .visible_auras
+        auras_after
             .values()
             .all(|aura| aura.spell_id != source_spell_id),
         "C++ RewardSpell=-1 removes auras due to SourceSpellID"
     );
     assert!(
-        session
-            .fixtures
-            .auras
-            .visible_auras
+        auras_after
             .values()
             .any(|aura| aura.spell_id == other_spell_id),
         "C++ RemoveAurasDueToSpell does not remove unrelated aura spells"
     );
+    let quests_after = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state");
     assert!(
         session.known_spells_like_cpp().is_empty(),
         "RewardSpell=-1 removes source auras and returns without relearning spells"
     );
+    assert!(!quests_after.statuses_like_cpp().contains_key(&quest_id));
+    assert!(quests_after.rewarded_quest_ids_like_cpp().contains(&quest_id));
 }
 
 #[tokio::test]
@@ -849,16 +878,48 @@ async fn learn_talent_upgrade_removes_previous_rank_spell_and_trigger_like_cpp()
 async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(4);
     let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+    let talent_spell = session
+        .spell_store()
+        .expect("talent SpellInfo fixture")
+        .get(50_101)
+        .cloned()
+        .expect("learned talent SpellInfo payload");
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     session.mark_represented_talents_loaded_like_cpp();
-    session.fixtures.auras.visible_auras.insert(
-        1,
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (50_101, 0),
+        (90_001, 0),
+        (90_002, 0),
+    ]);
+    spell_store.insert(50_101, talent_spell);
+    for spell_id in [90_001, 90_002] {
+        let mut spell = test_spell_info_like_cpp(spell_id);
+        spell.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+        spell.aura_type = Some(4); // Pinned C++ SPELL_AURA_DUMMY is 4.
+        spell.effects = vec![wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: 4, // Pinned C++ SPELL_AURA_DUMMY is 4.
+            ..Default::default()
+        }];
+        spell_store.insert(spell_id, spell);
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
+        &mut session,
+        true
+    ));
+    for aura in [
         visible_aura(1, SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP),
-    );
-    session
-        .fixtures
-        .auras
-        .visible_auras
-        .insert(2, visible_aura(2, 0));
+        visible_aura(2, 0),
+    ] {
+        assert!(session.insert_player_visible_aura_like_cpp(aura));
+    }
+    let auras_before = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
+    assert_eq!(auras_before.len(), 2);
+    drop(auras_before);
 
     wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
@@ -867,12 +928,15 @@ async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
         send_rx.try_recv().is_ok(),
         "C++ sends updates after successful AddTalent and aura removal"
     );
+    let auras_after = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
     assert!(
-        !session.fixtures.auras.visible_auras.contains_key(&1),
+        !auras_after.contains_key(&1),
         "C++ Player::AddTalent(learning=true) removes ChangeTalent interrupt auras"
     );
     assert!(
-        session.fixtures.auras.visible_auras.contains_key(&2),
+        auras_after.contains_key(&2),
         "unrelated auras survive ChangeTalent interrupt removal"
     );
 }

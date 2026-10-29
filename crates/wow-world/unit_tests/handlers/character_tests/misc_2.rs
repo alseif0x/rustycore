@@ -538,9 +538,8 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT),
         "the direct-service shortcut represents a successful C++ gossip selection"
     );
@@ -775,9 +774,8 @@ async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_
     assert!(session.player_trainer_interaction_matches_like_cpp(guid, TRAINER_ID as i32));
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
@@ -895,9 +893,8 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));

@@ -61,9 +61,8 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
@@ -207,9 +206,8 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
         );
         assert!(
             session
-                .fixtures
-                .auras
-                .visible_auras
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player AuraSubsystem")
                 .contains_key(&FEIGN_SLOT),
             "{case}: rejected source must preserve fake death"
         );
@@ -283,9 +281,8 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));

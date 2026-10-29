@@ -101,20 +101,102 @@ async fn loot_unit_valid_target_removes_looting_interrupt_auras_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_creature_guid(19_035);
     session.set_player_guid(Some(player_guid));
-    install_visible_aura_with_interrupt_flags(
+    crate::canonical_player_access::install_canonical_player_owner_for_test(
         &mut session,
-        3,
-        777,
-        player_guid,
-        SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP,
+        571,
+        0,
     );
-    install_visible_aura_with_interrupt_flags(&mut session, 4, 778, player_guid, 0);
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (777, 0),
+        (778, 0),
+    ]);
+    for spell_id in [777, 778] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(4), // Pinned C++ SPELL_AURA_DUMMY is 4.
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: 4, // Pinned C++ SPELL_AURA_DUMMY is 4.
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
+        &mut session,
+        true
+    ));
+    for aura in [
+        AuraApplication {
+            spell_id: 777,
+            difficulty_id: 0,
+            caster_guid: player_guid,
+            slot: 3,
+            duration_total: 30_000,
+            duration_remaining: 30_000,
+            stack_count: 1,
+            aura_flags: 0x0000_0001,
+            effect_mask: 0x0000_0001,
+            aura_interrupt_flags: SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: std::time::Instant::now(),
+        },
+        AuraApplication {
+            spell_id: 778,
+            difficulty_id: 0,
+            caster_guid: player_guid,
+            slot: 4,
+            duration_total: 30_000,
+            duration_remaining: 30_000,
+            stack_count: 1,
+            aura_flags: 0x0000_0001,
+            effect_mask: 0x0000_0001,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: std::time::Instant::now(),
+        },
+    ] {
+        assert!(session.insert_player_visible_aura_like_cpp(aura));
+    }
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
+
+    let auras_before = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
+    assert!(auras_before.contains_key(&3));
+    assert!(auras_before.contains_key(&4));
+    drop(auras_before);
 
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
-    assert!(!session.fixtures.auras.visible_auras.contains_key(&3));
-    assert!(session.fixtures.auras.visible_auras.contains_key(&4));
+    let auras_after = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura owner");
+    assert!(!auras_after.contains_key(&3));
+    assert!(auras_after.contains_key(&4));
 }
 #[tokio::test]
 async fn loot_roll_need_vote_broadcasts_immediate_roll_like_cpp() {

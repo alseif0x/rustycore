@@ -166,7 +166,8 @@ pub(super) fn spell_store_with_global_cooldown(
     Arc::new(spell_store)
 }
 pub(super) fn mounted_spell_store(spell_id: i32, creature_entry: i32) -> Arc<wow_data::SpellStore> {
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -457,7 +458,8 @@ pub(super) fn mounted_spell_store_with_no_aura_cancel(
     spell_id: i32,
     creature_entry: i32,
 ) -> Arc<wow_data::SpellStore> {
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
