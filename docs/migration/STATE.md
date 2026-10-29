@@ -27,6 +27,15 @@ owned Changed items. Regression coverage runs the populated production load,
 loss, Map publication and normal save, including rollback, concurrent changes
 and retention of unrelated dirty fields. New, traded, buyback, foreign-owned
 and invalid-identity objects are excluded; full inventory authority is unchanged.
+Affected acceptance at `1dde03c7a` passed Entities (1,055), Application (31)
+and Core (276). World passed 4,130 with one failure and one ignored; the new
+populated-login/Map/save regression passed. The remaining failure is the
+existing full-save projection equivalence case: an incomplete inventory with
+no eligible items now returns `Some(empty)` instead of its prior `None`.
+Preserve that absent-group contract while retaining nonempty partial capture.
+The 147.030-second failed campaign is
+`/tmp/rustycore43-persisted-death-acceptance-cajvlcgl/record.json`; production
+login-owner acceptance and the debug build did not run.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

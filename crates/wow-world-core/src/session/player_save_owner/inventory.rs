@@ -37,7 +37,11 @@ pub(super) fn capture_durability(player: &Player) -> Option<Vec<PlayerItemDurabi
         })
         .collect::<Vec<_>>();
     rows.sort_by_key(|row| row.item_guid);
-    Some(rows)
+    if rows.is_empty() && !runtime.equipment_inventory_authority_complete_like_cpp() {
+        None
+    } else {
+        Some(rows)
+    }
 }
 
 #[cfg(test)]

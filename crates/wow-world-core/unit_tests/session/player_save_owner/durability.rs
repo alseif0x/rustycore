@@ -80,4 +80,12 @@ fn partial_durability_requires_existing_changed_owned_identity_without_full_auth
         &player.inventory_runtime_like_cpp().item_objects()[&ObjectGuid::create_item(1, 30)];
     assert_eq!(current.update_state(), ItemUpdateState::Changed);
     assert_eq!(current.count(), 7);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .remove_item_object_like_cpp(ObjectGuid::create_item(1, 30));
+    assert_eq!(capture_durability(&player), None);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .set_equipment_inventory_authority_complete_like_cpp(true);
+    assert_eq!(capture_durability(&player), Some(Vec::new()));
 }
