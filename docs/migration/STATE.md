@@ -1,7 +1,38 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
-Local closeout preparation now includes native capture collection under the
+Local code and metadata acceptance is green at `00fb8a12c` on aarch64. Final
+passed all 21 library suites (World: 4,119 passed, zero failed, one ignored),
+464 checker cases, architecture/syntax/census, workspace compilation and SQL
+composition. Its verified manifest is
+`target/validation-v2/manifests/20261029T042616.588250Z-1738805-final.json`.
+Production registry (8), login-owner (41), bot (247), QA Python (34) and runtime
+guard fake (195) evidence retain their actual tested SHAs and reviewed unchanged
+inputs in `/tmp/rustycore43-final-20261029-rwx0b22r/record.json`.
+
+Fresh exhaustive ownership also passed at that SHA: 8,185 production plus
+2,679 test-fixture persistence rows, 1,093 semantic groups, and no bridge rows.
+It took 1,054.291 seconds, recorded separately in
+`/tmp/rustycore43-terminal-20261029-l58vq99w/record.json`. The closing ordinary
+campaign ran for 371.408 seconds and credits 185.378 seconds of unchanged
+required evidence (556.664 command seconds total). Earlier failed/slow campaigns,
+the ENOSPC build and storage repair remain recorded below at their actual
+boundaries; this does not erase their cost.
+
+The documentation delta and committed-head debug artifact pins are bound in
+`/tmp/rustycore43-local-closeout-ready-vnd8r0ak/record.json`. Runtime acceptance
+is still on hold: no current authority has been given for temporary Rust/R6
+service swaps/restarts, real captures or disposable fixture writes. The bounded
+plan is 12 paired scenarios, 18 epochs per backend, and five new actors on
+accounts 9/10/12, followed by verified stable-server restoration and owned-data
+cleanup. Read-only planning at 04:44 UTC confirmed GUIDs 20–24 remain available
+and original characters 15/16/18 are preserved. No live parity, real durability,
+manual-test readiness or issue completion is claimed. The issue remains open;
+these changes have not been pushed, merged or deployed.
+
+**Earlier preparation and acceptance evidence, retained at its actual SHAs:**
+
+Earlier closeout preparation included native capture collection under the
 existing systemd swap/restore guard (`645499a92`), observed NPC and in-memory
 character selection (`603e911c5`), disposable fixture preparation/recovery
 (`56a9a802a`) and packet-driven action sequencing (`8a5f498a0`). The latter's
