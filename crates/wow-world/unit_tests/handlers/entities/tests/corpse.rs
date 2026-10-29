@@ -957,11 +957,11 @@ pub(super) fn install_release_cast_spell_fixture(session: &mut WorldSession) {
             ..Default::default()
         });
     }
-    let misc = wow_data::SpellMiscStore::from_entries(misc_rows);
+    let misc = wow_data::SpellMiscStore::from_entries(misc_rows.clone());
     let spells = spells.hydrate_effective_core_db2_like_cpp(
         wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
             wow_data::SpellCategoriesStore::from_entries([]),
-            misc.clone(),
+            wow_data::SpellMiscStore::from_entries(misc_rows),
             wow_data::SpellEffectDb2Store::from_entries(effect_rows),
             wow_data::SpellShapeshiftStore::from_entries([]),
             wow_data::SpellInterruptsStore::from_entries([]),

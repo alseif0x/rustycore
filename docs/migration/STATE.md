@@ -83,6 +83,9 @@ authority, so the newly reused strict death cleanup correctly held the release.
 The timer-prevention fixture also lacked a canonical key and loaded attributes.
 The repair hydrates their complete existing rows and updates two separate
 CancelCombat routing oracles. Production admission guards remain intact.
+The first fixture-repair check at `2d48f71c3` stopped after 13.419 seconds:
+SpellMiscStore is not Clone. Its two fixture views now use the same cloned
+entry rows; the failed record remains under `live-repair-acceptance-koltvl5b`.
 Eight inspected inactive pre-repair executables were retired (973.3 MiB), with
 fingerprints and hashes in `stale-artifact-cleanup.json`; active incremental,
 fresh test outputs, server/bot/capture and runtime recovery binaries were kept.
