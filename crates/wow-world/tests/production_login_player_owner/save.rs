@@ -260,6 +260,10 @@ async fn production_disconnect_finishes_retained_worldport_before_save_with_full
             .map_mut()
             .get_typed_player_mut(guid)
             .unwrap();
+        player.set_inventory_slot_count(wow_entities::INVENTORY_DEFAULT_SIZE);
+        player
+            .inventory_runtime_mut_like_cpp()
+            .set_equipment_inventory_authority_complete_like_cpp(true);
         let position = player.unit().world().position();
         player.teleport_state_mut_like_cpp().post_add =
             Some(wow_entities::PlayerWorldportPostAddLikeCpp {
@@ -309,12 +313,18 @@ async fn production_disconnect_finishes_retained_worldport_before_save_with_full
     }
     assert!(output.is_full());
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
-    session
-        .finalize_session_with_generator_like_cpp(
-            wow_world::FinalizationMode::Disconnect,
-            &generator,
-        )
-        .await;
+    let creature_spawns = wow_world_entities::CreatureSpawnCatalogsLikeCpp::default();
+    wow_world_application::finalize_session_with_resurrection_catalogs(
+        &mut session,
+        wow_world::FinalizationMode::Disconnect,
+        &generator,
+        wow_world_entities::ResurrectionOperationCatalogs {
+            item_guid_generator: &generator,
+            creature_spawns: &creature_spawns,
+            graveyards: None,
+        },
+    )
+    .await;
     assert_eq!(
         receiver.len(),
         8,
@@ -343,17 +353,18 @@ async fn production_disconnect_finishes_retained_worldport_before_save_with_full
 
 #[tokio::test]
 async fn production_disconnect_completes_pending_far_transfer_before_save() {
-    pending_far_disconnect(DisconnectDestination::Requested, false).await;
+    pending_far_disconnect(DisconnectDestination::Requested, false, true).await;
 }
 
 #[tokio::test]
 async fn production_disconnect_recovers_pending_far_transfer_to_homebind_without_packets() {
-    pending_far_disconnect(DisconnectDestination::Homebind, false).await;
+    pending_far_disconnect(DisconnectDestination::Homebind, false, true).await;
 }
 
 #[tokio::test]
 async fn production_disconnect_rejected_far_and_homebind_preserves_terminal_source_save() {
-    pending_far_disconnect(DisconnectDestination::Rejected, false).await;
+    pending_far_disconnect(DisconnectDestination::Rejected, false, false).await;
+    pending_far_disconnect(DisconnectDestination::Rejected, false, true).await;
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -363,7 +374,11 @@ enum DisconnectDestination {
     Rejected,
 }
 
-async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout: bool) {
+async fn pending_far_disconnect(
+    outcome: DisconnectDestination,
+    explicit_logout: bool,
+    retain_resurrection: bool,
+) {
     let (mut session, port, output, receiver) = hydrate(true, true, true).await;
     let guid = ObjectGuid::create_player(1, 42);
     let destination = Position::new(7.0, 8.0, 9.0, 0.5);
@@ -394,6 +409,12 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
         }
         player.unit_mut().set_max_health(1000);
         player.unit_mut().set_health(500);
+        if outcome != DisconnectDestination::Rejected {
+            player.set_inventory_slot_count(wow_entities::INVENTORY_DEFAULT_SIZE);
+            player
+                .inventory_runtime_mut_like_cpp()
+                .set_equipment_inventory_authority_complete_like_cpp(true);
+        }
         player
             .gameplay_state_mut()
             .homebind
@@ -403,21 +424,23 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
         player.teleport_state_mut_like_cpp().far_pending = true;
         assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(true));
         player.teleport_state_mut_like_cpp().far_pending = false;
-        player
-            .resurrection_state_mut_like_cpp()
-            .delayed_after_teleport = Some(wow_entities::PlayerResurrectionContinuation {
-            operation: wow_entities::PlayerResurrectionOperation::RequestData(
-                wow_entities::PlayerResurrectionRequestLikeCpp {
-                    resurrecter: guid,
-                    map_id: 1,
-                    position: destination,
-                    health: 123,
-                    mana: 0,
-                    aura: 0,
-                },
-            ),
-            phase: wow_entities::PlayerResurrectionPhase::AwaitingTeleport,
-        });
+        if retain_resurrection {
+            player
+                .resurrection_state_mut_like_cpp()
+                .delayed_after_teleport = Some(wow_entities::PlayerResurrectionContinuation {
+                operation: wow_entities::PlayerResurrectionOperation::RequestData(
+                    wow_entities::PlayerResurrectionRequestLikeCpp {
+                        resurrecter: guid,
+                        map_id: 1,
+                        position: destination,
+                        health: 123,
+                        mana: 0,
+                        aura: 0,
+                    },
+                ),
+                phase: wow_entities::PlayerResurrectionPhase::AwaitingTeleport,
+            });
+        }
     }
     session.set_state(SessionState::LoggedIn);
     session.teleport_to(1, destination).await;
@@ -452,13 +475,13 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
     port.retain_after_save
         .store(!explicit_logout, Ordering::SeqCst);
-    if explicit_logout {
-        let creature_spawns = wow_world_entities::CreatureSpawnCatalogsLikeCpp::default();
-        let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
-            item_guid_generator: &generator,
-            creature_spawns: &creature_spawns,
-            graveyards: None,
-        };
+    let creature_spawns = wow_world_entities::CreatureSpawnCatalogsLikeCpp::default();
+    let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+        item_guid_generator: &generator,
+        creature_spawns: &creature_spawns,
+        graveyards: None,
+    };
+    let report = if explicit_logout {
         // Direct production adapter call proves LogoutPlayer ordering, not that
         // the LoggedIn-only network registration admits a packet during Transfer.
         wow_world_character::handle_logout_request_with_catalogs(
@@ -467,6 +490,86 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
             wow_packet::packets::misc::LogoutRequest { idle_logout: false },
         )
         .await;
+        session
+            .finalization_report_like_cpp()
+            .expect("admitted explicit logout")
+    } else {
+        wow_world_application::finalize_session_with_resurrection_catalogs(
+            &mut session,
+            wow_world::FinalizationMode::Disconnect,
+            &generator,
+            resurrection_catalogs,
+        )
+        .await
+    };
+    if outcome == DisconnectDestination::Rejected && retain_resurrection {
+        assert_eq!(
+            report.outcome(wow_world::FinalizationStep::NativeTransfer),
+            wow_world::FinalizationOutcome::Unavailable
+        );
+        for step in [
+            wow_world::FinalizationStep::CharacterSave,
+            wow_world::FinalizationStep::Retirement,
+            wow_world::FinalizationStep::Release,
+        ] {
+            assert_eq!(
+                report.outcome(step),
+                wow_world::FinalizationOutcome::NotAttempted
+            );
+        }
+        assert_eq!(
+            report.disposition,
+            wow_world::FinalizationDisposition::RetainAndEscalate
+        );
+        assert_eq!(session.state(), SessionState::Disconnecting);
+        assert_eq!(session.player_guid(), Some(guid));
+        assert!(probe.requests.lock().unwrap().is_empty());
+        if explicit_logout {
+            assert_eq!(
+                receiver
+                    .try_iter()
+                    .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+                    .collect::<Vec<_>>(),
+                vec![wow_constants::ServerOpcodes::LogoutResponse as u16]
+            );
+        } else {
+            assert_eq!(receiver.try_iter().collect::<Vec<_>>(), vec![vec![0]; 8]);
+        }
+        let manager = port.manager.lock().unwrap();
+        let retained = report.player.expect("retained source incarnation");
+        manager
+            .with_player_like_cpp(retained, |player| {
+                assert_eq!(player.guid(), guid);
+                assert_eq!(player.unit().world().map_id(), 0);
+                assert_eq!(player.unit().world().position(), Position::ZERO);
+                assert_eq!(player.unit().data().health, 500);
+                assert_eq!(
+                    player.teleport_state_like_cpp().recovery,
+                    wow_entities::PlayerTransferRecovery::Terminal
+                );
+                assert!(player.teleport_state_like_cpp().far_pending);
+                let continuation = player
+                    .resurrection_state_like_cpp()
+                    .delayed_after_teleport
+                    .expect("uncompleted RequestData remains owned");
+                assert_eq!(
+                    continuation.phase,
+                    wow_entities::PlayerResurrectionPhase::AwaitingTeleport
+                );
+                assert!(matches!(
+                    continuation.operation,
+                    wow_entities::PlayerResurrectionOperation::RequestData(request)
+                        if request.resurrecter == guid
+                            && request.map_id == 1
+                            && request.position == destination
+                            && request.health == 123
+                ));
+            })
+            .expect("the exact source Player remains retained, including when detached");
+        assert!(manager.find_map(1, 0).is_none());
+        return;
+    }
+    if explicit_logout {
         if outcome == DisconnectDestination::Rejected {
             assert_eq!(session.state(), SessionState::Disconnecting);
             assert_eq!(session.player_guid(), Some(guid));
@@ -477,12 +580,13 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
                     .all(|bytes| u16::from_le_bytes([bytes[0], bytes[1]])
                         != wow_constants::ServerOpcodes::LogoutComplete as u16)
             );
-            session
-                .finalize_session_with_generator_like_cpp(
-                    wow_world::FinalizationMode::Disconnect,
-                    &generator,
-                )
-                .await;
+            wow_world_application::finalize_session_with_resurrection_catalogs(
+                &mut session,
+                wow_world::FinalizationMode::Disconnect,
+                &generator,
+                resurrection_catalogs,
+            )
+            .await;
             let requests = probe.requests.lock().unwrap();
             assert_eq!(requests.len(), 1);
             assert_eq!(requests[0].character.position.map_id, 0);
@@ -514,17 +618,14 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
                 .collect::<Vec<_>>(),
             vec![
                 wow_constants::ServerOpcodes::LogoutResponse as u16,
+                wow_constants::ServerOpcodes::DeathReleaseLoc as u16,
+                wow_constants::ServerOpcodes::MoveSetLandWalk as u16,
+                wow_constants::ServerOpcodes::MoveUnroot as u16,
                 wow_constants::ServerOpcodes::LogoutComplete as u16
             ]
         );
         return;
     }
-    session
-        .finalize_session_with_generator_like_cpp(
-            wow_world::FinalizationMode::Disconnect,
-            &generator,
-        )
-        .await;
     assert_eq!(
         receiver.len(),
         8,

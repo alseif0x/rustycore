@@ -91,12 +91,13 @@ async fn production_disconnect_reports_unavailable_save_without_retiring_owner()
 
 #[tokio::test]
 async fn production_explicit_logout_completes_pending_transfer_before_save_and_retirement() {
-    pending_far_disconnect(DisconnectDestination::Requested, true).await;
+    pending_far_disconnect(DisconnectDestination::Requested, true, true).await;
 }
 
 #[tokio::test]
 async fn production_explicit_logout_terminal_recovery_leaves_one_source_save_to_disconnect() {
-    pending_far_disconnect(DisconnectDestination::Rejected, true).await;
+    pending_far_disconnect(DisconnectDestination::Rejected, true, false).await;
+    pending_far_disconnect(DisconnectDestination::Rejected, true, true).await;
 }
 
 async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {

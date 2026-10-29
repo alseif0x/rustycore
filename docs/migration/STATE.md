@@ -425,6 +425,29 @@ The existing three canonical GO tests are the regression cases. This repair
 is unvalidated until renewed final execution; no other state, lock or runtime
 owner is added and no baseline is regenerated to excuse the blocked run.
 
+At clean `1f0585636`, the complete final runner passed in 537.996 seconds:
+all 21 library suites, World 4,119 passed/zero failed/one ignored, all 464
+checker tests, architecture/syntax/census and SQL composition. Manifest:
+`target/validation-v2/manifests/20261029T025711.366659Z-1654005-final.json`.
+The wrapper also passed 247 bot tests and eight production handler-registry
+cases. Login-owner integration then passed 34 and failed seven; the campaign
+ended 101 after 928.644 seconds, exceeding the ordinary 600-second target.
+Actual commands and diagnostics are under
+`/tmp/rustycore43-final-20261029-b44iziwr/`; candidate builds had not started.
+
+The integration repair supplies explicit operation catalogs and known-complete
+carried inventory only to positive RequestData fixtures; partial login remains
+partial. Exact explicit-logout packets include native resurrection before
+LogoutComplete. Terminal source-save coverage is retained without a live
+resurrection obligation, alongside the held/no-save case with that obligation.
+Stale retirement now expects the existing preflight's Unavailable outcome while
+retaining every replacement-preservation assertion. No production guard changes.
+These integration repairs are unvalidated. Four inspected static-library cache
+files from the inactive `rustycore-1241` target freed 510.6 MiB; the active cache,
+binaries and evidence remain. Record:
+`/tmp/rustycore43-inactive-cache-cleanup-dut3rpm3/record.json`. Free space is
+about 2.3 GiB, still below the headroom aim; additional builds remain monitored.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

@@ -300,7 +300,11 @@ async fn production_retirement_failure_reaches_caller_and_preserves_replacement(
     };
     probe.released.store(true, Ordering::SeqCst);
     let report = operation.await;
-    assert_eq!(report.outcome(Step::Retirement), Outcome::RetirementFailed);
+    assert_eq!(
+        report.outcome(Step::Retirement),
+        Outcome::Unavailable,
+        "the stale-incarnation recovery fence rejects retirement before any retirement side effect"
+    );
     assert_eq!(report.outcome(Step::Release), Outcome::NotAttempted);
     assert_eq!(report.disposition, Disposition::RetainAndEscalate);
     assert_ne!(report.player, Some(replacement));
