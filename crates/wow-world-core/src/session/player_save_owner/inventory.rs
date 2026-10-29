@@ -15,7 +15,7 @@ pub(super) fn capture_durability(player: &Player) -> Option<Vec<PlayerItemDurabi
         .values()
         .map(|item| item.guid)
         .collect();
-    // Populated login retains incomplete full-Item authority, but loaded Items
+    // Partial inventory loads retain incomplete full-Item authority. Loaded Items
     // start Unchanged and native mutations mark them Changed. Persist only this
     // known scalar (Item.cpp:383-425), without authorizing full rows or their ack.
     let mut rows = runtime

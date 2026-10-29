@@ -82,8 +82,8 @@ Documentation and new explanatory comments remain in English.
 
 | Scenario | Epochs | Existing evidence / remaining work |
 |---|---:|---|
-| fall-release | 1 | Native and Rust pass; assess shared-change invalidation |
-| reclaim | 1 | Native and Rust pass; retain timed Mana boundary and assess invalidation |
+| fall-release | 1 | Native and earlier Rust pass; rerun Rust after shared inventory/aura changes |
+| reclaim | 1 | Native and earlier Rust pass; rerun Rust and retain timed Mana boundary |
 | healer | 2 | Native reference exists; Rust sickness rejection must be repaired and rerun |
 | wisp | 2 | Native reference exists; Rust pending |
 | reincarnation | 1 | Native reference exists; Rust debit rejection must be repaired and rerun |
@@ -94,6 +94,13 @@ Documentation and new explanatory comments remain in English.
 | recovery-ghost | 2 | Native reference exists; Rust pending |
 | stuck-death | 2 | Corrected native pass; Rust pending |
 | stuck-home | 1 | Corrected native pass; Rust pending |
+
+Reuse decision: the eleven successful native scenario reports all pin the same
+R6 executable (`80f143841b…`) and restored cleanup. Their standard fixtures and
+reference behavior remain unchanged by the Rust repairs. Keep those reference
+captures at their actual provenance; native mob and the last-Ankh variant still
+need new runs. Shared inventory/aura changes invalidate reuse of the two previous
+Rust passes as final-candidate acceptance, so rerun fall-release and reclaim too.
 
 Step 1 implementation contract: retain the metadata-only absence fast path;
 when it cannot exclude modifiers, a self-cast may consult the complete,
@@ -123,11 +130,16 @@ Parent diff review corrected test aura-type constants before execution. The
 expanded charge-test file remains below 2,000 lines; its next natural split is
 the active-modifier fixtures/cases if that responsibility grows further.
 
-Step 2 SQL/DTO unit is implemented and UNVALIDATED: equipment and bag queries
+Step 2 is implemented and UNVALIDATED: equipment and bag queries
 append the missing item payload; both decode through existing native-width
 field getters. Missing/malformed fields retain incomplete authority. Four new
-decoder/projection tests are written but unrun. Canonical hydration and authority
-enabling are still pending. The parent corrected an owned-string lifetime in
+decoder/projection tests are written but unrun. Canonical hydration now covers
+both row families, including native refund/BOP ordering, tradeable registration
+and final create flags. Authority is granted only at the successful final load
+proof. Invalid context/high-bit gem representations, unavailable effective
+catalogs and failed/unknown repairs retain partial authority. An unknown BOP
+template preserves its existing flag. Integrated tests are next.
+The parent corrected an owned-string lifetime in
 the SQL projection test during diff review, before any compiler run.
 
 Step 2 hydration contract: materialize the appended payload on each existing
@@ -154,8 +166,8 @@ claimed as byte parity for that divergent transmog case or as completion of the
 transmog product. Distinct primary/secondary values are retained by the decoder
 test and must survive the integrated load/save round-trip test.
 
-Status: step 1 implemented; step 2 canonical hydration and step 3 integrated
-evidence remain in progress. No new acceptance claimed.
+Status: steps 1–2 implemented; step 3 integrated evidence and the last-Ankh QA
+variant are next. No new acceptance claimed.
 One bounded worker at a time; the parent owns decisions, review, Git and all
 heavy/runtime scheduling. No broad inventory/spell rewrite, unrelated architecture
 audit, extra macro-issues or repeated unchanged campaigns are part of this plan.
