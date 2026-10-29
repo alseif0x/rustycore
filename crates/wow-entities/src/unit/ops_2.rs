@@ -243,6 +243,13 @@ impl Unit {
             self.mark_unit_data_nested(UNIT_DATA_MODS_PARENT_BIT, UNIT_DATA_EMOTE_STATE_BIT);
         }
     }
+    /// Unit.cpp:8566-8570 assigns both presentation fields even when already zero.
+    pub fn reset_death_presentation_like_cpp(&mut self) {
+        self.set_emote_state_like_cpp(0);
+        self.set_stand_state_like_cpp(UnitStandStateType::Stand);
+        self.mark_unit_data_nested(UNIT_DATA_MODS_PARENT_BIT, UNIT_DATA_EMOTE_STATE_BIT);
+        self.mark_unit_data_nested(UNIT_DATA_STAND_STATE_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT);
+    }
     pub(super) fn apply_creature_attack_ai_side_effects_like_cpp(
         &mut self,
         victim_guid: ObjectGuid,

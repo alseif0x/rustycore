@@ -315,11 +315,9 @@ pub async fn kill_player_like_cpp<H: CorpseHostLikeCpp>(
         return false;
     }
     let changed = host.core().with_owned_player_mut_like_cpp(|player| {
-        player
-            .unit_mut()
-            .world_mut()
-            .object_mut()
-            .replace_all_dynamic_flags(0);
+        let object = player.unit_mut().world_mut().object_mut();
+        object.replace_all_dynamic_flags(0);
+        object.force_dynamic_flags_update_like_cpp();
     });
     if changed.is_none() {
         return false;
@@ -763,7 +761,7 @@ pub async fn repop_at_graveyard_like_cpp<H: CorpseHostLikeCpp>(
     // handling (`Player.cpp:4790`). Re-resolve the canonical Player after the
     // awaited teleport rather than retaining an owner across it.
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-        player.remove_player_flag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+        player.remove_player_flags_like_cpp(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
     });
 }
 

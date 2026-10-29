@@ -28,6 +28,12 @@ impl Player {
         );
     }
 
+    /// C++ RemovePlayerFlag marks the native UpdateField even for an absent flag.
+    pub fn remove_player_flags_like_cpp(&mut self, flags: u32) {
+        self.data.player_flags &= !flags;
+        self.mark_player_data(PLAYER_DATA_FLAGS_BIT);
+    }
+
     pub fn sync_farsight_visibility_detection_like_cpp(&mut self) {
         let farsight_object = self.active_data.farsight_object;
         self.unit_mut()

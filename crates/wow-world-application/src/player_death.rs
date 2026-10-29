@@ -451,8 +451,7 @@ where
     host.core()
         .with_owned_player_mut_like_cpp(|player| {
             let unit = player.unit_mut();
-            unit.set_emote_state_like_cpp(0);
-            unit.set_stand_state_like_cpp(wow_constants::unit::UnitStandStateType::Stand);
+            unit.reset_death_presentation_like_cpp();
         })
         .ok_or("Native death Unit disappeared before completion")?;
     wow_world_entities::PlayerMovementHostLikeCpp::remove_auras_with_interrupt_flags_like_cpp(
@@ -518,6 +517,32 @@ where
     }
     wow_world_entities::combat_stop_like_cpp(host);
     crate::interrupt_non_melee_spell_cast_for_loot_like_cpp(host);
+    if host.core().player_handle_like_cpp != Some(handle)
+        || host.player_guid() != Some(handle.guid())
+    {
+        return Err("Nonalive Player owner changed before controlled-unit cleanup");
+    }
+    host.core()
+        .with_owned_player_mut_like_cpp(|player| {
+            if player.guid() != handle.guid() || player.unit().death_state() != state {
+                return Err("Nonalive Player owner changed before controlled-unit cleanup");
+            }
+            if !player
+                .unit()
+                .subsystems()
+                .control
+                .controlled_guids
+                .is_empty()
+            {
+                return Err("Nonalive Player controlled-unit cleanup remains unresolved");
+            }
+            // Unit.cpp:6394-6420 RemoveAllControlled clears this even for an empty set.
+            player
+                .unit_mut()
+                .remove_unit_flags_like_cpp(wow_constants::UnitFlags::PET_IN_COMBAT);
+            Ok(())
+        })
+        .ok_or("Nonalive Player disappeared before controlled-unit cleanup")??;
     remove_death_auras(host)?;
     if host.core().player_handle_like_cpp != Some(handle)
         || host.player_guid() != Some(handle.guid())

@@ -768,7 +768,7 @@ pub async fn handle_under_map_like_cpp<H: PlayerMovementHostLikeCpp>(
         .player_min_height_like_cpp(movement_info.position);
     if movement_info.position.z >= min_height {
         let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-            player.remove_player_flag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+            player.remove_player_flags_like_cpp(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
         });
         #[cfg(any(test, feature = "test-fixtures"))]
         if let Some(fixtures) = host.test_fixtures_like_cpp() {

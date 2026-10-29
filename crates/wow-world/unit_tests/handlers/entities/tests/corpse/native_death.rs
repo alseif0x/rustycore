@@ -94,6 +94,11 @@ async fn native_damage_runs_death_body_before_health_publication_and_can_release
         .with_owned_player_mut_like_cpp(|player| {
             player.add_self_res_spell(123);
             player.unit_mut().set_emote_state_like_cpp(10);
+            player
+                .unit_mut()
+                .set_unit_flags_like_cpp(wow_constants::UnitFlags::PLAYER_CONTROLLED);
+            player.gameplay_state_mut().active_local_flags = 0x8000;
+            player.clear_data_changes();
         })
         .unwrap();
     crate::session::hub_mut(&mut session).set_fall_information_like_cpp(100, 1_000.0);
@@ -148,11 +153,130 @@ async fn native_damage_runs_death_body_before_health_publication_and_can_release
         "Unit::Kill does not call ModifyHealth's immediate HealthUpdate"
     );
 
+    // MovementHandler.cpp:458 follows fall handling with the normal-height flag removal.
+    assert!(
+        wow_world_entities::handle_under_map_like_cpp(
+            &mut session,
+            &movement,
+            &Default::default(),
+            item_guid_generator.as_ref(),
+        )
+        .await
+        .is_none()
+    );
+    assert!(wow_world_entities::kill_player_like_cpp(&mut session, &Default::default()).await);
+    let key = session
+        .core
+        .current_canonical_player_map_key_like_cpp()
+        .unwrap();
+    let update = {
+        let mut manager = session
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap();
+        manager.update(1);
+        manager
+            .find_map(key.map_id, key.instance_id)
+            .unwrap()
+            .last_send_object_updates_summary_like_cpp()
+            .player_values_updates
+            .into_iter()
+            .find(|update| update.guid == guid)
+            .unwrap()
+            .values_update
+    };
+    assert_eq!(
+        update.changed_object_type_mask,
+        (1 << wow_entities::TYPEID_OBJECT)
+            | (1 << wow_entities::TYPEID_UNIT)
+            | (1 << wow_entities::TYPEID_PLAYER)
+            | (1 << wow_entities::TYPEID_ACTIVE_PLAYER)
+    );
+    let object = update.object_data.as_ref().unwrap();
+    assert!(
+        object
+            .mask
+            .is_set(wow_entities::OBJECT_DATA_DYNAMIC_FLAGS_BIT)
+    );
+    assert_eq!(object.values.dynamic_flags, 0);
+    let unit = update.unit_data.as_ref().unwrap();
+    for bit in [0, 5, 32, 41, 56, 64, 72] {
+        assert!(unit.mask.is_set(bit), "UnitData bit{bit}");
+    }
+    assert_eq!(unit.values.health, 0);
+    assert_eq!(
+        unit.values.flags,
+        wow_constants::UnitFlags::PLAYER_CONTROLLED.bits()
+    );
+    assert_eq!(unit.values.stand_state, 0);
+    assert_eq!(unit.values.emote_state, 0);
+    let player = update.player_data.as_ref().unwrap();
+    for bit in [0, 7, 14] {
+        assert!(player.mask.is_set(bit), "PlayerData bit{bit}");
+    }
+    assert_eq!(player.values.player_flags, 0);
+    assert_eq!(player.values.inebriation, 0);
+    let active = update.active_player_data.as_ref().unwrap();
+    for bit in [38, 69] {
+        assert!(active.mask.is_set(bit), "ActivePlayerData bit{bit}");
+    }
+    assert_eq!(active.local_flags, 0x8008);
+    let _ = sent_opcodes(&send);
+    let _ = sent_opcodes(&realm);
+
     handle_repop_request(&mut session, repop_request_packet(true)).await;
     assert!(
         current_corpse_guid_like_cpp(&session, guid).is_some(),
         "real lethal damage must reach release/corpse persistence"
     );
+}
+
+#[tokio::test]
+async fn nonalive_cleanup_holds_unrepresented_controlled_units_before_flag_or_aura_removal() {
+    let (mut session, _send, _realm, _) = live_player(94_006);
+    let controlled = ObjectGuid::create_player(1, 94_106);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_death_state(DeathState::Corpse);
+            player.unit_mut().set_unit_flags_like_cpp(
+                wow_constants::UnitFlags::PLAYER_CONTROLLED
+                    | wow_constants::UnitFlags::PET_IN_COMBAT,
+            );
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .controlled_guids
+                .insert(controlled);
+        })
+        .unwrap();
+    assert_eq!(
+        wow_world_application::finish_player_non_alive_state_like_cpp(&mut session),
+        Err("Nonalive Player controlled-unit cleanup remains unresolved")
+    );
+    session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            assert_eq!(player.unit().death_state(), DeathState::Corpse);
+            assert!(
+                player
+                    .unit()
+                    .subsystems()
+                    .control
+                    .controlled_guids
+                    .contains(&controlled)
+            );
+            assert_eq!(
+                player.unit().unit_flags_like_cpp(),
+                wow_constants::UnitFlags::PLAYER_CONTROLLED
+                    | wow_constants::UnitFlags::PET_IN_COMBAT
+            );
+        })
+        .unwrap();
 }
 
 #[tokio::test]

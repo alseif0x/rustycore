@@ -6,6 +6,37 @@ use super::*;
 use crate::{Creature, Player};
 
 #[test]
+fn death_presentation_reset_marks_exact_nested_fields_even_for_noop() {
+    for changed in [false, true] {
+        let mut unit = Unit::new(true);
+        unit.world_mut().object_mut().add_to_world();
+        unit.set_unit_flags_like_cpp(UnitFlags::PLAYER_CONTROLLED);
+        if changed {
+            unit.set_emote_state_like_cpp(10);
+            unit.set_stand_state_like_cpp(UnitStandStateType::Sit);
+        }
+        unit.clear_unit_data_changes();
+        unit.reset_death_presentation_like_cpp();
+        assert_eq!(unit.emote_state_like_cpp(), 0);
+        assert_eq!(unit.unit_flags_like_cpp(), UnitFlags::PLAYER_CONTROLLED);
+        let update = unit.values_update().unit_data.unwrap();
+        assert_eq!(update.values.emote_state, 0);
+        assert_eq!(update.values.stand_state, 0);
+        for bit in 0..UNIT_DATA_BITS {
+            assert_eq!(update.mask.is_set(bit), [32, 56, 64, 72].contains(&bit));
+        }
+        assert!(unit.world().object().is_object_updated());
+        unit.clear_unit_data_changes();
+        unit.set_emote_state_like_cpp(0);
+        unit.set_stand_state_like_cpp(UnitStandStateType::Stand);
+        assert!(
+            !unit.unit_data_changes_mask().is_any_set(),
+            "ordinary setters retain their changed-value contract"
+        );
+    }
+}
+
+#[test]
 fn remove_unit_flags_marks_absent_flags_and_preserves_other_bits_like_cpp() {
     for present in [false, true] {
         let mut unit = Unit::new(true);

@@ -5,6 +5,64 @@
 use super::*;
 
 #[test]
+fn death_presentation_sober_and_flag_noops_serialize_exact_native_masks_and_values() {
+    for changed in [false, true] {
+        let mut player = Player::new(Some(7), false);
+        player.replace_all_player_flags(0x8000 | if changed { 0x4000 } else { 0 });
+        player.set_inebriation_like_cpp(if changed { 67 } else { 0 });
+        if changed {
+            player.unit_mut().set_emote_state_like_cpp(10);
+            player
+                .unit_mut()
+                .set_stand_state_like_cpp(wow_constants::unit::UnitStandStateType::Sit);
+        }
+        player.clear_data_changes();
+        player.unit_mut().reset_death_presentation_like_cpp();
+        player.set_drunk_value_like_cpp(0, 0, false);
+        player.remove_player_flags_like_cpp(0x4000);
+        let update = player.values_update(true);
+        let bytes = player_values_update_to_update_object(ObjectGuid::EMPTY, 0, &update)
+            .unwrap()
+            .to_bytes();
+        let mut wire = wow_packet::WorldPacket::from_bytes(&bytes);
+        wire.read_uint16().unwrap();
+        assert_eq!(wire.read_uint32().unwrap(), 1);
+        assert_eq!(wire.read_uint16().unwrap(), 0);
+        assert!(!wire.read_bit().unwrap());
+        wire.reset_bits();
+        wire.read_uint32().unwrap();
+        assert_eq!(wire.read_uint8().unwrap(), 0);
+        assert_eq!(wire.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        wire.read_uint32().unwrap();
+        assert_eq!(
+            wire.read_uint32().unwrap(),
+            (1 << wow_entities::TYPEID_UNIT) | (1 << wow_entities::TYPEID_PLAYER)
+        );
+        assert_eq!(wire.read_bits(8).unwrap(), 6, "only UnitData words1/2");
+        assert_eq!(wire.read_bits(32).unwrap(), 0x0100_0001, "parent32/Stand56");
+        assert_eq!(wire.read_bits(32).unwrap(), 0x0000_0101, "parent64/Emote72");
+        wire.reset_bits();
+        assert_eq!(wire.read_uint8().unwrap(), 0);
+        assert_eq!(wire.read_int32().unwrap(), 0);
+        assert_eq!(wire.read_bits(4).unwrap(), 1, "only PlayerData word0");
+        assert_eq!(
+            wire.read_bits(32).unwrap(),
+            0x4081,
+            "parent0/Flags7/Inebriation14"
+        );
+        assert!(!wire.read_bit().unwrap(), "quest mask is not skipped");
+        wire.reset_bits();
+        assert_eq!(
+            wire.read_uint32().unwrap(),
+            0x8000,
+            "unrelated Player flags are retained"
+        );
+        assert_eq!(wire.read_uint8().unwrap(), 0);
+        assert_eq!(wire.read_position(), bytes.len());
+    }
+}
+
+#[test]
 fn removed_unit_flags_serialize_parent_mask_and_flags_even_for_noop() {
     use wow_constants::UnitFlags;
     for present in [false, true] {

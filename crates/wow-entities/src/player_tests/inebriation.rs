@@ -3,6 +3,35 @@ use super::*;
 const DRUNK_DETECTION: usize = 6;
 
 #[test]
+fn native_flag_removal_and_sober_assignment_dirty_even_unchanged() {
+    for changed in [false, true] {
+        let mut player = Player::new(None, false);
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        player.replace_all_player_flags(0x8000 | if changed { 0x4000 } else { 0 });
+        player.set_inebriation_like_cpp(if changed { 67 } else { 0 });
+        player.clear_data_changes();
+        player.remove_player_flags_like_cpp(0x4000);
+        assert_eq!(player.set_drunk_value_like_cpp(0, 0, false), changed);
+        assert_eq!(player.data().player_flags, 0x8000);
+        assert_eq!(player.inebriation_like_cpp(), 0);
+        for bit in 0..crate::PLAYER_DATA_BITS {
+            assert_eq!(
+                player.player_data_changes_mask().is_set(bit),
+                [0, 7, 14].contains(&bit)
+            );
+        }
+        assert!(player.unit().world().object().is_object_updated());
+        player.clear_data_changes();
+        player.remove_player_flag(0x4000);
+        player.set_inebriation_like_cpp(0);
+        assert!(
+            !player.player_data_changes_mask().is_any_set(),
+            "legacy changed-value setters remain unchanged"
+        );
+    }
+}
+
+#[test]
 fn set_drunk_value_uses_native_thresholds_and_clamps() {
     let mut player = Player::new(None, false);
     for (value, state) in [(0, 0), (1, 1), (49, 1), (50, 2), (89, 2), (90, 3), (100, 3)] {

@@ -130,7 +130,7 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
     // C++ `Player::ResurrectPlayer` removes `PLAYER_FLAGS_IS_OUT_OF_BOUNDS`
     // before aura cleanup (`Player.cpp:4331`).
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-        player.remove_player_flag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+        player.remove_player_flags_like_cpp(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
     });
 
     // This must be called always even on Players with race != RACE_NIGHTELF

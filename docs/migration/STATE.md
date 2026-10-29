@@ -100,6 +100,24 @@ Item send is retired to avoid duplicate publication. Source anchors are
 `Item.cpp:1315–1320,1419–1426` and `Map.cpp:1930–1948`; authored regression
 coverage includes owner/peer filtering, exact mask0/12, batching, item-only
 updates and one-time consumption on the existing Map rail.
+The remaining captured zero-value omissions are now implemented without
+changing the ordinary scalar setters: KillPlayer forces DynamicFlags dirty;
+the admitted empty controlled-unit cleanup removes PET_IN_COMBAT through the
+native flag operation (`Unit.cpp:6394–6420`); JUST_DIED resets and marks the
+stand/emote fields (`Unit.cpp:8566–8570`). Native SetDrunkValue always marks
+Inebriation (`Player.cpp:874–905`). The three in-scope normal-height, graveyard
+and resurrection removals mark PlayerFlags even when OUT_OF_BOUNDS is absent
+(`MovementHandler.cpp:458`, `Player.cpp:4790,4331`). Controlled-unit and current
+owner fences remain explicit. Authored coverage checks exact serialized masks
+and the combined Object/Unit/Player/ActivePlayer death delta. This completed
+repair batch still needs its committed-candidate acceptance and fresh capture.
+
+Before that campaign, seven completed inactive changed-suite executables were
+hashed, checked unused and retired (439.6 MiB). Libraries, current incremental
+caches, Packet's unchanged test executable and all runtime/reference artifacts
+were preserved. The retirement record is
+`/tmp/rustycore43-corpse-birth-acceptance-fanzvczw/completed-inactive-suite-executable-retirement.json`.
+Available space was 2.8 GiB; the documented 30-GiB aim remains unmet.
 
 Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
 ignored), Application (31), Entities (2), Spell (181), bot (248), production

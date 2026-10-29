@@ -42,6 +42,8 @@ impl Player {
         }
 
         self.set_inebriation_like_cpp(new_value);
+        // Player.cpp:894 / UpdateField.h:262 marks this assignment even for sober zero.
+        self.mark_player_data(super::PLAYER_DATA_INEBRIATION_BIT);
         if self.unit.world().object().is_in_world() {
             self.unit
                 .world_mut()
