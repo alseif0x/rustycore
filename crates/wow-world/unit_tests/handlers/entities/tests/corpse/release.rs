@@ -520,10 +520,10 @@ async fn release_preserves_active_pet_when_removal_cannot_complete() {
 }
 
 #[derive(Default)]
-struct GatedCorpseSavePort {
-    receiver: Mutex<Option<flume::Receiver<CorpsePersistenceMutationOutcomeLikeCpp>>>,
-    started: AtomicBool,
-    saves: AtomicUsize,
+pub(super) struct GatedCorpseSavePort {
+    pub(super) receiver: Mutex<Option<flume::Receiver<CorpsePersistenceMutationOutcomeLikeCpp>>>,
+    pub(super) started: AtomicBool,
+    pub(super) saves: AtomicUsize,
 }
 
 impl MapCorpsePersistencePortLikeCpp for GatedCorpseSavePort {

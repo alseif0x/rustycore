@@ -5,10 +5,12 @@ Latest accepted local candidate: `5f9caf658`; Rust reclaim attempt 3 now complet
 resurrection, database checks, capture collection and restoration. Fall/release
 retains its actual `abba63ce7` bounded actor/control evidence below. Ten other
 paired scenarios and the last-candidate full final/terminal acceptance remain
-outstanding. C++ healer attempt 2 is accepted with the repaired bot; wisp's
-reference run restored normally but exposed two unsupported QA expectations.
-The subsequent native power, sanctuary, AuraState and bones changes still need
-combined acceptance. No publication or issue closure.
+outstanding. C++ healer attempt 2, wisp attempt 2 and automatic release now
+pass; mob's retained action passes a separately recorded corrected-contract
+review without relabelling its original failed wrapper. Offer attempt 1
+fails at the reference caster with BAD_TARGETS and restores normally.
+The subsequent native power, sanctuary, AuraState, bones and logout death
+release changes still need combined acceptance. No publication or issue closure.
 
 Earlier candidate `b0f2dadd6` passed the complete World library suite (4,130
 passed, one ignored) and built the debug server in a 328.993-second affected
@@ -258,6 +260,39 @@ root at 2416, finish-logout at 3033, PreResurrect at 4118 and LogoutComplete at
 logout before saving. The harness's post-logout unreleased-health-zero
 expectation is unsupported; death-before-finish and shutdown persistence need
 separate assertions. This also applies to offer/dead-recovery/Stuck teardown.
+
+QA acceptance at `4c80164bd` passes 39 tests with one skipped in 0.220 seconds
+(`/tmp/rustycore43-death-shutdown-qa-acceptance-n9gmdjvg/record.json`). The
+retained mob action has a separate read-only review at
+`cases/cpp-mob-attempt1/post-capture-contract-review-4c80164bd.json` (under the
+live campaign): the complete native PKT has 4,144 frames, its artifact inventory
+is preserved, death precedes logout and the final native logout ghost/corpse
+state passes the corrected contract. Original exit 1, collection exit 70 and
+failed wrapper status remain recorded; this review does not claim stream parity.
+C++ wisp attempt 2 passes both epochs including the 75-second sickness expiry
+and observer check in 360.352 seconds. Automatic release passes the real native
+death timer in 516.516 seconds. Both collect their captures and verify restoration.
+Offer attempt 1 then fails in 215.600 seconds: epoch 1 passes, but epoch 2's
+7328 casts return native BAD_TARGETS (13), so the victim receives no request.
+Its fixture/runtime restoration is verified. Diagnose the target operation
+before attributing that reference failure to Rust or changing its parity contract.
+
+Native logout death release is implemented, UNVALIDATED. The existing finalization
+ledger now orders one DeathRelease obligation after loot and before CharacterSave,
+using the existing canonical death timer, BuildPlayerRepop and graveyard operation
+(`WorldSession.cpp:550–565`, `Player.cpp:4262–4316,4743–4790` at `a5f8da2e`).
+The existing logout save context prevents an extra intermediate Player save;
+far graveyard transfers complete through native logout recovery without a client
+ACK. Ownership/residence and unresolved-operation fences still gate the final
+save and retirement. Closed self sockets do not prevent canonical ghost/Wisp
+state or peer corpse delivery. Tests cover all three logout modes, missing
+capabilities, not-due logout, already-released ghosts, far transfer, publication,
+failure, unknown outcome and cancellation without replay; none has executed yet.
+
+Inspected inactive artifacts were retired to recover 898.5 MiB before the next
+build; current runtime binaries, reference captures and the active incremental
+cache are preserved. Exact sizes/hashes and unused-file checks are recorded at
+`/tmp/rustycore43-storage-retirement-0_6mhuhz/record.json`.
 The QA repair now preserves strict pre-finish root/no-release/no-PreResurrect
 evidence and requires the subsequent saved ghost/corpse, with a distinct
 pre-login snapshot for reload epochs. It does not claim unreleased-dead DB

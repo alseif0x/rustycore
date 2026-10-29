@@ -13,6 +13,8 @@ mod bones_birth;
 mod death_timer_driver;
 #[path = "corpse/live_pet.rs"]
 mod live_pet;
+#[path = "corpse/logout_release.rs"]
+mod logout_release;
 #[path = "corpse/native_death.rs"]
 mod native_death;
 mod reclaim_packet;

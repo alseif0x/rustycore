@@ -260,7 +260,14 @@ pub fn publish_corpse_birth_visibility_like_cpp<H: SessionHubHostLikeCpp>(
     let Some(owner) = core.player_handle_like_cpp else {
         return false;
     };
-    if core.player_guid() != Some(owner.guid()) || core.state == SessionState::Disconnecting {
+    // NativeTransfer marks this existing canonical logout context before the
+    // DeathRelease obligation. Ordinary disconnected requests remain inadmissible.
+    let logout_release = core
+        .with_owned_player_like_cpp(|player| player.trade_session_logging_out_like_cpp())
+        .unwrap_or(false);
+    if core.player_guid() != Some(owner.guid())
+        || (core.state == SessionState::Disconnecting && !logout_release)
+    {
         return false;
     }
     let Some(manager) = core.canonical_map_manager.as_ref() else {

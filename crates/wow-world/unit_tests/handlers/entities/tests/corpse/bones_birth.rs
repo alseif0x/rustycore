@@ -3,7 +3,7 @@
 use super::*;
 use wow_packet::packets::update::UpdateObject;
 
-fn install_peer(
+pub(super) fn install_peer(
     session: &mut WorldSession,
     counter: i64,
 ) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {

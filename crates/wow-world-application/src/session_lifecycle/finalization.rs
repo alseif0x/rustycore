@@ -255,6 +255,14 @@ async fn execute_finalization_step_with_catalogs<H: SessionLifecycleHostLikeCpp>
             }
             FinalizationOutcome::Applied
         }
+        DeathRelease => {
+            super::death_release::release_dead_player_before_logout_like_cpp(
+                host,
+                mode,
+                resurrection_catalogs,
+            )
+            .await
+        }
         Buyback => {
             host.session_account_save_cx_like_cpp()
                 .clear_buyback_on_logout()
