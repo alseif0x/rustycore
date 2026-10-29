@@ -699,7 +699,8 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
     }
     assert_eq!(
         session
-            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            ),
         1,
         "Map SendObjectUpdates publishes the completed quest-log slot at the producer tail"
     );

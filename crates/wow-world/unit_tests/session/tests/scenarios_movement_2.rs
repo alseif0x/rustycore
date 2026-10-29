@@ -573,7 +573,8 @@ fn represented_dismount_restores_active_normal_run_speed_like_cpp() {
             req_map_id: 0,
         },
     ])));
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(100, 0), (12_346, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(100, 0), (12_346, 0)]);
     spell_store.insert(
         12_346,
         wow_data::SpellInfo {

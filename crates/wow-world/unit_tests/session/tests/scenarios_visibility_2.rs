@@ -545,8 +545,7 @@ fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
         .expect("cleanup session owns its canonical Player handle");
     // Cleanup unregisters through the owning control channel (#243), so this
     // session's own entry must carry its command sender.
-    let mut self_info =
-        broadcast_info_with_command(guid, self_tx, session.session_command_tx());
+    let mut self_info = broadcast_info_with_command(guid, self_tx, session.session_command_tx());
     let identity = self_info.identity;
     self_info.identity = crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
         identity.player_name,
@@ -560,11 +559,7 @@ fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
         identity.locale,
         Some(self_handle),
     );
-    registry.register_or_replace(
-        guid,
-        self_info,
-        Default::default(),
-    );
+    registry.register_or_replace(guid, self_info, Default::default());
     registry.register_or_replace(
         nearby_guid,
         broadcast_info_with_command(nearby_guid, nearby_tx, nearby_command_tx),

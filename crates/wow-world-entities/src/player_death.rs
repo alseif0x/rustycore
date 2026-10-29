@@ -374,8 +374,7 @@ pub(crate) fn current_player_is_in_world_like_cpp<H: CorpseHostLikeCpp>(host: &H
         && host
             .core()
             .with_owned_player_like_cpp(|player| {
-                player.guid() == handle.guid()
-                    && player.unit().world().object().is_in_world()
+                player.guid() == handle.guid() && player.unit().world().object().is_in_world()
             })
             .unwrap_or(false)
 }

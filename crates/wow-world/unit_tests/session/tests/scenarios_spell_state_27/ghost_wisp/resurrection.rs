@@ -473,16 +473,20 @@ async fn kill_player_forces_stationary_self_and_recipient_visibility_like_cpp() 
         observer.session.visibility.last_visibility_pos_like_cpp(),
         Some(observer_position)
     );
-    assert!(!fixture
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&observer_guid));
-    assert!(!observer
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&fixture.player));
+    assert!(
+        !fixture
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&observer_guid)
+    );
+    assert!(
+        !observer
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&fixture.player)
+    );
 
     fixture
         .session
@@ -505,16 +509,20 @@ async fn kill_player_forces_stationary_self_and_recipient_visibility_like_cpp() 
         canonical_death_state(&fixture),
         Some(wow_constants::DeathState::Corpse)
     );
-    assert!(fixture
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&observer_guid));
-    assert!(!observer
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&fixture.player));
+    assert!(
+        fixture
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&observer_guid)
+    );
+    assert!(
+        !observer
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&fixture.player)
+    );
     assert_eq!(
         fixture
             .session
@@ -533,15 +541,19 @@ async fn kill_player_forces_stationary_self_and_recipient_visibility_like_cpp() 
     );
 
     super::observers::flush_observer(&mut observer).await;
-    assert!(observer
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&fixture.player));
-    assert!(observer
-        .output
-        .try_iter()
-        .any(|packet| opcode(&packet) == ServerOpcodes::UpdateObject as u16));
+    assert!(
+        observer
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&fixture.player)
+    );
+    assert!(
+        observer
+            .output
+            .try_iter()
+            .any(|packet| opcode(&packet) == ServerOpcodes::UpdateObject as u16)
+    );
 }
 
 #[tokio::test]
@@ -561,16 +573,20 @@ async fn resurrection_forces_stationary_self_and_recipient_visibility_like_cpp()
     assert!(selected_slots(&fixture).0.is_some(), "Ghost Aura is active");
     let _ = outgoing(&fixture);
     set_resurrection_teleport_completed(&mut fixture);
-    assert!(!fixture
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&observer_guid));
-    assert!(!observer
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&fixture.player));
+    assert!(
+        !fixture
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&observer_guid)
+    );
+    assert!(
+        !observer
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&fixture.player)
+    );
     let source_position = fixture
         .session
         .core
@@ -614,12 +630,18 @@ async fn resurrection_forces_stationary_self_and_recipient_visibility_like_cpp()
         .await
     );
     assert_eq!(fixture.session.player_health_like_cpp(), 450);
-    assert_eq!(selected_slots(&fixture).0, None, "resurrection removes Ghost Aura");
-    assert!(fixture
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&observer_guid));
+    assert_eq!(
+        selected_slots(&fixture).0,
+        None,
+        "resurrection removes Ghost Aura"
+    );
+    assert!(
+        fixture
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&observer_guid)
+    );
     assert_eq!(
         fixture
             .session
@@ -638,15 +660,19 @@ async fn resurrection_forces_stationary_self_and_recipient_visibility_like_cpp()
     );
 
     super::observers::flush_observer(&mut observer).await;
-    assert!(observer
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&fixture.player));
-    assert!(observer
-        .output
-        .try_iter()
-        .any(|packet| opcode(&packet) == ServerOpcodes::UpdateObject as u16));
+    assert!(
+        observer
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&fixture.player)
+    );
+    assert!(
+        observer
+            .output
+            .try_iter()
+            .any(|packet| opcode(&packet) == ServerOpcodes::UpdateObject as u16)
+    );
 }
 
 #[tokio::test]
@@ -718,10 +744,12 @@ async fn out_of_world_forced_visibility_preserves_stationary_cache_and_skips_rec
         Some(observer_position),
         "no recipient refresh command was queued"
     );
-    assert!(!observer
-        .session
-        .core
-        .client_visible_guids_like_cpp
-        .contains(&fixture.player));
+    assert!(
+        !observer
+            .session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&fixture.player)
+    );
     assert!(observer.output.try_iter().next().is_none());
 }

@@ -294,7 +294,8 @@ fn food_emote_session_like_cpp(
 #[test]
 fn food_emote_visual_prefers_standing_food_aura_like_cpp() {
     let (mut session, send_rx, player_guid) = food_emote_session_like_cpp(110);
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(90_110, 0), (90_111, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_110, 0), (90_111, 0)]);
     // C++ prefers the food visual (`SPELL_VISUAL_KIT_FOOD`) when both a Standing
     // `SPELL_AURA_MOD_REGEN` and a Standing `SPELL_AURA_MOD_POWER_REGEN` apply.
     insert_food_emote_spell_like_cpp(

@@ -236,8 +236,7 @@ where
         || !host
             .core()
             .with_owned_player_like_cpp(|player| {
-                player.guid() == handle.guid()
-                    && player.unit().world().object().is_in_world()
+                player.guid() == handle.guid() && player.unit().world().object().is_in_world()
             })
             .unwrap_or(false)
     {

@@ -432,10 +432,8 @@ async fn weapon_fit_resolves_the_ranged_weapon_like_cpp() {
 
     // `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` (52) and
     // `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` (79), both restricted to bows.
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (90_940, 0),
-        (90_941, 0),
-    ]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_940, 0), (90_941, 0)]);
     for (spell_id, aura_type, amount) in [(90_940, 52, 5), (90_941, 79, 100)] {
         spell_store.insert(
             spell_id,
@@ -661,7 +659,8 @@ async fn ranged_attack_power_auras_skip_wand_users_like_cpp() {
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
 
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(90_810, 0), (90_811, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_810, 0), (90_811, 0)]);
     for (spell_id, aura_type, amount) in [(90_810, 124, 30), (90_811, 167, 100)] {
         spell_store.insert(
             spell_id,

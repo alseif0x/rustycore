@@ -87,10 +87,7 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     for (slot, spell_id, flags) in [
         (
             represented_moving_slot,
@@ -104,25 +101,27 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
         ),
         (represented_kept_slot, 62_819, 0),
     ] {
-        assert!(session.insert_player_visible_aura_like_cpp(AuraApplication {
-            spell_id,
-            difficulty_id: 0,
-            caster_guid: player_guid,
-            slot,
-            duration_total: 30_000,
-            duration_remaining: 30_000,
-            stack_count: 1,
-            aura_flags: 0x1,
-            effect_mask: 0x1,
-            aura_interrupt_flags: flags,
-            aura_interrupt_flags2: 0,
-            represented_effect: None,
-            represented_amount: 0,
-            represented_effect_amounts: Vec::new(),
-            represented_misc_value: None,
-            represented_multiplier: 1.0,
-            applied_at: Instant::now(),
-        }));
+        assert!(
+            session.insert_player_visible_aura_like_cpp(AuraApplication {
+                spell_id,
+                difficulty_id: 0,
+                caster_guid: player_guid,
+                slot,
+                duration_total: 30_000,
+                duration_remaining: 30_000,
+                stack_count: 1,
+                aura_flags: 0x1,
+                effect_mask: 0x1,
+                aura_interrupt_flags: flags,
+                aura_interrupt_flags2: 0,
+                represented_effect: None,
+                represented_amount: 0,
+                represented_effect_amounts: Vec::new(),
+                represented_misc_value: None,
+                represented_multiplier: 1.0,
+                applied_at: Instant::now(),
+            })
+        );
     }
     session.mutate_canonical_player_like_cpp(|player| {
         let auras = &mut player.unit_mut().subsystems_mut().auras;
@@ -350,18 +349,20 @@ async fn spell_stuck_kills_from_category_only_cooldown_at_native_u64_health_like
     crate::native_death_test_fixtures::prepare(&mut session);
     session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
     let max_health = u64::from(u32::MAX) + 1;
-    assert!(session
-        .mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().set_max_health(max_health);
-            player.unit_mut().set_health(max_health);
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .spells
-                .history
-                .add_cooldown(41_337, 0, u64::MAX, 7, u64::MAX, false)
-        })
-        .expect("canonical Player history"));
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_max_health(max_health);
+                player.unit_mut().set_health(max_health);
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .spells
+                    .history
+                    .add_cooldown(41_337, 0, u64::MAX, 7, u64::MAX, false)
+            })
+            .expect("canonical Player history")
+    );
     assert_eq!(
         session.with_owned_player_like_cpp(|player| {
             let history = &player.unit().subsystems().spells.history;
@@ -434,7 +435,9 @@ async fn spell_stuck_dead_player_without_death_timer_repops_like_cpp() {
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_health_like_cpp(0, 100);
     session.mutate_canonical_player_like_cpp(|player| {
-        player.unit_mut().set_death_state(wow_constants::DeathState::Dead);
+        player
+            .unit_mut()
+            .set_death_state(wow_constants::DeathState::Dead);
         player
             .resurrection_state_mut_like_cpp()
             .death_timer_remaining_ms = 0;
@@ -459,7 +462,9 @@ async fn spell_stuck_dead_player_without_death_timer_repops_like_cpp() {
     assert_eq!(
         session.with_owned_player_like_cpp(|player| (
             player.unit().death_state(),
-            player.resurrection_state_like_cpp().death_timer_remaining_ms,
+            player
+                .resurrection_state_like_cpp()
+                .death_timer_remaining_ms,
         )),
         Some((wow_constants::DeathState::Dead, 0))
     );

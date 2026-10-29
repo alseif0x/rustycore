@@ -24,11 +24,13 @@ async fn cancel_aura_removes_matching_represented_mount_aura_like_cpp() {
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
     assert!(session.player_mounted_like_cpp());
-    assert!(session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
     let _ = drain_server_opcodes(&send_rx);
 
     session
@@ -36,11 +38,13 @@ async fn cancel_aura_removes_matching_represented_mount_aura_like_cpp() {
         .await;
 
     assert!(!session.player_mounted_like_cpp());
-    assert!(!session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345));
+    assert!(
+        !session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345)
+    );
     assert!(!send_rx.is_empty());
 }
 #[tokio::test]
@@ -62,11 +66,13 @@ async fn cancel_aura_no_aura_cancel_spell_preserves_represented_mount_like_cpp()
     session
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
-    assert!(session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
     let _ = drain_server_opcodes(&send_rx);
 
     session
@@ -74,11 +80,13 @@ async fn cancel_aura_no_aura_cancel_spell_preserves_represented_mount_like_cpp()
         .await;
 
     assert!(session.player_mounted_like_cpp());
-    assert!(session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
     assert!(send_rx.is_empty());
 }
 #[tokio::test]
@@ -101,22 +109,26 @@ async fn cancel_aura_preserves_represented_mount_from_other_caster_like_cpp() {
     session
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
-    assert!(session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
 
     session
         .handle_cancel_aura(cancel_aura_packet(12_345, other_caster_guid))
         .await;
 
     assert!(session.player_mounted_like_cpp());
-    assert!(session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
 }
 #[tokio::test]
 async fn cancel_aura_empty_caster_matches_represented_mount_like_cpp() {
@@ -137,22 +149,26 @@ async fn cancel_aura_empty_caster_matches_represented_mount_like_cpp() {
     session
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
-    assert!(session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
 
     session
         .handle_cancel_aura(cancel_aura_packet(12_345, ObjectGuid::EMPTY))
         .await;
 
     assert!(!session.player_mounted_like_cpp());
-    assert!(!session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345));
+    assert!(
+        !session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345)
+    );
 }
 #[tokio::test]
 async fn cancel_mount_aura_no_aura_cancel_spell_preserves_mount_like_cpp() {
@@ -173,11 +189,13 @@ async fn cancel_mount_aura_no_aura_cancel_spell_preserves_mount_like_cpp() {
     session
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
-    assert!(session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
     let _ = drain_server_opcodes(&send_rx);
 
     session
@@ -185,11 +203,13 @@ async fn cancel_mount_aura_no_aura_cancel_spell_preserves_mount_like_cpp() {
         .await;
 
     assert!(session.player_mounted_like_cpp());
-    assert!(session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .values()
-        .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
     assert!(send_rx.is_empty());
 }
 #[tokio::test]

@@ -43,11 +43,8 @@ async fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (1_001, 0),
-        (1_002, 0),
-        (1_003, 0),
-    ]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(1_001, 0), (1_002, 0), (1_003, 0)]);
     for spell_id in [1_001, 1_002, 1_003] {
         spell_store.insert(
             spell_id,
@@ -73,10 +70,7 @@ async fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
         );
     }
     session.set_spell_store(Arc::new(spell_store));
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     let aura = |slot, spell_id, interrupt_flags, interrupt_flags2| AuraApplication {
         spell_id,
         difficulty_id: 0,

@@ -212,6 +212,15 @@ file hashes, reader-library hash and command results are retained under
 hotfix-removal record was found for those selected rows. Fresh action captures
 remain required; this data inspection is not runtime acceptance.
 
+The 2026-10-29 candidate review records only six measured logical-owner deltas,
+the two added/two retired callback identities, and startup composition's one
+additional graveyard-catalog line (5,709 lines). Existing owners and #584
+retirement conditions are preserved. All 47 Rust formatting changes are exact
+rustfmt transformations of `580414a07`; their source comparison, measurements
+and reviewed policy patches are retained under
+`/tmp/rustycore43-candidate-reconcile-5t9qvhyx/`. This is implementation review,
+not acceptance. No new architecture scope or runtime authority is implied.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

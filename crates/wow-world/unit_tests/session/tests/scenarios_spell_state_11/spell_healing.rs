@@ -235,10 +235,8 @@ async fn spell_direct_heal_scales_by_creature_missing_health_like_cpp() {
             ..Default::default()
         },
     ])));
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (spell_id as u32, 0),
-        (90_970, 0),
-    ]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0), (90_970, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

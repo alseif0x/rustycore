@@ -416,12 +416,7 @@ fn save_snapshot_captures_only_dirty_owned_non_buyback_durability_in_guid_order(
             .map(|row| (row.item_guid, row.state, row.durability, row.bag_guid))
             .collect::<Vec<_>>(),
         vec![
-            (
-                20,
-                wow_persistence::PlayerItemSaveStateLikeCpp::New,
-                37,
-                0,
-            ),
+            (20, wow_persistence::PlayerItemSaveStateLikeCpp::New, 37, 0,),
             (
                 30,
                 wow_persistence::PlayerItemSaveStateLikeCpp::Changed,

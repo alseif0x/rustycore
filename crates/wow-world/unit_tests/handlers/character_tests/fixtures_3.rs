@@ -39,7 +39,8 @@ pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, 
                 .add_unit_state(wow_constants::unit::UnitState::DIED.bits());
         })
         .expect("canonical player");
-    assert!(session.insert_player_visible_aura_like_cpp(AuraApplication {
+    assert!(
+        session.insert_player_visible_aura_like_cpp(AuraApplication {
             spell_id: 5384,
             difficulty_id: 0,
             caster_guid: player_guid,
@@ -57,10 +58,9 @@ pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, 
             represented_misc_value: None,
             represented_multiplier: 1.0,
             applied_at: std::time::Instant::now(),
-    }));
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        session, true
-    ));
+        })
+    );
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(session, true));
 }
 
 pub(super) fn canonical_player_has_died_state_like_cpp(session: &mut WorldSession) -> bool {

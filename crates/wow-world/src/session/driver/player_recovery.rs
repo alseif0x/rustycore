@@ -517,9 +517,8 @@ async fn run_regeneration_and_kill(
     if session.core.player_guid() != Some(handle.guid()) {
         return false;
     }
-    let Some((player_guid, is_in_world, just_died)) = session
-        .core
-        .with_owned_player_like_cpp(|player| {
+    let Some((player_guid, is_in_world, just_died)) =
+        session.core.with_owned_player_like_cpp(|player| {
             (
                 player.guid(),
                 player.unit().world().object().is_in_world(),
@@ -533,8 +532,11 @@ async fn run_regeneration_and_kill(
         return false;
     }
     if just_died && is_in_world {
-        return wow_world_entities::kill_player_like_cpp(session, catalogs.creature_spawns.as_ref())
-            .await;
+        return wow_world_entities::kill_player_like_cpp(
+            session,
+            catalogs.creature_spawns.as_ref(),
+        )
+        .await;
     }
     true
 }

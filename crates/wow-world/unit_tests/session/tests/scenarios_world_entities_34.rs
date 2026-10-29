@@ -74,7 +74,8 @@ fn legacy_creature_melee_tick_once_honors_player_damage_immunity_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_350, 0), (91_351, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(91_350, 0), (91_351, 0)]);
     for (spell_id, aura_type, amount, misc_value) in [
         (
             91_350_i32,

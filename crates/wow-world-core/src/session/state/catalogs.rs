@@ -24,10 +24,10 @@ use wow_data::{
     CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore, ConditionPresenceCatalog,
     CurrencyTypesStore, DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore,
     DurabilityCostsStore, DurabilityQualityStore, FishingBaseSkillStoreLikeCpp,
-    GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, HeirloomStore, LfgDungeonsStore,
-    LockStore, MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore,
+    GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GraveyardStore, HeirloomStore,
+    LfgDungeonsStore, LockStore, MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore,
     MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, PhaseGroupStore, PhaseStore,
-    PlayerConditionStore, PlayerStatsStore, PvpItemStore, RandPropPointsStore, GraveyardStore,
+    PlayerConditionStore, PlayerStatsStore, PvpItemStore, RandPropPointsStore,
     RegenGameTablesLikeCpp, ScriptNameInternerLikeCpp, ShieldBlockRegularGameTableLikeCpp,
     SkillLineStore, SkillStore, SkillTiersStoreLikeCpp, TalentStore, ToyStore, TrainerStoreLikeCpp,
     TransmogSetItemStore, TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp,
@@ -40,10 +40,9 @@ use wow_data::{
     AdventureMapPoiStore, AreaTriggerDb2Store, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore,
     BankBagSlotPricesStore, BattlemasterListStore, CreatureAddonStoreLikeCpp,
     CreatureBaseStatsStoreLikeCpp, CreatureDifficultyStoreLikeCpp, CreatureEquipmentStoreLikeCpp,
-    EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp, ImportPriceStores,
-    ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemPriceBaseStore,
-    LfgDungeonStoreLikeCpp, TactKeyStore, TavernAreaTriggerStoreLikeCpp,
-    VehicleTemplateStoreLikeCpp,
+    EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp, ImportPriceStores, ItemClassStore,
+    ItemCurrencyCostStore, ItemDisenchantLootStore, ItemPriceBaseStore, LfgDungeonStoreLikeCpp,
+    TactKeyStore, TavernAreaTriggerStoreLikeCpp, VehicleTemplateStoreLikeCpp,
 };
 
 /// Immutable catalog bundles and DB2/world-DB store handles injected at composition; read-only

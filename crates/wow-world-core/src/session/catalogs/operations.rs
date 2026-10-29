@@ -4,8 +4,8 @@ use std::sync::Arc;
 use crate::session::ObjectMgrCatalogsLikeCpp;
 use crate::session::ProgressionCatalogsLikeCpp;
 use crate::session::state::SessionCatalogs;
-use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::GraveyardStore;
+use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
     AccessRequirementStoreLikeCpp, ChrSpecializationStore, CinematicSequencesStore,
     ConditionEntriesByTypeStore, LockStore, MountStore, PlayerConditionStore, RandPropPointsStore,

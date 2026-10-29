@@ -237,7 +237,8 @@ async fn override_attack_power_by_spell_power_aura_replaces_both_attack_mods_lik
         }
     ));
 
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(90_820, 0), (90_821, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_820, 0), (90_821, 0)]);
     for (spell_id, amount) in [(90_820, 15), (90_821, 5)] {
         spell_store.insert(
             spell_id,

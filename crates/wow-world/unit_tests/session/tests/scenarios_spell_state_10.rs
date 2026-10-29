@@ -625,9 +625,8 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
         |entry| entry == 9008,
         |spell| spell == u32::try_from(spell_id).unwrap(),
     )));
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (spell_id as u32, 0),
-    ]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

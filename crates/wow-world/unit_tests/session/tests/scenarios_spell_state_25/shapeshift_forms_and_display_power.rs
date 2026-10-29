@@ -294,10 +294,8 @@ async fn represented_shapeshift_form_selects_display_power_like_cpp() {
     session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (90_996, 0),
-        (91_000, 0),
-    ]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_996, 0), (91_000, 0)]);
     // Cat form (1) and bear form (5) shapeshift auras.
     let cat_spell_id = 90_996_i32;
     let bear_spell_id = 91_000_i32;

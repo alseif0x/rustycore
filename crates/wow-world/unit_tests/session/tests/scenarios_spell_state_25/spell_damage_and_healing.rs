@@ -269,10 +269,8 @@ async fn spell_direct_heal_applies_damage_done_versus_aurastate_like_cpp() {
         .expect("wounded creature with a defensive aura state");
 
     session.set_spell_misc_store(Arc::new(represented_frost_spell_misc_like_cpp(&[spell_id])));
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (spell_id as u32, 0),
-        (90_990, 0),
-    ]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0), (90_990, 0)]);
     spell_store.insert(
         spell_id,
         represented_direct_heal_spell_like_cpp(spell_id, 100, 0.0),

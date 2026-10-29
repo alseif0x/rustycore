@@ -8147,6 +8147,20 @@
           "module": "crate::handlers::entities::corpse::host",
           "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
           "kind": "method",
+          "name": "force_player_visibility_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn force_player_visibility_with_catalogs_like_cpp < 'a > (& 'a mut self , creature_spawns : & 'a wow_world_entities :: CreatureSpawnCatalogsLikeCpp ,) -> impl std :: future :: Future < Output = bool > + Send + 'a",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
           "name": "graveyard_conditions_meet_like_cpp",
           "visibility": "private",
           "signature": "fn graveyard_conditions_meet_like_cpp (& mut self , conditions_ref : & wow_data :: ConditionsReference ,) -> bool",
@@ -40823,6 +40837,19 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
           "kind": "method",
+          "name": "apply_stuck_effect_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_stuck_effect_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & 'a CreatureSpawnCatalogsLikeCpp , caster_guid : ObjectGuid ,) -> Pin < Box < dyn Future < Output = Result < () , & 'static str > > + Send + 'a > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
           "name": "consume_add_farsight_set_seer_outcome_like_cpp",
           "visibility": "private",
           "signature": "fn consume_add_farsight_set_seer_outcome_like_cpp (& mut self , outcome : & wow_map :: map :: FarsightDynamicObjectCreateOutcomeLikeCpp ,) -> bool",
@@ -40948,34 +40975,6 @@
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
-          "kind": "method",
-          "name": "set_player_alive_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_player_alive_like_cpp (& mut self , alive : bool)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
-          "kind": "method",
-          "name": "set_player_ghost_flag_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_player_ghost_flag_like_cpp (& mut self , ghost : bool)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
             "trait_impl"
           ]
         },

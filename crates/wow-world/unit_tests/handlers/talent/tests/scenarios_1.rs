@@ -398,21 +398,20 @@ async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_lik
         spell_store.insert(spell_id, spell);
     }
     session.set_spell_store(Arc::new(spell_store));
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     let mut quest = test_quest_template_like_cpp(quest_id);
     quest.reward_spell = u32::MAX;
     quest.source_spell_id = source_spell_id as u32;
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    assert!(session
-        .mutate_player_quest_gameplay_like_cpp(|quests| {
-            quests.set_rewarded_like_cpp(quest_id, true);
-        })
-        .is_some());
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|quests| {
+                quests.set_rewarded_like_cpp(quest_id, true);
+            })
+            .is_some()
+    );
     let mut source_self = test_visible_aura_like_cpp(1, source_spell_id);
     source_self.caster_guid = player_guid;
     let mut source_other = test_visible_aura_like_cpp(2, source_spell_id);
@@ -469,7 +468,11 @@ async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_lik
         "RewardSpell=-1 removes source auras and returns without relearning spells"
     );
     assert!(!quests_after.statuses_like_cpp().contains_key(&quest_id));
-    assert!(quests_after.rewarded_quest_ids_like_cpp().contains(&quest_id));
+    assert!(
+        quests_after
+            .rewarded_quest_ids_like_cpp()
+            .contains(&quest_id)
+    );
 }
 
 #[tokio::test]
@@ -905,10 +908,7 @@ async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
         spell_store.insert(spell_id, spell);
     }
     session.set_spell_store(Arc::new(spell_store));
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     for aura in [
         visible_aura(1, SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP),
         visible_aura(2, 0),

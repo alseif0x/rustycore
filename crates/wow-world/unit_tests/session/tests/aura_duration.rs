@@ -186,10 +186,8 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     let other_caster_guid = ObjectGuid::create_player(1, 8_432);
     session.set_player_guid(Some(player_guid));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (84_301, 0),
-        (84_302, 0),
-    ]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(84_301, 0), (84_302, 0)]);
     let mut finite_info = test_spell_info_like_cpp(84_301);
     finite_info.effects = [0, 2, 4]
         .into_iter()
@@ -423,7 +421,8 @@ fn legacy_player_sweep_keeps_nonempty_auras_when_race_classification_is_unknown(
     session.set_player_guid(Some(player_guid));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     install_known_empty_sickness_race(&mut session, 4);
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(UNRELATED_AURA as u32, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(UNRELATED_AURA as u32, 0)]);
     let mut unrelated_info = test_spell_info_like_cpp(UNRELATED_AURA);
     unrelated_info.effects = vec![wow_data::SpellEffectInfo {
         effect_index: 0,

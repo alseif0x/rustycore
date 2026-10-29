@@ -194,8 +194,9 @@ fn session_resources_requires_named_capability_bundles() {
         .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
         .expect("SessionSpellCatalogCapabilitiesLikeCpp declaration should be present");
     assert!(
-        spell_capabilities
-            .contains("pub(super) serverside_spell_store: Arc<wow_data::ServersideSpellStoreLikeCpp>,"),
+        spell_capabilities.contains(
+            "pub(super) serverside_spell_store: Arc<wow_data::ServersideSpellStoreLikeCpp>,"
+        ),
         "the spell catalog bundle must require the canonical serverside spell catalog"
     );
     let world_capabilities = resources_source
@@ -204,8 +205,7 @@ fn session_resources_requires_named_capability_bundles() {
         .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
         .expect("SessionWorldCatalogCapabilitiesLikeCpp declaration should be present");
     assert!(
-        world_capabilities
-            .contains("pub(super) graveyards: Arc<wow_data::GraveyardStore>,"),
+        world_capabilities.contains("pub(super) graveyards: Arc<wow_data::GraveyardStore>,"),
         "EffectStuck's real graveyard repop requires the World catalog capability"
     );
     assert!(

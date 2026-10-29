@@ -149,10 +149,7 @@ fn has_hearthstone_cooldown_like_cpp<H: CorpseHostLikeCpp>(
         .serverside_spell_store
         .as_deref()
         .ok_or("EffectStuck serverside spell catalog is unavailable")?;
-    let class_options = hub
-        .catalogs
-        .spell_class_options_store()
-        .map(AsRef::as_ref);
+    let class_options = hub.catalogs.spell_class_options_store().map(AsRef::as_ref);
 
     hub.core
         .with_owned_player_like_cpp(|player| {
@@ -266,7 +263,8 @@ where
                     return None;
                 }
                 player.begin_native_death_operation(PlayerDeathOperationContext::new(
-                    player_guid, true,
+                    player_guid,
+                    true,
                 ))
             })
             .ok_or("EffectStuck native death Player incarnation is unavailable")?
@@ -365,13 +363,7 @@ where
     }
 
     if has_hearthstone_cooldown_like_cpp(host, owner.difficulty_id)? {
-        return kill_self_like_cpp(
-            host,
-            owner,
-            creature_spawn_catalogs,
-            item_guid_generator,
-        )
-        .await;
+        return kill_self_like_cpp(host, owner, creature_spawn_catalogs, item_guid_generator).await;
     }
 
     let homebind = homebind.ok_or("EffectStuck Player homebind is unavailable")?;

@@ -473,7 +473,8 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_170, 0), (91_171, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(91_170, 0), (91_171, 0)]);
     spell_store.insert(
         91_170,
         wow_data::SpellInfo {

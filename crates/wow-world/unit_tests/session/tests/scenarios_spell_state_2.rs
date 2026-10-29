@@ -70,10 +70,7 @@ fn remove_known_spell_clears_titan_grip_and_penalty_aura_like_cpp() {
             }],
         },
     );
-    spell_store.insert(
-        penalty_spell_id,
-        test_spell_info_like_cpp(penalty_spell_id),
-    );
+    spell_store.insert(penalty_spell_id, test_spell_info_like_cpp(penalty_spell_id));
     let mut attributes = [0_u32; 15];
     attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
     spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);

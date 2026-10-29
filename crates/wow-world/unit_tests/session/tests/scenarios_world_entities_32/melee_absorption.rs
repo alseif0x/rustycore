@@ -499,7 +499,8 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_610, 0), (91_611, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(91_610, 0), (91_611, 0)]);
     for (spell_id, aura_type, amount, amplitude, misc_value) in [
         (
             91_610_i32,

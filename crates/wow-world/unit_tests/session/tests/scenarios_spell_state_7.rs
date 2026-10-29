@@ -280,7 +280,8 @@ async fn generic_apply_aura_single_effect_row_applies_like_cpp() {
     let spell_id = 726_i32;
     let player_guid = ObjectGuid::create_player(1, 7031);
     session.set_player_guid(Some(player_guid));
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -348,7 +349,8 @@ async fn generic_apply_aura_retains_cast_provenance_on_the_canonical_unit_like_c
     let player_guid = ObjectGuid::create_player(1, 7032);
     session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -498,7 +500,8 @@ async fn generic_owned_aura_cancel_removes_single_effect_row_like_cpp() {
     let spell_id = 728_i32;
     let player_guid = ObjectGuid::create_player(1, 7033);
     session.set_player_guid(Some(player_guid));
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -560,7 +563,8 @@ async fn generic_owned_aura_cancel_preserves_passive_spell_like_cpp() {
     let spell_id = 729_i32;
     let player_guid = ObjectGuid::create_player(1, 7034);
     session.set_player_guid(Some(player_guid));
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

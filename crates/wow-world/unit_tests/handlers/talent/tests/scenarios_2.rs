@@ -457,18 +457,17 @@ async fn confirm_respec_wipe_removes_feign_death_before_reset_talents_like_cpp()
         },
     );
     session.set_spell_store(Arc::new(spell_store));
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     let mut feign_death = visible_aura(feign_slot, 0);
     feign_death.spell_id = 5384;
     feign_death.represented_effect = Some(RepresentedAuraEffectLikeCpp::FeignDeath);
     assert!(session.insert_player_visible_aura_like_cpp(feign_death));
-    assert!(session
-        .resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner")
-        .contains_key(&feign_slot));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .contains_key(&feign_slot)
+    );
 
     session
         .handle_confirm_respec_wipe(confirm_respec_wipe_packet(

@@ -14,8 +14,7 @@ pub(in crate::session::tests) fn set_stuck_spell_store_like_cpp(
     let keys = [(spell_id as u32, 0), (8690, 0)];
     let mut stuck_attributes = [0; 15];
     if allow_while_dead {
-        stuck_attributes[0] =
-            wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD as i32;
+        stuck_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD as i32;
     }
     let categories = wow_data::spell_db2::SpellCategoriesStore::from_entries([
         wow_data::spell_db2::SpellCategoriesEntry {
@@ -106,9 +105,7 @@ pub(in crate::session::tests) fn set_stuck_spell_store_like_cpp(
     let spell_store = crate::selected_spell_fixtures::canonical_spell_store(keys)
         .hydrate_effective_core_db2_like_cpp(effective);
     session.set_spell_store(Arc::new(spell_store));
-    session.set_serverside_spell_store(Arc::new(
-        wow_data::ServersideSpellStoreLikeCpp::default(),
-    ));
+    session.set_serverside_spell_store(Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([])));
 }
 

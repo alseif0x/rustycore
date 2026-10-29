@@ -235,10 +235,8 @@ fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
         ]),
     ));
 
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (90_998, 0),
-        (90_999, 0),
-    ]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_998, 0), (90_999, 0)]);
     for (spell_id, aura, amount) in [
         (
             90_998_i32,

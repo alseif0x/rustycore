@@ -101,15 +101,9 @@ async fn loot_unit_valid_target_removes_looting_interrupt_auras_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_creature_guid(19_035);
     session.set_player_guid(Some(player_guid));
-    crate::canonical_player_access::install_canonical_player_owner_for_test(
-        &mut session,
-        571,
-        0,
-    );
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (777, 0),
-        (778, 0),
-    ]);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(777, 0), (778, 0)]);
     for spell_id in [777, 778] {
         spell_store.insert(
             spell_id,
@@ -135,10 +129,7 @@ async fn loot_unit_valid_target_removes_looting_interrupt_auras_like_cpp() {
         );
     }
     session.set_spell_store(Arc::new(spell_store));
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     for aura in [
         AuraApplication {
             spell_id: 777,

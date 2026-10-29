@@ -335,12 +335,9 @@ async fn spell_stuck_teleports_home_and_ignores_hearthstone_cooldown_like_cpp() 
     let start = Position::new(10.0, 20.0, 30.0, 1.0);
     let home = Position::new(100.0, 200.0, 40.0, 2.0);
     let current_cast_spell = 61_783;
-    let current_cast = wow_entities::CurrentSpellRef::new(
-        current_cast_spell,
-        Some(player_guid),
-        None,
-    )
-    .with_cast_time_ms(10_000);
+    let current_cast =
+        wow_entities::CurrentSpellRef::new(current_cast_spell, Some(player_guid), None)
+            .with_cast_time_ms(10_000);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -355,11 +352,13 @@ async fn spell_stuck_teleports_home_and_ignores_hearthstone_cooldown_like_cpp() 
     add_canonical_test_player_on_map(&canonical, player_guid, start, 571, 0);
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_health_like_cpp(100, 100);
-    assert!(session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
-        map_id: 0,
-        area_id: 12,
-        position: home,
-    }));
+    assert!(
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 0,
+            area_id: 12,
+            position: home,
+        })
+    );
     set_stuck_spell_store_like_cpp(&mut session, spell_id, false, 0);
     session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
     session.set_active_spell_cast_like_cpp(Some(wow_entities::SpellCastState {

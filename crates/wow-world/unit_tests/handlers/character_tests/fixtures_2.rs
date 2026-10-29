@@ -383,10 +383,7 @@ pub(super) fn total_stat_percentage_spell_store_like_cpp(
     spell_id: i32,
     is_ability: bool,
 ) -> wow_data::SpellStore {
-    let mut store = crate::selected_spell_fixtures::canonical_spell_store([(
-        spell_id as u32,
-        0,
-    )]);
+    let mut store = crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     store.insert(
         spell_id,
         wow_data::SpellInfo {
