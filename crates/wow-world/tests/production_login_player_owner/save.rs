@@ -426,6 +426,15 @@ async fn pending_far_disconnect(
         assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(true));
         player.teleport_state_mut_like_cpp().far_pending = false;
         if retain_resurrection {
+            // This fixture stops at PetStable before class power hydration.
+            assert_eq!(
+                player.unit().get_power_index(wow_constants::PowerType::Mana),
+                Some(0)
+            );
+            assert_eq!(
+                player.unit().get_power_index(wow_constants::PowerType::Rage),
+                None
+            );
             player
                 .resurrection_state_mut_like_cpp()
                 .delayed_after_teleport = Some(wow_entities::PlayerResurrectionContinuation {
@@ -627,12 +636,12 @@ async fn pending_far_disconnect(
                 wow_constants::ServerOpcodes::LogoutComplete as u16
             ]
         );
-        // C++ Player.cpp:24909-24932 calls SetPower(RAGE, 0) during resurrection.
+        // C++ Player.cpp:24909-24932 calls SetPower(MANA, 0) for this request.
         assert_eq!(
             packets[4],
             wow_packet::packets::combat::PowerUpdate {
                 guid,
-                powers: vec![(0, wow_constants::PowerType::Rage as u8)],
+                powers: vec![(0, wow_constants::PowerType::Mana as u8)],
             }
             .to_bytes()
         );

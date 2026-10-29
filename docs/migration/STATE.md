@@ -21,16 +21,29 @@ downstream test compilation and the complete World suite (4,149 passed, one
 ignored). This includes the corrected closed-self Wisp case. Evidence is
 `/tmp/rustycore43-affected-bc0e-d7pzfyki/{final-manifest.json,record.json}`.
 The following production-login target ran 42 tests: 41 passed and one failed
-because its retained-transfer logout oracle omitted the native zero-Rage
+because its retained-transfer logout oracle omitted the native zero-Mana
 PowerUpdate introduced by the earlier SetPower repair. The observed sequence
 contains that packet before LogoutComplete, as required by
 `Player.cpp:24909–24932` and `Unit.cpp:9287–9306`. The strict sequence and exact
 power payload oracle now require that update; this repair is UNVALIDATED.
-Login replaces the fixture's
-default Unit mapping with class-1 Rage in slot 0; unmapped Mana is skipped.
-No production change follows from this finding. The complete attempted campaign stopped at 557.226 seconds,
+This fixture deliberately cancels login at PetStable before the class-power
+hydration, retaining Unit's initial Mana mapping. The complete-login class-1
+Rage mapping is not reached. No production change follows from this finding.
+The complete attempted campaign stopped at 557.226 seconds,
 within the time target but FAILED; standalone bot tests/build and the debug World
 build did not run. This affected final is not a publication or live acceptance.
+
+The next affected final at `8417affcf` passed in 85.507 seconds, but its
+production integration again passed only 41/42: the newly strict payload
+expectation incorrectly used the class-1 Rage type despite the interrupted-login
+fixture. The actual packet has zero Mana (power type 0); the full opcode order
+already matches. The harness cancels at PetStable
+(`production_login_player_owner.rs:374–384,520–551`) before
+`login_sequence.rs:521` replaces Unit's initial mapping. The corrected oracle
+must bind its Mana/unsupported-Rage preconditions to the actual canonical Player.
+The attempted campaign stopped FAILED after 95.742 seconds; no bot tests/build
+or debug World build ran. Evidence is
+`/tmp/rustycore43-affected-8417-gggm0h0k/{final-manifest.json,record.json}`.
 
 The second combined acceptance at `dd54ae2cd` also failed: final took 976.424
 seconds and the complete attempted ordinary campaign took 977.780 seconds,
