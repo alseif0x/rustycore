@@ -126,6 +126,23 @@ failure is retained in
 `/tmp/rustycore43-native-death-publication-acceptance-p7ampbxf/record.json`.
 The correction uses the existing generation-checked Player operation in those fixtures;
 it does not add a Session thunk or change production authority.
+At `178d83330`, the retry compiled and passed Data (844, five ignored),
+Entities (1,054), Map (768, one ignored), Application (31), Core (274),
+World-Entities (2), Inventory (36) and Visibility (3). World reported 4,126
+passed, four failed and one ignored. The failures are the prior healer test's
+immediate-publication expectation and three repair fixtures whose intended
+instance maxima were previously supplied by raw template data. The correction
+keeps their assertions: healer consumes the native Map envelope; repair-cost
+fixtures explicitly supply their intended maxima 50/13. No production code
+changed in this correction. The failed 118.751-second campaign is
+`/tmp/rustycore43-native-death-publication-acceptance-u1qb068q/record.json`;
+the debug build did not run.
+
+Before resuming, six inspected obsolete World archives from October 24–28
+(561.2 MiB) and eight completed, unused green-suite executables were retired.
+The four active October 29 World archive variants and all incremental caches,
+runtime binaries, captures and evidence remain. Both retirement records are
+under the same campaign directory. The storage aim is still unmet.
 
 Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
 ignored), Application (31), Entities (2), Spell (181), bot (248), production

@@ -420,6 +420,13 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
             .stats[wow_constants::Stats::Strength as usize],
         20
     );
+    let map_key = session
+        .core
+        .current_canonical_player_map_key_like_cpp()
+        .unwrap();
+    let canonical = session.core.canonical_map_manager.as_ref().unwrap().clone();
+    // Consume setup fields before observing the healer action's Map batch.
+    canonical.lock().unwrap().update(1);
     let _ = drain_packets(&send_rx);
 
     session
@@ -561,22 +568,74 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         durability_update_packet(&session, backpack_guid),
         durability_update_packet(&session, carried_child_guid),
     ];
-    let durability_packet_positions = expected_durability_updates
-        .iter()
-        .map(|expected| {
-            first_packets
-                .iter()
-                .position(|packet| packet == expected)
-                .expect("durability-only item values update")
-        })
-        .collect::<Vec<_>>();
-    assert!(
-        durability_packet_positions
-            .windows(2)
-            .all(|pair| pair[0] < pair[1])
-    );
+    for expected in &expected_durability_updates {
+        assert!(
+            !first_packets.contains(expected),
+            "native Item VALUES wait for Map tail"
+        );
+    }
     assert!(!first_packets.contains(&durability_update_packet(&session, bank_guid)));
     assert!(!first_packets.contains(&durability_update_packet(&session, bank_child_guid)));
+    canonical.lock().unwrap().update(1);
+    {
+        let (visibility, mut hub) = crate::session::split_visibility_mut(&mut session);
+        assert_eq!(visibility.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(&mut hub), 1);
+    }
+    let map_packets = drain_packets(&send_rx);
+    assert_eq!(
+        map_packets.len(),
+        1,
+        "one owner Map envelope batches carried Item and Player VALUES"
+    );
+    let mut update = wow_packet::WorldPacket::from_bytes(&map_packets[0]);
+    assert_eq!(
+        update.read_uint16().unwrap(),
+        ServerOpcodes::UpdateObject as u16
+    );
+    assert_eq!(
+        update.read_uint32().unwrap(),
+        4,
+        "three carried Items precede the owner"
+    );
+    assert_eq!(update.read_uint16().unwrap(), map_key.map_id as u16);
+    assert!(!update.read_bit().unwrap());
+    update.reset_bits();
+    update.read_uint32().unwrap();
+    for (guid, durability) in [
+        (gear_guid, 0),
+        (backpack_guid, 75),
+        (carried_child_guid, 75),
+    ] {
+        assert_eq!(update.read_uint8().unwrap(), 0, "Item VALUES");
+        assert_eq!(update.read_packed_guid().unwrap(), guid);
+        assert_eq!(update.read_uint32().unwrap(), 13);
+        assert_eq!(
+            update.read_uint32().unwrap(),
+            1 << wow_entities::TYPEID_ITEM
+        );
+        assert_eq!(update.read_bits(2).unwrap(), 1);
+        assert_eq!(
+            update.read_bits(32).unwrap(),
+            0x1001,
+            "parent0/Durability12 only"
+        );
+        update.reset_bits();
+        assert_eq!(update.read_uint32().unwrap(), durability);
+    }
+    assert_eq!(
+        update.read_uint8().unwrap(),
+        0,
+        "Player VALUES follow Items"
+    );
+    assert_eq!(update.read_packed_guid().unwrap(), player_guid);
+    {
+        let (visibility, mut hub) = crate::session::split_visibility_mut(&mut session);
+        assert_eq!(visibility.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(&mut hub), 0);
+    }
+    assert!(
+        drain_packets(&send_rx).is_empty(),
+        "the Map batch is delivered once"
+    );
     let spell_go = first_packets
         .iter()
         .find(|bytes| packet_opcode(bytes) == ServerOpcodes::SpellGo as u16)

@@ -88,7 +88,7 @@ async fn repair_inventory_item_durability_spends_money_and_restores_like_cpp() {
             inventory_type: Some(InventoryType::Weapon as u8),
         },
     );
-    let item = session.make_inventory_item_object(
+    let mut item = session.make_inventory_item_object(
         item_guid,
         100,
         player_guid,
@@ -97,6 +97,8 @@ async fn repair_inventory_item_durability_spends_money_and_restores_like_cpp() {
         ItemContext::None,
         EQUIPMENT_SLOT_MAINHAND,
     );
+    // This repair-cost fixture supplies its intended per-instance maximum.
+    item.set_max_durability(50);
     session.insert_inventory_item_object(item);
 
     assert!(
