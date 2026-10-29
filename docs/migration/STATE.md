@@ -296,6 +296,15 @@ both peer GUID assertions, real Ghost removal and deferred native VALUES remain
 asserted. Anchors: `Player.cpp:23322–23343,23029`, `Map.cpp:427,450,777,1929`.
 These five test-source edits are unvalidated; no production behavior changed.
 
+The nine Character interaction cases now construct native Player inputs with
+their existing health/faction/gold and adopt before seeding provenance. The
+trainer-only case retains its distinct menu-then-Feign-then-selection sequence.
+The binder negative uses the same native Feign application; invalid sources
+still preserve Aura and trainer provenance without packets. Anchors:
+`Player.cpp:1929`, `BankHandler.cpp:60`, `NPCHandler.cpp:250,373`.
+These six fixture-source edits remain unvalidated, with test identities and
+exact protocol assertions preserved.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

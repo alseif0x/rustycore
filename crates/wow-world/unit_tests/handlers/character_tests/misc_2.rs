@@ -509,6 +509,7 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
     const FEIGN_SLOT: u8 = 24;
     let (mut session, send_rx, canonical) = make_bank_slot_session(4);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let old_trainer = creature_guid(9306, 304);
     let vendor = creature_guid(2456, 305);
     insert_banker_creature(
@@ -527,7 +528,6 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
             option_npc: GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
             action_menu_id: 0,
         });
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
 
     session.handle_gossip_hello(Hello { unit: vendor }).await;
 
@@ -703,6 +703,7 @@ async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_
     const FEIGN_SLOT: u8 = 21;
     let (mut session, send_rx, canonical) = make_bank_slot_session(4);
     insert_bank_test_player_in_world(&session, &canonical);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     let guid = creature_guid(2_456, 513);
     insert_banker_creature(&canonical, guid, NPCFlags1::TRAINER.bits());
     session.set_trainer_store_like_cpp(Arc::new(
@@ -850,6 +851,7 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
     const FEIGN_SLOT: u8 = 22;
     let (mut session, send_rx, canonical) = make_bank_slot_session(2);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let banker = creature_guid(15_513, 523);
     insert_banker_creature(
         &canonical,
@@ -867,7 +869,6 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
             option_npc: 6,
             action_menu_id: 0,
         });
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
 
     session
         .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {

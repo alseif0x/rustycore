@@ -7,7 +7,22 @@ use crate::canonical_creature_fixtures::{self as fixtures, CanonicalCreatureFixt
 
 pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, slot: u8) {
     let player_guid = session.player_guid().expect("player guid");
-    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    // Callers may already own the Player before preparing a gossip menu.
+    if session.core.player_handle_like_cpp.is_none() {
+        assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    }
+    assert!(
+        session
+            .with_owned_player_like_cpp(|player| {
+                player.guid() == player_guid
+                    && player.unit().is_alive()
+                    && player.unit().data().health > 0
+                    && player.unit().data().max_health > 0
+                    && player.unit().data().faction_template > 0
+            })
+            .unwrap_or(false),
+        "Feign fixture needs an alive canonical Player with health and faction"
+    );
     let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(5384, 0)]);
     spell_store.insert(
         5384,

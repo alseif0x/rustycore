@@ -11,6 +11,7 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
     const GOSSIP_ID: u32 = 72;
     let (mut session, send_rx, canonical) = make_bank_slot_session(2);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let goober = gameobject_guid(9304, 304);
     insert_gossip_gameobject(
         &canonical,
@@ -43,7 +44,6 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
             option_npc: 0,
             action_menu_id: 0,
         });
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
 
     session
         .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
@@ -145,6 +145,7 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
     ] {
         let (mut session, send_rx, canonical) = make_bank_slot_session(2);
         insert_bank_test_player_in_world(&session, &canonical);
+        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
         let gameobject = gameobject_guid(9305, 305);
         insert_gossip_gameobject(&canonical, gameobject, 9305, position, go_type, in_world);
         session
@@ -170,7 +171,6 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
                 option_npc: 0,
                 action_menu_id: 0,
             });
-        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
         if in_taxi {
             session.set_taxi_flight_state_like_cpp(
                 RepresentedTaxiFlightNodeLikeCpp {
@@ -227,6 +227,7 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
     const GOSSIP_ID: u32 = 92;
     let (mut session, send_rx, canonical) = make_bank_slot_session(2);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let goober = gameobject_guid(9306, 306);
     insert_gossip_gameobject(
         &canonical,
@@ -259,7 +260,6 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
             option_npc: 6, // Banker is invalid for every C++ GameObject menu.
             action_menu_id: 0,
         });
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
 
     session
         .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
