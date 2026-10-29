@@ -309,29 +309,6 @@ impl Player {
         let previous = self.effective_combat_stats;
         let mut active_changed = false;
 
-        macro_rules! unit_field {
-            ($field:ident, $parent:expr, $bit:expr) => {
-                if previous.$field != stats.$field {
-                    self.unit.mark_unit_data_nested($parent, $bit);
-                }
-            };
-        }
-        macro_rules! active_field {
-            ($field:ident, $bit:expr) => {
-                if previous.$field != stats.$field {
-                    self.mark_active_player_data($bit);
-                    active_changed = true;
-                }
-            };
-        }
-        macro_rules! active_section_field {
-            ($field:ident, $bit:expr) => {
-                if previous.$field != stats.$field {
-                    self.mark_active_player_data_section(ACTIVE_STATS_PARENT_BIT, $bit);
-                    active_changed = true;
-                }
-            };
-        }
         macro_rules! active_array {
             ($old:expr, $new:expr, $parent:expr, $first_bit:expr) => {
                 for (index, (old, new)) in $old.iter().zip($new.iter()).enumerate() {
@@ -343,63 +320,58 @@ impl Player {
             };
         }
 
-        unit_field!(min_damage, UNIT_DAMAGE_PARENT_BIT, UNIT_DAMAGE_FIRST_BIT);
-        unit_field!(
-            max_damage,
-            UNIT_DAMAGE_PARENT_BIT,
-            UNIT_DAMAGE_FIRST_BIT + 1
-        );
-        unit_field!(base_health, UNIT_MODS_PARENT_BIT, UNIT_BASE_HEALTH_BIT);
-        unit_field!(
-            attack_power,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_ATTACK_POWER_FIRST_BIT
-        );
-        unit_field!(
-            attack_power_mod_pos,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_ATTACK_POWER_FIRST_BIT + 1
-        );
-        unit_field!(
-            attack_power_mod_neg,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_ATTACK_POWER_FIRST_BIT + 2
-        );
-        unit_field!(
-            attack_power_multiplier,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_ATTACK_POWER_FIRST_BIT + 3
-        );
-        unit_field!(
-            ranged_attack_power,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_ATTACK_POWER_FIRST_BIT + 4
-        );
-        unit_field!(
-            ranged_attack_power_mod_pos,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_ATTACK_POWER_FIRST_BIT + 5
-        );
-        unit_field!(
-            ranged_attack_power_mod_neg,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_ATTACK_POWER_FIRST_BIT + 6
-        );
-        unit_field!(
-            ranged_attack_power_multiplier,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_ATTACK_POWER_FIRST_BIT + 7
-        );
-        unit_field!(
-            min_ranged_damage,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_MIN_RANGED_DAMAGE_BIT
-        );
-        unit_field!(
-            max_ranged_damage,
-            UNIT_MODS_PARENT_BIT,
-            UNIT_MIN_RANGED_DAMAGE_BIT + 1
-        );
+        if previous.min_damage != stats.min_damage {
+            self.unit
+                .mark_unit_data_nested(UNIT_DAMAGE_PARENT_BIT, UNIT_DAMAGE_FIRST_BIT);
+        }
+        if previous.max_damage != stats.max_damage {
+            self.unit
+                .mark_unit_data_nested(UNIT_DAMAGE_PARENT_BIT, UNIT_DAMAGE_FIRST_BIT + 1);
+        }
+        if previous.base_health != stats.base_health {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_BASE_HEALTH_BIT);
+        }
+        if previous.attack_power != stats.attack_power {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_ATTACK_POWER_FIRST_BIT);
+        }
+        if previous.attack_power_mod_pos != stats.attack_power_mod_pos {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_ATTACK_POWER_FIRST_BIT + 1);
+        }
+        if previous.attack_power_mod_neg != stats.attack_power_mod_neg {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_ATTACK_POWER_FIRST_BIT + 2);
+        }
+        if previous.attack_power_multiplier != stats.attack_power_multiplier {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_ATTACK_POWER_FIRST_BIT + 3);
+        }
+        if previous.ranged_attack_power != stats.ranged_attack_power {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_ATTACK_POWER_FIRST_BIT + 4);
+        }
+        if previous.ranged_attack_power_mod_pos != stats.ranged_attack_power_mod_pos {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_ATTACK_POWER_FIRST_BIT + 5);
+        }
+        if previous.ranged_attack_power_mod_neg != stats.ranged_attack_power_mod_neg {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_ATTACK_POWER_FIRST_BIT + 6);
+        }
+        if previous.ranged_attack_power_multiplier != stats.ranged_attack_power_multiplier {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_ATTACK_POWER_FIRST_BIT + 7);
+        }
+        if previous.min_ranged_damage != stats.min_ranged_damage {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_MIN_RANGED_DAMAGE_BIT);
+        }
+        if previous.max_ranged_damage != stats.max_ranged_damage {
+            self.unit
+                .mark_unit_data_nested(UNIT_MODS_PARENT_BIT, UNIT_MIN_RANGED_DAMAGE_BIT + 1);
+        }
 
         for (index, (old, new)) in previous.weapon_damage[1]
             .iter()
@@ -474,36 +446,126 @@ impl Player {
             }
         }
 
-        active_field!(mainhand_expertise, ACTIVE_MAINHAND_EXPERTISE_BIT);
-        active_field!(offhand_expertise, ACTIVE_OFFHAND_EXPERTISE_BIT);
-        active_section_field!(ranged_expertise, ACTIVE_RANGED_EXPERTISE_BIT);
-        active_section_field!(combat_rating_expertise, ACTIVE_COMBAT_RATING_EXPERTISE_BIT);
-        active_section_field!(block_pct, ACTIVE_BLOCK_BIT);
-        active_section_field!(dodge_pct, ACTIVE_DODGE_BIT);
-        active_section_field!(dodge_from_attr, ACTIVE_DODGE_FROM_ATTRIBUTE_BIT);
-        active_section_field!(parry_pct, ACTIVE_PARRY_BIT);
-        active_section_field!(parry_from_attr, ACTIVE_PARRY_FROM_ATTRIBUTE_BIT);
-        active_section_field!(crit_pct, ACTIVE_CRIT_BIT);
-        active_section_field!(ranged_crit_pct, ACTIVE_RANGED_CRIT_BIT);
-        active_section_field!(offhand_crit_pct, ACTIVE_OFFHAND_CRIT_BIT);
-        active_section_field!(shield_block, ACTIVE_SHIELD_BLOCK_BIT);
-        active_section_field!(shield_block_crit_pct, ACTIVE_SHIELD_BLOCK_CRIT_BIT);
-        active_section_field!(versatility_bonus, ACTIVE_VERSATILITY_BONUS_BIT);
-        active_section_field!(mod_healing_done_pos, ACTIVE_HEALING_DONE_POS_BIT);
-        active_section_field!(mod_healing_done_percent, ACTIVE_HEALING_DONE_PERCENT_BIT);
-        active_section_field!(
-            override_spell_power_by_ap_percent,
-            ACTIVE_OVERRIDE_SPELL_POWER_BY_AP_BIT
-        );
-        active_section_field!(
-            override_ap_by_spell_power_percent,
-            ACTIVE_OVERRIDE_AP_BY_SPELL_POWER_BIT
-        );
-        active_section_field!(mod_target_resistance, ACTIVE_TARGET_RESISTANCE_BIT);
-        active_section_field!(
-            mod_target_physical_resistance,
-            ACTIVE_TARGET_PHYSICAL_RESISTANCE_BIT
-        );
+        if previous.mainhand_expertise != stats.mainhand_expertise {
+            self.mark_active_player_data(ACTIVE_MAINHAND_EXPERTISE_BIT);
+            active_changed = true;
+        }
+        if previous.offhand_expertise != stats.offhand_expertise {
+            self.mark_active_player_data(ACTIVE_OFFHAND_EXPERTISE_BIT);
+            active_changed = true;
+        }
+        if previous.ranged_expertise != stats.ranged_expertise {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_RANGED_EXPERTISE_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.combat_rating_expertise != stats.combat_rating_expertise {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_COMBAT_RATING_EXPERTISE_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.block_pct != stats.block_pct {
+            self.mark_active_player_data_section(ACTIVE_STATS_PARENT_BIT, ACTIVE_BLOCK_BIT);
+            active_changed = true;
+        }
+        if previous.dodge_pct != stats.dodge_pct {
+            self.mark_active_player_data_section(ACTIVE_STATS_PARENT_BIT, ACTIVE_DODGE_BIT);
+            active_changed = true;
+        }
+        if previous.dodge_from_attr != stats.dodge_from_attr {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_DODGE_FROM_ATTRIBUTE_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.parry_pct != stats.parry_pct {
+            self.mark_active_player_data_section(ACTIVE_STATS_PARENT_BIT, ACTIVE_PARRY_BIT);
+            active_changed = true;
+        }
+        if previous.parry_from_attr != stats.parry_from_attr {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_PARRY_FROM_ATTRIBUTE_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.crit_pct != stats.crit_pct {
+            self.mark_active_player_data_section(ACTIVE_STATS_PARENT_BIT, ACTIVE_CRIT_BIT);
+            active_changed = true;
+        }
+        if previous.ranged_crit_pct != stats.ranged_crit_pct {
+            self.mark_active_player_data_section(ACTIVE_STATS_PARENT_BIT, ACTIVE_RANGED_CRIT_BIT);
+            active_changed = true;
+        }
+        if previous.offhand_crit_pct != stats.offhand_crit_pct {
+            self.mark_active_player_data_section(ACTIVE_STATS_PARENT_BIT, ACTIVE_OFFHAND_CRIT_BIT);
+            active_changed = true;
+        }
+        if previous.shield_block != stats.shield_block {
+            self.mark_active_player_data_section(ACTIVE_STATS_PARENT_BIT, ACTIVE_SHIELD_BLOCK_BIT);
+            active_changed = true;
+        }
+        if previous.shield_block_crit_pct != stats.shield_block_crit_pct {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_SHIELD_BLOCK_CRIT_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.versatility_bonus != stats.versatility_bonus {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_VERSATILITY_BONUS_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.mod_healing_done_pos != stats.mod_healing_done_pos {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_HEALING_DONE_POS_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.mod_healing_done_percent != stats.mod_healing_done_percent {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_HEALING_DONE_PERCENT_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.override_spell_power_by_ap_percent != stats.override_spell_power_by_ap_percent {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_OVERRIDE_SPELL_POWER_BY_AP_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.override_ap_by_spell_power_percent != stats.override_ap_by_spell_power_percent {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_OVERRIDE_AP_BY_SPELL_POWER_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.mod_target_resistance != stats.mod_target_resistance {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_TARGET_RESISTANCE_BIT,
+            );
+            active_changed = true;
+        }
+        if previous.mod_target_physical_resistance != stats.mod_target_physical_resistance {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_TARGET_PHYSICAL_RESISTANCE_BIT,
+            );
+            active_changed = true;
+        }
 
         active_array!(
             previous.spell_crit_pct,

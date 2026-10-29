@@ -262,6 +262,31 @@ and the exact logical counts. The census has identical identities/classes and
 272,491 unit-test lines. This closes a production composition omission, not a
 new gameplay operation. Renewed Rust execution evidence is still required.
 
+The full final campaign at clean `04efcb2da` ended 101 after 1,335.240
+seconds (01:23:17–01:45:33 UTC), exceeding the ordinary 600-second target.
+Manifest:
+`target/validation-v2/manifests/20261029T012317.975844Z-1579088-final.json`.
+Architecture, Session syntax, census, workspace/all-targets compilation, all
+17 standalone domain checks, SQL composition and the bot compile check passed.
+Twenty of 21 library suites passed; World completed with 4,074 passing,
+45 failing and one ignored case. The checker suite passed 463 cases and failed
+its repository source guard on three local dirty-bit macros and a private
+`inventory` module name. Exact failure sections are retained in
+`/tmp/rustycore43-final-20261029-yhm_ktm6/world-failures.json` and
+`all-failures.json`. Bot execution, production-linked tests and candidate builds
+did not start. The unchanged Python/guard evidence remains at `39dc59c78`.
+These failures require repair and renewed candidate acceptance; no runtime,
+publication or parity completion is claimed.
+
+The source-guard repair expands exactly 13 Unit, two active-field and 19
+active-section dirty-bit macros, retaining their comparisons, order, marks
+and `active_changed` writes. The existing array macro is unchanged. A static
+token comparison confirms equivalence; this is not execution evidence.
+The private save helper is now named `item_capture`, with the same physical
+`inventory.rs` source and two callers. No persistence statement or owner changed.
+This repair remains unvalidated; exact policy/count reconciliation is deferred
+until the remaining World fixtures are repaired together.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

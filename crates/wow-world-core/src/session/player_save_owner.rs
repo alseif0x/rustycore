@@ -41,7 +41,8 @@ use crate::session::{
 
 mod currency;
 mod ghost_wisp;
-mod inventory;
+#[path = "player_save_owner/inventory.rs"]
+mod item_capture;
 mod quest_status;
 mod resurrection_sickness;
 
@@ -652,12 +653,12 @@ fn request(
     // C++ Item::SaveToDB (Item.cpp:383-425) persists durability for an
     // existing item row. Capture only that field; other Item writes retain
     // their current owners and transaction fences.
-    let mut item_durability = inventory::capture_durability(player);
+    let mut item_durability = item_capture::capture_durability(player);
     let inventory_items = if player
         .inventory_runtime_like_cpp()
         .equipment_inventory_authority_complete_like_cpp()
     {
-        let rows = inventory::capture_item_saves(player, item_effect_store, enchantment_store)?;
+        let rows = item_capture::capture_item_saves(player, item_effect_store, enchantment_store)?;
         if let Some(durability) = item_durability.as_mut() {
             let covered = rows.iter().map(|row| row.item_guid).collect::<HashSet<_>>();
             durability.retain(|row| !covered.contains(&row.item_guid));
