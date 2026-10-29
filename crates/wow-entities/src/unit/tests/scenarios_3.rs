@@ -6,6 +6,52 @@ use super::*;
 use crate::{Creature, Player};
 
 #[test]
+fn native_death_power_marks_zero_and_changed_mapped_values_with_existing_clamps() {
+    for index in [0, 3] {
+        for (before, requested, expected) in [(0, 0, 0), (37, 0, 0), (0, 200, 100), (37, -3, -3)] {
+            let mut unit = Unit::new(true);
+            unit.world_mut().object_mut().add_to_world();
+            unit.set_power_index(PowerType::Mana, Some(index));
+            unit.set_max_power(PowerType::Mana, 100);
+            unit.set_power(PowerType::Mana, before);
+            unit.clear_unit_data_changes();
+            unit.world_mut().object_mut().clear_update_mask(false);
+            unit.set_power_for_native_death_like_cpp(PowerType::Mana, requested);
+            assert_eq!(unit.get_power(PowerType::Mana), expected);
+            let update = unit.values_update().unit_data.unwrap();
+            for bit in 0..UNIT_DATA_BITS {
+                assert_eq!(update.mask.is_set(bit), [116, 137 + index].contains(&bit));
+            }
+            assert_eq!(update.values.power[index], expected);
+            assert!(unit.world().object().is_object_updated());
+            unit.clear_unit_data_changes();
+            unit.set_power(PowerType::Mana, expected);
+            assert!(
+                !unit.unit_data_changes_mask().is_any_set(),
+                "ordinary no-op remains unmarked"
+            );
+            unit.set_power_suppressing_object_update_like_cpp(PowerType::Mana, 1);
+            assert!(
+                !unit.unit_data_changes_mask().is_any_set(),
+                "regeneration suppression remains intact"
+            );
+        }
+    }
+    for index in [None, Some(MAX_POWERS_PER_CLASS)] {
+        let mut unit = Unit::new(true);
+        unit.world_mut().object_mut().add_to_world();
+        unit.set_power_index(PowerType::Mana, index);
+        unit.clear_unit_data_changes();
+        unit.world_mut().object_mut().clear_update_mask(false);
+        let before = unit.data().power;
+        unit.set_power_for_native_death_like_cpp(PowerType::Mana, 0);
+        assert_eq!(unit.data().power, before);
+        assert!(!unit.unit_data_changes_mask().is_any_set());
+        assert!(!unit.world().object().is_object_updated());
+    }
+}
+
+#[test]
 fn death_presentation_reset_marks_exact_nested_fields_even_for_noop() {
     for changed in [false, true] {
         let mut unit = Unit::new(true);

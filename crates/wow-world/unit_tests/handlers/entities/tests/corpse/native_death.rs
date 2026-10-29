@@ -97,6 +97,12 @@ async fn native_damage_runs_death_body_before_health_publication_and_can_release
             player
                 .unit_mut()
                 .set_unit_flags_like_cpp(wow_constants::UnitFlags::PLAYER_CONTROLLED);
+            let power = wow_entities::represented_power_type_from_u8_like_cpp(
+                player.unit().data().display_power,
+            )
+            .expect("native death fixture has a represented display power");
+            player.unit_mut().set_power_index(power, Some(0));
+            player.unit_mut().set_power(power, 0);
             player.gameplay_state_mut().active_local_flags = 0x8000;
             player.clear_data_changes();
         })
@@ -203,7 +209,7 @@ async fn native_damage_runs_death_body_before_health_publication_and_can_release
     );
     assert_eq!(object.values.dynamic_flags, 0);
     let unit = update.unit_data.as_ref().unwrap();
-    for bit in [0, 5, 32, 41, 56, 64, 72] {
+    for bit in [0, 5, 32, 41, 56, 64, 72, 116, 137] {
         assert!(unit.mask.is_set(bit), "UnitData bit{bit}");
     }
     assert_eq!(unit.values.health, 0);
@@ -213,6 +219,10 @@ async fn native_damage_runs_death_body_before_health_publication_and_can_release
     );
     assert_eq!(unit.values.stand_state, 0);
     assert_eq!(unit.values.emote_state, 0);
+    assert_eq!(
+        unit.values.power[0], 0,
+        "already-zero native death power remains published"
+    );
     let player = update.player_data.as_ref().unwrap();
     for bit in [0, 7, 14] {
         assert!(player.mask.is_set(bit), "PlayerData bit{bit}");

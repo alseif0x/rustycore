@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "login_auxiliary_persistence/durability_save.rs"]
+mod durability_save;
+
 use std::collections::VecDeque;
 use std::sync::Mutex;
 use wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate;

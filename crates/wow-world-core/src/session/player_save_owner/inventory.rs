@@ -10,36 +10,39 @@ use wow_persistence::{
 
 pub(super) fn capture_durability(player: &Player) -> Option<Vec<PlayerItemDurabilitySave>> {
     let runtime = player.inventory_runtime_like_cpp();
-    runtime
-        .equipment_inventory_authority_complete_like_cpp()
-        .then(|| {
-            let buyback_guids: HashSet<_> = runtime
-                .buyback_items()
-                .values()
-                .map(|item| item.guid)
-                .collect();
-            let mut rows = runtime
-                .item_objects()
-                .iter()
-                .filter(|(guid, item)| {
-                    !buyback_guids.contains(guid)
-                        && item.owner_guid() == player.guid()
-                        && item.data().max_durability > 0
-                        && matches!(
-                            item.update_state(),
-                            wow_constants::ItemUpdateState::New
-                                | wow_constants::ItemUpdateState::Changed
-                        )
-                })
-                .map(|(_, item)| PlayerItemDurabilitySave {
-                    item_guid: item.object().guid().counter() as u64,
-                    durability: item.data().durability,
-                })
-                .collect::<Vec<_>>();
-            rows.sort_by_key(|row| row.item_guid);
-            rows
+    let buyback_guids: HashSet<_> = runtime
+        .buyback_items()
+        .values()
+        .map(|item| item.guid)
+        .collect();
+    // Populated login retains incomplete full-Item authority, but loaded Items
+    // start Unchanged and native mutations mark them Changed. Persist only this
+    // known scalar (Item.cpp:383-425), without authorizing full rows or their ack.
+    let mut rows = runtime
+        .item_objects()
+        .iter()
+        .filter(|(guid, item)| {
+            guid.is_item()
+                && guid.counter() != 0
+                && item.object().guid() == **guid
+                && !buyback_guids.contains(guid)
+                && item.owner_guid() == player.guid()
+                && !item.is_in_trade()
+                && item.data().max_durability > 0
+                && item.update_state() == wow_constants::ItemUpdateState::Changed
         })
+        .map(|(_, item)| PlayerItemDurabilitySave {
+            item_guid: item.object().guid().counter() as u64,
+            durability: item.data().durability,
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by_key(|row| row.item_guid);
+    Some(rows)
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_save_owner/durability.rs"]
+mod durability_tests;
 
 pub(super) fn capture_item_saves(
     player: &Player,

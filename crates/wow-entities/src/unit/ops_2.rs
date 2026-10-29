@@ -826,6 +826,14 @@ impl Unit {
             self.mark_unit_data_array(UNIT_DATA_POWER_PARENT_BIT, UNIT_DATA_POWER_FIRST_BIT, index);
         }
     }
+    /// Unit.cpp:9287-9300 / 8565 assigns the native death power even at zero.
+    pub fn set_power_for_native_death_like_cpp(&mut self, power: PowerType, value: i32) {
+        let Some(index) = self.get_power_index(power) else {
+            return;
+        };
+        self.set_power(power, value);
+        self.mark_unit_data_array(UNIT_DATA_POWER_PARENT_BIT, UNIT_DATA_POWER_FIRST_BIT, index);
+    }
     /// C++ `Player::Regenerate` throttled write: `SetUpdateFieldValue` for
     /// `UnitData::Power` followed by `ClearChanged` inside
     /// `Object::DoWithSuppressingObjectUpdates` (`Player.cpp:1813-1820`).

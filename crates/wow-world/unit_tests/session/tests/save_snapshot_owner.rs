@@ -395,7 +395,23 @@ fn save_snapshot_captures_only_dirty_owned_non_buyback_durability_in_guid_order(
         .unwrap();
 
     let incomplete = session.prepare_player_save_like_cpp(123).unwrap().request;
-    assert_eq!(incomplete.item_durability, None);
+    assert_eq!(
+        incomplete.item_durability,
+        Some(vec![
+            wow_persistence::PlayerItemDurabilitySave {
+                item_guid: 30,
+                durability: 70
+            },
+            wow_persistence::PlayerItemDurabilitySave {
+                item_guid: 50,
+                durability: 45
+            },
+            wow_persistence::PlayerItemDurabilitySave {
+                item_guid: 60,
+                durability: 31
+            },
+        ])
+    );
     assert_eq!(incomplete.inventory_items, None);
     session.set_item_effect_store(Arc::new(wow_data::ItemEffectStore::from_entries([])));
 

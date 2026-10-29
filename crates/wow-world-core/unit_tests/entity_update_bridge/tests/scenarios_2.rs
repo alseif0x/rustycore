@@ -5,6 +5,49 @@
 use super::*;
 
 #[test]
+fn native_death_zero_power_serializes_parent_and_mapped_element_even_for_noop() {
+    for index in [0, 3] {
+        for before in [0, 37] {
+            let mut unit = wow_entities::Unit::new(true);
+            unit.set_power_index(wow_constants::PowerType::Mana, Some(index));
+            unit.set_max_power(wow_constants::PowerType::Mana, 100);
+            unit.set_power(wow_constants::PowerType::Mana, before);
+            unit.clear_unit_data_changes();
+            unit.set_power_for_native_death_like_cpp(wow_constants::PowerType::Mana, 0);
+            let bytes =
+                unit_values_update_to_update_object(ObjectGuid::EMPTY, 0, &unit.values_update())
+                    .unwrap()
+                    .to_bytes();
+            let mut wire = wow_packet::WorldPacket::from_bytes(&bytes);
+            wire.read_uint16().unwrap();
+            assert_eq!(wire.read_uint32().unwrap(), 1);
+            wire.read_uint16().unwrap();
+            assert!(!wire.read_bit().unwrap());
+            wire.reset_bits();
+            wire.read_uint32().unwrap();
+            assert_eq!(wire.read_uint8().unwrap(), 0);
+            assert_eq!(wire.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+            assert_eq!(
+                wire.read_uint32().unwrap(),
+                17,
+                "type mask, block mask, two field words and Power value"
+            );
+            assert_eq!(wire.read_uint32().unwrap(), 1 << wow_entities::TYPEID_UNIT);
+            assert_eq!(wire.read_bits(8).unwrap(), 0x18, "UnitData words3/4");
+            assert_eq!(wire.read_bits(32).unwrap(), 1 << 20, "Power parent116");
+            assert_eq!(
+                wire.read_bits(32).unwrap(),
+                1 << (9 + index),
+                "Power137 plus mapped index"
+            );
+            wire.reset_bits();
+            assert_eq!(wire.read_int32().unwrap(), 0);
+            assert_eq!(wire.read_position(), bytes.len());
+        }
+    }
+}
+
+#[test]
 fn death_presentation_sober_and_flag_noops_serialize_exact_native_masks_and_values() {
     for changed in [false, true] {
         let mut player = Player::new(Some(7), false);

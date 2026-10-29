@@ -1,6 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
+Current candidate `b0f2dadd6` passed the complete World library suite (4,130
+passed, one ignored) and built the debug server in a 328.993-second affected
+campaign (`/tmp/rustycore43-native-death-publication-acceptance-9lh5imhg/record.json`).
+Rust fall/release attempt 6 then failed its new real-DB assertion: equipped
+durability remains 40 although its Item VALUES packet correctly sends 34.
+The corpse birth and post-release owner packets now match R6 exactly; the
+death packet differs only by omitted zero Power[0] and its mask bits 116/137
+(`Unit.cpp:8565,9287–9300`). The retained comparison is
+`comparison-fall-release-b0/` under the live campaign. This failed run took
+314.518 seconds and restored the stable runtime and disposable fixture.
+C++ reclaim attempt 1 passed in 173.685 seconds with health 402, no ghost or
+corpse, durability 34/40, native collection and verified restoration. Repair
+the two observed Rust findings, then continue the remaining paired scenarios;
+full final and terminal acceptance still require the last code candidate.
+The durability failure is a capture gate, not an overwritten SQL value:
+populated login leaves whole-inventory authority incomplete
+(`inventory_load.rs:74,265,284`), suppressing both save groups. Existing owned
+partial durability SQL can save each proven existing Changed item without
+authorizing a full inventory rewrite. Preserve that full-inventory gate and
+other dirty fields; no completed durability acceptance is claimed yet.
+Both repairs are implemented, UNVALIDATED: the native death power assignment
+marks its mapped element even at zero; partial capture selects only existing
+owned Changed items. Regression coverage runs the populated production load,
+loss, Map publication and normal save, including rollback, concurrent changes
+and retention of unrelated dirty fields. New, traded, buyback, foreign-owned
+and invalid-identity objects are excluded; full inventory authority is unchanged.
+
+Earlier repair evidence and findings follow; their stated unvalidated status
+belongs to the candidate at that point, not to later passing evidence.
+
 The first real fall/release pair completed successfully at `313cb2e3f`:
 Rust attempt 4 and derived R6 attempt 2 observed the scenario, collected native
 captures and restored the stable server and disposable data. They took 312.489
