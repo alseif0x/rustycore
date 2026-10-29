@@ -230,6 +230,11 @@ teleport ACK and no Hearthstone cooldown. No fixture, capture or runtime action
 has been executed. Hermetic tests and the full committed-candidate campaign
 remain required before any accepted result is recorded.
 
+Acceptance at `10a1da1eb` stopped before any heavy check: one of 34 Python tests
+raised a missing `tempfile` import (0.226 seconds for the attempt). The log is
+`/tmp/rustycore43-final-20261029-ynb9_t0o/qa-python.log`. The import repair and
+renewed candidate acceptance remain required; no Rust or runtime result is claimed.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

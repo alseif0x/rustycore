@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 import death_fixture
