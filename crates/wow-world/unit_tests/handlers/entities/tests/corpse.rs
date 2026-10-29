@@ -845,7 +845,7 @@ pub(super) fn dead_player_session_on_map_like_cpp(
     Arc<RecordingCorpsePortLikeCpp>,
 ) {
     let (session, send_rx, realm_rx, player_guid, port) =
-        dead_player_session_on_map_with_optional_port(guid_counter, maps, true);
+        dead_player_session_on_map_with_optional_port(guid_counter, maps, true, 16);
     (
         session,
         send_rx,
@@ -868,6 +868,7 @@ fn dead_player_session_without_corpse_port(
             guid_counter,
             crate::teleport_test_fixtures::world_maps([571]),
             false,
+            16,
         );
     (session, send_rx, realm_rx, player_guid)
 }
@@ -1052,6 +1053,7 @@ fn dead_player_session_on_map_with_optional_port(
     guid_counter: i64,
     maps: Arc<wow_data::MapStore>,
     install_port: bool,
+    send_capacity: usize,
 ) -> (
     WorldSession,
     flume::Receiver<Vec<u8>>,
@@ -1059,7 +1061,21 @@ fn dead_player_session_on_map_with_optional_port(
     ObjectGuid,
     Option<Arc<RecordingCorpsePortLikeCpp>>,
 ) {
-    let (mut session, send_rx) = make_session();
+    let (_packet_tx, packet_rx) = flume::bounded(8);
+    let (send_tx, send_rx) = flume::bounded(send_capacity);
+    let mut session = WorldSession::new(
+        1,
+        "TestAccount".into(),
+        0,
+        2,
+        9,
+        54261,
+        vec![0; 40],
+        "enUS".into(),
+        packet_rx,
+        send_tx,
+        crate::session::registry::build_dispatch_table(),
+    );
     let (realm_tx, realm_rx) = flume::bounded(64);
     session.install_realm_send_channel_for_test(realm_tx);
     let map_id = maps.entries().next().expect("one map").id;
@@ -1555,8 +1571,14 @@ async fn repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp() {
 #[tokio::test]
 async fn repop_of_just_died_player_runs_kill_player_first_like_cpp() {
     let (mut session, send_rx, _realm_rx, _player_guid, _port) =
-        dead_player_session_with_graveyard_like_cpp(4_305);
+        dead_player_session_on_map_with_optional_port(
+            4_305,
+            crate::teleport_test_fixtures::world_maps([571]),
+            true,
+            64,
+        );
     // One FIFO exposes the native cross-operation order without a socket race.
+    // Hold the complete merged operation until its ordered assertions drain it.
     let own_output = session.core.send_tx().clone();
     session.install_realm_send_channel_for_test(own_output);
     let _ = crate::session::hub_ref(&session)

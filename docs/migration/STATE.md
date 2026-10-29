@@ -89,6 +89,16 @@ entry rows; the failed record remains under `live-repair-acceptance-koltvl5b`.
 Eight inspected inactive pre-repair executables were retired (973.3 MiB), with
 fingerprints and hashes in `stale-artifact-cleanup.json`; active incremental,
 fresh test outputs, server/bot/capture and runtime recovery binaries were kept.
+The next check at `b7cd2dead` compiled and observed 4,122 World passes plus one
+ignored case, without a failed assertion. The remaining merged-order test
+blocked because its 16-slot fixture queue held more than 16 packets before
+draining. The parent interrupted only that verified owned test process; the
+run remains failed/interrupted after 237.452 seconds, recorded under
+`/tmp/rustycore43-live-repair-acceptance-lwknhudf/`. That one fixture now uses
+64 slots; all other callers retain 16 and the full ordered assertions remain.
+Another 14 inactive test executables with changed direct dependencies were
+retired (678.9 MiB), recorded in `inactive-dependent-test-cleanup.json`, while
+preserving incremental and runtime recovery artifacts.
 
 The fixture repairs and remaining affected acceptance are UNVALIDATED; no earlier
 green result is relabelled. No live parity, real durability,
