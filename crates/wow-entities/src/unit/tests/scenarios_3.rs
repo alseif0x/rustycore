@@ -6,6 +6,38 @@ use super::*;
 use crate::{Creature, Player};
 
 #[test]
+fn remove_unit_flags_marks_absent_flags_and_preserves_other_bits_like_cpp() {
+    for present in [false, true] {
+        let mut unit = Unit::new(true);
+        let remaining = UnitFlags::PLAYER_CONTROLLED | UnitFlags::IN_COMBAT;
+        unit.set_unit_flags_like_cpp(
+            remaining
+                | if present {
+                    UnitFlags::SKINNABLE
+                } else {
+                    UnitFlags::empty()
+                },
+        );
+        unit.clear_unit_data_changes();
+        unit.remove_unit_flags_like_cpp(UnitFlags::SKINNABLE);
+        assert_eq!(unit.unit_flags_like_cpp(), remaining);
+        let delta = unit
+            .values_update()
+            .unit_data
+            .expect("RemoveUnitFlag dirties Flags even for a no-op");
+        assert!(delta.mask.is_set(UNIT_DATA_PARENT_BIT));
+        assert!(delta.mask.is_set(UNIT_DATA_FLAGS_BIT));
+        assert_eq!(delta.values.flags, remaining.bits());
+        unit.clear_unit_data_changes();
+        unit.set_unit_flags_like_cpp(remaining);
+        assert!(
+            !unit.unit_data_changes_mask().is_any_set(),
+            "the ordinary setter keeps its existing contract"
+        );
+    }
+}
+
+#[test]
 fn values_update_sets_unit_object_type_bit() {
     let mut unit = Unit::new(true);
 

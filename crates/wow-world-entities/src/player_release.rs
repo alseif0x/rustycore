@@ -692,8 +692,9 @@ fn publish_ghost_side_effects<H: CorpseHostLikeCpp>(host: &mut H, player_guid: O
     if host
         .core()
         .with_owned_player_mut_like_cpp(|player| {
-            let flags = player.unit().unit_flags_like_cpp() - UNIT_FLAG_SKINNABLE;
-            player.unit_mut().set_unit_flags_like_cpp(flags);
+            player
+                .unit_mut()
+                .remove_unit_flags_like_cpp(UNIT_FLAG_SKINNABLE);
         })
         .is_none()
     {

@@ -62,6 +62,15 @@ async fn release_publishes_exact_corpse_before_dead_cleanup_and_water_walk() {
     let generators = session.id_generators_for_test_like_cpp();
     let creatures = session.creature_spawn_catalogs_for_test_like_cpp();
     let graveyards = wow_data::GraveyardStore::default();
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_unit_flags_like_cpp(wow_constants::UnitFlags::PLAYER_CONTROLLED);
+            player.unit_mut().clear_unit_data_changes();
+        })
+        .unwrap();
 
     assert!(
         wow_world_entities::build_player_repop_like_cpp(
@@ -138,6 +147,22 @@ async fn release_publishes_exact_corpse_before_dead_cleanup_and_water_walk() {
         Some((wow_constants::DeathState::Dead, 1, None))
     );
     assert_eq!(port.saves.lock().unwrap().len(), 1);
+    let pending = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .values_update()
+                .unit_data
+                .expect("release retains native VALUES for Map tail")
+        })
+        .unwrap();
+    assert!(pending.mask.is_set(wow_entities::UNIT_DATA_FLAGS_BIT));
+    assert_eq!(
+        pending.values.flags,
+        wow_constants::UnitFlags::PLAYER_CONTROLLED.bits()
+    );
+    peer.process_represented_session_commands_like_cpp().await;
     let peer_packets = peer_output.try_iter().collect::<Vec<_>>();
     assert_eq!(peer_packets.first(), Some(&expected_create));
     assert!(

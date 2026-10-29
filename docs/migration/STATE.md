@@ -27,6 +27,26 @@ the new peer fixture imported a private registry re-export and supplied ambiguou
 162.438-second failure is retained in
 `/tmp/rustycore43-corpse-birth-acceptance-0afb_n9w/record.json`; the correction
 uses the existing public registry path and direct string arguments.
+The corrected candidate `d0ebc34ad` compiled and passed Entities (1,049),
+Map (767, one ignored), Packet (775), Application (31), Core (269),
+World-Entities (2) and Spell (181). World reported 4,125 passed, one failed
+and one ignored: the new peer-publication test did not observe its expected
+MoveUpdate. The complete 91.730-second record is
+`/tmp/rustycore43-corpse-birth-acceptance-jzk4_t5s/record.json`. This is a
+failed campaign; the candidate build did not run. `Unit.cpp:12718–12748`
+requires that observer packet, so the assertion must not be removed to obtain
+a pass; inspect the existing mailbox delivery before changing production.
+The fixture now drains the peer's established Session mailbox before inspecting
+its output; production already queues the required MoveUpdate there. The exact
+owner VALUES comparison also found equal health (1) and GHOST flags, but C++
+publishes Unit Flags=`PLAYER_CONTROLLED` while Rust omits that unchanged field.
+The eight-byte delta is one mask word plus Flags. `Player.cpp:4304`,
+`Unit.h:812` and `UpdateField.h:262` require no-op SKINNABLE removal to dirty
+the field. A native Unit removal operation now preserves that contract only at
+the selected release call; the ordinary changed-value setter is unchanged.
+Its authored coverage and fixture correction remain UNVALIDATED. The decoded
+source/hash record is `comparison-fall-release-repaired/owner-values-diagnostic/decoded-contract.json`
+under the private live campaign.
 
 Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
 ignored), Application (31), Entities (2), Spell (181), bot (248), production
