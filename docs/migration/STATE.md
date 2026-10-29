@@ -471,6 +471,41 @@ A Core regression uses empty/full separate output queues
 and bounded completion; the three existing integration cases retain saturated
 output. This repair still requires complete committed-candidate acceptance.
 
+At clean `d005b5b36`, final passed in 727.636 seconds, with all 21 library
+suites, World 4,119/zero failed/one ignored, the bounded Core send regression,
+all 464 checker cases and SQL composition. Both production integrations passed:
+eight registry and 41 login-owner cases. Manifest:
+`target/validation-v2/manifests/20261029T033752.546554Z-1699889-final.json`.
+Candidate construction first failed with ENOSPC; it resumed only the missing
+builds after inspected cache cleanup, without repeating green gates.
+Debug server, bot and capture-diff then built and final verification passed.
+Artifact hashes and command records are in
+`/tmp/rustycore43-build-continuation-jobzh9ur/`. Successful required command
+time, including unchanged credited evidence, is 1,202.476 seconds; the ordinary
+600-second target is not met. The failed build's 68.933 seconds and its storage
+repair remain separately recorded. No runtime or DB mutation was performed.
+
+Fresh exhaustive ownership at that same SHA failed after 1,142.076 seconds.
+The complete semantic delta is six composition rows for Application's already
+implemented `graveyards: Arc::clone(&graveyard_store)` at `app.rs:5049`:
+five literal fingerprints gain that one field, and the existing graveyard
+clone's multiplicity changes one to two. Distinct rows remain 10,864; no DB
+API, operation, owner or transaction is added. Deriving policy from the reviewed
+snapshot produces the identical semantic policy and workflow annotations.
+Exact comparison against all reported actual fingerprints and the one-line
+source diff is retained under
+`/tmp/rustycore43-world-catalog-inventory-review-wymfwvww/`. Only those six
+snapshot fields change; renewed final and exhaustive comparison remain required.
+
+Storage repair preserved current tested artifacts, all server/rollback builds,
+captures, manifests and the active incremental cache. It retired inspected
+inactive tool executables and obsolete unit-test variants, then eight inactive
+C++ precompiled headers (1,903.18 MiB). The R6 reference binary's SHA-256 is
+unchanged before/after cleanup; its objects, libraries, source and configuration
+remain. Cleanup records are linked from the build continuation and
+`/tmp/rustycore43-inactive-cpp-pch-cleanup-7p9esgjx/record.json`.
+Free space is about 2.66 GiB, still below the headroom aim.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The
