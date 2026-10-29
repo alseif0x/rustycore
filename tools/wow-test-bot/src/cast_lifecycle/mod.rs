@@ -393,7 +393,7 @@ pub(super) async fn finish(
                 let deadline =
                     tokio::time::Instant::now() + Duration::from_millis(LOGOUT_OBSERVATION_MS);
                 if let Err(error) =
-                    collect_until(deadline, stream, crypt, inflater, realm, controller).await
+                    collect_logout_until(deadline, stream, crypt, inflater, realm, controller).await
                 {
                     controller
                         .evidence

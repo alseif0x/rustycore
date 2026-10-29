@@ -1,11 +1,13 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
-Latest accepted local candidate: `bd79e14b3`; the fresh reclaim run still fails
-at obtain-scan admission. Fall/release is accepted at its actual `abba63ce7`
-candidate in the bounded actor/control contract below. The working carried-load
-and receipt repair is UNVALIDATED; eleven paired scenarios and the last-candidate
-full final/terminal acceptance remain outstanding. No publication or issue closure.
+Latest accepted local candidate: `5f9caf658`; Rust reclaim attempt 3 now completes
+resurrection, database checks, capture collection and restoration. Fall/release
+retains its actual `abba63ce7` bounded actor/control evidence below. Ten other
+paired scenarios and the last-candidate full final/terminal acceptance remain
+outstanding. C++ healer attempt 1 persisted the expected effects, but its first
+epoch exposed a bot logout observation race; it is not accepted. No publication
+or issue closure.
 
 Earlier candidate `b0f2dadd6` passed the complete World library suite (4,130
 passed, one ignored) and built the debug server in a 328.993-second affected
@@ -106,6 +108,45 @@ full Item acknowledgement remains false and preserves other dirty fields.
 Native placement follows `Player.cpp:11277,11535` and the obtain scan follows
 `Player.cpp:8034–8081` at the pinned target source. This is a repair of the
 observed operation's admission/receipt, not full inventory port acceptance.
+
+The committed repair at `5f9caf658` passed affected acceptance in 414.962 seconds
+on this aarch64 host: Entities 1,056, World 4,133 with one ignored, Character 3,
+Core 277, Inventory 36, Spell 181 and production login-owner 41; the debug server
+also built. The record is
+`/tmp/rustycore43-carried-recovery-acceptance-6gzce5_z/record.json`.
+Rust reclaim attempt 3 then passed in 348.848 seconds with durability 34/40,
+no ghost or corpse, native collection and verified restoration. Both C++ and
+Rust initially expose maximum health 420 and immediately restore health 210.
+The final saved health difference (402 versus 385) is one additional C++
+regeneration tick, not a different resurrection fraction. All 30 selected
+actor controls have identical opcode order per original connection; 29 have
+identical full bodies and the ghost AuraUpdate differs only in its NORMAL
+CastID counter. Power publication still has a concrete finding: both initial
+CREATEs expose maximum mana 26,910, but C++ immediately publishes 13,455 after
+reclaim while Rust first publishes the later regeneration value 13,460.
+`Player.cpp:4354` calls `Unit::SetPower`, whose in-world publication is explicit
+at `Unit.cpp:9300–9306`; the Rust resurrection path currently only stores the
+value. Restore that action publication before accepting reclaim packet parity.
+Full UpdateObject/strict-stream comparison also remains bounded; this does not
+claim full-stream parity.
+The retained comparison is `comparison-reclaim-5f9/` in the live campaign.
+
+C++ healer attempt 1 took 208.030 seconds and restored the fixture/runtime.
+Its second epoch passed, retaining equipment/backpack durability 19/25 and
+resurrection sickness 15007 after login. Its first epoch failed because the bot
+treated instance EOF as fatal before observing the real realm LogoutComplete;
+the native capture contains that acknowledgement. At pinned target source
+`WorldSession.cpp:676,687`, logout sends the realm acknowledgement and then
+closes the instance socket. Those independent connections can deliver EOF
+first. The bot repair must continue bounded realm observation after that
+specific finish-stage EOF, still require the actual acknowledgement, and retain
+failures for missing acknowledgement, realm EOF and action-stage disconnects.
+The healer pair requires a fresh run after that repair.
+The bot repair is implemented, UNVALIDATED: only finish-logout collection
+tolerates frame-boundary instance EOF; it disables that socket and waits for
+the real realm acknowledgement within the unchanged deadline. Transport
+regressions retain missing-acknowledgement, realm-EOF, malformed/truncated-frame
+and action-stage EOF failures. Resurrection power publication remains to repair.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

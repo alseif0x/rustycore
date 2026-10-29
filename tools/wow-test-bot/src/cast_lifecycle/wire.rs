@@ -362,9 +362,35 @@ pub(super) async fn collect_until(
     realm: &mut Option<EncryptedWorldConnection>,
     controller: &mut Controller,
 ) -> Result<()> {
-    collect_until_inner(deadline, stream, crypt, inflater, realm, controller, None)
-        .await
-        .map(|_| ())
+    collect_until_inner(
+        deadline, stream, crypt, inflater, realm, controller, None, false,
+    )
+    .await
+    .map(|_| ())
+}
+
+/// WorldSession.cpp:676 sends realm LogoutComplete before :687 closes the
+/// instance socket; their independent transports can deliver the EOF first.
+pub(super) async fn collect_logout_until(
+    deadline: tokio::time::Instant,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    controller: &mut Controller,
+) -> Result<()> {
+    if !controller.evidence.logout_request_completed || realm.is_none() {
+        bail!("logout observation requires a completed request and a realm connection");
+    }
+    if collect_until_inner(
+        deadline, stream, crypt, inflater, realm, controller, None, true,
+    )
+    .await?
+    {
+        Ok(())
+    } else {
+        bail!("timed out waiting for realm LogoutComplete");
+    }
 }
 
 pub(super) async fn wait_for_packet(
@@ -385,6 +411,7 @@ pub(super) async fn wait_for_packet(
         realm,
         controller,
         Some((connection, opcode)),
+        false,
     )
     .await?
     {
@@ -404,10 +431,19 @@ async fn collect_until_inner(
     realm: &mut Option<EncryptedWorldConnection>,
     controller: &mut Controller,
     match_packet: Option<(Connection, u16)>,
+    finishing_logout: bool,
 ) -> Result<bool> {
+    let mut instance_closed = false;
     while tokio::time::Instant::now() < deadline {
-        let Some((connection, opcode, payload)) =
-            next_packet(deadline, stream, crypt, inflater, realm).await?
+        let Some((connection, opcode, payload)) = next_packet(
+            deadline,
+            stream,
+            crypt,
+            inflater,
+            realm,
+            finishing_logout.then_some(&mut instance_closed),
+        )
+        .await?
         else {
             break;
         };
@@ -450,6 +486,9 @@ async fn collect_until_inner(
                     "LogoutComplete arrived before wait_for_packet for {wait_connection:?} packet 0x{wait_opcode:04X}"
                 );
             }
+            if finishing_logout {
+                return Ok(true);
+            }
             break;
         }
         if match_packet == Some((connection, opcode)) {
@@ -475,7 +514,7 @@ pub(super) async fn drain_login_streams_with_controller(
     loop {
         let read_deadline = quiet_deadline.min(deadline);
         let Some((connection, opcode, payload)) =
-            next_packet(read_deadline, stream, crypt, inflater, realm).await?
+            next_packet(read_deadline, stream, crypt, inflater, realm, None).await?
         else {
             if result.login_instance_object_update_seen {
                 result.login_stream_drained = true;
@@ -516,6 +555,7 @@ async fn next_packet(
     crypt: &mut WorldCrypt,
     inflater: &mut ServerPacketInflater,
     realm: &mut Option<EncryptedWorldConnection>,
+    mut instance_closed: Option<&mut bool>,
 ) -> Result<Option<(Connection, u16, Vec<u8>)>> {
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -539,6 +579,28 @@ async fn next_packet(
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
             return Ok(None);
+        }
+        if let Some(closed) = instance_closed.as_deref_mut() {
+            if *closed {
+                continue;
+            }
+            // Only finish_logout supplies this flag. Accept frame-boundary EOF;
+            // malformed or truncated encrypted frames still fail below.
+            let mut byte = [0u8; 1];
+            match tokio::time::timeout(
+                remaining.min(Duration::from_millis(10)),
+                stream.peek(&mut byte),
+            )
+            .await
+            {
+                Err(_) => continue,
+                Ok(Ok(0)) => {
+                    *closed = true;
+                    continue;
+                }
+                Ok(Ok(_)) => {}
+                Ok(Err(error)) => bail!("cast lifecycle instance packet: peek failed: {error}"),
+            }
         }
         if let Some((opcode, payload)) = read_encrypted_packet_if_ready(
             stream,
