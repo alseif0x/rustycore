@@ -72,8 +72,23 @@ The diagnostic missing CriteriaUpdate packets retain their existing progression
 owner, PORT_PLAN L18; the previously recorded achievement exclusion remains
 explicit and no achievement parity is claimed.
 
-These repairs are UNVALIDATED; the earlier green local evidence does not cover
-their changed inputs. No live parity, real durability,
+Affected acceptance at `edfdc75ad` did not pass. Python (34) and runtime guard
+fakes (202) passed; Packet (774), Application (31), Entities (2) and Spell (181)
+passed. World compiled but reported 4,015 passed, 108 failed and one ignored.
+The run stopped before bot tests, production integration or candidate builds,
+after 246.508 seconds; its record is
+`/tmp/rustycore43-live-repair-acceptance-__32zdmq/record.json`.
+The shared release fixture inserted Ghost/Wisp attributes without loaded Misc
+authority, so the newly reused strict death cleanup correctly held the release.
+The timer-prevention fixture also lacked a canonical key and loaded attributes.
+The repair hydrates their complete existing rows and updates two separate
+CancelCombat routing oracles. Production admission guards remain intact.
+Eight inspected inactive pre-repair executables were retired (973.3 MiB), with
+fingerprints and hashes in `stale-artifact-cleanup.json`; active incremental,
+fresh test outputs, server/bot/capture and runtime recovery binaries were kept.
+
+The fixture repairs and remaining affected acceptance are UNVALIDATED; no earlier
+green result is relabelled. No live parity, real durability,
 manual-test readiness or issue completion is claimed. The issue remains open;
 these changes have not been pushed or merged, and the original stable build is
 restored rather than permanently deploying the test candidate.

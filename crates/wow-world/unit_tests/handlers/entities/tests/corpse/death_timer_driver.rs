@@ -8,29 +8,59 @@ use super::*;
 fn install_prevent_resurrection_aura_for_driver(session: &mut WorldSession) {
     let spell_id = 94_300;
     let aura_type = wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION;
-    let mut spells = wow_data::SpellStore::new();
-    spells.insert(
-        spell_id,
-        wow_data::SpellInfo {
-            spell_id,
-            cast_time_ms: 0,
-            cooldown_ms: 0,
-            recovery_time_ms: 0,
-            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+    let mut attributes = [0; 15];
+    // Keep this synthetic timer-freeze witness through CORPSE's death cleanup.
+    attributes[3] = 0x0010_0000;
+    let stores = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
+        wow_data::SpellCategoriesStore::from_entries([]),
+        wow_data::SpellMiscStore::from_entries([wow_data::SpellMiscEntry {
+            id: spell_id as u32,
+            spell_id: spell_id as u32,
+            attributes,
+            ..Default::default()
+        }]),
+        wow_data::SpellEffectDb2Store::from_entries([wow_data::SpellEffectDb2Entry {
+            id: spell_id as u32,
+            difficulty_id: 0,
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_amplitude: 0.0,
+            effect_attributes: 0,
+            effect_aura: i16::try_from(aura_type).expect("PreventResurrection aura type fits i16"),
+            effect_aura_period: 0,
             effect_base_points: 0,
             effect_bonus_coefficient: 0.0,
-            aura_type: Some(aura_type),
-            display_flags: 0,
-            requires_spell_focus: 0,
-            power_costs: Vec::new(),
-            effects: vec![wow_data::SpellEffectInfo {
-                effect_index: 0,
-                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                effect_aura: aura_type,
-                ..Default::default()
-            }],
-        },
+            effect_chain_amplitude: 0.0,
+            effect_chain_targets: 0,
+            effect_die_sides: 0,
+            effect_item_type: 0,
+            effect_mechanic: 0,
+            effect_points_per_resource: 0.0,
+            effect_pos_facing: 0.0,
+            effect_real_points_per_level: 0.0,
+            effect_trigger_spell: 0,
+            bonus_coefficient_from_ap: 0.0,
+            pvp_multiplier: 0.0,
+            coefficient: 0.0,
+            variance: 0.0,
+            resource_coefficient: 0.0,
+            group_size_base_points_coefficient: 0.0,
+            effect_misc_value: [0; 2],
+            effect_radius_index: [0; 2],
+            effect_spell_class_mask: [0; 4],
+            implicit_target: [0; 2],
+            spell_id: spell_id as u32,
+        }]),
+        wow_data::SpellShapeshiftStore::from_entries([]),
+        wow_data::SpellInterruptsStore::from_entries([]),
+        wow_data::SpellCastTimesStore::from_entries([]),
+        wow_data::SpellCooldownsStore::from_entries([]),
+        wow_data::SpellCastingRequirementsStore::from_entries([]),
+        wow_data::SpellPowerStore::from_entries([]),
+        wow_data::SpellPowerDifficultyStore::from_entries([]),
     );
+    let spells = crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)])
+        .hydrate_effective_core_db2_like_cpp(stores);
     session.set_spell_store(Arc::new(spells));
 
     let aura = wow_entities::AuraApplicationLikeCpp {

@@ -44,12 +44,21 @@ async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failur
             } else {
                 assert!(matches!(first, Poll::Pending));
             }
+            let cancel = realm
+                .try_recv()
+                .expect("CombatStop precedes TransferPending on realm");
+            assert_eq!(
+                u16::from_le_bytes(cancel[..2].try_into().unwrap()),
+                ServerOpcodes::CancelCombat as u16
+            );
             let pending = realm.try_recv().expect("TransferPending precedes fence");
             assert_eq!(
                 u16::from_le_bytes(pending[..2].try_into().unwrap()),
                 ServerOpcodes::TransferPending as u16
             );
-            assert!(!drain_server_opcodes(&instance).contains(&ServerOpcodes::SuspendToken));
+            let before_fence_instance = drain_server_opcodes(&instance);
+            assert!(!before_fence_instance.contains(&ServerOpcodes::SuspendToken));
+            assert!(!before_fence_instance.contains(&ServerOpcodes::CancelCombat));
             if outcome == "written" {
                 assert!(fence.acknowledge_marker_like_cpp(&realm.try_recv().unwrap()));
                 transfer.await;

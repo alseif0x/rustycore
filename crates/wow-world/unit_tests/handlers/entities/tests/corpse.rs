@@ -874,8 +874,9 @@ fn dead_player_session_without_corpse_port(
 
 /// Supplies the selected DB2 rows required by the production release casts.
 pub(super) fn install_release_cast_spell_fixture(session: &mut WorldSession) {
-    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([(8326, 0), (20584, 0)]);
+    let spells = crate::selected_spell_fixtures::canonical_spell_store([(8326, 0), (20584, 0)]);
     let mut misc_rows = Vec::new();
+    let mut effect_rows = Vec::new();
     for (spell_id, aura_types, base_points, misc_value, attributes_1) in [
         (
             wow_world_entities::SPELL_GHOST_LIKE_CPP,
@@ -900,25 +901,50 @@ pub(super) fn install_release_cast_spell_fixture(session: &mut WorldSession) {
             0x1000_0400,
         ),
     ] {
-        let effects = aura_types
-            .into_iter()
-            .zip(base_points)
-            .zip(misc_value)
-            .enumerate()
-            .map(
-                |(effect_index, ((effect_aura, effect_base_points), effect_misc_value_1))| {
-                    wow_data::SpellEffectInfo {
-                        effect_index: effect_index as u32,
-                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                        effect_aura,
-                        effect_base_points,
-                        effect_die_sides: 1,
-                        effect_misc_value_1,
-                        ..Default::default()
-                    }
-                },
-            )
-            .collect::<Vec<_>>();
+        effect_rows.extend(
+            aura_types
+                .into_iter()
+                .zip(base_points)
+                .zip(misc_value)
+                .enumerate()
+                .map(
+                    |(effect_index, ((effect_aura, effect_base_points), effect_misc_value_1))| {
+                        wow_data::SpellEffectDb2Entry {
+                            id: spell_id as u32 * 10 + effect_index as u32,
+                            difficulty_id: 0,
+                            effect_index: effect_index as i32,
+                            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                            effect_amplitude: 0.0,
+                            effect_attributes: 0,
+                            effect_aura: i16::try_from(effect_aura)
+                                .expect("release aura type fits i16"),
+                            effect_aura_period: 0,
+                            effect_base_points,
+                            effect_bonus_coefficient: 0.0,
+                            effect_chain_amplitude: 0.0,
+                            effect_chain_targets: 0,
+                            effect_die_sides: 1,
+                            effect_item_type: 0,
+                            effect_mechanic: 0,
+                            effect_points_per_resource: 0.0,
+                            effect_pos_facing: 0.0,
+                            effect_real_points_per_level: 0.0,
+                            effect_trigger_spell: 0,
+                            bonus_coefficient_from_ap: 0.0,
+                            pvp_multiplier: 0.0,
+                            coefficient: 0.0,
+                            variance: 0.0,
+                            resource_coefficient: 0.0,
+                            group_size_base_points_coefficient: 0.0,
+                            effect_misc_value: [effect_misc_value_1, 0],
+                            effect_radius_index: [0; 2],
+                            effect_spell_class_mask: [0; 4],
+                            implicit_target: [0; 2],
+                            spell_id: spell_id as u32,
+                        }
+                    },
+                ),
+        );
         let mut attributes = [0; 15];
         attributes[0] = 0x2D80_0100;
         attributes[1] = attributes_1;
@@ -930,28 +956,24 @@ pub(super) fn install_release_cast_spell_fixture(session: &mut WorldSession) {
             duration_index: 21,
             ..Default::default()
         });
-        spells
-            .insert_spell_misc_attributes_like_cpp(spell_id, attributes.map(|value| value as u32));
-        spells.insert(
-            spell_id,
-            wow_data::SpellInfo {
-                spell_id,
-                cast_time_ms: 0,
-                cooldown_ms: 0,
-                recovery_time_ms: 0,
-                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                effect_base_points: effects[0].effect_base_points,
-                effect_bonus_coefficient: 0.0,
-                aura_type: Some(effects[0].effect_aura),
-                display_flags: 0,
-                requires_spell_focus: 0,
-                power_costs: Vec::new(),
-                effects,
-            },
-        );
     }
+    let misc = wow_data::SpellMiscStore::from_entries(misc_rows);
+    let spells = spells.hydrate_effective_core_db2_like_cpp(
+        wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
+            wow_data::SpellCategoriesStore::from_entries([]),
+            misc.clone(),
+            wow_data::SpellEffectDb2Store::from_entries(effect_rows),
+            wow_data::SpellShapeshiftStore::from_entries([]),
+            wow_data::SpellInterruptsStore::from_entries([]),
+            wow_data::SpellCastTimesStore::from_entries([]),
+            wow_data::SpellCooldownsStore::from_entries([]),
+            wow_data::SpellCastingRequirementsStore::from_entries([]),
+            wow_data::SpellPowerStore::from_entries([]),
+            wow_data::SpellPowerDifficultyStore::from_entries([]),
+        ),
+    );
     session.set_spell_store(Arc::new(spells));
-    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
+    session.set_spell_misc_store(Arc::new(misc));
     session
         .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
     session.set_spell_proc_store(Arc::new(wow_data::SpellProcStoreLikeCpp::default()));
