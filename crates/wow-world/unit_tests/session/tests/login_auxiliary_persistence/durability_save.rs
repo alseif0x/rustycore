@@ -108,6 +108,7 @@ async fn populated_login_loss_map_drain_and_partial_save_preserve_unrepresented_
             paid_extended_cost: None,
             expiration: 0,
             spell_charges: String::new(),
+            complete_payload: None,
         };
         let load_port: Arc<dyn PlayerLifecyclePortLikeCpp> = AuxiliaryLoadPortLikeCpp::new([
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(

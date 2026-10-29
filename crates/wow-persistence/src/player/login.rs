@@ -593,6 +593,32 @@ pub struct PlayerCharacterAuraEffectLoadRowLikeCpp {
     pub base_amount: i32,
 }
 
+/// Complete persisted payload for the additional C++ `Item::LoadFromDB`
+/// fields not represented by the existing inventory row projection.
+///
+/// `None` on `PlayerInventoryItemLoadRowLikeCpp` means the database adapter
+/// could not prove the full projection was present and decodable. The raw
+/// nullable text fields retain SQL NULL separately from an empty string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInventoryItemLoadPayload {
+    pub creator_guid: u64,
+    pub gift_creator_guid: u64,
+    pub text: Option<String>,
+    pub battle_pet_species_id: u32,
+    pub battle_pet_breed_data: u32,
+    pub battle_pet_level: u16,
+    pub battle_pet_display_id: u32,
+    /// Appearance modifiers in AllSpecs, Spec1 through Spec5 order.
+    pub transmog_appearance: [u32; 6],
+    /// Enchant illusion modifiers in AllSpecs, Spec1 through Spec5 order.
+    pub transmog_enchant_illusion: [u32; 6],
+    /// Secondary appearance modifiers in AllSpecs, Spec1 through Spec5 order.
+    pub transmog_secondary_appearance: [u32; 6],
+    /// Space-separated GUIDs from `item_soulbound_trade_data.allowedPlayers`.
+    /// `None` is a proven absence of the joined trade row.
+    pub soulbound_trade_allowed_players: Option<String>,
+}
+
 /// Shared item-instance projection selected by both halves of C++
 /// `Player::_LoadInventory`. The adapter owns the joined SQL column order;
 /// gameplay retains all item-template and slot interpretation.
@@ -613,6 +639,9 @@ pub struct PlayerInventoryItemLoadRowLikeCpp {
     pub paid_extended_cost: Option<u16>,
     pub expiration: u32,
     pub spell_charges: String,
+    /// Present only when both the legacy 23-column projection and the full
+    /// appended `Item::LoadFromDB` payload decode completely.
+    pub complete_payload: Option<PlayerInventoryItemLoadPayload>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

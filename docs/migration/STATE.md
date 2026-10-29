@@ -95,7 +95,40 @@ Documentation and new explanatory comments remain in English.
 | stuck-death | 2 | Corrected native pass; Rust pending |
 | stuck-home | 1 | Corrected native pass; Rust pending |
 
-Status: steps 1–2 in progress; no new implementation or live acceptance claimed.
+Step 1 implementation contract: retain the metadata-only absence fast path;
+when it cannot exclude modifiers, a self-cast may consult the complete,
+untombstoned canonical Player aura applications. Resolve active source effects
+at their own selected difficulty and check `ProcCharges` (operation 4), native
+family/mask matching (107/108), and label matching (218). Only demonstrated
+absence admits the existing charge calculation. Matching modifiers, unknown
+source effects, incomplete authority and an unresolved foreign caster remain
+explicit errors; do not use the target's applications as a foreign caster's.
+Sources: `SpellAuras.cpp:965–976`, `SpellAuraEffects.cpp:885–925`,
+`SpellInfo.cpp:1784–1818`, `Player.cpp:21361–21600`. A targeted source search
+found no CalcSpellMod hook registration in the pinned reference's scripts.
+This extends a bounded absence proof; it does not claim the general SpellMod
+engine is implemented. Required live cases must establish whether any further
+applicable modifier is an actual dependency of this lifecycle.
+
+Step 2 SQL/DTO unit is implemented and UNVALIDATED: equipment and bag queries
+append the missing item payload; both decode through existing native-width
+field getters. Missing/malformed fields retain incomplete authority. Four new
+decoder/projection tests are written but unrun. Canonical hydration and authority
+enabling are still pending. The parent corrected an owned-string lifetime in
+the SQL projection test during diff review, before any compiler run.
+
+Explicit load/save contract for one reference defect: pinned
+`CharacterDatabase.cpp:30` selects primary `itemModifiedAppearanceSpec5` twice,
+while `Item.cpp:694` loads the last value as secondary appearance and the schema
+and save statement have `secondaryItemModifiedAppearanceSpec5`. Rust reads the
+actual secondary column and preserves all eighteen stored modifiers. This is an
+intentional, bounded departure from that erroneous SELECT, required to avoid
+corrupting unrelated item metadata when enabling complete saves. It is not
+claimed as byte parity for that divergent transmog case or as completion of the
+transmog product. Distinct primary/secondary values are retained by the decoder
+test and must survive the integrated load/save round-trip test.
+
+Status: steps 1–2 in progress; no new acceptance claimed.
 One bounded worker at a time; the parent owns decisions, review, Git and all
 heavy/runtime scheduling. No broad inventory/spell rewrite, unrelated architecture
 audit, extra macro-issues or repeated unchanged campaigns are part of this plan.

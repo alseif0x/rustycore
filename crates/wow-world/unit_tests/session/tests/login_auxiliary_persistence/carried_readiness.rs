@@ -24,6 +24,7 @@ async fn carried_obtain_readiness_requires_both_queries_and_coherent_rows() {
         paid_extended_cost: None,
         expiration: 0,
         spell_charges: String::new(),
+        complete_payload: None,
     };
     let equipment = |rows| {
         PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
