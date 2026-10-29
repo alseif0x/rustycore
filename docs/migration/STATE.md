@@ -175,6 +175,25 @@ must reject without packets or a partial application. No tests were executed
 for this repair. The remaining loot-money/Aura fixtures and the real Stuck
 death/recovery consumer still precede completed-delivery acceptance.
 
+That Stuck consumer is now implemented locally. One boxed World callback delegates
+the cross-domain operation to Application: native SpellHistory selects KillSelf,
+dead-without-timer calls the real graveyard operation, and home teleport retains
+`TELE_TO_SPELL` (`SpellEffects.cpp:3263–3303`, `SpellHistory.cpp:670–692`,
+`Player.cpp:1426`). KillSelf admits death before changing native-width health;
+intentional teleports retain the Player incarnation without requiring its former
+residence. The temporary FULLMASK Hearthstone cast adds no cooldown
+(`Spell.cpp:4195–4203,8034–8038`, `SpellHistory.cpp:252–257`). The existing
+immutable graveyard catalog is now required inside the same World capability
+bundle; all eight outer bundles remain mandatory. The direct Map dependency
+names the existing generation/residence types and adds no mutable owner.
+The reviewed 18-path patch and source hashes are under
+`/tmp/rustycore43-stuck-review-wuci2kua/`. Application-only coding feedback first
+failed on a private visibility-helper export (00:24:28–00:24:39 UTC, exit 101).
+After repair, `cargo check -p wow-world-application --locked` passed at dirty
+`e13430771` (00:27:54–00:28:28 UTC; log
+`/tmp/rustycore43-stuck-app-check-20261029-002754.log`). World/Server and the
+new branch regressions remain unexecuted. This is not final acceptance.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

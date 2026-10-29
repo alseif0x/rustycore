@@ -3510,6 +3510,7 @@ dependencies = [
  "wow-data",
  "wow-entities",
  "wow-handler",
+ "wow-map",
  "wow-packet",
  "wow-persistence",
  "wow-spell-acquisition",

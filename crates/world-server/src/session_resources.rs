@@ -237,7 +237,7 @@ pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
     pub(super) script_name_interner: Arc<wow_data::ScriptNameInternerLikeCpp>,
 }
 
-/// Immutable map, area, creature, mount, vehicle and phase catalogs.
+/// Immutable map, area, creature, graveyard, mount, vehicle and phase catalogs.
 pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) area_table_store: Arc<wow_data::AreaTableStore>,
     pub(super) fishing_base_skill_store: Arc<wow_data::FishingBaseSkillStoreLikeCpp>,
@@ -245,6 +245,8 @@ pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) map_store: Arc<wow_data::MapStore>,
     pub(super) dungeon_encounter_store: Arc<wow_data::DungeonEncounterStore>,
     pub(super) world_safe_loc_store: Arc<wow_data::WorldSafeLocStore>,
+    /// C++ `ObjectMgr::GraveyardStore` used by EffectStuck's dead-player repop.
+    pub(super) graveyards: Arc<wow_data::GraveyardStore>,
     pub(super) map_difficulty_store: Arc<wow_data::MapDifficultyStore>,
     pub(super) map_difficulty_x_condition_store: Arc<wow_data::MapDifficultyXConditionStore>,
     pub(super) access_requirement_store: Arc<wow_data::AccessRequirementStoreLikeCpp>,
@@ -474,6 +476,7 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
         session.set_map_store(Arc::clone(&self.map_store));
         session.set_dungeon_encounter_store(Arc::clone(&self.dungeon_encounter_store));
         session.set_world_safe_loc_store_like_cpp(Arc::clone(&self.world_safe_loc_store));
+        session.set_graveyard_store(Arc::clone(&self.graveyards));
         session.set_map_difficulty_store(Arc::clone(&self.map_difficulty_store));
         session.set_map_difficulty_x_condition_store(Arc::clone(
             &self.map_difficulty_x_condition_store,

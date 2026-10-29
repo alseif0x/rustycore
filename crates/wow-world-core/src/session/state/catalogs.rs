@@ -27,7 +27,7 @@ use wow_data::{
     GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, HeirloomStore, LfgDungeonsStore,
     LockStore, MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore,
     MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, PhaseGroupStore, PhaseStore,
-    PlayerConditionStore, PlayerStatsStore, PvpItemStore, RandPropPointsStore,
+    PlayerConditionStore, PlayerStatsStore, PvpItemStore, RandPropPointsStore, GraveyardStore,
     RegenGameTablesLikeCpp, ScriptNameInternerLikeCpp, ShieldBlockRegularGameTableLikeCpp,
     SkillLineStore, SkillStore, SkillTiersStoreLikeCpp, TalentStore, ToyStore, TrainerStoreLikeCpp,
     TransmogSetItemStore, TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp,
@@ -40,7 +40,7 @@ use wow_data::{
     AdventureMapPoiStore, AreaTriggerDb2Store, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore,
     BankBagSlotPricesStore, BattlemasterListStore, CreatureAddonStoreLikeCpp,
     CreatureBaseStatsStoreLikeCpp, CreatureDifficultyStoreLikeCpp, CreatureEquipmentStoreLikeCpp,
-    EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp, GraveyardStore, ImportPriceStores,
+    EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp, ImportPriceStores,
     ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemPriceBaseStore,
     LfgDungeonStoreLikeCpp, TactKeyStore, TavernAreaTriggerStoreLikeCpp,
     VehicleTemplateStoreLikeCpp,
@@ -207,8 +207,7 @@ pub struct SessionCatalogs {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub tavern_area_trigger_store: Option<Arc<TavernAreaTriggerStoreLikeCpp>>,
 
-    // C++ ObjectMgr::GraveyardStore loaded from graveyard_zone plus attached conditions.
-    #[cfg(any(test, feature = "test-fixtures"))]
+    /// C++ ObjectMgr::GraveyardStore loaded from graveyard_zone plus attached conditions.
     pub graveyard_store: Option<Arc<GraveyardStore>>,
 
     /// Character race/class catalogs a session reads. Owned by one type (#670).
@@ -356,7 +355,6 @@ impl Default for SessionCatalogs {
             area_trigger_script_store: None,
             #[cfg(any(test, feature = "test-fixtures"))]
             tavern_area_trigger_store: None,
-            #[cfg(any(test, feature = "test-fixtures"))]
             graveyard_store: None,
             chr: crate::catalogs::chr::ChrCatalogsLikeCpp::default(),
             maps: crate::catalogs::map::MapCatalogsLikeCpp::default(),

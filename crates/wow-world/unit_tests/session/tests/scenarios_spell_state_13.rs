@@ -326,13 +326,22 @@ async fn spell_modify_charges_effect_restores_consumed_charges_like_cpp() {
     );
 }
 #[tokio::test]
-async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
+async fn spell_stuck_teleports_home_and_ignores_hearthstone_cooldown_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 0]));
     let spell_id = 783_i32;
     let player_guid = ObjectGuid::create_player(1, 783);
+    let canonical = shared_canonical_map_manager();
     let start = Position::new(10.0, 20.0, 30.0, 1.0);
     let home = Position::new(100.0, 200.0, 40.0, 2.0);
+    let current_cast_spell = 61_783;
+    let current_cast = wow_entities::CurrentSpellRef::new(
+        current_cast_spell,
+        Some(player_guid),
+        None,
+    )
+    .with_cast_time_ms(10_000);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "StuckHome".to_string(),
@@ -343,13 +352,37 @@ async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
         80,
         0,
     ));
+    add_canonical_test_player_on_map(&canonical, player_guid, start, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_health_like_cpp(100, 100);
-    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+    assert!(session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 0,
         area_id: 12,
         position: home,
+    }));
+    set_stuck_spell_store_like_cpp(&mut session, spell_id, false, 0);
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    session.set_active_spell_cast_like_cpp(Some(wow_entities::SpellCastState {
+        spell_id: current_cast_spell,
+        target_guid: player_guid,
+        target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
+        cast_id: ObjectGuid::EMPTY,
+        cast_start_time: Instant::now(),
+        cast_time_ms: 10_000,
+        spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
+        metadata: wow_entities::SpellCastMetadata::default(),
+    }));
+    session.mutate_canonical_player_like_cpp(|player| {
+        player
+            .unit_mut()
+            .set_current_cast_spell(wow_entities::CurrentSpellSlot::Generic, current_cast);
     });
-    set_stuck_spell_store_like_cpp(&mut session, spell_id);
+    crate::native_death_test_fixtures::prepare(&mut session);
+    let hearthstone_cooldown_before = session
+        .with_owned_player_like_cpp(|player| {
+            player.unit().subsystems().spells.history.cooldown(8690)
+        })
+        .expect("canonical Player history");
 
     session
         .execute_spell(spell_id, player_guid)
@@ -357,23 +390,66 @@ async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
         .expect("represented stuck spell should execute");
 
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, home)));
-    assert!(
+    assert_eq!(
         session
-            .spell_last_cast_time_like_cpp(8690)
-            .flatten()
-            .is_some(),
-        "C++ EffectStuck starts Hearthstone cooldown after successful home teleport"
+            .with_owned_player_like_cpp(|player| {
+                player.unit().subsystems().spells.history.cooldown(8690)
+            })
+            .expect("canonical Player history"),
+        hearthstone_cooldown_before,
+        "C++ EffectStuck's FULLMASK Hearthstone cast does not mutate SpellHistory"
     );
     assert_eq!(
-        drain_server_opcodes(&send_rx),
+        session
+            .active_spell_cast_snapshot_like_cpp()
+            .map(|cast| cast.spell_id),
+        Some(current_cast_spell),
+        "C++ TELE_TO_SPELL preserves an in-progress non-melee cast"
+    );
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .current_spell(wow_entities::CurrentSpellSlot::Generic)
+        }),
+        Some(Some(current_cast)),
+        "C++ TELE_TO_SPELL preserves the native casting operation"
+    );
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes: Vec<_> = packets
+        .iter()
+        .map(|packet| {
+            wow_packet::WorldPacket::from_bytes(packet)
+                .server_opcode()
+                .expect("server opcode")
+        })
+        .collect();
+    assert_eq!(
+        opcodes,
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::CancelCombat,
             ServerOpcodes::TransferPending,
             ServerOpcodes::SuspendToken,
-            ServerOpcodes::CooldownEvent,
-            ServerOpcodes::CooldownEvent,
+            ServerOpcodes::CooldownEvent
         ]
+    );
+    let cooldown_spell_ids: Vec<_> = packets
+        .iter()
+        .filter(|packet| {
+            wow_packet::WorldPacket::from_bytes(packet).server_opcode()
+                == Some(ServerOpcodes::CooldownEvent)
+        })
+        .map(|packet| {
+            let mut packet = wow_packet::WorldPacket::from_bytes(packet);
+            packet.read_uint16().expect("opcode");
+            packet.read_int32().expect("cooldown spell id")
+        })
+        .collect();
+    assert_eq!(
+        cooldown_spell_ids,
+        vec![spell_id],
+        "the completion event belongs to Stuck; FULLMASK Hearthstone emits none"
     );
 }
 #[test]

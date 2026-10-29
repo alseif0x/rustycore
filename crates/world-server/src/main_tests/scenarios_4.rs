@@ -198,6 +198,20 @@ fn session_resources_requires_named_capability_bundles() {
             .contains("pub(super) serverside_spell_store: Arc<wow_data::ServersideSpellStoreLikeCpp>,"),
         "the spell catalog bundle must require the canonical serverside spell catalog"
     );
+    let world_capabilities = resources_source
+        .split("pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {")
+        .nth(1)
+        .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
+        .expect("SessionWorldCatalogCapabilitiesLikeCpp declaration should be present");
+    assert!(
+        world_capabilities
+            .contains("pub(super) graveyards: Arc<wow_data::GraveyardStore>,"),
+        "EffectStuck's real graveyard repop requires the World catalog capability"
+    );
+    assert!(
+        resources_source.contains("session.set_graveyard_store(Arc::clone(&self.graveyards));"),
+        "the required World graveyard capability must be installed into the session"
+    );
     for retired_test_only_catalog in [
         "adventure_map_poi_store",
         "addon_channel",
@@ -218,7 +232,6 @@ fn session_resources_requires_named_capability_bundles() {
         "emotes_text_store",
         "feature_system_bpay_store_enabled",
         "feature_system_character_undelete_enabled",
-        "graveyard_store",
         "import_price_stores",
         "item_class_store",
         "item_currency_cost_store",

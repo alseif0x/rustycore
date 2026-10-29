@@ -238,10 +238,15 @@ pub trait SpellExecutionHostLikeCpp:
         quest_id: i32,
     ) -> impl Future<Output = Result<(), &'static str>> + Send;
     fn apply_force_deselect_effect_like_cpp(&mut self) -> bool;
-    /// The World resurrection snapshot, ghost flag and alive state the moved
-    /// stuck effect reads and writes (#1363 slice 12b2).
-    fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool);
-    fn set_player_alive_like_cpp(&mut self, alive: bool);
+    /// C++ `Spell::EffectStuck` spans canonical spell history, death/repop,
+    /// and teleport owners. This boxed callback breaks the obtain-spell cast
+    /// recursion while the Application operation retains those owners.
+    fn apply_stuck_effect_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
+        caster_guid: ObjectGuid,
+    ) -> Pin<Box<dyn Future<Output = Result<(), &'static str>> + Send + 'a>>;
     /// C++ `Spell::EffectSelfResurrect` after its input values are frozen.
     /// The boxed future breaks the real obtain-spell -> normal-cast -> effect
     /// recursion while retaining the canonical Player continuation.

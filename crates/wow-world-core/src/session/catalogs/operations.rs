@@ -5,6 +5,7 @@ use crate::session::ObjectMgrCatalogsLikeCpp;
 use crate::session::ProgressionCatalogsLikeCpp;
 use crate::session::state::SessionCatalogs;
 use wow_data::trait_tree::TraitDefinitionStore;
+use wow_data::GraveyardStore;
 use wow_data::{
     AccessRequirementStoreLikeCpp, ChrSpecializationStore, CinematicSequencesStore,
     ConditionEntriesByTypeStore, LockStore, MountStore, PlayerConditionStore, RandPropPointsStore,
@@ -12,7 +13,7 @@ use wow_data::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{
-    BattlemasterListStore, ExplorationBaseXpStoreLikeCpp, GraveyardStore, ImportPriceStores,
+    BattlemasterListStore, ExplorationBaseXpStoreLikeCpp, ImportPriceStores,
     LfgDungeonStoreLikeCpp, PetDefaultSpellStoreLikeCpp, PetFamilySpellStoreLikeCpp,
     PetLevelupSpellStoreLikeCpp, TactKeyStore,
 };
@@ -79,12 +80,10 @@ impl SessionCatalogs {
         self.tact_key_store = Some(store);
     }
 
-    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
         self.graveyard_store = Some(store);
     }
 
-    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn graveyard_store(&self) -> Option<&Arc<GraveyardStore>> {
         self.graveyard_store.as_ref()
     }

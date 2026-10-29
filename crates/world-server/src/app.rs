@@ -5046,6 +5046,7 @@ async fn run_inner(
             map_store: Arc::clone(&map_store),
             dungeon_encounter_store: Arc::clone(&dungeon_encounter_store),
             world_safe_loc_store: Arc::clone(&world_safe_loc_store),
+            graveyards: Arc::clone(&graveyard_store),
             map_difficulty_store: Arc::clone(&map_difficulty_store),
             map_difficulty_x_condition_store: Arc::clone(&map_difficulty_x_condition_store),
             access_requirement_store: Arc::clone(&access_requirement_store),

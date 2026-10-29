@@ -280,11 +280,18 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
     fn apply_force_deselect_effect_like_cpp(&mut self) -> bool {
         wow_world_social::apply_force_deselect_effect_like_cpp(self)
     }
-    fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
-        wow_world_entities::set_player_ghost_flag_like_cpp(self, ghost)
-    }
-    fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        wow_world_entities::set_player_alive_like_cpp(self, alive)
+    fn apply_stuck_effect_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
+        caster_guid: ObjectGuid,
+    ) -> Pin<Box<dyn Future<Output = Result<(), &'static str>> + Send + 'a>> {
+        Box::pin(wow_world_application::apply_stuck_effect_like_cpp(
+            self,
+            item_guid_generator,
+            creature_spawn_catalogs,
+            caster_guid,
+        ))
     }
     fn self_resurrect_player_like_cpp<'a>(
         &'a mut self,

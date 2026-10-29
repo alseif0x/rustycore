@@ -13,6 +13,8 @@ mod pet_reagents;
 mod player_cast_session;
 mod player_handlers;
 mod player_spell_costs;
+mod player_stuck;
+pub use player_stuck::apply_stuck_effect_like_cpp;
 pub use pet_reagents::{PetReagentReturnOutcome, return_pet_reagent_like_cpp};
 mod pet_removal;
 pub use pet_removal::remove_pet_not_in_slot_like_cpp;

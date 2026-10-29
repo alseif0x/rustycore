@@ -713,7 +713,12 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 .await?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK => {
-                apply_stuck_effect_like_cpp(host).await;
+                host.apply_stuck_effect_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    caster_guid,
+                )
+                .await?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE => {
                 apply_play_movie_effect_like_cpp(host, target_guid, direct_effect_misc_value_1);
