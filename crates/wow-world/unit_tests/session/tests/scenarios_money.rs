@@ -161,16 +161,29 @@ async fn apply_player_money_change_sets_gold_and_drains_objective_queue_like_cpp
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session.apply_player_money_change_like_cpp(90, 100).await;
 
     assert_eq!(session.player_gold_like_cpp(), 100);
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player.unit().world().object().is_object_updated()
+        }),
+        Some(true),
+        "the action's native field changes remain pending for Map SendObjectUpdates"
+    );
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
+    assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }

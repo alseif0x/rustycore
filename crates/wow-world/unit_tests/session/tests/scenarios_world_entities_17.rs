@@ -575,16 +575,7 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
         1
     );
 
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
-    );
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         session
             .quest_state

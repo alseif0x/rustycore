@@ -340,6 +340,13 @@ difficulty overlays and resolved interrupt snapshots; existing before/after,
 channel cancellation and packet fanout assertions are unchanged. These seven
 fixture-source edits remain unvalidated and add no production behavior.
 
+Four quest/money consumer cases now flush setup fields separately and assert
+one action-derived Map-tail VALUES packet after the exact immediate quest/cast
+packets. Native dirty fields and canonical quest removal/reward remain checked;
+the goober case replaces only its obsolete fixture-state reader. Anchors remain
+`Player.cpp:14756` and `Map.cpp:777,1929`. These three test-source edits are
+unvalidated and do not change production publication.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The
