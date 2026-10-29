@@ -182,6 +182,12 @@ object-only Create2. The repair must retain the deletion commit and residence
 fences, publish only bones and handle same-GUID removal/recreation. AuraState,
 sanctuary and bones publication are the remaining demonstrated packet findings;
 finish those coherent repairs before the next affected acceptance/build.
+The sanctuary repair is implemented, UNVALIDATED: a known AreaTable result
+sets or clears only the native sanctuary bit and always marks nested Unit
+bits 64/78, including same-area reentry. Missing rows in an available catalog
+clear it; an unavailable catalog does not authorize clearing. The general PvP
+setter and the other native flags remain unchanged. Coverage includes exact
+Map-published mask/value, same-area, missing-row and missing-catalog cases.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

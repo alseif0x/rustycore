@@ -174,6 +174,47 @@ fn pvp_flags_match_cpp_unit_pvp_state_helpers() {
 }
 
 #[test]
+fn area_sanctuary_preserves_other_flags_and_marks_native_parent_even_for_noop() {
+    let other = UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP | UnitPvpFlags::UNK1;
+    for before in [false, true] {
+        for sanctuary in [false, true] {
+            let mut unit = Unit::new(true);
+            unit.world_mut().object_mut().add_to_world();
+            unit.replace_all_pvp_flags_like_cpp(
+                other
+                    | if before {
+                        UnitPvpFlags::SANCTUARY
+                    } else {
+                        UnitPvpFlags::empty()
+                    },
+            );
+            unit.clear_unit_data_changes();
+            unit.world_mut().object_mut().clear_update_mask(false);
+            unit.set_sanctuary_from_area_like_cpp(sanctuary);
+            let expected = other
+                | if sanctuary {
+                    UnitPvpFlags::SANCTUARY
+                } else {
+                    UnitPvpFlags::empty()
+                };
+            assert_eq!(unit.pvp_flags_like_cpp(), expected);
+            let update = unit.values_update().unit_data.unwrap();
+            assert_eq!(update.values.pvp_flags, expected.bits());
+            for bit in 0..UNIT_DATA_BITS {
+                assert_eq!(update.mask.is_set(bit), [64, 78].contains(&bit));
+            }
+            assert!(unit.world().object().is_object_updated());
+            unit.clear_unit_data_changes();
+            unit.replace_all_pvp_flags_like_cpp(expected);
+            assert!(
+                !unit.unit_data_changes_mask().is_any_set(),
+                "general no-op setter stays unchanged"
+            );
+        }
+    }
+}
+
+#[test]
 fn health_state_revision_advances_only_for_real_health_or_death_changes_like_cpp() {
     let mut unit = Unit::new(true);
     unit.set_max_health(100);

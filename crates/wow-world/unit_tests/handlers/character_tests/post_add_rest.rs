@@ -1,5 +1,122 @@
 use super::*;
 
+#[test]
+fn same_area_sanctuary_uses_known_catalog_and_publishes_only_native_map_values() {
+    use wow_constants::UnitPvpFlags;
+    let other = UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP;
+    for (mode, initial, expected) in [
+        ("normal", other | UnitPvpFlags::SANCTUARY, other),
+        ("normal_noop", other, other),
+        ("missing_row", other | UnitPvpFlags::SANCTUARY, other),
+        ("sanctuary", other, other | UnitPvpFlags::SANCTUARY),
+        (
+            "missing_catalog",
+            other | UnitPvpFlags::SANCTUARY,
+            other | UnitPvpFlags::SANCTUARY,
+        ),
+    ] {
+        let (mut session, output) = make_session_with_send_capacity(64);
+        let guid = ObjectGuid::create_player(1, 92_800);
+        session.set_player_guid(Some(guid));
+        crate::canonical_player_access::install_canonical_player_owner_for_test(
+            &mut session,
+            571,
+            0,
+        );
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(20, 20);
+        if mode != "missing_catalog" {
+            let rows = if mode == "missing_row" {
+                vec![]
+            } else {
+                vec![wow_data::AreaTableEntry {
+                    id: 20,
+                    continent_id: 571,
+                    parent_area_id: 0,
+                    area_bit: -1,
+                    exploration_level: 0,
+                    mount_flags: 0,
+                    flags: if mode == "sanctuary" {
+                        wow_data::AREA_FLAG_NO_PVP_LIKE_CPP
+                    } else {
+                        0
+                    },
+                }]
+            };
+            session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries(rows)));
+        }
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().replace_all_pvp_flags_like_cpp(initial);
+            })
+            .unwrap();
+        let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+        manager.lock().unwrap().update(1);
+        session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            );
+        while output.try_recv().is_ok() {}
+
+        // Same-area returns false for criteria, but still runs native UpdateArea effects.
+        assert!(
+            !wow_world_instances::update_area_represented_with_rest_update_like_cpp(
+                &mut session,
+                20,
+                false,
+            )
+        );
+        assert!(
+            output.try_recv().is_err(),
+            "area flags have no immediate packet: {mode}"
+        );
+        session
+            .core
+            .with_owned_player_like_cpp(|player| {
+                assert_eq!(player.unit().pvp_flags_like_cpp(), expected, "{mode}");
+                assert_eq!(
+                    player.unit().unit_data_changes_mask().is_set(64),
+                    mode != "missing_catalog"
+                );
+                assert_eq!(
+                    player.unit().unit_data_changes_mask().is_set(78),
+                    mode != "missing_catalog"
+                );
+            })
+            .unwrap();
+        manager.lock().unwrap().update(1);
+        let count = session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            );
+        if mode == "missing_catalog" {
+            assert_eq!(count, 0);
+            assert!(output.try_recv().is_err());
+            continue;
+        }
+        assert_eq!(count, 1);
+        let packet = output.try_recv().expect("owner native PvP VALUES");
+        let mut wire = wow_packet::WorldPacket::from_bytes(&packet);
+        assert_eq!(
+            wire.read_uint16().unwrap(),
+            ServerOpcodes::UpdateObject as u16
+        );
+        assert_eq!(wire.read_uint32().unwrap(), 1);
+        assert_eq!(wire.read_uint16().unwrap(), 571);
+        assert_eq!(wire.read_uint8().unwrap(), 0); // no destroy/out-of-range list
+        let _block_bytes = wire.read_uint32().unwrap();
+        assert_eq!(wire.read_uint8().unwrap(), 0); // VALUES
+        assert_eq!(wire.read_packed_guid().unwrap(), guid);
+        assert_eq!(wire.read_uint32().unwrap(), 10); // types + Unit mask + PvP byte
+        assert_eq!(wire.read_uint32().unwrap(), 1 << 5); // UnitData only
+        assert_eq!(wire.read_uint8().unwrap(), 1 << 2); // mask group64-95
+        assert_eq!(wire.read_bytes(4).unwrap(), vec![0, 0, 0x40, 1]); // bits64/78
+        assert_eq!(wire.read_uint8().unwrap(), expected.bits());
+        assert_eq!(wire.remaining(), 0);
+        assert!(output.try_recv().is_err());
+        assert_eq!(session.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(), 0);
+    }
+}
+
 #[tokio::test]
 async fn cancelled_post_add_retains_rest_update_through_reentry() {
     let (mut session, send_rx) = make_session_with_send_capacity(64);

@@ -113,11 +113,28 @@ pub fn update_area_represented_with_rest_update_like_cpp<H: InstanceSessionHostL
         return false;
     }
     let zone_id = world_local.zone_id_like_cpp();
+    // A known catalog's missing row means non-sanctuary in C++ UpdateArea.
+    // An unavailable catalog supplies no authority to clear a native flag.
+    let sanctuary = host
+        .hub_ref()
+        .catalogs
+        .area_table_store
+        .as_ref()
+        .map(|store| {
+            store
+                .get(new_area)
+                .is_some_and(|area| area.is_sanctuary_like_cpp())
+        });
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
         player
             .unit_mut()
             .world_mut()
             .set_zone_and_area(zone_id, new_area);
+        if let Some(sanctuary) = sanctuary {
+            player
+                .unit_mut()
+                .set_sanctuary_from_area_like_cpp(sanctuary);
+        }
     });
 
     let mut rest_changed = false;
