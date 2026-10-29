@@ -161,6 +161,12 @@ route after releasing the Player guard. Ordinary setters and regeneration
 suppression retain their behavior. Regressions pin the captured half-mana value,
 supported zero, unsupported mappings, clamping, world admission and one-shot
 execution; the owner VALUES findings remain separate and unresolved.
+Affected acceptance at `bc20c9641` stopped at compilation after 125.464 seconds:
+two new observer assertions used `session::SessionCommand` instead of the
+existing `session::mailbox::SessionCommand` re-export. No suite execution,
+production integration or debug build is claimed from that failed run
+(`/tmp/rustycore43-resurrection-power-acceptance-zcib7hnz/record.json`). The two
+test paths are corrected; the affected batch requires a fresh committed run.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

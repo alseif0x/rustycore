@@ -116,7 +116,7 @@ async fn reclaim_corpse_dispatch_ignores_captured_guid_hint_but_requires_native_
         let peer_power = peer_rx
             .try_iter()
             .filter_map(|command| match command {
-                crate::session::SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
+                crate::session::mailbox::SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
                     assert_eq!(command.source_guid, player_guid);
                     Some(command.packet_bytes)
                 }
@@ -141,7 +141,7 @@ async fn reclaim_corpse_dispatch_ignores_captured_guid_hint_but_requires_native_
         assert!(sent_opcodes(&realm_rx).is_empty());
         assert!(peer_rx.try_iter().all(|command| !matches!(
             command,
-            crate::session::SessionCommand::SendRealmIfVisibleLikeCpp(_)
+            crate::session::mailbox::SessionCommand::SendRealmIfVisibleLikeCpp(_)
         )));
     }
 }
