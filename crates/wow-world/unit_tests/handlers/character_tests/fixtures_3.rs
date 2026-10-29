@@ -13,7 +13,7 @@ pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, 
     }
     assert!(
         session
-            .with_owned_player_like_cpp(|player| {
+            .mutate_canonical_player_like_cpp(|player| {
                 player.guid() == player_guid
                     && player.unit().is_alive()
                     && player.unit().data().health > 0

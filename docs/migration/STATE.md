@@ -374,6 +374,16 @@ completed incremental caches, binaries and evidence remain. Free disk is about
 6.6 GiB, below the operations guide's 30 GiB headroom aim; acceptance must retain
 the actual resource/time outcome and pause additional builds if space runs out.
 
+Final at `997e6cd44` passed architecture, exact Session syntax, census and all
+17 standalone domain checks, but workspace test compilation rejected a
+Character fixture's call to a Session-private shim (E0624). The parent stopped
+the owned runner before repeating that known error in library compilation;
+the attempt ended 130 after 380.792 seconds. Manifest:
+`target/validation-v2/manifests/20261029T022800.757180Z-1615615-final.json`.
+The one-call repair uses the existing crate-visible canonical accessor with
+the same read-only assertion; no API visibility or fixture state is changed.
+The corrected committed candidate still requires final execution evidence.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The
