@@ -24,6 +24,80 @@ fn add_indexed_player(
 }
 
 #[test]
+fn corpse_birth_selects_owner_peer_and_shared_seer_with_exact_phase_and_range() {
+    let mut map = test_map();
+    let owner = add_indexed_player(&mut map, test_player_for_viewpoint(4_630_001));
+    let peer = add_indexed_player(&mut map, test_player_for_viewpoint(4_630_002));
+    let mut shared = test_player_for_viewpoint(4_630_003);
+    shared
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(300.0, 300.0, 30.0));
+    shared.set_farsight_object_like_cpp(peer);
+    let shared = add_indexed_player(&mut map, shared);
+    map.get_typed_player_mut(peer)
+        .unwrap()
+        .unit_mut()
+        .subsystems_mut()
+        .control
+        .shared_vision_guids
+        .insert(shared);
+    let mut wrong_phase = test_player_for_viewpoint(4_630_004);
+    wrong_phase
+        .unit_mut()
+        .world_mut()
+        .phase_shift_mut()
+        .insert(77);
+    let wrong_phase = add_indexed_player(&mut map, wrong_phase);
+    let mut far = test_player_for_viewpoint(4_630_005);
+    far.unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(300.0, 300.0, 30.0));
+    let far = add_indexed_player(&mut map, far);
+    for guid in [owner, peer, shared] {
+        map.get_typed_player_mut(guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .phase_shift_mut()
+            .insert(10);
+    }
+    let guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 0, 4_630_001);
+    let mut corpse = Corpse::new_at(CorpseType::ResurrectablePve, 1_000);
+    corpse.world_mut().object_mut().create(guid);
+    corpse
+        .world_mut()
+        .set_map(map.map_id(), map.instance_id())
+        .unwrap();
+    corpse.world_mut().relocate(
+        map.get_typed_player(owner)
+            .unwrap()
+            .unit()
+            .world()
+            .position(),
+    );
+    corpse.set_owner_guid(owner);
+    corpse.world_mut().phase_shift_mut().insert(10);
+    map.add_corpse_to_map_like_cpp(corpse).unwrap();
+    let recipients = map.corpse_birth_visibility_recipients_like_cpp(guid);
+    assert_eq!(recipients.len(), 3);
+    assert!(
+        recipients.contains(&owner) && recipients.contains(&peer) && recipients.contains(&shared)
+    );
+    assert!(!recipients.contains(&wrong_phase) && !recipients.contains(&far));
+    map.get_typed_player_mut(peer)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    assert!(
+        !map.corpse_birth_visibility_recipients_like_cpp(guid)
+            .contains(&peer)
+    );
+}
+
+#[test]
 fn selected_aura_observers_use_source_range_phase_and_body_fallback_for_invalid_farsight() {
     let mut map = test_map();
     let mut source = test_player_for_viewpoint(4_610_001);

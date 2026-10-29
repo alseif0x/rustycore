@@ -754,6 +754,23 @@ impl Item {
         }
     }
 
+    /// Item.cpp:1985 resolves the selected transmog display directly, then
+    /// falls back to this physical item's appearance independently of entry.
+    pub fn display_id_like_cpp(
+        &self,
+        active_talent_group: usize,
+        modified_appearance_display: impl Fn(u32) -> Option<u32>,
+        physical_item_display: impl Fn(u32, u32) -> Option<u32>,
+    ) -> Option<u32> {
+        modified_appearance_display(self.visible_modified_appearance_modifier(active_talent_group))
+            .or_else(|| {
+                physical_item_display(
+                    self.object.entry(),
+                    u32::from(self.data.item_appearance_mod_id),
+                )
+            })
+    }
+
     pub fn visible_entry(
         &self,
         active_talent_group: usize,

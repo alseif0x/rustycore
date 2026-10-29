@@ -7,6 +7,8 @@
 
 use super::*;
 
+mod corpse;
+
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,

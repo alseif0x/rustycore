@@ -23,10 +23,14 @@ pub use wow_social::group::GroupDifficultyKindLikeCpp;
 
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 
+#[path = "protocol/visibility.rs"]
+mod visibility;
+
 /// C++ `Player::m_clientGUIDs` held behind a shared handle.
 ///
-/// The owning session is the only writer, but recipient selection for durable
-/// fan-out runs on the map tick, which has no access to session-local state.
+/// The owning session replaces its visibility snapshot; immediate object birth
+/// also commits discovery through this same ledger after successful enqueue.
+/// Recipient selection for durable fan-out runs on the map tick.
 /// Publishing the membership through the player registry lets a producer commit
 /// the recipient decision at the moment the message is resolved instead of
 /// re-deriving it from mutable state when the receiving session drains.

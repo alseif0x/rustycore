@@ -1,6 +1,40 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
+The first real fall/release pair completed successfully at `313cb2e3f`:
+Rust attempt 4 and derived R6 attempt 2 observed the scenario, collected native
+captures and restored the stable server and disposable data. They took 312.489
+and 137.351 seconds. This establishes functional observation, not packet parity
+or issue completion. The scoped comparison found a concrete corpse CREATE
+difference: C++ sends one 155-byte CREATE2 block, while Rust's forced whole-Player
+visibility refresh includes unrelated creates/removals and uses CREATE1. The
+corpse's equipped chest appearance also differs. The next repair is limited to
+object-specific birth publication and canonical equipped Item appearance;
+ordinary rediscovery retains CREATE1. Eleven other paired scenarios remain.
+
+The follow-up implementation now snapshots corpse-only owner/peer/shared-vision
+recipients under MapManager and enqueues after unlocking. Discovery is recorded
+only after a successful enqueue; full visibility scans reject a stale ledger
+snapshot and request the existing retry. It adds no state authority or lock.
+Equipment reads canonical Item instances and follows `Player.cpp:4481–4491`
+and `Item.cpp:1985,2048–2072`, including missing-transmog-display fallback.
+Birth serialization follows `Object.cpp:130`, `Map.cpp:573–575` and
+`GridNotifiers.cpp:91–121`. This follow-up and its authored regression tests
+are UNVALIDATED until their committed candidate campaign runs.
+
+Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
+ignored), Application (31), Entities (2), Spell (181), bot (248), production
+registry (8) and production login-owner (41). The record is
+`/tmp/rustycore43-live-repair-acceptance-fyik1fp_/record.json`. Its debug server
+build then failed with ENOSPC; the 673.601-second run missed the 600-second
+performance target. After retiring only inspected obsolete build configurations,
+the pending server and bot builds passed in 29.777 seconds, recorded separately
+in `/tmp/rustycore43-candidate-build-recovery-n_fiqmdu/record.json`. Current
+incremental caches were preserved. These results do not validate subsequent
+corpse-publication edits. Read-only runtime verification at 11:05 UTC confirmed
+the original stable binary SHA-256 `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`
+serving again, with no packet dump enabled.
+
 Local code and metadata acceptance is green at `00fb8a12c` on aarch64. Final
 passed all 21 library suites (World: 4,119 passed, zero failed, one ignored),
 464 checker cases, architecture/syntax/census, workspace compilation and SQL

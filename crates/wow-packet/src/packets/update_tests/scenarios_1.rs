@@ -502,7 +502,12 @@ fn corpse_create_block_matches_cpp_stationary_and_values_create_shape() {
     };
 
     let mut block = WorldPacket::new_empty();
-    write_corpse_create_block(&mut block, &ObjectGuid::EMPTY, &create_data);
+    write_corpse_create_block(
+        &mut block,
+        UpdateType::CreateObject,
+        &ObjectGuid::EMPTY,
+        &create_data,
+    );
     let bytes = block.into_data();
 
     assert_eq!(bytes[0], UpdateType::CreateObject as u8);

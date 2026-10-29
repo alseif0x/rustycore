@@ -21,6 +21,7 @@ pub(super) use channels_and_pets::write_artifact_power_values_update;
 pub(super) use create::{
     debug_creature_create_values_len_like_cpp, write_creature_create_block,
     write_stationary_world_object_create_prefix_like_cpp,
+    write_stationary_world_object_create_prefix_with_type_like_cpp,
 };
 
 pub(super) use values_update::{

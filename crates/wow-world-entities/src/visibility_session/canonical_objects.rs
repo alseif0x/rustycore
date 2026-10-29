@@ -208,7 +208,7 @@ pub(crate) fn visible_misc_objects_from_canonical_map_like_cpp<H: VisibilitySess
     position: &wow_core::Position,
     visibility_radius: f32,
 ) -> Option<(
-    Vec<wow_packet::packets::update::CorpseCreateData>,
+    Vec<(wow_packet::packets::update::CorpseCreateData, bool)>,
     Vec<wow_packet::packets::update::SceneObjectCreateData>,
     Vec<wow_packet::packets::update::ConversationCreateData>,
 )> {
@@ -255,11 +255,37 @@ pub(crate) fn visible_misc_objects_from_canonical_map_like_cpp<H: VisibilitySess
             continue;
         };
         if allows_world_object(corpse.world()) {
-            corpses.push(
+            let birth = map
+                .map()
+                .corpse_guid_by_player_like_cpp(corpse.data().owner)
+                == Some(guid)
+                && manager
+                    .current_player_admission_like_cpp(corpse.data().owner)
+                    .is_some_and(|(handle, _)| {
+                        manager
+                            .player_active_residence_revision_like_cpp(handle)
+                            .is_some_and(|(key, _)| {
+                                key.map_id == requested_map_id
+                                    && key.instance_id == map.map().instance_id()
+                            })
+                            && manager
+                                .with_player_like_cpp(handle, |player| {
+                                    player
+                                        .resurrection_state_like_cpp()
+                                        .delayed_after_teleport
+                                        .is_some_and(|continuation| {
+                                            continuation.phase
+                                    == wow_entities::PlayerResurrectionPhase::CorpsePublished
+                                        })
+                                })
+                                .unwrap_or(false)
+                    });
+            corpses.push((
                 wow_world_core::entity_update_bridge::corpse_create_data_from_entity_like_cpp(
                     corpse,
                 ),
-            );
+                birth,
+            ));
         }
     }
 

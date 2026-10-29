@@ -40,6 +40,10 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
 ) {
     use std::collections::HashSet;
+    let visible_before = host
+        .core()
+        .client_visible_guids_like_cpp
+        .snapshot_like_cpp();
 
     // ── Position & threshold check ──────────────────────────────────
     host.sync_represented_farsight_clear_from_canonical_like_cpp();
@@ -162,10 +166,11 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
         let mut created_players = 0usize;
         let mut created_transports = 0usize;
         let mut initial_visible_creatures_like_cpp = Vec::new();
+        let mut removed_go_phase_guids = Vec::new();
         for creature in &map_creatures {
             let guid = creature.guid();
             new_visible_creatures.insert(guid);
-            if !host.core().client_visible_guids_like_cpp.contains(&guid) {
+            if !visible_before.contains(&guid) {
                 let mut create_data = creature_create_data_like_cpp(creature);
                 create_data.health = i64::from(creature.current_hp());
                 create_data.max_health = i64::from(creature.max_hp());
@@ -206,11 +211,9 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
             }
         }
 
-        let removed_creatures: Vec<ObjectGuid> = host
-            .core()
-            .client_visible_guids_like_cpp
-            .snapshot_like_cpp()
-            .into_iter()
+        let removed_creatures: Vec<ObjectGuid> = visible_before
+            .iter()
+            .copied()
             .filter(|g| g.is_any_type_creature() && !new_visible_creatures.contains(g))
             .collect();
         if !removed_creatures.is_empty() {
@@ -224,26 +227,17 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
         if let Some(gameobjects) = canonical_gameobjects {
             new_visible_gos = gameobjects.iter().map(|go| go.guid).collect();
             for gameobject in gameobjects {
-                if !host
-                    .core()
-                    .client_visible_guids_like_cpp
-                    .contains(&gameobject.guid)
-                {
+                if !visible_before.contains(&gameobject.guid) {
                     update_blocks.push(UpdateObject::create_gameobject_block(gameobject));
                     created_gameobjects += 1;
                 }
             }
-            let removed_gos: Vec<ObjectGuid> = host
-                .core()
-                .client_visible_guids_like_cpp
-                .snapshot_like_cpp()
-                .into_iter()
+            let removed_gos: Vec<ObjectGuid> = visible_before
+                .iter()
+                .copied()
                 .filter(|g| g.is_game_object() && !new_visible_gos.contains(g))
                 .collect();
-            for guid in &removed_gos {
-                host.world_entities_mut()
-                    .remove_represented_gameobject_phase_shift_like_cpp(*guid);
-            }
+            removed_go_phase_guids.extend(removed_gos.iter().copied());
 
             if !removed_gos.is_empty() {
                 debug!(
@@ -260,20 +254,14 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
                 .map(|dynamic_object| dynamic_object.guid)
                 .collect();
             for dynamic_object in dynamic_objects {
-                if !host
-                    .core()
-                    .client_visible_guids_like_cpp
-                    .contains(&dynamic_object.guid)
-                {
+                if !visible_before.contains(&dynamic_object.guid) {
                     update_blocks.push(UpdateObject::create_dynamic_object_block(dynamic_object));
                     created_dynamic_objects += 1;
                 }
             }
-            let removed_dynamic_objects: Vec<ObjectGuid> = host
-                .core()
-                .client_visible_guids_like_cpp
-                .snapshot_like_cpp()
-                .into_iter()
+            let removed_dynamic_objects: Vec<ObjectGuid> = visible_before
+                .iter()
+                .copied()
                 .filter(|g| g.is_dynamic_object() && !new_visible_dynamic_objects.contains(g))
                 .collect();
 
@@ -292,20 +280,14 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
                 .map(|area_trigger| area_trigger.guid)
                 .collect();
             for area_trigger in area_triggers {
-                if !host
-                    .core()
-                    .client_visible_guids_like_cpp
-                    .contains(&area_trigger.guid)
-                {
+                if !visible_before.contains(&area_trigger.guid) {
                     update_blocks.push(UpdateObject::create_area_trigger_block(area_trigger));
                     created_area_triggers += 1;
                 }
             }
-            let removed_area_triggers: Vec<ObjectGuid> = host
-                .core()
-                .client_visible_guids_like_cpp
-                .snapshot_like_cpp()
-                .into_iter()
+            let removed_area_triggers: Vec<ObjectGuid> = visible_before
+                .iter()
+                .copied()
                 .filter(|g| g.is_area_trigger() && !new_visible_area_triggers.contains(g))
                 .collect();
 
@@ -319,25 +301,21 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
         }
 
         if let Some((corpses, scene_objects, conversations)) = canonical_misc_objects {
-            new_visible_corpses = corpses.iter().map(|corpse| corpse.guid).collect();
-            for corpse in corpses {
-                if !host
-                    .core()
-                    .client_visible_guids_like_cpp
-                    .contains(&corpse.guid)
-                {
-                    update_blocks.push(UpdateObject::create_corpse_block(corpse));
+            new_visible_corpses = corpses.iter().map(|(corpse, _)| corpse.guid).collect();
+            for (corpse, birth) in corpses {
+                if !visible_before.contains(&corpse.guid) {
+                    update_blocks.push(if birth {
+                        UpdateObject::create_corpse_birth_block(corpse)
+                    } else {
+                        UpdateObject::create_corpse_block(corpse)
+                    });
                     created_corpses += 1;
                 }
             }
 
             new_visible_scene_objects = scene_objects.iter().map(|scene| scene.guid).collect();
             for scene_object in scene_objects {
-                if !host
-                    .core()
-                    .client_visible_guids_like_cpp
-                    .contains(&scene_object.guid)
-                {
+                if !visible_before.contains(&scene_object.guid) {
                     update_blocks.push(UpdateObject::create_scene_object_block(scene_object));
                     created_scene_objects += 1;
                 }
@@ -348,21 +326,15 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
                 .map(|conversation| conversation.guid)
                 .collect();
             for conversation in conversations {
-                if !host
-                    .core()
-                    .client_visible_guids_like_cpp
-                    .contains(&conversation.guid)
-                {
+                if !visible_before.contains(&conversation.guid) {
                     update_blocks.push(UpdateObject::create_conversation_block(conversation));
                     created_conversations += 1;
                 }
             }
 
-            let removed_misc_objects: Vec<ObjectGuid> = host
-                .core()
-                .client_visible_guids_like_cpp
-                .snapshot_like_cpp()
-                .into_iter()
+            let removed_misc_objects: Vec<ObjectGuid> = visible_before
+                .iter()
+                .copied()
                 .filter(|guid| {
                     (guid.is_corpse() && !new_visible_corpses.contains(guid))
                         || (guid.is_scene_object() && !new_visible_scene_objects.contains(guid))
@@ -398,7 +370,7 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
 
         for (guid, player) in visible_other_players {
             new_visible_players.insert(guid);
-            if host.core().client_visible_guids_like_cpp.contains(&guid) {
+            if visible_before.contains(&guid) {
                 continue;
             }
 
@@ -409,11 +381,9 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
                 created_players += 1;
             }
         }
-        let removed_players: Vec<ObjectGuid> = host
-            .core()
-            .client_visible_guids_like_cpp
-            .snapshot_like_cpp()
-            .into_iter()
+        let removed_players: Vec<ObjectGuid> = visible_before
+            .iter()
+            .copied()
             .filter(|guid| guid.is_player() && !new_visible_players.contains(guid))
             .collect();
         out_of_range_guids.extend(removed_players);
@@ -424,29 +394,30 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
         // address a caster whose out-of-range block is already queued, so
         // publish both under the same write.
         let visibility_like_cpp = host.core().client_visible_guids_like_cpp.clone();
-        let publish_visibility = || {
-            visibility_like_cpp.publish_transition_like_cpp(
-                |guid| {
-                    !guid.is_any_type_creature()
-                        && !guid.is_game_object()
-                        && !guid.is_dynamic_object()
-                        && !guid.is_area_trigger()
-                        && !guid.is_corpse()
-                        && !guid.is_scene_object()
-                        && !guid.is_conversation()
-                        && !guid.is_player()
-                },
-                new_visible_creatures
-                    .iter()
-                    .chain(new_visible_gos.iter())
-                    .chain(new_visible_dynamic_objects.iter())
-                    .chain(new_visible_area_triggers.iter())
-                    .chain(new_visible_corpses.iter())
-                    .chain(new_visible_scene_objects.iter())
-                    .chain(new_visible_conversations.iter())
-                    .chain(new_visible_players.iter())
-                    .copied(),
-                || {
+        let committed = visibility_like_cpp.publish_transition_if_snapshot_like_cpp(
+            &visible_before,
+            |guid| {
+                !guid.is_any_type_creature()
+                    && !guid.is_game_object()
+                    && !guid.is_dynamic_object()
+                    && !guid.is_area_trigger()
+                    && !guid.is_corpse()
+                    && !guid.is_scene_object()
+                    && !guid.is_conversation()
+                    && !guid.is_player()
+            },
+            new_visible_creatures
+                .iter()
+                .chain(new_visible_gos.iter())
+                .chain(new_visible_dynamic_objects.iter())
+                .chain(new_visible_area_triggers.iter())
+                .chain(new_visible_corpses.iter())
+                .chain(new_visible_scene_objects.iter())
+                .chain(new_visible_conversations.iter())
+                .chain(new_visible_players.iter())
+                .copied(),
+            || {
+                let publish_packets = || {
                     if update_blocks.is_empty() && out_of_range_guids.is_empty() {
                         return;
                     }
@@ -482,21 +453,32 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
                             s.send_initial_visible_packets_for_creature_like_cpp(h, creature)
                         };
                     }
-                },
-            );
-        };
-        if transports_visibility_available {
-            let transports_like_cpp = host
-                .visibility()
-                .client_visible_transports_like_cpp()
-                .clone();
-            transports_like_cpp.publish_transition_like_cpp(
-                |guid| new_visible_transports.contains(guid),
-                new_visible_transports.iter().copied(),
-                publish_visibility,
-            );
-        } else {
-            publish_visibility();
+                };
+                if transports_visibility_available {
+                    let transports_like_cpp = host
+                        .visibility()
+                        .client_visible_transports_like_cpp()
+                        .clone();
+                    transports_like_cpp.publish_transition_like_cpp(
+                        |guid| new_visible_transports.contains(guid),
+                        new_visible_transports.iter().copied(),
+                        publish_packets,
+                    );
+                } else {
+                    publish_packets();
+                }
+            },
+        );
+        if committed.is_none() {
+            host.core()
+                .flags
+                .visibility_refresh_pending_like_cpp
+                .store(true, std::sync::atomic::Ordering::Release);
+            return;
+        }
+        for guid in removed_go_phase_guids {
+            host.world_entities_mut()
+                .remove_represented_gameobject_phase_shift_like_cpp(guid);
         }
         host.visibility_mut().set_last_visibility_pos_like_cpp(pos);
         debug!(

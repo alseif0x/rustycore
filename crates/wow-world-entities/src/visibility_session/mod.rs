@@ -25,6 +25,7 @@ use crate::RepresentedGameObjectUseState;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 
 mod canonical_objects;
+mod corpse_birth;
 mod deferred;
 mod dynamic_object_values;
 mod ghost_visibility;
@@ -38,6 +39,7 @@ pub use canonical_objects::{
     dynamic_object_create_data_from_canonical_like_cpp,
     visible_dynamic_objects_from_canonical_map_like_cpp,
 };
+pub use corpse_birth::publish_corpse_birth_visibility_like_cpp;
 pub use deferred::{
     apply_deferred_player_visibility_refresh_like_cpp,
     flush_pending_visibility_refresh_with_catalogs_like_cpp,

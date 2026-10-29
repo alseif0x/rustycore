@@ -309,7 +309,8 @@ impl UpdateObject {
                         create_data.bounds_radius_2d
                     ));
                 }
-                UpdateBlock::CreateCorpse { guid, create_data } => {
+                UpdateBlock::CreateCorpse { guid, create_data }
+                | UpdateBlock::CreateCorpseBirth { guid, create_data } => {
                     lines.push(format!(
                         "#{index:03} corpse guid={guid:?} entry={} display={} pos=({:.3},{:.3},{:.3},{:.3})",
                         create_data.entry_id,
@@ -511,6 +512,13 @@ impl UpdateObject {
     }
     pub fn create_corpse_block(create_data: CorpseCreateData) -> UpdateBlock {
         UpdateBlock::CreateCorpse {
+            guid: create_data.guid,
+            create_data,
+        }
+    }
+    /// Object.cpp:130 / Map.cpp:573: CREATE2 only while the corpse is new.
+    pub fn create_corpse_birth_block(create_data: CorpseCreateData) -> UpdateBlock {
+        UpdateBlock::CreateCorpseBirth {
             guid: create_data.guid,
             create_data,
         }

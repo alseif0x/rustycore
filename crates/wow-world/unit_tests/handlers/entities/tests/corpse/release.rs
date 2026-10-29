@@ -17,6 +17,48 @@ async fn release_publishes_exact_corpse_before_dead_cleanup_and_water_walk() {
         dead_player_session_with_graveyard_like_cpp(9_244);
     let own_output = session.core.send_tx().clone();
     session.install_realm_send_channel_for_test(own_output);
+    let registry = Arc::new(crate::session::PlayerRegistry::new());
+    session.set_player_registry(Arc::clone(&registry));
+    session.core.state = crate::session::SessionState::LoggedIn;
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().world_mut().set_name("CorpseOwner".into());
+        })
+        .unwrap();
+    session.register_in_player_registry();
+    let canonical = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+    let (mut peer, peer_output) = make_session();
+    let peer_guid = ObjectGuid::create_player(1, 9_246);
+    peer.set_player_guid(Some(peer_guid));
+    peer.set_canonical_map_manager(Arc::clone(&canonical));
+    peer.set_player_registry(registry);
+    peer.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    let handle = {
+        let mut manager = canonical.lock().unwrap();
+        let mut player = Box::new(wow_entities::Player::new(Some(1), false));
+        player.unit_mut().world_mut().object_mut().create(peer_guid);
+        player.unit_mut().world_mut().set_name("CorpsePeer".into());
+        player.unit_mut().set_max_health(100);
+        player.unit_mut().set_health(100);
+        let handle = manager.install_detached_player_like_cpp(player).unwrap();
+        manager
+            .attach_player_like_cpp(
+                handle,
+                wow_map::MapKey::new(571, 0),
+                Position::new(2.0, 2.0, 3.0, 0.0),
+            )
+            .unwrap();
+        handle
+    };
+    peer.core.player_handle_like_cpp = Some(handle);
+    peer.core.player_identity_bootstrap_like_cpp = None;
+    peer.core.state = crate::session::SessionState::LoggedIn;
+    peer.core.client_visible_guids_like_cpp.insert(owner);
+    peer.register_in_player_registry();
+    let unrelated = ObjectGuid::create_player(1, 9_247);
+    session.core.client_visible_guids_like_cpp.insert(unrelated);
+    peer.core.client_visible_guids_like_cpp.insert(unrelated);
     let generators = session.id_generators_for_test_like_cpp();
     let creatures = session.creature_spawn_catalogs_for_test_like_cpp();
     let graveyards = wow_data::GraveyardStore::default();
@@ -55,7 +97,9 @@ async fn release_publishes_exact_corpse_before_dead_cleanup_and_water_walk() {
         num_updates: 1,
         destroy_guids: Vec::new(),
         out_of_range_guids: Vec::new(),
-        blocks: vec![wow_packet::packets::update::UpdateObject::create_corpse_block(create_data)],
+        blocks: vec![
+            wow_packet::packets::update::UpdateObject::create_corpse_birth_block(create_data),
+        ],
     }
     .to_bytes();
     let packets = send_rx.try_iter().collect::<Vec<_>>();
@@ -94,6 +138,28 @@ async fn release_publishes_exact_corpse_before_dead_cleanup_and_water_walk() {
         Some((wow_constants::DeathState::Dead, 1, None))
     );
     assert_eq!(port.saves.lock().unwrap().len(), 1);
+    let peer_packets = peer_output.try_iter().collect::<Vec<_>>();
+    assert_eq!(peer_packets.first(), Some(&expected_create));
+    assert!(
+        peer_packets
+            .iter()
+            .skip(1)
+            .any(|bytes| u16::from_le_bytes([bytes[0], bytes[1]])
+                == ServerOpcodes::MoveUpdate as u16),
+        "the peer learns the corpse before the owner's ghost movement"
+    );
+    assert!(
+        peer.core
+            .client_visible_guids_like_cpp
+            .contains(&corpse_guid)
+    );
+    assert!(peer.core.client_visible_guids_like_cpp.contains(&unrelated));
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&unrelated)
+    );
 }
 
 #[tokio::test]
@@ -122,6 +188,202 @@ async fn standalone_create_corpse_preserves_native_state_without_visibility_cata
     assert!(send_rx.is_empty());
     assert!(realm_rx.is_empty());
     assert_eq!(release_phase(&session), None);
+}
+
+#[tokio::test]
+async fn corpse_equipment_uses_native_items_and_active_spec_appearance_instead_of_ui_cache() {
+    use wow_constants::ItemModifier;
+    use wow_entities::{EQUIPMENT_SLOT_CHEST, Item, PlayerInventoryItem, VisibleItemValues};
+
+    for (index, (group, appearance, all_specs, spec1, spec2, stale_ui, expected)) in [
+        (0, 0, 0, 0, 0, false, 1_101 | (5 << 24)),
+        (0, 2, 0, 0, 0, true, 1_102 | (5 << 24)),
+        (0, 0, 20, 0, 0, true, 2_202 | (20 << 24)),
+        (0, 0, 20, 30, 40, true, 3_303 | (1 << 24)),
+        (1, 0, 20, 30, 0, true, 2_202 | (20 << 24)),
+        (1, 0, 20, 30, 40, true, 4_404 | (5 << 24)),
+        (0, 2, 99_999, 0, 0, true, 1_102 | (5 << 24)),
+        (0, 0, 50, 0, 0, true, 1_101 | (20 << 24)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (mut session, _send_rx, _realm_rx, owner, port) =
+            dead_player_session_with_graveyard_like_cpp(9_250 + index as i64);
+        session.set_item_store(Arc::new(wow_data::ItemStore::from_records(
+            [(70_001, 5), (70_002, 20), (70_003, 1)]
+                .into_iter()
+                .map(|(id, inventory_type)| wow_data::ItemRecord {
+                    id,
+                    class_id: 4,
+                    subclass_id: 0,
+                    material: 0,
+                    inventory_type,
+                    sheathe_type: 0,
+                    random_select: 0,
+                    random_suffix_group_id: 0,
+                    scaling_stat_distribution_id: 0,
+                    scaling_stat_value: 0,
+                }),
+        )));
+        session.set_item_stats_store(Arc::new(
+            wow_data::ItemStatsStore::from_stats_sparse_and_random_property_templates(
+                [],
+                [(
+                    70_001,
+                    wow_data::ItemSparseTemplateEntry {
+                        flags: [0; 4],
+                        bag_family: 0,
+                        start_quest_id: 0,
+                        stackable: 1,
+                        max_count: 0,
+                        lock_id: 0,
+                        required_reputation_rank: 0,
+                        sell_price: 0,
+                        buy_price: 0,
+                        vendor_stack_count: 1,
+                        price_variance: 0.0,
+                        price_random_value: 0.0,
+                        max_durability: 0,
+                        other_faction_item_id: 0,
+                        content_tuning_id: 0,
+                        player_level_to_item_level_curve_id: 0,
+                        limit_category: 0,
+                        instance_bound: 0,
+                        zone_bound: [0; 2],
+                        required_reputation_faction: 0,
+                        allowable_class: -1,
+                        required_expansion: 0,
+                        bonding: 0,
+                        container_slots: 0,
+                        inventory_type: 5,
+                    },
+                )],
+                [],
+            ),
+        ));
+        let appearances = [
+            (10, 70_001, 0, 1_000, 1_101),
+            (11, 70_001, 2, 1_001, 1_102),
+            (20, 70_002, 3, 1_002, 2_202),
+            (30, 70_003, 4, 1_003, 3_303),
+            // No Item.db2 row for this visible entry: use the physical template's type.
+            (40, 70_004, 5, 1_004, 4_404),
+            // The selected transmog's missing appearance falls back to physical display only.
+            (50, 70_002, 6, 19_999, 0),
+        ];
+        session.set_item_modified_appearance_store(Arc::new(
+            wow_data::ItemModifiedAppearanceStore::from_entries(appearances.into_iter().map(
+                |(id, item_id, item_appearance_modifier_id, item_appearance_id, _)| {
+                    wow_data::ItemModifiedAppearanceEntry {
+                        id,
+                        item_id,
+                        item_appearance_modifier_id,
+                        item_appearance_id,
+                        order_index: 0,
+                        transmog_source_type_enum: 0,
+                    }
+                },
+            )),
+        ));
+        session.set_item_appearance_store(Arc::new(wow_data::ItemAppearanceStore::from_entries(
+            appearances
+                .into_iter()
+                .filter(|(_, _, _, id, _)| *id != 19_999)
+                .map(
+                    |(_, _, _, id, item_display_info_id)| wow_data::ItemAppearanceEntry {
+                        id: id as u32,
+                        display_type: 0,
+                        item_display_info_id,
+                        default_icon_file_data_id: 0,
+                        ui_order: 0,
+                    },
+                ),
+        )));
+        let item_guid = ObjectGuid::create_item(owner.realm_id(), 9_300 + index as i64);
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                let mut talents = player.talent_runtime_like_cpp().clone();
+                talents.set_active_group_like_cpp(group);
+                player.replace_talent_runtime_like_cpp(talents);
+                let mut item = Item::default();
+                item.object_mut().create(item_guid);
+                item.object_mut().set_entry(70_001);
+                item.set_owner_guid(owner);
+                item.set_contained_in(owner);
+                item.set_slot(EQUIPMENT_SLOT_CHEST);
+                item.set_count(1);
+                item.set_appearance_mod_id(appearance);
+                item.set_modifier(ItemModifier::TransmogAppearanceAllSpecs, all_specs);
+                item.set_modifier(ItemModifier::TransmogAppearanceSpec1, spec1);
+                item.set_modifier(ItemModifier::TransmogAppearanceSpec2, spec2);
+                player
+                    .store_top_level_item(EQUIPMENT_SLOT_CHEST, item_guid)
+                    .unwrap();
+                let inventory = player.inventory_runtime_mut_like_cpp();
+                inventory.store_item_in_slot_like_cpp(
+                    EQUIPMENT_SLOT_CHEST,
+                    PlayerInventoryItem {
+                        guid: item_guid,
+                        entry_id: 70_001,
+                        db_guid: item_guid.counter() as u64,
+                        inventory_type: Some(5),
+                    },
+                );
+                inventory.store_item_object_like_cpp(item);
+                player.set_visible_item_slot(
+                    EQUIPMENT_SLOT_CHEST,
+                    Some(VisibleItemValues {
+                        item_id: if stale_ui { 70_002 } else { 0 },
+                        item_appearance_mod_id: 3,
+                        item_visual: 0,
+                    }),
+                );
+                // A stale UI entry in an empty native slot must not dress the corpse.
+                player.set_visible_item_slot(
+                    0,
+                    Some(VisibleItemValues {
+                        item_id: 70_002,
+                        item_appearance_mod_id: 3,
+                        item_visual: 0,
+                    }),
+                );
+            })
+            .expect("canonical equipment owner");
+        let generators = session.id_generators_for_test_like_cpp();
+        let corpse_guid =
+            wow_world_entities::create_corpse_like_cpp(&mut session, generators.item.as_ref())
+                .await
+                .expect("native equipped corpse creation");
+        let actual = session
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_corpse(corpse_guid)
+            .unwrap()
+            .data()
+            .items;
+        let mut expected_items = [0; 19];
+        expected_items[usize::from(EQUIPMENT_SLOT_CHEST)] = expected;
+        assert_eq!(actual, expected_items, "appearance case {index}");
+        let saves = port.saves.lock().unwrap();
+        assert_eq!(saves.len(), 1);
+        assert_eq!(
+            saves[0]
+                .item_cache
+                .split_ascii_whitespace()
+                .map(|value| value.parse::<u32>().unwrap())
+                .collect::<Vec<_>>(),
+            expected_items
+        );
+    }
 }
 
 #[tokio::test]

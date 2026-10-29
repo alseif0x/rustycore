@@ -332,11 +332,9 @@ async fn create_and_publish<H: CorpseHostLikeCpp>(
         return None;
     };
 
-    if let Some(creature_spawns) = creature_spawns {
+    if creature_spawns.is_some() {
         // Map::AddToMap publishes the corpse before DEAD cleanup or movement.
-        if !host
-            .force_player_visibility_with_catalogs_like_cpp(creature_spawns)
-            .await
+        if !crate::publish_corpse_birth_visibility_like_cpp(host, corpse_guid)
             || !advance(
                 host,
                 binding,
@@ -547,24 +545,50 @@ fn build_corpse_from_player(
     corpse.set_display_id(u32::try_from(player.unit().data().native_display_id).unwrap_or(0));
     corpse.set_faction_template(faction_template);
 
-    for (slot, visible) in player.data().visible_items.iter().enumerate() {
-        let Ok(item_id) = u32::try_from(visible.item_id) else {
+    // Player.cpp:4481 reads equipped Item instances, independently of UI fields.
+    let inventory = player.inventory_runtime_like_cpp();
+    let active_group = usize::from(player.talent_runtime_like_cpp().active_group_like_cpp());
+    for slot in 0..wow_entities::EQUIPMENT_SLOT_END {
+        let Some(item) = inventory
+            .inventory_items()
+            .get(&slot)
+            .and_then(|equipped| inventory.item_objects().get(&equipped.guid))
+        else {
             continue;
         };
-        if item_id == 0 {
-            continue;
-        }
-        let display_id = catalogs
-            .item_display_id(item_id, u32::from(visible.item_appearance_mod_id))
+        let item_id =
+            item.visible_entry(active_group, |id| catalogs.item_modified_appearance_ref(id));
+        let display_id = item
+            .display_id_like_cpp(
+                active_group,
+                |id| {
+                    let modified = catalogs.item_modified_appearance_store()?.get(id)?;
+                    catalogs
+                        .items
+                        .appearance_store
+                        .as_ref()?
+                        .item_display_info_id(u32::try_from(modified.item_appearance_id).ok()?)
+                },
+                |entry, appearance| catalogs.item_display_id(entry, appearance),
+            )
             .unwrap_or(0);
         let inventory_type = catalogs
             .items
             .store
             .as_ref()
             .and_then(|store| store.get(item_id))
-            .map(|item| item.inventory_type as u8 as u32)
+            .map(|item| item.inventory_type)
+            .or_else(|| {
+                catalogs
+                    .items
+                    .stats_store
+                    .as_ref()?
+                    .sparse_template(item.object().entry())
+                    .map(|template| template.inventory_type)
+            })
+            .map(|inventory_type| u32::from(inventory_type as u8))
             .unwrap_or(0);
-        corpse.set_item(slot, display_id | (inventory_type << 24));
+        corpse.set_item(usize::from(slot), display_id | (inventory_type << 24));
     }
 
     // C++ `Player::CreateCorpse` skips `SaveToDB` for instanceable maps.

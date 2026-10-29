@@ -6,6 +6,8 @@
 use super::*;
 use crate::session::WorldSession;
 
+#[path = "corpse/birth_visibility.rs"]
+mod birth_visibility;
 mod death_timer_driver;
 #[path = "corpse/live_pet.rs"]
 mod live_pet;
@@ -1087,6 +1089,25 @@ fn dead_player_session_on_map_with_optional_port(
         map_id,
         0,
     );
+    {
+        // AddToMap's notifier visits native cells, including the corpse owner.
+        let handle = session.core.player_handle_like_cpp.unwrap();
+        let mut manager = session
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap();
+        manager.detach_player_like_cpp(handle).unwrap();
+        manager
+            .attach_player_like_cpp(
+                handle,
+                wow_map::MapKey::new(map_id, 0),
+                Position::new(1.0, 2.0, 3.0, 0.0),
+            )
+            .unwrap();
+    }
     crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
         &mut session,
     );
