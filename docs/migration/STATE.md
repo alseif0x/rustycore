@@ -59,6 +59,17 @@ natural splits remain value-family operations and domain-host zone/movement
 fixtures under the existing #584 programme; this correctness repair adds no
 separate decomposition delivery or general size allowance.
 
+The first affected campaign at `3350a552d` failed in 253.403 seconds, within
+the ordinary time target but without completing acceptance. Python death tests
+and architecture/syntax checks passed. Both Rust commands stopped at the same
+E0433: the new zone tail qualified `UnitPvpFlags` through `wow_entities`, which
+does not re-export it. The correction uses its existing defining dependency,
+`wow_constants`; it adds no API or behavior. No Rust suite, production integration
+or executable build is credited from this failed run. Its exact record is
+`/tmp/rustycore43-affected-3350-4xo8k8mj/{record.json,final-manifest.json}`.
+The corrected candidate remains UNVALIDATED; the unchanged architecture evidence
+retains its actual SHA and the qualified-path-only delta is reviewed separately.
+
 Reference recovery-dead attempt 2 and recovery-ghost attempt 1 now pass both
 epochs, capture and restoration in 249.420 and 253.117 seconds respectively.
 Reference offer attempt 2 fails/restores in 250.717 seconds: the corpse target

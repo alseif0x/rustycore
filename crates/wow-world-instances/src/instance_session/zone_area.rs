@@ -60,7 +60,7 @@ fn update_represented_war_mode_auras_like_cpp<H: InstanceSessionHostLikeCpp>(hos
         if !player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP) {
             player
                 .unit_mut()
-                .remove_pvp_flag_like_cpp(wow_entities::UnitPvpFlags::PVP);
+                .remove_pvp_flag_like_cpp(wow_constants::UnitPvpFlags::PVP);
         }
     });
     let _ = wow_world_spell::remove_auras_with_interrupt_flags_like_cpp(
