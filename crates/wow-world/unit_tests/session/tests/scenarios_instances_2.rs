@@ -481,7 +481,10 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     let peer_handle = {
         let mut manager = canonical.lock().unwrap();
         let mut peer = Box::new(wow_entities::Player::new(Some(1), false));
-        peer.unit_mut().world_mut().object_mut().create(other_player_guid);
+        peer.unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(other_player_guid);
         peer.unit_mut().world_mut().set_name("InstanceOwner");
         let handle = manager
             .install_detached_player_like_cpp(peer)

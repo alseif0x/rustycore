@@ -649,15 +649,13 @@ pub(super) fn self_res_spell_store(spell_id: i32) -> Arc<wow_data::SpellStore> {
     };
     let effective = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
         wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
-        wow_data::spell_db2::SpellMiscStore::from_entries([
-            wow_data::spell_db2::SpellMiscEntry {
-                id: 1,
-                difficulty_id: 0,
-                attributes,
-                spell_id: spell_id as u32,
-                ..Default::default()
-            },
-        ]),
+        wow_data::spell_db2::SpellMiscStore::from_entries([wow_data::spell_db2::SpellMiscEntry {
+            id: 1,
+            difficulty_id: 0,
+            attributes,
+            spell_id: spell_id as u32,
+            ..Default::default()
+        }]),
         wow_data::spell_db2::SpellEffectDb2Store::from_entries([effect]),
         wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
         wow_data::spell_db2::SpellInterruptsStore::from_entries([]),

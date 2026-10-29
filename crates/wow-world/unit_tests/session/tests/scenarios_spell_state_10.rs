@@ -659,15 +659,13 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
     };
     let effective = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
         wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
-        wow_data::spell_db2::SpellMiscStore::from_entries([
-            wow_data::spell_db2::SpellMiscEntry {
-                id: 1,
-                difficulty_id: 0,
-                attributes: [0; 15],
-                spell_id: spell_id as u32,
-                ..Default::default()
-            },
-        ]),
+        wow_data::spell_db2::SpellMiscStore::from_entries([wow_data::spell_db2::SpellMiscEntry {
+            id: 1,
+            difficulty_id: 0,
+            attributes: [0; 15],
+            spell_id: spell_id as u32,
+            ..Default::default()
+        }]),
         wow_data::spell_db2::SpellEffectDb2Store::from_entries([effect]),
         wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
         wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
@@ -677,9 +675,8 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
         wow_data::spell_db2::SpellPowerStore::from_entries([]),
         wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
     );
-    let spell_store =
-        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)])
-            .hydrate_effective_core_db2_like_cpp(effective);
+    let spell_store = crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)])
+        .hydrate_effective_core_db2_like_cpp(effective);
     session.set_spell_store(Arc::new(spell_store));
 
     let plan = session.represented_handle_spell_click_plan_like_cpp(creature_guid);

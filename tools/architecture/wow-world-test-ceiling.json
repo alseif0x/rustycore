@@ -145,6 +145,16 @@
    "unit_tests_lines": 272491,
    "unit_tests_tests": 4098,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-13",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "#43 completed acceptance repair: preserve all 4120 test identities, the same one ignored case and identical class/destination sets. Exact unit-test lines rise 272491->272822 (+331) for native cell/owner inputs, effective normal-cast catalogs and positive/negative Map-tail proof. Review of 87 derived census rows changes only 80 blocker lists and eight owner votes (overlapping), following the same existing helper graph; no production boundary is transferred. Four logical deltas are separately reviewed with existing #584 exits. This records actual metrics without headroom and does not claim executed acceptance.",
+   "unit_tests_lines": 272822,
+   "unit_tests_tests": 4098,
+   "src_tests": 22
   }
  ]
 }

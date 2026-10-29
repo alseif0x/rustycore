@@ -160,7 +160,10 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
     );
     assert_eq!(
         session.core.with_owned_player_like_cpp(|player| {
-            player.gameplay_state().world_local.contested_pvp_timer_like_cpp()
+            player
+                .gameplay_state()
+                .world_local
+                .contested_pvp_timer_like_cpp()
         }),
         Some(0),
         "C++ far Player::TeleportTo calls ResetContestedPvP before transfer"

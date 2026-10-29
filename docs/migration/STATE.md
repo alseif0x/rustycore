@@ -358,6 +358,22 @@ All 45 recorded World failures and the checker source-guard finding now have
 reviewed local repairs. This is implementation completion only: formatting,
 exact metadata reconciliation and renewed committed-candidate acceptance remain.
 
+Completed-repair formatting and authoring review are retained in
+`/tmp/rustycore43-closeout-reconcile-yhzmen3e/`. Four logical rows now match the
+measured candidate: Session 14,638 production-column/162,721 test lines,
+Character 1,799/18,927, Loot 884/19,202 and Player 19,908/16,551. Session's
+eight added source-tree lines are a cfg(test) adapter; Player's 62 lines are
+the equivalent dirty-bit expansion. Existing #584 owners/exits are retained.
+The census remains 4,120 tests with one ignored and identical classes and
+destinations; 87 derived rows change only blocker lists and owner votes.
+Unit-test physical lines are 272,822. Six affected files above the 1,000-line
+soft target have specific cohesion/next-split reviews and remain below 2,000;
+no physical exception is added. This is reviewed implementation, not a pass.
+Only abandoned `*-working` compiler temporaries were removed (136.8 MiB);
+completed incremental caches, binaries and evidence remain. Free disk is about
+6.6 GiB, below the operations guide's 30 GiB headroom aim; acceptance must retain
+the actual resource/time outcome and pause additional builds if space runs out.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

@@ -612,7 +612,10 @@ fn gameobject_use_flagstand_removes_stealth_and_invisibility_auras_like_cpp() {
         crate::selected_spell_fixtures::canonical_spell_store([(1_001, 0), (1_002, 0)]);
     for (spell_id, aura_type) in [
         (1_001, wow_data::spell::aura_types::SPELL_AURA_MOD_STEALTH),
-        (1_002, wow_data::spell::aura_types::SPELL_AURA_MOD_INVISIBILITY),
+        (
+            1_002,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_INVISIBILITY,
+        ),
     ] {
         let mut info = test_spell_info_like_cpp(spell_id);
         info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;

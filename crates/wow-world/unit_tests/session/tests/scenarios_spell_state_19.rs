@@ -646,11 +646,8 @@ fn player_attack_uses_stalked_aura_as_always_detectable_like_cpp() {
 #[tokio::test]
 async fn check_area_explore_removes_indoor_outdoor_auras_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
-        (9_101, 0),
-        (9_102, 0),
-        (9_103, 0),
-    ]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(9_101, 0), (9_102, 0), (9_103, 0)]);
     for spell_id in [9_101, 9_102, 9_103] {
         let mut info = test_spell_info_like_cpp(spell_id);
         info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
