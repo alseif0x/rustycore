@@ -384,6 +384,27 @@ The one-call repair uses the existing crate-visible canonical accessor with
 the same read-only assertion; no API visibility or fixture state is changed.
 The corrected committed candidate still requires final execution evidence.
 
+Final at `b0305c1d6` completed in 538.223 seconds (02:36:29–02:45:27 UTC),
+ending 101. All planned controls except World passed, including all-targets
+compilation, the other 20 library suites, all 464 checker tests and SQL
+composition. World passed 4,114 cases, failed five and ignored one; additional
+integration tests and candidate builds did not start. The manifest is
+`target/validation-v2/manifests/20261029T023629.229499Z-1623237-final.json`;
+exact World failures are in `/tmp/rustycore43-final-20261029-qrwxst5z/`.
+This partial campaign is not a completed ordinary acceptance budget result.
+
+Those five failures now have reviewed, unvalidated fixture repairs. Four menu
+inputs use the existing canonical replacement, retaining source/menu rejection
+and Feign assertions; the GO boundary loop also reaches its intended checks.
+The looter and dead target share Map 571, with an explicit lookup precondition.
+The tracking quest records its now-native field publication as represented.
+Anchors: `NPCHandler.cpp:250–289`, `Player.cpp:13665–13689,14496,15983`,
+`LootHandler.cpp:218–234`. Four test files change by three net lines; the census
+ledger, identities, classes and destinations are identical. Exact reviewed
+counts are Character 1,799/18,923, Loot 884/19,209 and 272,825 unit-test lines,
+with existing retirement conditions retained. Review:
+`/tmp/rustycore43-five-fixture-review-q1im7i13/`. Renewed acceptance is required.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

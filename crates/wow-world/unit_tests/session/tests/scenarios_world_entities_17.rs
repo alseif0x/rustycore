@@ -586,7 +586,7 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
             new_status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
             send_quest_update_called: true,
             quest_slot_state_complete_represented: true,
-            quest_slot_state_live_update_unrepresented: true,
+            quest_slot_state_live_update_unrepresented: false,
             visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
             spell_area_runtime_unrepresented: true,
             tracking_event_auto_reward_unrepresented: false,

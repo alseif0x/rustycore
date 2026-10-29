@@ -101,6 +101,7 @@ async fn loot_unit_valid_target_removes_looting_interrupt_auras_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_creature_guid(19_035);
     session.set_player_guid(Some(player_guid));
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session
         .core
@@ -180,6 +181,12 @@ async fn loot_unit_valid_target_removes_looting_interrupt_auras_like_cpp() {
         assert!(session.insert_player_visible_aura_like_cpp(aura));
     }
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
+    assert!(
+        session
+            .represented_creature_loot_state_like_cpp(loot_guid)
+            .is_some_and(|creature| !creature.is_alive),
+        "the current native map must contain the registered dead loot target"
+    );
 
     let auras_before = session
         .resolved_player_visible_auras_like_cpp()

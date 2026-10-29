@@ -859,16 +859,15 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
         NPCFlags1::GOSSIP.bits() | NPCFlags1::BANKER.bits(),
     );
     session.set_player_trainer_interaction_like_cpp(banker, 77);
-    session
-        .interaction
-        .gossip_options_for_test_mut_like_cpp()
-        .push(crate::session::GossipOptionInfo {
+    assert!(session.replace_player_gossip_options_like_cpp(vec![
+        crate::session::GossipOptionInfo {
             gossip_option_id: 61,
             menu_id: 62,
             order_index: 63,
             option_npc: 6,
             action_menu_id: 0,
-        });
+        },
+    ]));
 
     session
         .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {

@@ -34,16 +34,15 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
             },
         );
     session.set_player_interaction_source_like_cpp(goober);
-    session
-        .interaction
-        .gossip_options_for_test_mut_like_cpp()
-        .push(crate::session::GossipOptionInfo {
+    assert!(session.replace_player_gossip_options_like_cpp(vec![
+        crate::session::GossipOptionInfo {
             gossip_option_id: 71,
             menu_id: GOSSIP_ID,
             order_index: 0,
             option_npc: 0,
             action_menu_id: 0,
-        });
+        },
+    ]));
 
     session
         .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
@@ -161,16 +160,15 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
                 },
             );
         session.set_player_interaction_source_like_cpp(gameobject);
-        session
-            .interaction
-            .gossip_options_for_test_mut_like_cpp()
-            .push(crate::session::GossipOptionInfo {
+        assert!(session.replace_player_gossip_options_like_cpp(vec![
+            crate::session::GossipOptionInfo {
                 gossip_option_id: 81,
                 menu_id: GOSSIP_ID,
                 order_index: 0,
                 option_npc: 0,
                 action_menu_id: 0,
-            });
+            },
+        ]));
         if in_taxi {
             session.set_taxi_flight_state_like_cpp(
                 RepresentedTaxiFlightNodeLikeCpp {
@@ -250,16 +248,15 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
             },
         );
     session.set_player_interaction_source_like_cpp(goober);
-    session
-        .interaction
-        .gossip_options_for_test_mut_like_cpp()
-        .push(crate::session::GossipOptionInfo {
+    assert!(session.replace_player_gossip_options_like_cpp(vec![
+        crate::session::GossipOptionInfo {
             gossip_option_id: 91,
             menu_id: GOSSIP_ID,
             order_index: 0,
             option_npc: 6, // Banker is invalid for every C++ GameObject menu.
             action_menu_id: 0,
-        });
+        },
+    ]));
 
     session
         .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {

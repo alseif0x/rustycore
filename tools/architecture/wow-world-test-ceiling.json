@@ -155,6 +155,16 @@
    "unit_tests_lines": 272822,
    "unit_tests_tests": 4098,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-14",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "#43 final five-case fixture repair: four checked native menu replacements retire four test lines; current-map alignment and an explicit native dead-target precondition add seven. Net +3 lines, same 4120 identities/one ignored, identical ledger/classes/destinations. Exact reviewed count, no headroom; no execution pass claimed.",
+   "unit_tests_lines": 272825,
+   "unit_tests_tests": 4098,
+   "src_tests": 22
   }
  ]
 }
