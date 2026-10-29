@@ -16,7 +16,7 @@ fn native_death_power_marks_zero_and_changed_mapped_values_with_existing_clamps(
             unit.set_power(PowerType::Mana, before);
             unit.clear_unit_data_changes();
             unit.world_mut().object_mut().clear_update_mask(false);
-            unit.set_power_for_native_death_like_cpp(PowerType::Mana, requested);
+            unit.set_power_for_native_transition_like_cpp(PowerType::Mana, requested);
             assert_eq!(unit.get_power(PowerType::Mana), expected);
             let update = unit.values_update().unit_data.unwrap();
             for bit in 0..UNIT_DATA_BITS {
@@ -44,7 +44,7 @@ fn native_death_power_marks_zero_and_changed_mapped_values_with_existing_clamps(
         unit.clear_unit_data_changes();
         unit.world_mut().object_mut().clear_update_mask(false);
         let before = unit.data().power;
-        unit.set_power_for_native_death_like_cpp(PowerType::Mana, 0);
+        unit.set_power_for_native_transition_like_cpp(PowerType::Mana, 0);
         assert_eq!(unit.data().power, before);
         assert!(!unit.unit_data_changes_mask().is_any_set());
         assert!(!unit.world().object().is_object_updated());

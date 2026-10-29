@@ -74,6 +74,13 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     /// The shared nonalive Unit::setDeathState combat, cast and Aura cleanup.
     /// The caller assigns the native state before invoking these effects.
     fn finish_player_non_alive_state_like_cpp(&mut self) -> Result<(), &'static str>;
+    /// Unit::SetPower's immediate in-world owner/observer publication (Unit.cpp:9302).
+    fn send_player_power_update_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        power: wow_constants::PowerType,
+        value: i32,
+    );
     /// C++ `Player::UpdateObjectVisibility(true)` followed by
     /// `UpdateVisibilityForPlayer` for death and resurrection transitions.
     fn force_player_visibility_with_catalogs_like_cpp<'a>(

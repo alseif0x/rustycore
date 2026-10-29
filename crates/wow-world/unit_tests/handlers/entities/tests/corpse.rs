@@ -160,6 +160,8 @@ async fn request_cemetery_list_filters_conditions_and_caps_at_sixteen_like_cpp()
 #[tokio::test]
 async fn resurrect_response_accepts_matching_request_like_cpp() {
     let (mut session, send_rx) = make_session();
+    let (realm_tx, realm_rx) = flume::unbounded();
+    session.install_realm_send_channel_for_test(realm_tx);
     session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     let resurrecter = ObjectGuid::create_player(1, 77);
     let target_position = Position::new(11.0, 22.0, 33.0, 1.5);
@@ -237,10 +239,7 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
         std::iter::from_fn(|| send_rx.try_recv().ok())
             .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
             .collect::<Vec<_>>(),
-        vec![
-            ServerOpcodes::CancelCombat as u16,
-            ServerOpcodes::MoveTeleport as u16,
-        ]
+        vec![ServerOpcodes::MoveTeleport as u16,]
     );
 
     let action = wow_world_entities::handle_move_teleport_ack_like_cpp(
@@ -280,6 +279,48 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
         session
             .represented_delayed_resurrection_after_teleport_like_cpp()
             .is_none()
+    );
+    let realm = realm_rx.try_iter().collect::<Vec<_>>();
+    assert_eq!(realm.len(), 6);
+    assert_eq!(
+        u16::from_le_bytes([realm[0][0], realm[0][1]]),
+        ServerOpcodes::CancelCombat as u16
+    );
+    assert_eq!(
+        u16::from_le_bytes([realm[1][0], realm[1][1]]),
+        ServerOpcodes::DeathReleaseLoc as u16
+    );
+    for (packet, (power, value)) in realm[2..].iter().zip([
+        (wow_constants::PowerType::Mana, 120),
+        (wow_constants::PowerType::Rage, 0),
+        (wow_constants::PowerType::Energy, 100),
+        (wow_constants::PowerType::Focus, 80),
+    ]) {
+        assert_eq!(
+            *packet,
+            wow_packet::packets::combat::PowerUpdate {
+                guid: ObjectGuid::create_player(1, 42),
+                powers: vec![(value, power as u8)],
+            }
+            .to_bytes()
+        );
+    }
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    assert!(
+        wow_world_entities::continue_player_resurrection_after_teleport(
+            &mut session,
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creature_spawns,
+                graveyards: None,
+            },
+        )
+        .await
+    );
+    assert!(
+        realm_rx.try_recv().is_err(),
+        "a completed request cannot publish powers twice"
     );
 }
 

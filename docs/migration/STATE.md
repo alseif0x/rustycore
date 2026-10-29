@@ -147,6 +147,20 @@ tolerates frame-boundary instance EOF; it disables that socket and waits for
 the real realm acknowledgement within the unchanged deadline. Transport
 regressions retain missing-acknowledgement, realm-EOF, malformed/truncated-frame
 and action-stage EOF failures. Resurrection power publication remains to repair.
+Affected bot acceptance at `a6f8172d5` is now green: all 251 tests passed and
+the debug bot built in 47.370 seconds. The record is
+`/tmp/rustycore43-logout-bot-acceptance-2ym_z55y/record.json`; the healer replay
+still requires the repaired bot. Reclaim's owner VALUES comparison also shows
+missing AuraState/PvpFlags publication (C++ Unit mask bits 44/78, Rust neither).
+Trace their health-transition/UpdateArea sources before accepting that packet;
+do not normalize those fields or attribute them to ambient NPC traffic.
+The immediate power repair is implemented, UNVALIDATED. Reclaim/healer,
+accepted requests and self-resurrection use the native forced dirty assignment
+and publish each supported, clamped power on the existing realm owner/observer
+route after releasing the Player guard. Ordinary setters and regeneration
+suppression retain their behavior. Regressions pin the captured half-mana value,
+supported zero, unsupported mappings, clamping, world admission and one-shot
+execution; the owner VALUES findings remain separate and unresolved.
 
 Earlier repair evidence and findings follow; their stated unvalidated status
 belongs to the candidate at that point, not to later passing evidence.

@@ -101,6 +101,14 @@ fn resurrection_operation_catalogs(
 }
 
 impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
+    fn send_player_power_update_like_cpp(
+        &self,
+        guid: wow_core::ObjectGuid,
+        power: wow_constants::PowerType,
+        value: i32,
+    ) {
+        wow_world_entities::send_player_power_update_like_cpp(self, guid, power, value);
+    }
     fn remove_pet_for_repop_like_cpp(
         &mut self,
         catalogs: wow_world_entities::CorpseLifecycleCatalogsLikeCpp<'_>,

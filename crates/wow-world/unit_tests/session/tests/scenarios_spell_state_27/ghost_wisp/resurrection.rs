@@ -240,7 +240,6 @@ async fn resurrection_native_failure_holds_when_applied_order_reference_is_missi
             .expect("DeathReleaseLoc opcode"),
         ServerOpcodes::DeathReleaseLoc as u16
     );
-
     assert!(
         !wow_world_entities::continue_player_resurrection_after_teleport(
             &mut fixture.session,
@@ -391,13 +390,28 @@ async fn resurrection_request_clears_ghost_and_wisp_before_completing() {
         0
     );
     let death_release = realm_rx.try_iter().collect::<Vec<_>>();
-    assert_eq!(death_release.len(), 1);
+    assert_eq!(death_release.len(), 5);
     assert_eq!(
         wow_packet::WorldPacket::from_bytes(&death_release[0])
             .read_uint16()
             .expect("DeathReleaseLoc opcode"),
         ServerOpcodes::DeathReleaseLoc as u16
     );
+    for (packet, (power, value)) in death_release[1..].iter().zip([
+        (wow_constants::PowerType::Mana, 120),
+        (wow_constants::PowerType::Rage, 0),
+        (wow_constants::PowerType::Energy, 100),
+        (wow_constants::PowerType::Focus, 80),
+    ]) {
+        assert_eq!(
+            *packet,
+            wow_packet::packets::combat::PowerUpdate {
+                guid: fixture.player,
+                powers: vec![(value, power as u8)],
+            }
+            .to_bytes()
+        );
+    }
 }
 
 #[tokio::test]

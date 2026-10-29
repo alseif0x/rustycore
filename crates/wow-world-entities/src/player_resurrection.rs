@@ -186,6 +186,7 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
     }
 
     let restored = host.core().with_owned_player_mut_like_cpp(|player| {
+        let mut power_updates = Vec::new();
         // C++ clears m_deathTimer after land-walk and the guarded unroot.
         player
             .resurrection_state_mut_like_cpp()
@@ -197,20 +198,36 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
             player
                 .unit_mut()
                 .set_health((max_health as f32 * restore_percent) as u64);
-            for power in [PowerType::Mana, PowerType::Energy, PowerType::Focus] {
-                let value = (player.get_max_power(power) as f32 * restore_percent) as i32;
-                if power == PowerType::Mana {
-                    player.unit_mut().set_power(PowerType::Mana, value);
-                    player.unit_mut().set_power(PowerType::Rage, 0);
+            for power in [
+                PowerType::Mana,
+                PowerType::Rage,
+                PowerType::Energy,
+                PowerType::Focus,
+            ] {
+                let Some(index) = player.unit().get_power_index(power) else {
+                    continue;
+                };
+                let value = if power == PowerType::Rage {
+                    0
                 } else {
-                    player.unit_mut().set_power(power, value);
+                    (player.get_max_power(power) as f32 * restore_percent) as i32
+                };
+                player
+                    .unit_mut()
+                    .set_power_for_native_transition_like_cpp(power, value);
+                if player.unit().world().object().is_in_world() {
+                    power_updates.push((power, player.unit().data().power[index]));
                 }
             }
         }
+        (player.guid(), power_updates)
     });
-    let Some(()) = restored else {
+    let Some((guid, power_updates)) = restored else {
         return Err("Canonical Player disappeared while applying resurrection values");
     };
+    for (power, value) in power_updates {
+        host.send_player_power_update_like_cpp(guid, power, value);
+    }
     host.sync_player_registry_state_like_cpp();
 
     // trigger update zone for alive state zone updates

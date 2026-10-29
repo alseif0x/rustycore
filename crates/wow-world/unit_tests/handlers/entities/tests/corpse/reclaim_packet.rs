@@ -31,6 +31,59 @@ async fn reclaim_corpse_dispatch_ignores_captured_guid_hint_but_requires_native_
         assert!(sent_opcodes(&send_rx).is_empty());
         assert!(sent_opcodes(&realm_rx).is_empty());
 
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_power_index(wow_constants::PowerType::Mana, Some(0));
+                player
+                    .unit_mut()
+                    .set_max_power(wow_constants::PowerType::Mana, 26_910);
+                player
+                    .unit_mut()
+                    .set_power(wow_constants::PowerType::Mana, 0);
+                player
+                    .unit_mut()
+                    .set_power_index(wow_constants::PowerType::Rage, Some(1));
+                player
+                    .unit_mut()
+                    .set_max_power(wow_constants::PowerType::Rage, 100);
+                player
+                    .unit_mut()
+                    .set_power(wow_constants::PowerType::Rage, 0);
+                player
+                    .unit_mut()
+                    .set_power_index(wow_constants::PowerType::Energy, None);
+                player
+                    .unit_mut()
+                    .set_power_index(wow_constants::PowerType::Focus, None);
+            })
+            .unwrap();
+        let canonical = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+        let peer_guid = ObjectGuid::create_player(1, counter + 10);
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            peer_guid,
+            Position::new(10.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        canonical
+            .lock()
+            .unwrap()
+            .adopt_active_player_like_cpp(peer_guid)
+            .unwrap();
+        let registry = Arc::new(wow_world_core::player_directory::PlayerRegistry::new());
+        assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+        let (peer_tx, peer_rx) = flume::unbounded();
+        let mut registration = broadcast_info_with_command_tx(peer_tx);
+        registration.placement.position = Position::new(10.0, 2.0, 3.0, 0.0);
+        registration
+            .client_visible_guids_like_cpp
+            .insert(player_guid);
+        registry.register_or_replace(peer_guid, registration, Default::default());
+        session.set_player_registry(registry);
         session.set_player_position_like_cpp(Position::new(10.0, 2.0, 3.0, 0.0));
         session.dispatch_packet(&catalogs, packet.clone()).await;
         assert!(session.player_is_alive_like_cpp());
@@ -42,10 +95,35 @@ async fn reclaim_corpse_dispatch_ignores_captured_guid_hint_but_requires_native_
         assert_eq!(session.core.player_handle_like_cpp, Some(owner));
         assert_eq!(port.delete_requests(), vec![counter as u64]);
         assert_eq!(current_corpse_guid_like_cpp(&session, player_guid), None);
+        let realm_packets = realm_rx.try_iter().collect::<Vec<_>>();
+        assert_eq!(realm_packets.len(), 3);
         assert_eq!(
-            sent_opcodes(&realm_rx),
-            vec![ServerOpcodes::DeathReleaseLoc as u16]
+            u16::from_le_bytes([realm_packets[0][0], realm_packets[0][1]]),
+            ServerOpcodes::DeathReleaseLoc as u16
         );
+        let expected_power = [
+            (wow_constants::PowerType::Mana, 13_455),
+            (wow_constants::PowerType::Rage, 0),
+        ]
+        .map(|(power, value)| {
+            wow_packet::packets::combat::PowerUpdate {
+                guid: player_guid,
+                powers: vec![(value, power as u8)],
+            }
+            .to_bytes()
+        });
+        assert_eq!(&realm_packets[1..], &expected_power);
+        let peer_power = peer_rx
+            .try_iter()
+            .filter_map(|command| match command {
+                crate::session::SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
+                    assert_eq!(command.source_guid, player_guid);
+                    Some(command.packet_bytes)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(peer_power, expected_power);
         let movement = sent_opcodes(&send_rx);
         let land = movement
             .iter()
@@ -61,5 +139,9 @@ async fn reclaim_corpse_dispatch_ignores_captured_guid_hint_but_requires_native_
         assert_eq!(port.delete_requests(), vec![counter as u64]);
         assert!(sent_opcodes(&send_rx).is_empty());
         assert!(sent_opcodes(&realm_rx).is_empty());
+        assert!(peer_rx.try_iter().all(|command| !matches!(
+            command,
+            crate::session::SessionCommand::SendRealmIfVisibleLikeCpp(_)
+        )));
     }
 }

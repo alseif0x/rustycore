@@ -120,24 +120,96 @@ async fn native_resurrection_failure_returns_error_and_keeps_player_dead() {
 
 #[tokio::test]
 async fn native_resurrection_success_returns_ok_for_canonical_player() {
-    let (mut session, _send_rx, _realm_rx, _port) = logged_in_released_ghost(43_902).await;
-    let generators = session.id_generators_for_test_like_cpp();
-    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
-
-    wow_world_entities::resurrect_player_like_cpp(
-        &mut session,
-        wow_world_entities::ResurrectionOperationCatalogs {
-            item_guid_generator: generators.item.as_ref(),
-            creature_spawns: &creature_spawns,
-            graveyards: None,
-        },
-        0.5,
-        false,
-    )
-    .await
-    .expect("native resurrection succeeds with the loaded Ghost/Wisp metadata");
-
-    assert!(session.player_is_alive_like_cpp());
+    for (case, in_world, percent, expected) in
+        [(0, true, 0.5, 50), (1, true, 2.0, 100), (2, false, 0.5, 50)]
+    {
+        let (mut session, _send_rx, realm_rx, _port) =
+            logged_in_released_ghost(43_902 + case).await;
+        let guid = session.player_guid().unwrap();
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_power_index(wow_constants::PowerType::Mana, Some(3));
+                player
+                    .unit_mut()
+                    .set_max_power(wow_constants::PowerType::Mana, 100);
+                player
+                    .unit_mut()
+                    .set_power(wow_constants::PowerType::Mana, 0);
+                player
+                    .unit_mut()
+                    .set_power_index(wow_constants::PowerType::Rage, Some(1));
+                player
+                    .unit_mut()
+                    .set_max_power(wow_constants::PowerType::Rage, 100);
+                player
+                    .unit_mut()
+                    .set_power(wow_constants::PowerType::Rage, 0);
+                player
+                    .unit_mut()
+                    .set_power_index(wow_constants::PowerType::Energy, None);
+                player
+                    .unit_mut()
+                    .set_power_index(wow_constants::PowerType::Focus, None);
+                player.unit_mut().clear_unit_data_changes();
+                if !in_world {
+                    player
+                        .unit_mut()
+                        .world_mut()
+                        .object_mut()
+                        .remove_from_world();
+                }
+            })
+            .unwrap();
+        let generators = session.id_generators_for_test_like_cpp();
+        let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+        wow_world_entities::resurrect_player_like_cpp(
+            &mut session,
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creature_spawns,
+                graveyards: None,
+            },
+            percent,
+            false,
+        )
+        .await
+        .expect("native resurrection succeeds with the loaded Ghost/Wisp metadata");
+        assert!(session.player_is_alive_like_cpp());
+        session
+            .core
+            .with_owned_player_like_cpp(|player| {
+                assert_eq!(player.get_power(wow_constants::PowerType::Mana), expected);
+                assert_eq!(player.get_power(wow_constants::PowerType::Rage), 0);
+                for bit in [116, 137 + 3, 137 + 1] {
+                    assert!(player.unit().unit_data_changes_mask().is_set(bit));
+                }
+            })
+            .unwrap();
+        let realm = realm_rx.try_iter().collect::<Vec<_>>();
+        assert_eq!(realm.len(), if in_world { 3 } else { 1 });
+        assert_eq!(
+            u16::from_le_bytes([realm[0][0], realm[0][1]]),
+            ServerOpcodes::DeathReleaseLoc as u16
+        );
+        if in_world {
+            for (packet, (power, value)) in realm[1..].iter().zip([
+                (wow_constants::PowerType::Mana, expected),
+                (wow_constants::PowerType::Rage, 0),
+            ]) {
+                assert_eq!(
+                    *packet,
+                    wow_packet::packets::combat::PowerUpdate {
+                        guid,
+                        powers: vec![(value, power as u8)],
+                    }
+                    .to_bytes()
+                );
+            }
+        }
+    }
 }
 
 #[tokio::test]

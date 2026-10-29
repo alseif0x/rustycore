@@ -101,16 +101,36 @@ fn apply_self_resurrection_values(
         // The native setters apply the current post-obtain maxima, matching
         // C++ SetHealth/SetPower after the spell's frozen input calculation.
         player.unit_mut().set_health(u64::from(health));
-        player.unit_mut().set_power(PowerType::Mana, mana as i32);
-        player.unit_mut().set_power(PowerType::Rage, 0);
-        let full_energy = player.get_max_power(PowerType::Energy);
-        player.unit_mut().set_power(PowerType::Energy, full_energy);
-        player.unit_mut().set_power(PowerType::Focus, 0);
-        Some(())
+        let mut power_updates = Vec::new();
+        for power in [
+            PowerType::Mana,
+            PowerType::Rage,
+            PowerType::Energy,
+            PowerType::Focus,
+        ] {
+            let Some(index) = player.unit().get_power_index(power) else {
+                continue;
+            };
+            let value = match power {
+                PowerType::Mana => mana as i32,
+                PowerType::Energy => player.get_max_power(power),
+                _ => 0,
+            };
+            player
+                .unit_mut()
+                .set_power_for_native_transition_like_cpp(power, value);
+            if player.unit().world().object().is_in_world() {
+                power_updates.push((power, player.unit().data().power[index]));
+            }
+        }
+        Some((player.guid(), power_updates))
     });
-    let Some(Some(())) = update else {
+    let Some(Some((guid, power_updates))) = update else {
         return false;
     };
+    for (power, value) in power_updates {
+        host.send_player_power_update_like_cpp(guid, power, value);
+    }
     host.sync_player_registry_state_like_cpp();
     true
 }

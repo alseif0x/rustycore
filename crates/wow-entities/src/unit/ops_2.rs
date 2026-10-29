@@ -826,8 +826,9 @@ impl Unit {
             self.mark_unit_data_array(UNIT_DATA_POWER_PARENT_BIT, UNIT_DATA_POWER_FIRST_BIT, index);
         }
     }
-    /// Unit.cpp:9287-9300 / 8565 assigns the native death power even at zero.
-    pub fn set_power_for_native_death_like_cpp(&mut self, power: PowerType, value: i32) {
+    /// Unit.cpp:9287-9300 marks supported power on native death/resurrection
+    /// transitions even when unchanged. The operation owner publishes outside its guard.
+    pub fn set_power_for_native_transition_like_cpp(&mut self, power: PowerType, value: i32) {
         let Some(index) = self.get_power_index(power) else {
             return;
         };

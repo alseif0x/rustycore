@@ -479,7 +479,7 @@ fn clear_power<H: CombatSessionHostLikeCpp>(
             if unit.get_power_index(power).is_none() {
                 return false;
             }
-            unit.set_power_for_native_death_like_cpp(power, 0);
+            unit.set_power_for_native_transition_like_cpp(power, 0);
             unit.world().object().is_in_world()
         })
         .ok_or("Native death power owner is unavailable")?;

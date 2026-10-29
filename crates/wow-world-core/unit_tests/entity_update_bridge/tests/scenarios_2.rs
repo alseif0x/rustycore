@@ -13,7 +13,7 @@ fn native_death_zero_power_serializes_parent_and_mapped_element_even_for_noop() 
             unit.set_max_power(wow_constants::PowerType::Mana, 100);
             unit.set_power(wow_constants::PowerType::Mana, before);
             unit.clear_unit_data_changes();
-            unit.set_power_for_native_death_like_cpp(wow_constants::PowerType::Mana, 0);
+            unit.set_power_for_native_transition_like_cpp(wow_constants::PowerType::Mana, 0);
             let bytes =
                 unit_values_update_to_update_object(ObjectGuid::EMPTY, 0, &unit.values_update())
                     .unwrap()

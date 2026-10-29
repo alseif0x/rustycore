@@ -306,11 +306,27 @@ async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
         &send_rx,
         (35, 77, 0, 100, 0),
     );
+    let realm = realm_rx.try_iter().collect::<Vec<_>>();
+    assert_eq!(realm.len(), 5);
     assert_eq!(
-        drain_server_opcodes(&realm_rx),
-        vec![ServerOpcodes::DeathReleaseLoc],
-        "ResurrectPlayer routes the cleared death-release location through the realm connection"
+        u16::from_le_bytes([realm[0][0], realm[0][1]]),
+        ServerOpcodes::DeathReleaseLoc as u16
     );
+    for (packet, (power, value)) in realm[1..].iter().zip([
+        (PowerType::Mana, 77),
+        (PowerType::Rage, 0),
+        (PowerType::Energy, 100),
+        (PowerType::Focus, 0),
+    ]) {
+        assert_eq!(
+            *packet,
+            wow_packet::packets::combat::PowerUpdate {
+                guid: player_guid,
+                powers: vec![(value, power as u8)],
+            }
+            .to_bytes()
+        );
+    }
     assert_eq!(
         save_port.character_save_count(),
         0,
@@ -322,6 +338,23 @@ async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
             .delayed_after_teleport),
         Some(None),
         "the completed native operation clears its same-owner continuation"
+    );
+    let generators = session.id_generators_for_test_like_cpp();
+    let creatures = session.creature_spawn_catalogs_for_test_like_cpp();
+    assert!(
+        wow_world_entities::continue_player_resurrection_after_teleport(
+            &mut session,
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creatures,
+                graveyards: None,
+            },
+        )
+        .await
+    );
+    assert!(
+        realm_rx.try_recv().is_err(),
+        "completed SelfRes must not republish powers"
     );
 }
 
@@ -371,11 +404,27 @@ async fn spell_self_resurrect_percent_case_uses_max_health_and_mana_like_cpp() {
         &send_rx,
         (100, 50, 0, 100, 0),
     );
+    let realm = realm_rx.try_iter().collect::<Vec<_>>();
+    assert_eq!(realm.len(), 5);
     assert_eq!(
-        drain_server_opcodes(&realm_rx),
-        vec![ServerOpcodes::DeathReleaseLoc],
-        "ResurrectPlayer routes the cleared death-release location through the realm connection"
+        u16::from_le_bytes([realm[0][0], realm[0][1]]),
+        ServerOpcodes::DeathReleaseLoc as u16
     );
+    for (packet, (power, value)) in realm[1..].iter().zip([
+        (PowerType::Mana, 50),
+        (PowerType::Rage, 0),
+        (PowerType::Energy, 100),
+        (PowerType::Focus, 0),
+    ]) {
+        assert_eq!(
+            *packet,
+            wow_packet::packets::combat::PowerUpdate {
+                guid: player_guid,
+                powers: vec![(value, power as u8)],
+            }
+            .to_bytes()
+        );
+    }
 }
 
 #[tokio::test]

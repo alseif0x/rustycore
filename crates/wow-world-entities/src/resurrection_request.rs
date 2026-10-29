@@ -316,18 +316,36 @@ fn set_request_values(
 ) -> bool {
     let updated = host.core().with_owned_player_mut_like_cpp(|player| {
         player.unit_mut().set_health(u64::from(request.health));
-        player
-            .unit_mut()
-            .set_power(PowerType::Mana, request.mana as i32);
-        player.unit_mut().set_power(PowerType::Rage, 0);
-        for power in [PowerType::Energy, PowerType::Focus] {
-            let full_power = player.get_max_power(power).max(0);
-            player.unit_mut().set_power(power, full_power);
+        let mut power_updates = Vec::new();
+        for power in [
+            PowerType::Mana,
+            PowerType::Rage,
+            PowerType::Energy,
+            PowerType::Focus,
+        ] {
+            let Some(index) = player.unit().get_power_index(power) else {
+                continue;
+            };
+            let value = match power {
+                PowerType::Mana => request.mana as i32,
+                PowerType::Rage => 0,
+                _ => player.get_max_power(power).max(0),
+            };
+            player
+                .unit_mut()
+                .set_power_for_native_transition_like_cpp(power, value);
+            if player.unit().world().object().is_in_world() {
+                power_updates.push((power, player.unit().data().power[index]));
+            }
         }
+        (player.guid(), power_updates)
     });
-    let Some(()) = updated else {
+    let Some((guid, power_updates)) = updated else {
         return false;
     };
+    for (power, value) in power_updates {
+        host.send_player_power_update_like_cpp(guid, power, value);
+    }
     host.sync_player_registry_state_like_cpp();
     true
 }
