@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::Ordering};
 use std::time::{Duration, Instant};
 
-use tracing::debug;
+use tracing::{debug, info};
 use wow_persistence::GameEventPersistencePortLikeCpp;
 
 use crate::deliver_canonical_map_object_values_updates_like_cpp;
@@ -465,6 +465,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
             } else {
                 None
             };
+            let creature_tick_diff_ms = prelude.plan().effective_diff_ms();
             let (tick_summary, creature_phases) = {
                 let _respawn_db_mutation_order = respawn_db_mutation_order
                     .lock()
@@ -481,6 +482,48 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     );
                     break;
                 };
+                if std::env::var_os("RUSTYCORE_CREATURE_MELEE_TRACE").is_some()
+                    && creature_phases.is_some()
+                {
+                    for participant in prelude.plan().updated_maps_like_cpp() {
+                        let key = participant.key;
+                        let Some(managed_map) = manager.find_map(key.map_id, key.instance_id)
+                        else {
+                            continue;
+                        };
+                        let map = managed_map.map();
+                        for creature_guid in map
+                            .object_update_plan_for_current_tick_like_cpp(creature_tick_diff_ms)
+                            .update_guids
+                        {
+                            let Some(creature) = map.get_typed_creature(creature_guid) else {
+                                continue;
+                            };
+                            let ai = creature.ai_ownership();
+                            let can_swing = creature.can_swing();
+                            if ai.combat_target.is_none() && !can_swing {
+                                continue;
+                            }
+                            let victim_player_health = ai.combat_target.and_then(|guid| {
+                                map.get_typed_player(guid)
+                                    .map(|player| player.unit().data().health)
+                            });
+                            info!(
+                                map_id = key.map_id,
+                                instance_id = key.instance_id,
+                                creature_guid = ?creature_guid,
+                                runtime_elapsed_ms = creature.runtime_elapsed_ms_like_cpp(),
+                                last_swing_ms = ai.last_swing_ms,
+                                swing_timer_ms = ai.swing_timer_ms,
+                                combat_target = ?ai.combat_target,
+                                ai_state = ?creature.ai_state(),
+                                can_swing,
+                                victim_player_health = ?victim_player_health,
+                                "RUST_CREATURE_MELEE admitted_creature"
+                            );
+                        }
+                    }
+                }
                 let mut tick_summary = {
                     continue_map_recovery_prelude(
                         &mut manager,
@@ -535,7 +578,19 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 let delivery = deliver_canonical_creature_phases_like_cpp(phases, &player_registry);
                 debug!(
                     executed = phases.executed_like_cpp(),
+                    tick_epoch,
+                    diff_ms = creature_tick_diff_ms,
                     clock_advanced_ms = phases.clock_advanced_ms,
+                    swings_ready = phases.melee.swings_ready,
+                    melee_precondition_rejections = phases.melee.melee_precondition_rejections,
+                    melee_range_rejections = phases.melee.melee_range_rejections,
+                    melee_facing_rejections = phases.melee.melee_facing_rejections,
+                    attacker_state_rejections = phases.melee.attacker_state_rejections,
+                    attacker_incarnation_rejections = phases.melee.attacker_incarnation_rejections,
+                    melee_los_rejections = phases.melee.melee_los_rejections,
+                    canonical_hits = phases.melee.canonical_hits,
+                    canonical_creature_hits = phases.melee.canonical_creature_hits,
+                    melee_outcomes_unrepresented = phases.melee.melee_outcomes_unrepresented,
                     player_melee_commands = delivery.player_melee.candidates_queued,
                     lifecycle_refresh_commands = delivery.lifecycle.candidates_queued,
                     movement_commands = delivery.movement.candidates_queued,

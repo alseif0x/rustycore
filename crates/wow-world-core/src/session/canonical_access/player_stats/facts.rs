@@ -51,6 +51,7 @@ pub struct PlayerStatFacts<'a> {
     form_id: u32,
     item_bonuses: &'a PlayerItemBonusStateLikeCpp,
     aura_view: PlayerStatAuraView<'a>,
+    previous_weapon_damage_pct: [f32; 3],
     main_hand: Option<PlayerStatWeaponFacts>,
     off_hand: Option<PlayerStatWeaponFacts>,
     ranged: Option<PlayerStatWeaponFacts>,
@@ -97,6 +98,7 @@ impl<'a> PlayerStatFacts<'a> {
             },
             item_bonuses,
             aura_view,
+            previous_weapon_damage_pct: player.effective_combat_stats_like_cpp().weapon_damage_pct,
             main_hand: weapon_facts(inventory, EQUIPMENT_SLOT_MAINHAND),
             off_hand: weapon_facts(inventory, EQUIPMENT_SLOT_OFFHAND),
             ranged: weapon_facts(inventory, EQUIPMENT_SLOT_RANGED),
@@ -117,6 +119,7 @@ impl<'a> PlayerStatFacts<'a> {
         form_id: u32,
         item_bonuses: &'a PlayerItemBonusStateLikeCpp,
         aura_view: PlayerStatAuraView<'a>,
+        previous_weapon_damage_pct: [f32; 3],
         main_hand: Option<PlayerStatWeaponFacts>,
         off_hand: Option<PlayerStatWeaponFacts>,
         ranged: Option<PlayerStatWeaponFacts>,
@@ -130,6 +133,7 @@ impl<'a> PlayerStatFacts<'a> {
             form_id,
             item_bonuses,
             aura_view,
+            previous_weapon_damage_pct,
             main_hand,
             off_hand,
             ranged,
@@ -166,6 +170,10 @@ impl<'a> PlayerStatFacts<'a> {
 
     pub fn aura_view(&self) -> PlayerStatAuraView<'a> {
         self.aura_view
+    }
+
+    pub fn previous_weapon_damage_pct(&self) -> [f32; 3] {
+        self.previous_weapon_damage_pct
     }
 
     pub fn main_hand(&self) -> Option<&PlayerStatWeaponFacts> {

@@ -209,6 +209,63 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
         .expect("canonical effective stats after sickness");
     assert_eq!(effective.stats[wow_constants::Stats::Strength as usize], 2);
     assert_eq!(effective.mod_damage_done_percent, [0.25; 7]);
+    assert_eq!(effective.weapon_damage_pct, [0.25, 0.0, 0.25]);
+    assert_eq!(effective.weapon_damage[1], [0.0, 0.0]);
+    assert_eq!(effective.weapon_damage[2], [0.25, 0.5]);
+    let (melee_attack_power, ranged_attack_power) = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            assert!(
+                player.unit().unit_data_changes_mask().is_set(175),
+                "the selected Strength field is in the pending Unit mask"
+            );
+            for bit in [52, 53, 54, 55, 91, 92] {
+                assert!(
+                    player.unit().unit_data_changes_mask().is_set(bit),
+                    "native attack damage setter leaf {bit} is pending"
+                );
+            }
+            let active_mask = player.active_player_data_changes_mask();
+            assert!(active_mask.is_set(59));
+            for bit in (278..=283).chain(285..=290) {
+                assert!(active_mask.is_set(bit), "magic bonus leaf {bit} is pending");
+            }
+            assert!(!active_mask.is_set(277));
+            assert!(!active_mask.is_set(284));
+            (
+                player.total_attack_power_like_cpp(),
+                player.total_ranged_attack_power_like_cpp(),
+            )
+        })
+        .expect("canonical Player stat masks and attack power");
+    let attack_power_component = melee_attack_power / 14.0 * 2.0;
+    let ranged_attack_power_component = ranged_attack_power / 14.0 * 2.0;
+    let expected_mainhand = [
+        ((1.0 + attack_power_component + effective.weapon_damage_flat[0])
+            * effective.weapon_damage_pct[0])
+            .max(0.0),
+        ((2.0 + attack_power_component + effective.weapon_damage_flat[0])
+            * effective.weapon_damage_pct[0])
+            .max(0.0),
+    ];
+    let expected_ranged = [
+        ((1.0 + ranged_attack_power_component + effective.weapon_damage_flat[2])
+            * effective.weapon_damage_pct[2])
+            .max(0.0),
+        ((2.0 + ranged_attack_power_component + effective.weapon_damage_flat[2])
+            * effective.weapon_damage_pct[2])
+            .max(0.0),
+    ];
+    for (actual, expected) in effective.weapon_damage[0]
+        .into_iter()
+        .zip(expected_mainhand)
+        .chain(effective.weapon_damage[2].into_iter().zip(expected_ranged))
+    {
+        assert!(
+            (actual - expected).abs() < 0.001,
+            "canonical weapon damage {actual} should match the native setter formula {expected}"
+        );
+    }
     let (health, max_health) = session
         .core
         .with_owned_player_like_cpp(|player| {
@@ -329,6 +386,18 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
         applied_derived.effective_combat_stats.stats[wow_constants::Stats::Strength as usize],
         2
     );
+    assert_eq!(
+        applied_derived.effective_combat_stats.weapon_damage_pct,
+        effective.weapon_damage_pct
+    );
+    assert_eq!(
+        applied_derived.effective_combat_stats.weapon_damage,
+        effective.weapon_damage
+    );
+    assert_eq!(
+        applied_derived.effective_combat_stats.weapon_damage[1],
+        [0.0, 0.0]
+    );
     assert!(
         applied_values
             .values_update
@@ -336,6 +405,33 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
             .as_ref()
             .is_some_and(|unit| unit.mask.is_set(6))
     );
+    let emitted_unit_mask = &applied_values
+        .values_update
+        .unit_data
+        .as_ref()
+        .expect("Unit stat setter leaves are emitted")
+        .mask;
+    for bit in [52, 53, 54, 55, 81, 82, 84, 91, 92, 175] {
+        assert!(
+            emitted_unit_mask.is_set(bit),
+            "native stat calculation field {bit} is emitted"
+        );
+    }
+    let emitted_active_mask = &applied_values
+        .values_update
+        .active_player_data
+        .as_ref()
+        .expect("StatAura setter leaves are emitted")
+        .mask;
+    assert!(emitted_active_mask.is_set(59));
+    for bit in (278..=283).chain(285..=290) {
+        assert!(
+            emitted_active_mask.is_set(bit),
+            "magic school stat setter field {bit} is emitted"
+        );
+    }
+    assert!(!emitted_active_mask.is_set(277));
+    assert!(!emitted_active_mask.is_set(284));
     let applied_bytes =
         wow_world_core::entity_update_bridge::player_values_update_to_update_object(
             player_guid,

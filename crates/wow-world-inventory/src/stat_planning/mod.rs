@@ -35,7 +35,15 @@ pub fn plan_player_stats(
         .gear_override()
         .cloned()
         .unwrap_or_else(|| gear_from_bonuses(facts.item_bonuses()));
-    let projection = projection::project(facts, catalogs, &gear, race, class, level)?;
+    let projection = projection::project(
+        facts,
+        catalogs,
+        &gear,
+        race,
+        class,
+        level,
+        request.damage_pct_operation(),
+    )?;
     let effective = equipment::effective_stats(facts, catalogs, &gear, projection, level);
     Some(PlayerStatComputation {
         gear,

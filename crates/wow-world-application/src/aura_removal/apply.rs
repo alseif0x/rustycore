@@ -210,7 +210,10 @@ impl AuraRemovalCxLikeCpp<'_> {
                 if stats.apply_stats_for_values(cause).is_none() {
                     #[cfg(any(test, feature = "test-fixtures"))]
                     if self.player.player_handle_absent_like_cpp() {
-                        stats.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
+                        stats.send_total_stat_percentage_update_like_cpp(
+                            preserve_health_pct,
+                            cause.damage_pct_operation(),
+                        );
                     } else {
                         return Err("Unable to apply calculated Player stats");
                     }
@@ -218,7 +221,10 @@ impl AuraRemovalCxLikeCpp<'_> {
                     return Err("Unable to apply calculated Player stats");
                 }
             } else {
-                stats.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
+                stats.send_total_stat_percentage_update_like_cpp(
+                    preserve_health_pct,
+                    cause.damage_pct_operation(),
+                );
             }
         }
         if spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {

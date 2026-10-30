@@ -73,7 +73,10 @@ impl AuraRemovalCxLikeCpp<'_> {
             if stats.apply_stats_for_values(cause).is_none() {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 if self.player.player_handle_absent_like_cpp() {
-                    stats.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
+                    stats.send_total_stat_percentage_update_like_cpp(
+                        preserve_health_pct,
+                        cause.damage_pct_operation(),
+                    );
                     return Ok(());
                 }
                 return Err("Unable to apply calculated Player stats after aura removal");
@@ -81,7 +84,10 @@ impl AuraRemovalCxLikeCpp<'_> {
         } else {
             // Unrelated auras on an Alive Player keep the existing immediate
             // stat packet instead of opting into global VALUES publication.
-            stats.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
+            stats.send_total_stat_percentage_update_like_cpp(
+                preserve_health_pct,
+                cause.damage_pct_operation(),
+            );
         }
         Ok(())
     }

@@ -238,6 +238,20 @@ pub(in crate::session::tests) fn decode_spell_go_target_data_like_cpp(
     bytes: &[u8],
     expected_spell_id: i32,
 ) -> SpellTargetData {
+    decode_spell_go_target_data_and_hit_count_like_cpp(bytes, expected_spell_id).0
+}
+
+pub(in crate::session::tests) fn decode_spell_go_hit_target_count_like_cpp(
+    bytes: &[u8],
+    expected_spell_id: i32,
+) -> usize {
+    decode_spell_go_target_data_and_hit_count_like_cpp(bytes, expected_spell_id).1
+}
+
+fn decode_spell_go_target_data_and_hit_count_like_cpp(
+    bytes: &[u8],
+    expected_spell_id: i32,
+) -> (SpellTargetData, usize) {
     let mut spell_go = WorldPacket::from_bytes(bytes);
     assert_eq!(
         spell_go.read_uint16().expect("SpellGo opcode"),
@@ -259,7 +273,7 @@ pub(in crate::session::tests) fn decode_spell_go_target_data_like_cpp(
     spell_go.read_uint32().expect("heal prediction points");
     spell_go.read_uint8().expect("heal prediction type");
     spell_go.read_packed_guid().expect("heal prediction beacon");
-    spell_go.read_bits(16).expect("hit target count");
+    let hit_target_count = spell_go.read_bits(16).expect("hit target count") as usize;
     spell_go.read_bits(16).expect("miss target count");
     spell_go.read_bits(16).expect("miss status count");
     spell_go.read_bits(9).expect("remaining power count");
@@ -267,5 +281,8 @@ pub(in crate::session::tests) fn decode_spell_go_target_data_like_cpp(
     spell_go.read_bits(16).expect("target point count");
     spell_go.read_bit().expect("ammo display presence");
     spell_go.read_bit().expect("ammo inventory presence");
-    SpellTargetData::read(&mut spell_go).expect("SpellGo target data")
+    (
+        SpellTargetData::read(&mut spell_go).expect("SpellGo target data"),
+        hit_target_count,
+    )
 }

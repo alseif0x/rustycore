@@ -229,7 +229,8 @@ async fn three_only_sickness_updates_native_stats_damage_and_restores_on_expiry(
         .expect("fresh sickness uses its difficulty-three canonical rows");
     let penalized = effective_stats(&session);
     assert_eq!(penalized.stats, [80; 5]);
-    assert_eq!(penalized.weapon_damage_pct, [0.6, 0.3, 0.6]);
+    assert_eq!(penalized.weapon_damage_pct, [0.6, 0.0, 0.6]);
+    assert_eq!(penalized.weapon_damage[1], [0.0, 0.0]);
     assert_eq!(penalized.mod_damage_done_percent, [0.6; 7]);
 
     let slot = session
@@ -263,7 +264,8 @@ async fn three_only_sickness_updates_native_stats_damage_and_restores_on_expiry(
     assert_eq!(expired.expired, 1);
     let restored = effective_stats(&session);
     assert_eq!(restored.stats, baseline.stats);
-    assert_eq!(restored.weapon_damage_pct, baseline.weapon_damage_pct);
+    assert_eq!(restored.weapon_damage_pct, [1.0, 0.0, 1.0]);
+    assert_eq!(restored.weapon_damage[1], [0.0, 0.0]);
     assert_eq!(
         restored.mod_damage_done_percent,
         baseline.mod_damage_done_percent
@@ -333,10 +335,11 @@ async fn refresh_uses_original_aura_rows_and_native_amounts_after_map_difficulty
         refreshed.weapon_damage_pct,
         [
             refreshed_damage_multiplier,
-            0.5_f32 * refreshed_damage_multiplier,
-            refreshed_damage_multiplier,
+            0.0,
+            refreshed_damage_multiplier
         ]
     );
+    assert_eq!(refreshed.weapon_damage[1], [0.0, 0.0]);
     assert_eq!(
         refreshed.mod_damage_done_percent,
         [refreshed_damage_multiplier; 7]
@@ -366,7 +369,8 @@ async fn refresh_uses_original_aura_rows_and_native_amounts_after_map_difficulty
     assert!(session.send_stat_update());
     let represented = effective_stats(&session);
     assert_eq!(represented.stats, [65; 5]);
-    assert_eq!(represented.weapon_damage_pct, [0.55, 0.275, 0.55]);
+    assert_eq!(represented.weapon_damage_pct, [0.55, 0.0, 0.55]);
+    assert_eq!(represented.weapon_damage[1], [0.0, 0.0]);
     assert_eq!(represented.mod_damage_done_percent, [0.55; 7]);
 }
 

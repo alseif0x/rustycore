@@ -13,6 +13,7 @@ use wow_data::spell::aura_types::{
     SPELL_AURA_MOD_DAMAGE_PERCENT_DONE, SPELL_AURA_MOD_PERCENT_STAT, SPELL_AURA_NO_PVP_CREDIT,
 };
 use wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+use wow_packet::packets::spell::SpellTargetData;
 
 pub(super) fn packet_opcode(bytes: &[u8]) -> u16 {
     u16::from_le_bytes([bytes[0], bytes[1]])
@@ -688,6 +689,37 @@ pub(super) fn decode_spell_go(bytes: &[u8]) -> (ObjectGuid, ObjectGuid, i32, u32
         visual.spell_visual_id,
         flags,
     )
+}
+
+pub(super) fn decode_spell_go_target_data(bytes: &[u8], expected_spell_id: i32) -> SpellTargetData {
+    let mut packet = WorldPacket::from_bytes(bytes);
+    assert_eq!(packet.server_opcode(), Some(ServerOpcodes::SpellGo));
+    packet.skip_opcode();
+    for label in ["caster", "caster unit", "cast id", "original cast id"] {
+        packet.read_packed_guid().expect(label);
+    }
+    assert_eq!(packet.read_int32().expect("spell id"), expected_spell_id);
+    wow_packet::packets::spell::SpellCastVisual::read(&mut packet).expect("spell visual");
+    packet.read_uint32().expect("cast flags");
+    packet.read_uint32().expect("cast flags ex");
+    packet.read_uint32().expect("cast time");
+    packet.read_uint32().expect("missile travel time");
+    packet.read_float().expect("missile pitch");
+    packet.read_uint8().expect("destination cast index");
+    packet.read_uint32().expect("immunity school");
+    packet.read_uint32().expect("immunity value");
+    packet.read_uint32().expect("heal prediction points");
+    packet.read_uint8().expect("heal prediction type");
+    packet.read_packed_guid().expect("heal prediction beacon");
+    packet.read_bits(16).expect("hit target count");
+    packet.read_bits(16).expect("miss target count");
+    packet.read_bits(16).expect("miss status count");
+    packet.read_bits(9).expect("remaining power count");
+    packet.read_bit().expect("remaining runes presence");
+    packet.read_bits(16).expect("target point count");
+    packet.read_bit().expect("ammo display presence");
+    packet.read_bit().expect("ammo inventory presence");
+    SpellTargetData::read(&mut packet).expect("SpellGo target data")
 }
 
 pub(super) fn visible_sickness_aura(

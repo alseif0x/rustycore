@@ -2,6 +2,7 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use wow_data::PlayerSpellBonusInputLikeCpp;
+use wow_data::player::PlayerDamagePctOperation;
 use wow_world_core::session::state::hub_support::{
     RepresentedPlayerGearStatsLikeCpp, SPELL_SCHOOL_MASK_ALL_LIKE_CPP,
     SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP, SPELL_SCHOOL_MASK_SPELL_LIKE_CPP,
@@ -14,6 +15,7 @@ pub(super) fn represented_spell_bonus(
     facts: &PlayerStatFacts<'_>,
     catalogs: &PlayerStatCatalogs<'_>,
     gear: &RepresentedPlayerGearStatsLikeCpp,
+    damage_pct_operation: PlayerDamagePctOperation,
 ) -> PlayerSpellBonusInputLikeCpp {
     let aura = facts.aura_view();
     let mut damage_done_flat = [0i32; 7];
@@ -147,7 +149,7 @@ pub(super) fn represented_spell_bonus(
         target_resistance_aura,
         item_spell_penetration: gear.spell_penetration_bonus,
         target_physical_resistance_aura,
-        weapon_damage_pct: equipment::weapon_damage_pct(facts, catalogs),
+        weapon_damage_pct: equipment::weapon_damage_pct(facts, catalogs, damage_pct_operation),
         weapon_damage_flat: equipment::weapon_damage_flat(facts, catalogs),
     }
 }

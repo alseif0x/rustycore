@@ -9,6 +9,7 @@ use crate::InventoryState;
 use crate::plan_player_stats;
 use wow_data::PlayerStatSystemProjectionLikeCpp;
 use wow_data::PlayerStatsStore;
+use wow_data::player::PlayerDamagePctOperation;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::session::PlayerStatWeaponFacts;
 use wow_world_core::session::state::hub_support::RepresentedPlayerGearStatsLikeCpp;
@@ -143,7 +144,8 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         &self,
         cause: PlayerStatApplicationCause,
     ) -> Option<PlayerStatComputation> {
-        let request = PlayerStatComputationRequest::new(None, None);
+        let request = PlayerStatComputationRequest::new(None, None)
+            .with_damage_pct_operation(cause.damage_pct_operation());
         self.player
             .calculate_and_apply_stats_for_values(plan_player_stats, &request, cause)
     }
@@ -166,6 +168,18 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         wow_core::ObjectGuid,
         wow_packet::packets::update::PlayerStatChanges,
     )> {
+        self.player_stat_changes_with_damage_pct_operation_like_cpp(
+            PlayerDamagePctOperation::PreserveOffhand,
+        )
+    }
+
+    fn player_stat_changes_with_damage_pct_operation_like_cpp(
+        &mut self,
+        damage_pct_operation: PlayerDamagePctOperation,
+    ) -> Option<(
+        wow_core::ObjectGuid,
+        wow_packet::packets::update::PlayerStatChanges,
+    )> {
         use wow_constants::PowerType;
         use wow_packet::packets::update::PlayerStatChanges;
 
@@ -177,7 +191,8 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
             return None;
         }
 
-        let request = PlayerStatComputationRequest::new(None, None);
+        let request = PlayerStatComputationRequest::new(None, None)
+            .with_damage_pct_operation(damage_pct_operation);
         let calculation = self
             .inventory
             .calculate_player_stats_with_access(&self.player, &request)?;
@@ -377,7 +392,11 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
     /// C++ `AuraEffect::HandleModTotalPercentStat` (`SpellAuraEffects.cpp:3656`).
     /// Ability auras selecting stamina preserve the pre-change health
     /// percentage; other total-stat auras use ordinary `SetMaxHealth` clamping.
-    pub fn send_total_stat_percentage_update_like_cpp(&mut self, preserve_health_pct: bool) {
+    pub fn send_total_stat_percentage_update_like_cpp(
+        &mut self,
+        preserve_health_pct: bool,
+        damage_pct_operation: PlayerDamagePctOperation,
+    ) {
         let Some((health_before, max_health_before, _)) =
             self.player.resolved_player_vitals_like_cpp()
         else {
@@ -386,7 +405,7 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         let max_health_before = max_health_before.max(1);
         let zero_health = health_before == 0;
         let Some((player_guid, mut changes)) =
-            self.player_stat_changes_with_represented_item_bonuses_like_cpp(true)
+            self.player_stat_changes_with_damage_pct_operation_like_cpp(damage_pct_operation)
         else {
             return;
         };
@@ -449,8 +468,10 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
     /// Recalculate and send the login VALUES update after loaded auras and
     /// item modifiers have been installed.
     pub fn send_login_stat_update_with_represented_item_bonuses_like_cpp(&mut self) {
-        let Some((player_guid, changes)) =
-            self.player_stat_changes_with_represented_item_bonuses_like_cpp(true)
+        let Some((player_guid, changes)) = self
+            .player_stat_changes_with_damage_pct_operation_like_cpp(
+                PlayerDamagePctOperation::AllAttacks,
+            )
         else {
             return;
         };
@@ -473,7 +494,8 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         [[f32; 2]; 3],
         [i32; 6],
     )> {
-        let request = PlayerStatComputationRequest::new(Some((race, class, level)), None);
+        let request = PlayerStatComputationRequest::new(Some((race, class, level)), None)
+            .with_damage_pct_operation(PlayerDamagePctOperation::AllAttacks);
         let calculation = self
             .inventory
             .calculate_player_stats_with_access(&self.player, &request)?;

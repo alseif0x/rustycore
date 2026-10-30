@@ -17,6 +17,18 @@ use crate::BaseMpGameTableLikeCpp;
 use anyhow::{Context, Result, bail};
 use tracing::info;
 
+/// The `Unit::UpdateDamagePctDoneMods` phase represented by one calculation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerDamagePctOperation {
+    /// Recalculate mainhand and ranged while retaining the canonical offhand
+    /// TOTAL_PCT. Ordinary stat projections do not run the offhand operation.
+    PreserveOffhand,
+    /// C++ `Unit::UpdateAllDamagePctDoneMods`.
+    AllAttacks,
+    /// C++ `Unit::UpdateDamagePctDoneMods(OFF_ATTACK)` only.
+    Offhand,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerRaceStatsRowLikeCpp {
     pub race: u8,
@@ -367,8 +379,12 @@ pub struct PlayerStatSystemProjectionLikeCpp {
 /// C++ `Player::CalculateMinMaxDamage` (`StatSystem.cpp:428-478`) for the
 /// represented player weapon ranges. Item ranges replace the base
 /// MINDAMAGE/MAXDAMAGE values and the attack-power term uses the equipped
-/// delay; an empty range retains the unarmed 1/2 values and the two-second C++
-/// default multiplier.
+/// delay. Empty mainhand and ranged ranges retain the 1/2 `Unit` defaults;
+/// empty offhand ranges retain their native 0/0 raw range. The two-second C++
+/// default multiplier applies when no attack delay is represented.
+///
+/// The final range is clamped only at zero, matching C++ `Object::ModifyValue`
+/// (`Object.h:329-332`); fractional positive damage remains visible.
 ///
 /// `shapeshift_combat_round_time` is the active
 /// `SpellShapeshiftFormEntry::CombatRoundTime` (`StatSystem.cpp:461-467`): a
@@ -388,12 +404,6 @@ pub fn effective_weapon_damage_ranges_like_cpp(
             <wow_constants::WeaponAttackType as num_traits::FromPrimitive>::from_usize(index)
                 .unwrap_or(wow_constants::WeaponAttackType::BaseAttack);
         let has_item_range = weapon_damage[index][0] > 0.0 && weapon_damage[index][1] > 0.0;
-        if attack == wow_constants::WeaponAttackType::RangedAttack
-            && !has_item_range
-            && total_ranged_ap == 0.0
-        {
-            return [0.0, 0.0];
-        }
         let attack_power = if attack == wow_constants::WeaponAttackType::RangedAttack {
             total_ranged_ap
         } else {
@@ -409,6 +419,11 @@ pub fn effective_weapon_damage_ranges_like_cpp(
         };
         let [weapon_min, weapon_max] = if has_item_range {
             weapon_damage[index]
+        } else if attack == wow_constants::WeaponAttackType::OffAttack {
+            // C++ `Unit::GetWeaponDamageRange(OFF_ATTACK)` returns the raw
+            // 0/0 range without an item (`Unit.cpp:9183-9188`); mainhand and
+            // ranged retain the `Unit.cpp:351-352` 1/2 base values.
+            [0.0, 0.0]
         } else {
             [1.0, 2.0]
         };
@@ -435,8 +450,8 @@ pub fn effective_weapon_damage_ranges_like_cpp(
             .copied()
             .unwrap_or(0.0);
         [
-            ((weapon_min + ap_component + total_value) * total_pct).max(1.0),
-            ((weapon_max + ap_component + total_value) * total_pct).max(1.0),
+            ((weapon_min + ap_component + total_value) * total_pct).max(0.0),
+            ((weapon_max + ap_component + total_value) * total_pct).max(0.0),
         ]
     })
 }
@@ -1644,6 +1659,43 @@ mod tests {
             Some(0.0),
         );
         assert_eq!(unchanged[0], [60.0, 90.0]);
+
+        let fractional_projection = PlayerStatSystemProjectionLikeCpp {
+            weapon_damage_pct: [0.25, 0.5, 0.25],
+            weapon_damage_flat: [0.0; 3],
+            ..projection
+        };
+        let unarmed = effective_weapon_damage_ranges_like_cpp(
+            fractional_projection,
+            [[0.0, 0.0]; 3],
+            [0; 3],
+            None,
+        );
+        assert_eq!(unarmed, [[0.25, 0.5], [0.0, 0.0], [0.25, 0.5]]);
+
+        let fractional_items = effective_weapon_damage_ranges_like_cpp(
+            fractional_projection,
+            [[0.25, 0.5]; 3],
+            [2_000; 3],
+            None,
+        );
+        assert_eq!(
+            fractional_items,
+            [[0.0625, 0.125], [0.125, 0.25], [0.0625, 0.125]]
+        );
+
+        let offhand_modifiers = PlayerStatSystemProjectionLikeCpp {
+            total_attack_power: 14,
+            weapon_damage_flat: [0.0, 4.0, 0.0],
+            ..fractional_projection
+        };
+        let missing_offhand_keeps_ap_and_flat = effective_weapon_damage_ranges_like_cpp(
+            offhand_modifiers,
+            [[0.0, 0.0]; 3],
+            [0; 3],
+            None,
+        );
+        assert_eq!(missing_offhand_keeps_ap_and_flat[1], [3.0, 3.0]);
     }
 
     #[test]

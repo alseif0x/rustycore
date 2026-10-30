@@ -25,7 +25,10 @@ mod inventory_scaling;
 pub use application::{PlayerStatApplicationCause, apply_player_stat_computation};
 pub use aura_view::{PlayerStatAuraCatalogs, PlayerStatAuraView};
 pub use catalogs::PlayerStatCatalogs;
-pub use computation::{PlayerStatCalculator, PlayerStatComputation, PlayerStatComputationRequest};
+pub use computation::{
+    PlayerDamagePctOperation, PlayerStatCalculator, PlayerStatComputation,
+    PlayerStatComputationRequest,
+};
 pub use facts::{PlayerStatFacts, PlayerStatWeaponFacts};
 
 /// Borrowed fixture inputs consumed by the character-stats projection.
@@ -276,6 +279,11 @@ impl PlayerStatsAccessLikeCpp<'_> {
             *self.fixtures.auras.represented_shapeshift_form_like_cpp,
             item_bonuses,
             aura_view,
+            self.canonical_player_effective_combat_stats_like_cpp()
+                .map_or_else(
+                    || wow_entities::PlayerEffectiveCombatStatsLikeCpp::default().weapon_damage_pct,
+                    |stats| stats.weapon_damage_pct,
+                ),
             weapons[0].take(),
             weapons[1].take(),
             weapons[2].take(),

@@ -1,6 +1,7 @@
 //! Selected aura metadata for causal Player stat application.
 
 use super::AuraRemovalCxLikeCpp;
+use wow_data::player::PlayerDamagePctOperation;
 use wow_world_core::session::PlayerStatApplicationCause;
 
 pub(super) struct AuraStatApplication {
@@ -98,7 +99,7 @@ fn select_aura_stat_application_from_effects<'a>(
     let mut has_stat_aura = false;
     let mut includes_all_stats = false;
     let mut stat_mask = 0_u8;
-    let mut modifies_damage = false;
+    let mut damage_pct_operation = None;
     let mut preserves_health_pct = false;
     let mut total_stat_percentage_effects = Vec::new();
 
@@ -151,7 +152,13 @@ fn select_aura_stat_application_from_effects<'a>(
                 }
             }
             wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE => {
-                modifies_damage = true;
+                damage_pct_operation = Some(PlayerDamagePctOperation::AllAttacks);
+                None
+            }
+            wow_data::spell::aura_types::SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT => {
+                if damage_pct_operation.is_none() {
+                    damage_pct_operation = Some(PlayerDamagePctOperation::Offhand);
+                }
                 None
             }
             _ => None,
@@ -170,9 +177,11 @@ fn select_aura_stat_application_from_effects<'a>(
         Some(PlayerStatApplicationCause::StatAura {
             stat_mask: if includes_all_stats { 0 } else { stat_mask },
             preserve_health_pct: preserves_health_pct,
+            damage_pct_operation: damage_pct_operation
+                .unwrap_or(PlayerDamagePctOperation::PreserveOffhand),
         })
-    } else if modifies_damage {
-        Some(PlayerStatApplicationCause::DamageModifiers)
+    } else if let Some(operation) = damage_pct_operation {
+        Some(PlayerStatApplicationCause::DamageModifiers(operation))
     } else {
         None
     };

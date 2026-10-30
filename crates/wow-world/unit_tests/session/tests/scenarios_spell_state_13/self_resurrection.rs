@@ -271,7 +271,13 @@ async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
     install_self_resurrect_spell_like_cpp(&mut session, spell_id, -35, 77);
 
     session
-        .execute_spell(spell_id, player_guid)
+        .execute_spell_with_visual_and_target_data(
+            spell_id,
+            player_guid,
+            ObjectGuid::EMPTY,
+            wow_packet::packets::spell::SpellCastVisual::default(),
+            wow_packet::packets::spell::SpellTargetData::default(),
+        )
         .await
         .expect("represented self-resurrect flat effect should execute");
 
@@ -290,8 +296,13 @@ async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
         })
         .unwrap();
     assert_eq!(powers, (35, 77, 0, 100, 0, Vec::<i32>::new()));
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes = packets
+        .iter()
+        .filter_map(|bytes| WorldPacket::from_bytes(bytes).server_opcode())
+        .collect::<Vec<_>>();
     assert_eq!(
-        drain_server_opcodes(&send_rx),
+        opcodes,
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::MoveSetLandWalk,
@@ -299,6 +310,26 @@ async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
             ServerOpcodes::CooldownEvent,
         ],
         "native field changes remain pending until Map::SendObjectUpdates"
+    );
+    let spell_go = packets
+        .iter()
+        .find(|bytes| {
+            WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::SpellGo)
+        })
+        .expect("self-resurrection publishes SpellGo");
+    let target = decode_spell_go_target_data_like_cpp(spell_go, spell_id);
+    assert_eq!(
+        target.flags, 0,
+        "the caster-only cast has no explicit target flags"
+    );
+    assert!(
+        target.unit.is_empty(),
+        "the caster-only cast has no explicit Unit"
+    );
+    assert_eq!(
+        decode_spell_go_hit_target_count_like_cpp(spell_go, spell_id),
+        0,
+        "caster-only SELF_RESURRECT publishes an empty SpellGo hit list"
     );
     publish_native_resurrection_values_from_map_like_cpp(
         &mut session,

@@ -5,6 +5,7 @@
 
 use crate::session::state::hub_support::RepresentedPlayerGearStatsLikeCpp;
 use wow_data::PlayerStatSystemProjectionLikeCpp;
+pub use wow_data::player::PlayerDamagePctOperation;
 use wow_entities::PlayerEffectiveCombatStatsLikeCpp;
 
 /// Optional compatibility inputs for the existing projection API.
@@ -12,6 +13,7 @@ use wow_entities::PlayerEffectiveCombatStatsLikeCpp;
 pub struct PlayerStatComputationRequest<'a> {
     projection_identity: Option<(u8, u8, u8)>,
     gear_override: Option<&'a RepresentedPlayerGearStatsLikeCpp>,
+    damage_pct_operation: PlayerDamagePctOperation,
 }
 
 impl<'a> PlayerStatComputationRequest<'a> {
@@ -22,7 +24,20 @@ impl<'a> PlayerStatComputationRequest<'a> {
         Self {
             projection_identity,
             gear_override,
+            damage_pct_operation: PlayerDamagePctOperation::PreserveOffhand,
         }
+    }
+
+    pub fn with_damage_pct_operation(
+        mut self,
+        damage_pct_operation: PlayerDamagePctOperation,
+    ) -> Self {
+        self.damage_pct_operation = damage_pct_operation;
+        self
+    }
+
+    pub fn damage_pct_operation(&self) -> PlayerDamagePctOperation {
+        self.damage_pct_operation
     }
 
     pub fn projection_identity(&self) -> Option<(u8, u8, u8)> {

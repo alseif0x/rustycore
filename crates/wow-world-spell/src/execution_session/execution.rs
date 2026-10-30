@@ -221,6 +221,12 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         &spell_info,
         target_data,
         represented_focus_object,
+        selected_full_server_aura,
+    );
+    let hit_targets = super::target_resolution::spell_go_hit_targets_like_cpp(
+        &spell_info,
+        &target_data,
+        target_guid,
     );
 
     let mut deferred_server_normal_cast_item_use = false;
@@ -306,7 +312,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             cast_flags_ex: metadata.cast_flags_ex,
             cast_time_ms: wow_world_core::session::game_time_ms_like_cpp(),
             target: spell_go_target_data,
-            hit_targets: vec![target_guid],
+            hit_targets,
             miss_targets: Vec::new(),
         };
         if publishes_player_cast {

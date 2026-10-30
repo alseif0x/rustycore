@@ -428,6 +428,54 @@ pub(super) async fn cast_sickness(
         .await
 }
 
+#[tokio::test]
+async fn selected_full_server_sickness_publishes_implicit_caster_unit_target() {
+    let mut effects = base_effect_rows();
+    effects[0].implicit_target = [1, 0];
+    let mut attributes = [0; 15];
+    attributes[1] = wow_data::spell::attributes::SPELL_ATTR1_NO_THREAT;
+    let (mut session, send_rx, player_guid) = selected_session_with_spell_attributes(
+        44_701,
+        0,
+        effects,
+        vec![difficulty(0, 0)],
+        attributes,
+    )
+    .await;
+    let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
+    let generators = session.id_generators_for_test_like_cpp();
+    let spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+
+    wow_world_spell::execute_server_triggered_spell_like_cpp(
+        &mut session,
+        generators.item.as_ref(),
+        &spawns,
+        SICKNESS_SPELL,
+        player_guid,
+        wow_entities::SpellCastMetadata {
+            trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("selected full server sickness cast executes");
+
+    let go = drain_packets(&send_rx)
+        .into_iter()
+        .find(|bytes| packet_opcode(bytes) == ServerOpcodes::SpellGo as u16)
+        .expect("selected full server sickness cast publishes SpellGo");
+    let target = decode_spell_go_target_data(&go, SICKNESS_SPELL);
+    assert_eq!(
+        target,
+        SpellTargetData {
+            flags: 0x0000_0002,
+            ..Default::default()
+        },
+        "resolved TARGET_UNIT_CASTER in the first implicit target sets UNIT while preserving the empty explicit Unit and other target fields"
+    );
+}
+
 fn sickness_effect_snapshot(session: &WorldSession) -> (u32, Vec<(u32, i32)>) {
     let application = visible_sickness_aura(session, SICKNESS_SPELL)
         .into_iter()

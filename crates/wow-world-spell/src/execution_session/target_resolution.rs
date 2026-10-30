@@ -15,6 +15,10 @@ use crate::RepresentedSpellFocusObjectLikeCpp;
 use wow_core::ObjectGuid;
 use wow_packet::packets::spell::SpellTargetData;
 
+const SPELL_TARGET_FLAG_UNIT_LIKE_CPP: u32 = 0x0000_0002;
+// SpellDefines.h:302-303, including validation-only unit flags.
+const SPELL_TARGET_FLAG_UNIT_MASK_LIKE_CPP: u32 = 0x0011_058e;
+
 pub(super) struct ResolvedSpellEffectTargetsLikeCpp {
     pub(super) target_data: SpellTargetData,
     pub(super) spell_go_target_data: SpellTargetData,
@@ -28,6 +32,7 @@ pub(super) fn resolve_spell_effect_target_data_like_cpp<H: SpellExecutionHostLik
     spell_info: &wow_data::SpellInfo,
     mut target_data: SpellTargetData,
     represented_focus_object: Option<RepresentedSpellFocusObjectLikeCpp>,
+    selected_full_server_aura: bool,
 ) -> ResolvedSpellEffectTargetsLikeCpp {
     let mut represented_implicit_destination = false;
     let mut effect_target_data_like_cpp = Vec::new();
@@ -111,6 +116,11 @@ pub(super) fn resolve_spell_effect_target_data_like_cpp<H: SpellExecutionHostLik
         // execution, while SpellCastTargets::Write emits DstLocation XYZ.
         spell_go_target_data.map_id = None;
     }
+    add_implicit_unit_caster_flag_for_selected_full_server_aura_like_cpp(
+        &mut spell_go_target_data,
+        spell_info,
+        selected_full_server_aura,
+    );
 
     ResolvedSpellEffectTargetsLikeCpp {
         target_data,
@@ -118,3 +128,55 @@ pub(super) fn resolve_spell_effect_target_data_like_cpp<H: SpellExecutionHostLik
         effect_target_data_like_cpp,
     }
 }
+
+fn add_implicit_unit_caster_flag_for_selected_full_server_aura_like_cpp(
+    target_data: &mut SpellTargetData,
+    spell_info: &wow_data::SpellInfo,
+    selected_full_server_aura: bool,
+) {
+    if selected_full_server_aura
+        && spell_info.effects().iter().any(|effect| {
+            effect.effect != 0 && (effect.implicit_target_1 == 1 || effect.implicit_target_2 == 1)
+        })
+    {
+        // Spell.cpp:747-755 publishes an implicit caster-unit target on
+        // SpellCastTargets while retaining its empty explicit Unit GUID.
+        target_data.flags |= SPELL_TARGET_FLAG_UNIT_LIKE_CPP;
+    }
+}
+
+pub(super) fn spell_go_hit_targets_like_cpp(
+    spell_info: &wow_data::SpellInfo,
+    target_data: &SpellTargetData,
+    target_guid: ObjectGuid,
+) -> Vec<ObjectGuid> {
+    use wow_data::spell::spell_effect_types as effect_types;
+
+    let mut active_effects = spell_info
+        .effects()
+        .iter()
+        .filter(|effect| effect.effect != 0)
+        .peekable();
+    // SpellEffects.cpp:3263-3275 and 3757-3765 execute these effects on the
+    // caster; Spell.cpp:2008-2052 adds no effect-type target to the hit list.
+    let caster_only_self_resurrection_or_stuck = active_effects.peek().is_some()
+        && active_effects.all(|effect| {
+            matches!(
+                effect.effect,
+                effect_types::SPELL_EFFECT_SELF_RESURRECT | effect_types::SPELL_EFFECT_STUCK
+            ) && effect.implicit_target_1 == 0
+                && effect.implicit_target_2 == 0
+        })
+        && target_data.unit.is_empty()
+        && target_data.flags & SPELL_TARGET_FLAG_UNIT_MASK_LIKE_CPP == 0;
+
+    if caster_only_self_resurrection_or_stuck {
+        Vec::new()
+    } else {
+        vec![target_guid]
+    }
+}
+
+#[cfg(test)]
+#[path = "../../unit_tests/execution_session/target_resolution.rs"]
+mod tests;

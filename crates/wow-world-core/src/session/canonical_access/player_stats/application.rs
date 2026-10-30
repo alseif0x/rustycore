@@ -1,6 +1,6 @@
 //! Apply one owned stat calculation to the canonical Player without I/O.
 
-use super::PlayerStatComputation;
+use super::{PlayerDamagePctOperation, PlayerStatComputation};
 use wow_constants::{DeathState, PowerType};
 use wow_entities::Player;
 
@@ -11,8 +11,24 @@ pub enum PlayerStatApplicationCause {
     StatAura {
         stat_mask: u8,
         preserve_health_pct: bool,
+        damage_pct_operation: PlayerDamagePctOperation,
     },
-    DamageModifiers,
+    DamageModifiers(PlayerDamagePctOperation),
+}
+
+impl PlayerStatApplicationCause {
+    pub fn damage_pct_operation(self) -> PlayerDamagePctOperation {
+        match self {
+            PlayerStatApplicationCause::AllStats => PlayerDamagePctOperation::PreserveOffhand,
+            PlayerStatApplicationCause::StatAura {
+                damage_pct_operation,
+                ..
+            }
+            | PlayerStatApplicationCause::DamageModifiers(damage_pct_operation) => {
+                damage_pct_operation
+            }
+        }
+    }
 }
 
 /// Apply one already calculated snapshot to the canonical Player.
@@ -29,14 +45,31 @@ pub fn apply_player_stat_computation(
     calculation: &PlayerStatComputation,
     cause: PlayerStatApplicationCause,
 ) {
+    let previous = *player.effective_combat_stats_like_cpp();
+    let weapon_damage_modifiers_changed = std::array::from_fn(|index| {
+        previous.weapon_damage_pct[index] != calculation.effective.weapon_damage_pct[index]
+            || previous.weapon_damage_flat[index] != calculation.effective.weapon_damage_flat[index]
+    });
     player.replace_effective_combat_stats_for_values(calculation.effective);
+    match cause {
+        PlayerStatApplicationCause::StatAura { stat_mask, .. } => {
+            player.mark_stat_aura_update_footprint_like_cpp(
+                stat_mask,
+                weapon_damage_modifiers_changed,
+            );
+        }
+        PlayerStatApplicationCause::DamageModifiers(_) => {
+            player.mark_damage_pct_update_footprint_like_cpp(weapon_damage_modifiers_changed);
+        }
+        PlayerStatApplicationCause::AllStats => {}
+    }
 
     let update_health = match cause {
         PlayerStatApplicationCause::AllStats => true,
         PlayerStatApplicationCause::StatAura { stat_mask, .. } => {
             stat_mask == 0 || stat_mask & (1 << 2) != 0
         }
-        PlayerStatApplicationCause::DamageModifiers => false,
+        PlayerStatApplicationCause::DamageModifiers(_) => false,
     };
 
     if update_health {
@@ -90,6 +123,14 @@ mod tests {
     use crate::session::PlayerStatComputation;
     use wow_data::PlayerStatSystemProjectionLikeCpp;
     use wow_entities::PlayerEffectiveCombatStatsLikeCpp;
+
+    fn assert_mask_is_exact(actual: &wow_entities::UpdateMask, bits: &[usize]) {
+        let mut expected = wow_entities::UpdateMask::new(actual.bits());
+        for bit in bits {
+            expected.set(*bit);
+        }
+        assert_eq!(actual.blocks(), expected.blocks());
+    }
 
     fn calculation(max_health: i64, max_mana: i64) -> PlayerStatComputation {
         PlayerStatComputation {
@@ -163,6 +204,7 @@ mod tests {
             PlayerStatApplicationCause::StatAura {
                 stat_mask: 1 << 2,
                 preserve_health_pct: false,
+                damage_pct_operation: PlayerDamagePctOperation::PreserveOffhand,
             },
         );
 
@@ -178,6 +220,132 @@ mod tests {
         assert!(player.unit().unit_data_changes_mask().is_set(5));
         assert!(player.unit().unit_data_changes_mask().is_set(6));
         assert!(!player.unit().unit_data_changes_mask().is_set(75));
+    }
+
+    #[test]
+    fn stat_aura_marks_native_update_stats_footprints_when_values_are_equal() {
+        let active_common = || {
+            let mut bits = vec![0, 38, 59, 269];
+            bits.extend(278..=283);
+            bits.extend(285..=290);
+            bits.sort_unstable();
+            bits
+        };
+        let cases = [
+            (1_u8, Some(2_usize)),
+            (1 << 1, Some(3)),
+            (1 << 3, None),
+            (0, None),
+        ];
+
+        for (stat_mask, mana_index) in cases {
+            let calculation = calculation(100, 1);
+            let mut player = player_with_vitals();
+            player
+                .unit_mut()
+                .set_power_index(PowerType::Mana, mana_index);
+            player.replace_effective_combat_stats_like_cpp(calculation.effective);
+            player.clear_data_changes();
+
+            apply_player_stat_computation(
+                &mut player,
+                &calculation,
+                PlayerStatApplicationCause::StatAura {
+                    stat_mask,
+                    preserve_health_pct: false,
+                    damage_pct_operation: PlayerDamagePctOperation::PreserveOffhand,
+                },
+            );
+
+            let selected_stats = if stat_mask == 0 { 0b1_1111 } else { stat_mask };
+            let mut expected_unit = vec![174];
+            for index in 0..5 {
+                if selected_stats & (1 << index) != 0 {
+                    expected_unit.push(175 + index);
+                }
+            }
+            if let Some(mana_index) = mana_index {
+                expected_unit.extend([116, 117 + mana_index, 127 + mana_index]);
+            }
+            let mut expected_active = active_common();
+            if selected_stats & 0b11 != 0 {
+                // C++ `UpdateStats(AGILITY)` also recalculates melee attack
+                // power (`StatSystem.cpp:141-146`), writing 81/82/84.
+                expected_unit.extend([32, 52, 53, 64, 81, 82, 84]);
+            }
+            if selected_stats & (1 << 1) != 0 {
+                expected_unit.extend([85, 86, 88, 91, 92, 190, 191]);
+                expected_active.extend([42, 46, 47, 48]);
+            }
+            if selected_stats & (1 << 3) != 0 {
+                expected_active.extend(270..=276);
+            }
+            expected_unit.sort_unstable();
+            expected_unit.dedup();
+            expected_active.sort_unstable();
+            expected_active.dedup();
+            assert_mask_is_exact(player.unit().unit_data_changes_mask(), &expected_unit);
+            assert_mask_is_exact(player.active_player_data_changes_mask(), &expected_active);
+        }
+    }
+
+    #[test]
+    fn stat_aura_changed_offhand_modifier_marks_zero_damage_leaves() {
+        let mut player = player_with_vitals();
+        let mut previous = PlayerEffectiveCombatStatsLikeCpp::default();
+        previous.weapon_damage_pct[1] = 0.5;
+        previous.weapon_damage[1] = [0.0, 0.0];
+        player.replace_effective_combat_stats_like_cpp(previous);
+        player.clear_data_changes();
+
+        let mut calculation = calculation(100, 1);
+        calculation.effective = previous;
+        calculation.effective.weapon_damage_pct[1] = 0.25;
+        calculation.effective.weapon_damage[1] = [0.0, 0.0];
+        apply_player_stat_computation(
+            &mut player,
+            &calculation,
+            PlayerStatApplicationCause::StatAura {
+                stat_mask: 1,
+                preserve_health_pct: false,
+                damage_pct_operation: PlayerDamagePctOperation::PreserveOffhand,
+            },
+        );
+
+        assert!(player.unit().unit_data_changes_mask().is_set(54));
+        assert!(player.unit().unit_data_changes_mask().is_set(55));
+        assert_eq!(
+            player.effective_combat_stats_like_cpp().weapon_damage[1],
+            [0.0, 0.0]
+        );
+        assert!(!player.unit().unit_data_changes_mask().is_set(83));
+        assert!(!player.unit().unit_data_changes_mask().is_set(87));
+    }
+
+    #[test]
+    fn damage_only_offhand_modifier_marks_zero_damage_leaves_without_stat_footprint() {
+        let mut player = player_with_vitals();
+        let mut previous = PlayerEffectiveCombatStatsLikeCpp::default();
+        previous.weapon_damage[1] = [0.0, 0.0];
+        player.replace_effective_combat_stats_like_cpp(previous);
+        player.clear_data_changes();
+
+        let mut calculation = calculation(100, 1);
+        calculation.effective = previous;
+        calculation.effective.weapon_damage_pct[1] = 0.0;
+        apply_player_stat_computation(
+            &mut player,
+            &calculation,
+            PlayerStatApplicationCause::DamageModifiers(PlayerDamagePctOperation::Offhand),
+        );
+
+        let mask = player.unit().unit_data_changes_mask();
+        assert!(mask.is_set(32));
+        assert!(mask.is_set(54));
+        assert!(mask.is_set(55));
+        for bit in [52, 53, 64, 91, 92, 174, 175] {
+            assert!(!mask.is_set(bit), "unexpected primary-stat leaf {bit}");
+        }
     }
 
     #[test]
@@ -222,8 +390,9 @@ mod tests {
             PlayerStatApplicationCause::StatAura {
                 stat_mask: 1,
                 preserve_health_pct: false,
+                damage_pct_operation: PlayerDamagePctOperation::PreserveOffhand,
             },
-            PlayerStatApplicationCause::DamageModifiers,
+            PlayerStatApplicationCause::DamageModifiers(PlayerDamagePctOperation::AllAttacks),
         ] {
             let mut player = player_with_vitals();
             player.unit_mut().set_power_index(PowerType::Mana, Some(1));
@@ -258,6 +427,7 @@ mod tests {
                 PlayerStatApplicationCause::StatAura {
                     stat_mask: 0,
                     preserve_health_pct: true,
+                    damage_pct_operation: PlayerDamagePctOperation::PreserveOffhand,
                 },
             );
 

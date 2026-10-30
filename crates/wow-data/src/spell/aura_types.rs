@@ -86,6 +86,10 @@ pub const SPELL_AURA_REFLECT_SPELLS_SCHOOL: i32 = 74;
 pub const SPELL_AURA_MECHANIC_IMMUNITY: i32 = 77;
 pub const SPELL_AURA_MOUNTED: i32 = 78;
 pub const SPELL_AURA_MOD_DAMAGE_PERCENT_DONE: i32 = 79;
+/// C++ `AuraType::SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT`
+/// (`SpellAuraEffects.cpp:4550-4559`): the offhand percentage operation
+/// multiplies by the sum of these amounts, without adding one.
+pub const SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT: i32 = 122;
 /// C++ `AuraType::SPELL_AURA_MOD_PERCENT_STAT`.
 pub const SPELL_AURA_MOD_PERCENT_STAT: i32 = 80;
 /// C++ `AuraType::SPELL_AURA_SPLIT_DAMAGE_PCT` (`SpellAuraDefines.h:176`),

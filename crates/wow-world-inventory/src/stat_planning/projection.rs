@@ -3,6 +3,7 @@
 
 use super::equipment;
 use super::spell_bonus;
+use wow_data::player::PlayerDamagePctOperation;
 use wow_data::{
     PlayerStatSystemInputLikeCpp, PlayerStatSystemProjectionLikeCpp,
     calculate_player_stat_system_like_cpp,
@@ -19,6 +20,7 @@ pub(super) fn project(
     race: u8,
     class: u8,
     level: u8,
+    damage_pct_operation: PlayerDamagePctOperation,
 ) -> Option<PlayerStatSystemProjectionLikeCpp> {
     let base = *catalogs.player_stats()?.get(race, class, level)?;
     let (attack_power_per_strength, attack_power_per_agility, ranged_attack_power_per_agility) =
@@ -27,7 +29,8 @@ pub(super) fn project(
         gear.combat_ratings[index] as f32 * catalogs.combat_rating_multiplier(level, index as u32)
     });
     let aura = facts.aura_view();
-    let spell_bonus = spell_bonus::represented_spell_bonus(facts, catalogs, gear);
+    let spell_bonus =
+        spell_bonus::represented_spell_bonus(facts, catalogs, gear, damage_pct_operation);
 
     let projection = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
         base,

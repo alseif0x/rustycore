@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use wow_constants::WeaponAttackType;
 use wow_data::PlayerStatSystemProjectionLikeCpp;
+use wow_data::player::PlayerDamagePctOperation;
 use wow_entities::PlayerEffectiveCombatStatsLikeCpp;
 use wow_world_core::session::state::hub_support::RepresentedPlayerGearStatsLikeCpp;
 use wow_world_core::session::{PlayerStatCatalogs, PlayerStatFacts, PlayerStatWeaponFacts};
@@ -18,31 +19,54 @@ const ITEM_ENCHANTMENT_TYPE_TOTEM: u8 = 6;
 pub(super) fn weapon_damage_pct(
     facts: &PlayerStatFacts<'_>,
     catalogs: &PlayerStatCatalogs<'_>,
+    operation: PlayerDamagePctOperation,
 ) -> [f32; 3] {
     // C++ `Unit::UpdateDamagePctDoneMods` (`Unit.cpp:9033-9072`).
     let aura = facts.aura_view();
     let effects = aura.effects_with_spell_and_misc_by_aura_type(
         wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
     );
+    let offhand_effects = aura.effects_with_spell_and_misc_by_aura_type(
+        wow_data::spell::aura_types::SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT,
+    );
     std::array::from_fn(|index| {
         let attack = <WeaponAttackType as num_traits::FromPrimitive>::from_usize(index)
             .unwrap_or(WeaponAttackType::BaseAttack);
+        let recalculate = match operation {
+            PlayerDamagePctOperation::AllAttacks => true,
+            PlayerDamagePctOperation::Offhand => attack == WeaponAttackType::OffAttack,
+            PlayerDamagePctOperation::PreserveOffhand => attack != WeaponAttackType::OffAttack,
+        };
+        if !recalculate {
+            return facts.previous_weapon_damage_pct()[index];
+        }
+
         let base = match attack {
             WeaponAttackType::OffAttack => 0.5_f32,
             _ => 1.0_f32,
         };
         let weapon_item_id = weapon_for_attack(facts, attack).map(PlayerStatWeaponFacts::entry_id);
-        // Keep the inherited 0.5 offhand base; the existing represented path
-        // does not include C++'s separate offhand-damage aura sum.
-        base * effects
-            .iter()
-            .filter(|(spell_id, misc_value, _)| {
-                misc_value & SPELL_SCHOOL_MASK_NORMAL != 0
-                    && catalogs.represented_aura_spell_fits_weapon(*spell_id, weapon_item_id)
-            })
-            .fold(1.0_f32, |acc, (_, _, amount)| {
-                acc * (1.0 + *amount as f32 / 100.0)
-            })
+        let mut factor = base
+            * effects
+                .iter()
+                .filter(|(spell_id, misc_value, _)| {
+                    misc_value & SPELL_SCHOOL_MASK_NORMAL != 0
+                        && catalogs.represented_aura_spell_fits_weapon(*spell_id, weapon_item_id)
+                })
+                .fold(1.0_f32, |acc, (_, _, amount)| {
+                    acc * (1.0 + *amount as f32 / 100.0)
+                });
+        if attack == WeaponAttackType::OffAttack {
+            let offhand_modifier = offhand_effects
+                .iter()
+                .filter(|(spell_id, _, _)| {
+                    catalogs.represented_aura_spell_fits_weapon(*spell_id, weapon_item_id)
+                })
+                .map(|(_, _, amount)| *amount)
+                .sum::<i32>();
+            factor *= offhand_modifier as f32;
+        }
+        factor
     })
 }
 

@@ -274,3 +274,58 @@ fn effective_weapon_damage_prefers_player_snapshot_and_falls_back_to_unit() {
         [111.0, 137.0]
     );
 }
+
+#[test]
+fn stat_aura_footprint_marks_offhand_for_a_usable_weapon_or_changed_modifier() {
+    use crate::{EQUIPMENT_SLOT_OFFHAND, Item, PlayerInventoryItem};
+    use wow_constants::InventoryType;
+
+    let mut player = player_in_world();
+    player.mark_stat_aura_update_footprint_like_cpp(1, [false; 3]);
+    assert!(!player.unit().unit_data_changes_mask().is_set(54));
+    assert!(!player.unit().unit_data_changes_mask().is_set(55));
+
+    player.clear_data_changes();
+    let item_guid = ObjectGuid::create_item(1, 9_101);
+    let mut offhand = Item::default();
+    offhand.object_mut().create(item_guid);
+    offhand.set_max_durability(100);
+    offhand.set_durability(100);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .inventory_items_mut()
+        .insert(
+            EQUIPMENT_SLOT_OFFHAND,
+            PlayerInventoryItem {
+                guid: item_guid,
+                entry_id: 9_101,
+                db_guid: 9_101,
+                inventory_type: Some(InventoryType::WeaponOffhand as u8),
+            },
+        );
+    player
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .insert(item_guid, offhand);
+
+    player.mark_stat_aura_update_footprint_like_cpp(1, [false; 3]);
+    assert!(player.unit().unit_data_changes_mask().is_set(54));
+    assert!(player.unit().unit_data_changes_mask().is_set(55));
+
+    player.clear_data_changes();
+    player
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&item_guid)
+        .expect("canonical offhand item")
+        .set_durability(0);
+    player.mark_stat_aura_update_footprint_like_cpp(1, [false; 3]);
+    assert!(!player.unit().unit_data_changes_mask().is_set(54));
+    assert!(!player.unit().unit_data_changes_mask().is_set(55));
+
+    player.clear_data_changes();
+    player.mark_stat_aura_update_footprint_like_cpp(1, [false, true, false]);
+    assert!(player.unit().unit_data_changes_mask().is_set(54));
+    assert!(player.unit().unit_data_changes_mask().is_set(55));
+    assert!(player.unit().unit_data_changes_mask().is_set(32));
+}

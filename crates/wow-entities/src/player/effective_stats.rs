@@ -607,6 +607,171 @@ impl Player {
         }
     }
 
+    /// Mark the setter footprint of C++ `StatSystem::UpdateStats`
+    /// (`StatSystem.cpp:105-149`) for one selected-stat mask, even when a
+    /// setter writes the current value (`UpdateField.h:258-281`).
+    ///
+    /// `weapon_damage_modifiers_changed` compares the previous and incoming
+    /// damage percentage/flat modifiers per attack. It preserves the native
+    /// zero-damage leaf updates when a modifier changes but the final range
+    /// stays zero. The world-core application calls this only for StatAura
+    /// recalculations; unrelated snapshot replacement remains diff-only.
+    pub fn mark_stat_aura_update_footprint_like_cpp(
+        &mut self,
+        stat_mask: u8,
+        weapon_damage_modifiers_changed: [bool; 3],
+    ) {
+        // C++ `UpdateStats` uses zero as its all-primary-stats sentinel; the
+        // aura selector preserves that encoding for effects covering all stats.
+        let stat_mask = if stat_mask == 0 { 0b1_1111 } else { stat_mask };
+        let has_selected_stats = (0..5).any(|index| stat_mask & (1 << index) != 0);
+        if !has_selected_stats
+            && !weapon_damage_modifiers_changed[0]
+            && !weapon_damage_modifiers_changed[1]
+            && !weapon_damage_modifiers_changed[2]
+        {
+            return;
+        }
+
+        for index in 0..5 {
+            if stat_mask & (1 << index) != 0 {
+                self.unit
+                    .mark_unit_data_array(UNIT_STATS_PARENT_BIT, UNIT_STATS_FIRST_BIT, index);
+            }
+        }
+
+        let has_strength_or_agility = stat_mask & 0b11 != 0;
+        let has_agility = stat_mask & (1 << 1) != 0;
+        let has_intellect = stat_mask & (1 << 3) != 0;
+
+        if has_selected_stats {
+            self.mark_active_player_data_section(
+                ACTIVE_STATS_PARENT_BIT,
+                ACTIVE_HEALING_DONE_POS_BIT,
+            );
+            // `UpdateStats` refreshes magical-school bonuses for every selected
+            // stat. School zero is normal damage (277/284) and is not part of
+            // this setter footprint.
+            for index in 1..7 {
+                self.mark_active_player_data_array(
+                    ACTIVE_SPELL_MODIFIERS_PARENT_BIT,
+                    ACTIVE_MOD_DAMAGE_DONE_POS_FIRST_BIT,
+                    index,
+                );
+                self.mark_active_player_data_array(
+                    ACTIVE_SPELL_MODIFIERS_PARENT_BIT,
+                    ACTIVE_MOD_DAMAGE_DONE_NEG_FIRST_BIT,
+                    index,
+                );
+            }
+
+            if let Some(index) = self
+                .unit
+                .get_power_index(PowerType::Mana)
+                .filter(|index| *index < super::MAX_POWERS_PER_CLASS)
+            {
+                self.unit.mark_unit_data_array(
+                    UNIT_POWER_PARENT_BIT,
+                    UNIT_POWER_REGEN_FLAT_FIRST_BIT,
+                    index,
+                );
+                self.unit.mark_unit_data_array(
+                    UNIT_POWER_PARENT_BIT,
+                    UNIT_POWER_REGEN_INTERRUPTED_FIRST_BIT,
+                    index,
+                );
+            }
+        }
+
+        if has_strength_or_agility {
+            for bit in [
+                UNIT_ATTACK_POWER_FIRST_BIT,
+                UNIT_ATTACK_POWER_FIRST_BIT + 1,
+                UNIT_ATTACK_POWER_FIRST_BIT + 3,
+            ] {
+                self.unit.mark_unit_data_nested(UNIT_MODS_PARENT_BIT, bit);
+            }
+        }
+        if has_agility {
+            self.unit
+                .mark_unit_data_nested(UNIT_RESISTANCES_PARENT_BIT, UNIT_RESISTANCES_FIRST_BIT);
+            for bit in [
+                UNIT_ATTACK_POWER_FIRST_BIT + 4,
+                UNIT_ATTACK_POWER_FIRST_BIT + 5,
+                UNIT_ATTACK_POWER_FIRST_BIT + 7,
+            ] {
+                self.unit.mark_unit_data_nested(UNIT_MODS_PARENT_BIT, bit);
+            }
+            for bit in [
+                ACTIVE_DODGE_BIT,
+                ACTIVE_CRIT_BIT,
+                ACTIVE_RANGED_CRIT_BIT,
+                ACTIVE_OFFHAND_CRIT_BIT,
+            ] {
+                self.mark_active_player_data_section(ACTIVE_STATS_PARENT_BIT, bit);
+            }
+        }
+        if has_intellect {
+            for index in 0..7 {
+                self.mark_active_player_data_array(
+                    ACTIVE_SPELL_MODIFIERS_PARENT_BIT,
+                    ACTIVE_SPELL_CRIT_FIRST_BIT,
+                    index,
+                );
+            }
+        }
+
+        self.mark_weapon_damage_update_footprint(
+            has_strength_or_agility,
+            has_agility,
+            weapon_damage_modifiers_changed,
+        );
+    }
+
+    /// Mark `UpdateDamagePhysical` leaves reached by a damage-modifier phase
+    /// whose TOTAL_PCT/TOTAL_VALUE changed, including an unchanged zero range.
+    pub fn mark_damage_pct_update_footprint_like_cpp(
+        &mut self,
+        weapon_damage_modifiers_changed: [bool; 3],
+    ) {
+        self.mark_weapon_damage_update_footprint(false, false, weapon_damage_modifiers_changed);
+    }
+
+    fn mark_weapon_damage_update_footprint(
+        &mut self,
+        has_strength_or_agility: bool,
+        has_agility: bool,
+        weapon_damage_modifiers_changed: [bool; 3],
+    ) {
+        let has_usable_offhand = self.has_offhand_weapon_for_attack_like_cpp();
+        let mark_mainhand_damage = has_strength_or_agility || weapon_damage_modifiers_changed[0];
+        let mark_offhand_damage =
+            (has_strength_or_agility && has_usable_offhand) || weapon_damage_modifiers_changed[1];
+        let mark_ranged_damage = has_agility || weapon_damage_modifiers_changed[2];
+        for (should_mark, parent_bit, first_bit) in [
+            (
+                mark_mainhand_damage,
+                UNIT_DAMAGE_PARENT_BIT,
+                UNIT_DAMAGE_FIRST_BIT,
+            ),
+            (
+                mark_offhand_damage,
+                UNIT_DAMAGE_PARENT_BIT,
+                UNIT_DAMAGE_FIRST_BIT + 2,
+            ),
+            (
+                mark_ranged_damage,
+                UNIT_MODS_PARENT_BIT,
+                UNIT_MIN_RANGED_DAMAGE_BIT,
+            ),
+        ] {
+            if should_mark {
+                self.unit.mark_unit_data_nested(parent_bit, first_bit);
+                self.unit.mark_unit_data_nested(parent_bit, first_bit + 1);
+            }
+        }
+    }
+
     pub(super) fn derived_stats_values_update(
         &self,
         include_active_player: bool,

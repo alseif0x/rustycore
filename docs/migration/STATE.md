@@ -84,10 +84,10 @@ Documentation and new explanatory comments remain in English.
 |---|---:|---|
 | fall-release | 1 | Native and earlier Rust pass; rerun Rust after shared inventory/aura changes |
 | reclaim | 1 | Native and earlier Rust pass; rerun Rust and retain timed Mana boundary |
-| healer | 2 | Native reference exists; Rust sickness rejection must be repaired and rerun |
+| healer | 2 | Rust `ee8ef17fd` passed both functional epochs; SpellGo target-mask repair and actor-field comparison remain |
 | wisp | 2 | Native reference exists; Rust pending |
-| reincarnation | 1 | Native reference exists; Rust debit rejection must be repaired and rerun |
-| mob | 1 | Earlier native wrappers failed; corrected native and Rust runs pending |
+| reincarnation | 1 | Rust `ee8ef17fd` passed durable 10-to-9 debit; SpellGo hit-list repair and last-Ankh live comparison remain |
+| mob | 1 | Corrected native attempt 3 passed; Rust attempt 1 failed waiting for death after its first exchange |
 | automatic-release | 1 | Native reference exists; Rust pending |
 | offer | 2 | Corrected native pass; Rust pending |
 | recovery-dead | 2 | Native reference exists; Rust pending |
@@ -95,11 +95,11 @@ Documentation and new explanatory comments remain in English.
 | stuck-death | 2 | Corrected native pass; Rust pending |
 | stuck-home | 1 | Corrected native pass; Rust pending |
 
-Reuse decision: the eleven successful native scenario reports all pin the same
+Reuse decision: the twelve successful native scenario reports all pin the same
 R6 executable (`80f143841b…`) and restored cleanup. Their standard fixtures and
 reference behavior remain unchanged by the Rust repairs. Keep those reference
-captures at their actual provenance; native mob and the last-Ankh variant still
-need new runs. Shared inventory/aura changes invalidate reuse of the two previous
+captures at their actual provenance; native mob attempt 3 and the last-Ankh
+variant have now passed, as recorded below. Shared inventory/aura changes invalidate reuse of the two previous
 Rust passes as final-candidate acceptance, so rerun fall-release and reclaim too.
 
 Step 1 implementation contract: retain the metadata-only absence fast path;
@@ -188,7 +188,90 @@ reserved item identities even if their owner changes, so orphan rows cannot
 silently disappear from this evidence. Cleanup remains identity-bound. Parent
 review corrected strict integer checks and a test's allocated owner ID. New
 hermetic cases cover both variants, journal drift, cleanup and row/link failures.
-The current accepted local evidence follows; no new live success is claimed.
+Live follow-up at the same accepted code: healer attempt 3 passed both epochs in
+561.087 seconds, including sickness, durability, restart/relog, capture collection
+and stable restoration. Reincarnation attempt 2 passed in 312.060 seconds:
+durable Ankh count 10 to 9, no duplicate debit, saved cooldown and restored runtime.
+Records remain under `/tmp/rustycore43-live-20261029-iua0lcwr/cases/`.
+These are functional passes, not completed packet acceptance. Rust last-Ankh
+attempt 3 also passed in 312.968 seconds, including exact reserved row/link
+deletion, capture collection and stable restoration. Native last-Ankh attempt 2
+passed in 138.030 seconds with collection/restoration. Native mob attempt 3
+passed the corrected combat-observation plan in 238.748 seconds, with capture
+collection and stable restoration. All twelve standard native references now
+exist, plus last-Ankh. Rust mob attempt 1 at accepted `ee8ef17fd` failed in
+373.567 seconds: the bot observed one creature-to-Player hit (health 10), one
+Player-to-creature hit and the Player's AttackStop, then timed out waiting for
+the death/root packet. Stable runtime and owned fixture cleanup were restored.
+This is not live acceptance. The cause remains under investigation; the
+canonical AttackStop operation itself retains combat references, so its
+directory reconciliation argument is not evidence that it clears combat.
+Do not retry unchanged or lengthen the wait without establishing the cause.
+Read-only follow-up excludes a globally stalled world loop: the candidate's
+journal advances from tick epoch 131 at login to 8462 at logout during the
+90-second observation. Entry 6 has a 2,000-ms base attack time; its selected
+SmartAI database row only talks on aggro. These observations do not yet identify
+the rejection. The next diagnostic must observe the existing creature melee
+selection, local timer and validation result, retaining the unchanged scenario
+and deadline. No combat behavior change is justified by the timeout alone.
+
+The next bounded repair groups two observed SpellGo defects in the existing
+spell execution owner. Sickness 15007 omits the native UNIT target flag despite
+an empty explicit Unit GUID (`Spell.cpp:747–755`, implicit caster target type in
+`SpellInfo.cpp:244`). Reincarnation 21169 incorrectly appends the Player to the
+hit list; native SELF_RESURRECT executes on the caster in HANDLE_HIT and has no
+effect-type implicit target (`SpellEffects.cpp:3757–3765`, `SpellInfo.cpp:920`,
+`Spell.cpp:2008–2052`). STUCK shares that bounded effect-mode contract. Derive
+the correction from effective target metadata, preserve mixed/other target
+cases, and add actual publication regression coverage. Do not introduce a
+general targeting framework. Preserve raw mismatches and actual tested SHAs;
+rerun affected acceptance and fresh action captures after the grouped repair.
+The healer actor UpdateObject review also found action-relevant stat differences:
+native mainhand damage 0.25–0.5 versus Rust 1–1, native offhand 0–0 versus Rust
+1–1, plus missing recalculated stat leaves. `effective_weapon_damage_ranges_like_cpp`
+clamps to 1, although native `Player::CalculateMinMaxDamage` and
+`Object::SetUpdateFieldStatValue` permit nonnegative fractional values. Native
+`ModifyValue` marks leaves before value equality is checked; the Rust derived
+snapshot setter only marks numerically changed leaves. Resolve these bounded
+calculation/publication findings before the grouped acceptance. Retain the
+actual field decode in `comparison-healer-ee8ef17fd/epoch1-actor-stat-values.json`.
+The reviewed setter contract treats `StatAura.stat_mask == 0` as all five stats.
+Offhand damage also needs the native operation phase: the initial multiplier is
+0.5, while a physical damage-percent aura invokes `UpdateDamagePctDoneMods`,
+whose pinned target implementation multiplies the offhand factor by the summed
+type-122 modifier (zero when absent). Preserve the existing canonical multiplier
+between those operations; do not replace the target's sum with the complementary
+core's multiplier or add another mutable stat authority. Application, removal
+and an unrelated later recalculation must retain this phase distinction.
+
+The grouped SpellGo/stat repair is implemented as an UNVALIDATED local candidate.
+The SpellGo worker passed two target-resolution tests and one production
+publication test each for sickness and self-resurrection. The stat worker passed
+27 focused tests: one weapon-range case, one entity footprint case, seven Core
+application cases, five weapon-offense cases, six lifecycle-stat cases and seven
+selected-stat cases. Its sequential check of Data, Entities, Core, Inventory and
+Application passed, as did scoped rustfmt and `git diff --check`. Aura 79 selects
+the all-attacks operation, aura 122 selects offhand-only, and StatAura carries
+that operation when both families share one application. Unrelated calculations
+copy the existing canonical offhand multiplier instead of recomputing it. These
+are worker feedback results, not affected acceptance, live acceptance or a new
+tested code SHA. The diagnostic-only world-server trace is also implemented:
+the existing tick log now includes the melee selection/rejection/hit counters,
+and `RUSTYCORE_CREATURE_MELEE_TRACE` logs fighting-creature timer, target, AI and
+victim-health snapshots without changing combat. Its world-server check and the
+focused chase and native-death tests passed (one each); an initial bin-target
+zero-test filter was discarded. Because the outcome does not expose the original
+admission object list, the trace reconstructs selection from the same tick plan;
+that diagnostic approximation is not a behavior contract or a combat repair.
+
+The reversed order of the two independent item durability blocks is a separate
+source-proven ordering boundary: native `Map.h:801` stores pending objects in
+`std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
+durability values match. Do not imitate one native allocator order or normalize
+the surrounding lifecycle sequence. Other NPC bundle alignments remain unresolved.
+The strict complete stream remains non-clean and is not being relabeled as a pass.
+
+The current accepted local evidence follows.
 The complete retry passed in **574.965 seconds** (600-second target met),
 22:31:04–22:40:39 UTC on 2026-10-29, aarch64, two Cargo jobs after observing a
 5,225,368 KiB peak child RSS and at least 16 GiB available memory in the prior
