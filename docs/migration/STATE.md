@@ -381,6 +381,11 @@ replies occurred. The next UNVALIDATED trace covers the remaining early skips:
 selected Unit errors and strict-in-world rejection, both able to leave a
 Completed reply while omitting the timer update.
 
+The early-skip campaign at `c5b605821ffdae4aa868e82206c00645b4a51d73`
+passed affected acceptance in 524.381 seconds. Neither selected Unit errors nor
+strict-in-world rejection occurred. The next trace records every positive
+remaining value to locate the exact countdown divergence without changing it.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
