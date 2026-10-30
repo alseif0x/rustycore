@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4156,
+  "tests": 4157,
   "ignored": 1,
-  "session": 3852,
-  "shims": 3672,
+  "session": 3853,
+  "shims": 3673,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3677
+   "W": 3678
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3471
+   "W-world-logic": 3472
   },
   "by_owner": {
    "wow-world": {
@@ -73,7 +73,7 @@
    "wow-world-entities": {
     "P": 28,
     "H": 4,
-    "W": 509
+    "W": 510
    },
    "wow-world-instances": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3677
+    "W": 3678
    },
    "wow-world-application": {
     "P": 27,
@@ -1282,6 +1282,7 @@
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_creation.rs::selected_creation_same_key_refresh_ignores_failure_and_retains_original_provenance", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "player_aura_application_cx_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_creation.rs::selected_creation_failure_preserves_existing_foreign_caster_sickness", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "player_aura_application_cx_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_creation.rs::selected_caster_reaction_uses_actual_foreign_group_and_duel", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
+  ["unit_tests/handlers/entities/tests/spirit_healer/selected_execution_effects.rs::selected_full_server_sickness_publishes_implicit_caster_unit_target", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp", "set_difficulty_store"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_execution_effects.rs::selected_sickness_cast_uses_effect_rows_from_the_canonical_map_difficulty", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "execute_spell_with_visual_and_target_data", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_execution_effects.rs::selected_sickness_refresh_uses_original_aura_difficulty_properties", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "execute_spell_with_visual_and_target_data", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/spirit_healer/selected_execution_effects.rs::selected_sickness_cast_falls_back_from_difficulty_zero_to_three", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "execute_spell_with_visual_and_target_data", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp"], []],

@@ -264,6 +264,24 @@ zero-test filter was discarded. Because the outcome does not expose the original
 admission object list, the trace reconstructs selection from the same tick plan;
 that diagnostic approximation is not a behavior contract or a combat repair.
 
+The first affected campaign at `e4131ac8a18d664ad131e8b0bc4ec4d9fd78605f`
+finished FAILED in **1,560.146 seconds** on aarch64 with one Cargo job; the
+ordinary 600-second target was not met after retiring superseded incremental
+variants. Record: `/tmp/rustycore43-repair-e4131ac8-_c2epdxj/record.json`.
+The cleanup retained current-day artifacts and freed 19.5 GiB:
+`/tmp/rustycore43-inactive-incremental-e4131ac8.json`. QA passed 47 tests with
+one optional skip. Final's compilation and all affected library suites passed:
+world-server 642/1 ignored, Data 844/5, Database 430/9, Entities 1,066,
+Persistence 36, World 4,156/1, Application 31, Character 3, Core 282,
+Inventory 36 and Spell 188. Only architecture hotspots and the World census
+failed: the reviewed implementation added 55 diagnostic production lines, 165
+Player footprint production lines and one World identity with 275 net test
+lines. The exact ceilings and census ledger have now been reviewed, and their
+two focused checks pass. Production-login integration, bot tests and debug
+builds were not reached by this failed campaign. An earlier launcher attempt
+passed the same 47 QA tests but failed recording the completed process; its
+0.326-second record is not validation or a repeated code failure.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
