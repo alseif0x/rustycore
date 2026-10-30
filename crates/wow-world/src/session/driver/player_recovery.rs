@@ -211,7 +211,22 @@ async fn run_admitted_player_recovery(
         Some(binding),
     );
     let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
-    if selected_result.is_err() {
+    if let Err(error) = selected_result {
+        if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+            tracing::info!(
+                account = session.core.account_id,
+                player_guid = ?session.player_guid(),
+                coordinator_id = admission.coordinator_id,
+                tick_epoch = admission.tick_epoch,
+                map_tick_epoch = admission.map_tick_epoch,
+                diff_ms = admission.diff_ms,
+                %error,
+                recovery_status = ?recovery_status(session, admission),
+                admission_current = session.core.is_player_recovery_admission_current(admission),
+                session_state = ?session.core.state,
+                "RUST_DEATH_TIMER player_recovery_selected_unit_error"
+            );
+        }
         return recovery_status(session, admission).unwrap_or(PlayerRecoveryStatus::Unavailable);
     }
     if let Some(status) = recovery_status(session, admission) {
@@ -598,6 +613,14 @@ async fn advance_player_death_timer(
             },
         )
         .await;
+    } else if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+        tracing::info!(
+            account = session.core.account_id,
+            player_guid = ?session.player_guid(),
+            diff_ms,
+            session_state = ?session.core.state,
+            "RUST_DEATH_TIMER player_death_timer_not_strictly_in_world"
+        );
     }
 }
 

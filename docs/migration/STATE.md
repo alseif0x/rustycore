@@ -375,6 +375,12 @@ difference alone is not a defect. Recovery replies are still all requested and
 completed, but completed can also mean PlayerLeft. The next trace exposes every
 non-Completed reply's existing status/outcome before any clock decision.
 
+The reply-state campaign at `b7f9bfc1cc2e0aedd70cac8774ff8c822700ba41`
+passed affected acceptance in 265.366 seconds. No PlayerLeft or Unavailable
+replies occurred. The next UNVALIDATED trace covers the remaining early skips:
+selected Unit errors and strict-in-world rejection, both able to leave a
+Completed reply while omitting the timer update.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
