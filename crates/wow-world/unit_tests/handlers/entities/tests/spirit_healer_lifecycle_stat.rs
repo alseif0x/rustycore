@@ -103,7 +103,13 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
     session.core.with_owned_player_mut_like_cpp(|player| {
         player.unit_mut().set_death_state(DeathState::Alive);
     });
-    assert!(session.send_stat_update());
+    session
+        .stats_application_cx_like_cpp()
+        .send_login_stat_update_with_represented_item_bonuses_like_cpp();
+    let login_effective = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("canonical effective stats after login");
+    assert_eq!(login_effective.weapon_damage_pct[1], 0.5);
     let legacy_packets = drain_packets(&send_rx);
     assert!(
         legacy_packets

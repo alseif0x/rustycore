@@ -503,12 +503,16 @@ proc_starttime() {
 }
 
 capture_privileged() {
+  local -a trace_passthrough=(env -u RUSTYCORE_CREATURE_MELEE_TRACE)
+  if [[ -v RUSTYCORE_CREATURE_MELEE_TRACE ]]; then
+    trace_passthrough=(env "RUSTYCORE_CREATURE_MELEE_TRACE=$RUSTYCORE_CREATURE_MELEE_TRACE")
+  fi
   # shellcheck disable=SC2086
-  $QA_PRIVILEGED python3 "$QA_CAPTURE_FILEOPS" "$@"
+  $QA_PRIVILEGED "${trace_passthrough[@]}" python3 "$QA_CAPTURE_FILEOPS" "$@"
 }
 
 capture_unit_env_matches() {
-  local expected="$1" environment token actual="" count=0
+  local expected="$1" environment token actual="" count=0 trace_actual="" trace_count=0
   environment="$(service_property Environment)"
   environment="${environment//\"/}"
   for token in $environment; do
@@ -517,15 +521,25 @@ capture_unit_env_matches() {
         count=$((count + 1))
         actual="${token#*=}"
         ;;
+      RUSTYCORE_CREATURE_MELEE_TRACE=*)
+        trace_count=$((trace_count + 1))
+        trace_actual="${token#*=}"
+        ;;
     esac
   done
-  ((count == 1)) && [[ "$actual" == "$expected" ]]
+  ((count == 1)) && [[ "$actual" == "$expected" ]] || return 1
+  if [[ "${RUSTYCORE_CREATURE_MELEE_TRACE:-}" == 1 ]]; then
+    ((trace_count == 1)) && [[ "$trace_actual" == 1 ]]
+  else
+    ((trace_count == 0))
+  fi
 }
 
 capture_unit_env_absent() {
   local environment
   environment="$(service_property Environment)"
-  [[ "$environment" != *RUSTYCORE_PACKET_DUMP_DIR* ]]
+  [[ "$environment" != *RUSTYCORE_PACKET_DUMP_DIR* \
+    && "$environment" != *RUSTYCORE_CREATURE_MELEE_TRACE* ]]
 }
 
 capture_process_env_matches() {
@@ -533,7 +547,14 @@ capture_process_env_matches() {
   environment="$("$QA_PROCESS_ENV_READER" "$pid" 2>/dev/null)" || return 1
   count="$(grep -c '^RUSTYCORE_PACKET_DUMP_DIR=' <<<"$environment" || true)"
   [[ "$count" == 1 ]] \
-    && grep -Fxq "RUSTYCORE_PACKET_DUMP_DIR=$expected" <<<"$environment"
+    && grep -Fxq "RUSTYCORE_PACKET_DUMP_DIR=$expected" <<<"$environment" || return 1
+  if [[ "${RUSTYCORE_CREATURE_MELEE_TRACE:-}" == 1 ]]; then
+    count="$(grep -c '^RUSTYCORE_CREATURE_MELEE_TRACE=' <<<"$environment" || true)"
+    [[ "$count" == 1 ]] \
+      && grep -Fxq "RUSTYCORE_CREATURE_MELEE_TRACE=1" <<<"$environment"
+  else
+    ! grep -q '^RUSTYCORE_CREATURE_MELEE_TRACE=' <<<"$environment"
+  fi
 }
 
 capture_source_identity() {

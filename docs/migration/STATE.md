@@ -282,6 +282,39 @@ builds were not reached by this failed campaign. An earlier launcher attempt
 passed the same 47 QA tests but failed recording the completed process; its
 0.326-second record is not validation or a repeated code failure.
 
+The accepted affected campaign at `31078d818be95b0ae6ac9e1d72c3eb74b8e4e628`
+passed all seven commands in **607.510 seconds**, exceeding the ordinary target
+by 7.510 seconds rather than hiding the overrun. Record:
+`/tmp/rustycore43-repair-31078d818-4t_9wph3/record.json`. Final with architecture
+and manifest verification, 47 QA tests with one optional skip, 42 production-login
+integration tests, 253 bot tests and both debug builds passed. The affected
+library totals remain those in the preceding failed-campaign paragraph. The
+pinned world executable is `f25ac626e4d51f546fc68365e50b4f53a0fd61b8d9d02e7972f348738b773cec`;
+the bot remains `1690d9b93ac36f4791a262a367adf31e8844f9c6d77b0704ef6d94e1fcac7947`.
+
+Live campaign `/tmp/rustycore43-live-31078d818-5pg153ni/campaign.json` then passed
+healer (two epochs), Reincarnation and last-Ankh with collection and restoration.
+Their decoded SpellGo comparisons pass every action-relevant field, including the
+sickness UNIT target and empty Reincarnation hit list; only CastID/cast-time
+variables differ. Mob failed earlier than the prior attempt, waiting for
+ATTACKER_STATE_UPDATE, and restored the stable runtime. The requested trace did
+not reach the candidate because the capture wrapper's closed systemd environment
+forwarded only the packet-dump variable. No unchanged retry or combat conclusion
+is allowed from that run.
+
+The actor comparison also matched mainhand 0.25–0.5 and every other common Unit
+value, but Rust omitted offhand fields 54/55. This exposed an incorrect login
+`AllAttacks` operation: C++ calls that operation from aura 79, not generally at
+login. Login now preserves the initial 0.5 offhand multiplier so sickness emits
+the native 0.5-to-zero transition and its leaves. The existing lifecycle identity
+calls the real login method and passes with six lifecycle and five weapon-offense
+cases. The QA wrapper now validates and forwards the optional trace through its
+drop-in, checks unit/process presence or absence and rejects restoration leakage;
+its 225 fake checks and 47 death QA tests pass. These repairs and their updated
+ceilings are a new UNVALIDATED candidate until the next affected campaign and
+fresh captures. ActivePlayer mask shapes in this comparison are not aligned
+well enough to exclude other action differences; the strict stream remains open.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

@@ -195,6 +195,16 @@
    "unit_tests_lines": 277998,
    "unit_tests_tests": 4135,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-18",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-30",
+   "reason": "One existing lifecycle identity now calls the real login stat method and proves initial offhand 0.5 before sickness emits 54/55=0; exact +6 lines, no identity/class/destination/ignored change and no headroom.",
+   "unit_tests_lines": 278004,
+   "unit_tests_tests": 4135,
+   "src_tests": 22
   }
  ]
 }

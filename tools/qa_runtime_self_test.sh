@@ -69,6 +69,7 @@ case "${1:-}" in
         environment="${QA_FAKE_ENVIRONMENT:-}"
         if [[ -f "${state}.capture-env" ]]; then
           environment="$environment $(cat "${state}.capture-env")"
+          cat "${state}.capture-env" >"${state}.observed-unit-env"
         fi
         printf '%s\n' "$environment"
         ;;
@@ -154,7 +155,11 @@ chmod +x "$WORK/bin/privileged"
 
 cat >"$WORK/bin/process-env" <<'FAKE'
 #!/usr/bin/env bash
-cat "${QA_FAKE_STATE:?}.capture-env" 2>/dev/null || true
+environment="${QA_FAKE_STATE:?}.capture-env"
+if [[ -f "$environment" ]]; then
+  cat "$environment" >"${QA_FAKE_STATE}.observed-process-env"
+fi
+cat "$environment" 2>/dev/null || true
 FAKE
 chmod +x "$WORK/bin/process-env"
 
@@ -930,6 +935,31 @@ check "Rust report hashes its stable scenario report" \
 check "capture report omits config secrets and packet payloads" \
   bash -c '! grep -qE "fixture-secret|AUTH-PAYLOAD|PKT-PAYLOAD" "$1"' _ \
     "$WORK/capture-rust/capture-report.json"
+check "unrequested melee trace stays absent from the fake unit environment" \
+  bash -c '! grep -q "^RUSTYCORE_CREATURE_MELEE_TRACE=" "$1"' _ "$WORK/state.observed-unit-env"
+check "unrequested melee trace stays absent from the fake process environment" \
+  bash -c '! grep -q "^RUSTYCORE_CREATURE_MELEE_TRACE=" "$1"' _ "$WORK/state.observed-process-env"
+
+reset_state
+EXTRA_ENV=(RUSTYCORE_CREATURE_MELEE_TRACE=1)
+run_capture_fake rust "$WORK/capture-rust-melee-trace" >/dev/null 2>&1
+check "requested melee trace reaches the fake unit environment" \
+  grep -Fxq "RUSTYCORE_CREATURE_MELEE_TRACE=1" "$WORK/state.observed-unit-env"
+check "requested melee trace reaches the fake process environment" \
+  grep -Fxq "RUSTYCORE_CREATURE_MELEE_TRACE=1" "$WORK/state.observed-process-env"
+check "melee trace capture restores original executable" live_is_original
+check "melee trace capture removes its run-owned drop-in" \
+  test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+
+reset_state
+EXTRA_ENV=(RUSTYCORE_CREATURE_MELEE_TRACE=0)
+status=0
+output="$(run_capture_fake rust "$WORK/capture-rust-invalid-melee-trace" 2>&1)" || status=$?
+check "invalid melee trace value fails closed" test "$status" -ne 0
+check "invalid melee trace value restores original executable" live_is_original
+check "invalid melee trace value leaves no run-owned drop-in" \
+  test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+check "invalid melee trace value never reaches the scenario" test ! -f "$WORK/state.capture-runner"
 
 # A single argv argument cannot carry this inventory on the development host.
 # Drive the real report writer and compare every retained artifact and hash.

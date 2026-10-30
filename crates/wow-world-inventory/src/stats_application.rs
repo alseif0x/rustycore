@@ -470,7 +470,7 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
     pub fn send_login_stat_update_with_represented_item_bonuses_like_cpp(&mut self) {
         let Some((player_guid, changes)) = self
             .player_stat_changes_with_damage_pct_operation_like_cpp(
-                PlayerDamagePctOperation::AllAttacks,
+                PlayerDamagePctOperation::PreserveOffhand,
             )
         else {
             return;
@@ -495,7 +495,7 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         [i32; 6],
     )> {
         let request = PlayerStatComputationRequest::new(Some((race, class, level)), None)
-            .with_damage_pct_operation(PlayerDamagePctOperation::AllAttacks);
+            .with_damage_pct_operation(PlayerDamagePctOperation::PreserveOffhand);
         let calculation = self
             .inventory
             .calculate_player_stats_with_access(&self.player, &request)?;
