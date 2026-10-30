@@ -368,6 +368,13 @@ gate refusal. The accumulated effective diff still loses about twelve seconds
 over the six-minute observation. The next diagnostic also records raw loop diff
 beside the plan's effective value to isolate where those milliseconds vanish.
 
+The raw/effective comparison at `fc07acd4b1468487cf77eb8f1f1e7c02d8dc60f1`
+passed affected acceptance in 258.918 seconds. The raw loop diff accumulates
+attempts while the plan's effective diff accumulates admitted ticks, so their
+difference alone is not a defect. Recovery replies are still all requested and
+completed, but completed can also mean PlayerLeft. The next trace exposes every
+non-Completed reply's existing status/outcome before any clock decision.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

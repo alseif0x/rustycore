@@ -234,7 +234,7 @@ pub(crate) async fn run_player_recovery_passes(
             }
             summary.requested = summary.requested.saturating_add(1);
 
-            await_one_admitted_pass_like_cpp(
+            let reply = await_one_admitted_pass_like_cpp(
                 &mut summary,
                 admitted_map.key,
                 tick_epoch,
@@ -262,6 +262,22 @@ pub(crate) async fn run_player_recovery_passes(
                 },
             )
             .await;
+            if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                if let Some(reply) = reply {
+                    if reply.status != Some(PlayerRecoveryStatus::Completed) {
+                        tracing::info!(
+                            map_id = admitted_map.key.map_id,
+                            instance_id = admitted_map.key.instance_id,
+                            tick_epoch,
+                            map_tick_epoch,
+                            diff_ms,
+                            status = ?reply.status,
+                            outcome = ?reply.outcome,
+                            "RUST_DEATH_TIMER player_recovery_reply"
+                        );
+                    }
+                }
+            }
 
             if !summary.quiescent_like_cpp() {
                 error!(
