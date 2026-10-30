@@ -555,6 +555,45 @@ pub async fn tick_player_death_timer<H: CorpseHostLikeCpp>(
     }) else {
         return;
     };
+    if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() && remaining_ms <= 10_000 {
+        let player_guid = host.player_guid();
+        let delayed_after_teleport = host
+            .core()
+            .with_owned_player_like_cpp(|player| {
+                player.resurrection_state_like_cpp().delayed_after_teleport
+            })
+            .flatten();
+        let current_map_instanceable =
+            current_map_entry_like_cpp(host).map(|entry| entry.is_instanceable_like_cpp());
+        let prevent_resurrection_effect_count = host
+            .hub_ref()
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION,
+            )
+            .map(|effects| effects.len());
+        let outcome = if remaining_ms == 0 {
+            "gate_refused_remaining_zero"
+        } else if current_map_instanceable != Some(false) {
+            "gate_refused_map"
+        } else if prevent_resurrection_effect_count.is_some_and(|count| count != 0) {
+            "gate_refused_prevent_resurrection"
+        } else if diff_ms >= remaining_ms {
+            "expiry_entering_existing_repop"
+        } else {
+            "timer_advanced"
+        };
+        tracing::info!(
+            player_guid = ?player_guid,
+            remaining_ms,
+            diff_ms,
+            current_map_instanceable = ?current_map_instanceable,
+            prevent_resurrection_effect_count = ?prevent_resurrection_effect_count,
+            delayed_operation = ?delayed_after_teleport.map(|continuation| continuation.operation),
+            delayed_phase = ?delayed_after_teleport.map(|continuation| continuation.phase),
+            outcome,
+            "RUST_DEATH_TIMER tick"
+        );
+    }
     if remaining_ms == 0
         || !current_map_entry_like_cpp(host).is_some_and(|entry| !entry.is_instanceable_like_cpp())
         || host

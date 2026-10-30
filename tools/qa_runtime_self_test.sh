@@ -935,31 +935,41 @@ check "Rust report hashes its stable scenario report" \
 check "capture report omits config secrets and packet payloads" \
   bash -c '! grep -qE "fixture-secret|AUTH-PAYLOAD|PKT-PAYLOAD" "$1"' _ \
     "$WORK/capture-rust/capture-report.json"
-check "unrequested melee trace stays absent from the fake unit environment" \
-  bash -c '! grep -q "^RUSTYCORE_CREATURE_MELEE_TRACE=" "$1"' _ "$WORK/state.observed-unit-env"
-check "unrequested melee trace stays absent from the fake process environment" \
-  bash -c '! grep -q "^RUSTYCORE_CREATURE_MELEE_TRACE=" "$1"' _ "$WORK/state.observed-process-env"
+for trace_var in RUSTYCORE_CREATURE_MELEE_TRACE RUSTYCORE_DEATH_TIMER_TRACE; do
+  check "unrequested $trace_var stays absent from the fake unit environment" \
+    bash -c '! grep -q "^$2=" "$1"' _ "$WORK/state.observed-unit-env" "$trace_var"
+  check "unrequested $trace_var stays absent from the fake process environment" \
+    bash -c '! grep -q "^$2=" "$1"' _ "$WORK/state.observed-process-env" "$trace_var"
+done
 
-reset_state
-EXTRA_ENV=(RUSTYCORE_CREATURE_MELEE_TRACE=1)
-run_capture_fake rust "$WORK/capture-rust-melee-trace" >/dev/null 2>&1
-check "requested melee trace reaches the fake unit environment" \
-  grep -Fxq "RUSTYCORE_CREATURE_MELEE_TRACE=1" "$WORK/state.observed-unit-env"
-check "requested melee trace reaches the fake process environment" \
-  grep -Fxq "RUSTYCORE_CREATURE_MELEE_TRACE=1" "$WORK/state.observed-process-env"
-check "melee trace capture restores original executable" live_is_original
-check "melee trace capture removes its run-owned drop-in" \
-  test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+for trace_var in RUSTYCORE_CREATURE_MELEE_TRACE RUSTYCORE_DEATH_TIMER_TRACE; do
+  reset_state
+  EXTRA_ENV=("$trace_var=1")
+  run_capture_fake rust "$WORK/capture-rust-trace-${trace_var,,}" >/dev/null 2>&1
+  check "requested $trace_var reaches the fake unit environment" \
+    grep -Fxq "$trace_var=1" "$WORK/state.observed-unit-env"
+  check "requested $trace_var reaches the fake process environment" \
+    grep -Fxq "$trace_var=1" "$WORK/state.observed-process-env"
+  check "$trace_var capture restores original executable" live_is_original
+  check "$trace_var capture removes its run-owned drop-in" \
+    test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+done
 
-reset_state
-EXTRA_ENV=(RUSTYCORE_CREATURE_MELEE_TRACE=0)
-status=0
-output="$(run_capture_fake rust "$WORK/capture-rust-invalid-melee-trace" 2>&1)" || status=$?
-check "invalid melee trace value fails closed" test "$status" -ne 0
-check "invalid melee trace value restores original executable" live_is_original
-check "invalid melee trace value leaves no run-owned drop-in" \
-  test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
-check "invalid melee trace value never reaches the scenario" test ! -f "$WORK/state.capture-runner"
+for trace_var in RUSTYCORE_CREATURE_MELEE_TRACE RUSTYCORE_DEATH_TIMER_TRACE; do
+  for invalid_value in 0 ""; do
+    reset_state
+    EXTRA_ENV=("$trace_var=$invalid_value")
+    status=0
+    output="$(run_capture_fake rust \
+      "$WORK/capture-rust-invalid-${trace_var,,}-${invalid_value:-empty}" 2>&1)" || status=$?
+    check "invalid $trace_var value '${invalid_value:-empty}' fails closed" test "$status" -ne 0
+    check "invalid $trace_var value '${invalid_value:-empty}' restores original executable" live_is_original
+    check "invalid $trace_var value '${invalid_value:-empty}' leaves no run-owned drop-in" \
+      test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+    check "invalid $trace_var value '${invalid_value:-empty}' never reaches the scenario" \
+      test ! -f "$WORK/state.capture-runner"
+  done
+done
 
 # A single argv argument cannot carry this inventory on the development host.
 # Drive the real report writer and compare every retained artifact and hash.

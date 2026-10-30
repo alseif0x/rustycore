@@ -315,6 +315,32 @@ ceilings are a new UNVALIDATED candidate until the next affected campaign and
 fresh captures. ActivePlayer mask shapes in this comparison are not aligned
 well enough to exclude other action differences; the strict stream remains open.
 
+The next affected campaign at `ed955c62221e3e2e6f6f6d8660e3557f29b8bf28`
+passed all eight commands in **506.840 seconds** on aarch64 with one Cargo job,
+meeting the 600-second target. Record:
+`/tmp/rustycore43-repair-ed955c622-g8r03g8k/record.json`. It adds the 243-check
+runtime-wrapper self-test to the previous green evidence. World SHA-256:
+`5e7eff2484303f915ef19c9158a7323f9e4a127cfb091bc589ba49b871daa98b`.
+
+Live `/tmp/rustycore43-live-ed955c622-6_wm67d2/campaign.json` then passed healer,
+Reincarnation, last-Ankh and mob with collection/restoration. SpellGo fields pass
+and the actor comparison now includes offhand 54/55=0 with every common Unit value
+matching; only the timed Mana field 137 and unaligned Active mask shapes remain
+as boundaries. The death-timer trace reached the candidate and mob passed in
+409.171 seconds. A second campaign `/tmp/rustycore43-live-ed955c622-n6s7ypbu/campaign.json`
+passed fall-release, reclaim and both wisp epochs, then automatic-release failed:
+no PRE_RESURRECT or DEATH_RELEASE_LOC appeared by the 370-second observation
+deadline. The world advanced about 100 ticks/second. Offline finalization later
+teleported the actor and created the corpse, so this is not evidence that the
+six-minute timer never armed. It remains unproven whether a timer gate refused
+or BuildPlayerRepop found an existing continuation.
+
+A new UNVALIDATED diagnostic candidate adds an env-gated final-ten-second timer
+trace for remaining/diff, map/aura gates and delayed operation/phase, plus its
+closed-systemd passthrough. The focused automatic-release test, 243 wrapper
+checks and 47 death QA tests pass. No behavior or scenario deadline changed;
+the next automatic-release attempt must identify the gate before a repair.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

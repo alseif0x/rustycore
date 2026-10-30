@@ -503,9 +503,14 @@ proc_starttime() {
 }
 
 capture_privileged() {
-  local -a trace_passthrough=(env -u RUSTYCORE_CREATURE_MELEE_TRACE)
+  local -a trace_passthrough=(
+    env -u RUSTYCORE_CREATURE_MELEE_TRACE -u RUSTYCORE_DEATH_TIMER_TRACE
+  )
   if [[ -v RUSTYCORE_CREATURE_MELEE_TRACE ]]; then
-    trace_passthrough=(env "RUSTYCORE_CREATURE_MELEE_TRACE=$RUSTYCORE_CREATURE_MELEE_TRACE")
+    trace_passthrough+=("RUSTYCORE_CREATURE_MELEE_TRACE=$RUSTYCORE_CREATURE_MELEE_TRACE")
+  fi
+  if [[ -v RUSTYCORE_DEATH_TIMER_TRACE ]]; then
+    trace_passthrough+=("RUSTYCORE_DEATH_TIMER_TRACE=$RUSTYCORE_DEATH_TIMER_TRACE")
   fi
   # shellcheck disable=SC2086
   $QA_PRIVILEGED "${trace_passthrough[@]}" python3 "$QA_CAPTURE_FILEOPS" "$@"
@@ -513,6 +518,7 @@ capture_privileged() {
 
 capture_unit_env_matches() {
   local expected="$1" environment token actual="" count=0 trace_actual="" trace_count=0
+  local death_trace_actual="" death_trace_count=0
   environment="$(service_property Environment)"
   environment="${environment//\"/}"
   for token in $environment; do
@@ -525,13 +531,22 @@ capture_unit_env_matches() {
         trace_count=$((trace_count + 1))
         trace_actual="${token#*=}"
         ;;
+      RUSTYCORE_DEATH_TIMER_TRACE=*)
+        death_trace_count=$((death_trace_count + 1))
+        death_trace_actual="${token#*=}"
+        ;;
     esac
   done
   ((count == 1)) && [[ "$actual" == "$expected" ]] || return 1
   if [[ "${RUSTYCORE_CREATURE_MELEE_TRACE:-}" == 1 ]]; then
-    ((trace_count == 1)) && [[ "$trace_actual" == 1 ]]
+    ((trace_count == 1)) && [[ "$trace_actual" == 1 ]] || return 1
   else
-    ((trace_count == 0))
+    ((trace_count == 0)) || return 1
+  fi
+  if [[ "${RUSTYCORE_DEATH_TIMER_TRACE:-}" == 1 ]]; then
+    ((death_trace_count == 1)) && [[ "$death_trace_actual" == 1 ]]
+  else
+    ((death_trace_count == 0))
   fi
 }
 
@@ -539,7 +554,8 @@ capture_unit_env_absent() {
   local environment
   environment="$(service_property Environment)"
   [[ "$environment" != *RUSTYCORE_PACKET_DUMP_DIR* \
-    && "$environment" != *RUSTYCORE_CREATURE_MELEE_TRACE* ]]
+    && "$environment" != *RUSTYCORE_CREATURE_MELEE_TRACE* \
+    && "$environment" != *RUSTYCORE_DEATH_TIMER_TRACE* ]]
 }
 
 capture_process_env_matches() {
@@ -551,9 +567,16 @@ capture_process_env_matches() {
   if [[ "${RUSTYCORE_CREATURE_MELEE_TRACE:-}" == 1 ]]; then
     count="$(grep -c '^RUSTYCORE_CREATURE_MELEE_TRACE=' <<<"$environment" || true)"
     [[ "$count" == 1 ]] \
-      && grep -Fxq "RUSTYCORE_CREATURE_MELEE_TRACE=1" <<<"$environment"
+      && grep -Fxq "RUSTYCORE_CREATURE_MELEE_TRACE=1" <<<"$environment" || return 1
   else
-    ! grep -q '^RUSTYCORE_CREATURE_MELEE_TRACE=' <<<"$environment"
+    ! grep -q '^RUSTYCORE_CREATURE_MELEE_TRACE=' <<<"$environment" || return 1
+  fi
+  if [[ "${RUSTYCORE_DEATH_TIMER_TRACE:-}" == 1 ]]; then
+    count="$(grep -c '^RUSTYCORE_DEATH_TIMER_TRACE=' <<<"$environment" || true)"
+    [[ "$count" == 1 ]] \
+      && grep -Fxq "RUSTYCORE_DEATH_TIMER_TRACE=1" <<<"$environment"
+  else
+    ! grep -q '^RUSTYCORE_DEATH_TIMER_TRACE=' <<<"$environment"
   fi
 }
 

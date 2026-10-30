@@ -240,6 +240,9 @@ def prepare_rust(args: argparse.Namespace) -> None:
     creature_melee_trace = os.environ.get("RUSTYCORE_CREATURE_MELEE_TRACE")
     if creature_melee_trace not in (None, "1"):
         fail("RUSTYCORE_CREATURE_MELEE_TRACE must be exactly 1 when set")
+    death_timer_trace = os.environ.get("RUSTYCORE_DEATH_TIMER_TRACE")
+    if death_timer_trace not in (None, "1"):
+        fail("RUSTYCORE_DEATH_TIMER_TRACE must be exactly 1 when set")
     output = Path(args.output_dir)
     verify_output_dir(output)
     if not re.fullmatch(r"[A-Za-z0-9_.@:-]+", args.unit):
@@ -262,6 +265,8 @@ def prepare_rust(args: argparse.Namespace) -> None:
     ).encode()
     if creature_melee_trace == "1":
         expected += b"Environment=RUSTYCORE_CREATURE_MELEE_TRACE=1\n"
+    if death_timer_trace == "1":
+        expected += b"Environment=RUSTYCORE_DEATH_TIMER_TRACE=1\n"
     created_dirs = [str(dropin_dir)] if not dropin_dir.exists() else []
     record: dict[str, object] = {
         "schema": 1,
