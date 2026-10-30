@@ -341,6 +341,21 @@ closed-systemd passthrough. The focused automatic-release test, 243 wrapper
 checks and 47 death QA tests pass. No behavior or scenario deadline changed;
 the next automatic-release attempt must identify the gate before a repair.
 
+The diagnostic campaign at `ba9d9ea9497d8e7e06715d026db2900beb890537`
+passed all eight commands in **297.552 seconds**. Record:
+`/tmp/rustycore43-repair-ba9d9ea94-86gnzc_s/record.json`. An earlier attempt
+failed in 590.012 seconds only on two timing-sensitive split-death world-server
+tests; both passed when rerun together in a focused nonzero filter before the
+green campaign. Live `/tmp/rustycore43-live-ba9d9ea94-og6_nh49/campaign.json`
+then reproduced automatic-release with trace: map is non-instanceable, no
+prevent-resurrection effects and no delayed continuation exist. At the
+370-second timeout, `remaining_ms` was 4,973 rather than zero. The timer started
+immediately after MOVE_ROOT and advanced normally, so no repop gate is at fault.
+About fifteen seconds of Player Recovery execution were not admitted. The next
+UNVALIDATED diagnostic adds the existing per-tick requested/completed/revoked/
+refused/unaddressable/stalled counters; no scheduler or timer behavior changes
+until that evidence identifies the lost admissions.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

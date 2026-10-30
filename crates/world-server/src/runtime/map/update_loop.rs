@@ -389,6 +389,23 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 phase_ack_timeout,
             )
             .await;
+            if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                info!(
+                    tick_epoch,
+                    diff_ms = prelude.plan().effective_diff_ms(),
+                    participants = recovery_summary.participants,
+                    requested = recovery_summary.requested,
+                    completed = recovery_summary.completed,
+                    revoked_before_start = recovery_summary.revoked_before_start,
+                    refused_before_start = recovery_summary.refused_before_start,
+                    send_failed = recovery_summary.send_failed,
+                    unaddressable = recovery_summary.unaddressable,
+                    unresolved_after_start = recovery_summary.unresolved_after_start,
+                    blocks_tick_tail = recovery_summary.blocks_tick_tail,
+                    stalled_ms = recovery_summary.stalled_ms,
+                    "RUST_DEATH_TIMER player_recovery_pass"
+                );
+            }
             if !recovery_summary.quiescent_like_cpp() {
                 unresolved_phase_permits.extend(recovery_summary.unresolved_permits.clone());
                 tracing::error!(
