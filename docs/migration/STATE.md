@@ -351,10 +351,14 @@ then reproduced automatic-release with trace: map is non-instanceable, no
 prevent-resurrection effects and no delayed continuation exist. At the
 370-second timeout, `remaining_ms` was 4,973 rather than zero. The timer started
 immediately after MOVE_ROOT and advanced normally, so no repop gate is at fault.
-About fifteen seconds of Player Recovery execution were not admitted. The next
-UNVALIDATED diagnostic adds the existing per-tick requested/completed/revoked/
-refused/unaddressable/stalled counters; no scheduler or timer behavior changes
-until that evidence identifies the lost admissions.
+The follow-up at `d4190d5022ff97bbb38623d480f514c819b652b6` passed affected
+acceptance in 266.270 seconds. Its live counters show every admitted Recovery
+request completed, with no revocation, refusal or send failure; this disproves
+the earlier missing-admission hypothesis. Recovery `diff_ms` still trails the
+wall clock, and a later timer sample continues below three seconds. The next
+UNVALIDATED trace also records values at or above 350,000 so the exact arming
+or reset value is visible. No scheduler or timer behavior changes until that
+measurement identifies the lost time.
 
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in

@@ -555,7 +555,9 @@ pub async fn tick_player_death_timer<H: CorpseHostLikeCpp>(
     }) else {
         return;
     };
-    if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() && remaining_ms <= 10_000 {
+    if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some()
+        && (remaining_ms <= 10_000 || remaining_ms >= 350_000)
+    {
         let player_guid = host.player_guid();
         let delayed_after_teleport = host
             .core()
