@@ -393,6 +393,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 info!(
                     tick_epoch,
                     diff_ms = prelude.plan().effective_diff_ms(),
+                    raw_diff_ms = diff_ms,
                     participants = recovery_summary.participants,
                     requested = recovery_summary.requested,
                     completed = recovery_summary.completed,

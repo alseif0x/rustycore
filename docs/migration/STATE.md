@@ -360,6 +360,14 @@ UNVALIDATED trace also records values at or above 350,000 so the exact arming
 or reset value is visible. No scheduler or timer behavior changes until that
 measurement identifies the lost time.
 
+The arming campaign at `524f7a4ae69fce682e07dc10a024019490a50b67` passed all
+eight commands in 688.912 seconds, exceeding the ordinary target by 88.912
+seconds. Record: `/tmp/rustycore43-repair-524f7a4ae-we07k4ta/record.json`.
+Its trace proves an exact 360,000-ms arm, with no reset, no revocation and no
+gate refusal. The accumulated effective diff still loses about twelve seconds
+over the six-minute observation. The next diagnostic also records raw loop diff
+beside the plan's effective value to isolate where those milliseconds vanish.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
