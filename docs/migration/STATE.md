@@ -427,6 +427,11 @@ SPELL_FAILED reason 2 without an EffectStuck error log, so the failure is either
 an early execution rejection or an Ok branch that skips teleport. The next
 trace records entry config, flight, life, timer, cooldown and homebind state.
 
+The branch-tracing candidate at `f67aa668872e418ee93e7d867d1baff1b7c072d1`
+passed affected acceptance in 429.763 seconds. No apply_stuck entry appears in
+the live log, so the next trace instruments the direct SPELL_EFFECT_STUCK match
+before and after the host call to locate the earlier rejection.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
