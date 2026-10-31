@@ -95,10 +95,18 @@ async fn automatic_release_keeps_ghost_and_wisp_pending_until_the_next_recovery(
         .expect("canonical Player owner");
 
     session.update(0).await;
-    assert_eq!(death_timer_from_driver(&session), 360_000);
+    assert!((359_000..=360_000).contains(&death_timer_from_driver(&session)));
     let _ = send_rx.try_iter().collect::<Vec<_>>();
     let _ = realm_rx.try_iter().collect::<Vec<_>>();
     set_death_timer_for_driver(&mut session, 1);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .resurrection_state_mut_like_cpp()
+                .death_timer_deadline = None;
+        })
+        .expect("canonical Player owner");
 
     session.update(1).await;
 

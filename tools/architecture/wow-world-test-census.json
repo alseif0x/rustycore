@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4157,
+  "tests": 4158,
   "ignored": 1,
-  "session": 3853,
-  "shims": 3673,
+  "session": 3854,
+  "shims": 3674,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3678
+   "W": 3679
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3472
+   "W-world-logic": 3473
   },
   "by_owner": {
    "wow-world": {
@@ -88,7 +88,7 @@
    "wow-world-inventory": {
     "P": 26,
     "H": 19,
-    "W": 411
+    "W": 412
    },
    "wow-world-lifecycle": {
     "P": 38,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3678
+    "W": 3679
    },
    "wow-world-application": {
     "P": 27,
@@ -1130,6 +1130,7 @@
   ["unit_tests/handlers/entities/tests/corpse/bones_birth.rs::committed_bones_delete_cannot_complete_an_earlier_residence", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_kill_player_runs_once_after_regeneration_and_waits_for_timer", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["update"], []],
   ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_death_timer_expires_at_the_exact_six_minute_boundary", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["update"], []],
+  ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_death_timer_ignores_oversized_diff_before_monotonic_deadline", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["update"], []],
   ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_death_timer_freezes_in_instance_maps_and_with_prevent_resurrection", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_spell_store", "update"], []],
   ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_does_not_kill_or_advance_death_timer_while_player_is_detached", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["update"], []],
   ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::live_pet_release_saves_both_transactions_before_detaching_and_creating_corpse", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],

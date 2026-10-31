@@ -394,6 +394,25 @@ but it trails the wall clock by about fourteen seconds. Recovery and timer diffs
 match each other, so the next diagnostic also records the real tick-start
 timestamp to isolate raw-loop versus Map-timer time loss.
 
+The timestamp comparison at `aba1c1dd603b3369ae52e776fef8edd0aaef771a`
+passed affected acceptance in 233.642 seconds. It confirms that the effective
+diff trails the real tick-start intervals while every Recovery reply completes.
+An earlier campaign failed only on the already timing-sensitive split-death
+case, which passed again in isolation before the green retry.
+
+The intentional bounded clock contract is now implemented: `kill_player_like_cpp`
+arms a monotonic `Instant` deadline for the same 360,000 ms, and the death-timer
+tick uses that deadline when present. `death_timer_remaining_ms` remains the
+projection, while loaded and fixture states without a deadline retain the exact
+existing diff fallback. Expiry, repop and native resurrection clear the deadline;
+`death_expire_time`, persistence and BuildPlayerRepop -> RepopAtGraveyard order
+are unchanged. This is an explicit adaptation to proven async Recovery time
+loss, not a longer timeout or a claim that the underlying diff issue is fixed.
+Focused checks pass: eight death-timer, one automatic-release and 33 recovery-
+timer tests. The 30 ms regression ignores an oversized 360,000-ms early diff,
+then expires and creates the corpse/ghost/repop path. Live six-minute evidence
+is still required.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

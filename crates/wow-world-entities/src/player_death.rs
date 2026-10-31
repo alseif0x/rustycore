@@ -24,7 +24,10 @@
 //! drowning, battleground/battlefield graveyard selectors and `OnPlayerRepop`
 //! remain follow-ups. The unconditional mirror-stop packets are represented.
 
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use tracing::warn;
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
@@ -347,6 +350,7 @@ pub async fn kill_player_like_cpp<H: CorpseHostLikeCpp>(
     let changed = host.core().with_owned_player_mut_like_cpp(|player| {
         let state = player.resurrection_state_mut_like_cpp();
         state.death_timer_remaining_ms = 360_000;
+        state.death_timer_deadline = Some(Instant::now() + Duration::from_millis(360_000));
         state.death_expire_time =
             updated_death_expire_time_like_cpp(pvp, state.death_expire_time, now, policy);
     });
@@ -548,12 +552,30 @@ pub async fn tick_player_death_timer<H: CorpseHostLikeCpp>(
     diff_ms: u32,
     catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
 ) {
-    let Some(remaining_ms) = host.core().with_owned_player_like_cpp(|player| {
-        player
-            .resurrection_state_like_cpp()
-            .death_timer_remaining_ms
-    }) else {
+    let Some((remaining_ms, death_timer_deadline)) =
+        host.core().with_owned_player_like_cpp(|player| {
+            let state = player.resurrection_state_like_cpp();
+            (state.death_timer_remaining_ms, state.death_timer_deadline)
+        })
+    else {
         return;
+    };
+    let now = Instant::now();
+    let (remaining_after_tick, expired) = if let Some(deadline) = death_timer_deadline {
+        let expired = now >= deadline;
+        let remaining_after_tick = if expired {
+            0
+        } else {
+            u32::try_from(deadline.saturating_duration_since(now).as_millis())
+                .unwrap_or(u32::MAX)
+                .max(1)
+        };
+        (remaining_after_tick, expired)
+    } else {
+        // Loaded and fixture states without a deadline retain native diff accounting.
+        let expired = diff_ms >= remaining_ms;
+        let remaining_after_tick = if expired { 0 } else { remaining_ms - diff_ms };
+        (remaining_after_tick, expired)
     };
     if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() && remaining_ms > 0 {
         let player_guid = host.player_guid();
@@ -577,7 +599,7 @@ pub async fn tick_player_death_timer<H: CorpseHostLikeCpp>(
             "gate_refused_map"
         } else if prevent_resurrection_effect_count.is_some_and(|count| count != 0) {
             "gate_refused_prevent_resurrection"
-        } else if diff_ms >= remaining_ms {
+        } else if expired {
             "expiry_entering_existing_repop"
         } else {
             "timer_advanced"
@@ -585,7 +607,10 @@ pub async fn tick_player_death_timer<H: CorpseHostLikeCpp>(
         tracing::info!(
             player_guid = ?player_guid,
             remaining_ms,
+            remaining_after_tick,
             diff_ms,
+            death_timer_deadline = ?death_timer_deadline,
+            clock = if death_timer_deadline.is_some() { "monotonic" } else { "diff" },
             current_map_instanceable = ?current_map_instanceable,
             prevent_resurrection_effect_count = ?prevent_resurrection_effect_count,
             delayed_operation = ?delayed_after_teleport.map(|continuation| continuation.operation),
@@ -606,12 +631,12 @@ pub async fn tick_player_death_timer<H: CorpseHostLikeCpp>(
         return;
     }
 
-    let expired = diff_ms >= remaining_ms;
-    let remaining_after_tick = if expired { 0 } else { remaining_ms - diff_ms };
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-        player
-            .resurrection_state_mut_like_cpp()
-            .death_timer_remaining_ms = remaining_after_tick;
+        let state = player.resurrection_state_mut_like_cpp();
+        state.death_timer_remaining_ms = remaining_after_tick;
+        if expired {
+            state.death_timer_deadline = None;
+        }
     });
 
     if expired {
@@ -735,9 +760,9 @@ pub fn closest_graveyard_like_cpp<H: CorpseHostLikeCpp>(
 /// build also counts each `RepopAtGraveyard`.
 pub(crate) fn stop_repop_countdown_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-        player
-            .resurrection_state_mut_like_cpp()
-            .death_timer_remaining_ms = 0;
+        let state = player.resurrection_state_mut_like_cpp();
+        state.death_timer_remaining_ms = 0;
+        state.death_timer_deadline = None;
     });
 
     #[cfg(any(test, feature = "test-fixtures"))]

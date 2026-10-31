@@ -324,6 +324,10 @@ pub struct PlayerResurrectionStateLikeCpp {
     pub delayed_after_teleport: Option<PlayerResurrectionContinuation>,
     /// Remaining C++ `Player::m_deathTimer` countdown in milliseconds.
     pub death_timer_remaining_ms: u32,
+    /// Monotonic automatic-release deadline. This intentionally preserves the
+    /// observable six-minute contract when async Recovery diff is insufficient;
+    /// the parent must record that contract in `STATE.md`.
+    pub death_timer_deadline: Option<std::time::Instant>,
     pub area_spirit_healer_guid: ObjectGuid,
     /// C++ `Player::_corpseLocation`: the map and position of the Player's
     /// resurrectable corpse; `None` is C++ `MAPID_INVALID` (no corpse).

@@ -137,12 +137,20 @@ async fn driver_kill_player_runs_once_after_regeneration_and_waits_for_timer() {
             .with_owned_player_like_cpp(|player| player.unit().death_state()),
         Some(wow_constants::DeathState::Corpse)
     );
-    assert_eq!(death_timer_from_driver(&session), 360_000);
+    assert!((359_000..=360_000).contains(&death_timer_from_driver(&session)));
     assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
     assert!(
         current_corpse_guid_like_cpp(&session, session.player_guid().expect("player GUID"))
             .is_none()
     );
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            let state = player.resurrection_state_mut_like_cpp();
+            state.death_timer_remaining_ms = 360_000;
+            state.death_timer_deadline = None;
+        })
+        .expect("canonical Player owner");
 
     assert_ne!(
         crate::session::hub_ref(&session).active_player_local_flags_like_cpp() & 0x8,
@@ -244,6 +252,70 @@ async fn driver_death_timer_expires_at_the_exact_six_minute_boundary() {
             ServerOpcodes::CancelCombat as u16,
             ServerOpcodes::DeathReleaseLoc as u16,
         ]
+    );
+}
+
+#[tokio::test]
+async fn driver_death_timer_ignores_oversized_diff_before_monotonic_deadline() {
+    let (mut session, _send_rx, _realm_rx, player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(4_315);
+    let _packet_tx = keep_driver_input_open(&mut session);
+    session.core.state = crate::session::SessionState::LoggedIn;
+    let (graveyards, conditions) =
+        graveyard_store_with_links(0, [wow_data::ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP], []);
+    session.set_graveyard_store(graveyards);
+    session.set_condition_store(conditions);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::JustDied);
+        })
+        .expect("canonical Player owner");
+    session.update(0).await;
+    assert!((359_000..=360_000).contains(&death_timer_from_driver(&session)));
+
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .resurrection_state_mut_like_cpp()
+                .death_timer_deadline =
+                Some(std::time::Instant::now() + std::time::Duration::from_millis(30));
+        })
+        .expect("canonical Player owner");
+
+    session.update(360_000).await;
+
+    assert!((1..=30).contains(&death_timer_from_driver(&session)));
+    assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_none());
+    assert!(port.saves.lock().unwrap().is_empty());
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
+
+    tokio::time::sleep(std::time::Duration::from_millis(35)).await;
+    session.update(0).await;
+
+    assert_eq!(death_timer_from_driver(&session), 0);
+    assert!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| player
+                .resurrection_state_like_cpp()
+                .death_timer_deadline
+                .is_none())
+            .expect("canonical Player owner")
+    );
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_some());
+    assert_eq!(port.saves.lock().unwrap().len(), 1);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        1
     );
 }
 

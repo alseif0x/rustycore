@@ -188,9 +188,9 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
     let restored = host.core().with_owned_player_mut_like_cpp(|player| {
         let mut power_updates = Vec::new();
         // C++ clears m_deathTimer after land-walk and the guarded unroot.
-        player
-            .resurrection_state_mut_like_cpp()
-            .death_timer_remaining_ms = 0;
+        let resurrection = player.resurrection_state_mut_like_cpp();
+        resurrection.death_timer_remaining_ms = 0;
+        resurrection.death_timer_deadline = None;
 
         // set health/powers (0- will be set in caller)
         if restore_percent > 0.0 {

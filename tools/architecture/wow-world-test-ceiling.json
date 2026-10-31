@@ -205,6 +205,16 @@
    "unit_tests_lines": 278004,
    "unit_tests_tests": 4135,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-19",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "One monotonic-death-deadline regression plus fallback fixture adjustments: exact +80 lines and +1 identity, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278084,
+   "unit_tests_tests": 4136,
+   "src_tests": 22
   }
  ]
 }
