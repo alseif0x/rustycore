@@ -386,6 +386,14 @@ passed affected acceptance in 524.381 seconds. Neither selected Unit errors nor
 strict-in-world rejection occurred. The next trace records every positive
 remaining value to locate the exact countdown divergence without changing it.
 
+The full-countdown campaign at `7645f70ab68565d2337295bdb3fe3772efe2c6b8`
+passed all eight commands in 697.228 seconds, exceeding the ordinary target by
+97.228 seconds. Record: `/tmp/rustycore43-repair-7645f70ab-yxobs_8n/record.json`.
+The exact 360,000-ms arm never resets and the decrement is internally coherent,
+but it trails the wall clock by about fourteen seconds. Recovery and timer diffs
+match each other, so the next diagnostic also records the real tick-start
+timestamp to isolate raw-loop versus Map-timer time loss.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
