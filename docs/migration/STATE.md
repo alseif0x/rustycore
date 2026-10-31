@@ -680,6 +680,15 @@ test bodies unchanged and all five executed successfully in the new module.
 Physical source policy and the census pass; the ledger records only the mount/
 import +2 lines and five file-path relocations, with no test/class/ignored change.
 
+The `a2f08bbb7155d55cd46db828dbb2b7c261b52037` retry again passed its tests
+but failed in 348.855 seconds on the logical hotspot ratchet. Record:
+`/tmp/rustycore43-repair-a2f08bbb7-2p509l8b/record.json`. The three measured
+rows were reviewed rather than blanket-regenerated: character +1 fixture line;
+World Server +2 production/+101 tests for BaseVariance; Player -53 production/
++94 pre-ACK tests. `python3 tools/architecture/check_architecture.py check
+--self-test` now passes physical, dependency, ownership and hotspot checks;
+Player's production ceiling tightened to 20,205.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
