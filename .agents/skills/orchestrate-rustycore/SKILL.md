@@ -115,6 +115,13 @@ Claims of model use require a successful spawn trace.
 
 ## Acceptance and resumption
 
+For diagnostic-only work, prefer focused checks and one guarded live epoch instead of
+a full campaign. The parent schedules these measurements, keeps them serial and does
+not edit the candidate worktree during QA. Group behavior corrections into one
+accepted candidate; required matrix, capture and terminal evidence still runs once
+on that candidate. Fixtures must use effective data and native action evidence rather
+than simplified rows that can hide a defect.
+
 Implementation checks stay crate-scoped and sequential (`cargo check -p`, focused
 `cargo test -p` with `CARGO_BUILD_JOBS=1`), as the worker definition says. Any explicit
 instruction deferring worker checks for a whole sweep (the parked #1233 sweep) does not

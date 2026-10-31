@@ -134,6 +134,24 @@ Read [refactor-rustycore-safely](../refactor-rustycore-safely/SKILL.md) first. F
   contract). Never regenerate one blindly. Raise a ceiling only with a one-sentence reason, and
   tighten the rows that shrank.
 
+## Focused repair workflow
+
+Use bounded diagnosis before paying full acceptance cost:
+
+- Reproduce with effective production data and native action captures, not simplified
+  hand-written fixtures. Assert the complete action (Start, Go, targets, hit lists,
+  metadata and persistence) so one fixture exposes related defects together.
+- For diagnostic-only changes, run focused crate checks and one guarded live epoch.
+  A trace does not need a complete campaign. Reserve full affected acceptance for a
+  candidate with behavior changes, and group related corrections into one candidate.
+- Do not repeat a failed scenario without new evidence. Start with the failing epoch
+  and preserve the runtime, fixture, capture provenance and restoration report.
+- Check RAM and disk before Cargo. One job is the default; two jobs are allowed only
+  with demonstrated headroom. Live QA, DB writes and captures remain serial.
+- Clean only inspected, unused artifacts. Keep the newest incremental variant of each
+  crate, current binaries, required captures, manifests and native references. Never
+  delete sources, active services or required proxy/database configuration for space.
+
 ## Per-PR acceptance checklist
 
 Follow the single campaign in
