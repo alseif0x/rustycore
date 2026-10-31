@@ -725,6 +725,16 @@ ordering contract. Full streams remain non-clean and no global parity is claimed
 Evidence: `/tmp/rustycore43-capture-comparison-c59fa7d91/action-diffs/record.json`,
 `offer-epoch2-spell-go-occurrences.json` and the complete diff logs beside them.
 
+Global `physical-files --terminal` rejects 12 pre-existing migration rows;
+`/tmp/rustycore43-terminal-31333844c-7myjp2qx/record.json` preserves that boundary
+and #584 C4 tracks them in comment 6547611650. It is not relabeled as #43 work or
+as a passing terminal check. The exhaustive persistence snapshot was regenerated
+outside the tree and reviewed as exactly five additions/two replacements for the
+complete-item payload and BaseVariance query/fixtures. The subsequent exhaustive
+check passes 8,186 production and 2,681 test-fixture rows with 1,093 semantic
+groups. Log: `/tmp/rustycore43-persistence-check-31333844c.log`; checker SHA-256
+`8a90b5b92e3d1cebd42e2745b1fb502860d06f4d37c4fcdb368efeba4491e236`.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
