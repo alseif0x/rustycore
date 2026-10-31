@@ -652,13 +652,15 @@ Mob decoding separates correct dodge behavior from two repairs. Rust
 damage drift (`Unit.cpp:1333–1343,1390–1396,5469–5472`). Native AttackerStateUpdate
 uses the Unit/Unit fallback and default ContentTuning tail Type/TargetLevel/
 Expansion=0 and Flags=3; Rust incorrectly serializes real levels/expansion with
-flags zero. Fix that complete 30-byte tail, not C++'s selected-specialization
-behavior. Native creature damage 2 versus Rust 1 also exposed omission of
+flags zero. The packet no longer accepts misleading level/expansion inputs and
+now writes the complete default 30-byte tail with Flags=3; all three production
+constructors are updated and three packet tests plus both downstream crate checks
+passed. Native creature damage 2 versus Rust 1 also exposed omission of
 `(AttackPower / 14) * BaseVariance` from the float min/max damage calculation before
 its existing truncation (`StatSystem.cpp:1004–1022`, `Unit.cpp:2427–2433`).
 Propagate BaseVariance from the already selected SQL row into that resolver; do not
-change roll_damage, RNG, armor, attack tables or dynamic UnitMods. These remain
-UNVALIDATED repair contracts, alongside the live Stuck diagnosis.
+change roll_damage, RNG, armor, attack tables or dynamic UnitMods. BaseVariance and
+grouped/live acceptance remain pending.
 
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in

@@ -593,7 +593,7 @@ fn creature_melee_attacker_state_event_like_cpp(
     map_id: u32,
     instance_id: u32,
     damage: u32,
-    target_level: u8,
+    _target_level: u8,
     hit_info: u32,
     victim_state: u8,
     blocked: i32,
@@ -620,8 +620,6 @@ fn creature_melee_attacker_state_event_like_cpp(
             absorbed: absorbed.min(i32::MAX as u32) as i32,
             victim_state,
             school_mask: 1,
-            target_level,
-            expansion: 2,
         }
         .to_bytes(),
     }
