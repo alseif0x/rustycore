@@ -531,6 +531,17 @@ resolution, without applying Stuck's full erasure or emptying Hearthstone's hit
 list. Tests must supply self explicitly so the previous empty-fixture shortcut
 cannot hide this defect. Affected acceptance and another live run remain required.
 
+The `e051cede632c610a5075d9dfb12b807cc27a2086` affected campaign passed in
+583.689 seconds. Record: `/tmp/rustycore43-repair-e051cede6-ttdstkhp/record.json`.
+Live now matches the required Start and Go target phases and completes both Stuck
+epochs, but final validation rejects persisted cooldown metadata: Rust saves 8690
+with categoryId/categoryEnd zero, whereas native retains categoryId 1176 and a
+positive categoryEnd. Real SpellCategories row 72843 and SpellCooldowns row 54105
+have category 1176 and 1,800,000 ms respectively, with no SQL overlay. The next
+bounded diagnostic records the actual cooldown plan and final SpellHistory entry
+in one live epoch, without another full diagnostic campaign. Stuck-home remains
+unrun and no cooldown behavior is changed by that measurement.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1

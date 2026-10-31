@@ -375,6 +375,14 @@ where
         )?,
     )
     .map_err(ServerNormalPreGoFailureLikeCpp::Unavailable)?;
+    if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() && spell_info.spell_id == 8690 {
+        tracing::info!(
+            mutation = ?cooldown_plan.mutation,
+            starts_at_cast_start = cooldown_plan.starts_at_cast_start,
+            actual_spell_difficulty_id = ?committed_metadata.actual_spell_difficulty_id_like_cpp,
+            "RUST_STUCK cooldown_plan"
+        );
+    }
 
     let cast_item_use = if committed_metadata.cast_item_guid.is_some() {
         let item_guid = committed_metadata
@@ -620,6 +628,16 @@ where
             return Err(ServerNormalPreGoFailureLikeCpp::Unavailable(
                 "native SpellHistory cooldown mutation failed before GO",
             ));
+        }
+    }
+    if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() && spell_info.spell_id == 8690 {
+        if let Some((cooldown, cooldowns_loaded)) =
+            host.core().with_owned_player_like_cpp(|player| {
+                let history = &player.unit().subsystems().spells.history;
+                (history.cooldown(8690), history.cooldowns_loaded)
+            })
+        {
+            tracing::info!(?cooldown, cooldowns_loaded, "RUST_STUCK cooldown_history");
         }
     }
 
