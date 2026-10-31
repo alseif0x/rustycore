@@ -334,11 +334,32 @@ where
             )
         })
         .ok_or("EffectStuck canonical Player state is unavailable")?;
+    if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+        tracing::info!(
+            caster_guid = ?caster_guid,
+            represented_cast_unstuck_enabled = host
+                .hub_ref()
+                .config
+                .represented_cast_unstuck_enabled_like_cpp,
+            in_flight,
+            alive,
+            death_timer_remaining_ms = death_timer,
+            homebind_present = homebind.is_some(),
+            "RUST_STUCK apply_stuck_effect_like_cpp_entry"
+        );
+    }
     if in_flight {
         return Ok(());
     }
     if !alive {
         if death_timer != 0 {
+            if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                tracing::info!(
+                    caster_guid = ?caster_guid,
+                    death_timer_remaining_ms = death_timer,
+                    "RUST_STUCK apply_stuck_effect_like_cpp_death_timer_early_return"
+                );
+            }
             return Ok(());
         }
         let graveyards = host
@@ -362,7 +383,22 @@ where
         return Ok(());
     }
 
-    if has_hearthstone_cooldown_like_cpp(host, owner.difficulty_id)? {
+    let has_hearthstone_cooldown = has_hearthstone_cooldown_like_cpp(host, owner.difficulty_id);
+    if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+        match has_hearthstone_cooldown {
+            Ok(has_hearthstone_cooldown) => tracing::info!(
+                caster_guid = ?caster_guid,
+                has_hearthstone_cooldown,
+                "RUST_STUCK apply_stuck_effect_like_cpp_hearthstone_cooldown"
+            ),
+            Err(reason) => tracing::info!(
+                caster_guid = ?caster_guid,
+                reason,
+                "RUST_STUCK apply_stuck_effect_like_cpp_hearthstone_cooldown_error"
+            ),
+        }
+    }
+    if has_hearthstone_cooldown? {
         return kill_self_like_cpp(host, owner, creature_spawn_catalogs, item_guid_generator).await;
     }
 

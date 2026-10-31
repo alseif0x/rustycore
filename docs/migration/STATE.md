@@ -421,6 +421,12 @@ Offer and both recovery scenarios also pass. Stuck-death then failed its
 Hearthstone teleport with SPELL_FAILED reason 2; the next trace exposes the
 exact EffectStuck error before any behavior change.
 
+The error-tracing candidate at `f592ba63dd1d05b08b04137722dac9ca3312dee3`
+passed affected acceptance in 428.730 seconds. Stuck-death still emits
+SPELL_FAILED reason 2 without an EffectStuck error log, so the failure is either
+an early execution rejection or an Ok branch that skips teleport. The next
+trace records entry config, flight, life, timer, cooldown and homebind state.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
