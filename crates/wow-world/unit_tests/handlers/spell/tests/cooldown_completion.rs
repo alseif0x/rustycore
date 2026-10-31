@@ -166,8 +166,12 @@ async fn client_completion_missing_difficulty_is_fail_closed_and_keeps_cooldown_
     execute_client_completion(&mut session, spell_id, player_guid, None).await;
 
     let history = completion_history(&session);
-    assert!(!history.cooldowns.contains_key(&(spell_id as u32)));
-    assert!(history.category_cooldowns.is_empty());
+    let cooldown = history
+        .cooldowns
+        .get(&(spell_id as u32))
+        .expect("map difficulty fallback records the client cast cooldown");
+    assert_eq!(cooldown.category_id, 1_176);
+    assert_eq!(history.category_cooldowns.get(&1_176), Some(&8_690));
     assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::CooldownEvent));
 }
 

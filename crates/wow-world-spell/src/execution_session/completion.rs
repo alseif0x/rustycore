@@ -102,11 +102,14 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
             return Ok(());
         }
         if !metadata.server_normal_cast_like_cpp {
+            let actual_spell_difficulty_id = metadata
+                .actual_spell_difficulty_id_like_cpp
+                .or_else(|| Some(host.core().current_map_difficulty_id_like_cpp()));
             let (s, mut h) = host.split_spell_state_mut();
             s.record_cast_character_spell_cooldown_like_cpp(
                 &mut h,
                 spell_id,
-                metadata.actual_spell_difficulty_id_like_cpp,
+                actual_spell_difficulty_id,
                 spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
             );
 

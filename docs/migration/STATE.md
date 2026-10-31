@@ -555,6 +555,16 @@ plus 42 other focused spell checks, proving category 1176 and its index, native 
 and fail-closed cases. This is an UNVALIDATED candidate pending affected and live
 acceptance. The four new World identities add 259 reviewed test lines.
 
+The affected campaign at `5b38f370d82eef3681a9ba8c9194e2fe10d592cc` passed
+in 852.554 seconds, exceeding the ordinary target by 252.554 seconds with two
+jobs. Record: `/tmp/rustycore43-repair-5b38f370d-vqy_m0ny/record.json`.
+Live then saved no new 8690 cooldown because the real client metadata has no
+selected difficulty, so the new fail-closed guard returns before recording.
+Completion now falls back to the map's actual difficulty, matching C++
+GetCastDifficulty, while absence of that authority remains fail-closed. The
+focused completion tests are being updated to prove the fallback; affected and
+live acceptance must be repeated. Stuck-home remains unrun.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1
