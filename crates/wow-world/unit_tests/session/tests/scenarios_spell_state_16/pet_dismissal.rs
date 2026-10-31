@@ -50,10 +50,7 @@ async fn spell_dismiss_pet_effect_row_clears_represented_pet_like_cpp() {
         session.fixtures.pets.represented_pet_command_state_like_cpp,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 
 #[tokio::test]
@@ -110,8 +107,5 @@ async fn spell_dismiss_pet_effect_row_requires_represented_pet_target_like_cpp()
         session.fixtures.pets.represented_pet_command_state_like_cpp,
         wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

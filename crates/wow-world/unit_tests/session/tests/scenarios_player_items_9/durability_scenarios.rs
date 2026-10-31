@@ -656,11 +656,7 @@ fn durability_execute_log_row_like_cpp(
                     .expect("server opcode")
             })
             .collect::<Vec<_>>(),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::SpellExecuteLog,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellExecuteLog,]
     );
     let log_bytes = packets
         .iter()

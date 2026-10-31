@@ -105,13 +105,9 @@ async fn spell_learn_spell_effect_row_preserves_base_grant_without_richer_author
         .collect();
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::LearnedSpells,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::LearnedSpells,]
     );
-    assert_eq!(packets.len(), 3);
+    assert_eq!(packets.len(), 2);
     assert_eq!(
         session.represented_spell_acquisition_post_commit_actions_like_cpp(),
         &[
@@ -270,10 +266,7 @@ async fn spell_learn_spell_effect_row_rejects_missing_base_spell_like_cpp() {
             .is_empty(),
         "invalid base spell metadata must not publish acquisition actions"
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 
 #[tokio::test]
@@ -484,7 +477,7 @@ async fn spell_learn_spell_effect_row_does_not_duplicate_known_spell_like_cpp() 
     assert_eq!(session.known_spells_like_cpp(), &[learned_spell_id]);
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+        vec![ServerOpcodes::SpellGo],
         "C++ Player::LearnSpell sends LearnedSpells only when AddSpell reports a new learned entry"
     );
 }
@@ -528,8 +521,5 @@ async fn spell_learn_spell_effect_row_requires_current_player_target_like_cpp() 
         .expect("represented learn-spell non-current player target should no-op");
 
     assert!(!session.known_spells_like_cpp().contains(&learned_spell_id));
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

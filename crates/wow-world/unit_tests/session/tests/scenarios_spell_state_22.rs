@@ -290,11 +290,7 @@ fn handle_use_toy_rejects_second_cast_on_item_effect_cooldown_like_cpp() {
 
             assert_eq!(
                 drain_server_opcodes(&send_rx),
-                vec![
-                    ServerOpcodes::SpellPrepare,
-                    ServerOpcodes::SpellGo,
-                    ServerOpcodes::CooldownEvent
-                ]
+                vec![ServerOpcodes::SpellPrepare, ServerOpcodes::SpellGo,]
             );
 
             session
@@ -404,11 +400,7 @@ async fn spell_learn_transmog_set_adds_valid_appearances_like_cpp() {
     assert!(!session.represented_has_item_appearance_like_cpp(999));
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::UpdateObject,]
     );
 }
 #[tokio::test]
@@ -466,10 +458,7 @@ async fn spell_learn_transmog_set_skips_missing_set_or_non_player_target_like_cp
             .await
             .expect("represented learn transmog set guard should no-op");
         assert!(!session.represented_has_item_appearance_like_cpp(65));
-        assert_eq!(
-            drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-        );
+        assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     }
 }
 #[test]

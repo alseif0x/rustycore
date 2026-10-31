@@ -267,11 +267,7 @@ async fn represented_provide_spell_focus_aura_uses_spell_effect_row_like_cpp() {
     let opcodes = drain_server_opcodes(&send_rx);
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::AuraUpdate,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::AuraUpdate,]
     );
 }
 #[tokio::test]
@@ -334,11 +330,7 @@ async fn generic_apply_aura_single_effect_row_applies_like_cpp() {
     let opcodes = drain_server_opcodes(&send_rx);
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::AuraUpdate,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::AuraUpdate,]
     );
 }
 
@@ -759,11 +751,7 @@ async fn battle_pet_xp_pct_aura_registers_cpp_multiplier_like_cpp() {
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::AuraUpdate,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::AuraUpdate,]
     );
 }
 #[tokio::test]
@@ -820,10 +808,6 @@ async fn detected_range_aura_registers_cpp_modifier_like_cpp() {
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::AuraUpdate,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::AuraUpdate,]
     );
 }

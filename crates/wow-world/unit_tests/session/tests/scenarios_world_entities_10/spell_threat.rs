@@ -68,10 +68,7 @@ async fn spell_threat_effect_adds_creature_threat_like_cpp() {
         session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
         Some(35.0)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 
 #[tokio::test]
@@ -156,10 +153,7 @@ async fn spell_modify_threat_percent_scales_existing_creature_threat_like_cpp() 
         session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
         Some(60.0)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 
 #[tokio::test]
@@ -322,11 +316,7 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
             .collect::<Vec<_>>();
         assert_eq!(
             opcodes,
-            vec![
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::AuraUpdate,
-                ServerOpcodes::CooldownEvent
-            ]
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::AuraUpdate,]
         );
         let aura_update = packets
             .iter()
@@ -461,8 +451,5 @@ async fn spell_threat_effect_skips_dead_caster_like_cpp() {
         .combat
         .threat_value(player_guid);
     assert_eq!(legacy_threat, None);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

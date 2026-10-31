@@ -108,11 +108,7 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
         .collect();
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::AuraUpdate,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::AuraUpdate,]
     );
     // The `AuraUpdate` payload itself is covered by the packet writer's own
     // test; here the canonical registration and the sent opcode prove the

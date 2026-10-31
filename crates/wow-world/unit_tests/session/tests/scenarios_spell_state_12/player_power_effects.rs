@@ -41,11 +41,7 @@ async fn spell_energize_effect_restores_current_player_power_like_cpp() {
         .collect();
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::SpellEnergizeLog,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellEnergizeLog,]
     );
     // C++ `Unit::SendEnergizeSpellLog` (`Unit.cpp:6566-6576`): the target and
     // caster GUIDs, the spell, the `Powers` value, the applied delta and the
@@ -155,11 +151,7 @@ async fn spell_energize_pct_effect_uses_target_max_power_like_cpp() {
     assert_eq!(energy, 55);
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::SpellEnergizeLog,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellEnergizeLog,]
     );
 }
 #[tokio::test]
@@ -197,11 +189,7 @@ async fn spell_power_drain_effect_drains_current_player_active_power_like_cpp() 
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::SpellExecuteLog,
-            ServerOpcodes::CooldownEvent
-        ],
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellExecuteLog,],
         "C++ `ExecuteLogEffectTakeTargetPower` makes the cast publish its execute log"
     );
 }
@@ -304,10 +292,7 @@ async fn spell_power_drain_requires_active_power_type_like_cpp() {
         .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
         .unwrap();
     assert_eq!(mana, 25);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_power_drain_negative_amount_is_noop_like_cpp() {
@@ -337,10 +322,7 @@ async fn spell_power_drain_negative_amount_is_noop_like_cpp() {
         .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
         .unwrap();
     assert_eq!(mana, 25);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_power_burn_effect_drains_power_and_damages_player_like_cpp_boundary() {
@@ -382,7 +364,6 @@ async fn spell_power_burn_effect_drains_power_and_damages_player_like_cpp_bounda
             ServerOpcodes::SpellGo,
             ServerOpcodes::HealthUpdate,
             ServerOpcodes::SpellExecuteLog,
-            ServerOpcodes::CooldownEvent
         ]
     );
 
@@ -405,7 +386,6 @@ async fn spell_power_burn_effect_drains_power_and_damages_player_like_cpp_bounda
             ServerOpcodes::PowerUpdate,
             ServerOpcodes::StandStateUpdate,
             ServerOpcodes::SpellExecuteLog,
-            ServerOpcodes::CooldownEvent,
         ],
         "lethal EffectPowerBurn completes the native death prefix before its execute log and cooldown"
     );
@@ -737,16 +717,11 @@ async fn spell_energize_interrupts_flagged_power_regen_like_cpp() {
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::InterruptPowerRegen,
                 ServerOpcodes::SpellEnergizeLog,
-                ServerOpcodes::CooldownEvent,
             ],
         ),
         (
             false,
-            vec![
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::SpellEnergizeLog,
-                ServerOpcodes::CooldownEvent,
-            ],
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellEnergizeLog],
         ),
     ] {
         let (mut session, _, send_rx) = make_session();

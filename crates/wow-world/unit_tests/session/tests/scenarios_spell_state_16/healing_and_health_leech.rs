@@ -71,7 +71,6 @@ async fn spell_heal_max_health_zero_damage_uses_caster_max_health_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 }
@@ -147,7 +146,6 @@ async fn spell_heal_pct_effect_row_heals_percent_of_target_max_health_like_cpp()
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 }
@@ -187,10 +185,7 @@ async fn spell_heal_pct_negative_amount_is_noop_like_cpp() {
 
     assert_eq!(session.player_health_like_cpp(), 35);
     let opcodes = drain_server_opcodes(&send_rx);
-    assert_eq!(
-        opcodes,
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(opcodes, vec![ServerOpcodes::SpellGo]);
 }
 
 #[tokio::test]
@@ -267,7 +262,6 @@ async fn spell_health_leech_effect_row_damages_target_and_heals_caster_like_cpp(
             ServerOpcodes::UpdateObject,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 }
@@ -347,7 +341,6 @@ async fn spell_health_leech_lethal_damage_heals_only_effective_damage_like_cpp()
             ServerOpcodes::UpdateObject,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 }
@@ -409,8 +402,5 @@ async fn spell_health_leech_negative_amount_is_noop_like_cpp() {
     drop(manager);
     assert_eq!(session.player_health_like_cpp(), 50);
     let opcodes = drain_server_opcodes(&send_rx);
-    assert_eq!(
-        opcodes,
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(opcodes, vec![ServerOpcodes::SpellGo]);
 }

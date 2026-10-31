@@ -77,7 +77,7 @@ async fn spell_effect_uncage_battle_pet_rejects_too_high_level_like_cpp() {
         .expect("represented uncage failure should send packets");
 
     let packets = drain_server_packet_bytes(&send_rx);
-    assert_eq!(packets.len(), 4);
+    assert_eq!(packets.len(), 3);
     assert_eq!(
         packets
             .iter()
@@ -90,7 +90,6 @@ async fn spell_effect_uncage_battle_pet_rejects_too_high_level_like_cpp() {
             ServerOpcodes::SpellGo as u16,
             ServerOpcodes::BattlePetError as u16,
             ServerOpcodes::CastFailed as u16,
-            ServerOpcodes::CooldownEvent as u16,
         ]
     );
 
@@ -185,7 +184,7 @@ async fn spell_effect_uncage_battle_pet_rejects_max_species_count_like_cpp() {
         .expect("represented uncage max-count failure should send packets");
 
     let packets = drain_server_packet_bytes(&send_rx);
-    assert_eq!(packets.len(), 4);
+    assert_eq!(packets.len(), 3);
     let mut error = wow_packet::WorldPacket::from_bytes(&packets[1]);
     let _ = error.read_uint16().expect("opcode");
     assert_eq!(
@@ -296,7 +295,6 @@ async fn spell_effect_uncage_battle_pet_adds_pet_and_updates_criteria_like_cpp()
             ServerOpcodes::SpellGo as u16,
             ServerOpcodes::BattlePetUpdates as u16,
             ServerOpcodes::PlaySpellVisual as u16,
-            ServerOpcodes::CooldownEvent as u16,
         ]
     );
 
@@ -939,11 +937,7 @@ async fn spell_effect_grant_battle_pet_level_uses_unit_companion_guid_like_cpp()
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::BattlePetUpdates,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::BattlePetUpdates,]
     );
 }
 #[tokio::test]
@@ -1024,8 +1018,5 @@ async fn spell_effect_change_battle_pet_quality_is_empty_handler_like_cpp() {
         pet.save_info,
         RepresentedBattlePetSaveInfoLikeCpp::Unchanged
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

@@ -565,6 +565,26 @@ GetCastDifficulty, while absence of that authority remains fail-closed. The
 focused completion tests are being updated to prove the fallback; affected and
 live acceptance must be repeated. Stuck-home remains unrun.
 
+The first `227a8cb3675dc91670dc3ad815630df6958d3649` campaign failed only
+because the four new fallback assertions exceeded the existing World test-line
+ceiling; the exact +4-line/no-new-identity review was committed as `f7decf430`.
+Its complete one-job affected campaign passed in 308.442 seconds on aarch64,
+within the 600-second target. Record:
+`/tmp/rustycore43-repair-227a8cb36-hp443gk5/record.json`; World SHA-256 is
+`309f5c92b99f5d8aa888db5309b3dbd77949d1f706ed2b14b5fe339dcbaeeb1a`.
+Live `stuck-death` epoch two passed and epoch one persisted the correct native
+8690 row (`categoryId=1176`, positive `categoryEnd=time`), but final evidence
+validation rejected an unexpected 8690 CooldownEvent. Offline replay of the
+private artifacts isolated that exact check; the same Rust capture also emits
+7355 CooldownEvent, while the successful native reference emits neither.
+C++ `Spell::SendSpellCooldown` reaches `HandleCooldowns`/`StartCooldown`
+(`Spell.cpp:4195-4203`, `SpellHistory.cpp:252-277,406-527`), not the distinct
+explicit `SendCooldownEvent` operation (`SpellHistory.cpp:529-552`). Remove the
+unconditional completion event without changing the now-proven persistence or
+selected-aura skip. Stuck-home remains unrun and the failed campaign is retained
+at `/tmp/rustycore43-live-227a8cb36-8q7n0dwt/campaign.json`; stable runtime was
+restored to SHA-256 `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1

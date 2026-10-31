@@ -99,7 +99,6 @@ async fn spell_power_drain_on_an_empty_creature_pool_logs_zero_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellEnergizeLog,
             ServerOpcodes::SpellExecuteLog,
-            ServerOpcodes::CooldownEvent
         ],
         "C++ still publishes the zeroed energize log and the take-power row"
     );

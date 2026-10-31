@@ -805,7 +805,6 @@ async fn primary_heal_mechanical_heals_player_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 }
@@ -854,7 +853,6 @@ async fn primary_heal_pct_heals_percent_of_player_max_health_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 }

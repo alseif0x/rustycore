@@ -168,7 +168,7 @@ async fn cast_spell_uses_represented_override_spell_info_like_cpp() {
         .await;
 
     let packets = drain_server_packet_bytes(&send_rx);
-    assert_eq!(packets.len(), 4);
+    assert_eq!(packets.len(), 3);
     assert_eq!(
         &packets[0][..2],
         &(ServerOpcodes::SpellPrepare as u16).to_le_bytes()
@@ -204,7 +204,7 @@ async fn cast_spell_falls_back_when_represented_override_missing_like_cpp() {
         .await;
 
     let packets = drain_server_packet_bytes(&send_rx);
-    assert_eq!(packets.len(), 4);
+    assert_eq!(packets.len(), 3);
     assert_eq!(
         &packets[0][..2],
         &(ServerOpcodes::SpellPrepare as u16).to_le_bytes()
@@ -496,7 +496,7 @@ async fn cast_spell_queues_within_spell_queue_window_and_executes_after_gcd_like
     assert!(session.pending_spell_cast_for_test_like_cpp().is_none());
     let opcodes = drain_server_opcodes(&send_rx);
     assert!(opcodes.contains(&ServerOpcodes::SpellGo));
-    assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
+    assert!(!opcodes.contains(&ServerOpcodes::CooldownEvent));
 }
 #[tokio::test]
 async fn cast_spell_rejects_active_cast_outside_spell_queue_window_like_cpp() {
@@ -562,5 +562,5 @@ async fn cast_spell_queues_near_active_cast_finish_and_executes_after_cast_like_
     assert!(session.pending_spell_cast_for_test_like_cpp().is_none());
     let opcodes = drain_server_opcodes(&send_rx);
     assert!(opcodes.contains(&ServerOpcodes::SpellGo));
-    assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
+    assert!(!opcodes.contains(&ServerOpcodes::CooldownEvent));
 }

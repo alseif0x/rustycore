@@ -458,7 +458,7 @@ async fn spell_cpp_null_primary_effect_is_represented_noop_like_cpp() {
         observed_opcodes,
         primary_noop_spells
             .iter()
-            .flat_map(|_| [ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent])
+            .flat_map(|_| [ServerOpcodes::SpellGo])
             .collect::<Vec<_>>()
     );
 }
@@ -532,10 +532,7 @@ async fn spell_dual_wield_effect_row_sets_canonical_player_flag_like_cpp() {
             .mutate_canonical_player_like_cpp(|player| { player.unit().can_dual_wield_like_cpp() }),
         Some(true)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_titan_grip_effect_row_sets_canonical_player_flag_like_cpp() {
@@ -618,10 +615,7 @@ async fn spell_titan_grip_effect_row_sets_canonical_player_flag_like_cpp() {
         Some((true, penalty_spell_id as u32)),
         "C++ Spell::EffectTitanGrip sets m_canTitanGrip and stores MiscValue as the penalty spell id"
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_dual_wield_effect_row_ignores_non_current_player_target_like_cpp() {
@@ -689,10 +683,7 @@ async fn spell_dual_wield_effect_row_ignores_non_current_player_target_like_cpp(
             .mutate_canonical_player_like_cpp(|player| { player.unit().can_dual_wield_like_cpp() }),
         Some(false)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_parry_effect_row_sets_canonical_caster_flag_like_cpp() {
@@ -763,10 +754,7 @@ async fn spell_parry_effect_row_sets_canonical_caster_flag_like_cpp() {
         session.mutate_canonical_player_like_cpp(|player| { player.unit().can_parry_like_cpp() }),
         Some(true)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_block_effect_row_sets_canonical_caster_flag_like_cpp() {
@@ -837,8 +825,5 @@ async fn spell_block_effect_row_sets_canonical_caster_flag_like_cpp() {
         session.mutate_canonical_player_like_cpp(|player| { player.unit().can_block_like_cpp() }),
         Some(true)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

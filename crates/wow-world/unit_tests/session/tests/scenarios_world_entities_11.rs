@@ -103,12 +103,7 @@ async fn spell_sanctuary_in_dungeon_scales_player_threat_to_zero_like_cpp() {
     assert_eq!(legacy_threat, Some(0.0));
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::CooldownEvent,
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellGo,]
     );
 }
 #[tokio::test]

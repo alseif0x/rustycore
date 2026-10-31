@@ -265,6 +265,16 @@
    "unit_tests_lines": 278611,
    "unit_tests_tests": 4143,
    "src_tests": 22
+  },
+  {
+   "id": "tighten-43-2",
+   "kind": "tighten",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Remove disproved cast-completion CooldownEvent expectations: 287 fewer lines, one fallback test rename, no identity/class/destination/ignored change.",
+   "unit_tests_lines": 278324,
+   "unit_tests_tests": 4143,
+   "src_tests": 22
   }
  ]
 }

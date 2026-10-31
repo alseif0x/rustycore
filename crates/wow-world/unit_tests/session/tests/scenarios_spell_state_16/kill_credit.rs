@@ -93,7 +93,6 @@ async fn spell_kill_credit_effect_row_rewards_player_monster_objective_like_cpp(
             ServerOpcodes::QuestUpdateAddCredit,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
-            ServerOpcodes::CooldownEvent,
             ServerOpcodes::UpdateObject,
         ]
     );
@@ -192,7 +191,6 @@ async fn spell_kill_credit2_effect_row_rewards_current_session_like_cpp_without_
             ServerOpcodes::QuestUpdateAddCredit,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
-            ServerOpcodes::CooldownEvent,
             ServerOpcodes::UpdateObject,
         ]
     );

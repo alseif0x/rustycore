@@ -59,11 +59,7 @@ async fn spell_reputation_effect_modifies_current_player_reputation_like_cpp() {
         .collect();
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::SetFactionStanding,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SetFactionStanding,]
     );
 
     let packet = packets
@@ -193,10 +189,7 @@ async fn spell_reputation_effect_ignores_missing_faction_like_cpp() {
         session.with_reputation_mgr_like_cpp(|mgr| mgr.get_state(5).is_none()),
         Some(true)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_reputation_effect_ignores_non_player_target_like_cpp() {
@@ -249,8 +242,5 @@ async fn spell_reputation_effect_ignores_non_player_target_like_cpp() {
         }),
         Some(Some(0))
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

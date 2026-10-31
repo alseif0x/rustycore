@@ -93,7 +93,6 @@ async fn primary_heal_max_health_nonzero_damage_heals_target_missing_health_like
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 }

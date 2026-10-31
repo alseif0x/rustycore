@@ -465,7 +465,6 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
             ServerOpcodes::CancelCombat,
             ServerOpcodes::TransferPending,
             ServerOpcodes::SuspendToken,
-            ServerOpcodes::CooldownEvent,
         ],
         "the admitted script row must not publish effects beyond the home teleport and cast completion"
     );

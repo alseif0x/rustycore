@@ -307,7 +307,6 @@ async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::MoveSetLandWalk,
             ServerOpcodes::MoveUnroot,
-            ServerOpcodes::CooldownEvent,
         ],
         "native field changes remain pending until Map::SendObjectUpdates"
     );
@@ -425,7 +424,6 @@ async fn spell_self_resurrect_percent_case_uses_max_health_and_mana_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::MoveSetLandWalk,
             ServerOpcodes::MoveUnroot,
-            ServerOpcodes::CooldownEvent,
         ],
         "no intermediate HP-zero VALUES snapshot is sent before Map::SendObjectUpdates"
     );
@@ -490,10 +488,7 @@ async fn spell_self_resurrect_skips_alive_player_like_cpp() {
         })
         .unwrap();
     assert_eq!(powers, (40, 25, 50, 30, 40));
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 
 #[tokio::test]
@@ -553,10 +548,7 @@ async fn native_self_resurrect_player_out_of_world_is_a_noop() {
             .delayed_after_teleport),
         Some(None)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     assert!(
         !session
             .with_owned_player_like_cpp(|player| player

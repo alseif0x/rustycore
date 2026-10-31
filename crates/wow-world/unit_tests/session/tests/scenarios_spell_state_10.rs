@@ -387,7 +387,6 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent
         ]
     );
     let log_bytes = packets
@@ -903,7 +902,6 @@ async fn represented_spellclick_executes_owner_original_caster_when_owner_is_cli
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent
         ]
     );
 }

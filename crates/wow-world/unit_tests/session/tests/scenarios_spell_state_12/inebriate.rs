@@ -155,10 +155,7 @@ async fn spell_inebriate_effect_increases_current_player_drunk_value_like_cpp() 
         .mutate_canonical_player_like_cpp(|player| player.inebriation_like_cpp())
         .unwrap();
     assert_eq!(inebriation, 50);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     assert_eq!(
         realm_rx.try_recv().unwrap(),
         wow_packet::packets::misc::CrossedInebriationThreshold {
@@ -286,10 +283,7 @@ async fn spell_inebriate_effect_clamps_to_hundred_like_cpp() {
         .mutate_canonical_player_like_cpp(|player| player.inebriation_like_cpp())
         .unwrap();
     assert_eq!(inebriation, 100);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     assert!(realm_rx.is_empty(), "90→100 stays inside Smashed");
 }
 #[tokio::test]
@@ -335,10 +329,7 @@ async fn spell_inebriate_effect_negative_amount_sobers_and_clamps_like_cpp() {
         .mutate_canonical_player_like_cpp(|player| player.inebriation_like_cpp())
         .unwrap();
     assert_eq!(inebriation, 0);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     assert_eq!(
         realm_rx.try_recv().unwrap(),
         wow_packet::packets::misc::CrossedInebriationThreshold {
@@ -394,10 +385,7 @@ async fn spell_inebriate_effect_ignores_non_player_target_like_cpp() {
         .mutate_canonical_player_like_cpp(|player| player.inebriation_like_cpp())
         .unwrap();
     assert_eq!(inebriation, 10);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     assert!(
         realm_rx.is_empty(),
         "non-player target has no inebriation packet"

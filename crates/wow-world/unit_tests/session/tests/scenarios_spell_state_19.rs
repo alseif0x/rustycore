@@ -95,12 +95,7 @@ async fn spell_parry_and_block_primary_fields_set_caster_flags_like_cpp() {
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::CooldownEvent,
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellGo,]
     );
 }
 #[tokio::test]

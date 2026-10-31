@@ -549,11 +549,7 @@ async fn spell_upgrade_heirloom_effect_uses_metadata_like_cpp() {
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::UpdateObject,]
     );
 }
 #[tokio::test]
@@ -748,11 +744,7 @@ async fn spell_effect_grant_battle_pet_experience_uses_unit_companion_guid_like_
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::BattlePetUpdates,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::BattlePetUpdates,]
     );
 }
 #[tokio::test]
@@ -827,8 +819,5 @@ async fn spell_effect_uncage_battle_pet_rejects_disappeared_cast_item_like_cpp()
             .represented_battle_pets_like_cpp
             .is_empty()
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

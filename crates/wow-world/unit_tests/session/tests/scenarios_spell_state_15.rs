@@ -323,7 +323,6 @@ async fn spell_stuck_kills_player_when_hearthstone_has_cooldown_like_cpp() {
             ServerOpcodes::CancelCombat,
             ServerOpcodes::PowerUpdate,
             ServerOpcodes::StandStateUpdate,
-            ServerOpcodes::CooldownEvent,
         ],
         "the native KillSelf death body runs before Stuck's completion cooldown, with no immediate HealthUpdate"
     );
@@ -428,7 +427,6 @@ async fn spell_stuck_kills_from_category_only_cooldown_at_native_u64_health_like
             ServerOpcodes::CancelCombat,
             ServerOpcodes::PowerUpdate,
             ServerOpcodes::StandStateUpdate,
-            ServerOpcodes::CooldownEvent,
         ],
         "category membership selects the same KillSelf/native death packet path without HealthUpdate"
     );
@@ -489,10 +487,7 @@ async fn spell_stuck_dead_player_without_death_timer_repops_like_cpp() {
         )),
         Some((wow_constants::DeathState::Dead, 0))
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
@@ -551,10 +546,7 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         Some(hearthstone_cooldown_before),
         "C++ EffectStuck returns before Hearthstone cooldown while player is in flight"
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 
     let (mut disabled_session, _, disabled_rx) = make_session();
     let disabled_canonical = shared_canonical_map_manager();
@@ -601,7 +593,7 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
     );
     assert_eq!(
         drain_server_opcodes(&disabled_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        vec![ServerOpcodes::SpellGo]
     );
 }
 #[tokio::test]
@@ -716,10 +708,7 @@ async fn spell_taunt_effect_current_victim_is_ineffective_like_cpp() {
         session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
         Some(5.0)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_distract_effect_launches_facing_spline_like_cpp() {
@@ -798,11 +787,7 @@ async fn spell_distract_effect_launches_facing_spline_like_cpp() {
     drop(guard);
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::OnMonsterMove,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::OnMonsterMove,]
     );
 }
 #[tokio::test]
@@ -872,10 +857,7 @@ async fn spell_distract_effect_skips_engaged_target_like_cpp() {
     );
     assert!(creature.active_move_spline_like_cpp().is_none());
     drop(guard);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
@@ -987,10 +969,7 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
         .ai_ownership()
         .combat_target;
     assert_eq!(world_combat_target, None);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_effect_heal_negative_amount_is_noop_like_cpp() {
@@ -1026,10 +1005,7 @@ async fn spell_effect_heal_negative_amount_is_noop_like_cpp() {
 
     assert_eq!(session.player_health_like_cpp(), 50);
     let opcodes = drain_server_opcodes(&send_rx);
-    assert_eq!(
-        opcodes,
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(opcodes, vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_heal_mechanical_effect_row_heals_player_like_cpp_without_type_gate() {
@@ -1084,7 +1060,6 @@ async fn spell_heal_mechanical_effect_row_heals_player_like_cpp_without_type_gat
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
     // C++ `Unit::SendHealSpellLog` (`Unit.cpp:6538-6555`): the target and caster
@@ -1147,8 +1122,5 @@ async fn spell_heal_mechanical_negative_amount_is_noop_like_cpp() {
         .expect("negative represented mechanical heal should execute as C++ no-op effect");
 
     assert_eq!(session.player_health_like_cpp(), 50);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

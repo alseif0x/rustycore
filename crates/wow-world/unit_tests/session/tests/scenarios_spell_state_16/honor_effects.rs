@@ -43,11 +43,7 @@ async fn spell_give_honor_effect_row_sends_pvp_credit_like_cpp() {
         .collect();
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::PvpCredit,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::PvpCredit,]
     );
     let mut credit = wow_packet::WorldPacket::from_bytes(&packets[1]);
     assert_eq!(
@@ -142,7 +138,6 @@ async fn spell_give_honor_effect_row_adds_honor_xp_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::PvpCredit,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 }
@@ -184,8 +179,5 @@ async fn spell_give_honor_effect_row_requires_current_player_target_like_cpp() {
         .await
         .expect("represented give-honor non-current player target should no-op");
 
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

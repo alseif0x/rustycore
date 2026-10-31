@@ -64,11 +64,7 @@ async fn spell_add_extra_attacks_effect_records_selected_target_like_cpp() {
                     .expect("server opcode")
             })
             .collect::<Vec<_>>(),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::SpellExecuteLog,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellExecuteLog,]
     );
     let log_bytes = packets
         .iter()
@@ -154,11 +150,7 @@ async fn spell_add_extra_attacks_prefers_last_damaged_target_like_cpp() {
     assert_eq!(last_damaged_extra, 3);
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::SpellExecuteLog,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellExecuteLog,]
     );
 }
 #[tokio::test]
@@ -200,8 +192,5 @@ async fn spell_add_extra_attacks_without_target_is_noop_like_cpp() {
         })
         .unwrap();
     assert_eq!(extra_attacks, 0);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

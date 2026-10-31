@@ -72,9 +72,9 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
     // Spell::SendSpellCooldown delegates to SpellHistory::HandleCooldowns,
     // which returns for that flag (Spell.cpp:4195-4203;
     // SpellHistory.cpp:252-255). Skip this route's represented cooldown
-    // bookkeeping and event without changing already stored history; this
-    // gate is scoped to the selected healer auras, not every FULL-mask cast
-    // or every cast carrying generic ignore-GCD metadata.
+    // bookkeeping without changing already stored history; this gate is
+    // scoped to the selected healer auras, not every FULL-mask cast or every
+    // cast carrying generic ignore-GCD metadata.
     if caster_guid == player_guid && !selected_full_server_aura {
         // This represented cooldown state belongs to the session player.
         // A triggered creature cast (for example innkeeper bind spell
@@ -112,14 +112,6 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
                 actual_spell_difficulty_id,
                 spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
             );
-
-            // Client casts retain their existing represented cooldown event.
-            // Normal Player casts publish their native cooldown before GO.
-            use wow_packet::packets::spell::CooldownEvent;
-            host.send_packet(&CooldownEvent {
-                spell_id,
-                is_pet: false,
-            });
         }
     }
 

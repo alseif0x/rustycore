@@ -98,7 +98,7 @@ async fn spell_power_drain_on_a_creature_requires_the_matching_power_type_like_c
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+        vec![ServerOpcodes::SpellGo],
         "a refused drain publishes neither the energize log nor an execute log"
     );
 }
@@ -211,7 +211,6 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellEnergizeLog,
             ServerOpcodes::SpellExecuteLog,
-            ServerOpcodes::CooldownEvent
         ],
         "the caster gain publishes its log from the effect, the take-power row with the finished cast"
     );

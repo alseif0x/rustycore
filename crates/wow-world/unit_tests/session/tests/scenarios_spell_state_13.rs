@@ -85,11 +85,7 @@ async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
         .collect();
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::DuelRequested,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::DuelRequested,]
     );
     assert_eq!(
         drain_server_opcodes(&target_send_rx),
@@ -210,10 +206,7 @@ async fn spell_duel_effect_ignores_target_already_dueling_like_cpp() {
         .expect("represented EffectDuel target-with-duel should execute as C++ no-op");
 
     assert!(session.represented_duel_requests_like_cpp().is_empty());
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     assert_eq!(
         session.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
             player.duel_info_like_cpp()
@@ -270,10 +263,7 @@ async fn spell_modify_cooldown_effect_adjusts_trigger_spell_history_like_cpp() {
         .flatten()
         .expect("trigger spell cooldown should remain after a -2s delta");
     assert_eq!(cooldown.cooldown_end_ms, now_ms + 28_000);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_modify_charges_effect_restores_consumed_charges_like_cpp() {
@@ -320,10 +310,7 @@ async fn spell_modify_charges_effect_restores_consumed_charges_like_cpp() {
         })
         .unwrap();
     assert_eq!(consumed, 1);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_stuck_teleports_home_and_ignores_hearthstone_cooldown_like_cpp() {
@@ -430,7 +417,6 @@ async fn spell_stuck_teleports_home_and_ignores_hearthstone_cooldown_like_cpp() 
             ServerOpcodes::CancelCombat,
             ServerOpcodes::TransferPending,
             ServerOpcodes::SuspendToken,
-            ServerOpcodes::CooldownEvent
         ]
     );
     let cooldown_spell_ids: Vec<_> = packets
@@ -445,10 +431,9 @@ async fn spell_stuck_teleports_home_and_ignores_hearthstone_cooldown_like_cpp() 
             packet.read_int32().expect("cooldown spell id")
         })
         .collect();
-    assert_eq!(
-        cooldown_spell_ids,
-        vec![spell_id],
-        "the completion event belongs to Stuck; FULLMASK Hearthstone emits none"
+    assert!(
+        cooldown_spell_ids.is_empty(),
+        "normal Stuck completion and FULLMASK Hearthstone emit no CooldownEvent"
     );
 }
 #[test]
@@ -581,7 +566,7 @@ async fn first_login_cast_spells_use_player_create_mode_before_other_first_login
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+        vec![ServerOpcodes::SpellGo],
         "first-login cast spells execute through the represented spell path before explored/reputation branches"
     );
 }

@@ -132,11 +132,11 @@ async fn client_completion_records_hearthstone_category_from_selected_db2_rows_l
     assert!(cooldown.cooldown_end_ms <= ((after_secs + 1_800) as u64) * 1_000);
     assert!(cooldown.category_end_ms >= ((before_secs + 1_800) as u64) * 1_000);
     assert!(cooldown.category_end_ms <= ((after_secs + 1_800) as u64) * 1_000);
-    assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::CooldownEvent));
+    assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::CooldownEvent));
 }
 
 #[tokio::test]
-async fn client_completion_missing_difficulty_is_fail_closed_and_keeps_cooldown_event_like_cpp() {
+async fn client_completion_uses_map_difficulty_fallback_without_cooldown_event_like_cpp() {
     let spell_id = 8_690;
     let store = completion_cooldown_store(
         spell_id,
@@ -172,7 +172,7 @@ async fn client_completion_missing_difficulty_is_fail_closed_and_keeps_cooldown_
         .expect("map difficulty fallback records the client cast cooldown");
     assert_eq!(cooldown.category_id, 1_176);
     assert_eq!(history.category_cooldowns.get(&1_176), Some(&8_690));
-    assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::CooldownEvent));
+    assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::CooldownEvent));
 }
 
 #[tokio::test]
@@ -206,7 +206,7 @@ async fn client_completion_loaded_empty_category_catalog_records_category_zero_l
     assert!(history.category_cooldowns.is_empty());
     assert!(cooldown.cooldown_end_ms >= ((before_secs + 5) as u64) * 1_000);
     assert!(cooldown.cooldown_end_ms <= ((after_secs + 5) as u64) * 1_000);
-    assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::CooldownEvent));
+    assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::CooldownEvent));
 }
 
 #[test]
