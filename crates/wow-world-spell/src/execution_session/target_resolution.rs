@@ -49,6 +49,43 @@ pub fn normalize_caster_only_stuck_target_data_like_cpp(
     }
 }
 
+fn is_represented_hearthstone_target_normalization_like_cpp(
+    spell_info: &wow_data::SpellInfo,
+) -> bool {
+    const HEARTHSTONE_SPELL_ID_LIKE_CPP: i32 = 8690;
+    const SPELL_EFFECT_SCRIPT_EFFECT_LIKE_CPP: u32 = 77;
+
+    let mut active_effects = spell_info
+        .effects()
+        .iter()
+        .filter(|effect| effect.effect != 0);
+    spell_info.spell_id == HEARTHSTONE_SPELL_ID_LIKE_CPP
+        && matches!(active_effects.next(), Some(effect) if effect.effect_index == 0 && effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD)
+        && matches!(active_effects.next(), Some(effect) if effect.effect_index == 1 && effect.effect == SPELL_EFFECT_SCRIPT_EFFECT_LIKE_CPP)
+        && active_effects.next().is_none()
+}
+
+pub fn normalize_hearthstone_spell_start_target_data_like_cpp(
+    spell_info: &wow_data::SpellInfo,
+    target_data: SpellTargetData,
+) -> SpellTargetData {
+    if is_represented_hearthstone_target_normalization_like_cpp(spell_info) {
+        SpellTargetData::default()
+    } else {
+        target_data
+    }
+}
+
+fn normalize_hearthstone_spell_go_target_data_like_cpp(
+    spell_info: &wow_data::SpellInfo,
+    mut target_data: SpellTargetData,
+) -> SpellTargetData {
+    if is_represented_hearthstone_target_normalization_like_cpp(spell_info) {
+        target_data.unit = ObjectGuid::EMPTY;
+    }
+    target_data
+}
+
 pub(super) fn resolve_spell_effect_target_data_like_cpp<H: SpellExecutionHostLikeCpp>(
     host: &mut H,
     spell_id: i32,
@@ -58,7 +95,9 @@ pub(super) fn resolve_spell_effect_target_data_like_cpp<H: SpellExecutionHostLik
     represented_focus_object: Option<RepresentedSpellFocusObjectLikeCpp>,
     selected_full_server_aura: bool,
 ) -> ResolvedSpellEffectTargetsLikeCpp {
-    let mut target_data = normalize_caster_only_stuck_target_data_like_cpp(spell_info, target_data);
+    let target_data = normalize_caster_only_stuck_target_data_like_cpp(spell_info, target_data);
+    let mut target_data =
+        normalize_hearthstone_spell_go_target_data_like_cpp(spell_info, target_data);
     let mut represented_implicit_destination = false;
     let mut effect_target_data_like_cpp = Vec::new();
     for effect in spell_info.effects() {

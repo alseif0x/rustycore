@@ -235,6 +235,16 @@
    "unit_tests_lines": 278289,
    "unit_tests_tests": 4138,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-22",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "One real Hearthstone SpellStart target regression plus explicit-self Go Unit and hit-list assertions: exact +59 lines and +1 identity, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278348,
+   "unit_tests_tests": 4139,
+   "src_tests": 22
   }
  ]
 }

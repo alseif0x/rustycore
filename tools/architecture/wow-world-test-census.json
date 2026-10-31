@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4160,
+  "tests": 4161,
   "ignored": 1,
-  "session": 3856,
-  "shims": 3676,
+  "session": 3857,
+  "shims": 3677,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3681
+   "W": 3682
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3475
+   "W-world-logic": 3476
   },
   "by_owner": {
    "wow-world": {
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 45,
     "H": 5,
-    "W": 961
+    "W": 962
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3681
+    "W": 3682
    },
    "wow-world-application": {
     "P": 27,
@@ -2609,6 +2609,7 @@
   ["unit_tests/session/tests/player_cast_lifecycle.rs::normal_visual_uses_server_relation_id_and_cpp_equal_condition_order", "W", "wow-world", "wow-world-spell", "W-core-only", true, false, false, [], []],
   ["unit_tests/session/tests/player_cast_lifecycle.rs::normal_start_and_go_carry_cpp_cast_flags_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid", "set_spell_store"], []],
   ["unit_tests/session/tests/player_cast_lifecycle.rs::caster_only_stuck_start_clears_explicit_self_target_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/player_cast_lifecycle.rs::hearthstone_start_clears_explicit_self_target_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/player_cast_lifecycle.rs::server_normal_physical_item_publication_keeps_actor_in_caster_unit", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/player_cast_lifecycle.rs::reentry_denies_a_residence_stamped_server_triggered_cast_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["active_spell_cast_snapshot_like_cpp", "adopt_registered_canonical_player_fixture_like_cpp", "set_active_spell_cast_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/player_cast_lifecycle.rs::player_power_update_fans_out_to_visible_observers_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid", "set_player_registry"], []],

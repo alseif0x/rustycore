@@ -420,13 +420,14 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
         .execute_spell_with_visual_and_target_data(
             spell_id,
             player_guid,
-            ObjectGuid::EMPTY,
+            player_guid,
             wow_packet::packets::spell::SpellCastVisual {
                 spell_visual_id: 8690,
                 script_visual_id: 0,
             },
             SpellTargetData {
                 flags: 0x0000_0042,
+                unit: player_guid,
                 dst_location: Some(wow_packet::packets::spell::TargetLocation {
                     transport: ObjectGuid::EMPTY,
                     position: Position::new(999.0, 998.0, 997.0, 0.0),
@@ -439,9 +440,11 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
         .expect("TARGET_DEST_HOME hearthstone teleport should execute");
 
     let bytes = send_rx.try_recv().expect("hearthstone SpellGo");
-    let packet_target = decode_spell_go_target_data_like_cpp(&bytes, spell_id);
+    let (packet_target, hit_targets) =
+        decode_spell_go_target_data_and_hit_targets_like_cpp(&bytes, spell_id);
     assert_eq!(packet_target.flags & 0x0000_0042, 0x0000_0042);
     assert_eq!(packet_target.unit, ObjectGuid::EMPTY);
+    assert_eq!(hit_targets, vec![player_guid]);
     assert_eq!(
         packet_target
             .dst_location

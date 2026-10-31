@@ -933,6 +933,52 @@ fn caster_only_stuck_start_clears_explicit_self_target_like_cpp() {
 }
 
 #[test]
+fn hearthstone_start_clears_explicit_self_target_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let actor = ObjectGuid::create_player(1, 58_936);
+    install_canonical_player(&mut session, &canonical, actor, 571, 0, Position::ZERO);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let revision = canonical
+        .lock()
+        .unwrap()
+        .player_active_residence_revision_like_cpp(handle)
+        .unwrap()
+        .1;
+    let mut cast = prepared_cast(actor, revision);
+    cast.spell_id = 8690;
+    cast.target_data = wow_entities::SpellCastTargetsLikeCpp {
+        flags: 0x0000_0042,
+        unit: actor,
+        ..Default::default()
+    };
+    let mut spell = minimal_spell();
+    spell.spell_id = 8690;
+    spell.effects = vec![
+        wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
+            ..Default::default()
+        },
+        wow_data::SpellEffectInfo {
+            effect_index: 1,
+            effect: 77,
+            ..Default::default()
+        },
+    ];
+
+    <WorldSession as crate::player_cast::Runtime>::start(&mut session, &cast, &spell);
+
+    let start = send_rx.try_recv().expect("hearthstone SpellStart");
+    let target = decode_spell_start_target_data_like_cpp(&start, spell.spell_id);
+    assert_eq!(
+        target,
+        wow_packet::packets::spell::SpellTargetData::default()
+    );
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
 fn server_normal_physical_item_publication_keeps_actor_in_caster_unit() {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

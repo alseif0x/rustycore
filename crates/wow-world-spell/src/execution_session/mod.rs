@@ -48,9 +48,12 @@ use post_spell_go::{
 };
 use preparation::prepare_represented_spell_execution_like_cpp;
 use primary_effect_fallback::apply_primary_spell_effect_fallback_like_cpp;
-pub use target_resolution::normalize_caster_only_stuck_target_data_like_cpp;
 use target_resolution::{
     ResolvedSpellEffectTargetsLikeCpp, resolve_spell_effect_target_data_like_cpp,
+};
+pub use target_resolution::{
+    normalize_caster_only_stuck_target_data_like_cpp,
+    normalize_hearthstone_spell_start_target_data_like_cpp,
 };
 
 mod cast_state;

@@ -520,6 +520,17 @@ caster-only STUCK before WorldSession Start and execution/Go, preserving mixed
 spells, SELF_RESURRECT and the empty hit list. This is a publication repair, not a
 change to the now-demonstrated kill/repop mechanics; Stuck-home remains unrun.
 
+The `e432e118fa6a4536831972271c94555e1b121e9f` affected campaign passed in
+548.269 seconds. Record: `/tmp/rustycore43-repair-e432e118f-t1bxvdzr/record.json`.
+Live now shows default targets on both 7355 packets, but epoch one exposes the same
+explicit-target phase distinction on 8690: Rust Start carries self, and Go carries
+self as its Unit GUID. Native Start is empty, while Go has UNIT|DEST_LOCATION with
+an empty Unit and retains self in the hit list. The bounded follow-up clears Start
+completely for 8690 and clears only Go's Unit GUID before home-destination
+resolution, without applying Stuck's full erasure or emptying Hearthstone's hit
+list. Tests must supply self explicitly so the previous empty-fixture shortcut
+cannot hide this defect. Affected acceptance and another live run remain required.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1

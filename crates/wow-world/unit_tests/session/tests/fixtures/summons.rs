@@ -238,20 +238,29 @@ pub(in crate::session::tests) fn decode_spell_go_target_data_like_cpp(
     bytes: &[u8],
     expected_spell_id: i32,
 ) -> SpellTargetData {
-    decode_spell_go_target_data_and_hit_count_like_cpp(bytes, expected_spell_id).0
+    decode_spell_go_target_data_and_hit_targets_like_cpp(bytes, expected_spell_id).0
 }
 
 pub(in crate::session::tests) fn decode_spell_go_hit_target_count_like_cpp(
     bytes: &[u8],
     expected_spell_id: i32,
 ) -> usize {
-    decode_spell_go_target_data_and_hit_count_like_cpp(bytes, expected_spell_id).1
+    decode_spell_go_target_data_and_hit_targets_like_cpp(bytes, expected_spell_id)
+        .1
+        .len()
 }
 
-fn decode_spell_go_target_data_and_hit_count_like_cpp(
+pub(in crate::session::tests) fn decode_spell_go_target_data_and_hit_targets_like_cpp(
     bytes: &[u8],
     expected_spell_id: i32,
-) -> (SpellTargetData, usize) {
+) -> (SpellTargetData, Vec<ObjectGuid>) {
+    decode_spell_go_target_data_and_hit_targets_impl_like_cpp(bytes, expected_spell_id)
+}
+
+fn decode_spell_go_target_data_and_hit_targets_impl_like_cpp(
+    bytes: &[u8],
+    expected_spell_id: i32,
+) -> (SpellTargetData, Vec<ObjectGuid>) {
     let mut spell_go = WorldPacket::from_bytes(bytes);
     assert_eq!(
         spell_go.read_uint16().expect("SpellGo opcode"),
@@ -281,8 +290,9 @@ fn decode_spell_go_target_data_and_hit_count_like_cpp(
     spell_go.read_bits(16).expect("target point count");
     spell_go.read_bit().expect("ammo display presence");
     spell_go.read_bit().expect("ammo inventory presence");
-    (
-        SpellTargetData::read(&mut spell_go).expect("SpellGo target data"),
-        hit_target_count,
-    )
+    let target_data = SpellTargetData::read(&mut spell_go).expect("SpellGo target data");
+    let hit_targets = (0..hit_target_count)
+        .map(|_| spell_go.read_packed_guid().expect("hit target"))
+        .collect();
+    (target_data, hit_targets)
 }

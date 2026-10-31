@@ -88,6 +88,72 @@ fn caster_only_stuck_normalization_preserves_mixed_and_other_spell_targets() {
     }
 }
 
+fn represented_hearthstone_spell_info() -> wow_data::SpellInfo {
+    let mut spell = spell_info(vec![
+        wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
+            ..Default::default()
+        },
+        wow_data::SpellEffectInfo {
+            effect_index: 1,
+            effect: 77,
+            ..Default::default()
+        },
+    ]);
+    spell.spell_id = 8690;
+    spell
+}
+
+#[test]
+fn hearthstone_start_defaults_target_and_go_clears_only_explicit_unit() {
+    let spell = represented_hearthstone_spell_info();
+    let original = SpellTargetData {
+        flags: 0x0000_0042,
+        ..explicit_target_data()
+    };
+
+    assert_eq!(
+        normalize_hearthstone_spell_start_target_data_like_cpp(&spell, original.clone()),
+        SpellTargetData::default()
+    );
+    assert_eq!(
+        normalize_hearthstone_spell_go_target_data_like_cpp(&spell, original.clone()),
+        SpellTargetData {
+            unit: ObjectGuid::EMPTY,
+            ..original
+        }
+    );
+}
+
+#[test]
+fn hearthstone_target_normalization_rejects_other_spells_and_effect_rows() {
+    let original = explicit_target_data();
+    let mut other_spell = represented_hearthstone_spell_info();
+    other_spell.spell_id = 8691;
+    let mut wrong_effect = represented_hearthstone_spell_info();
+    wrong_effect.effects[1].effect = effect_types::SPELL_EFFECT_HEAL;
+    let mut extra_effect = represented_hearthstone_spell_info();
+    extra_effect.effects.push(wow_data::SpellEffectInfo {
+        effect_index: 2,
+        effect: effect_types::SPELL_EFFECT_HEAL,
+        ..Default::default()
+    });
+    let mut wrong_effect_index = represented_hearthstone_spell_info();
+    wrong_effect_index.effects[1].effect_index = 2;
+
+    for spell in [other_spell, wrong_effect, extra_effect, wrong_effect_index] {
+        assert_eq!(
+            normalize_hearthstone_spell_start_target_data_like_cpp(&spell, original.clone()),
+            original
+        );
+        assert_eq!(
+            normalize_hearthstone_spell_go_target_data_like_cpp(&spell, original.clone()),
+            original
+        );
+    }
+}
+
 #[test]
 fn selected_full_server_aura_adds_only_the_implicit_caster_unit_flag() {
     let selected_spell_info = spell_info(vec![effect(effect_types::SPELL_EFFECT_APPLY_AURA, 0, 1)]);
