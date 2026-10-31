@@ -285,6 +285,16 @@
    "unit_tests_lines": 278460,
    "unit_tests_tests": 4144,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-26",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Prove two final native logout CombatStop packets with active and zero death timers: exact +44 lines/+1 W test, no rename/destination/ignored change.",
+   "unit_tests_lines": 278504,
+   "unit_tests_tests": 4145,
+   "src_tests": 22
   }
  ]
 }

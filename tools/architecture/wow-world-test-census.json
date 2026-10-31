@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4166,
+  "tests": 4167,
   "ignored": 1,
-  "session": 3862,
-  "shims": 3682,
+  "session": 3863,
+  "shims": 3683,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3687
+   "W": 3688
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3481
+   "W-world-logic": 3482
   },
   "by_owner": {
    "wow-world": {
@@ -93,7 +93,7 @@
    "wow-world-lifecycle": {
     "P": 38,
     "H": 42,
-    "W": 147
+    "W": 148
    },
    "wow-world-loot": {
     "P": 6,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3687
+    "W": 3688
    },
    "wow-world-application": {
     "P": 27,
@@ -1140,6 +1140,7 @@
   ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::live_pet_release_rejects_unknown_aura_load_before_writing", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::live_pet_release_stops_between_transactions_when_pet_changes_during_save", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/logout_release.rs::all_logout_modes_release_before_one_graveyard_save_and_completion_publication", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/corpse/logout_release.rs::alive_logout_without_death_release_stops_combat_twice_before_completion", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/logout_release.rs::death_release_requires_catalogs_only_when_the_native_timer_is_running", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/logout_release.rs::not_yet_due_logout_timer_does_not_release_or_start_finalization", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/logout_release.rs::disconnected_full_self_queues_still_apply_ghost_wisp_and_publish_the_peer_corpse", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "known_spells_like_cpp", "register_in_player_registry"], []],

@@ -347,6 +347,8 @@ async fn execute_finalization_step_with_catalogs<H: SessionLifecycleHostLikeCpp>
             // (`WorldSession.cpp:664`, `TradeCancel(false)`) after the logout
             // hook and before `RemovePlayerFromMap`.
             host.cancel_trade_before_logout_like_cpp();
+            host.stop_combat_for_logout_death_release_like_cpp();
+            host.stop_combat_for_logout_death_release_like_cpp();
             wow_world_spell::notify_other_players_visibility_changed_like_cpp(host);
             {
                 let (s, mut h) = host.split_lifecycle_mut();

@@ -170,13 +170,22 @@ async fn all_logout_modes_release_before_one_graveyard_save_and_completion_publi
                         == ServerOpcodes::MoveTeleport as u16),
                 "logout does not wait for client teleport ACK"
             );
+            let cancel_combat = wow_packet::packets::combat::CancelCombat.to_bytes();
+            assert!(!packets.iter().any(|bytes| bytes == &cancel_combat));
             assert_eq!(
-                realm_packets.last(),
-                Some(&wow_packet::packets::misc::LogoutComplete.to_bytes())
+                realm_packets
+                    .iter()
+                    .filter(|bytes| *bytes == &cancel_combat)
+                    .count(),
+                5
             );
             assert_eq!(
-                realm_packets.first(),
-                Some(&wow_packet::packets::combat::CancelCombat.to_bytes())
+                &realm_packets[realm_packets.len() - 3..],
+                &[
+                    cancel_combat.clone(),
+                    cancel_combat,
+                    wow_packet::packets::misc::LogoutComplete.to_bytes(),
+                ]
             );
             let pre = realm_packets
                 .iter()
@@ -187,6 +196,41 @@ async fn all_logout_modes_release_before_one_graveyard_save_and_completion_publi
             assert!(pre < realm_packets.len() - 1);
         }
     }
+}
+
+#[tokio::test]
+async fn alive_logout_without_death_release_stops_combat_twice_before_completion() {
+    let (mut session, instance, realm, _guid, corpse, save) = pending_death(9_412);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .resurrection_state_mut_like_cpp()
+                .death_timer_remaining_ms = 0;
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
+            player.unit_mut().set_health(100);
+        })
+        .unwrap();
+    let graveyards = wow_data::GraveyardStore::default();
+    let (report, packets, markers) =
+        finalize_with_writer(&mut session, Mode::TimedLogout, &instance, &graveyards).await;
+    assert_eq!(report.disposition, Disposition::Complete);
+    assert_eq!(report.outcome(Step::DeathRelease), Outcome::NoWork);
+    assert_eq!(save.character_save_count(), 1);
+    assert!(corpse.saves.lock().unwrap().is_empty());
+    assert_eq!(markers, 1);
+    let cancel_combat = wow_packet::packets::combat::CancelCombat.to_bytes();
+    assert!(!packets.iter().any(|bytes| bytes == &cancel_combat));
+    assert_eq!(
+        realm.try_iter().collect::<Vec<_>>(),
+        vec![
+            cancel_combat.clone(),
+            cancel_combat,
+            wow_packet::packets::misc::LogoutComplete.to_bytes(),
+        ]
+    );
 }
 
 #[tokio::test]

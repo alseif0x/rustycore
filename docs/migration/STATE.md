@@ -638,8 +638,14 @@ The two final native CancelCombat packets are also real: CleanupsBeforeDelete an
 RemovePlayerFromMap each call CombatStop before LogoutComplete
 (`WorldSession.cpp:659–676`, `Unit.cpp:9536–9565`, `Map.cpp:907–930`). Add those
 existing operations at their real owners; do not add an intermediate release cancel
-or publish on Disconnecting sockets. Recovery-dead 0x19/Power[0]=50 is instead a
-pre-death regeneration/timing boundary, not a death packet to copy.
+or publish on Disconnecting sockets. Retirement now invokes the existing combat-stop
+capability twice after trade cleanup and before visibility/map removal. Active-timer
+logout proves five total cancels with the exact final CancelCombat/CancelCombat/
+LogoutComplete suffix; timer-zero alive logout proves exactly those three packets,
+and disconnect remains silent. Five focused tests passed. Census: +44 lines/+1 W
+test. Grouped acceptance and recovery captures remain required.
+Recovery-dead 0x19/Power[0]=50 is instead a pre-death regeneration/timing boundary,
+not a death packet to copy.
 
 Mob decoding separates correct dodge behavior from two repairs. Rust
 `damage=0/original=4/over=-1/VictimState=2` is a native dodge, not overkill or RNG
