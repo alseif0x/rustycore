@@ -18,7 +18,11 @@ use wow_world_entities::spell_click_values::spell_effect_is_represented_summon_o
 
 pub(super) fn is_post_spell_go_effect_type_like_cpp(effect_type: u32) -> bool {
     effect_type == wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_FARSIGHT
-        || effect_type == wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS
+        || matches!(
+            effect_type,
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD
+                | wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS
+        )
         || effect_type == wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
         || effect_type == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
         || spell_effect_is_represented_summon_object_slot_like_cpp(effect_type)

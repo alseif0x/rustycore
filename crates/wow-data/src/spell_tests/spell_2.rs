@@ -165,6 +165,7 @@ fn spell_effect_constants_match_cpp_shared_defines() {
     assert_eq!(spell_effect_types::SPELL_EFFECT_NONE, 0);
     assert_eq!(spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE, 2);
     assert_eq!(spell_effect_types::SPELL_EFFECT_PORTAL_TELEPORT, 4);
+    assert_eq!(spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD, 5);
     assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AURA, 6);
     assert_eq!(spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE, 7);
     assert_eq!(spell_effect_types::SPELL_EFFECT_POWER_DRAIN, 8);

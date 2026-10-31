@@ -73,6 +73,7 @@ fn effect_route_separates_source_noops_direct_post_go_and_unavailable_mutations(
     );
     for post_go in [
         effect_types::SPELL_EFFECT_ADD_FARSIGHT,
+        effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
         effect_types::SPELL_EFFECT_TELEPORT_UNITS,
         effect_types::SPELL_EFFECT_BIND,
         effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD,
@@ -191,7 +192,17 @@ fn effect_route_preflight_checks_all_rows_and_primary_fallback_before_prepare() 
 #[test]
 fn hearthstone_script_effect_route_requires_exact_hookless_row() {
     let guid = wow_core::ObjectGuid::EMPTY;
-    let mut hearthstone = spell_info(vec![effect(77, 1, 0)], 77);
+    let mut hearthstone = spell_info(
+        vec![
+            effect(
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
+                0,
+                0,
+            ),
+            effect(77, 1, 0),
+        ],
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
+    );
     hearthstone.spell_id = 8690;
     let hookless = SpellEffectRouteContextLikeCpp {
         spell_has_no_unrepresented_runtime_hooks: true,

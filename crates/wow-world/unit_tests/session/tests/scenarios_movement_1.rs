@@ -373,7 +373,7 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
     let canonical = shared_canonical_map_manager();
     let hearth_effect = wow_data::SpellEffectInfo {
         effect_index: 0,
-        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
         implicit_target_1: 1,
         implicit_target_2: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
         ..Default::default()
@@ -481,7 +481,7 @@ async fn teleport_units_target_dest_home_script_effect_requires_complete_hook_ab
         let canonical = shared_canonical_map_manager();
         let hearth_effect = wow_data::SpellEffectInfo {
             effect_index: 0,
-            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
             implicit_target_1: 1,
             implicit_target_2: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
             ..Default::default()

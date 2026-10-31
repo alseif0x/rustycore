@@ -492,6 +492,18 @@ therefore comes from the exact effect row or classifier input, not missing hook
 authority. The next diagnostic logs only that rejected row and its call path;
 behavior remains unchanged and stable runtime was restored.
 
+The row-tracing candidate at `2111993b77ce455d2eb514b1662abd9ff8b2d095`
+passed affected acceptance in 544.749 seconds. Record:
+`/tmp/rustycore43-repair-2111993b7-krn23b3v/record.json`. Its live trace isolates
+`rejection="row_loop"`, `primary_effect_type=5`, `effect_type=5`, `effect_index=0`,
+`effects_len=2` and hook authority `true`. C++ `SharedDefines.h:1151,1398` defines
+TELEPORT_UNITS_OLD=5 and TELEPORT_UNITS=252, and `SpellEffects.cpp:93,340` sends
+both to EffectTeleportUnits. Rust admitted only 252 in its PostGo and execution
+routes. The bounded repair adds OLD=5 to those same routes and cross-map DB
+destination admission, retains the 77/index-1 absence proof, and changes the two
+real 8690 fixtures to the actual OLD row while preserving existing 252 coverage.
+This is implemented pending focused checks, affected acceptance and live proof.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1
