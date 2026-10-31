@@ -667,6 +667,19 @@ and variance 0.5 => float 1.5/2.25 with final AI bounds 1/2; downstream World
 check passed. Census adds only two existing-fixture lines. Grouped acceptance
 and a fresh mob capture remain required.
 
+The first grouped `cae50ae826a965c16a92005a2f213a2a97e0fb75` campaign
+completed all tests but failed in 1,521.897 seconds solely because the physical
+2,000-line ceiling caught `corpse.rs` at 2,051 lines; the ordinary target was
+exceeded and no candidate binary was accepted. Record:
+`/tmp/rustycore43-repair-cae50ae82-y6s12jhv/record.json`. Move exactly the five
+resurrect-response tests into one cohesive child module without changing their
+bodies or the helpers shared by later tests, then rerun affected acceptance on
+the reviewed candidate; do not raise the physical ceiling.
+The move-only split is complete: parent 1,663 lines, child 390 lines, all five
+test bodies unchanged and all five executed successfully in the new module.
+Physical source policy and the census pass; the ledger records only the mount/
+import +2 lines and five file-path relocations, with no test/class/ignored change.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

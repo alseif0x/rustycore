@@ -305,6 +305,16 @@
    "unit_tests_lines": 278506,
    "unit_tests_tests": 4145,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-28",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Move five unchanged resurrect-response tests into corpse/resurrection_response.rs: exact +2 mount/import lines, same 4145 identities/classes/ignored state, file paths only.",
+   "unit_tests_lines": 278508,
+   "unit_tests_tests": 4145,
+   "src_tests": 22
   }
  ]
 }
