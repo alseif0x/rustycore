@@ -255,6 +255,16 @@
    "unit_tests_lines": 278607,
    "unit_tests_tests": 4143,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-24",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Strengthen map-difficulty fallback assertions in the existing client-cooldown completion identity: exact +4 lines, no identity/class/destination/ignored change and no headroom.",
+   "unit_tests_lines": 278611,
+   "unit_tests_tests": 4143,
+   "src_tests": 22
   }
  ]
 }
