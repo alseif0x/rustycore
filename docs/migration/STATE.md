@@ -1,5 +1,50 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #54 closure execution plan — 2026-10-31
+
+Branch `54-c-character2-complete-logout-admission-countdown-and-cancellation`;
+baseline `a97b4da29e701e97bb3bc5915f7daf21a2cd28df` after merged #43.
+The operator selected #54. This section supersedes the issue's stale pending list,
+not its acceptance requirements. Documentation and new explanatory comments remain
+in English.
+
+### Audited starting point
+
+Admission denial order, instant/taxi/resting/default-GM behavior, the 20-second
+timer, sit/root/stun, cancel restoration, loot prelude, packet registration and
+durable finalization are already production-integrated. Do not reimplement them.
+Target `Handlers/MiscHandler.cpp:238-311` and the current Rust owners were reviewed;
+no `InstantLogout` configuration key exists in the target, so RBAC permission 1 is
+the actual contract. Three bounded residuals remain:
+
+1. Missing/unresolvable canonical Player currently grants instant logout, and a
+   stale GUID can receive LogoutCancelAck. C++ only dispatches these LoggedIn
+   operations with a real Player; make both paths fail closed without response,
+   countdown, finalization, ACK or movement mutation.
+2. `security > 0` approximates `RBAC_PERM_INSTANT_LOGOUT`. Load account-specific
+   grants and denials through the existing RBAC query and compose them with the
+   default role permissions in C++ order, preserving default staff behavior while
+   honoring explicit player grant and staff revoke.
+3. Socket loss during an active countdown finalizes immediately. C++ evaluates
+   the 20-second deadline before the 60-second lost-socket cleanup; preserve that
+   timing without weakening the existing disconnect/save/finalization fences.
+
+### Ordered work and exit conditions
+
+1. Close the no-Player fail-open paths with focused stale/missing-owner tests.
+2. Implement account-specific RBAC at the actual login/session owner, with grant,
+   revoke, default and query-failure tests. No second permission mirror.
+3. Repair countdown/disconnect timing and prove before-due, due and post-due
+   behavior, including no LogoutComplete on disconnect and correct relogin timing.
+4. Complete the live matrix: combat/fall/duel denials, delayed movement, instant
+   resting/taxi/staff, cancel restoration, successful timed completion, repeated
+   requests and disconnect timing. Assert packets, state and real persistence;
+   compare action-specific C++/Rust captures without claiming ambient-stream parity.
+5. Run affected acceptance, production integration, exhaustive persistence and
+   origin publication final. Record exact SHAs, durations and remaining boundaries.
+6. Publish and close under the established conditional authorization; no permanent
+   deployment and no broad rewrite of already integrated logout behavior.
+
 ## #43 closure execution plan — 2026-10-29
 
 The operator resumed implementation after reviewing the two live failures and

@@ -251,6 +251,89 @@ async fn logout_cancel_acks_and_restores_movement_like_cpp() {
     assert!(detached_rx.try_recv().is_err());
 }
 
+#[tokio::test]
+async fn logout_request_without_canonical_player_fails_closed_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    session.set_state(SessionState::LoggedIn);
+    let loot_guid = ObjectGuid::create_player(1, 0x5100_0100);
+    session.loot.set_active_loot_guid(loot_guid);
+    let logout_time = wow_entities::game_time_secs_like_cpp();
+    session
+        .lifecycle
+        .set_logout_start_time_like_cpp(logout_time);
+    session.core.mark_player_logging_out_like_cpp(true);
+
+    session
+        .handle_logout_request(wow_packet::packets::misc::LogoutRequest { idle_logout: false })
+        .await;
+
+    assert!(
+        send_rx.is_empty(),
+        "missing Player publishes neither LootReleaseAll nor LogoutResponse"
+    );
+    assert_eq!(session.loot.active_loot_guid_like_cpp(), loot_guid);
+    assert_eq!(
+        session.lifecycle.logout_time_for_test_like_cpp(),
+        logout_time
+    );
+    assert!(session.lifecycle.is_logging_out_like_cpp());
+    assert!(session.finalization_report_like_cpp().is_none());
+    assert_eq!(session.state(), SessionState::LoggedIn);
+    assert_eq!(session.player_guid(), None);
+}
+
+#[tokio::test]
+async fn logout_cancel_with_stale_player_guid_fails_closed_like_cpp() {
+    use wow_world_lifecycle::AccountDataHandlerHostLikeCpp;
+
+    let (mut session, _pkt_tx, send_rx) = logged_in_canonical_session_like_cpp();
+    session
+        .handle_logout_request(wow_packet::packets::misc::LogoutRequest { idle_logout: false })
+        .await;
+    let _ = logout_opcodes_like_cpp(&send_rx);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let logout_time = session.lifecycle.logout_time_for_test_like_cpp();
+    session.core.player_handle_like_cpp = None;
+    assert!(session.player_guid().is_some(), "the GUID is stale");
+
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    let cancelled = session
+        .account_data_handler_cx_like_cpp(&catalogs)
+        .handle_logout_cancel()
+        .await;
+    if cancelled {
+        session.restore_logout_wait_movement_like_cpp();
+    }
+
+    assert!(!cancelled);
+    assert!(send_rx.is_empty(), "stale GUID sends no LogoutCancelAck");
+    assert_eq!(
+        session.lifecycle.logout_time_for_test_like_cpp(),
+        logout_time
+    );
+    assert!(session.lifecycle.is_logging_out_like_cpp());
+    assert!(session.finalization_report_like_cpp().is_none());
+    assert_eq!(session.state(), SessionState::LoggedIn);
+    let (stand, flags, unit_flags) = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(handle, |player| {
+            (
+                player.unit().stand_state_like_cpp(),
+                player.unit().movement_flags_like_cpp(),
+                player.unit().unit_flags_like_cpp(),
+            )
+        })
+        .unwrap();
+    assert_eq!(stand, wow_constants::UnitStandStateType::Sit);
+    assert!(flags.contains(wow_constants::MovementFlag::ROOT));
+    assert!(unit_flags.contains(wow_constants::UnitFlags::STUNNED));
+}
+
 /// Denied in combat: `LogoutResponse(1, false)`, no countdown, no root.
 #[tokio::test]
 async fn logout_request_in_combat_is_denied_like_cpp() {

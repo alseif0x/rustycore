@@ -112,21 +112,18 @@ pub async fn handle_logout_request_with_catalogs<H: CharacterLoginHostLikeCpp>(
         host.core().account_id
     );
 
+    let Some(snapshot) = host.hub_ref().logout_admission_snapshot_like_cpp() else {
+        return;
+    };
+    let (reason, instant_logout) = logout_admission_like_cpp(
+        &snapshot,
+        req.idle_logout,
+        host.hub_ref().has_instant_logout_permission_like_cpp(),
+    );
+
     if !host.loot().active_loot_guid_like_cpp().is_empty() {
         host.send_packet(&LootReleaseAll);
     }
-
-    // C++ dereferences `GetPlayer()` here; a LoggedIn session always has one.
-    // Without a canonical Player nothing can be admitted or rooted, so the
-    // represented session keeps its former instant finalization.
-    let (reason, instant_logout) = match host.hub_ref().logout_admission_snapshot_like_cpp() {
-        Some(snapshot) => logout_admission_like_cpp(
-            &snapshot,
-            req.idle_logout,
-            host.hub_ref().has_instant_logout_permission_like_cpp(),
-        ),
-        None => (None, true),
-    };
 
     host.send_packet(&LogoutResponse {
         logout_result: reason.map_or(0, |reason| reason as i32),

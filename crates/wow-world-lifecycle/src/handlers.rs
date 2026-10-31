@@ -274,7 +274,12 @@ impl<'a> AccountDataHandlerCxLikeCpp<'a> {
     /// this returns `true`: no player means it is too late to cancel.
     pub async fn handle_logout_cancel(&mut self) -> bool {
         // Player have already logged out serverside, too late to cancel.
-        if self.hub.core.player_guid().is_none() {
+        if self
+            .hub
+            .shared()
+            .logout_admission_snapshot_like_cpp()
+            .is_none()
+        {
             return false;
         }
         info!("LogoutCancel from account {}", self.hub.core.account_id);

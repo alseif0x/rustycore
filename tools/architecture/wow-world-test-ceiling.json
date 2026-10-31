@@ -315,6 +315,16 @@
    "unit_tests_lines": 278508,
    "unit_tests_tests": 4145,
    "src_tests": 22
+  },
+  {
+   "id": "raise-54-29",
+   "kind": "raise",
+   "issue": 54,
+   "reviewed_at": "2026-10-31",
+   "reason": "Prove missing/stale canonical Player logout request and cancel fail closed: exact +85 lines/+2 W tests, no destination/ignored change.",
+   "unit_tests_lines": 278591,
+   "unit_tests_tests": 4147,
+   "src_tests": 22
   }
  ]
 }
