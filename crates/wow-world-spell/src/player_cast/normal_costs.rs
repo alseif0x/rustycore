@@ -254,15 +254,34 @@ pub fn apply_server_normal_cooldown_plan_like_cpp(
             cooldown_ms,
             category_id,
             category_cooldown_ms,
-        } => history.start_cooldown(
-            now_ms,
-            spell_id,
-            item_id,
-            u64::from(cooldown_ms),
-            category_id,
-            u64::from(category_cooldown_ms),
-            false,
-        ),
+        } => {
+            if spell_id == 8690 && std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                tracing::info!(
+                    mutation = ?plan.mutation,
+                    starts_at_cast_start = plan.starts_at_cast_start,
+                    now_ms,
+                    "RUST_STUCK cooldown_plan"
+                );
+            }
+            let applied = history.start_cooldown(
+                now_ms,
+                spell_id,
+                item_id,
+                u64::from(cooldown_ms),
+                category_id,
+                u64::from(category_cooldown_ms),
+                false,
+            );
+            if spell_id == 8690 && std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                let cooldown = history.cooldown(8690);
+                tracing::info!(
+                    ?cooldown,
+                    cooldowns_loaded = history.cooldowns_loaded,
+                    "RUST_STUCK cooldown_history"
+                );
+            }
+            applied
+        }
     }
 }
 
