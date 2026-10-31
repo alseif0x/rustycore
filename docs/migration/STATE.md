@@ -700,6 +700,31 @@ two pending polls and drains exactly two cancels after cancellation. The complet
 production-login target passes 42/42; no production change was made for either
 finding. A fresh committed-candidate campaign is still required.
 
+The corrected `c59fa7d91c3f9c7473eba2230f3c9f210f5c3e78` candidate passed
+its complete affected campaign in 591.171 seconds on aarch64 with one job,
+8.829 seconds inside the ordinary target. Final took 211.550 seconds and the
+World debug build 341.715 seconds. Record and manifest:
+`/tmp/rustycore43-repair-c59fa7d91-5pubzdug/record.json`; World SHA-256 is
+`bc4f55e369890230a1a4a425d70c92e15de3057f4e65c136d8605ac745294103`.
+The same binary then passed offer (704.984s), recovery-dead (539.486s),
+recovery-ghost (545.060s) and mob (413.512s), with fixture cleanup and stable
+runtime restoration. Live record:
+`/tmp/rustycore43-live-cae50ae82-psimp8n2/campaign.json`.
+
+Fresh strict action comparisons passed 34 checks. Twenty other requested
+boundaries were absent in the successful native epochs and are recorded as
+not-applicable, not failures or invented packets. Both offer SpellGo instances
+match every stable action field; only cast IDs/timing and the timed second-cast
+mana value (95 native, 83 Rust) differ. All mob ContentTuning tails are exactly
+the native 30 bytes with Flags=3. Real level-1/2 stats with BaseVariance=1 make
+Rust damage 1 a valid post-truncation result (level-2 float min 1.0745), so a
+same-damage assertion across different level/RNG samples is not valid. Ghost
+8326 before DeathReleaseLoc follows C++ BuildPlayerRepop -> RepopAtGraveyard;
+arrival order across independent realm/instance sockets is not an execution
+ordering contract. Full streams remain non-clean and no global parity is claimed.
+Evidence: `/tmp/rustycore43-capture-comparison-c59fa7d91/action-diffs/record.json`,
+`offer-epoch2-spell-go-occurrences.json` and the complete diff logs beside them.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
