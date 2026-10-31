@@ -401,14 +401,18 @@ async fn production_saturated_logout_publication_yields_and_cancellation_keeps_r
         outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     }));
     while receiver.try_recv().is_ok() {}
-    for _ in 0..8 {
+    for _ in 0..6 {
         output.try_send(vec![0]).unwrap();
     }
-    assert!(output.is_full());
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
     let mut operation = Box::pin(
         session.finalize_session_with_generator_like_cpp(Mode::CharacterSelection, &generator),
     );
+    assert!(
+        std::future::poll_fn(|cx| std::task::Poll::Ready(operation.as_mut().poll(cx).is_pending()))
+            .await
+    );
+    assert!(output.is_full());
     assert!(
         std::future::poll_fn(|cx| std::task::Poll::Ready(operation.as_mut().poll(cx).is_pending()))
             .await
@@ -423,6 +427,13 @@ async fn production_saturated_logout_publication_yields_and_cancellation_keeps_r
     );
     assert_eq!(report.outcome(Step::Release), Outcome::NotAttempted);
     assert_eq!(report.disposition, Disposition::RetainAndEscalate);
+    let cancel_combat = wow_constants::ServerOpcodes::CancelCombat as u16;
+    let native_packets = receiver
+        .try_iter()
+        .filter(|bytes| bytes.len() >= 2)
+        .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+        .collect::<Vec<_>>();
+    assert_eq!(native_packets, vec![cancel_combat; 2]);
     assert_eq!(
         session
             .finalize_session_with_generator_like_cpp(Mode::Disconnect, &generator)

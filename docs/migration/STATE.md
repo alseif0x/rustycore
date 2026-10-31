@@ -689,6 +689,17 @@ World Server +2 production/+101 tests for BaseVariance; Player -53 production/
 --self-test` now passes physical, dependency, ownership and hotspot checks;
 Player's production ceiling tightened to 20,205.
 
+The `ac68d469bedc044e59e9545b895ca9b260a7b253` campaign passed final and
+manifest verification in 207.432 seconds, then exceeded the driver's one-hour
+limit in production-login integration: one exact opcode vector still expected
+no final combat stops, and the saturated-channel test drained too late for the
+two new sends. Record: `/tmp/rustycore43-repair-ac68d469b-x06zsiou/record.json`.
+Only those integration expectations changed: the successful vector now includes
+two CancelCombat before LogoutComplete, and saturation uses six fillers, proves
+two pending polls and drains exactly two cancels after cancellation. The complete
+production-login target passes 42/42; no production change was made for either
+finding. A fresh committed-candidate campaign is still required.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

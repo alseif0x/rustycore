@@ -637,6 +637,8 @@ async fn pending_far_disconnect(
                 wow_constants::ServerOpcodes::MoveSetLandWalk as u16,
                 wow_constants::ServerOpcodes::MoveUnroot as u16,
                 wow_constants::ServerOpcodes::PowerUpdate as u16,
+                wow_constants::ServerOpcodes::CancelCombat as u16,
+                wow_constants::ServerOpcodes::CancelCombat as u16,
                 wow_constants::ServerOpcodes::LogoutComplete as u16
             ]
         );
