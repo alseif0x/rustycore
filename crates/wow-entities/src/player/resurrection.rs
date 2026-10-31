@@ -111,27 +111,42 @@ impl Player {
         self.gameplay_state.resurrection.request = None;
     }
 
-    /// Atomically consume C++ `_resurrectionData` into the Player-owned
-    /// delayed operation before its caller reaches the first async boundary.
+    /// Retain C++ `_resurrectionData` and admit its Player-owned delayed
+    /// operation, including matching repeats before the first teleport ACK.
     pub fn accept_resurrection_request(
         &mut self,
         resurrecter: ObjectGuid,
     ) -> Option<PlayerResurrectionContinuation> {
         let state = &mut self.gameplay_state.resurrection;
-        if state.delayed_after_teleport.is_some()
-            || !state.request.is_some_and(|request| {
-                !request.resurrecter.is_empty() && request.resurrecter == resurrecter
-            })
-        {
+        let request = state.request?;
+        if request.resurrecter.is_empty() || request.resurrecter != resurrecter {
             return None;
         }
-        let request = state.request.take()?;
-        let continuation = PlayerResurrectionContinuation {
-            operation: PlayerResurrectionOperation::RequestData(request),
-            phase: PlayerResurrectionPhase::TeleportInFlight,
-        };
-        state.delayed_after_teleport = Some(continuation);
-        Some(continuation)
+        match state.delayed_after_teleport.as_mut() {
+            None => {
+                let continuation = PlayerResurrectionContinuation {
+                    operation: PlayerResurrectionOperation::RequestData(request),
+                    phase: PlayerResurrectionPhase::TeleportInFlight,
+                };
+                state.delayed_after_teleport = Some(continuation);
+                Some(continuation)
+            }
+            Some(continuation)
+                if matches!(
+                    continuation.operation,
+                    PlayerResurrectionOperation::RequestData(continuation_request)
+                        if continuation_request.resurrecter == request.resurrecter
+                ) && matches!(
+                    continuation.phase,
+                    PlayerResurrectionPhase::TeleportInFlight
+                        | PlayerResurrectionPhase::AwaitingTeleport
+                ) =>
+            {
+                continuation.phase = PlayerResurrectionPhase::TeleportInFlight;
+                Some(*continuation)
+            }
+            Some(_) => None,
+        }
     }
 
     /// Admit one complete native resurrection or corpse-recovery operation.
@@ -269,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn accepted_request_moves_atomically_into_teleport_continuation() {
+    fn accepted_request_is_retained_for_pre_ack_repeats_like_cpp() {
         let mut player = Player::new(Some(1), false);
         let request = PlayerResurrectionRequestLikeCpp {
             resurrecter: ObjectGuid::create_player(1, 77),
@@ -284,6 +299,12 @@ mod tests {
             player.accept_resurrection_request(ObjectGuid::create_player(1, 78)),
             None
         );
+        assert_eq!(player.resurrection_state_like_cpp().request, Some(request));
+        assert_eq!(
+            player.resurrection_state_like_cpp().delayed_after_teleport,
+            None
+        );
+
         let continuation = player
             .accept_resurrection_request(request.resurrecter)
             .expect("request accepted");
@@ -294,13 +315,109 @@ mod tests {
                 phase: PlayerResurrectionPhase::TeleportInFlight,
             }
         );
-        let state = player.resurrection_state_like_cpp();
-        assert!(state.request.is_none());
-        assert_eq!(state.delayed_after_teleport, Some(continuation));
-        assert!(
-            player
-                .accept_resurrection_request(request.resurrecter)
-                .is_none()
+        assert_eq!(player.resurrection_state_like_cpp().request, Some(request));
+        assert_eq!(
+            player.resurrection_state_like_cpp().delayed_after_teleport,
+            Some(continuation)
+        );
+
+        assert!(player.advance_resurrection_continuation(
+            PlayerResurrectionPhase::TeleportInFlight,
+            PlayerResurrectionPhase::AwaitingTeleport,
+        ));
+        let awaiting = PlayerResurrectionContinuation {
+            phase: PlayerResurrectionPhase::AwaitingTeleport,
+            ..continuation
+        };
+        assert_eq!(
+            player.accept_resurrection_request(ObjectGuid::create_player(1, 78)),
+            None
+        );
+        assert_eq!(
+            player.resurrection_state_like_cpp().delayed_after_teleport,
+            Some(awaiting),
+            "a mismatched repeat leaves the continuation unchanged"
+        );
+        assert_eq!(
+            player.accept_resurrection_request(request.resurrecter),
+            Some(continuation),
+            "a matching pre-ACK repeat restarts the teleport phase"
+        );
+        assert_eq!(player.resurrection_state_like_cpp().request, Some(request));
+        assert_eq!(
+            player.resurrection_state_like_cpp().delayed_after_teleport,
+            Some(continuation)
+        );
+
+        assert!(player.advance_resurrection_continuation(
+            PlayerResurrectionPhase::TeleportInFlight,
+            PlayerResurrectionPhase::TeleportCompleted,
+        ));
+        let completed_teleport = PlayerResurrectionContinuation {
+            phase: PlayerResurrectionPhase::TeleportCompleted,
+            ..continuation
+        };
+        assert_eq!(
+            player.accept_resurrection_request(request.resurrecter),
+            None
+        );
+        assert_eq!(
+            player.resurrection_state_like_cpp().delayed_after_teleport,
+            Some(completed_teleport)
+        );
+        player.clear_resurrection_request_like_cpp();
+        assert_eq!(
+            player.accept_resurrection_request(request.resurrecter),
+            None
+        );
+
+        let mut inconsistent = Player::new(Some(1), false);
+        inconsistent.set_resurrection_request_like_cpp(request);
+        let inconsistent_continuation = PlayerResurrectionContinuation {
+            operation: PlayerResurrectionOperation::RequestData(PlayerResurrectionRequestLikeCpp {
+                resurrecter: ObjectGuid::create_player(1, 78),
+                ..request
+            }),
+            phase: PlayerResurrectionPhase::AwaitingTeleport,
+        };
+        assert!(inconsistent.begin_resurrection_operation(
+            inconsistent_continuation.operation,
+            inconsistent_continuation.phase,
+        ));
+        assert_eq!(
+            inconsistent.accept_resurrection_request(request.resurrecter),
+            None
+        );
+        assert_eq!(
+            inconsistent.resurrection_state_like_cpp().request,
+            Some(request)
+        );
+        assert_eq!(
+            inconsistent
+                .resurrection_state_like_cpp()
+                .delayed_after_teleport,
+            Some(inconsistent_continuation),
+            "a continuation for another resurrecter remains unchanged"
+        );
+
+        let mut other_operation = Player::new(Some(1), false);
+        other_operation.set_resurrection_request_like_cpp(request);
+        assert!(other_operation.begin_resurrection_operation(
+            PlayerResurrectionOperation::Repop,
+            PlayerResurrectionPhase::AwaitingTeleport,
+        ));
+        assert_eq!(
+            other_operation.accept_resurrection_request(request.resurrecter),
+            None
+        );
+        assert_eq!(
+            other_operation
+                .resurrection_state_like_cpp()
+                .delayed_after_teleport,
+            Some(PlayerResurrectionContinuation {
+                operation: PlayerResurrectionOperation::Repop,
+                phase: PlayerResurrectionPhase::AwaitingTeleport,
+            })
         );
     }
 }

@@ -31,14 +31,6 @@ pub(crate) fn accept_request(
         && host.represented_resurrection_requested_by_like_cpp(resurrecter)
     {
         let mut hub = host.hub_mut();
-        if hub
-            .fixtures
-            .combat
-            .represented_delayed_resurrection_after_teleport_like_cpp
-            .is_some()
-        {
-            return None;
-        }
         let request = hub
             .fixtures
             .combat
@@ -46,17 +38,35 @@ pub(crate) fn accept_request(
         if request.resurrecter.is_empty() || request.resurrecter != resurrecter {
             return None;
         }
-        let continuation = PlayerResurrectionContinuation {
-            operation: PlayerResurrectionOperation::RequestData(request),
-            phase: PlayerResurrectionPhase::TeleportInFlight,
-        };
-        hub.fixtures
+        let delayed = &mut hub
+            .fixtures
             .combat
-            .represented_resurrection_request_like_cpp = None;
-        hub.fixtures
-            .combat
-            .represented_delayed_resurrection_after_teleport_like_cpp = Some(continuation);
-        return Some(continuation);
+            .represented_delayed_resurrection_after_teleport_like_cpp;
+        match delayed.as_mut() {
+            None => {
+                let continuation = PlayerResurrectionContinuation {
+                    operation: PlayerResurrectionOperation::RequestData(request),
+                    phase: PlayerResurrectionPhase::TeleportInFlight,
+                };
+                *delayed = Some(continuation);
+                return Some(continuation);
+            }
+            Some(continuation)
+                if matches!(
+                    continuation.operation,
+                    PlayerResurrectionOperation::RequestData(continuation_request)
+                        if continuation_request.resurrecter == request.resurrecter
+                ) && matches!(
+                    continuation.phase,
+                    PlayerResurrectionPhase::TeleportInFlight
+                        | PlayerResurrectionPhase::AwaitingTeleport
+                ) =>
+            {
+                continuation.phase = PlayerResurrectionPhase::TeleportInFlight;
+                return Some(*continuation);
+            }
+            Some(_) => return None,
+        }
     }
     None
 }

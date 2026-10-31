@@ -168,8 +168,9 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
     session.install_realm_send_channel_for_test(realm_tx);
     session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     let resurrecter = ObjectGuid::create_player(1, 77);
+    let player_guid = ObjectGuid::create_player(1, 42);
     let target_position = Position::new(11.0, 22.0, 33.0, 1.5);
-    session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+    session.set_player_guid(Some(player_guid));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
         &mut session,
@@ -215,47 +216,95 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
                 .set_power(wow_constants::PowerType::Focus, 13);
         })
         .unwrap();
-    session.set_represented_resurrection_request_like_cpp(
-        wow_entities::PlayerResurrectionRequestLikeCpp {
-            resurrecter,
-            map_id: 571,
-            position: target_position,
-            health: 450,
-            mana: 120,
-            aura: 0,
-        },
+    let request = wow_entities::PlayerResurrectionRequestLikeCpp {
+        resurrecter,
+        map_id: 571,
+        position: target_position,
+        health: 450,
+        mana: 120,
+        aura: 0,
+    };
+    session.set_represented_resurrection_request_like_cpp(request);
+
+    handle_resurrect_response(&mut session, resurrect_response_packet(resurrecter, 0)).await;
+
+    let awaiting = wow_entities::PlayerResurrectionContinuation {
+        operation: wow_entities::PlayerResurrectionOperation::RequestData(request),
+        phase: wow_entities::PlayerResurrectionPhase::AwaitingTeleport,
+    };
+    assert!(!session.player_is_alive_like_cpp());
+    assert_eq!(
+        session.represented_resurrection_request_like_cpp(),
+        Some(request)
+    );
+    assert_eq!(
+        session.represented_delayed_resurrection_after_teleport_like_cpp(),
+        Some(awaiting)
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).movement_counter_like_cpp(),
+        Some(1)
     );
 
     handle_resurrect_response(&mut session, resurrect_response_packet(resurrecter, 0)).await;
 
     assert!(!session.player_is_alive_like_cpp());
-    assert!(
-        session
-            .represented_resurrection_request_like_cpp()
-            .is_none()
-    );
-    assert!(
-        session
-            .represented_delayed_resurrection_after_teleport_like_cpp()
-            .is_some()
+    assert_eq!(
+        session.represented_resurrection_request_like_cpp(),
+        Some(request)
     );
     assert_eq!(
-        std::iter::from_fn(|| send_rx.try_recv().ok())
-            .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
-            .collect::<Vec<_>>(),
-        vec![ServerOpcodes::MoveTeleport as u16,]
+        session.represented_delayed_resurrection_after_teleport_like_cpp(),
+        Some(awaiting)
     );
+    assert_eq!(
+        crate::session::hub_ref(&session).movement_counter_like_cpp(),
+        Some(2)
+    );
+    assert_eq!(
+        send_rx.try_iter().collect::<Vec<_>>(),
+        (0..=1)
+            .map(|sequence_index| {
+                wow_packet::packets::movement::MoveTeleport {
+                    mover_guid: player_guid,
+                    position: target_position,
+                    facing: target_position.orientation,
+                    sequence_index,
+                    preload_world: 0,
+                    transport_guid: Some(ObjectGuid::EMPTY),
+                }
+                .to_bytes()
+            })
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(realm_rx.len(), 2);
 
-    let action = wow_world_entities::handle_move_teleport_ack_like_cpp(
-        &mut session,
-        ObjectGuid::create_player(1, 42),
-        0,
-        0,
-    );
+    let action =
+        wow_world_entities::handle_move_teleport_ack_like_cpp(&mut session, player_guid, 1, 0);
     assert_eq!(
         action,
         crate::session::MoveTeleportAckActionLikeCpp::Accepted
     );
+    assert!(wow_world_entities::mark_player_resurrection_teleport_completed(&mut session));
+    let teleport_completed = wow_entities::PlayerResurrectionContinuation {
+        phase: wow_entities::PlayerResurrectionPhase::TeleportCompleted,
+        ..awaiting
+    };
+    assert_eq!(
+        session.represented_delayed_resurrection_after_teleport_like_cpp(),
+        Some(teleport_completed)
+    );
+
+    handle_resurrect_response(&mut session, resurrect_response_packet(resurrecter, 0)).await;
+
+    assert!(!session.player_is_alive_like_cpp());
+    assert_eq!(
+        session.represented_delayed_resurrection_after_teleport_like_cpp(),
+        Some(teleport_completed),
+        "a post-ACK repeat cannot restart the completed teleport"
+    );
+    assert!(send_rx.is_empty());
+    assert_eq!(realm_rx.len(), 2);
 
     let completed = continue_resurrection_after_valid_teleport(&mut session).await;
     assert!(
@@ -285,16 +334,20 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
             .is_none()
     );
     let realm = realm_rx.try_iter().collect::<Vec<_>>();
-    assert_eq!(realm.len(), 6);
+    assert_eq!(realm.len(), 7);
     assert_eq!(
         u16::from_le_bytes([realm[0][0], realm[0][1]]),
         ServerOpcodes::CancelCombat as u16
     );
     assert_eq!(
         u16::from_le_bytes([realm[1][0], realm[1][1]]),
+        ServerOpcodes::CancelCombat as u16
+    );
+    assert_eq!(
+        u16::from_le_bytes([realm[2][0], realm[2][1]]),
         ServerOpcodes::DeathReleaseLoc as u16
     );
-    for (packet, (power, value)) in realm[2..].iter().zip([
+    for (packet, (power, value)) in realm[3..].iter().zip([
         (wow_constants::PowerType::Mana, 120),
         (wow_constants::PowerType::Rage, 0),
         (wow_constants::PowerType::Energy, 100),
@@ -303,7 +356,7 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
         assert_eq!(
             *packet,
             wow_packet::packets::combat::PowerUpdate {
-                guid: ObjectGuid::create_player(1, 42),
+                guid: player_guid,
                 powers: vec![(value, power as u8)],
             }
             .to_bytes()
@@ -325,6 +378,89 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
     assert!(
         realm_rx.try_recv().is_err(),
         "a completed request cannot publish powers twice"
+    );
+
+    while send_rx.try_recv().is_ok() {}
+    handle_resurrect_response(&mut session, resurrect_response_packet(resurrecter, 0)).await;
+    assert!(send_rx.is_empty());
+    assert!(realm_rx.is_empty());
+    assert_eq!(session.player_health_like_cpp(), 450);
+}
+
+#[tokio::test]
+async fn resurrect_response_repeats_pre_ack_accept_without_canonical_owner_like_cpp() {
+    let (mut session, _send_rx) = make_session();
+    let (realm_tx, _realm_rx) = flume::unbounded();
+    session.install_realm_send_channel_for_test(realm_tx);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+    session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
+    session.set_player_health_like_cpp(0, 1_000);
+    let resurrecter = ObjectGuid::create_player(1, 77);
+    let request = wow_entities::PlayerResurrectionRequestLikeCpp {
+        resurrecter,
+        map_id: 571,
+        position: Position::new(11.0, 22.0, 33.0, 1.5),
+        health: 450,
+        mana: 120,
+        aura: 0,
+    };
+    session.set_represented_resurrection_request_like_cpp(request);
+    assert!(session.core.player_handle_like_cpp.is_none());
+
+    handle_resurrect_response(&mut session, resurrect_response_packet(resurrecter, 0)).await;
+    let awaiting = wow_entities::PlayerResurrectionContinuation {
+        operation: wow_entities::PlayerResurrectionOperation::RequestData(request),
+        phase: wow_entities::PlayerResurrectionPhase::AwaitingTeleport,
+    };
+    assert_eq!(
+        session.represented_delayed_resurrection_after_teleport_like_cpp(),
+        Some(awaiting)
+    );
+    let inconsistent = wow_entities::PlayerResurrectionContinuation {
+        operation: wow_entities::PlayerResurrectionOperation::RequestData(
+            wow_entities::PlayerResurrectionRequestLikeCpp {
+                resurrecter: ObjectGuid::create_player(1, 78),
+                ..request
+            },
+        ),
+        phase: wow_entities::PlayerResurrectionPhase::AwaitingTeleport,
+    };
+    session
+        .fixtures
+        .combat
+        .represented_delayed_resurrection_after_teleport_like_cpp = Some(inconsistent);
+
+    handle_resurrect_response(&mut session, resurrect_response_packet(resurrecter, 0)).await;
+
+    assert_eq!(
+        session.represented_resurrection_request_like_cpp(),
+        Some(request)
+    );
+    assert_eq!(
+        session.represented_delayed_resurrection_after_teleport_like_cpp(),
+        Some(inconsistent),
+        "a continuation for another resurrecter is rejected without mutation"
+    );
+    session
+        .fixtures
+        .combat
+        .represented_delayed_resurrection_after_teleport_like_cpp =
+        Some(wow_entities::PlayerResurrectionContinuation {
+            phase: wow_entities::PlayerResurrectionPhase::TeleportInFlight,
+            ..awaiting
+        });
+
+    handle_resurrect_response(&mut session, resurrect_response_packet(resurrecter, 0)).await;
+
+    assert_eq!(
+        session.represented_resurrection_request_like_cpp(),
+        Some(request)
+    );
+    assert_eq!(
+        session.represented_delayed_resurrection_after_teleport_like_cpp(),
+        Some(awaiting),
+        "a subsequent matching accept advances the repeated teleport"
     );
 }
 

@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4165,
+  "tests": 4166,
   "ignored": 1,
-  "session": 3861,
-  "shims": 3681,
+  "session": 3862,
+  "shims": 3682,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3686
+   "W": 3687
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3480
+   "W-world-logic": 3481
   },
   "by_owner": {
    "wow-world": {
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 45,
     "H": 5,
-    "W": 962
+    "W": 963
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3686
+    "W": 3687
    },
    "wow-world-application": {
     "P": 27,
@@ -1097,6 +1097,7 @@
   ["unit_tests/handlers/entities/tests/corpse.rs::request_cemetery_list_ignores_payload_and_sends_zone_ids_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_request_cemetery_list", "set_player_guid"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::request_cemetery_list_filters_conditions_and_caps_at_sixteen_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_request_cemetery_list", "set_player_guid"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::resurrect_response_accepts_matching_request_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/corpse.rs::resurrect_response_repeats_pre_ack_accept_without_canonical_owner_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "represented_delayed_resurrection_after_teleport_like_cpp", "represented_resurrection_request_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::resurrect_response_decline_clears_request_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "represented_resurrection_request_like_cpp", "set_player_health_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::resurrect_response_ignores_mismatched_resurrecter_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "represented_resurrection_request_like_cpp", "set_player_health_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::resurrect_response_ignores_alive_player_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "represented_resurrection_request_like_cpp", "set_player_health_like_cpp"], []],

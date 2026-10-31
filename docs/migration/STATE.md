@@ -585,6 +585,24 @@ selected-aura skip. Stuck-home remains unrun and the failed campaign is retained
 at `/tmp/rustycore43-live-227a8cb36-8q7n0dwt/campaign.json`; stable runtime was
 restored to SHA-256 `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`.
 
+Commit `6a9d5f4e3` removes that unconditional completion publication and updates
+37 existing test files without changing test count; the census records one
+fallback-test rename and tightens 287 removed expectation lines. Worker checks
+passed, including three completion tests and 415 spell-state scenarios, and the
+parent-reviewed complete World library suite passed 4,164 tests with one ignored.
+The same committed debug binary (`a3e91e2cdfc9c1582a260e82289ecd015003bec4766a63adb3e9420192d4f102`)
+then passed both `stuck-death` epochs and `stuck-home` in one guarded serial
+diagnostic. Reports: `/tmp/rustycore43-stuck-death-6a9d5f4e3/death-runtime-report.json`
+and `/tmp/rustycore43-stuck-home-6a9d5f4e3/death-runtime-report.json`; cleanup
+restored the stable runtime hash above. All twelve bounded scenario
+responsibilities now have successful live observations. This is not grouped
+local acceptance, action-capture parity or issue closure; those gates remain.
+Four action projections now match the successful native Stuck references with
+no action-relevant field difference: Hearthstone 8690 and lethal 7355 in death
+epoch one, repop 7355 in death epoch two, and home 7355. Only cast IDs/timing
+vary. Evidence is under `/tmp/rustycore43-stuck-comparison-6a9d5f4e3`; these
+projections do not assert complete-stream parity.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1
@@ -607,6 +625,15 @@ ACK are a real missing operation: C++ retains `_resurrectionData` and repeats on
 TeleportTo/CombatStop, then executes the post-ACK resurrection once. Rust currently
 takes the request and rejects the second acceptance. The bounded repair may restart
 only TeleportInFlight/AwaitingTeleport; later phases and alive Players stay closed.
+The implemented canonical and fixture paths now retain the request, reset only
+matching pre-ACK RequestData continuations, and reject later phases, other
+operations and inconsistent continuation/resurrecter identity without mutation.
+The end-to-end test proves two teleports (counters/wire indices 1,2 and 0,1),
+two CancelCombat packets, rejection after TeleportCompleted, then exactly one
+resurrection and no alive repeat. Focused checks passed: 12 entity resurrection
+tests and five World response tests. Census: +136 lines/+1 W test and one rename.
+This unit is locally reviewed pending grouped acceptance and fresh offer capture.
+
 The two final native CancelCombat packets are also real: CleanupsBeforeDelete and
 RemovePlayerFromMap each call CombatStop before LogoutComplete
 (`WorldSession.cpp:659–676`, `Unit.cpp:9536–9565`, `Map.cpp:907–930`). Add those
