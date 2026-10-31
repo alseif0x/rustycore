@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4158,
+  "tests": 4159,
   "ignored": 1,
-  "session": 3854,
-  "shims": 3674,
+  "session": 3855,
+  "shims": 3675,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3679
+   "W": 3680
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3473
+   "W-world-logic": 3474
   },
   "by_owner": {
    "wow-world": {
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 45,
     "H": 5,
-    "W": 959
+    "W": 960
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3679
+    "W": 3680
    },
    "wow-world-application": {
     "P": 27,
@@ -226,7 +226,7 @@
   "wow-world-loot-ops": 107,
   "wow-world-quest": 53,
   "wow-world-social": 32,
-  "wow-world-spell": 112
+  "wow-world-spell": 113
  },
  "unmounted_unit_tests": [],
  "test_columns": [
@@ -3057,6 +3057,7 @@
   ["unit_tests/session/tests/scenarios_movement_1.rs::summon_object_slot_session_resolver_cleans_old_slot_and_creates_with_fallback_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_movement_1.rs::teleport_units_uses_cross_map_db_destination_for_player_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "execute_spell_with_visual_and_target_data", "pending_teleport_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_movement_1.rs::teleport_units_target_dest_home_uses_represented_homebind_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "execute_spell_with_visual_and_target_data", "pending_teleport_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/session/tests/scenarios_movement_1.rs::teleport_units_target_dest_home_script_effect_requires_complete_hook_absence_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "execute_spell_with_visual_and_target_data", "pending_teleport_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_movement_1.rs::teleport_units_target_dest_home_without_homebind_is_noop_boundary_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "execute_spell_with_visual_and_target_data", "pending_teleport_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_movement_1.rs::teleport_units_without_destination_is_noop_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "execute_spell_with_visual_and_target_data", "pending_teleport_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_movement_1.rs::primary_teleport_units_uses_explicit_destination_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "execute_spell_with_visual_and_target_data", "pending_teleport_like_cpp", "set_canonical_map_manager"], []],

@@ -462,6 +462,16 @@ Hearthstone tests. The positive test covers UNIT|DEST_LOCATION with an empty Uni
 home teleport and native completion packets; both negative fixtures reject without
 SpellGo or teleport. These are coding results, not affected or live acceptance.
 
+The first affected campaign at `4e806cc9fc4ec519424786f7b7a7c235912efcf3`
+finished FAILED in 587.167 seconds, within the 600-second ordinary target but not
+accepted. Record: `/tmp/rustycore43-repair-4e806cc9f-6gvslhof/record.json`.
+Final with keep-going failed only the reviewed architecture surfaces: Session
+production/test/total ceilings (+4/+112/+116), one SpellExecutionHost method and
+one World test identity (+112 lines). Production-login integration, bot checks and
+debug artifacts were not reached, so no live binary was used. The exact ceiling,
+policy and census deltas have been reviewed; architecture, syntax-ownership and
+census checks now pass. A new candidate still requires the complete affected run.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1

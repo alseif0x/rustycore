@@ -41022,6 +41022,19 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
           "kind": "method",
+          "name": "spell_has_no_unrepresented_runtime_hooks_like_cpp",
+          "visibility": "private",
+          "signature": "fn spell_has_no_unrepresented_runtime_hooks_like_cpp (& self , spell_id : u32) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
           "name": "take_server_normal_cast_item_like_cpp",
           "visibility": "private",
           "signature": "fn take_server_normal_cast_item_like_cpp (& mut self , spell_info : & wow_data :: SpellInfo , metadata : wow_entities :: SpellCastMetadata ,) -> Result < wow_entities :: SpellCastMetadata , & 'static str >",

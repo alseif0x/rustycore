@@ -215,6 +215,16 @@
    "unit_tests_lines": 278084,
    "unit_tests_tests": 4136,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-20",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "One exact two-row Hearthstone hook-absence regression plus expanded real-row publication and negative authority assertions: exact +112 lines and +1 identity, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278196,
+   "unit_tests_tests": 4137,
+   "src_tests": 22
   }
  ]
 }
