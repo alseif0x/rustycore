@@ -225,6 +225,16 @@
    "unit_tests_lines": 278196,
    "unit_tests_tests": 4137,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-21",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "One real WorldSession Stuck SpellStart target regression plus expanded Go and mixed-target assertions: exact +93 lines and +1 identity, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278289,
+   "unit_tests_tests": 4138,
+   "src_tests": 22
   }
  ]
 }

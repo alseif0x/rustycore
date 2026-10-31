@@ -29,6 +29,65 @@ fn effect(effect: u32, target_1: u32, target_2: u32) -> wow_data::SpellEffectInf
     }
 }
 
+fn explicit_target_data() -> SpellTargetData {
+    SpellTargetData {
+        flags: 0x0000_0002,
+        unit: ObjectGuid::create_player(1, 77),
+        item: ObjectGuid::new(6, 78),
+        src_location: Some(wow_packet::packets::spell::TargetLocation {
+            transport: ObjectGuid::new(6, 79),
+            position: wow_core::Position::new(1.0, 2.0, 3.0, 0.5),
+        }),
+        dst_location: Some(wow_packet::packets::spell::TargetLocation {
+            transport: ObjectGuid::new(6, 80),
+            position: wow_core::Position::new(4.0, 5.0, 6.0, 1.0),
+        }),
+        orientation: Some(1.5),
+        map_id: Some(571),
+        name: "explicit".to_owned(),
+    }
+}
+
+#[test]
+fn caster_only_stuck_clears_every_explicit_target_field_for_start_and_go() {
+    let stuck = spell_info(vec![
+        effect(effect_types::SPELL_EFFECT_STUCK, 0, 0),
+        effect(0, 1, 1),
+    ]);
+    let original = explicit_target_data();
+
+    let start_target = normalize_caster_only_stuck_target_data_like_cpp(&stuck, original.clone());
+    let go_target = normalize_caster_only_stuck_target_data_like_cpp(&stuck, original);
+
+    assert_eq!(start_target, SpellTargetData::default());
+    assert_eq!(go_target, SpellTargetData::default());
+}
+
+#[test]
+fn caster_only_stuck_normalization_preserves_mixed_and_other_spell_targets() {
+    let original = explicit_target_data();
+    let spells = [
+        spell_info(vec![effect(
+            effect_types::SPELL_EFFECT_SELF_RESURRECT,
+            0,
+            0,
+        )]),
+        spell_info(vec![
+            effect(effect_types::SPELL_EFFECT_STUCK, 0, 0),
+            effect(effect_types::SPELL_EFFECT_HEAL, 0, 0),
+        ]),
+        spell_info(vec![effect(effect_types::SPELL_EFFECT_STUCK, 1, 0)]),
+        spell_info(vec![effect(effect_types::SPELL_EFFECT_STUCK, 0, 1)]),
+    ];
+
+    for spell in spells {
+        assert_eq!(
+            normalize_caster_only_stuck_target_data_like_cpp(&spell, original.clone()),
+            original
+        );
+    }
+}
+
 #[test]
 fn selected_full_server_aura_adds_only_the_implicit_caster_unit_flag() {
     let selected_spell_info = spell_info(vec![effect(effect_types::SPELL_EFFECT_APPLY_AURA, 0, 1)]);

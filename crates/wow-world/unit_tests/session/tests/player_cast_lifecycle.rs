@@ -897,6 +897,42 @@ async fn normal_start_and_go_carry_cpp_cast_flags_like_cpp() {
 }
 
 #[test]
+fn caster_only_stuck_start_clears_explicit_self_target_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let actor = ObjectGuid::create_player(1, 58_935);
+    install_canonical_player(&mut session, &canonical, actor, 571, 0, Position::ZERO);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let revision = canonical
+        .lock()
+        .unwrap()
+        .player_active_residence_revision_like_cpp(handle)
+        .unwrap()
+        .1;
+    let mut cast = prepared_cast(actor, revision);
+    cast.target_data = wow_entities::SpellCastTargetsLikeCpp {
+        flags: 0x0000_0002,
+        unit: actor,
+        ..Default::default()
+    };
+    let mut spell = minimal_spell();
+    spell.effects = vec![wow_data::SpellEffectInfo {
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK,
+        ..Default::default()
+    }];
+
+    <WorldSession as crate::player_cast::Runtime>::start(&mut session, &cast, &spell);
+
+    let start = send_rx.try_recv().expect("caster-only Stuck SpellStart");
+    let target = decode_spell_start_target_data_like_cpp(&start, spell.spell_id);
+    assert_eq!(
+        target,
+        wow_packet::packets::spell::SpellTargetData::default()
+    );
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
 fn server_normal_physical_item_publication_keeps_actor_in_caster_unit() {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -962,6 +998,42 @@ fn server_normal_physical_item_publication_keeps_actor_in_caster_unit() {
     let mut payload = WorldPacket::from_bytes(&go[2..]);
     assert_eq!(payload.read_packed_guid().unwrap(), item);
     assert_eq!(payload.read_packed_guid().unwrap(), actor);
+}
+
+fn decode_spell_start_target_data_like_cpp(
+    bytes: &[u8],
+    expected_spell_id: i32,
+) -> wow_packet::packets::spell::SpellTargetData {
+    let mut packet = WorldPacket::from_bytes(bytes);
+    assert_eq!(
+        packet.read_uint16().expect("SpellStart opcode"),
+        ServerOpcodes::SpellStart as u16
+    );
+    for field in ["caster", "caster unit", "cast id", "original cast id"] {
+        packet.read_packed_guid().expect(field);
+    }
+    assert_eq!(packet.read_int32().expect("spell id"), expected_spell_id);
+    wow_packet::packets::spell::SpellCastVisual::read(&mut packet).expect("spell visual");
+    packet.read_uint32().expect("cast flags");
+    packet.read_uint32().expect("cast flags ex");
+    packet.read_uint32().expect("cast time");
+    packet.read_int32().expect("missile travel time");
+    packet.read_float().expect("missile pitch");
+    packet.read_uint8().expect("destination cast index");
+    packet.read_uint32().expect("immunity school");
+    packet.read_uint32().expect("immunity value");
+    packet.read_uint32().expect("heal prediction points");
+    packet.read_uint8().expect("heal prediction type");
+    packet.read_packed_guid().expect("heal prediction beacon");
+    packet.read_bits(16).expect("hit target count");
+    packet.read_bits(16).expect("miss target count");
+    packet.read_bits(16).expect("miss status count");
+    packet.read_bits(9).expect("remaining power count");
+    packet.read_bit().expect("remaining runes presence");
+    packet.read_bits(16).expect("target point count");
+    packet.read_bit().expect("ammo display presence");
+    packet.read_bit().expect("ammo inventory presence");
+    wow_packet::packets::spell::SpellTargetData::read(&mut packet).expect("SpellStart target data")
 }
 
 /// Read `SpellCastData::CastFlags` out of a serialized Start/Go frame.

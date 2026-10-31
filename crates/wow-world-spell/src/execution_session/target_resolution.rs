@@ -25,15 +25,40 @@ pub(super) struct ResolvedSpellEffectTargetsLikeCpp {
     pub(super) effect_target_data_like_cpp: Vec<(u32, SpellTargetData)>,
 }
 
+pub fn normalize_caster_only_stuck_target_data_like_cpp(
+    spell_info: &wow_data::SpellInfo,
+    target_data: SpellTargetData,
+) -> SpellTargetData {
+    let mut active_effects = spell_info
+        .effects()
+        .iter()
+        .filter(|effect| effect.effect != 0)
+        .peekable();
+    if active_effects.peek().is_some()
+        && active_effects.all(|effect| {
+            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK
+                && effect.implicit_target_1 == 0
+                && effect.implicit_target_2 == 0
+        })
+    {
+        // Spell.cpp:637-705 removes every explicit target when the spell's
+        // needed-target mask is empty.
+        SpellTargetData::default()
+    } else {
+        target_data
+    }
+}
+
 pub(super) fn resolve_spell_effect_target_data_like_cpp<H: SpellExecutionHostLikeCpp>(
     host: &mut H,
     spell_id: i32,
     caster_guid: ObjectGuid,
     spell_info: &wow_data::SpellInfo,
-    mut target_data: SpellTargetData,
+    target_data: SpellTargetData,
     represented_focus_object: Option<RepresentedSpellFocusObjectLikeCpp>,
     selected_full_server_aura: bool,
 ) -> ResolvedSpellEffectTargetsLikeCpp {
+    let mut target_data = normalize_caster_only_stuck_target_data_like_cpp(spell_info, target_data);
     let mut represented_implicit_destination = false;
     let mut effect_target_data_like_cpp = Vec::new();
     for effect in spell_info.effects() {

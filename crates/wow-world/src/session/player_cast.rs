@@ -521,7 +521,10 @@ impl Runtime for WorldSession {
             cast_flags,
             cast_flags_ex: cast.metadata.cast_flags_ex,
             cast_time_ms: cast.cast_time_ms,
-            target: crate::spell_cast_adapter::present_targets(cast.target_data.clone()),
+            target: wow_world_spell::normalize_caster_only_stuck_target_data_like_cpp(
+                spell,
+                crate::spell_cast_adapter::present_targets(cast.target_data.clone()),
+            ),
         };
         wow_world_spell::publish_player_cast_frame_like_cpp(
             self,

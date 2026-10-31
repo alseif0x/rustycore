@@ -311,8 +311,13 @@ async fn spell_stuck_kills_player_when_hearthstone_has_cooldown_like_cpp() {
         Some((0, wow_constants::DeathState::JustDied, true, false)),
         "C++ KillSelf completes native Player death and retires its operation"
     );
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes = packets
+        .iter()
+        .filter_map(|bytes| WorldPacket::from_bytes(bytes).server_opcode())
+        .collect::<Vec<_>>();
     assert_eq!(
-        drain_server_opcodes(&send_rx),
+        opcodes,
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::CancelCombat,
@@ -321,6 +326,22 @@ async fn spell_stuck_kills_player_when_hearthstone_has_cooldown_like_cpp() {
             ServerOpcodes::CooldownEvent,
         ],
         "the native KillSelf death body runs before Stuck's completion cooldown, with no immediate HealthUpdate"
+    );
+    let spell_go = packets
+        .iter()
+        .find(|bytes| {
+            WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::SpellGo)
+        })
+        .expect("Stuck publishes SpellGo");
+    assert_eq!(
+        decode_spell_go_target_data_like_cpp(spell_go, spell_id),
+        SpellTargetData::default(),
+        "Stuck's explicit self target is removed before SpellGo"
+    );
+    assert_eq!(
+        decode_spell_go_hit_target_count_like_cpp(spell_go, spell_id),
+        0,
+        "caster-only Stuck retains its empty hit list"
     );
 }
 

@@ -504,6 +504,22 @@ destination admission, retains the 77/index-1 absence proof, and changes the two
 real 8690 fixtures to the actual OLD row while preserving existing 252 coverage.
 This is implemented pending focused checks, affected acceptance and live proof.
 
+The first `d358dc04249c7b2b8c3033263ad614b9ce28d03a` campaign failed in
+686.120 seconds only on the recurring timing-sensitive split-death test; the
+zero-test bin-target diagnostic was discarded, then the real library filter passed
+one test with 642 filtered out. The complete retry passed all eight commands in
+322.760 seconds. Records: `/tmp/rustycore43-repair-d358dc042-2322x9ky/record.json`
+and `/tmp/rustycore43-repair-d358dc042-s0y5zqp3/record.json`.
+Live epoch one now completes Hearthstone SpellGo/MoveTeleport and the 7355
+KillPlayer/root path; epoch two completes the dead-without-timer repop and
+DeathReleaseLoc. The remaining failure is wire-only: both 7355 SpellStart and Go
+retain the client's self Unit target. C++ `Spell.cpp:637-705` removes it during
+InitExplicitTargets because STUCK has EFFECT_IMPLICIT_TARGET_NONE
+(`SpellInfo.cpp:910`). One shared normalization must clear the explicit target for
+caster-only STUCK before WorldSession Start and execution/Go, preserving mixed
+spells, SELF_RESURRECT and the empty hit list. This is a publication repair, not a
+change to the now-demonstrated kill/repop mechanics; Stuck-home remains unrun.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1
