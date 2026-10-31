@@ -295,6 +295,16 @@
    "unit_tests_lines": 278504,
    "unit_tests_tests": 4145,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-27",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Hydrate BaseVariance in two existing World creature fixtures: exact +2 lines, no identity/class/destination/ignored change.",
+   "unit_tests_lines": 278506,
+   "unit_tests_tests": 4145,
+   "src_tests": 22
   }
  ]
 }

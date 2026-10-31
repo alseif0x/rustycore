@@ -20,7 +20,7 @@ const CREATURE_TEMPLATE_LIFECYCLE_SQL_LIKE_CPP: &str = concat!(
     "ct.unit_flags, ct.unit_flags2, ct.unit_flags3, ct.`type`, ct.family, ct.trainer_class, ",
     "ct.unit_class, ct.VehicleId, ct.MovementType, ctm.Ground, ctm.Swim, ctm.Flight, ",
     "ctm.Rooted, ctm.Chase, ctm.Random, ctm.InteractionPauseTimer, ct.flags_extra, ",
-    "ct.StringId, ct.RegenHealth FROM creature_template ct ",
+    "ct.StringId, ct.RegenHealth, ct.BaseVariance FROM creature_template ct ",
     "LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId"
 );
 
@@ -94,6 +94,7 @@ fn creature_template_row_like_cpp<R: FieldRowLikeCpp + ?Sized>(
         flags_extra: row.get_like_cpp(28, "creature_template.flags_extra")?,
         string_id: row.get_string_like_cpp(29, "creature_template.StringId")?,
         regen_health: row.get_bool_like_cpp(30, "creature_template.RegenHealth")?,
+        base_variance: row.get_like_cpp(31, "creature_template.BaseVariance")?,
     })
 }
 
@@ -562,9 +563,10 @@ mod tests {
         ];
         row.extend(movement);
         row.extend([
-            Native::UInt32(0), // flags_extra INT UNSIGNED
-            Native::Null,      // StringId VARCHAR NULL
-            Native::UInt8(1),  // RegenHealth TINYINT UNSIGNED
+            Native::UInt32(0),   // flags_extra INT UNSIGNED
+            Native::Null,        // StringId VARCHAR NULL
+            Native::UInt8(1),    // RegenHealth TINYINT UNSIGNED
+            Native::Float(0.75), // BaseVariance FLOAT
         ]);
         row
     }
@@ -591,6 +593,7 @@ mod tests {
         assert_eq!(template.unit_class, 8);
         assert_eq!(template.string_id, "");
         assert!(template.regen_health);
+        assert_eq!(template.base_variance, 0.75);
         // A creature_template_movement row overrides every C++ default.
         assert_eq!(template.ground_movement_type, 0);
         assert!(!template.swim_allowed);

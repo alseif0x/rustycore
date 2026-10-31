@@ -48,6 +48,7 @@ fn creature_template_lifecycle_store_preserves_cpp_field_mapping_and_vehicle_id(
             interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             flags_extra: 0x20,
             string_id: "template_string".to_string(),
+            base_variance: 1.25,
             regen_health: true,
             spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
             models: Vec::new(),
@@ -93,6 +94,7 @@ fn creature_template_lifecycle_store_preserves_cpp_field_mapping_and_vehicle_id(
     assert_eq!(template.flags_extra, 0x20);
     assert_eq!(template.string_id, "template_string");
     assert!(template.regen_health);
+    assert_eq!(template.base_variance, 1.25);
 }
 
 #[test]
@@ -154,6 +156,7 @@ fn creature_template_lifecycle_normalizes_invalid_flight_like_cpp() {
         interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
         flags_extra: 0,
         string_id: String::new(),
+        base_variance: 0.0,
         regen_health: true,
         spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
         models: Vec::new(),
@@ -226,6 +229,7 @@ fn creature_template_lifecycle_normalizes_zero_speeds_like_cpp() {
         interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
         flags_extra: 0,
         string_id: String::new(),
+        base_variance: 0.0,
         regen_health: true,
         spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
         models: Vec::new(),
@@ -277,6 +281,7 @@ fn creature_template_lifecycle_spells_skip_oob_and_missing_template_like_cpp() {
         interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
         flags_extra: 0,
         string_id: String::new(),
+        base_variance: 0.0,
         regen_health: false,
         spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
         models: Vec::new(),
@@ -324,6 +329,7 @@ fn creature_template_lifecycle_models_preserve_order_and_first_valid_like_cpp() 
         interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
         flags_extra: 0,
         string_id: String::new(),
+        base_variance: 0.0,
         regen_health: false,
         spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
         models: Vec::new(),
@@ -482,6 +488,7 @@ fn creature_template_lifecycle_models_normalize_non_positive_display_scale_like_
         interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
         flags_extra: 0,
         string_id: String::new(),
+        base_variance: 0.0,
         regen_health: false,
         spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
         models: vec![CreatureTemplateLifecycleModelLikeCpp {

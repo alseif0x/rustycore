@@ -617,6 +617,7 @@ fn game_event_npc_flag_template_store_like_cpp() -> wow_data::CreatureTemplateLi
             flags_extra: wow_constants::creature::CreatureFlagsExtra::WORLDEVENT.bits(),
             string_id: String::new(),
             regen_health: true,
+            base_variance: 0.0,
             spells: [0; wow_data::MAX_CREATURE_SPELLS_LIKE_CPP],
             models: Vec::new(),
         },
@@ -1033,6 +1034,7 @@ fn variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_l
                     flags_extra: 0,
                     string_id: String::new(),
                     regen_health: true,
+                    base_variance: 0.0,
                     spells: [0; 8],
                     models: vec![wow_data::CreatureTemplateLifecycleModelLikeCpp {
                         creature_display_id: 111,

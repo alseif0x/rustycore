@@ -443,8 +443,9 @@ pub fn build_loaded_grid_creature_inputs_with_power_stores_from_db_like_cpp(
             },
         )
     };
-    let min_damage =
-        base_stats.generate_base_damage_like_cpp(difficulty) * difficulty.damage_modifier;
+    let min_damage = (base_stats.generate_base_damage_like_cpp(difficulty)
+        + (base_stats.attack_power as f32 / 14.0) * template.base_variance)
+        * difficulty.damage_modifier;
     let spawn_model =
         (runtime_row.model_id != 0).then_some(CreatureTemplateLifecycleModelLikeCpp {
             creature_display_id: runtime_row.model_id,

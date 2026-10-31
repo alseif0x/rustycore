@@ -658,9 +658,14 @@ constructors are updated and three packet tests plus both downstream crate check
 passed. Native creature damage 2 versus Rust 1 also exposed omission of
 `(AttackPower / 14) * BaseVariance` from the float min/max damage calculation before
 its existing truncation (`StatSystem.cpp:1004–1022`, `Unit.cpp:2427–2433`).
-Propagate BaseVariance from the already selected SQL row into that resolver; do not
-change roll_damage, RNG, armor, attack tables or dynamic UnitMods. BaseVariance and
-grouped/live acceptance remain pending.
+BaseVariance is now decoded from the actual lifecycle SQL query as column 31,
+propagated through the existing persistence/template records and applied as
+`(baseDamage + (attackPower / 14) * baseVariance) * damageModifier` before the
+existing final truncation. No second runtime damage record was added. SQL decode,
+template retention and 12 loaded-grid tests passed, including variance 1 => 2/3
+and variance 0.5 => float 1.5/2.25 with final AI bounds 1/2; downstream World
+check passed. Census adds only two existing-fixture lines. Grouped acceptance
+and a fresh mob capture remain required.
 
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
