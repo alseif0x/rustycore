@@ -60,6 +60,19 @@ impl DifficultyStore {
     /// - `DB2Stores.cpp::sDifficultyStore`
     /// - `ConditionMgr::isConditionTypeValid(CONDITION_DIFFICULTY_ID)`
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
+        Self::load_with_completeness(data_dir, locale, false)
+    }
+
+    /// Load Difficulty.db2 and reject any unresolved WDC4 copy records.
+    pub fn load_complete(data_dir: &str, locale: &str) -> Result<Self> {
+        Self::load_with_completeness(data_dir, locale, true)
+    }
+
+    fn load_with_completeness(
+        data_dir: &str,
+        locale: &str,
+        require_complete: bool,
+    ) -> Result<Self> {
         let path = Path::new(data_dir)
             .join("dbc")
             .join(locale)
@@ -68,8 +81,11 @@ impl DifficultyStore {
         let reader = Wdc4Reader::open(&path)
             .with_context(|| format!("failed to open {}", path.display()))?;
         let table_hash = reader.table_hash();
-        let mut entries = HashMap::with_capacity(reader.total_count());
+        let expected_records = reader.total_count();
+        let mut observed_records = 0;
+        let mut entries = HashMap::with_capacity(expected_records);
         for (id, idx) in reader.iter_records() {
+            observed_records += 1;
             entries.insert(
                 id,
                 DifficultyEntry {
@@ -84,6 +100,13 @@ impl DifficultyStore {
                     fallback_difficulty_id: reader.get_field_u8(idx, 4),
                     toggle_difficulty_id: reader.get_field_u8(idx, 9),
                 },
+            );
+        }
+        if require_complete {
+            anyhow::ensure!(
+                observed_records == expected_records,
+                "{} contains unresolved WDC4 copy records: observed {observed_records} of {expected_records}",
+                path.display()
             );
         }
 

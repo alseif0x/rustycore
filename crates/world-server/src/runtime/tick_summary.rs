@@ -28,7 +28,7 @@ pub(crate) struct CanonicalObjectVisibilityDestroyLikeCpp {
     pub(crate) recipient_guids: Vec<wow_core::ObjectGuid>,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     pub(crate) player_visibility_refresh_intents:
         Vec<wow_map::PlayerVisibilityRefreshIntentLikeCpp>,

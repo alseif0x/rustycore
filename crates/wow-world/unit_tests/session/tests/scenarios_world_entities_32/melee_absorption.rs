@@ -13,6 +13,7 @@ use super::*;
 /// absorbing and the next swing lands at full damage.
 #[test]
 fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
+    use wow_packet::ServerPacket;
     use wow_packet::packets::combat::{
         HIT_INFO_AFFECTS_VICTIM, HIT_INFO_FULL_ABSORB, HIT_INFO_PARTIAL_ABSORB,
     };
@@ -25,10 +26,12 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     let creature_guid = test_creature_guid(91_501);
 
     let (mut session, _, send_rx) = make_session();
+    let (realm_tx, realm_rx) = flume::bounded(32);
+    session.install_realm_send_channel_for_test(realm_tx);
     let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let observer = ObjectGuid::create_player(1, 91_513);
     let (observer_send_tx, _observer_send_rx) = flume::bounded(1);
-    let (observer_command_tx, observer_command_rx) = flume::bounded(1);
+    let (observer_command_tx, observer_command_rx) = flume::bounded(4);
     let mut observer_info =
         broadcast_info_with_command(observer, observer_send_tx, observer_command_tx);
     observer_info.placement.map_id = 0;
@@ -95,8 +98,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
         })
         .expect("canonical victim");
 
-    let mut spell_store = wow_data::SpellStore::new();
-    for (spell_id, aura_type, amount, misc_value) in [
+    let aura_rows = [
         (
             91_510_i32,
             wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
@@ -122,35 +124,98 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
             100_000,
             0,
         ),
-    ] {
-        spell_store.insert(
-            spell_id,
-            wow_data::SpellInfo {
-                spell_id,
-                cast_time_ms: 0,
-                cooldown_ms: 0,
-                recovery_time_ms: 0,
-                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                effect_base_points: amount,
-                effect_bonus_coefficient: 0.0,
-                aura_type: Some(aura_type),
-                display_flags: 0,
-                requires_spell_focus: 0,
-                power_costs: Vec::new(),
-                effects: vec![wow_data::SpellEffectInfo {
-                    effect_index: 0,
-                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                    effect_aura: aura_type,
-                    effect_misc_value_1: misc_value,
-                    effect_misc_value_2: 0,
-                    effect_base_points: amount,
-                    ..Default::default()
-                }],
+    ];
+    let spell_misc = aura_rows
+        .iter()
+        .enumerate()
+        .map(
+            |(index, (spell_id, _, _, _))| wow_data::spell_db2::SpellMiscEntry {
+                id: u32::try_from(index + 1).expect("fixture SpellMisc id fits u32"),
+                attributes: [0; 15],
+                difficulty_id: 0,
+                spell_id: u32::try_from(*spell_id).expect("fixture spell id fits u32"),
+                ..Default::default()
             },
-        );
-    }
-    let spell_store = Arc::new(spell_store);
+        )
+        .collect::<Vec<_>>();
+    let spell_effects = aura_rows
+        .iter()
+        .enumerate()
+        .map(|(index, (spell_id, aura_type, amount, misc_value))| {
+            wow_data::spell_db2::SpellEffectDb2Entry {
+                id: u32::try_from(index + 1).expect("fixture SpellEffect id fits u32"),
+                difficulty_id: 0,
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_amplitude: 0.0,
+                effect_attributes: 0,
+                effect_aura: i16::try_from(*aura_type).expect("fixture aura type fits i16"),
+                effect_aura_period: 0,
+                effect_base_points: *amount,
+                effect_bonus_coefficient: 0.0,
+                effect_chain_amplitude: 0.0,
+                effect_chain_targets: 0,
+                effect_die_sides: 0,
+                effect_item_type: 0,
+                effect_mechanic: 0,
+                effect_points_per_resource: 0.0,
+                effect_pos_facing: 0.0,
+                effect_real_points_per_level: 0.0,
+                effect_trigger_spell: 0,
+                bonus_coefficient_from_ap: 0.0,
+                pvp_multiplier: 0.0,
+                coefficient: 0.0,
+                variance: 0.0,
+                resource_coefficient: 0.0,
+                group_size_base_points_coefficient: 0.0,
+                effect_misc_value: [*misc_value, 0],
+                effect_radius_index: [0; 2],
+                effect_spell_class_mask: [0; 4],
+                implicit_target: [0; 2],
+                spell_id: u32::try_from(*spell_id).expect("fixture spell id fits u32"),
+            }
+        })
+        .collect::<Vec<_>>();
+    let spell_class_options = aura_rows
+        .iter()
+        .enumerate()
+        .map(
+            |(index, (spell_id, _, _, _))| wow_data::SpellClassOptionsEntry {
+                id: u32::try_from(index + 1).expect("fixture class-options id fits u32"),
+                spell_id: *spell_id,
+                modal_next_spell: 0,
+                spell_class_set: 0,
+                spell_class_mask: [0; 4],
+            },
+        )
+        .collect::<Vec<_>>();
+    let spell_db2 = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
+        wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
+        wow_data::spell_db2::SpellMiscStore::from_entries(spell_misc),
+        wow_data::spell_db2::SpellEffectDb2Store::from_entries(spell_effects),
+        wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
+        wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastTimesStore::from_entries([]),
+        wow_data::spell_db2::SpellCooldownsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastingRequirementsStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
+    );
+    let spell_store = Arc::new(
+        crate::selected_spell_fixtures::canonical_spell_store(aura_rows.iter().map(
+            |(spell_id, _, _, _)| {
+                (
+                    u32::try_from(*spell_id).expect("fixture spell id fits u32"),
+                    0,
+                )
+            },
+        ))
+        .hydrate_effective_core_db2_like_cpp(spell_db2),
+    );
     session.set_spell_store(Arc::clone(&spell_store));
+    session.set_spell_class_options_store(Arc::new(
+        wow_data::SpellClassOptionsStore::from_entries(spell_class_options),
+    ));
     let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
@@ -243,7 +308,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     // `Remove(AURA_REMOVE_BY_ENEMY_SPELL)`).
     reset_swing(&mut session);
     let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
-    let command = outcome.commands.last().expect("command").clone();
+    let mut command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.absorbed, 10);
     assert_eq!(command.damage, 0);
     assert_eq!(command.absorb_consumptions.len(), 1);
@@ -251,7 +316,27 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     assert_eq!(command.absorb_consumptions[0].consumed, 10);
     assert!(command.absorb_consumptions[0].removed);
     assert_eq!(victim_health(), 100);
+    command.split_combat_log_packets.push(
+        wow_packet::packets::combat::SpellNonMeleeDamageLog {
+            target: observer,
+            caster: player,
+            cast_id: ObjectGuid::EMPTY,
+            spell_id: 91_515,
+            visual_id: 0,
+            damage: 5,
+            original_damage: 5,
+            overkill: -1,
+            school_mask: 1,
+            absorbed: 0,
+            resisted: 0,
+            shield_block: 0,
+            periodic: false,
+            flags: 0,
+        }
+        .to_bytes(),
+    );
     let _ = drain_server_opcodes(&send_rx);
+    let _ = drain_server_opcodes(&realm_rx);
     session.core.state = crate::session::SessionState::LoggedIn;
     session.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
     assert_eq!(
@@ -272,20 +357,29 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
         absorb_log < removal,
         "C++ logs the absorb before removing the spent shield (`Unit.cpp:1876-1889`)"
     );
-    let SessionCommand::SendRealmIfVisibleLikeCpp(observer_command) = observer_command_rx
-        .try_recv()
-        .expect("C++ fans the absorb log to nearby visible players")
-    else {
-        panic!("the absorb log must use the realm-visible observer rail");
-    };
-    assert_eq!(observer_command.source_guid, player);
-    assert_eq!(observer_command.map_id, 0);
-    assert_eq!(observer_command.instance_id, 0);
-    assert_eq!(
-        wow_packet::WorldPacket::from_bytes(&observer_command.packet_bytes).server_opcode(),
-        Some(ServerOpcodes::SpellAbsorbLog),
-        "the observer receives the same C++ SpellAbsorbLog frame"
+    assert!(
+        realm_rx.is_empty(),
+        "combat logs do not use the realm connection"
     );
+    for expected_opcode in [
+        ServerOpcodes::SpellAbsorbLog,
+        ServerOpcodes::SpellNonMeleeDamageLog,
+    ] {
+        let SessionCommand::SendIfVisibleLikeCpp(observer_command) = observer_command_rx
+            .try_recv()
+            .expect("C++ fans each combat log to nearby visible players")
+        else {
+            panic!("combat-log observers use the instance-visible rail");
+        };
+        assert_eq!(observer_command.source_guid, player);
+        assert_eq!(observer_command.map_id, 0);
+        assert_eq!(observer_command.instance_id, 0);
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&observer_command.packet_bytes).server_opcode(),
+            Some(expected_opcode),
+            "the observer receives the same C++ combat-log frame"
+        );
+    }
 
     // Fourth swing: with the shield gone the full hit lands.
     session
@@ -341,6 +435,8 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
     let creature_guid = test_creature_guid(91_601);
 
     let (mut session, _, send_rx) = make_session();
+    let (realm_tx, realm_rx) = flume::bounded(32);
+    session.install_realm_send_channel_for_test(realm_tx);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -403,7 +499,8 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(91_610, 0), (91_611, 0)]);
     for (spell_id, aura_type, amount, amplitude, misc_value) in [
         (
             91_610_i32,
@@ -523,16 +620,19 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
     assert_eq!(victim_mana(&session), 90);
     assert_eq!(shield_amount(&session).expect("shield").1, Some(20));
     let _ = drain_server_opcodes(&send_rx);
+    let _ = drain_server_opcodes(&realm_rx);
     session.core.state = crate::session::SessionState::LoggedIn;
     session.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
     let opcodes = drain_server_opcodes(&send_rx);
+    let realm_opcodes = drain_server_opcodes(&realm_rx);
     assert!(
-        opcodes.contains(&ServerOpcodes::PowerUpdate),
-        "C++ ModifyPower publishes the drained mana"
+        realm_opcodes.contains(&ServerOpcodes::PowerUpdate),
+        "C++ PowerUpdate owner copy uses the realm connection"
     );
+    assert!(!opcodes.contains(&ServerOpcodes::PowerUpdate));
     assert!(
         opcodes.contains(&ServerOpcodes::SpellAbsorbLog),
-        "the mana shield publishes its absorb log"
+        "the victim's SpellAbsorbLog copy uses the instance connection"
     );
 
     // Only three mana left: the shield absorbs what the victim can pay and the
@@ -653,7 +753,12 @@ fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_810, 0),
+        (91_811, 0),
+        (91_812, 0),
+        (91_813, 0),
+    ]);
     for (spell_id, aura_type, amount, misc_value) in [
         (
             91_810_i32,

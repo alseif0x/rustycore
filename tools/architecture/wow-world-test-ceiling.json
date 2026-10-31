@@ -105,6 +105,216 @@
    "unit_tests_lines": 234845,
    "unit_tests_tests": 3737,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-10",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-23",
+   "reason": "#43 spirit healer: six reviewed World composition tests cover NPC admission, resurrection sickness and expiry, carried-item durability, level/race/configuration, saved-corpse graveyard and teleport branches; existing test identities/classes are preserved. Domain arithmetic remains in wow-data tests.",
+   "unit_tests_lines": 236123,
+   "unit_tests_tests": 3743,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-11",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-28",
+   "reason": "#43 final-delivery preparation: retain the real World composition coverage for native death, release/reclaim/healer, selected ghost and sickness auras, registered SelfRes, save/load and transfer/failure fences. The reviewed identity delta adds 363 and retires 12 renamed or replaced cases (net +351); all added cases classify as W. Existing routing changes reclassify nine W cases to H and update domain destinations without deleting their tests. The final preparation moves four unchanged driver tests into corpse/death_timer_driver.rs; the test union, classifications and ignored state remain identical. Module wiring and rustfmt refine physical lines from 270614 to 270836; one explicit external-crate alias restores bridge provenance and gives 270837 without changing a test body or identity. This records the exact current suite, not acceptance results or headroom.",
+   "unit_tests_lines": 270837,
+   "unit_tests_tests": 4094,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-12",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "#43 acceptance repair: add three stationary forced-visibility cases and one native-u64/category-only Stuck case; retain the existing home Stuck case under its corrected FULLMASK no-cooldown name. Net +4 tests, 4120 total including the same one ignored case. The 1658 additional test lines supply canonical Player handles, complete Aura keys/effects, carried-inventory authority and native Map-tail/death expectations in existing tests. Review of 87 derived rows preserves all other identities: 68 blocker and 28 owner-vote deltas (overlapping), one W-to-H pet case after removing the ambiguous fake Spell host setters, and one battleground reason change. These classifier changes do not move production authority or discharge #584. Required Entities visibility adds one host method and Stuck replaces two fake setters with one operation; ceilings equal actual metrics without headroom. Execution acceptance remains pending.",
+   "unit_tests_lines": 272495,
+   "unit_tests_tests": 4098,
+   "src_tests": 22
+  },
+  {
+   "id": "tighten-43-1",
+   "kind": "tighten",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "#43 production graveyard-catalog setter replaces its four-line cfg(test) shim. Test identities, classes, destinations and the one ignored case are unchanged; unit_tests physical lines decrease to 272491. This exact ceiling retirement is not execution evidence.",
+   "unit_tests_lines": 272491,
+   "unit_tests_tests": 4098,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-13",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "#43 completed acceptance repair: preserve all 4120 test identities, the same one ignored case and identical class/destination sets. Exact unit-test lines rise 272491->272822 (+331) for native cell/owner inputs, effective normal-cast catalogs and positive/negative Map-tail proof. Review of 87 derived census rows changes only 80 blocker lists and eight owner votes (overlapping), following the same existing helper graph; no production boundary is transferred. Four logical deltas are separately reviewed with existing #584 exits. This records actual metrics without headroom and does not claim executed acceptance.",
+   "unit_tests_lines": 272822,
+   "unit_tests_tests": 4098,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-14",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "#43 final five-case fixture repair: four checked native menu replacements retire four test lines; current-map alignment and an explicit native dead-target precondition add seven. Net +3 lines, same 4120 identities/one ignored, identical ledger/classes/destinations. Exact reviewed count, no headroom; no execution pass claimed.",
+   "unit_tests_lines": 272825,
+   "unit_tests_tests": 4098,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-15",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "Reviewed #43 acceptance repairs: native corpse birth and bones ordering, logout death release, populated-inventory durability and save receipts, canonical sanctuary/health-state and CREATE projections, and exact spell/control oracles. Thirty new World integration identities preserve all prior identities and require World ownership fixtures. All prior classes/destinations and ignored states remain unchanged; 136 prior rows have derived blocker updates, including 43 owner-vote changes, through the shared corpse fixture boundary and the native power adapter. The final fixture repairs add the required DifficultyStore and caster Unit phase. The closed-self logout case adds 26 lines for consistent racial input across test-only registration/CombatStop hydration, its canonical precondition and exact family diagnostics; identities, class, destination and ignored state are unchanged. No blanket ceiling refresh or domain completion claim. The native no-op publication repair adds 199 World test lines: 124 for one disabled-zone composition identity and 75 within the existing movement identity. All prior identities, classes, destinations and ignored states are retained; no prior census row changes. The corresponding source contract separates dirty masks from existing Object update admission. The subsequent fixture-only correction adds 22 lines: 19 for canonical inert SpellInfo/effect rows in the existing zone case and 3 for explicit no-op packet diagnostics in the existing sanctuary case. No identities are added or removed; classes, destinations and ignored states are preserved.",
+   "unit_tests_lines": 276665,
+   "unit_tests_tests": 4129,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-16",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-29",
+   "reason": "Five production-login item hydration/debit/save acknowledgement regressions and the reviewed selected-aura modifier-absence test identity; preserve existing test coverage.",
+   "unit_tests_lines": 277723,
+   "unit_tests_tests": 4134,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-17",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-30",
+   "reason": "One production sickness SpellGo target-flag publication regression plus expanded self-resurrection, native stat-mask and offhand damage assertions; retain every prior identity, class, destination and ignored state. Exact reviewed +275 lines and +1 identity; no headroom.",
+   "unit_tests_lines": 277998,
+   "unit_tests_tests": 4135,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-18",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-30",
+   "reason": "One existing lifecycle identity now calls the real login stat method and proves initial offhand 0.5 before sickness emits 54/55=0; exact +6 lines, no identity/class/destination/ignored change and no headroom.",
+   "unit_tests_lines": 278004,
+   "unit_tests_tests": 4135,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-19",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "One monotonic-death-deadline regression plus fallback fixture adjustments: exact +80 lines and +1 identity, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278084,
+   "unit_tests_tests": 4136,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-20",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "One exact two-row Hearthstone hook-absence regression plus expanded real-row publication and negative authority assertions: exact +112 lines and +1 identity, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278196,
+   "unit_tests_tests": 4137,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-21",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "One real WorldSession Stuck SpellStart target regression plus expanded Go and mixed-target assertions: exact +93 lines and +1 identity, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278289,
+   "unit_tests_tests": 4138,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-22",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "One real Hearthstone SpellStart target regression plus explicit-self Go Unit and hit-list assertions: exact +59 lines and +1 identity, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278348,
+   "unit_tests_tests": 4139,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-23",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Four client-cooldown completion regressions for native category persistence, legitimate zero and fail-closed metadata: exact +259 lines and +4 identities, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278607,
+   "unit_tests_tests": 4143,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-24",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Strengthen map-difficulty fallback assertions in the existing client-cooldown completion identity: exact +4 lines, no identity/class/destination/ignored change and no headroom.",
+   "unit_tests_lines": 278611,
+   "unit_tests_tests": 4143,
+   "src_tests": 22
+  },
+  {
+   "id": "tighten-43-2",
+   "kind": "tighten",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Remove disproved cast-completion CooldownEvent expectations: 287 fewer lines, one fallback test rename, no identity/class/destination/ignored change.",
+   "unit_tests_lines": 278324,
+   "unit_tests_tests": 4143,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-25",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Prove retained pre-ACK resurrection repeats and fail-closed continuation identity: exact +136 lines/+1 W test, one canonical rename, no destination/ignored change.",
+   "unit_tests_lines": 278460,
+   "unit_tests_tests": 4144,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-26",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Prove two final native logout CombatStop packets with active and zero death timers: exact +44 lines/+1 W test, no rename/destination/ignored change.",
+   "unit_tests_lines": 278504,
+   "unit_tests_tests": 4145,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-27",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Hydrate BaseVariance in two existing World creature fixtures: exact +2 lines, no identity/class/destination/ignored change.",
+   "unit_tests_lines": 278506,
+   "unit_tests_tests": 4145,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-28",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Move five unchanged resurrect-response tests into corpse/resurrection_response.rs: exact +2 mount/import lines, same 4145 identities/classes/ignored state, file paths only.",
+   "unit_tests_lines": 278508,
+   "unit_tests_tests": 4145,
+   "src_tests": 22
   }
  ]
 }

@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::Ordering};
 use std::time::{Duration, Instant};
 
-use tracing::debug;
+use tracing::{debug, info};
 use wow_persistence::GameEventPersistencePortLikeCpp;
 
 use crate::deliver_canonical_map_object_values_updates_like_cpp;
@@ -11,11 +11,10 @@ use crate::deliver_canonical_map_object_values_updates_like_cpp;
 use super::super::canonical_creature_runtime::{
     CanonicalCreatureRuntimeLikeCpp, deliver_canonical_creature_phases_like_cpp,
 };
-use super::super::map_tick::canonical_map_tick_resume_with_creature_owner_like_cpp;
-use super::super::{
-    deferred_visibility, map_session_pass, submit_creature_lifecycle_respawn_db_mutations_like_cpp,
-    world_session_pass,
+use super::super::map_tick::{
+    continue_map_recovery_prelude, player_recovery_pass_maps, prepare_map_recovery_prelude,
 };
+use super::super::{deferred_visibility, map_session_pass, world_session_pass};
 use super::{
     CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
     LoadedGridCreatureRespawnCachesLikeCpp, PlayerRegistry, RespawnDbWriterSenderLikeCpp,
@@ -76,6 +75,9 @@ pub(crate) fn spawn_canonical_map_update_loop(
         let mut unresolved_phase_permits: Vec<
             std::sync::Arc<wow_world::session::mailbox::SessionPhasePermitLikeCpp>,
         > = Vec::new();
+        // Retain the obligation, not a mutable copy of its phase. Only the
+        // canonical Player operation can release this fail-stop boundary.
+        let mut unresolved_native_death: Option<wow_map::PlayerHandle> = None;
         let mut respawn_condition_scheduler =
             CanonicalRespawnConditionSchedulerLikeCpp::new(respawn_condition_interval_ms);
         loop {
@@ -102,6 +104,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
             // same `GameTime` after the sessions ran. `now` is therefore taken
             // here, before the session passes, and is not re-captured.
             let now = Instant::now();
+            let unix_time_ns = wow_core::GameTime::unix_time_nanos();
             let mut diff_ms = now
                 .duration_since(last_tick)
                 .as_millis()
@@ -127,6 +130,25 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     "Canonical producer barrier held: admitted passes have not accounted for their effects"
                 );
                 continue;
+            }
+            if let Some(handle) = unresolved_native_death {
+                let still_owned = map_manager
+                    .lock()
+                    .ok()
+                    .and_then(|manager| {
+                        manager.with_player_like_cpp(handle, |player| {
+                            player.native_death_operation_snapshot().is_some()
+                        })
+                    })
+                    .unwrap_or(true);
+                if still_owned {
+                    tracing::error!(
+                        ?handle,
+                        "Canonical producer held by unresolved native Player death"
+                    );
+                    continue;
+                }
+                unresolved_native_death = None;
             }
 
             tick_epoch = tick_epoch.wrapping_add(1);
@@ -237,52 +259,233 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 );
             }
 
-            let (tick_summary, creature_phases) = {
-                let Some(plan) = session_plan else {
-                    continue;
+            let Some(session_plan) = session_plan else {
+                continue;
+            };
+            if !session_pass_summary.quiescent_like_cpp() {
+                unresolved_phase_permits.extend(session_pass_summary.unresolved_permits.clone());
+                tracing::error!(
+                    tick_epoch,
+                    unresolved_after_start = session_pass_summary.unresolved_after_start,
+                    "Abandoning the canonical map tick: an admitted session pass left live effects"
+                );
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(session_plan.plan);
+                }
+                continue;
+            }
+            if session_pass_summary.blocks_tick_tail {
+                tracing::error!(
+                    tick_epoch,
+                    completed = session_pass_summary.completed,
+                    "Abandoning the canonical map tick after an untrusted terminal session-pass reply"
+                );
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(session_plan.plan);
+                }
+                continue;
+            }
+            // Movement/spell packets can also admit native death inside the
+            // Map session pass. A stopped body must fence this same tick before
+            // respawns, Player timers or another combat producer can mutate it.
+            let pending_native = {
+                let Ok(manager) = map_manager.lock() else {
+                    tracing::error!("Canonical MapManager mutex poisoned after Session passes");
+                    break;
                 };
-                if !session_pass_summary.quiescent_like_cpp() {
-                    unresolved_phase_permits
-                        .extend(session_pass_summary.unresolved_permits.clone());
-                    // An admitted pass was claimed and this tick could not
-                    // observe its end. Its mutations may still be running, so
-                    // the remaining phases of the tick must not run over them:
-                    // the tick is abandoned, with the unresolved permit retained
-                    // across steps until completion is actually established.
-                    tracing::error!(
-                        tick_epoch,
-                        unresolved_after_start = session_pass_summary.unresolved_after_start,
-                        "Abandoning the canonical map tick: an admitted session pass left live effects"
-                    );
+                session_plan
+                    .participants
+                    .iter()
+                    .flat_map(|map| &map.participants)
+                    .find_map(|participant| {
+                        manager
+                            .with_player_like_cpp(participant.handle, |player| {
+                                player.has_unresolved_native_death_operation()
+                            })
+                            .unwrap_or(false)
+                            .then_some(participant.handle)
+                    })
+            };
+            if let Some(handle) = pending_native {
+                unresolved_native_death = Some(handle);
+                tracing::error!(
+                    ?handle,
+                    "Abandoning Map tick: Session retains unresolved native death"
+                );
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(session_plan.plan);
+                }
+                continue;
+            }
+            if active_session_registry.is_shutting_down_like_cpp() && !stop_after_tick {
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(session_plan.plan);
+                }
+                continue;
+            }
+
+            // Run respawns and freeze the Players reached by this tick's real
+            // object-update visit before asking Sessions to advance timers.
+            // DB intents are submitted under the existing mutation-order gate
+            // before any Recovery request can suspend this producer.
+            let prepared = {
+                let _respawn_db_mutation_order = respawn_db_mutation_order
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let prepared = {
                     let Ok(mut manager) = map_manager.lock() else {
                         tracing::error!(
                             "Canonical MapManager mutex poisoned; stopping map update loop"
                         );
                         break;
                     };
-                    manager.abandon_tick_like_cpp(plan.plan);
-                    drop(manager);
-                    continue;
-                }
-                if active_session_registry.is_shutting_down_like_cpp() && !stop_after_tick {
-                    if let Ok(mut manager) = map_manager.lock() {
-                        manager.abandon_tick_like_cpp(plan.plan);
+                    let Ok(canonical_spawn_metadata) = canonical_spawn_metadata.lock() else {
+                        tracing::error!(
+                            "CanonicalSpawnMetadataLikeCpp mutex poisoned; stopping map update loop"
+                        );
+                        break;
+                    };
+                    let epoch = session_plan.plan.epoch_like_cpp();
+                    if manager.tick_coordination_like_cpp()
+                        != wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(epoch)
+                    {
+                        manager.abandon_tick_like_cpp(session_plan.plan);
+                        None
+                    } else {
+                        let prelude = prepare_map_recovery_prelude(
+                            &mut manager,
+                            session_plan.plan,
+                            &mut respawn_condition_scheduler,
+                            &canonical_spawn_metadata,
+                            condition_store.as_ref(),
+                            map_store.as_ref(),
+                            &loaded_grid_creature_respawn_caches,
+                        )
+                        .expect("the admitted map plan remains awaiting its Session phase");
+                        let recovery_maps = player_recovery_pass_maps(&manager, &prelude);
+                        Some((prelude, recovery_maps))
                     }
-                    continue;
+                };
+                if let Some((prelude, recovery_maps)) = prepared {
+                    let mut prelude = prelude;
+                    submit_respawn_db_mutations(prelude.summary_mut(), &respawn_db_writer_tx);
+                    Some((prelude, recovery_maps))
+                } else {
+                    None
                 }
-                // #1263 F6-8D3b-1: the registry snapshots the creature phases
-                // read, taken before any guard.
-                let creature_inputs = canonical_creature_runtime.as_ref().map(|runtime| {
-                    runtime.collect_inputs_like_cpp(
+            };
+            let Some((prelude, recovery_maps)) = prepared else {
+                continue;
+            };
+
+            let recovery_summary = map_session_pass::run_player_recovery_passes(
+                &recovery_maps,
+                player_registry.as_ref(),
+                coordinator_id,
+                tick_epoch,
+                prelude.plan().epoch_like_cpp(),
+                prelude.plan().effective_diff_ms(),
+                unix_time_ns,
+                phase_ack_timeout,
+            )
+            .await;
+            if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                info!(
+                    tick_epoch,
+                    diff_ms = prelude.plan().effective_diff_ms(),
+                    raw_diff_ms = diff_ms,
+                    raw_now_unix_ns = unix_time_ns,
+                    participants = recovery_summary.participants,
+                    requested = recovery_summary.requested,
+                    completed = recovery_summary.completed,
+                    revoked_before_start = recovery_summary.revoked_before_start,
+                    refused_before_start = recovery_summary.refused_before_start,
+                    send_failed = recovery_summary.send_failed,
+                    unaddressable = recovery_summary.unaddressable,
+                    unresolved_after_start = recovery_summary.unresolved_after_start,
+                    blocks_tick_tail = recovery_summary.blocks_tick_tail,
+                    stalled_ms = recovery_summary.stalled_ms,
+                    "RUST_DEATH_TIMER player_recovery_pass"
+                );
+            }
+            if !recovery_summary.quiescent_like_cpp() {
+                unresolved_phase_permits.extend(recovery_summary.unresolved_permits.clone());
+                tracing::error!(
+                    tick_epoch,
+                    unresolved_after_start = recovery_summary.unresolved_after_start,
+                    "Abandoning the canonical map tick: an admitted Player recovery pass left live effects"
+                );
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(prelude.into_plan());
+                }
+                continue;
+            }
+            if recovery_summary.blocks_tick_tail {
+                tracing::error!(
+                    tick_epoch,
+                    completed_recovery_passes = recovery_summary.completed,
+                    "Abandoning the canonical map tick: a Player recovery pass reported unavailable"
+                );
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(prelude.into_plan());
+                }
+                continue;
+            }
+            if active_session_registry.is_shutting_down_like_cpp() && !stop_after_tick {
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(prelude.into_plan());
+                }
+                continue;
+            }
+
+            // Snapshot Creature inputs only after every admitted Recovery
+            // pass has reached a terminal boundary. No guard crosses delivery.
+            let creature_inputs = canonical_creature_runtime.as_ref().map(|runtime| {
+                runtime.collect_inputs_like_cpp(
+                    &map_manager,
+                    &player_registry,
+                    world_module_hooks.creature_events_wanted_like_cpp(),
+                )
+            });
+            let creature_phases = if let (Some(runtime), Some(inputs)) = (
+                canonical_creature_runtime.as_mut(),
+                creature_inputs.as_ref(),
+            ) {
+                match runtime
+                    .run_with_native_death(
                         &map_manager,
+                        prelude.plan(),
+                        coordinator_id,
+                        tick_epoch,
                         &player_registry,
-                        world_module_hooks.creature_events_wanted_like_cpp(),
+                        phase_ack_timeout,
+                        inputs,
+                        map_store.as_ref(),
+                        now,
+                        &respawn_db_writer_tx,
+                        &respawn_db_mutation_order,
                     )
-                });
-                // The persistence fence is re-taken for the half that produces
-                // respawn mutations, and its statements are still coalesced
-                // before it is released, so mailbox replacement order still
-                // matches mutation order.
+                    .await
+                {
+                    Ok(outcome) => Some(outcome),
+                    Err(failure) => {
+                        tracing::error!(
+                            reason = failure.reason,
+                            "Abandoning Map tick after required combat work failed"
+                        );
+                        unresolved_native_death = failure.native_handle;
+                        unresolved_phase_permits.extend(failure.unresolved_permit);
+                        if let Ok(mut manager) = map_manager.lock() {
+                            manager.abandon_tick_like_cpp(prelude.into_plan());
+                        }
+                        continue;
+                    }
+                }
+            } else {
+                None
+            };
+            let creature_tick_diff_ms = prelude.plan().effective_diff_ms();
+            let (tick_summary, creature_phases) = {
                 let _respawn_db_mutation_order = respawn_db_mutation_order
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -298,33 +501,56 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     );
                     break;
                 };
-                let mut creature_phases = None;
-                let mut tick_summary = {
-                    let mut creature_phase =
-                        |manager: &mut wow_map::MapManager, plan: &wow_map::MapTickPlanLikeCpp| {
-                            if let (Some(runtime), Some(inputs)) = (
-                                canonical_creature_runtime.as_mut(),
-                                creature_inputs.as_ref(),
-                            ) {
-                                creature_phases = Some(runtime.run_on_locked_manager_like_cpp(
-                                    manager,
-                                    plan,
-                                    coordinator_id,
-                                    inputs,
-                                    map_store.as_ref(),
-                                    now,
-                                ));
-                            }
+                if std::env::var_os("RUSTYCORE_CREATURE_MELEE_TRACE").is_some()
+                    && creature_phases.is_some()
+                {
+                    for participant in prelude.plan().updated_maps_like_cpp() {
+                        let key = participant.key;
+                        let Some(managed_map) = manager.find_map(key.map_id, key.instance_id)
+                        else {
+                            continue;
                         };
-                    canonical_map_tick_resume_with_creature_owner_like_cpp(
+                        let map = managed_map.map();
+                        for creature_guid in map
+                            .object_update_plan_for_current_tick_like_cpp(creature_tick_diff_ms)
+                            .update_guids
+                        {
+                            let Some(creature) = map.get_typed_creature(creature_guid) else {
+                                continue;
+                            };
+                            let ai = creature.ai_ownership();
+                            let can_swing = creature.can_swing();
+                            if ai.combat_target.is_none() && !can_swing {
+                                continue;
+                            }
+                            let victim_player_health = ai.combat_target.and_then(|guid| {
+                                map.get_typed_player(guid)
+                                    .map(|player| player.unit().data().health)
+                            });
+                            info!(
+                                map_id = key.map_id,
+                                instance_id = key.instance_id,
+                                creature_guid = ?creature_guid,
+                                runtime_elapsed_ms = creature.runtime_elapsed_ms_like_cpp(),
+                                last_swing_ms = ai.last_swing_ms,
+                                swing_timer_ms = ai.swing_timer_ms,
+                                combat_target = ?ai.combat_target,
+                                ai_state = ?creature.ai_state(),
+                                can_swing,
+                                victim_player_health = ?victim_player_health,
+                                "RUST_CREATURE_MELEE admitted_creature"
+                            );
+                        }
+                    }
+                }
+                let mut tick_summary = {
+                    continue_map_recovery_prelude(
                         &mut manager,
-                        plan.plan,
-                        &mut respawn_condition_scheduler,
+                        prelude,
                         &canonical_spawn_metadata,
-                        condition_store.as_ref(),
                         map_store.as_ref(),
                         &loaded_grid_creature_respawn_caches,
-                        Some(&mut creature_phase),
+                        None,
                     )
                 };
                 drop(canonical_spawn_metadata);
@@ -356,38 +582,11 @@ pub(crate) fn spawn_canonical_map_update_loop(
                                 .publish_current_pvp_combat_expiry(recipient.registration, command);
                         }
                     }
-                    for save in summary.respawn_db_saves.drain(..) {
-                        if respawn_db_writer_tx.send(save.mutation).is_err() {
-                            summary.respawn_db_save_failed += 1;
-                            tracing::error!(
-                                "Shared respawn DB writer stopped before canonical REP_RESPAWN submission"
-                            );
-                        }
-                    }
-                    // A timer can be created and consumed in one canonical
-                    // update. Submit deletes last so the final state wins.
-                    for delete in summary.respawn_db_deletes.drain(..) {
-                        if respawn_db_writer_tx.send(delete.mutation).is_err() {
-                            summary.respawn_db_delete_failed += 1;
-                            tracing::error!(
-                                "Shared respawn DB writer stopped before canonical DEL_RESPAWN submission"
-                            );
-                        }
-                    }
+                    submit_respawn_db_mutations(summary, &respawn_db_writer_tx);
                 }
-                // Still under the gate, the executor's lifecycle statements are
-                // submitted after every statement of the map tick summary above —
-                // the respawn phase's deletes and the GameObject respawn saves the
-                // object visitors produced. C++ interleaves creature and GameObject
-                // saves in cell-visit order inside `ObjectUpdater`; they address
-                // different (type, spawnId) keys, so the writer's per-key final
-                // state is the same either way.
-                if let Some(phases) = creature_phases.as_mut() {
-                    submit_creature_lifecycle_respawn_db_mutations_like_cpp(
-                        &mut phases.lifecycle.respawn_db_mutations,
-                        &respawn_db_writer_tx,
-                    );
-                }
+                // Creature lifecycle intents were submitted before its awaited
+                // Player combat callbacks. P3 GameObject statements use distinct
+                // (type, spawnId) keys and retain the writer's per-key order.
 
                 (tick_summary, creature_phases)
             };
@@ -398,7 +597,19 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 let delivery = deliver_canonical_creature_phases_like_cpp(phases, &player_registry);
                 debug!(
                     executed = phases.executed_like_cpp(),
+                    tick_epoch,
+                    diff_ms = creature_tick_diff_ms,
                     clock_advanced_ms = phases.clock_advanced_ms,
+                    swings_ready = phases.melee.swings_ready,
+                    melee_precondition_rejections = phases.melee.melee_precondition_rejections,
+                    melee_range_rejections = phases.melee.melee_range_rejections,
+                    melee_facing_rejections = phases.melee.melee_facing_rejections,
+                    attacker_state_rejections = phases.melee.attacker_state_rejections,
+                    attacker_incarnation_rejections = phases.melee.attacker_incarnation_rejections,
+                    melee_los_rejections = phases.melee.melee_los_rejections,
+                    canonical_hits = phases.melee.canonical_hits,
+                    canonical_creature_hits = phases.melee.canonical_creature_hits,
+                    melee_outcomes_unrepresented = phases.melee.melee_outcomes_unrepresented,
                     player_melee_commands = delivery.player_melee.candidates_queued,
                     lifecycle_refresh_commands = delivery.lifecycle.candidates_queued,
                     movement_commands = delivery.movement.candidates_queued,
@@ -770,3 +981,31 @@ pub(crate) fn spawn_canonical_map_update_loop(
         }
     })
 }
+
+fn submit_respawn_db_mutations(
+    summary: &mut super::super::tick_summary::CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+    writer: &RespawnDbWriterSenderLikeCpp,
+) {
+    for save in summary.respawn_db_saves.drain(..) {
+        if writer.send(save.mutation).is_err() {
+            summary.respawn_db_save_failed += 1;
+            tracing::error!(
+                "Shared respawn DB writer stopped before canonical REP_RESPAWN submission"
+            );
+        }
+    }
+    // A timer can be created and consumed in one canonical update. Submit
+    // deletes last so the final state wins within this respawn phase.
+    for delete in summary.respawn_db_deletes.drain(..) {
+        if writer.send(delete.mutation).is_err() {
+            summary.respawn_db_delete_failed += 1;
+            tracing::error!(
+                "Shared respawn DB writer stopped before canonical DEL_RESPAWN submission"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "update_loop_tests.rs"]
+mod tests;

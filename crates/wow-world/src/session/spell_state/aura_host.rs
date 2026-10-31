@@ -17,6 +17,13 @@ impl wow_world_spell::AuraHostLikeCpp for WorldSession {
         self.player_aura_application_cx_like_cpp()
             .remove_aura_like_cpp(slot)
     }
+    fn apply_loaded_ghost_wisp_aura(
+        &mut self,
+        aura: &wow_entities::AuraApplicationLikeCpp,
+    ) -> Result<(), &'static str> {
+        self.player_aura_application_cx_like_cpp()
+            .apply_loaded_ghost_wisp_aura(aura)
+    }
     fn represented_mount_x_display_usable_like_cpp(&self, player_condition_id: u32) -> bool {
         self.represented_meets_player_condition_id_like_cpp(player_condition_id)
     }

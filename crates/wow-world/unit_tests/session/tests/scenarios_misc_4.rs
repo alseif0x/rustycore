@@ -136,6 +136,9 @@ fn legacy_only_hostile_npc_interaction_is_rejected_like_cpp() {
             faction_template_entry(1, 1, 0, 0, 0),
         ]),
     ));
+    session.set_faction_store(Arc::new(
+        wow_data::progression_rewards::FactionStore::from_entries([]),
+    ));
     manager.lock().unwrap().add_creature(
         571,
         0,

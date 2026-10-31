@@ -133,55 +133,12 @@ fn init_world_states_builder_orders_realm_then_map_and_filters_area_like_cpp() {
 }
 #[tokio::test]
 async fn binder_activate_rejects_instanceable_map_like_cpp() {
+    const FEIGN_DEATH_SLOT: u8 = 7;
     let (mut session, send_rx, canonical) = make_bank_slot_session(2);
+    insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_DEATH_SLOT);
     let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 31);
     insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
-    let player_guid = session.player_guid().expect("player guid");
-    let mut player = wow_entities::Player::new(Some(1), false);
-    player
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .create(player_guid);
-    player.unit_mut().world_mut().set_map(571, 0).unwrap();
-    player
-        .unit_mut()
-        .world_mut()
-        .relocate(Position::new(0.0, 0.0, 0.0, 0.0));
-    player.unit_mut().world_mut().object_mut().add_to_world();
-    player
-        .unit_mut()
-        .add_unit_state(wow_constants::unit::UnitState::DIED.bits());
-    canonical
-        .lock()
-        .unwrap()
-        .create_world_map(571, 0)
-        .map_mut()
-        .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
-        .unwrap();
-    const FEIGN_DEATH_SLOT: u8 = 7;
-    session.fixtures.auras.visible_auras.insert(
-        FEIGN_DEATH_SLOT,
-        AuraApplication {
-            spell_id: 5384,
-            difficulty_id: 0,
-            caster_guid: player_guid,
-            slot: FEIGN_DEATH_SLOT,
-            duration_total: 0,
-            duration_remaining: 0,
-            stack_count: 1,
-            aura_flags: 0,
-            effect_mask: 1,
-            aura_interrupt_flags: 0,
-            aura_interrupt_flags2: 0,
-            represented_effect: Some(RepresentedAuraEffectLikeCpp::FeignDeath),
-            represented_amount: 0,
-            represented_effect_amounts: Vec::new(),
-            represented_misc_value: None,
-            represented_multiplier: 1.0,
-            applied_at: std::time::Instant::now(),
-        },
-    );
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
             id: 571,
@@ -206,9 +163,8 @@ async fn binder_activate_rejects_instanceable_map_like_cpp() {
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_DEATH_SLOT)
     );
     assert_eq!(

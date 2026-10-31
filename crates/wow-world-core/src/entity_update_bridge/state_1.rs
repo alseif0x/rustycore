@@ -166,6 +166,14 @@ pub fn player_values_update_to_packet(
             Some(active_player_data_update_to_packet(active_player_data));
     }
 
+    if let Some(derived_stats) = &update.derived_stats {
+        super::derived_stats::merge(
+            derived_stats,
+            packet_update.unit_data.as_mut(),
+            packet_update.active_player_data.as_mut(),
+        );
+    }
+
     (packet_update.changed_object_type_mask != 0).then_some(packet_update)
 }
 
@@ -556,6 +564,21 @@ pub(super) fn copy_player_data_update(
     packet_update.honor_level = update.values.honor_level;
 
     for (dst, src) in packet_update
+        .quest_log
+        .iter_mut()
+        .zip(update.quest_log.iter())
+    {
+        let values = src.values();
+        *dst = wow_packet::packets::update::QuestLogValuesUpdate {
+            quest_log_mask: src.change_mask(),
+            end_time: values.end_time(),
+            quest_id: values.quest_id(),
+            state_flags: values.state_flags(),
+            objective_progress: *values.objective_progress(),
+        };
+    }
+
+    for (dst, src) in packet_update
         .visible_items
         .iter_mut()
         .zip(update.values.visible_items.iter())
@@ -575,6 +598,7 @@ pub(super) fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataVal
     packet_update.health = update.values.health.min(i64::MAX as u64) as i64;
     packet_update.max_health = update.values.max_health.min(i64::MAX as u64) as i64;
     packet_update.display_id = update.values.display_id;
+    packet_update.summon = update.values.summon;
     packet_update.critter = update.values.critter;
     packet_update.battle_pet_companion_guid = update.values.battle_pet_companion_guid;
     packet_update.battle_pet_companion_name_timestamp =
@@ -590,6 +614,7 @@ pub(super) fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataVal
     packet_update.flags = update.values.flags;
     packet_update.flags2 = update.values.flags2;
     packet_update.flags3 = update.values.flags3;
+    packet_update.aura_state = update.aura_state;
     packet_update.npc_flags = update.values.npc_flags;
     packet_update.bounding_radius = update.values.bounding_radius;
     packet_update.combat_reach = update.values.combat_reach;

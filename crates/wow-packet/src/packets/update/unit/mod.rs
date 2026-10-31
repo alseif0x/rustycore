@@ -21,12 +21,13 @@ pub(super) use channels_and_pets::write_artifact_power_values_update;
 pub(super) use create::{
     debug_creature_create_values_len_like_cpp, write_creature_create_block,
     write_stationary_world_object_create_prefix_like_cpp,
+    write_stationary_world_object_create_prefix_with_type_like_cpp,
 };
 
 pub(super) use values_update::{
-    VALUES_TYPE_UNIT, health_aura_state_like_cpp, power_type_for_class,
-    write_creature_health_update_block, write_full_unit_values_update_block,
-    write_unit_data_values_update, write_unit_data_values_update_section,
+    VALUES_TYPE_UNIT, power_type_for_class, write_creature_health_update_block,
+    write_full_unit_values_update_block, write_unit_data_values_update,
+    write_unit_data_values_update_section,
 };
 
 use channels_and_pets::write_unit_channel_values_update;

@@ -19,16 +19,9 @@ fn registration(is_in_world: bool) -> (PlayerSessionRegistrationLikeCpp, flume::
     let (send_tx, send_rx) = flume::unbounded();
     let (command_tx, _command_rx) = flume::bounded(4);
     let info = PlayerSessionRegistrationLikeCpp {
-        identity: PlayerDirectoryIdentityLikeCpp {
-            player_name: "Tester".to_string(),
-            account_id: 1,
-            battlenet_account_id: 0,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            active_expansion: 2,
-        },
+        identity: PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+            "Tester", 1, 0, 0, 1, 1, 0, 2, "enUS", None,
+        ),
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,

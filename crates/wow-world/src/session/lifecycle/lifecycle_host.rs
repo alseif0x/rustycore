@@ -11,6 +11,10 @@ use wow_world_application::{
 use crate::session::WorldSession;
 
 impl SessionLifecycleHostLikeCpp for WorldSession {
+    fn stop_combat_for_logout_death_release_like_cpp(&mut self) {
+        wow_world_entities::combat_stop_like_cpp(self);
+    }
+
     fn session_account_save_cx_like_cpp(&mut self) -> SessionAccountSaveCxLikeCpp<'_> {
         let crate::session::LifecycleCx {
             lifecycle,

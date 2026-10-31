@@ -133,10 +133,8 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
-    let status = session
-        .quest_state
-        .fixture_player_quest_status_like_cpp(quest_id)
-        .expect("source-spell-only quest should still insert represented local AddQuest state");
+    let status = canonical_player_quest_status_like_cpp(&session, quest_id)
+        .expect("source-spell-only quest should still insert local Player AddQuest state");
     assert_eq!(status.quest_id, quest_id);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
     assert!(!status.explored);
@@ -199,29 +197,38 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     session.cache_item_template_addon_quest_log_item_id_like_cpp(source_item_id, quest_log_item_id);
     session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
 
-    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
-    session.set_player_registry(Arc::clone(&player_registry));
+    let canonical: crate::session::SharedCanonicalMapManager =
+        Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
     session.set_loaded_player_name_like_cpp("Receiver".to_string());
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    install_native_quest_log_player_like_cpp(&mut session);
+
+    let player_registry = Arc::new(PlayerRegistry::default());
+    assert!(player_registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+    session.set_player_registry(Arc::clone(&player_registry));
     session.register_in_player_registry();
 
     let (mut sender_session, sender_rx) = make_session();
     sender_session.set_player_guid(Some(sender_guid));
     sender_session.set_loaded_player_name_like_cpp("Sender".to_string());
-    sender_session.set_player_registry(Arc::clone(&player_registry));
-    sender_session.register_in_player_registry();
-    assert!(sender_session.adopt_registered_canonical_player_fixture_like_cpp());
+    sender_session.set_canonical_map_manager(Arc::clone(&canonical));
+    install_native_quest_log_player_like_cpp(&mut sender_session);
     add_active_quest_in_slot_with_status(
         &mut sender_session,
         quest_id,
         0,
         QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     );
+    sender_session.set_player_registry(Arc::clone(&player_registry));
+    sender_session.register_in_player_registry();
     sender_session.sync_player_registry_state_like_cpp();
 
     let (mut other_session, other_rx) = make_session();
     other_session.set_player_guid(Some(other_guid));
     other_session.set_loaded_player_name_like_cpp("Other".to_string());
-    other_session.set_player_registry(player_registry);
+    other_session.set_canonical_map_manager(canonical);
+    install_native_quest_log_player_like_cpp(&mut other_session);
+    other_session.set_player_registry(Arc::clone(&player_registry));
     other_session.register_in_player_registry();
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -230,9 +237,36 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session
-        .social
-        .set_group_guid_for_test_like_cpp(Some(group_guid));
+    let group_state = || wow_entities::PlayerGroupState {
+        group_guid: ObjectGuid::create_group(group_guid),
+        leader_guid: sender_guid,
+        role_mask: 0,
+        subgroup: 0,
+    };
+    assert!(
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_group_like_cpp(Some(group_state()));
+            })
+            .is_some()
+    );
+    assert!(
+        sender_session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_group_like_cpp(Some(group_state()));
+            })
+            .is_some()
+    );
+    assert!(
+        other_session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_group_like_cpp(Some(group_state()));
+            })
+            .is_some()
+    );
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;

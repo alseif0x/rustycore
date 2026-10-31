@@ -27,6 +27,7 @@ wow-movement = { workspace = true }
 wow-network = { workspace = true }
 wow-module-api = { workspace = true }
 wow-world = { workspace = true }
+wow-world-core = { workspace = true }
 wow-world-application = { workspace = true }
 wow-world-inventory = { workspace = true }
 wow-world-lifecycle = { workspace = true }
@@ -37,10 +38,12 @@ wow-packet = { workspace = true }
 wow-constants = { workspace = true }
 wow-entities = { workspace = true }
 wow-map = { workspace = true }
+wow-world-spell = { workspace = true }
 wow-social = { workspace = true }
 
 [dev-dependencies]
 wow-world = { workspace = true, features = ["test-fixtures"] }
+wow-world-test-support = { workspace = true }
 
 [lints]
 workspace = true

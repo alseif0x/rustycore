@@ -317,6 +317,10 @@ pub(super) struct CollectionLoadPortLikeCpp {
     pub(super) bank_slot_purchase_outcomes: std::sync::Mutex<
         std::collections::VecDeque<wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp>,
     >,
+    pub(super) login_auxiliary_requests:
+        std::sync::Mutex<Vec<PlayerLoginAuxiliaryLoadRequestLikeCpp>>,
+    pub(super) login_auxiliary_outcomes:
+        std::sync::Mutex<std::collections::VecDeque<PlayerLoginAuxiliaryLoadOutcomeLikeCpp>>,
 }
 
 impl CollectionLoadPortLikeCpp {
@@ -331,6 +335,8 @@ impl CollectionLoadPortLikeCpp {
             login_transport_outcomes: std::sync::Mutex::new(Default::default()),
             bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
             bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
+            login_auxiliary_requests: std::sync::Mutex::new(Vec::new()),
+            login_auxiliary_outcomes: std::sync::Mutex::new(Default::default()),
         })
     }
 
@@ -352,6 +358,8 @@ impl CollectionLoadPortLikeCpp {
             login_transport_outcomes: std::sync::Mutex::new(Default::default()),
             bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
             bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
+            login_auxiliary_requests: std::sync::Mutex::new(Vec::new()),
+            login_auxiliary_outcomes: std::sync::Mutex::new(Default::default()),
         })
     }
 
@@ -366,6 +374,8 @@ impl CollectionLoadPortLikeCpp {
             login_transport_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
             bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
             bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
+            login_auxiliary_requests: std::sync::Mutex::new(Vec::new()),
+            login_auxiliary_outcomes: std::sync::Mutex::new(Default::default()),
         })
     }
 
@@ -380,6 +390,24 @@ impl CollectionLoadPortLikeCpp {
             login_transport_outcomes: std::sync::Mutex::new(Default::default()),
             bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
             bank_slot_purchase_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+            login_auxiliary_requests: std::sync::Mutex::new(Vec::new()),
+            login_auxiliary_outcomes: std::sync::Mutex::new(Default::default()),
+        })
+    }
+
+    pub(super) fn for_login_auxiliary(
+        outcomes: impl IntoIterator<Item = PlayerLoginAuxiliaryLoadOutcomeLikeCpp>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            login_transport_requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(Default::default()),
+            initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
+            login_transport_outcomes: std::sync::Mutex::new(Default::default()),
+            bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
+            bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
+            login_auxiliary_requests: std::sync::Mutex::new(Vec::new()),
+            login_auxiliary_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
         })
     }
 
@@ -389,6 +417,10 @@ impl CollectionLoadPortLikeCpp {
 
     pub(super) fn login_transport_requests(&self) -> Vec<PlayerLoginTransportLoadRequestLikeCpp> {
         self.login_transport_requests.lock().unwrap().clone()
+    }
+
+    pub(super) fn login_auxiliary_requests(&self) -> Vec<PlayerLoginAuxiliaryLoadRequestLikeCpp> {
+        self.login_auxiliary_requests.lock().unwrap().clone()
     }
 
     pub(super) fn bank_slot_purchase_requests(
@@ -602,13 +634,18 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
 
     fn load_login_auxiliary_like_cpp<'a>(
         &'a self,
-        _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
+        request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
-        Box::pin(async {
-            PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+        self.login_auxiliary_requests.lock().unwrap().push(request);
+        let outcome = self
+            .login_auxiliary_outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or_else(|| PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
                 reason: "collection-load-only fixture".to_owned(),
-            }
-        })
+            });
+        Box::pin(async move { outcome })
     }
 
     fn persist_login_item_repairs_like_cpp<'a>(

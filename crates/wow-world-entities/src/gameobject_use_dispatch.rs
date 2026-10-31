@@ -521,20 +521,20 @@ pub fn represented_gameobject_gossip_can_interact_with_like_cpp<H: WorldEntities
     }
 
     let map_key = host.core().current_canonical_player_map_key_like_cpp()?;
-    {
+    let gameobject_phase_shift = {
         let manager = host.core().canonical_map_manager.as_ref()?.lock().ok()?;
         let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
         let gameobject = map.map().get_typed_game_object(gameobject_guid)?;
         if !gameobject.world().object().is_in_world() {
             return None;
         }
-        let gameobject_phase_shift = host
-            .world_entities()
+        host.world_entities()
             .represented_gameobject_phase_shift_like_cpp(gameobject_guid)
-            .unwrap_or_else(|| gameobject.world().phase_shift());
-        if !host.can_see_phase_shift_like_cpp(gameobject_phase_shift) {
-            return None;
-        }
+            .unwrap_or_else(|| gameobject.world().phase_shift())
+            .clone()
+    };
+    if !host.can_see_phase_shift_like_cpp(&gameobject_phase_shift) {
+        return None;
     }
 
     let interaction_distance = represented_gameobject_interaction_distance_like_cpp(

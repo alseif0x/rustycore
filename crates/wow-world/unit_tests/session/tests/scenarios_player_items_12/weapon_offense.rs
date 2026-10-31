@@ -76,7 +76,12 @@ async fn expertise_aura_modifiers_filter_by_weapon_fit_like_cpp() {
     // Four `SPELL_AURA_MOD_EXPERTISE` producers: item-neutral, axe-fit,
     // sword-only (must not match the equipped axe) and armor-only (must not
     // match a weapon).
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_300, 0),
+        (90_301, 0),
+        (90_302, 0),
+        (90_303, 0),
+    ]);
     for (spell_id, amount) in [(90_300, 30), (90_301, 20), (90_302, 40), (90_303, 10)] {
         spell_store.insert(
             spell_id,
@@ -273,14 +278,19 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
         );
     }
 
-    // `SPELL_AURA_MOD_DAMAGE_DONE` (13) physical flat bonus, and
-    // `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` (79) effects: one item-neutral +50%
-    // and one +100% restricted to swords.
-    let mut spell_store = wow_data::SpellStore::new();
+    // Physical flat damage (13), physical percentage damage (79), and the
+    // separate offhand multiplier sum (122).
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_930, 0),
+        (90_931, 0),
+        (90_932, 0),
+        (90_933, 0),
+    ]);
     for (spell_id, aura_type, misc_value, amount) in [
         (90_930, 79, 1, 50),
         (90_931, 79, 1, 100),
         (90_932, 13, 1, 20),
+        (90_933, 122, 0, 2),
     ] {
         spell_store.insert(
             spell_id,
@@ -330,17 +340,28 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
     let baseline = stats(&session);
     assert_eq!(baseline.weapon_damage_pct, [1.0, 0.5, 1.0]);
     assert_eq!(baseline.weapon_damage_flat, [0.0; 3]);
+    let total_attack_power =
+        (baseline.attack_power + baseline.attack_power_mod_pos + baseline.attack_power_mod_neg)
+            .max(0) as f32
+            * (1.0 + baseline.attack_power_multiplier);
+    let offhand_attack_power_component = total_attack_power / 14.0 * 2.0;
     assert!(
-        (baseline.weapon_damage[1][0] * 2.0 - baseline.weapon_damage[0][0]).abs() < 0.01,
-        "the offhand TOTAL_PCT halves the represented range"
+        (baseline.weapon_damage[1][0]
+            - (offhand_attack_power_component + baseline.weapon_damage_flat[1])
+                * baseline.weapon_damage_pct[1])
+            .abs()
+            < 0.01,
+        "an empty offhand raw range still applies the AP and flat terms"
     );
+    assert_eq!(baseline.weapon_damage[1][0], baseline.weapon_damage[1][1]);
 
     session
         .apply_aura(90_930, player_guid, 30_000, 1)
         .expect("apply physical damage percentage aura");
     let _ = session.send_stat_update();
     let neutral = stats(&session);
-    assert_eq!(neutral.weapon_damage_pct, [1.5, 0.75, 1.5]);
+    assert_eq!(neutral.weapon_damage_pct, [1.5, 0.0, 1.5]);
+    assert_eq!(neutral.weapon_damage[1], [0.0, 0.0]);
     assert_eq!(neutral.weapon_damage_flat, [0.0; 3]);
 
     // The sword-restricted aura applies to the mainhand only: the offhand
@@ -351,7 +372,7 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
         .expect("apply sword damage percentage aura");
     let _ = session.send_stat_update();
     let restricted = stats(&session);
-    assert_eq!(restricted.weapon_damage_pct, [3.0, 0.75, 1.5]);
+    assert_eq!(restricted.weapon_damage_pct, [3.0, 0.0, 1.5]);
 
     // C++ `Unit::UpdateDamageDoneMods`: the physical `MOD_DAMAGE_DONE` flat sum
     // is applied before the percentage, and the neutral aura reaches every
@@ -363,10 +384,45 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
     let _ = session.send_stat_update();
     let flat = stats(&session);
     assert_eq!(flat.weapon_damage_flat, [20.0, 20.0, 20.0]);
+    assert_eq!(flat.weapon_damage_pct[1], 0.0);
     assert!(
         (flat.weapon_damage[0][0] - (mainhand_before + 20.0 * 3.0)).abs() < 0.01,
         "the flat bonus is multiplied by the attack percentage"
     );
+
+    // Aura 122 is a direct sum, not `1 + amount / 100`: the neutral aura79
+    // factor is 0.5 * 1.5 and aura122 contributes a further factor of two.
+    session
+        .apply_aura(90_933, player_guid, 30_000, 1)
+        .expect("apply offhand damage percentage aura");
+    let with_offhand_aura = stats(&session);
+    assert_eq!(with_offhand_aura.weapon_damage_pct, [3.0, 1.5, 1.5]);
+
+    let _ = session.send_stat_update();
+    let retained = stats(&session);
+    assert_eq!(
+        retained.weapon_damage_pct, with_offhand_aura.weapon_damage_pct,
+        "an unrelated later calculation retains the canonical offhand TOTAL_PCT"
+    );
+
+    let offhand_slot = session
+        .visible_aura_slot_for_spell_like_cpp(90_933)
+        .expect("offhand damage aura slot");
+    session
+        .remove_aura(offhand_slot)
+        .expect("remove offhand damage percentage aura");
+    let without_offhand_aura = stats(&session);
+    assert_eq!(without_offhand_aura.weapon_damage_pct, [3.0, 0.0, 1.5]);
+    assert_eq!(without_offhand_aura.weapon_damage[1], [0.0, 0.0]);
+
+    let neutral_slot = session
+        .visible_aura_slot_for_spell_like_cpp(90_930)
+        .expect("neutral damage aura slot");
+    session
+        .remove_aura(neutral_slot)
+        .expect("remove physical damage percentage aura");
+    let after_neutral_removal = stats(&session);
+    assert_eq!(after_neutral_removal.weapon_damage_pct, [2.0, 0.0, 1.0]);
 }
 
 #[tokio::test]
@@ -423,7 +479,8 @@ async fn weapon_fit_resolves_the_ranged_weapon_like_cpp() {
 
     // `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` (52) and
     // `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` (79), both restricted to bows.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_940, 0), (90_941, 0)]);
     for (spell_id, aura_type, amount) in [(90_940, 52, 5), (90_941, 79, 100)] {
         spell_store.insert(
             spell_id,
@@ -501,7 +558,7 @@ async fn weapon_fit_resolves_the_ranged_weapon_like_cpp() {
     assert_eq!(stats.ranged_crit_pct, 10.0);
     assert_eq!(stats.crit_pct, 5.0);
     assert_eq!(stats.offhand_crit_pct, 5.0);
-    assert_eq!(stats.weapon_damage_pct, [1.0, 0.5, 2.0]);
+    assert_eq!(stats.weapon_damage_pct, [1.0, 0.0, 2.0]);
 }
 
 #[tokio::test]
@@ -649,7 +706,8 @@ async fn ranged_attack_power_auras_skip_wand_users_like_cpp() {
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_810, 0), (90_811, 0)]);
     for (spell_id, aura_type, amount) in [(90_810, 124, 30), (90_811, 167, 100)] {
         spell_store.insert(
             spell_id,

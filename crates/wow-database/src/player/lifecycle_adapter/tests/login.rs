@@ -241,6 +241,11 @@ fn player_login_auxiliary_requests_map_to_exact_character_statements_like_cpp() 
             CharStatements::SEL_CHAR_VOID_STORAGE.sql(),
             vec![crate::SqlParam::U64(77)],
         ),
+        (
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::CorpseLocation { player_guid: 77 },
+            CharStatements::SEL_CORPSE_LOCATION.sql(),
+            vec![crate::SqlParam::U64(77)],
+        ),
     ];
 
     for (request, expected_sql, expected_params) in cases {
@@ -279,6 +284,73 @@ fn player_login_admission_requests_map_to_exact_cpp_statements_and_guid_bind() {
         let statement = player_login_admission_load_statement_like_cpp(request);
         assert_eq!(statement.sql(), expected_sql);
         assert_eq!(statement.params(), [crate::SqlParam::U64(77)]);
+    }
+}
+
+#[test]
+fn inventory_queries_preserve_legacy_offsets_and_append_the_shared_item_payload() {
+    let cases = [
+        (
+            CharStatements::SEL_CHAR_EQUIPMENT.sql(),
+            concat!(
+                "SELECT ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, ",
+                "ii.flags, ii.playedTime, ii.enchantments, ii.randomPropertiesId, ",
+                "ii.randomPropertiesSeed, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, ",
+                "ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, ",
+                "ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, ",
+                "ir.paidMoney, ir.paidExtendedCost, ii.duration, ii.charges,"
+            ),
+        ),
+        (
+            CharStatements::SEL_CHAR_BAG_CONTENTS.sql(),
+            concat!(
+                "SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ",
+                "ii.context, ii.flags, ii.playedTime, ii.enchantments, ii.randomPropertiesId, ",
+                "ii.randomPropertiesSeed, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, ",
+                "ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, ",
+                "ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, ",
+                "ir.paidMoney, ir.paidExtendedCost, ii.duration, ii.charges,"
+            ),
+        ),
+    ];
+    let expected_payload = concat!(
+        "ii.creatorGuid, ii.giftCreatorGuid, ii.text, ii.battlePetSpeciesId, ",
+        "ii.battlePetBreedData, ii.battlePetLevel, ii.battlePetDisplayId, ",
+        "iit.itemGuid AS transmogItemGuid, ",
+        "iit.itemModifiedAppearanceAllSpecs, iit.itemModifiedAppearanceSpec1, ",
+        "iit.itemModifiedAppearanceSpec2, iit.itemModifiedAppearanceSpec3, ",
+        "iit.itemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, ",
+        "iit.spellItemEnchantmentAllSpecs, iit.spellItemEnchantmentSpec1, ",
+        "iit.spellItemEnchantmentSpec2, iit.spellItemEnchantmentSpec3, ",
+        "iit.spellItemEnchantmentSpec4, iit.spellItemEnchantmentSpec5, ",
+        "iit.secondaryItemModifiedAppearanceAllSpecs, ",
+        "iit.secondaryItemModifiedAppearanceSpec1, iit.secondaryItemModifiedAppearanceSpec2, ",
+        "iit.secondaryItemModifiedAppearanceSpec3, iit.secondaryItemModifiedAppearanceSpec4, ",
+        "iit.secondaryItemModifiedAppearanceSpec5, ",
+        "istd.itemGuid AS soulboundTradeItemGuid, istd.allowedPlayers"
+    );
+
+    for (sql, legacy_prefix) in cases {
+        let sql = sql.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(sql.starts_with(legacy_prefix), "{sql}");
+        let appended = sql
+            .split_once("ii.creatorGuid, ")
+            .map(|(_, suffix)| format!("ii.creatorGuid, {suffix}"))
+            .and_then(|suffix| {
+                suffix
+                    .split_once(" FROM character_inventory")
+                    .map(|(p, _)| p.to_owned())
+            })
+            .expect("appended payload before inventory joins");
+        assert_eq!(appended, expected_payload);
+        assert!(
+            sql.contains("LEFT JOIN item_instance_transmog iit ON ii.guid = iit.itemGuid"),
+            "{sql}"
+        );
+        assert!(
+            sql.contains("LEFT JOIN item_soulbound_trade_data istd ON ii.guid = istd.itemGuid"),
+            "{sql}"
+        );
     }
 }
 

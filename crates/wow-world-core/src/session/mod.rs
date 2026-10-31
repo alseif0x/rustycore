@@ -27,7 +27,7 @@ pub use battle_pet_adapter::{
 pub mod connection_identity;
 pub use connection_identity::{
     PacketCounterLikeCpp, PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp,
-    SessionState, virtual_realm_address_like_cpp,
+    SessionState, unix_now_ms_like_cpp, virtual_realm_address_like_cpp,
 };
 
 // #1263 C2 capture surface: the login/detach/fallback location observation record
@@ -48,6 +48,8 @@ pub use canonical_access::{
 };
 pub use canonical_access::{
     AuraMountControlAccessLikeCpp, AuraStatsAccessBuilderLikeCpp, PlayerAuraRemovalAccessLikeCpp,
+    SelectedAuraEffectRefresh, SelectedAuraKind, SelectedAuraRefresh,
+    selected_aura_refreshes_timers,
 };
 pub use canonical_access::{
     CoreXPGainAccessLikeCpp, EquipmentSetCombatAccessLikeCpp, EquipmentSetUseAccessLikeCpp,
@@ -59,9 +61,12 @@ pub use canonical_access::{
     OwnedLootAuthorityLookupOutcomeLikeCpp, OwnedPlayerCurrencyAccessLikeCpp,
     OwnedSpellAcquisitionAccessLikeCpp, PlayerAcquisitionOwnerAccessLikeCpp,
     PlayerConditionAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
-    PlayerRegistryHydrationAccessLikeCpp, PlayerStatsAccessLikeCpp, QuestObjectiveAccessLikeCpp,
-    QuestRewardPlayerAccessLikeCpp, TrainerInteractionRoleAccessLikeCpp,
-    VisibilityRefreshAccessLikeCpp, looted_corpse_decay_secs_like_cpp,
+    PlayerRegistryHydrationAccessLikeCpp, PlayerStatApplicationCause, PlayerStatAuraCatalogs,
+    PlayerStatAuraView, PlayerStatCalculator, PlayerStatCatalogs, PlayerStatComputation,
+    PlayerStatComputationRequest, PlayerStatFacts, PlayerStatWeaponFacts, PlayerStatsAccessLikeCpp,
+    QuestObjectiveAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
+    TrainerInteractionRoleAccessLikeCpp, VisibilityRefreshAccessLikeCpp,
+    apply_player_stat_computation, looted_corpse_decay_secs_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::{CoreXPGainFixtureRefsLikeCpp, PlayerConditionFixtureRefsLikeCpp};
@@ -126,13 +131,15 @@ mod chat;
 mod faction_reactions;
 mod social;
 pub use faction_reactions::{
-    AttackReputationFactionSnapshotLikeCpp, RepresentedFactionReactionInputLikeCpp,
-    RepresentedGetReactionInputLikeCpp, ReputationGainSourceLikeCpp,
+    AttackReputationFactionSnapshotLikeCpp, FactionReactionCatalogs, FactionReactionError,
+    FactionReactionOwner, RepresentedFactionReactionInputLikeCpp,
+    RepresentedGetReactionInputLikeCpp, ReputationGainSourceLikeCpp, resolve_faction_reaction,
+    resolve_faction_reaction_with_raid,
 };
 mod combat;
 pub use combat::{
     DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP, PLAYER_FLAGS_IN_PVP_LIKE_CPP,
-    SPELL_PVP_RULES_ENABLED_LIKE_CPP,
+    PlayerDamageResultLikeCpp, SPELL_PVP_RULES_ENABLED_LIKE_CPP,
 };
 mod admission;
 pub use admission::packet_spoof_max_packet_counter_allowed_like_cpp;
@@ -154,7 +161,10 @@ pub use battleground_adapter::{
     RepresentedBattlemasterJoinArenaLikeCpp, RepresentedBattlemasterJoinLikeCpp,
     RepresentedBattlemasterJoinSkirmishLikeCpp, battleground_queue_type_id_from_packed_like_cpp,
 };
-pub use publication::PacketPublicationAccessLikeCpp;
+pub use publication::{
+    PacketPublicationAccessLikeCpp, PreparedPlayerVisiblePacket, PreparedSelectedAuraUpdate,
+    prepare_player_visible_packet, prepare_selected_aura_update,
+};
 
 mod social_requests;
 pub use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
@@ -300,7 +310,7 @@ pub use state::BattlegroundState;
 pub use state::hub_support::{
     default_display_id, player_team_for_race_cpp, player_team_id_for_race_cpp,
 };
-pub use state::{DeathPolicyLikeCpp, SessionWorldConfig};
+pub use state::{DeathPolicyLikeCpp, SessionPassKind, SessionWorldConfig};
 pub use state::{HubMut, HubRef};
 pub use state::{SessionCatalogs, SessionCore, SessionDriverPhaseLikeCpp};
 

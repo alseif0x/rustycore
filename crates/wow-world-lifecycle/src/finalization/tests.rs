@@ -9,6 +9,7 @@ fn every_mode_executes_its_complete_ordered_obligation_set() {
             vec![
                 NativeTransfer,
                 LootSettlement,
+                DeathRelease,
                 Buyback,
                 CharacterSave,
                 Mounts,
@@ -28,6 +29,7 @@ fn every_mode_executes_its_complete_ordered_obligation_set() {
             vec![
                 NativeTransfer,
                 LootSettlement,
+                DeathRelease,
                 Buyback,
                 CharacterSave,
                 Mounts,
@@ -47,6 +49,7 @@ fn every_mode_executes_its_complete_ordered_obligation_set() {
             vec![
                 NativeTransfer,
                 LootSettlement,
+                DeathRelease,
                 Buyback,
                 CharacterSave,
                 Mounts,

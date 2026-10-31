@@ -17,6 +17,7 @@ use wow_packet::WorldPacket;
 use wow_packet::packets::movement::{
     MoveSplineDone, MovementAck, MovementAckMessage, MovementForce, MovementSpeedAck,
 };
+use wow_world_core::session::SessionHubHostLikeCpp;
 use wow_world_entities::{MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
@@ -86,15 +87,38 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         wow_world_entities::apply_move_init_active_mover_complete_like_cpp(self, ticks)
     }
 
-    fn handle_move_teleport_ack_like_cpp(
-        &mut self,
+    fn handle_move_teleport_ack_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
         mover_guid: ObjectGuid,
         ack_index: i32,
         move_time: i32,
-    ) {
-        wow_world_entities::handle_move_teleport_ack_like_cpp(
-            self, mover_guid, ack_index, move_time,
-        );
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            let action = wow_world_entities::handle_move_teleport_ack_like_cpp(
+                self, mover_guid, ack_index, move_time,
+            );
+            if action == wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp::Accepted {
+                let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+                    item_guid_generator: catalogs.id_generators.item.as_ref(),
+                    creature_spawns: catalogs.creature_spawns.as_ref(),
+                    graveyards: Some(catalogs.graveyards.as_ref()),
+                };
+                if wow_world_entities::mark_player_resurrection_teleport_completed(self) {
+                    let completed = wow_world_entities::process_represented_delayed_resurrection_after_teleport_like_cpp(
+                        self,
+                        resurrection_catalogs,
+                    )
+                    .await;
+                    if !completed
+                        && !wow_world_entities::player_resurrection_save_waiting_for_transfer(self)
+                    {
+                        self.core_mut()
+                            .kick("near-teleport resurrection continuation did not complete");
+                    }
+                }
+            }
+        })
     }
 
     fn handle_movement_opcode_like_cpp<'a>(
@@ -110,6 +134,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
                 catalogs.progression.as_ref(),
                 &catalogs.player_grid_loader,
                 pkt,
+                catalogs.id_generators.item.as_ref(),
             )
             .await
         })

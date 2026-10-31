@@ -262,3 +262,44 @@ fn report_flattens_vendor_sell_and_movement_fields() {
         .unwrap()
         .starts_with("vendor_sell_smoke"));
 }
+
+#[test]
+fn cast_lifecycle_character_guid_override_requires_one_single_account_and_reports_it() {
+    let configured_bot = config::BotConfig {
+        account: "TESTBOT1@bot.local".to_string(),
+        password: String::new(),
+        character_guid: 15,
+        account_id: 2,
+        lfg_role: 2,
+        class: "WARRIOR".to_string(),
+        enabled: true,
+        session_key_bnet: String::new(),
+    };
+    let mut selected = vec![configured_bot.clone()];
+
+    assert!(
+        apply_cast_lifecycle_character_guid_override(&mut selected, Some(41), true, false,)
+            .is_err()
+    );
+    assert!(
+        apply_cast_lifecycle_character_guid_override(&mut selected, Some(41), false, true,)
+            .is_err()
+    );
+    let mut multiple = vec![configured_bot.clone(), configured_bot.clone()];
+    assert!(
+        apply_cast_lifecycle_character_guid_override(&mut multiple, Some(41), true, true,).is_err()
+    );
+    assert_eq!(selected[0].character_guid, 15);
+
+    apply_cast_lifecycle_character_guid_override(&mut selected, Some(41), true, true).unwrap();
+    assert_eq!(selected[0].character_guid, 41);
+    assert_eq!(selected[0].account, configured_bot.account);
+    assert_eq!(selected[0].password, configured_bot.password);
+    assert_eq!(configured_bot.character_guid, 15);
+
+    let failure = cast_lifecycle::failure_result(&selected[0], 259, "preauth failed".to_string());
+    let json = serde_json::to_value(failure).unwrap();
+    assert_eq!(json["account"], "TESTBOT1@bot.local");
+    assert_eq!(json["character_guid"], 41);
+    assert_eq!(json["cast_lifecycle"]["failure"], "preauth failed");
+}

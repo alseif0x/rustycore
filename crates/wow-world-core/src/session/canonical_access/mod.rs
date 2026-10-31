@@ -13,6 +13,8 @@ pub use aura_removal::{
 };
 pub use aura_removal::{
     AuraMountControlAccessLikeCpp, AuraStatsAccessBuilderLikeCpp, PlayerAuraRemovalAccessLikeCpp,
+    SelectedAuraEffectRefresh, SelectedAuraKind, SelectedAuraRefresh,
+    selected_aura_refreshes_timers,
 };
 mod equipment_sets;
 mod group_difficulty;
@@ -61,7 +63,11 @@ pub use owned_inventory::OwnedInventoryAccessLikeCpp;
 pub use player_condition::PlayerConditionAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_condition::PlayerConditionFixtureRefsLikeCpp;
-pub use player_stats::PlayerStatsAccessLikeCpp;
+pub use player_stats::{
+    PlayerStatApplicationCause, PlayerStatAuraCatalogs, PlayerStatAuraView, PlayerStatCalculator,
+    PlayerStatCatalogs, PlayerStatComputation, PlayerStatComputationRequest, PlayerStatFacts,
+    PlayerStatWeaponFacts, PlayerStatsAccessLikeCpp, apply_player_stat_computation,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_stats::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtureRefs};
 pub use quest_eligibility::QuestEligibilityAccessLikeCpp;

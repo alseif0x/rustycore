@@ -21,6 +21,8 @@ use std::sync::Arc;
 /// C++ `World::LoadConfigSettings` death policy (`World.cpp:1306-1310`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DeathPolicyLikeCpp {
+    /// `CONFIG_DURABILITY_LOSS_IN_PVP` (`DurabilityLoss.InPvP`).
+    pub durability_loss_in_pvp: bool,
     /// `CONFIG_DEATH_SICKNESS_LEVEL` (`Death.SicknessLevel`).
     pub sickness_level: i32,
     /// `CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP` (`Death.CorpseReclaimDelay.PvP`).
@@ -37,6 +39,7 @@ impl Default for DeathPolicyLikeCpp {
     /// The C++ `GetIntDefault`/`GetBoolDefault` fallbacks.
     fn default() -> Self {
         Self {
+            durability_loss_in_pvp: false,
             sickness_level: 11,
             corpse_reclaim_delay_pvp: true,
             corpse_reclaim_delay_pve: true,
@@ -81,6 +84,11 @@ pub struct SessionWorldConfig {
     /// C++ `CONFIG_MAX_PRIMARY_TRADE_SKILL`, kept independent from talent
     /// `CharacterPoints` and from the two physical profession associations.
     pub max_primary_trade_skills_like_cpp: u8,
+    /// C++ `CONFIG_QUEST_IGNORE_AUTO_COMPLETE` used by `Quest::IsTurnIn`.
+    pub quest_ignore_auto_complete_like_cpp: bool,
+    /// Resolved Source `_SaveQuestStatus` keep-abandoned policy. `None` means
+    /// enabled cleaner state is not represented and a dirty NONE row cannot be captured.
+    pub quest_status_keep_abandoned_like_cpp: Option<bool>,
     /// C++ `CONFIG_CAST_UNSTUCK` immutable world policy injected into spell effects.
     pub represented_cast_unstuck_enabled_like_cpp: bool,
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -98,6 +106,8 @@ pub struct SessionWorldConfig {
     pub durability_loss_on_death_rate_like_cpp: f32,
     /// C++ `CONFIG_DEATH_*` policy read by the death/corpse lifecycle (#43).
     pub death_policy_like_cpp: DeathPolicyLikeCpp,
+    /// C++ `CONFIG_GROUP_VISIBILITY` used by the Ghost visibility Player bypass.
+    pub group_visibility_mode: i32,
     /// C++ `CONFIG_STATS_LIMITS_*` subset consumed by the represented
     /// `Player::UpdateBlockPercentage`/`UpdateDodgePercentage`/
     /// `UpdateParryPercentage`/`UpdateCritPercentage` caps.
@@ -164,6 +174,8 @@ impl Default for SessionWorldConfig {
             max_player_level_config_like_cpp: 80,
             max_primary_trade_skills_like_cpp:
                 wow_config::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
+            quest_ignore_auto_complete_like_cpp: false,
+            quest_status_keep_abandoned_like_cpp: Some(true),
             represented_cast_unstuck_enabled_like_cpp: true,
             #[cfg(any(test, feature = "test-fixtures"))]
             exploration_xp_rate_like_cpp: 1.0,
@@ -175,6 +187,7 @@ impl Default for SessionWorldConfig {
             repair_cost_rate_like_cpp: 1.0,
             durability_loss_on_death_rate_like_cpp: 0.1,
             death_policy_like_cpp: DeathPolicyLikeCpp::default(),
+            group_visibility_mode: 1,
             stats_limits_like_cpp: StatsLimitsLikeCpp::default(),
             reset_schedule_like_cpp: ResetSchedule::default(),
 

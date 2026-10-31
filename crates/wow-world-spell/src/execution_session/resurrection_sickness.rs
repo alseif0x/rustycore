@@ -1,0 +1,193 @@
+// Copyright (c) 2026 alseif0x
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! The race-selected self aura used by spirit-healer resurrection.
+//!
+//! C++ anchors: `Spell::EffectApplyAura` (`SpellEffects.cpp:1037-1050`),
+//! `Unit::_TryStackingOrRefreshingExistingAura` (`Unit.cpp:3224-3283`),
+//! `Aura::SetStackAmount` (`SpellAuras.cpp:1021-1096`) and
+//! `SpellInfo::GetDuration` (`SpellInfo.cpp:3905`).
+
+use wow_core::ObjectGuid;
+use wow_data::spell_duration_ms_like_cpp;
+
+use super::SpellExecutionHostLikeCpp;
+
+pub(super) fn resurrection_sickness_cast_flags<H: SpellExecutionHostLikeCpp>(
+    host: &H,
+    spell_id: i32,
+) -> Result<u32, &'static str> {
+    let spell_id = u32::try_from(spell_id).map_err(|_| "Invalid resurrection sickness spell")?;
+    let hub = host.hub_ref();
+    let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
+    let config = &hub.config.creature_aggro_config_like_cpp;
+    let cast_flags =
+        wow_world_entities::creature_spell_metadata::creature_ai_spell_go_cast_flags_like_cpp(
+            spell_id,
+            difficulty_id,
+            config,
+        ) | 0x0000_0001;
+    Ok(cast_flags)
+}
+
+pub(super) fn should_send_resurrection_sickness_spell_go<H: SpellExecutionHostLikeCpp>(
+    host: &H,
+    spell_id: i32,
+    spell_visual_id: u32,
+) -> Result<bool, &'static str> {
+    let spell_id = u32::try_from(spell_id).map_err(|_| "Invalid resurrection sickness spell")?;
+    let hub = host.hub_ref();
+    let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
+    let difficulties = hub.catalogs.difficulty_store.as_deref();
+    let misc_store = hub
+        .catalogs
+        .spell_catalogs
+        .spell_misc_store
+        .as_deref()
+        .ok_or("Missing resurrection sickness SpellMisc catalog")?;
+    let misc = crate::aura_session::selected_catalog::selected_spell_misc_entry(
+        misc_store,
+        spell_id,
+        difficulty_id,
+        difficulties,
+    )
+    .map_err(|_| "Unable to resolve resurrection sickness SpellMisc row")?
+    .ok_or("Missing resurrection sickness SpellMisc row")?;
+    let attr1 = misc.attributes[1] as u32;
+    let attr7 = misc.attributes[7] as u32;
+    let attr8 = misc.attributes[8] as u32;
+    Ok(spell_visual_id != 0
+        || attr1
+            & (wow_data::spell::attributes::SPELL_ATTR1_IS_CHANNELLED
+                | wow_data::spell::attributes::SPELL_ATTR1_IS_SELF_CHANNELLED)
+            != 0
+        || attr8 & wow_data::spell::attributes::SPELL_ATTR8_AURA_POINTS_ON_CLIENT != 0
+        || attr7 & wow_data::spell::attributes::SPELL_ATTR7_ALWAYS_CAST_LOG != 0
+        || misc.speed > 0.0
+        || misc.launch_delay > 0.0)
+}
+
+pub(super) fn is_resurrection_sickness_spell<H: SpellExecutionHostLikeCpp>(
+    host: &H,
+    spell_id: i32,
+) -> bool {
+    let hub = host.hub_ref();
+    let race_id = hub.player_race_like_cpp();
+    hub.catalogs
+        .chr
+        .races_store
+        .as_ref()
+        .and_then(|store| store.get(u32::from(race_id)))
+        .is_some_and(|race| race.res_sickness_spell_id == spell_id)
+}
+
+pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
+    host: &mut H,
+    spell_id: i32,
+    caster_guid: ObjectGuid,
+    spell_info: &wow_data::SpellInfo,
+    cast_id: ObjectGuid,
+    _spell_visual_id: u32,
+    remaining_ms: Option<u32>,
+    cast_metadata: wow_entities::SpellCastMetadata,
+) -> Result<(), &'static str> {
+    let spell_id_u32 =
+        u32::try_from(spell_id).map_err(|_| "Invalid resurrection sickness spell")?;
+    let requested_remaining = remaining_ms
+        .map(|remaining| {
+            i32::try_from(remaining)
+                .map_err(|_| "Resurrection sickness remaining duration exceeds the signed range")
+        })
+        .transpose()?;
+    let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
+    let (duration_total, stack_amount, attributes1, attributes5) = {
+        let hub = host.hub_ref();
+        let difficulties = hub.catalogs.difficulty_store.as_deref();
+        let misc_store = hub
+            .catalogs
+            .spell_catalogs
+            .spell_misc_store
+            .as_deref()
+            .ok_or("Missing resurrection sickness SpellMisc catalog")?;
+        let misc = crate::aura_session::selected_catalog::selected_spell_misc_entry(
+            misc_store,
+            spell_id_u32,
+            difficulty_id,
+            difficulties,
+        )
+        .map_err(|_| "Unable to resolve resurrection sickness SpellMisc row")?
+        .ok_or("Missing resurrection sickness SpellMisc row")?;
+        let duration_index = u32::from(misc.duration_index);
+        let duration_total = spell_duration_ms_like_cpp(
+            duration_index,
+            hub.catalogs.spell_catalogs.spell_duration_store.as_deref(),
+        );
+        let duration_total = i32::try_from(duration_total)
+            .ok()
+            .filter(|duration| *duration > 0)
+            .ok_or("Missing finite resurrection sickness SpellDuration")?;
+        let options = hub
+            .catalogs
+            .spell_catalogs
+            .spell_aura_options_store
+            .as_deref()
+            .ok_or("Missing SpellAuraOptions catalog for resurrection sickness")?;
+        let options_entry = crate::aura_session::selected_catalog::selected_aura_options_entry(
+            options,
+            spell_id_u32,
+            difficulty_id,
+            difficulties,
+        )
+        .map_err(|_| "Unable to resolve resurrection sickness SpellAuraOptions row")?;
+        let stack_amount = options_entry.map_or(0, |entry| entry.cumulative_aura);
+        let attributes = misc.attributes.map(|value| value as u32);
+        (duration_total, stack_amount, attributes[1], attributes[5])
+    };
+    let active_effect_mask = spell_info
+        .effects()
+        .iter()
+        .filter(|effect| {
+            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+        })
+        .try_fold(0_u32, |mask, effect| {
+            let bit = 1_u32
+                .checked_shl(effect.effect_index)
+                .ok_or("Invalid resurrection sickness effect index")?;
+            Ok::<_, &'static str>(mask | bit)
+        })?;
+    let creation = super::selected_creation::prepare(
+        host,
+        spell_id,
+        caster_guid,
+        spell_info,
+        active_effect_mask,
+        cast_id,
+    );
+
+    host.apply_resurrection_sickness_aura(
+        spell_id,
+        caster_guid,
+        spell_info,
+        duration_total,
+        stack_amount,
+        attributes1,
+        attributes5,
+        creation,
+        cast_metadata,
+    )?;
+    if let Some(remaining) = requested_remaining {
+        let remaining = u32::try_from(remaining)
+            .map_err(|_| "Resurrection sickness remaining duration is negative")?;
+        if crate::set_player_aura_duration(
+            host,
+            spell_id,
+            caster_guid,
+            remaining,
+            wow_entities::AuraDurationUpdatePolicy::SelectedUnitUpdate,
+        ) == 0
+        {
+            return Err("Resurrection sickness aura disappeared after application");
+        }
+    }
+    Ok(())
+}

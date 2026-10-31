@@ -429,6 +429,7 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 8_420);
     let position = Position::new(17.0, 27.0, 37.0, 1.2);
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TemporaryPetResummon".to_string(),
@@ -441,9 +442,19 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
     session
-        .fixtures
-        .pets
-        .represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical player owner handle");
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_level(80);
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+        })
+        .expect("living canonical pet owner");
+    assert!(session.update_player_pet_lifecycle_state_like_cpp(|state| {
+        state.temporary_unsummoned_pet_number = 42;
+    }));
     let mut xp_table = vec![0; 81];
     xp_table[80] = 10_000;
     session.set_player_xp_table(Arc::new(xp_table));
@@ -489,19 +500,33 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
             },
         ],
     );
+    let foreign_caster_guid = ObjectGuid::create_player(1, 8_422);
     session.load_represented_pet_aura_rows_like_cpp(
         42,
-        [CharacterPetAuraRowLikeCpp {
-            caster_guid: ObjectGuid::EMPTY,
-            spell_id: 7_777,
-            effect_mask: 0x3,
-            recalculate_mask: 0,
-            difficulty: 0,
-            stack_count: 2,
-            max_duration_ms: 30_000,
-            remain_time_ms: 20_000,
-            remain_charges: 1,
-        }],
+        [
+            CharacterPetAuraRowLikeCpp {
+                caster_guid: ObjectGuid::EMPTY,
+                spell_id: 7_777,
+                effect_mask: 0x3,
+                recalculate_mask: 0x5,
+                difficulty: 3,
+                stack_count: 4,
+                max_duration_ms: 30_000,
+                remain_time_ms: 20_000,
+                remain_charges: 2,
+            },
+            CharacterPetAuraRowLikeCpp {
+                caster_guid: foreign_caster_guid,
+                spell_id: 7_777,
+                effect_mask: 0x1,
+                recalculate_mask: 0x2,
+                difficulty: 4,
+                stack_count: 2,
+                max_duration_ms: 40_000,
+                remain_time_ms: 10_000,
+                remain_charges: 3,
+            },
+        ],
     );
     session.load_represented_pet_aura_effect_rows_like_cpp(
         42,
@@ -511,7 +536,7 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
                 spell_id: 7_777,
                 effect_mask: 0x3,
                 effect_index: 0,
-                amount: 51,
+                amount: -51,
                 base_amount: 41,
             },
             CharacterPetAuraEffectRowLikeCpp {
@@ -520,7 +545,15 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
                 effect_mask: 0x3,
                 effect_index: 1,
                 amount: 52,
-                base_amount: 42,
+                base_amount: -42,
+            },
+            CharacterPetAuraEffectRowLikeCpp {
+                caster_guid: foreign_caster_guid,
+                spell_id: 7_777,
+                effect_mask: 0x1,
+                effect_index: 0,
+                amount: -73,
+                base_amount: 83,
             },
         ],
     );
@@ -543,13 +576,27 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
         .represented_pet_guid_like_cpp()
         .expect("represented active pet guid");
     assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| (
+            player.gameplay_state().pet_guid,
+            player.unit().minion_guid_like_cpp(),
+            player.unit().subsystems().control.pet_guid(),
+            player
+                .unit()
+                .subsystems()
+                .control
+                .controlled_guids
+                .contains(&pet_guid),
+        )),
+        Some((Some(pet_guid), Some(pet_guid), pet_guid, true))
+    );
+    assert_eq!(
         session
             .fixtures
             .pets
             .represented_pet_created_by_spell_like_cpp,
         9_001
     );
-    let manager = canonical.lock().unwrap();
+    let mut manager = canonical.lock().unwrap();
     let pet = manager
         .find_map(571, 0)
         .unwrap()
@@ -560,6 +607,7 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
     assert_eq!(pet.creature().entry(), 500);
     assert_eq!(pet.creature().unit().data().level, 80);
     assert_eq!(pet.pet_experience(), 321);
+    assert_eq!(pet.creature().unit().pet_flags_like_cpp(), 0x03);
     assert_eq!(
         pet.pet_next_level_experience(),
         500,
@@ -606,21 +654,53 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
                     .map(|amount| (amount.effect_index, amount.amount))
                     .collect::<Vec<_>>()
             )),
-        Some((0x3, vec![(0, 51), (1, 52)]))
+        Some((0x3, vec![(0, -51), (1, 52)]))
     );
+    let self_loaded_state = pet_auras
+        .loaded_aura_states_like_cpp
+        .get(&loaded_aura.aura_ref())
+        .expect("self-cast loaded aura state");
     assert_eq!(
-        pet_auras
-            .loaded_aura_states_like_cpp
-            .get(&loaded_aura.aura_ref()),
-        Some(&wow_entities::LoadedAuraStateLikeCpp::new(
-            30_000, 20_000, 1, 2, 0
-        ))
+        (
+            self_loaded_state.max_duration_ms,
+            self_loaded_state.duration_ms,
+            self_loaded_state.charges,
+            self_loaded_state.stack_amount,
+            self_loaded_state.recalculate_mask,
+            self_loaded_state.cast_difficulty,
+            self_loaded_state.base_amounts.as_slice(),
+        ),
+        (30_000, 20_000, 2, 4, 0x5, Some(3), &[(0, 41), (1, -42)][..])
     );
     assert_eq!(
         pet_auras
             .applied_aura_amounts
             .get(&wow_entities::AppliedAuraRef::new(7_777, pet_guid, 0, 0x1)),
-        Some(&51)
+        Some(&-51)
+    );
+    let foreign_loaded_aura = wow_entities::AppliedAuraRef::new(7_777, foreign_caster_guid, 1, 0x1);
+    assert!(pet_auras.has_applied(foreign_loaded_aura));
+    assert!(pet_auras.has_owned(wow_entities::OwnedAuraRef::new(
+        7_777,
+        foreign_caster_guid,
+        None,
+    )));
+    let foreign_loaded_state = pet_auras
+        .loaded_aura_states_like_cpp
+        .get(&foreign_loaded_aura.aura_ref())
+        .expect("foreign-cast loaded aura state");
+    assert_eq!(foreign_loaded_state.cast_difficulty, Some(4));
+    assert_eq!(foreign_loaded_state.base_amounts, [(0, 83)]);
+    assert_eq!(
+        pet_auras
+            .applied_aura_amounts
+            .get(&wow_entities::AppliedAuraRef::new(
+                7_777,
+                foreign_caster_guid,
+                1,
+                0x1
+            )),
+        Some(&-73)
     );
     assert_eq!(
         pet.declined_names().map(|names| &names.names),
@@ -651,6 +731,30 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
     assert_eq!(
         charm_info.action_bar[4],
         wow_entities::make_unit_action_button_like_cpp(23_456, wow_entities::ACT_DISABLED_LIKE_CPP)
+    );
+    let pet = manager
+        .find_map_mut(571, 0)
+        .unwrap()
+        .map_mut()
+        .get_typed_pet_mut(pet_guid)
+        .expect("mutable canonical represented pet");
+    let auras = &mut pet.creature_mut().unit_mut().subsystems_mut().auras;
+    assert!(auras.remove_applied(loaded_aura));
+    assert!(
+        !auras
+            .loaded_aura_states_like_cpp
+            .contains_key(&loaded_aura.aura_ref())
+    );
+    assert!(
+        auras
+            .loaded_aura_states_like_cpp
+            .contains_key(&foreign_loaded_aura.aura_ref())
+    );
+    assert!(auras.remove_applied(foreign_loaded_aura));
+    assert!(
+        !auras
+            .loaded_aura_states_like_cpp
+            .contains_key(&foreign_loaded_aura.aura_ref())
     );
 }
 #[test]

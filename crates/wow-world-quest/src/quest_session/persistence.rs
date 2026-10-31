@@ -105,6 +105,17 @@ pub async fn load_player_quests<H: QuestSessionHostLikeCpp>(host: &mut H) {
         }
     };
 
+    // TrinityCore always has ObjectMgr's quest templates. An absent Rust
+    // QuestStore cannot prove that persisted quest IDs are unknown, so keep
+    // the existing canonical statuses and QuestLog until the catalog exists.
+    if !active_rows.is_empty() && host.hub_ref().catalogs.quests.store.is_none() {
+        warn!(
+            account = host.core().account_id,
+            "Quest status load deferred because the quest catalog is unavailable"
+        );
+        return;
+    }
+
     let mut loaded_quests = wow_entities::PlayerQuestGameplayState::default();
 
     let mut quest_status_rows_coherent_like_cpp = true;
@@ -134,6 +145,16 @@ pub async fn load_player_quests<H: QuestSessionHostLikeCpp>(host: &mut H) {
         } else {
             QUEST_STATUS_INCOMPLETE_LIKE_CPP
         };
+        if status == wow_conditions::QUEST_STATUS_NONE_LIKE_CPP {
+            continue;
+        }
+        let quest = host
+            .hub_ref()
+            .catalogs
+            .quests
+            .store
+            .as_ref()
+            .and_then(|store| store.get(quest_id));
         let explored = explored != 0;
 
         if status == QUEST_STATUS_REWARDED_LIKE_CPP {
@@ -142,15 +163,15 @@ pub async fn load_player_quests<H: QuestSessionHostLikeCpp>(host: &mut H) {
             loaded_quests.set_rewarded_like_cpp(quest_id, true);
             stale_rewarded_active_rows.push(quest_id);
         } else if next_active_slot < MAX_QUEST_LOG_SIZE_LIKE_CPP {
+            let Some(quest) = quest else {
+                continue;
+            };
             // Active or complete-but-not-turned-in.
             // C++ _LoadQuestStatus assigns sequential visible slots in DB row order
             // because the character DB status row has no persisted quest-log slot.
             let slot = next_active_slot;
             next_active_slot = next_active_slot.saturating_add(1);
-            let store = host.hub_ref().catalogs.quests.store.as_ref();
-            let obj_count = store
-                .and_then(|s| s.get(quest_id))
-                .map_or(0, |q| q.objectives.len());
+            let obj_count = quest.objectives.len();
             if loaded_quests.statuses_like_cpp().contains_key(&quest_id) {
                 quest_status_rows_coherent_like_cpp = false;
             }
@@ -169,6 +190,7 @@ pub async fn load_player_quests<H: QuestSessionHostLikeCpp>(host: &mut H) {
         }
     }
 
+    let mut loaded_objective_rows = Vec::new();
     match port.load_objectives_like_cpp(owner_guid).await {
         wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(objective_rows) => {
             for row in objective_rows {
@@ -196,6 +218,7 @@ pub async fn load_player_quests<H: QuestSessionHostLikeCpp>(host: &mut H) {
                         } else {
                             data
                         };
+                        loaded_objective_rows.push((quest_id, storage_index, data));
                     }
                 }
             }
@@ -252,6 +275,15 @@ pub async fn load_player_quests<H: QuestSessionHostLikeCpp>(host: &mut H) {
     stale_rewarded_active_rows.extend(remove_represented_active_rewarded_duplicates_like_cpp(host));
     stale_rewarded_active_rows.sort_unstable();
     stale_rewarded_active_rows.dedup();
+    if let Some(loaded_state) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::initialize_quest_log_from_loaded_state_like_cpp(
+            &owner,
+            &loaded_state,
+            host.hub_ref().catalogs,
+            &loaded_objective_rows,
+        );
+    }
     for quest_id in stale_rewarded_active_rows {
         info!(
             account = host.core().account_id,

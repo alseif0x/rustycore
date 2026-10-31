@@ -30,9 +30,105 @@ fn advance_worldport_post_add_like_cpp<H: WorldportHostLikeCpp>(
 
 /// Finish represented native phases, not client initialization or a durable save.
 /// False forbids ordinary disconnect cleanup: the owner/completion is unavailable.
-/// No packet, query or await is needed; terrain reads remain outside map guards.
-pub fn finish_worldport_native_before_disconnect_like_cpp<H: WorldportHostLikeCpp>(
+/// A live resurrection continuation is resumed with the explicit operation
+/// catalogs before its deferred save or retirement can proceed. Terrain reads
+/// remain outside map guards.
+pub async fn finish_worldport_native_before_disconnect_like_cpp<H: WorldportHostLikeCpp>(
     host: &mut H,
+    resurrection_catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
+) -> bool {
+    if host.player_guid().is_none() {
+        return true;
+    }
+    let mut observed_transfers = Vec::new();
+    loop {
+        let Some(state) = host.hub_ref().player_teleport_state_snapshot_like_cpp() else {
+            return false;
+        };
+        if transfer_is_pending(&state) {
+            let Some(identity) = transfer_identity(host, state) else {
+                return false;
+            };
+            if observed_transfers.contains(&identity) {
+                return false;
+            }
+            observed_transfers.push(identity);
+        }
+
+        if !finish_worldport_native_one_pass(host, Some(resurrection_catalogs)).await {
+            return false;
+        }
+        let Some(state) = host.hub_ref().player_teleport_state_snapshot_like_cpp() else {
+            return false;
+        };
+        if !transfer_is_pending(&state) {
+            return true;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum WorldportNativeOutcome {
+    Complete,
+    TransferPending,
+    Unavailable,
+}
+
+/// The registered client-ACK path completes the current entry exactly once.
+/// Delayed recovery may admit another far transfer; the caller must then wait
+/// for that transfer's own ACK before publishing readiness or saving again.
+pub(super) async fn finish_worldport_after_ack<H: WorldportHostLikeCpp>(
+    host: &mut H,
+    resurrection_catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
+) -> WorldportNativeOutcome {
+    if !finish_worldport_native_one_pass(host, Some(resurrection_catalogs)).await {
+        return WorldportNativeOutcome::Unavailable;
+    }
+    let Some(state) = host.hub_ref().player_teleport_state_snapshot_like_cpp() else {
+        return WorldportNativeOutcome::Unavailable;
+    };
+    if transfer_is_pending(&state) || state.post_add.is_some() {
+        WorldportNativeOutcome::TransferPending
+    } else {
+        WorldportNativeOutcome::Complete
+    }
+}
+
+/// Legacy finalization call sites without catalog ownership may complete native
+/// transfer work only when no resurrection continuation is retained.
+pub async fn finish_worldport_native_without_resurrection_catalogs<H: WorldportHostLikeCpp>(
+    host: &mut H,
+) -> bool {
+    finish_worldport_native_one_pass(host, None).await
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct TransferIdentity {
+    state: wow_entities::PlayerTeleportStateLikeCpp,
+    location: (u32, Position),
+}
+
+fn transfer_is_pending(state: &wow_entities::PlayerTeleportStateLikeCpp) -> bool {
+    state.far_pending && state.recovery != wow_entities::PlayerTransferRecovery::Terminal
+}
+
+fn transfer_identity<H: WorldportHostLikeCpp>(
+    host: &H,
+    state: wow_entities::PlayerTeleportStateLikeCpp,
+) -> Option<TransferIdentity> {
+    host.core()
+        .with_owned_player_like_cpp(|player| TransferIdentity {
+            state,
+            location: (
+                player.unit().world().map_id(),
+                player.unit().world().position(),
+            ),
+        })
+}
+
+async fn finish_worldport_native_one_pass<H: WorldportHostLikeCpp>(
+    host: &mut H,
+    resurrection_catalogs: Option<wow_world_entities::ResurrectionOperationCatalogs<'_>>,
 ) -> bool {
     if host.player_guid().is_none() {
         return true;
@@ -53,7 +149,13 @@ pub fn finish_worldport_native_before_disconnect_like_cpp<H: WorldportHostLikeCp
         }
     }
     let Some(progress) = state.post_add else {
-        return true;
+        return match resurrection_catalogs {
+            Some(catalogs) => {
+                wow_world_entities::continue_player_resurrection_after_teleport(host, catalogs)
+                    .await
+            }
+            None => !wow_world_entities::player_resurrection_continuation_pending(host),
+        };
     };
     if !host
         .core()
@@ -62,6 +164,11 @@ pub fn finish_worldport_native_before_disconnect_like_cpp<H: WorldportHostLikeCp
                 && player.unit().world().position() == progress.position
         })
         .unwrap_or(false)
+    {
+        return false;
+    }
+    if resurrection_catalogs.is_some()
+        && !wow_world_entities::mark_player_resurrection_teleport_completed(host)
     {
         return false;
     }
@@ -85,12 +192,32 @@ pub fn finish_worldport_native_before_disconnect_like_cpp<H: WorldportHostLikeCp
         }
     }
     wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(host);
-    wow_world_entities::process_represented_delayed_resurrection_after_teleport_like_cpp(host);
-    host.core()
+    // C++ completes its native post-add phases before ProcessDelayedOperations.
+    // The Player-owned resurrection continuation may now request a canonical
+    // save, whose transfer gate requires post_add to be cleared. Zone, scaling
+    // and pet recovery are already complete; clearing this phase does not skip
+    // any native work.
+    if host
+        .core()
         .with_owned_player_mut_like_cpp(|player| {
             player.teleport_state_mut_like_cpp().post_add = None;
         })
-        .is_some()
+        .is_none()
+    {
+        return false;
+    }
+    if let Some(catalogs) = resurrection_catalogs {
+        if !wow_world_entities::process_represented_delayed_resurrection_after_teleport_like_cpp(
+            host, catalogs,
+        )
+        .await
+        {
+            return false;
+        }
+    } else if wow_world_entities::player_resurrection_continuation_pending(host) {
+        return false;
+    }
+    true
 }
 
 /// C++ LogoutPlayer completes a pending far transfer without waiting for a client ACK.

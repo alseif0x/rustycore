@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "scenarios_spell_state_13/self_resurrection.rs"]
+mod self_resurrection;
+
 #[tokio::test]
 async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
     let (mut session, _, send_rx) = make_session();
@@ -82,11 +85,7 @@ async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
         .collect();
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::DuelRequested,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::DuelRequested,]
     );
     assert_eq!(
         drain_server_opcodes(&target_send_rx),
@@ -207,10 +206,7 @@ async fn spell_duel_effect_ignores_target_already_dueling_like_cpp() {
         .expect("represented EffectDuel target-with-duel should execute as C++ no-op");
 
     assert!(session.represented_duel_requests_like_cpp().is_empty());
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     assert_eq!(
         session.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
             player.duel_info_like_cpp()
@@ -267,10 +263,7 @@ async fn spell_modify_cooldown_effect_adjusts_trigger_spell_history_like_cpp() {
         .flatten()
         .expect("trigger spell cooldown should remain after a -2s delta");
     assert_eq!(cooldown.cooldown_end_ms, now_ms + 28_000);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_modify_charges_effect_restores_consumed_charges_like_cpp() {
@@ -317,195 +310,22 @@ async fn spell_modify_charges_effect_restores_consumed_charges_like_cpp() {
         })
         .unwrap();
     assert_eq!(consumed, 1);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
-async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
-    let (mut session, _, send_rx) = make_session();
-    let spell_id = 780_i32;
-    let player_guid = ObjectGuid::create_player(1, 780);
-    configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 0, 100);
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(
-        spell_id,
-        wow_data::SpellInfo {
-            spell_id,
-            cast_time_ms: 0,
-            cooldown_ms: 0,
-            recovery_time_ms: 0,
-            effect_type: 0,
-            effect_base_points: 0,
-            effect_bonus_coefficient: 0.0,
-            aura_type: None,
-            display_flags: 0,
-            requires_spell_focus: 0,
-            power_costs: Vec::new(),
-            effects: vec![wow_data::SpellEffectInfo {
-                effect_index: 0,
-                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
-                effect_base_points: -35,
-                effect_misc_value_1: 77,
-                ..Default::default()
-            }],
-        },
-    );
-    session.set_spell_store(Arc::new(spell_store));
-
-    session
-        .execute_spell(spell_id, player_guid)
-        .await
-        .expect("represented self-resurrect flat effect should execute");
-
-    assert!(session.player_is_alive_like_cpp());
-    assert_eq!(session.player_health_like_cpp(), 35);
-    let powers = session
-        .mutate_canonical_player_like_cpp(|player| {
-            (
-                player.unit().data().health,
-                player.get_power(PowerType::Mana),
-                player.get_power(PowerType::Rage),
-                player.get_power(PowerType::Energy),
-                player.get_power(PowerType::Focus),
-            )
-        })
-        .unwrap();
-    assert_eq!(powers, (35, 77, 0, 100, 0));
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
-        ]
-    );
-}
-#[tokio::test]
-async fn spell_self_resurrect_percent_case_uses_max_health_and_mana_like_cpp() {
-    let (mut session, _, send_rx) = make_session();
-    let spell_id = 781_i32;
-    let player_guid = ObjectGuid::create_player(1, 781);
-    configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 0, 400);
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(
-        spell_id,
-        wow_data::SpellInfo {
-            spell_id,
-            cast_time_ms: 0,
-            cooldown_ms: 0,
-            recovery_time_ms: 0,
-            effect_type: 0,
-            effect_base_points: 0,
-            effect_bonus_coefficient: 0.0,
-            aura_type: None,
-            display_flags: 0,
-            requires_spell_focus: 0,
-            power_costs: Vec::new(),
-            effects: vec![wow_data::SpellEffectInfo {
-                effect_index: 0,
-                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
-                effect_base_points: 25,
-                effect_misc_value_1: 999,
-                ..Default::default()
-            }],
-        },
-    );
-    session.set_spell_store(Arc::new(spell_store));
-
-    session
-        .execute_spell(spell_id, player_guid)
-        .await
-        .expect("represented self-resurrect percent effect should execute");
-
-    assert!(session.player_is_alive_like_cpp());
-    assert_eq!(session.player_health_like_cpp(), 100);
-    let powers = session
-        .mutate_canonical_player_like_cpp(|player| {
-            (
-                player.unit().data().health,
-                player.get_power(PowerType::Mana),
-                player.get_power(PowerType::Rage),
-                player.get_power(PowerType::Energy),
-                player.get_power(PowerType::Focus),
-            )
-        })
-        .unwrap();
-    assert_eq!(powers, (100, 50, 0, 100, 0));
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
-        ]
-    );
-}
-#[tokio::test]
-async fn spell_self_resurrect_skips_alive_player_like_cpp() {
-    let (mut session, _, send_rx) = make_session();
-    let spell_id = 782_i32;
-    let player_guid = ObjectGuid::create_player(1, 782);
-    configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 40, 100);
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(
-        spell_id,
-        wow_data::SpellInfo {
-            spell_id,
-            cast_time_ms: 0,
-            cooldown_ms: 0,
-            recovery_time_ms: 0,
-            effect_type: 0,
-            effect_base_points: 0,
-            effect_bonus_coefficient: 0.0,
-            aura_type: None,
-            display_flags: 0,
-            requires_spell_focus: 0,
-            power_costs: Vec::new(),
-            effects: vec![wow_data::SpellEffectInfo {
-                effect_index: 0,
-                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
-                effect_base_points: -35,
-                effect_misc_value_1: 77,
-                ..Default::default()
-            }],
-        },
-    );
-    session.set_spell_store(Arc::new(spell_store));
-
-    session
-        .execute_spell(spell_id, player_guid)
-        .await
-        .expect("alive player self-resurrect should be a C++ no-op");
-
-    assert!(session.player_is_alive_like_cpp());
-    assert_eq!(session.player_health_like_cpp(), 40);
-    let powers = session
-        .mutate_canonical_player_like_cpp(|player| {
-            (
-                player.unit().data().health,
-                player.get_power(PowerType::Mana),
-                player.get_power(PowerType::Rage),
-                player.get_power(PowerType::Energy),
-                player.get_power(PowerType::Focus),
-            )
-        })
-        .unwrap();
-    assert_eq!(powers, (40, 25, 50, 30, 40));
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
-}
-#[tokio::test]
-async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
+async fn spell_stuck_teleports_home_and_ignores_hearthstone_cooldown_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 0]));
     let spell_id = 783_i32;
     let player_guid = ObjectGuid::create_player(1, 783);
+    let canonical = shared_canonical_map_manager();
     let start = Position::new(10.0, 20.0, 30.0, 1.0);
     let home = Position::new(100.0, 200.0, 40.0, 2.0);
+    let current_cast_spell = 61_783;
+    let current_cast =
+        wow_entities::CurrentSpellRef::new(current_cast_spell, Some(player_guid), None)
+            .with_cast_time_ms(10_000);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "StuckHome".to_string(),
@@ -516,13 +336,39 @@ async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
         80,
         0,
     ));
+    add_canonical_test_player_on_map(&canonical, player_guid, start, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_health_like_cpp(100, 100);
-    let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
-        map_id: 0,
-        area_id: 12,
-        position: home,
+    assert!(
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 0,
+            area_id: 12,
+            position: home,
+        })
+    );
+    set_stuck_spell_store_like_cpp(&mut session, spell_id, false, 0);
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    session.set_active_spell_cast_like_cpp(Some(wow_entities::SpellCastState {
+        spell_id: i32::try_from(current_cast_spell).expect("fixed fixture spell ID fits i32"),
+        target_guid: player_guid,
+        target_data: wow_entities::SpellCastTargetsLikeCpp::default(),
+        cast_id: ObjectGuid::EMPTY,
+        cast_start_time: Instant::now(),
+        cast_time_ms: 10_000,
+        spell_visual: wow_entities::SpellCastVisualLikeCpp::default(),
+        metadata: wow_entities::SpellCastMetadata::default(),
+    }));
+    session.mutate_canonical_player_like_cpp(|player| {
+        player
+            .unit_mut()
+            .set_current_cast_spell(wow_entities::CurrentSpellSlot::Generic, current_cast);
     });
-    set_stuck_spell_store_like_cpp(&mut session, spell_id);
+    crate::native_death_test_fixtures::prepare(&mut session);
+    let hearthstone_cooldown_before = session
+        .with_owned_player_like_cpp(|player| {
+            player.unit().subsystems().spells.history.cooldown(8690)
+        })
+        .expect("canonical Player history");
 
     session
         .execute_spell(spell_id, player_guid)
@@ -530,23 +376,64 @@ async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
         .expect("represented stuck spell should execute");
 
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, home)));
-    assert!(
+    assert_eq!(
         session
-            .spell_last_cast_time_like_cpp(8690)
-            .flatten()
-            .is_some(),
-        "C++ EffectStuck starts Hearthstone cooldown after successful home teleport"
+            .with_owned_player_like_cpp(|player| {
+                player.unit().subsystems().spells.history.cooldown(8690)
+            })
+            .expect("canonical Player history"),
+        hearthstone_cooldown_before,
+        "C++ EffectStuck's FULLMASK Hearthstone cast does not mutate SpellHistory"
     );
     assert_eq!(
-        drain_server_opcodes(&send_rx),
+        session
+            .active_spell_cast_snapshot_like_cpp()
+            .map(|cast| cast.spell_id),
+        Some(i32::try_from(current_cast_spell).expect("fixed fixture spell ID fits i32")),
+        "C++ TELE_TO_SPELL preserves an in-progress non-melee cast"
+    );
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .current_spell(wow_entities::CurrentSpellSlot::Generic)
+        }),
+        Some(Some(current_cast)),
+        "C++ TELE_TO_SPELL preserves the native casting operation"
+    );
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes: Vec<_> = packets
+        .iter()
+        .map(|packet| {
+            wow_packet::WorldPacket::from_bytes(packet)
+                .server_opcode()
+                .expect("server opcode")
+        })
+        .collect();
+    assert_eq!(
+        opcodes,
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::CancelCombat,
             ServerOpcodes::TransferPending,
             ServerOpcodes::SuspendToken,
-            ServerOpcodes::CooldownEvent,
-            ServerOpcodes::CooldownEvent,
         ]
+    );
+    let cooldown_spell_ids: Vec<_> = packets
+        .iter()
+        .filter(|packet| {
+            wow_packet::WorldPacket::from_bytes(packet).server_opcode()
+                == Some(ServerOpcodes::CooldownEvent)
+        })
+        .map(|packet| {
+            let mut packet = wow_packet::WorldPacket::from_bytes(packet);
+            packet.read_uint16().expect("opcode");
+            packet.read_int32().expect("cooldown spell id")
+        })
+        .collect();
+    assert!(
+        cooldown_spell_ids.is_empty(),
+        "normal Stuck completion and FULLMASK Hearthstone emit no CooldownEvent"
     );
 }
 #[test]
@@ -679,7 +566,7 @@ async fn first_login_cast_spells_use_player_create_mode_before_other_first_login
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+        vec![ServerOpcodes::SpellGo],
         "first-login cast spells execute through the represented spell path before explored/reputation branches"
     );
 }

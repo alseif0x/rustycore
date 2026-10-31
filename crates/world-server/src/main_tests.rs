@@ -180,16 +180,18 @@ fn player_registration_fixture_like_cpp(
     player_name: &str,
 ) -> PlayerSessionRegistrationLikeCpp {
     PlayerSessionRegistrationLikeCpp {
-        identity: PlayerDirectoryIdentityLikeCpp {
-            player_name: player_name.to_string(),
-            account_id: 1,
-            battlenet_account_id: 0,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            active_expansion: 2,
-        },
+        identity: PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+            player_name,
+            1,
+            0,
+            0,
+            1,
+            1,
+            0,
+            2,
+            "enUS",
+            None,
+        ),
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
@@ -615,6 +617,7 @@ fn game_event_npc_flag_template_store_like_cpp() -> wow_data::CreatureTemplateLi
             flags_extra: wow_constants::creature::CreatureFlagsExtra::WORLDEVENT.bits(),
             string_id: String::new(),
             regen_health: true,
+            base_variance: 0.0,
             spells: [0; wow_data::MAX_CREATURE_SPELLS_LIKE_CPP],
             models: Vec::new(),
         },
@@ -1031,6 +1034,7 @@ fn variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_l
                     flags_extra: 0,
                     string_id: String::new(),
                     regen_health: true,
+                    base_variance: 0.0,
                     spells: [0; 8],
                     models: vec![wow_data::CreatureTemplateLifecycleModelLikeCpp {
                         creature_display_id: 111,

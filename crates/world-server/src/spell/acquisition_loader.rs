@@ -35,19 +35,21 @@ use wow_data::{
     SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionDiagnosticSeverityLikeCpp,
     SpellAcquisitionIndeterminateReasonLikeCpp, SpellAcquisitionTalentLookupLikeCpp,
     SpellAreaStoreLikeCpp, SpellAuraRestrictionsEntry, SpellAuraRestrictionsStore,
-    SpellCastingRequirementsEntry, SpellCastingRequirementsStore, SpellChainStoreLikeCpp,
-    SpellCustomAttributeKeyLikeCpp, SpellCustomAttributeLoadErrorKindLikeCpp,
-    SpellCustomAttributeSourceVariantLikeCpp, SpellCustomAttributeStoreLikeCpp,
-    SpellEquippedItemsEntry, SpellEquippedItemsStore, SpellLearnSkillEffectLikeCpp,
-    SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp,
-    SpellLearnSkillStoreLikeCpp, SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
-    SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore,
-    SpellStore, wdc4::Wdc4Reader,
+    SpellCastCostStoreLikeCpp, SpellCastingRequirementsEntry, SpellCastingRequirementsStore,
+    SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
+    SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellEquippedItemsEntry, SpellEquippedItemsStore,
+    SpellLearnSkillEffectLikeCpp, SpellLearnSkillIndeterminateReasonLikeCpp,
+    SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
+    SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp, SpellLearnSpellEntry,
+    SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
+    SpellPetAuraStoreLikeCpp, SpellReagentsCurrencyEntry, SpellReagentsCurrencyStore,
+    SpellReagentsEntry, SpellReagentsStore, SpellStore, wdc4::Wdc4Reader,
 };
 use wow_persistence::{
     SpellAcquisitionHotfixPersistenceRowLikeCpp, SpellAcquisitionHotfixTablePersistenceLikeCpp,
     SpellAcquisitionStartupLoadOutcomeLikeCpp, SpellAcquisitionStartupPersistencePortLikeCpp,
+    SpellReagentsCurrencyPersistenceRowLikeCpp,
 };
 
 struct SpellAcquisitionSqlOverlaySourceBridgeLikeCpp<'a> {
@@ -388,6 +390,7 @@ pub(crate) struct TrainerSpellStaticAuthorityLikeCpp {
     pub(crate) spell_script_all_rank_root_spell_ids: BTreeSet<u32>,
     /// C++ `spell_scripts.id & 0x00FF_FFFF` bindings.
     pub(crate) legacy_spell_script_spell_ids: BTreeSet<u32>,
+    pub(crate) cast_cost_store: SpellCastCostStoreLikeCpp,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -571,10 +574,11 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
         .into_iter()
         .filter_map(|id| id.checked_abs().and_then(|id| u32::try_from(id).ok()))
         .collect::<BTreeSet<_>>();
-    let effective_reagents =
-        load_effective_spell_reagents_like_cpp(data_dir, locale, persistence, removals)
+    let cast_cost_store =
+        load_effective_spell_cast_costs_like_cpp(data_dir, locale, persistence, removals)
             .await
-            .context("Failed to compose effective trainer craft reagents")?;
+            .context("Failed to compose effective spell reagent and currency costs")?;
+    let trainer_reagents = cast_cost_store.trainer_reagent_ids_like_cpp();
 
     let mut safe_cast_spell_ids = BTreeSet::new();
     for (spell_id, difficulty_id) in spell_store.spell_info_keys_in_order_like_cpp() {
@@ -691,7 +695,7 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
     }
     let valid_craft_spell_ids = derive_valid_craft_spell_ids_like_cpp(
         &effective_effects_by_spell,
-        &effective_reagents,
+        &trainer_reagents,
         item_exists,
     );
 
@@ -701,28 +705,32 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
         spell_script_exact_spell_ids: script_bindings.exact_spell_ids,
         spell_script_all_rank_root_spell_ids: script_bindings.all_rank_root_spell_ids,
         legacy_spell_script_spell_ids: legacy_scripts,
+        cast_cost_store,
     })
 }
 
-async fn load_effective_spell_reagents_like_cpp(
+async fn load_effective_spell_cast_costs_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SpellAcquisitionStartupPersistencePortLikeCpp,
     removals: &Db2HotfixRemovalStoreLikeCpp,
-) -> Result<BTreeMap<u32, [i32; 8]>> {
-    let db2_path = Path::new(data_dir)
+) -> Result<SpellCastCostStoreLikeCpp> {
+    let reagent_path = Path::new(data_dir)
         .join("dbc")
         .join(locale)
         .join("SpellReagents.db2");
-    let table_hash = Wdc4Reader::open(&db2_path)
-        .with_context(|| format!("failed to read table hash from {}", db2_path.display()))?
+    let reagent_hash = Wdc4Reader::open(&reagent_path)
+        .with_context(|| format!("failed to read table hash from {}", reagent_path.display()))?
         .table_hash();
-    let store =
+    let reagent_store =
         SpellReagentsStore::load(data_dir, locale).context("failed to load SpellReagents.db2")?;
-    let base_rows = store.entries_like_cpp().cloned().collect::<Vec<_>>();
-    let mut overlay_batches = [Vec::new(), Vec::new()];
+    let reagent_base = reagent_store
+        .entries_like_cpp()
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut reagent_overlays = [Vec::new(), Vec::new()];
     for (batch_index, official) in [true, false].into_iter().enumerate() {
-        overlay_batches[batch_index] = loaded_startup_like_cpp(
+        reagent_overlays[batch_index] = loaded_startup_like_cpp(
             persistence
                 .load_spell_reagents_overlay_like_cpp(official)
                 .await,
@@ -736,55 +744,63 @@ async fn load_effective_spell_reagents_like_cpp(
         })
         .collect();
     }
-    let [official_rows, custom_rows] = overlay_batches;
-    let removed_record_ids = removals
+    let [reagent_official, reagent_custom] = reagent_overlays;
+    let removed_reagent_ids = removals
         .removed_records_in_order_like_cpp()
         .into_iter()
         .filter_map(|(removed_table_hash, record_id)| {
-            (removed_table_hash == table_hash).then_some(record_id)
+            (removed_table_hash == reagent_hash).then_some(record_id)
         });
-    Ok(compose_effective_spell_reagents_like_cpp(
-        base_rows,
-        official_rows,
-        custom_rows,
-        removed_record_ids,
-    ))
-}
-
-fn compose_effective_spell_reagents_like_cpp(
-    base_rows: impl IntoIterator<Item = SpellReagentsEntry>,
-    official_rows: impl IntoIterator<Item = SpellReagentsEntry>,
-    custom_rows: impl IntoIterator<Item = SpellReagentsEntry>,
-    removed_record_ids: impl IntoIterator<Item = i32>,
-) -> BTreeMap<u32, [i32; 8]> {
-    let mut rows_by_record_id = BTreeMap::new();
-    for row in base_rows {
-        rows_by_record_id.insert(row.id, row);
+    let currency_path = Path::new(data_dir)
+        .join("dbc")
+        .join(locale)
+        .join("SpellReagentsCurrency.db2");
+    let currency_hash = Wdc4Reader::open(&currency_path)
+        .with_context(|| format!("failed to read table hash from {}", currency_path.display()))?
+        .table_hash();
+    let currency_store = SpellReagentsCurrencyStore::load(data_dir, locale)
+        .context("failed to load SpellReagentsCurrency.db2")?;
+    let currency_base = currency_store
+        .entries_like_cpp()
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut currency_overlays = [Vec::new(), Vec::new()];
+    for (batch_index, official) in [true, false].into_iter().enumerate() {
+        currency_overlays[batch_index] = loaded_startup_like_cpp(
+            persistence
+                .load_spell_reagents_currency_overlay_like_cpp(official)
+                .await,
+        )?
+        .into_iter()
+        .map(
+            |row: SpellReagentsCurrencyPersistenceRowLikeCpp| SpellReagentsCurrencyEntry {
+                id: row.id,
+                spell_id: row.spell_id,
+                currency_types_id: row.currency_types_id,
+                currency_count: row.currency_count,
+            },
+        )
+        .collect();
     }
-    for row in official_rows {
-        rows_by_record_id.insert(row.id, row);
-    }
-    for row in custom_rows {
-        rows_by_record_id.insert(row.id, row);
-    }
-    let removed_record_ids = removed_record_ids.into_iter().collect::<BTreeSet<_>>();
-    rows_by_record_id.retain(|record_id, _| {
-        i32::try_from(*record_id)
-            .ok()
-            .is_some_and(|record_id| !removed_record_ids.contains(&record_id))
-    });
-
-    let mut reagents_by_spell_id = BTreeMap::new();
-    for row in rows_by_record_id.into_values() {
-        if let Ok(spell_id) = u32::try_from(row.spell_id)
-            && spell_id != 0
-        {
-            // C++ iterates DB2 storage and assigns the relation; retaining
-            // record-ID order preserves its last-record-wins duplicate shape.
-            reagents_by_spell_id.insert(spell_id, row.reagent);
-        }
-    }
-    reagents_by_spell_id
+    let [currency_official, currency_custom] = currency_overlays;
+    let removed_currency_ids = removals
+        .removed_records_in_order_like_cpp()
+        .into_iter()
+        .filter_map(|(removed_table_hash, record_id)| {
+            (removed_table_hash == currency_hash).then_some(record_id)
+        });
+    Ok(
+        SpellCastCostStoreLikeCpp::from_effective_rows_and_removals_like_cpp(
+            reagent_base,
+            reagent_official,
+            reagent_custom,
+            removed_reagent_ids,
+            currency_base,
+            currency_official,
+            currency_custom,
+            removed_currency_ids,
+        ),
+    )
 }
 
 fn derive_valid_craft_spell_ids_like_cpp(
@@ -897,6 +913,25 @@ fn derive_valid_craft_spell_ids_like_cpp(
             )
         })
         .collect()
+}
+
+fn compose_effective_spell_reagents_like_cpp(
+    base_rows: impl IntoIterator<Item = SpellReagentsEntry>,
+    official_rows: impl IntoIterator<Item = SpellReagentsEntry>,
+    custom_rows: impl IntoIterator<Item = SpellReagentsEntry>,
+    removed_record_ids: impl IntoIterator<Item = i32>,
+) -> BTreeMap<u32, [i32; 8]> {
+    SpellCastCostStoreLikeCpp::from_effective_rows_and_removals_like_cpp(
+        base_rows,
+        official_rows,
+        custom_rows,
+        removed_record_ids,
+        [],
+        [],
+        [],
+        [],
+    )
+    .trainer_reagent_ids_like_cpp()
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -6,6 +6,10 @@ use std::collections::BTreeMap;
 use wow_constants::shared::DifficultyFlags;
 use wow_data::DifficultyEntry;
 
+mod selected_keys;
+
+pub use selected_keys::canonical_spell_store;
+
 pub fn difficulty_entry(id: u32, instance_type: u8, flags: DifficultyFlags) -> DifficultyEntry {
     DifficultyEntry {
         id,

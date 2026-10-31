@@ -32,18 +32,19 @@ use tracing::{error, warn};
 use super::map_tick::CanonicalMapSessionPassMapLikeCpp;
 use wow_world::session::directory::PlayerRegistry;
 use wow_world::session::mailbox::{
-    MapPhaseAdmissionLikeCpp, RunMapPhasePassLikeCppCommand, SessionPhasePassOutcomeLikeCpp,
-    SessionPhasePermitLikeCpp, SessionPhaseRequestLikeCpp, SessionPhaseRevokeLikeCpp,
+    MapPhaseAdmissionLikeCpp, PlayerRecoveryStatus, RunMapPhasePassLikeCppCommand,
+    RunPlayerRecoveryRequest, SessionPhasePassOutcomeLikeCpp, SessionPhasePermitLikeCpp,
+    SessionPhaseRequestLikeCpp, SessionPhaseRevokeLikeCpp,
 };
 
 /// What one tick's session phase actually achieved.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct MapSessionPassSummaryLikeCpp {
-    /// Sessions the tick intended to drive, in map membership order.
+    /// Session passes the tick intended to drive, in producer admission order.
     pub(crate) participants: usize,
     /// Requests the control channel accepted.
     pub(crate) requested: usize,
-    /// Sessions that reported a completed map pass for this tick.
+    /// Passes that reached a completed boundary.
     pub(crate) completed: usize,
     /// Packets those passes dispatched.
     pub(crate) dispatched: usize,
@@ -64,6 +65,9 @@ pub(crate) struct MapSessionPassSummaryLikeCpp {
     /// Passes that were claimed and whose end this tick could not observe. The
     /// tick may not resume: mutations of this map may still be running.
     pub(crate) unresolved_after_start: usize,
+    /// At least one completed Player pass found the session unavailable, so
+    /// this tick's Creature/P3 tail must be abandoned after the pass barrier.
+    pub(crate) blocks_tick_tail: bool,
     /// How long the coordinator waited past its deadline for a claimed pass.
     pub(crate) stalled_ms: u64,
     /// The permits of the passes whose effects were never accounted for.
@@ -148,6 +152,15 @@ pub(crate) async fn run_map_phase_session_passes_like_cpp(
                 &permit,
                 &response_rx,
                 ack_timeout,
+                |reply: &wow_world::session::mailbox::RunMapPhasePassResultLikeCpp| {
+                    Some(PassReply {
+                        tick_epoch: reply.tick_epoch,
+                        outcome: reply.outcome,
+                        dispatched: reply.dispatched,
+                        stopped_at_ineligible_head: reply.stopped_at_ineligible_head,
+                        blocks_tick_tail: false,
+                    })
+                },
             )
             .await;
 
@@ -172,22 +185,160 @@ pub(crate) async fn run_map_phase_session_passes_like_cpp(
     summary
 }
 
+/// Run the admitted Player timer passes serially within each Map, after its
+/// respawn prelude and before the Map tick continuation.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn run_player_recovery_passes(
+    participants: &[CanonicalMapSessionPassMapLikeCpp],
+    player_registry: &PlayerRegistry,
+    coordinator_id: u64,
+    tick_epoch: u64,
+    map_tick_epoch: u64,
+    diff_ms: u32,
+    unix_time_ns: u128,
+    ack_timeout: Duration,
+) -> MapSessionPassSummaryLikeCpp {
+    let mut summary = MapSessionPassSummaryLikeCpp::default();
+
+    for admitted_map in participants {
+        for participant in &admitted_map.participants {
+            summary.participants = summary.participants.saturating_add(1);
+            let Some(address) = player_registry.session_phase_address_like_cpp(participant.guid)
+            else {
+                summary.unaddressable = summary.unaddressable.saturating_add(1);
+                continue;
+            };
+
+            let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+            let (response_tx, response_rx) = flume::bounded(1);
+            let request = SessionPhaseRequestLikeCpp::PlayerRecovery(RunPlayerRecoveryRequest {
+                admission: wow_world::session::mailbox::PlayerRecoveryAdmission {
+                    coordinator_id,
+                    tick_epoch,
+                    map_tick_epoch,
+                    registration: address.registration(),
+                    handle: participant.handle,
+                    map_key: admitted_map.key,
+                    map_incarnation: admitted_map.incarnation,
+                    residence_revision: participant.residence_revision,
+                    diff_ms,
+                    unix_time_ns,
+                },
+                permit: Arc::clone(&permit),
+                response_tx,
+            });
+            if address.try_send(request).is_err() {
+                permit.revoke_before_start_like_cpp();
+                summary.send_failed = summary.send_failed.saturating_add(1);
+                continue;
+            }
+            summary.requested = summary.requested.saturating_add(1);
+
+            let reply = await_one_admitted_pass_like_cpp(
+                &mut summary,
+                admitted_map.key,
+                tick_epoch,
+                &permit,
+                &response_rx,
+                ack_timeout,
+                |reply: &wow_world::session::mailbox::PlayerRecoveryReply| {
+                    if reply.coordinator_id != coordinator_id
+                        || reply.tick_epoch != tick_epoch
+                        || reply.map_tick_epoch != map_tick_epoch
+                        || (reply.outcome == SessionPhasePassOutcomeLikeCpp::Ran
+                            && reply.status.is_none())
+                        || (reply.outcome != SessionPhasePassOutcomeLikeCpp::Ran
+                            && reply.status.is_some())
+                    {
+                        return None;
+                    }
+                    Some(PassReply {
+                        tick_epoch: reply.tick_epoch,
+                        outcome: reply.outcome,
+                        dispatched: 0,
+                        stopped_at_ineligible_head: false,
+                        blocks_tick_tail: reply.status == Some(PlayerRecoveryStatus::Unavailable),
+                    })
+                },
+            )
+            .await;
+            if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                if let Some(reply) = reply {
+                    if reply.status != Some(PlayerRecoveryStatus::Completed) {
+                        tracing::info!(
+                            map_id = admitted_map.key.map_id,
+                            instance_id = admitted_map.key.instance_id,
+                            tick_epoch,
+                            map_tick_epoch,
+                            diff_ms,
+                            status = ?reply.status,
+                            outcome = ?reply.outcome,
+                            "RUST_DEATH_TIMER player_recovery_reply"
+                        );
+                    }
+                }
+            }
+
+            if !summary.quiescent_like_cpp() {
+                error!(
+                    map_id = admitted_map.key.map_id,
+                    instance_id = admitted_map.key.instance_id,
+                    tick_epoch,
+                    remaining_participants = admitted_map.participants.len(),
+                    "Stopping Player recovery passes: an admitted pass left effects this tick cannot account for"
+                );
+                return summary;
+            }
+            if summary.blocks_tick_tail {
+                warn!(
+                    map_id = admitted_map.key.map_id,
+                    instance_id = admitted_map.key.instance_id,
+                    tick_epoch,
+                    "Stopping Player recovery passes after a terminal Unavailable result"
+                );
+                return summary;
+            }
+        }
+    }
+
+    summary
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct PassReply {
+    pub(super) tick_epoch: u64,
+    pub(super) outcome: SessionPhasePassOutcomeLikeCpp,
+    pub(super) dispatched: usize,
+    pub(super) stopped_at_ineligible_head: bool,
+    pub(super) blocks_tick_tail: bool,
+}
+
 /// Wait for one admitted pass to reach a state in which it has no live effect.
-async fn await_one_admitted_pass_like_cpp(
+pub(super) async fn await_one_admitted_pass_like_cpp<T, Project>(
     summary: &mut MapSessionPassSummaryLikeCpp,
     map_key: wow_map::MapKey,
     tick_epoch: u64,
     permit: &Arc<SessionPhasePermitLikeCpp>,
-    response_rx: &flume::Receiver<wow_world::session::mailbox::RunMapPhasePassResultLikeCpp>,
+    response_rx: &flume::Receiver<T>,
     ack_timeout: Duration,
-) {
+    project: Project,
+) -> Option<T>
+where
+    Project: Fn(&T) -> Option<PassReply>,
+{
     let started = Instant::now();
     let mut waited_past_deadline = false;
+    let mut reported = None;
 
     loop {
         match tokio::time::timeout(ack_timeout, response_rx.recv_async()).await {
             Ok(Ok(result)) => {
-                record_reported_outcome_like_cpp(summary, tick_epoch, permit, &result);
+                if let Some(result) = project(&result) {
+                    record_reported_outcome_like_cpp(summary, map_key, tick_epoch, permit, result);
+                } else {
+                    reject_untrusted_outcome(summary, map_key, tick_epoch, permit);
+                }
+                reported = Some(result);
                 break;
             }
             Ok(Err(_disconnected)) => {
@@ -255,41 +406,120 @@ async fn await_one_admitted_pass_like_cpp(
             .stalled_ms
             .saturating_add(u64::try_from(past_deadline.as_millis()).unwrap_or(u64::MAX));
     }
+    reported
 }
 
 fn record_reported_outcome_like_cpp(
     summary: &mut MapSessionPassSummaryLikeCpp,
+    map_key: wow_map::MapKey,
     tick_epoch: u64,
     permit: &Arc<SessionPhasePermitLikeCpp>,
-    result: &wow_world::session::mailbox::RunMapPhasePassResultLikeCpp,
+    result: PassReply,
 ) {
     if result.tick_epoch != tick_epoch {
         // A report for another tick says nothing about this one, and the
-        // request this coordinator sent has not been accounted for.
-        summary.unresolved_after_start = summary.unresolved_after_start.saturating_add(1);
-        summary.unresolved_permits.push(Arc::clone(permit));
+        // request this coordinator sent has not been accounted for. Revoke a
+        // still-pending delivery before abandoning this plan.
+        reject_untrusted_outcome(summary, map_key, tick_epoch, permit);
         return;
     }
-    match result.outcome {
-        SessionPhasePassOutcomeLikeCpp::Ran => {
+    use wow_world::session::mailbox::SessionPhasePermitStateLikeCpp as State;
+    match permit.state_like_cpp() {
+        State::Completed => {
             summary.completed = summary.completed.saturating_add(1);
-            summary.dispatched = summary.dispatched.saturating_add(result.dispatched);
-            if result.stopped_at_ineligible_head {
-                summary.stopped_at_ineligible_head =
-                    summary.stopped_at_ineligible_head.saturating_add(1);
+            if result.outcome == SessionPhasePassOutcomeLikeCpp::Ran {
+                summary.dispatched = summary.dispatched.saturating_add(result.dispatched);
+                if result.stopped_at_ineligible_head {
+                    summary.stopped_at_ineligible_head =
+                        summary.stopped_at_ineligible_head.saturating_add(1);
+                }
+                summary.blocks_tick_tail |= result.blocks_tick_tail;
             }
         }
-        SessionPhasePassOutcomeLikeCpp::RevokedBeforeStart => {
+        State::CompletedUnavailable => {
+            summary.completed = summary.completed.saturating_add(1);
+            summary.blocks_tick_tail = true;
+        }
+        State::RevokedBeforeStart => {
             summary.revoked_before_start = summary.revoked_before_start.saturating_add(1);
         }
-        SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart => {
+        State::RefusedBeforeStart => {
             summary.refused_before_start = summary.refused_before_start.saturating_add(1);
         }
-        SessionPhasePassOutcomeLikeCpp::AlreadyResolved => {
-            summary.unresolved_after_start = summary.unresolved_after_start.saturating_add(1);
-            summary.unresolved_permits.push(Arc::clone(permit));
+        State::Pending => match permit.revoke_before_start_like_cpp() {
+            SessionPhaseRevokeLikeCpp::Revoked => {
+                summary.revoked_before_start = summary.revoked_before_start.saturating_add(1);
+            }
+            SessionPhaseRevokeLikeCpp::AlreadyRunning => {
+                retain_unresolved_permit(summary, map_key, tick_epoch, permit);
+            }
+            SessionPhaseRevokeLikeCpp::AlreadyResolved(state) => {
+                record_resolved_state_like_cpp(summary, map_key, tick_epoch, permit, state);
+            }
+        },
+        State::Running | State::InterruptedAfterStart => {
+            retain_unresolved_permit(summary, map_key, tick_epoch, permit);
         }
     }
+}
+
+fn reject_untrusted_outcome(
+    summary: &mut MapSessionPassSummaryLikeCpp,
+    map_key: wow_map::MapKey,
+    tick_epoch: u64,
+    permit: &Arc<SessionPhasePermitLikeCpp>,
+) {
+    use wow_world::session::mailbox::{
+        SessionPhasePermitStateLikeCpp as State, SessionPhaseRevokeLikeCpp as Revoke,
+    };
+    match permit.state_like_cpp() {
+        State::Pending => match permit.revoke_before_start_like_cpp() {
+            Revoke::Revoked => {
+                summary.revoked_before_start = summary.revoked_before_start.saturating_add(1);
+                summary.blocks_tick_tail = true;
+            }
+            Revoke::AlreadyRunning => {
+                retain_unresolved_permit(summary, map_key, tick_epoch, permit)
+            }
+            Revoke::AlreadyResolved(state) => {
+                record_resolved_state_like_cpp(summary, map_key, tick_epoch, permit, state);
+                summary.blocks_tick_tail = true;
+            }
+        },
+        State::Running | State::InterruptedAfterStart => {
+            retain_unresolved_permit(summary, map_key, tick_epoch, permit);
+        }
+        State::Completed
+        | State::CompletedUnavailable
+        | State::RevokedBeforeStart
+        | State::RefusedBeforeStart => {
+            record_resolved_state_like_cpp(
+                summary,
+                map_key,
+                tick_epoch,
+                permit,
+                permit.state_like_cpp(),
+            );
+            summary.blocks_tick_tail = true;
+        }
+    }
+}
+
+fn retain_unresolved_permit(
+    summary: &mut MapSessionPassSummaryLikeCpp,
+    map_key: wow_map::MapKey,
+    tick_epoch: u64,
+    permit: &Arc<SessionPhasePermitLikeCpp>,
+) {
+    summary.unresolved_after_start = summary.unresolved_after_start.saturating_add(1);
+    summary.unresolved_permits.push(Arc::clone(permit));
+    error!(
+        map_id = map_key.map_id,
+        instance_id = map_key.instance_id,
+        tick_epoch,
+        state = ?permit.state_like_cpp(),
+        "A session phase reply arrived before its shared permit reached a terminal boundary"
+    );
 }
 
 fn record_resolved_state_like_cpp(
@@ -302,6 +532,10 @@ fn record_resolved_state_like_cpp(
     use wow_world::session::mailbox::SessionPhasePermitStateLikeCpp as State;
     match state {
         State::Completed => summary.completed = summary.completed.saturating_add(1),
+        State::CompletedUnavailable => {
+            summary.completed = summary.completed.saturating_add(1);
+            summary.blocks_tick_tail = true;
+        }
         State::RevokedBeforeStart => {
             summary.revoked_before_start = summary.revoked_before_start.saturating_add(1);
         }

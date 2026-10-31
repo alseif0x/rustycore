@@ -414,6 +414,11 @@ impl MapManager {
 
     pub fn retire_player_like_cpp(&mut self, handle: PlayerHandle) -> Option<Box<Player>> {
         let owner = self.current_player_owner_like_cpp(handle)?;
+        if self.with_player_like_cpp(handle, |player| {
+            player.has_unresolved_native_death_operation()
+        })? {
+            return None;
+        }
         if matches!(owner.residence, PlayerResidenceLikeCpp::Active(_))
             && self.detach_player_like_cpp(handle).is_err()
         {
@@ -455,6 +460,33 @@ mod tests {
             .create(ObjectGuid::create_player(1, counter));
         player.unit_mut().set_level(level);
         player
+    }
+
+    fn begin_native_death_operation(
+        manager: &mut MapManager,
+        handle: PlayerHandle,
+        in_flight: bool,
+    ) -> wow_entities::PlayerDeathOperationSnapshot {
+        manager
+            .with_player_mut_like_cpp(handle, |player| {
+                player.unit_mut().set_max_health(100);
+                player.unit_mut().set_health(100);
+                let id = player
+                    .begin_native_death_operation(wow_entities::PlayerDeathOperationContext::new(
+                        ObjectGuid::create_player(1, 90_099),
+                        true,
+                    ))
+                    .expect("living Player should admit native death operation");
+                if in_flight {
+                    player
+                        .claim_native_death_operation(id)
+                        .expect("ready operation should be claimable");
+                }
+                player
+                    .native_death_operation_snapshot()
+                    .expect("native death operation should remain on Player")
+            })
+            .expect("Player handle should resolve")
     }
 
     #[test]
@@ -510,6 +542,96 @@ mod tests {
         assert_eq!(
             manager.with_player_like_cpp(current, |player| player.unit().data().level),
             Some(11)
+        );
+    }
+
+    #[test]
+    fn unresolved_native_death_refuses_retirement_without_detaching_or_losing_owner() {
+        let key = MapKey::new(571, 0);
+        for in_flight in [false, true] {
+            let mut manager = MapManager::default();
+            manager.create_world_map(key.map_id, key.instance_id);
+            let handle = manager
+                .install_detached_player_like_cpp(detached_player(90_010, 24))
+                .unwrap();
+            manager
+                .attach_player_like_cpp(handle, key, Position::xyz(1.0, 2.0, 3.0))
+                .unwrap();
+            let operation = begin_native_death_operation(&mut manager, handle, in_flight);
+
+            assert_eq!(manager.retire_player_like_cpp(handle), None);
+            assert_eq!(
+                manager.player_residence_like_cpp(handle),
+                Some(PlayerResidenceLikeCpp::Active(key)),
+                "refusal must not detach the active Player"
+            );
+            assert_eq!(
+                manager.with_player_like_cpp(handle, |player| {
+                    (
+                        player.unit().data().level,
+                        player.native_death_operation_snapshot(),
+                    )
+                }),
+                Some((24, Some(operation))),
+                "the same owner token and operation must remain available"
+            );
+        }
+    }
+
+    #[test]
+    fn unresolved_native_death_refuses_same_guid_replacement_without_retiring_old_owner() {
+        let mut manager = MapManager::default();
+        let old = manager
+            .install_detached_player_like_cpp(detached_player(90_011, 25))
+            .unwrap();
+        let operation = begin_native_death_operation(&mut manager, old, false);
+
+        assert_eq!(
+            manager.install_detached_player_like_cpp(detached_player(90_011, 26)),
+            Err(PlayerOwnerError::ReplacementRetireFailed { guid: old.guid() })
+        );
+        assert_eq!(
+            manager.player_residence_like_cpp(old),
+            Some(PlayerResidenceLikeCpp::Detached)
+        );
+        assert_eq!(
+            manager.with_player_like_cpp(old, |player| {
+                (
+                    player.unit().data().level,
+                    player.native_death_operation_snapshot(),
+                )
+            }),
+            Some((25, Some(operation)))
+        );
+    }
+
+    #[test]
+    fn completed_native_death_operation_allows_player_retirement() {
+        let key = MapKey::new(571, 0);
+        let mut manager = MapManager::default();
+        manager.create_world_map(key.map_id, key.instance_id);
+        let handle = manager
+            .install_detached_player_like_cpp(detached_player(90_012, 26))
+            .unwrap();
+        manager
+            .attach_player_like_cpp(handle, key, Position::xyz(1.0, 2.0, 3.0))
+            .unwrap();
+        let operation = begin_native_death_operation(&mut manager, handle, true);
+        assert!(
+            manager.with_player_mut_like_cpp(handle, |player| {
+                player.complete_native_death_operation(operation.id())
+            }) == Some(true)
+        );
+
+        let retired = manager
+            .retire_player_like_cpp(handle)
+            .expect("complete operation should no longer fence retirement");
+        assert_eq!(manager.player_residence_like_cpp(handle), None);
+        assert_eq!(
+            retired
+                .native_death_operation_snapshot()
+                .map(|snapshot| snapshot.phase()),
+            Some(wow_entities::PlayerDeathOperationPhase::Complete)
         );
     }
 

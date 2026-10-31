@@ -11,10 +11,12 @@ use wow_core::ObjectGuid;
 
 pub const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
 
-pub fn apply_effect_environmental_damage_like_cpp<H: SpellEffectHostLikeCpp>(
+pub async fn apply_effect_environmental_damage_like_cpp<H: SpellEffectHostLikeCpp>(
     host: &mut H,
     effect: &wow_data::SpellEffectInfo,
     target_guid: ObjectGuid,
+    creature_spawns: &wow_world_entities::CreatureSpawnCatalogsLikeCpp,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) {
     if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE {
         return;
@@ -37,17 +39,18 @@ pub fn apply_effect_environmental_damage_like_cpp<H: SpellEffectHostLikeCpp>(
     }
 
     let damage = u32::try_from(effect.effect_base_points.max(0)).unwrap_or(0);
-    let Some((original_health, health_after, _, _, _)) = host
-        .hub_mut()
-        .apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)
+    let Ok(_) = crate::SpellClickHostLikeCpp::apply_native_player_damage_like_cpp(
+        host,
+        damage,
+        wow_entities::PlayerDeathOperationContext::new(player_guid, false),
+        creature_spawns,
+        item_guid_generator,
+    )
+    .await
     else {
         return;
     };
     host.sync_player_registry_state_like_cpp();
-    if health_after != original_health {
-        host.core()
-            .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
-    }
     host.core().send_environmental_damage_log_like_cpp(
         player_guid,
         DAMAGE_FIRE_LIKE_CPP,

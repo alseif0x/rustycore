@@ -15,6 +15,7 @@ pub mod battlemaster_list;
 pub mod character_progression;
 pub mod chr_specialization;
 pub mod condition_attachments;
+pub mod condition_presence;
 pub mod conditions;
 pub mod creature;
 pub mod currency;
@@ -119,6 +120,7 @@ pub use chr_specialization::{ChrSpecializationEntry, ChrSpecializationStore};
 pub use condition_attachments::{
     ConditionAttachmentReportLikeCpp, attach_loaded_conditions_like_cpp,
 };
+pub use condition_presence::{ConditionPresenceCatalog, ConditionPresenceCatalogFiles};
 pub use conditions::{
     Condition, ConditionContainer, ConditionEntriesByTypeStore, ConditionId, ConditionLoadReport,
     ConditionsByEntryMap, ConditionsReference,
@@ -449,14 +451,15 @@ pub use spell::{
     ServersideSpellLoadOutcomeLikeCpp, ServersideSpellRowLikeCpp, ServersideSpellStoreLikeCpp,
     SpellAreaLikeCpp, SpellAreaLoadErrorKindLikeCpp, SpellAreaLoadErrorLikeCpp,
     SpellAreaLoadOutcomeLikeCpp, SpellAreaRowLikeCpp, SpellAreaStoreLikeCpp,
-    SpellChainLoadDiagnosticLikeCpp, SpellChainLoadOutcomeLikeCpp, SpellChainLookupLikeCpp,
-    SpellChainNodeLikeCpp, SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
+    SpellCastCostStoreLikeCpp, SpellCategoryReadError, SpellChainLoadDiagnosticLikeCpp,
+    SpellChainLoadOutcomeLikeCpp, SpellChainLookupLikeCpp, SpellChainNodeLikeCpp,
+    SpellChainStoreLikeCpp, SpellCurrencyCostLikeCpp, SpellCustomAttributeKeyLikeCpp,
     SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeLoadErrorLikeCpp,
     SpellCustomAttributeLoadOutcomeLikeCpp, SpellCustomAttributeRowLikeCpp,
     SpellCustomAttributeSourceSpellInfoLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
-    SpellCustomAttributeStoreLikeCpp, SpellEffectInfo, SpellGroupLoadErrorKindLikeCpp,
-    SpellGroupLoadErrorLikeCpp, SpellGroupLoadOutcomeLikeCpp, SpellGroupRowLikeCpp,
-    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleLoadErrorKindLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellEffectInfo, SpellEffectPolarityMetadata,
+    SpellGroupLoadErrorKindLikeCpp, SpellGroupLoadErrorLikeCpp, SpellGroupLoadOutcomeLikeCpp,
+    SpellGroupRowLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleLoadErrorKindLikeCpp,
     SpellGroupStackRuleLoadErrorLikeCpp, SpellGroupStackRuleLoadOutcomeLikeCpp,
     SpellGroupStackRuleRowLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
     SpellHitMetadataLikeCpp, SpellInfo, SpellLearnSkillEffectLikeCpp,
@@ -477,12 +480,13 @@ pub use spell::{
     SpellPowerCostInfoLikeCpp, SpellPowerCostLikeCpp, SpellProcEntryLikeCpp, SpellProcKeyLikeCpp,
     SpellProcLoadErrorKindLikeCpp, SpellProcLoadErrorLikeCpp, SpellProcLoadOutcomeLikeCpp,
     SpellProcRowLikeCpp, SpellProcSourceSpellInfoLikeCpp, SpellProcStoreLikeCpp,
-    SpellRankEdgeLikeCpp, SpellRequiredLoadErrorKindLikeCpp, SpellRequiredLoadErrorLikeCpp,
-    SpellRequiredLoadOutcomeLikeCpp, SpellRequiredRowLikeCpp, SpellRequiredStoreLikeCpp,
-    SpellStore, SpellTargetPositionLikeCpp, SpellTargetPositionLoadReportLikeCpp,
-    SpellTargetPositionRowLikeCpp, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp,
-    SpellThreatLoadErrorLikeCpp, SpellThreatLoadOutcomeLikeCpp, SpellThreatRowLikeCpp,
-    SpellThreatStoreLikeCpp, SpellTotemModelLoadErrorKindLikeCpp, SpellTotemModelLoadErrorLikeCpp,
+    SpellRankEdgeLikeCpp, SpellReagentCostLikeCpp, SpellRequiredLoadErrorKindLikeCpp,
+    SpellRequiredLoadErrorLikeCpp, SpellRequiredLoadOutcomeLikeCpp, SpellRequiredRowLikeCpp,
+    SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionLikeCpp,
+    SpellTargetPositionLoadReportLikeCpp, SpellTargetPositionRowLikeCpp,
+    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatLoadErrorLikeCpp,
+    SpellThreatLoadOutcomeLikeCpp, SpellThreatRowLikeCpp, SpellThreatStoreLikeCpp,
+    SpellTotemModelLoadErrorKindLikeCpp, SpellTotemModelLoadErrorLikeCpp,
     SpellTotemModelLoadOutcomeLikeCpp, SpellTotemModelRowLikeCpp, SpellTotemModelStoreLikeCpp,
     TARGET_UNIT_PET_LIKE_CPP, TOTAL_AURAS_LIKE_CPP, TOTAL_SPELL_EFFECTS_LIKE_CPP,
     TOTAL_SPELL_TARGETS_LIKE_CPP, player_target_spell_effect_is_hit_inert_like_cpp,

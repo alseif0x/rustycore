@@ -55,6 +55,7 @@ async fn production_worldport_cannot_finish_with_incomplete_self_create() {
         addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
         equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
         power_types: Arc::new(PowerTypeStore::from_entries([])),
+        localized_names: Arc::new(Default::default()),
     };
     session
         .handle_world_port_response_with_catalogs_like_cpp(
@@ -124,6 +125,7 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
         addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
         equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
         power_types: Arc::new(PowerTypeStore::from_entries([])),
+        localized_names: Arc::new(Default::default()),
     };
     session
         .handle_world_port_response_with_catalogs_like_cpp(

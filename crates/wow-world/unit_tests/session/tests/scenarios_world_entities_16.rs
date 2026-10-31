@@ -552,6 +552,15 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
             );
         })
         .expect("canonical Player quest owner");
+    assert_eq!(
+        session
+            .core
+            .quest_objective_access_like_cpp()
+            .set_quest_slot_like_cpp(0, 9_223),
+        Some(true)
+    );
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -561,6 +570,10 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
             0,
         ))
         .await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     let quests = session
         .player_quest_gameplay_snapshot_like_cpp()
@@ -571,9 +584,9 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }

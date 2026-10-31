@@ -7,6 +7,46 @@ use crate::canonical_creature_fixtures::{self as fixtures, CanonicalCreatureFixt
 
 pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, slot: u8) {
     let player_guid = session.player_guid().expect("player guid");
+    // Callers may already own the Player before preparing a gossip menu.
+    if session.core.player_handle_like_cpp.is_none() {
+        assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    }
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.guid() == player_guid
+                    && player.unit().is_alive()
+                    && player.unit().data().health > 0
+                    && player.unit().data().max_health > 0
+                    && player.unit().data().faction_template > 0
+            })
+            .unwrap_or(false),
+        "Feign fixture needs an alive canonical Player with health and faction"
+    );
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(5384, 0)]);
+    spell_store.insert(
+        5384,
+        wow_data::SpellInfo {
+            spell_id: 5384,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(66),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: 66,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
     session
         .mutate_canonical_player_like_cpp(|player| {
             player
@@ -14,15 +54,14 @@ pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, 
                 .add_unit_state(wow_constants::unit::UnitState::DIED.bits());
         })
         .expect("canonical player");
-    session.fixtures.auras.visible_auras.insert(
-        slot,
-        AuraApplication {
+    assert!(
+        session.insert_player_visible_aura_like_cpp(AuraApplication {
             spell_id: 5384,
             difficulty_id: 0,
             caster_guid: player_guid,
             slot,
-            duration_total: 0,
-            duration_remaining: 0,
+            duration_total: -1,
+            duration_remaining: -1,
             stack_count: 1,
             aura_flags: 0,
             effect_mask: 1,
@@ -34,8 +73,9 @@ pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, 
             represented_misc_value: None,
             represented_multiplier: 1.0,
             applied_at: std::time::Instant::now(),
-        },
+        })
     );
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(session, true));
 }
 
 pub(super) fn canonical_player_has_died_state_like_cpp(session: &mut WorldSession) -> bool {
@@ -939,6 +979,7 @@ pub(super) fn enum_pet_template_store(
             flags_extra: 0,
             string_id: String::new(),
             regen_health: true,
+            base_variance: 0.0,
             spells: [0; wow_data::MAX_CREATURE_SPELLS_LIKE_CPP],
             models: Vec::new(),
         },

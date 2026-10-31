@@ -265,10 +265,16 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
     session
         .process_represented_session_commands_like_cpp()
         .await;
+    let attacker_state = send_rx
+        .try_recv()
+        .expect("the committed lethal hit presents its attacker-state update");
     assert_eq!(
-        send_rx.drain().count(),
-        3,
-        "AttackerStateUpdate + HealthUpdate + the C++ Unit::Kill durability loss message"
+        u16::from_le_bytes([attacker_state[0], attacker_state[1]]),
+        ServerOpcodes::AttackerStateUpdate as u16
+    );
+    assert!(
+        send_rx.try_recv().is_err(),
+        "the presentation adds no health or durability packet"
     );
 
     session
@@ -323,8 +329,10 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
 }
 
 #[tokio::test]
-async fn apply_creature_melee_damage_command_lethal_publishes_durability_loss_like_cpp() {
+async fn apply_creature_melee_damage_command_defers_lethal_durability_to_native_body_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    let (realm_tx, realm_rx) = flume::bounded(8);
+    session.install_realm_send_channel_for_test(realm_tx);
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1016);
     let victim_guid = ObjectGuid::create_player(1, 7010);
@@ -367,15 +375,20 @@ async fn apply_creature_melee_damage_command_lethal_publishes_durability_loss_li
         .process_represented_session_commands_like_cpp()
         .await;
 
-    assert!(
-        drain_server_opcodes(&send_rx).contains(&ServerOpcodes::DurabilityDamageDeath),
-        "C++ Unit::Kill applies the creature-killer PvE durability loss on a lethal hit"
-    );
+    // The compatibility command only presents the already committed hit.
+    // The awaited native Player death body owns this PvE penalty and its realm
+    // publication (covered by the native-death body fixture).
+    let realm_opcodes = drain_server_opcodes(&realm_rx);
+    let instance_opcodes = drain_server_opcodes(&send_rx);
+    assert!(!realm_opcodes.contains(&ServerOpcodes::DurabilityDamageDeath));
+    assert!(!instance_opcodes.contains(&ServerOpcodes::DurabilityDamageDeath));
 }
 
 #[tokio::test]
 async fn apply_creature_melee_damage_command_battleground_skips_durability_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    let (realm_tx, realm_rx) = flume::bounded(8);
+    session.install_realm_send_channel_for_test(realm_tx);
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1017);
     let victim_guid = ObjectGuid::create_player(1, 7011);
@@ -431,4 +444,5 @@ async fn apply_creature_melee_damage_command_battleground_skips_durability_like_
         !drain_server_opcodes(&send_rx).contains(&ServerOpcodes::DurabilityDamageDeath),
         "C++ Unit::Kill skips the creature-killer durability branch inside a battleground"
     );
+    assert!(!drain_server_opcodes(&realm_rx).contains(&ServerOpcodes::DurabilityDamageDeath));
 }

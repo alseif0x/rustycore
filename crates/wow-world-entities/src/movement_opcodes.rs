@@ -51,6 +51,7 @@ pub async fn handle_movement_with_catalogs_like_cpp<H: PlayerMovementHostLikeCpp
     progression: &ProgressionCatalogsLikeCpp,
     player_grid_loader: &PlayerGridLoadResolverLikeCpp,
     mut pkt: wow_packet::WorldPacket,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) {
     let opcode = pkt.client_opcode();
     let info = match ClientPlayerMovement::read(&mut pkt) {
@@ -72,6 +73,7 @@ pub async fn handle_movement_with_catalogs_like_cpp<H: PlayerMovementHostLikeCpp
         player_grid_loader,
         opcode,
         info.info,
+        item_guid_generator,
     )
     .await;
 }
@@ -84,6 +86,7 @@ pub async fn handle_movement_info_with_catalogs_like_cpp<H: PlayerMovementHostLi
     player_grid_loader: &PlayerGridLoadResolverLikeCpp,
     opcode: Option<ClientOpcodes>,
     mut info: MovementInfo,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) {
     let Some(player_guid) = host.player_guid() else {
         warn!(
@@ -276,9 +279,26 @@ pub async fn handle_movement_info_with_catalogs_like_cpp<H: PlayerMovementHostLi
             .hub_ref()
             .represented_current_vehicle_seat_allows_turning_like_cpp()
         {
-            apply_movement_pre_position_side_effects_like_cpp(host, opcode, &info);
+            apply_movement_pre_position_side_effects_like_cpp(
+                host,
+                opcode,
+                &info,
+                creature_spawn_catalogs,
+                item_guid_generator,
+            )
+            .await;
         } else {
-            apply_movement_side_effects_like_cpp(host, opcode, &info);
+            apply_movement_side_effects_like_cpp(
+                host,
+                opcode,
+                &info,
+                creature_spawn_catalogs,
+                item_guid_generator,
+            )
+            .await;
+        }
+        if host.state() == wow_world_core::session::SessionState::Disconnecting {
+            return;
         }
     } else if matches!(
         opcode,
@@ -426,7 +446,12 @@ pub async fn handle_movement_info_with_catalogs_like_cpp<H: PlayerMovementHostLi
         ) {
             Ok((zone_id, area_id)) => {
                 if area_id != 0 {
-                    host.update_zone_represented_like_cpp(zone_id, area_id);
+                    // Keep normal movement identity-gated like C++
+                    // Player::Update (Player.cpp:1016-1040). Explicit ACK and
+                    // resurrection callers retain unconditional UpdateZone.
+                    if host.hub_ref().player_zone_area_like_cpp() != Some((zone_id, area_id)) {
+                        host.update_zone_represented_like_cpp(zone_id, area_id);
+                    }
                     area_id
                 } else {
                     let Some((_, current_area_id)) = host.hub_ref().player_zone_area_like_cpp()
@@ -545,16 +570,21 @@ pub async fn handle_movement_info_with_catalogs_like_cpp<H: PlayerMovementHostLi
     }
 }
 
-pub fn apply_movement_side_effects_like_cpp<H: PlayerMovementHostLikeCpp>(
+pub async fn apply_movement_side_effects_like_cpp<H: PlayerMovementHostLikeCpp>(
     host: &mut H,
     opcode: Option<ClientOpcodes>,
     info: &MovementInfo,
+    creature_spawns: &CreatureSpawnCatalogsLikeCpp,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) {
     host.hub_mut()
         .clear_player_emote_state_on_player_movement_like_cpp();
 
     if matches!(opcode, Some(ClientOpcodes::MoveFallLand)) {
-        handle_fall_like_cpp(host, info);
+        handle_fall_like_cpp(host, info, creature_spawns, item_guid_generator).await;
+        if host.state() == wow_world_core::session::SessionState::Disconnecting {
+            return;
+        }
     }
 
     match opcode {
@@ -597,16 +627,23 @@ pub fn apply_movement_side_effects_like_cpp<H: PlayerMovementHostLikeCpp>(
         info,
         matches!(opcode, Some(ClientOpcodes::MoveFallLand)),
     );
-    handle_under_map_like_cpp(host, info);
+    handle_under_map_like_cpp(host, info, creature_spawns, item_guid_generator).await;
 }
 
-pub(crate) fn apply_movement_pre_position_side_effects_like_cpp<H: PlayerMovementHostLikeCpp>(
+pub(crate) async fn apply_movement_pre_position_side_effects_like_cpp<
+    H: PlayerMovementHostLikeCpp,
+>(
     host: &mut H,
     opcode: Option<ClientOpcodes>,
     info: &MovementInfo,
+    creature_spawns: &CreatureSpawnCatalogsLikeCpp,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) {
     if matches!(opcode, Some(ClientOpcodes::MoveFallLand)) {
-        handle_fall_like_cpp(host, info);
+        handle_fall_like_cpp(host, info, creature_spawns, item_guid_generator).await;
+        if host.state() == wow_world_core::session::SessionState::Disconnecting {
+            return;
+        }
     }
 
     match opcode {

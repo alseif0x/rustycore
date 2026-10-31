@@ -89,6 +89,9 @@ pub async fn tick_active_spell_cast_with_generator_like_cpp<H: SpellExecutionHos
             account = host.core().account_id,
             "Spell execution failed: {}", e
         );
+        if host.core().state == wow_world_core::session::SessionState::Disconnecting {
+            return;
+        }
         // Send CastFailed so client cancels cast animation
         use wow_packet::packets::spell::CastFailed;
         host.send_packet(&CastFailed {

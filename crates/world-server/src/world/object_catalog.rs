@@ -60,6 +60,7 @@ pub(crate) async fn load_creature_templates_like_cpp(
                     flags_extra: r.flags_extra,
                     string_id: r.string_id,
                     regen_health: r.regen_health,
+                    base_variance: r.base_variance,
                     spells: [0; wow_data::MAX_CREATURE_SPELLS_LIKE_CPP],
                     models: Vec::new(),
                 }),

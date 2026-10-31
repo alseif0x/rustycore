@@ -143,7 +143,8 @@ fn skill_rewarded_login_changes_use_real_spell_levels_and_conditions_like_cpp() 
         ]),
     ));
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(900, 0), (901, 0), (902, 0)]);
     for spell_id in [900, 901, 902] {
         spell_store.insert(spell_id, spell_info(spell_id));
     }
@@ -257,6 +258,7 @@ fn login_combat_snapshot_clamps_saved_health_after_persisted_stat_auras_like_cpp
         session.load_represented_character_auras_like_cpp(
             [crate::session::CharacterAuraRowLikeCpp {
                 caster_guid: player_guid,
+                item_guid: ObjectGuid::EMPTY,
                 spell_id: spell_id as u32,
                 effect_mask: 1,
                 recalculate_mask: 0,
@@ -265,9 +267,12 @@ fn login_combat_snapshot_clamps_saved_health_after_persisted_stat_auras_like_cpp
                 max_duration_ms: -1,
                 remain_time_ms: -1,
                 remain_charges: 0,
+                cast_item_id: 0,
+                cast_item_level: -1,
             }],
             [crate::session::CharacterAuraEffectRowLikeCpp {
                 caster_guid: player_guid,
+                item_guid: ObjectGuid::EMPTY,
                 spell_id: spell_id as u32,
                 effect_mask: 1,
                 effect_index: 0,

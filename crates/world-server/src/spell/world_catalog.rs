@@ -169,23 +169,23 @@ where
 pub(crate) async fn load_spell_proc_like_cpp(
     persistence: &dyn SpellWorldCatalogPersistencePortLikeCpp,
     spells: &wow_data::SpellStore,
+    serverside_spells: &wow_data::ServersideSpellStoreLikeCpp,
     spell_chains: &wow_data::SpellChainStoreLikeCpp,
+    difficulties: &wow_data::DifficultyStore,
     spell_aura_options: &wow_data::SpellAuraOptionsStore,
-    spell_misc: &wow_data::SpellMiscStore,
     spell_class_options: &wow_data::SpellClassOptionsStore,
     spell_procs_per_minute: &wow_data::SpellProcsPerMinuteStore,
 ) -> Result<wow_data::SpellProcLoadOutcomeLikeCpp> {
     let rows = loaded_rows_like_cpp(persistence.load_spell_proc_rows_like_cpp().await)?;
-    Ok(
-        wow_data::SpellProcStoreLikeCpp::from_rows_and_stores_like_cpp(
-            rows.into_iter().map(proc_row_like_cpp),
-            spells,
-            spell_chains,
-            spell_aura_options,
-            spell_misc,
-            spell_class_options,
-            spell_procs_per_minute,
-        ),
+    wow_data::SpellProcStoreLikeCpp::from_rows_and_stores_like_cpp(
+        rows.into_iter().map(proc_row_like_cpp),
+        spells,
+        serverside_spells,
+        spell_chains,
+        difficulties,
+        spell_aura_options,
+        spell_class_options,
+        spell_procs_per_minute,
     )
 }
 

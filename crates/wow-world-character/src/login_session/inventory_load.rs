@@ -23,6 +23,9 @@ use wow_world_inventory::loaded_item_support::{
 };
 use wow_world_inventory::vendor::{LoadedItemRefundDecision, loaded_item_refund_decision};
 
+mod carried_proof;
+mod item_payload;
+
 pub struct LoginInventorySnapshotLikeCpp {
     pub visible_items: [(i32, u16, u16); 19],
     pub inv_slots: [ObjectGuid; 141],
@@ -45,6 +48,13 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
     let mut login_bag_create_index_by_slot: HashMap<u8, usize> = HashMap::new();
     let mut loaded_inventory_item_guids: Vec<ObjectGuid> = Vec::new();
     let mut loaded_equipped_item_guids: Vec<ObjectGuid> = Vec::new();
+    let loading_owner = host.hub_ref().core.player_handle_like_cpp;
+    let mut equipment_loaded = false;
+    let mut bags_loaded = false;
+    let mut carried_rows_coherent = true;
+    let mut item_save_inputs_complete = true;
+    let mut item_repair_outcomes_applied = true;
+    let mut tradeable_item_registry_complete = true;
     {
         let (state, mut hub) = host.split_inventory_mut();
         state.clear_inventory_items_and_objects_like_cpp(&mut hub)
@@ -70,24 +80,51 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
                 wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::EquipmentInventory(rows),
             ) => {
-                let equipment_inventory_source_is_proven_empty = rows.is_empty();
+                equipment_loaded = true;
                 for row in rows {
                     let slot = row.slot;
                     let item = row.item;
                     let item_entry = item.item_entry;
                     let item_db_guid = item.item_db_guid;
                     let item_count = item.count;
+                    let item_context_value =
+                        <ItemContext as num_traits::FromPrimitive>::from_u8(item.context);
+                    let item_context_is_representable = item_context_value.is_some();
+                    let item_context = item_context_value.unwrap_or(ItemContext::None);
+                    let item_enchantment_values =
+                        loaded_item_enchantments_like_cpp(&item.enchantments);
+                    let item_enchantments_are_representable =
+                        item.enchantments.trim().is_empty() || item_enchantment_values.is_some();
+                    let item_gem_ids_are_representable =
+                        item.gems.iter().all(|(item_id, _, _)| *item_id >= 0);
+                    let storage_template =
+                        host.hub_ref().catalogs.item_storage_template(item_entry);
+                    let row_save_inputs_are_known = {
+                        let catalogs = &host.hub_ref().catalogs;
+                        item_payload::row_save_inputs_known_like_cpp(
+                            &item,
+                            item_context_is_representable,
+                            item_enchantments_are_representable,
+                            item_gem_ids_are_representable,
+                            storage_template.is_some(),
+                            catalogs,
+                        )
+                    };
+                    item_save_inputs_complete &= row_save_inputs_are_known;
+                    let row_guid = ObjectGuid::create_item(realm_id, item_db_guid as i64);
+                    carried_rows_coherent &= item_entry > 0
+                        && item_db_guid > 0
+                        && row_guid.counter() as u64 == item_db_guid
+                        && item_count > 0
+                        && inv_slots
+                            .get(slot as usize)
+                            .is_some_and(|guid| guid.is_empty())
+                        && !loaded_inventory_item_guids.contains(&row_guid);
                     let item_durability = item.durability;
-                    let item_context =
-                        <ItemContext as num_traits::FromPrimitive>::from_u8(item.context)
-                            .unwrap_or(ItemContext::None);
                     let item_flags = item.flags;
                     let item_played_time = item.played_time;
                     let item_expiration = item.expiration;
                     let item_spell_charges = item.spell_charges;
-                    let item_enchantments = item.enchantments;
-                    let item_enchantment_values =
-                        loaded_item_enchantments_like_cpp(&item_enchantments);
                     let random_properties = loaded_item_random_properties_like_cpp(
                         item.random_properties_id,
                         item.random_properties_seed,
@@ -119,6 +156,13 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                             .item_random_suffix_store()
                             .map(|store| store.as_ref()),
                     );
+                    item_save_inputs_complete &= {
+                        let catalogs = &host.hub_ref().catalogs;
+                        item_payload::effective_enchantment_catalog_is_known_like_cpp(
+                            &item_create_enchantments,
+                            catalogs,
+                        )
+                    };
                     let refund_decision = loaded_item_refund_decision(
                         item_flags,
                         item_played_time,
@@ -146,8 +190,6 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                             | LoadedItemRefundDecision::Valid { .. } => item_flags,
                         };
                         inv_slots[slot as usize] = item_guid;
-                        let storage_template =
-                            host.hub_ref().catalogs.item_storage_template(item_entry);
                         let inventory_type = storage_template
                             .as_ref()
                             .map(|template| template.inventory_type as u8)
@@ -162,6 +204,12 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                                 }
                             });
                         let is_bag_container = inventory_type == Some(InventoryType::Bag as u8);
+                        if is_represented_bag_slot(slot) || is_bag_container {
+                            carried_rows_coherent &= is_bag_container
+                                && storage_template.as_ref().is_some_and(|template| {
+                                    template.container_slots > 0 && template.container_slots <= 36
+                                });
+                        }
                         let container_slots = if is_bag_container {
                             storage_template
                                 .as_ref()
@@ -242,6 +290,41 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                         item_object.set_gems(socketed_gems);
                         item_object
                             .replace_all_item_flags(ItemFieldFlags::from_bits_retain(stored_flags));
+                        if let LoadedItemRefundDecision::Valid {
+                            paid_money,
+                            paid_extended_cost,
+                        } = refund_decision
+                        {
+                            item_object.set_refund_recipient(guid);
+                            item_object.set_paid_money(paid_money);
+                            item_object.set_paid_extended_cost(u32::from(paid_extended_cost));
+                        }
+                        let bop_allowed_players = item_payload::hydrate_complete_payload_like_cpp(
+                            &mut item_object,
+                            item.complete_payload,
+                            item_flags,
+                            realm_id,
+                        );
+                        let bop_registry_complete = item_payload::apply_bop_trade_metadata_like_cpp(
+                            &mut item_object,
+                            bop_allowed_players,
+                            item_flags,
+                            storage_template
+                                .as_ref()
+                                .map(|template| template.max_stack_size),
+                            realm_id,
+                            |loaded_item| {
+                                let loading_owner_is_current = loading_owner.is_some()
+                                    && host.hub_ref().core.player_handle_like_cpp == loading_owner;
+                                item_payload::register_tradeable_item_like_cpp(
+                                    host,
+                                    guid,
+                                    loaded_item,
+                                    loading_owner_is_current,
+                                )
+                            },
+                        );
+                        tradeable_item_registry_complete &= bop_registry_complete;
                         if expiration_needs_save {
                             refund_cleanup_actions.push(
                                 wow_persistence::PlayerLoginItemRepairActionLikeCpp::NormalizeOnLoad {
@@ -252,15 +335,7 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                                 },
                             );
                         }
-                        if let LoadedItemRefundDecision::Valid {
-                            paid_money,
-                            paid_extended_cost,
-                        } = refund_decision
-                        {
-                            item_object.set_refund_recipient(guid);
-                            item_object.set_paid_money(paid_money);
-                            item_object.set_paid_extended_cost(u32::from(paid_extended_cost));
-                        }
+                        item_creates[create_index].dynamic_flags = item_object.item_flags_bits();
                         host.apply_loaded_inventory_item_collection_hooks_like_cpp(&item_object);
                         item_object.set_state(ItemUpdateState::Unchanged);
                         let visible_item_fields = ((slot as usize) < 19).then(|| {
@@ -281,12 +356,6 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                         }
                     }
                 }
-                if equipment_inventory_source_is_proven_empty {
-                    {
-                        let (state, mut hub) = host.split_inventory_mut();
-                        state.complete_player_equipment_inventory_authority_load_like_cpp(&mut hub)
-                    };
-                }
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!("Failed to load equipment for {:?}: {}", guid, reason);
@@ -301,6 +370,7 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                     },
                 )
                 .await;
+            item_repair_outcomes_applied &= outcome.is_applied();
             if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
             | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
             {
@@ -328,6 +398,7 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                 wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
                     wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::BagInventory(rows),
                 ) => {
+                    bags_loaded = true;
                     for row in rows {
                         let bag_slot = row.bag_slot;
                         let inner_slot = row.inner_slot;
@@ -335,17 +406,49 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                         let item_entry = item.item_entry;
                         let item_db_guid = item.item_db_guid;
                         let item_count = item.count;
+                        let item_context_value =
+                            <ItemContext as num_traits::FromPrimitive>::from_u8(item.context);
+                        let item_context_is_representable = item_context_value.is_some();
+                        let item_context = item_context_value.unwrap_or(ItemContext::None);
+                        let item_enchantment_values =
+                            loaded_item_enchantments_like_cpp(&item.enchantments);
+                        let item_enchantments_are_representable =
+                            item.enchantments.trim().is_empty()
+                                || item_enchantment_values.is_some();
+                        let item_gem_ids_are_representable =
+                            item.gems.iter().all(|(item_id, _, _)| *item_id >= 0);
+                        let storage_template =
+                            host.hub_ref().catalogs.item_storage_template(item_entry);
+                        let row_save_inputs_are_known = {
+                            let catalogs = &host.hub_ref().catalogs;
+                            item_payload::row_save_inputs_known_like_cpp(
+                                &item,
+                                item_context_is_representable,
+                                item_enchantments_are_representable,
+                                item_gem_ids_are_representable,
+                                storage_template.is_some(),
+                                catalogs,
+                            )
+                        };
+                        item_save_inputs_complete &= row_save_inputs_are_known;
+                        let row_guid = ObjectGuid::create_item(realm_id, item_db_guid as i64);
+                        carried_rows_coherent &= item_entry > 0
+                            && item_db_guid > 0
+                            && row_guid.counter() as u64 == item_db_guid
+                            && item_count > 0
+                            && !loaded_inventory_item_guids.contains(&row_guid)
+                            && login_bag_create_index_by_slot.get(&bag_slot).is_some_and(
+                                |&index| {
+                                    let bag = &item_creates[index];
+                                    u32::from(inner_slot) < bag.container_slots
+                                        && bag.container_item_guids[inner_slot as usize].is_empty()
+                                },
+                            );
                         let item_durability = item.durability;
-                        let item_context =
-                            <ItemContext as num_traits::FromPrimitive>::from_u8(item.context)
-                                .unwrap_or(ItemContext::None);
                         let item_flags = item.flags;
                         let item_played_time = item.played_time;
                         let item_expiration = item.expiration;
                         let item_spell_charges = item.spell_charges;
-                        let item_enchantments = item.enchantments;
-                        let item_enchantment_values =
-                            loaded_item_enchantments_like_cpp(&item_enchantments);
                         let random_properties = loaded_item_random_properties_like_cpp(
                             item.random_properties_id,
                             item.random_properties_seed,
@@ -377,6 +480,19 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                                 .item_random_suffix_store()
                                 .map(|store| store.as_ref()),
                         );
+                        item_save_inputs_complete &= {
+                            let catalogs = &host.hub_ref().catalogs;
+                            item_payload::effective_enchantment_catalog_is_known_like_cpp(
+                                &item_create_enchantments,
+                                catalogs,
+                            )
+                        };
+                        let refund_decision = loaded_item_refund_decision(
+                            item_flags,
+                            item_played_time,
+                            item.paid_money,
+                            item.paid_extended_cost,
+                        );
                         if item_entry > 0 && is_represented_bag_slot(bag_slot) {
                             if let Some(bag_item_guid) = ({
                                 let (state, hub) = host.split_inventory_ref();
@@ -386,6 +502,19 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                             {
                                 let item_guid =
                                     ObjectGuid::create_item(realm_id, item_db_guid as i64);
+                                let stored_flags = match refund_decision {
+                                    LoadedItemRefundDecision::Clear { new_flags } => {
+                                        bag_load_fix_actions.push(
+                                            wow_persistence::PlayerLoginItemRepairActionLikeCpp::ClearRefundable {
+                                                item_guid: item_db_guid,
+                                                new_flags,
+                                            },
+                                        );
+                                        new_flags
+                                    }
+                                    LoadedItemRefundDecision::None
+                                    | LoadedItemRefundDecision::Valid { .. } => item_flags,
+                                };
                                 let item_max_durability = host
                                     .hub_ref()
                                     .catalogs
@@ -426,8 +555,48 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                                 );
                                 item_object.set_gems(socketed_gems);
                                 item_object.replace_all_item_flags(
-                                    ItemFieldFlags::from_bits_retain(item_flags),
+                                    ItemFieldFlags::from_bits_retain(stored_flags),
                                 );
+                                if let LoadedItemRefundDecision::Valid {
+                                    paid_money,
+                                    paid_extended_cost,
+                                } = refund_decision
+                                {
+                                    item_object.set_refund_recipient(guid);
+                                    item_object.set_paid_money(paid_money);
+                                    item_object
+                                        .set_paid_extended_cost(u32::from(paid_extended_cost));
+                                }
+                                item_object.set_container_guid_and_slot(bag_item_guid, bag_slot);
+                                let bop_allowed_players =
+                                    item_payload::hydrate_complete_payload_like_cpp(
+                                        &mut item_object,
+                                        item.complete_payload,
+                                        item_flags,
+                                        realm_id,
+                                    );
+                                let bop_registry_complete =
+                                    item_payload::apply_bop_trade_metadata_like_cpp(
+                                        &mut item_object,
+                                        bop_allowed_players,
+                                        item_flags,
+                                        storage_template
+                                            .as_ref()
+                                            .map(|template| template.max_stack_size),
+                                        realm_id,
+                                        |loaded_item| {
+                                            let loading_owner_is_current = loading_owner.is_some()
+                                                && host.hub_ref().core.player_handle_like_cpp
+                                                    == loading_owner;
+                                            item_payload::register_tradeable_item_like_cpp(
+                                                host,
+                                                guid,
+                                                loaded_item,
+                                                loading_owner_is_current,
+                                            )
+                                        },
+                                    );
+                                tradeable_item_registry_complete &= bop_registry_complete;
                                 if expiration_needs_save {
                                     bag_load_fix_actions.push(
                                         wow_persistence::PlayerLoginItemRepairActionLikeCpp::NormalizeOnLoad {
@@ -438,7 +607,6 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                                         },
                                     );
                                 }
-                                item_object.set_container_guid_and_slot(bag_item_guid, bag_slot);
                                 host.apply_loaded_inventory_item_collection_hooks_like_cpp(
                                     &item_object,
                                 );
@@ -457,7 +625,7 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                                     owner_guid: guid,
                                     contained_in: bag_item_guid,
                                     stack_count: item_count,
-                                    dynamic_flags: item_flags,
+                                    dynamic_flags: item_object.item_flags_bits(),
                                     durability: item_durability,
                                     max_durability: item_max_durability,
                                     random_properties_seed,
@@ -498,6 +666,7 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                         },
                     )
                     .await;
+                item_repair_outcomes_applied &= outcome.is_applied();
                 if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
                 | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
                 {
@@ -667,6 +836,28 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
             &loaded_inventory_item_guids,
             &loaded_equipped_item_guids,
         );
+
+    if equipment_loaded && bags_loaded && carried_rows_coherent && loading_owner.is_some() {
+        let (_, mut hub) = host.split_inventory_mut();
+        if hub.core.player_handle_like_cpp == loading_owner {
+            let _ = hub.core.mutate_canonical_player_like_cpp(|player| {
+                if player.guid() != guid {
+                    return;
+                }
+                let carried_load_finished =
+                    carried_proof::finish_carried_load_like_cpp(player, &inv_slots, &item_creates);
+                if carried_load_finished
+                    && item_save_inputs_complete
+                    && item_repair_outcomes_applied
+                    && tradeable_item_registry_complete
+                {
+                    player
+                        .inventory_runtime_mut_like_cpp()
+                        .set_equipment_inventory_authority_complete_like_cpp(true);
+                }
+            });
+        }
+    }
 
     Some(LoginInventorySnapshotLikeCpp {
         visible_items,

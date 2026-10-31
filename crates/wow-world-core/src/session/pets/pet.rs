@@ -257,6 +257,25 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubMut<'_> {
+    pub fn attach_resummoned_player_pet_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_pet_guid_like_cpp(Some(pet_guid));
+                player.unit_mut().set_minion_guid_like_cpp(Some(pet_guid));
+                let control = &mut player.unit_mut().subsystems_mut().control;
+                control.set_pet_guid(pet_guid);
+                control.controlled_guids.insert(pet_guid);
+            })
+            .is_some();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.pets.represented_pet_guid_like_cpp = Some(pet_guid);
+            return true;
+        }
+        canonical
+    }
+
     pub fn set_player_pet_guid_like_cpp(&mut self, pet_guid: Option<ObjectGuid>) -> bool {
         let canonical = self
             .core

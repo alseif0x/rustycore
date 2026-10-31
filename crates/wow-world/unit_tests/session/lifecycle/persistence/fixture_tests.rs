@@ -77,6 +77,10 @@ impl WorldSession {
             dungeon_difficulty,
             raid_difficulty,
             legacy_raid_difficulty,
+            // This frozen test-only projection predates the Player-owned
+            // login/death fields represented by the production save owner.
+            at_login_flags: 0,
+            death_expire_time: 0,
         };
 
         let spell_runtime = wow_world_spell::player_spell_runtime_snapshot_like_cpp(self);
@@ -508,6 +512,11 @@ impl WorldSession {
             account_id: self.core.account_id,
             wall_clock_unix_secs: now_unix_secs,
             character,
+            item_durability: None,
+            inventory_items: None,
+            currencies: None,
+            resurrection_sickness: None,
+            ghost_wisp: None,
             spells,
             skills,
             glyphs,
@@ -517,6 +526,7 @@ impl WorldSession {
             action_buttons,
             equipment_sets,
             void_storage,
+            quest_statuses: None,
             tutorials,
             instance_lock_times,
             played_time,

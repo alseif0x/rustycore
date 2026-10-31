@@ -325,6 +325,7 @@ pub fn power_drain_pre_scaled_damage_like_cpp<H: SpellEffectHostLikeCpp>(
 pub async fn apply_power_drain_effect_like_cpp<H: SpellEffectHostLikeCpp>(
     host: &mut H,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawns: &wow_world_entities::CreatureSpawnCatalogsLikeCpp,
     spell_id: i32,
     effect: u32,
     damage: i32,
@@ -478,10 +479,18 @@ pub async fn apply_power_drain_effect_like_cpp<H: SpellEffectHostLikeCpp>(
         // so this stays the owned-player damage path.
         let burned = (drained as f32 * value_multiplier) as i32;
         if burned > 0 {
-            let _ = host.hub_mut().apply_owned_player_damage_like_cpp(
+            if crate::SpellClickHostLikeCpp::apply_native_player_damage_like_cpp(
+                host,
                 u32::try_from(burned).unwrap_or(u32::MAX),
-                wow_constants::DeathState::Corpse,
-            );
+                wow_entities::PlayerDeathOperationContext::new(player_guid, true),
+                creature_spawns,
+                item_guid_generator,
+            )
+            .await
+            .is_err()
+            {
+                return false;
+            }
             host.sync_player_registry_state_like_cpp();
         }
     }

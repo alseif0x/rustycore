@@ -116,9 +116,11 @@ impl crate::session::state::SessionCore {
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_form,
         )?;
-        let store = catalogs.spell_catalogs.spell_shapeshift_form_store()?;
-        let form = store.get(form_id)?;
-        (form.combat_round_time > 0).then(|| f32::from(form.combat_round_time))
+        crate::session::PlayerStatCatalogs::from_session_catalogs(
+            catalogs,
+            wow_data::StatsLimitsLikeCpp::default(),
+        )
+        .shapeshift_combat_round_time(form_id)
     }
 }
 

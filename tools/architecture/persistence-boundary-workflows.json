@@ -2,6 +2,666 @@
   "schema_version": 2,
   "workflows": [
     {
+      "package": "wow-database",
+      "module": "crate::hotfix::condition_presence_adapter",
+      "source": "crates/wow-database/src/hotfix/condition_presence_adapter.rs",
+      "enclosing": "fn condition_id",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "Private wow-database MariaDB adapter for effective PlayerCondition and UnitCondition ID presence (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of the current SqlResult row from the configured Hotfix read; no connection or transaction is acquired.",
+      "current_order": "Obtains native fields and accepts exactly one integer ID column that round-trips through the C++ uint32 conversion.",
+      "failure_and_unknown_commit": "Missing, NULL, unsupported, non-integer, extra-column or non-round-tripping values return an error to the full loader; the decoder performs no I/O or COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::condition_presence_adapter",
+      "source": "crates/wow-database/src/hotfix/condition_presence_adapter.rs",
+      "enclosing": "fn load_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "Private wow-database MariaDB adapter for effective PlayerCondition and UnitCondition ID presence (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Four independent reads use the supplied HotfixDatabase handle; the helper opens no transaction.",
+      "current_order": "Reads PlayerCondition official then custom, followed by UnitCondition official then custom; fully decodes each ID batch and preserves its row order.",
+      "failure_and_unknown_commit": "Any query or ID decode error aborts the full result without returning accumulated rows; empty batches are allowed and the enclosing port maps the error to Failed. No COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::condition_presence_adapter",
+      "source": "crates/wow-database/src/hotfix/condition_presence_adapter.rs",
+      "enclosing": "fn query_statement",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "Private wow-database MariaDB adapter for effective PlayerCondition and UnitCondition ID presence (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure PreparedStatement construction for one selected Hotfix condition table.",
+      "current_order": "Selects the exact player_condition or unit_condition ID query and binds the requested official flag at parameter zero.",
+      "failure_and_unknown_commit": "No query, acknowledgement or COMMIT occurs here; load_rows owns the later query and error propagation."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::condition_presence_adapter",
+      "source": "crates/wow-database/src/hotfix/condition_presence_adapter.rs",
+      "enclosing": "impl MariaDbConditionPresencePersistenceAdapter::new",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "Private wow-database MariaDB adapter for effective PlayerCondition and UnitCondition ID presence (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Stores the provided Arc<HotfixDatabase> as the configured adapter handle.",
+      "current_order": "Construction retains the supplied handle; condition queries run only when the port load is invoked.",
+      "failure_and_unknown_commit": "Construction performs no I/O or COMMIT and classifies no persistence outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::condition_presence_adapter",
+      "source": "crates/wow-database/src/hotfix/condition_presence_adapter.rs",
+      "enclosing": "impl wow_persistence::ConditionPresencePersistencePort for MariaDbConditionPresencePersistenceAdapter::load_condition_presence_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "Private wow-database MariaDB adapter for effective PlayerCondition and UnitCondition ID presence (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Uses the adapter configured HotfixDatabase handle for the complete condition-presence load; no transaction is added.",
+      "current_order": "Invokes load_rows once, preserving Player official/custom then Unit official/custom query order, and returns the complete typed presence vectors.",
+      "failure_and_unknown_commit": "A completed load returns Loaded, including empty vectors; query or decode errors return Failed for the whole load. Reads have no unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::condition_presence_adapter",
+      "source": "crates/wow-database/src/hotfix/condition_presence_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "Private wow-database MariaDB adapter for effective PlayerCondition and UnitCondition ID presence (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix query and result vocabulary belongs to the private condition-presence adapter; module declarations acquire no connection.",
+      "current_order": "Declares exact ID queries and the Player official/custom then Unit official/custom QUERY_PLAN; module scope itself performs no reads.",
+      "failure_and_unknown_commit": "Declarations perform no I/O or COMMIT; load_rows and the typed port retain query/decode failure handling."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::condition_presence_adapter",
+      "source": "crates/wow-database/src/hotfix/condition_presence_adapter.rs",
+      "enclosing": "struct MariaDbConditionPresencePersistenceAdapter",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "Private wow-database MariaDB adapter for effective PlayerCondition and UnitCondition ID presence (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Retains one configured Arc<HotfixDatabase> for condition-presence reads.",
+      "current_order": "The handle is supplied by construction and used by the condition-presence port; the struct introduces no execution order.",
+      "failure_and_unknown_commit": "Storing the handle performs no I/O, acknowledgement or COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter",
+      "source": "crates/wow-database/src/player/lifecycle_adapter.rs",
+      "enclosing": "fn decode_character_aura_effect_row",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one already-fetched Characters aura-effect SqlResult row.",
+      "current_order": "Reads caster GUID, item GUID, spell, effect mask, effect index, amount and base amount in projection order; correlation and application remain caller-owned.",
+      "failure_and_unknown_commit": "A malformed required column yields None; load_login_auxiliary_like_cpp maps it to typed Failed without returning partial aura-effect rows. The decoder performs no I/O or COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter",
+      "source": "crates/wow-database/src/player/lifecycle_adapter.rs",
+      "enclosing": "fn decode_character_aura_row",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one already-fetched Characters aura SqlResult row.",
+      "current_order": "Reads the twelve projected aura columns, including item GUID and cast-item metadata, in source order; correlation and application remain caller-owned.",
+      "failure_and_unknown_commit": "A malformed required column yields None; load_login_auxiliary_like_cpp maps it to typed Failed without returning partial aura rows. The decoder performs no I/O or COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::quest_adapter",
+      "source": "crates/wow-database/src/player/quest_adapter.rs",
+      "enclosing": "fn full_save_quest_status_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free Player quest capability (#169)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters statement construction subordinate to the existing full character-save transaction; this helper begins and commits no transaction.",
+      "current_order": "Delete emits active-status deletion then objective deletion by owner and quest. Save emits the supplied active-status row, deletes that quest objectives, then inserts nonzero objective counts in request order; rewarded-set maintenance remains its separate Source operation.",
+      "failure_and_unknown_commit": "The helper returns only statements and acknowledges no write. The enclosing character-save adapter retains definite-rollback and unknown-COMMIT classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
+      "enclosing": "fn load_spell_reagents_currency_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One independent read uses the supplied HotfixDatabase; the helper does not create a transaction.",
+      "current_order": "Prepares SPELL_REAGENTS_CURRENCY_SQL, binds the supplied official flag, and decodes ID and SpellID as required u32 plus CurrencyTypesID and CurrencyCount as required u16 in database row order.",
+      "failure_and_unknown_commit": "Empty results return an empty vector; query or required-field errors abort the full batch and propagate to the typed startup Failed outcome. No COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
+      "enclosing": "fn required_i16_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure numeric decoding of an already-fetched Hotfix SqlResult column.",
+      "current_order": "Reads through raw_i64_like_cpp and applies i16::try_from to the required value.",
+      "failure_and_unknown_commit": "Missing or unsupported values and signed 16-bit range errors return an error to the loader; the helper performs no I/O or COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
+      "enclosing": "fn required_i32_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure numeric decoding of an already-fetched Hotfix SqlResult column.",
+      "current_order": "Reads through raw_i64_like_cpp and applies i32::try_from to the required value.",
+      "failure_and_unknown_commit": "Missing or unsupported values and signed 32-bit range errors return an error to the loader; the helper performs no I/O or COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
+      "enclosing": "fn required_spell_id_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure spell-ID decoding of an already-fetched Hotfix SqlResult column.",
+      "current_order": "Uses a typed u32 read and casts it to i32 with as when available; otherwise delegates to required_i32_like_cpp.",
+      "failure_and_unknown_commit": "Fallback decode errors propagate to the enclosing full loader; this helper performs no I/O, acknowledgement or COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
+      "enclosing": "fn required_u16_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure numeric decoding of an already-fetched Hotfix SqlResult column.",
+      "current_order": "Reads through raw_i64_like_cpp and applies u16::try_from to the required value.",
+      "failure_and_unknown_commit": "Missing or unsupported values and unsigned 16-bit range errors return an error to the loader; the helper performs no I/O or COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
+      "enclosing": "fn required_u32_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure numeric decoding of an already-fetched Hotfix SqlResult column.",
+      "current_order": "Returns a typed u32 read when available; otherwise reads through raw_i64_like_cpp and applies u32::try_from.",
+      "failure_and_unknown_commit": "Missing or unsupported fallback values and unsigned 32-bit range errors return an error to the loader; the helper performs no I/O or COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_reagents_currency_overlay_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Uses the configured HotfixDatabase for one caller-selected official/custom reagent-currency batch; no transaction is added.",
+      "current_order": "Passes the supplied official flag to load_spell_reagents_currency_like_cpp unchanged; the caller retains ordering between official and custom invocations.",
+      "failure_and_unknown_commit": "classify_like_cpp returns Loaded for the complete batch, including empty, and Failed for query or required-field errors. Read-only loading has no COMMIT or unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter::checked_rows",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter/checked_rows.rs",
+      "enclosing": "fn query_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One independent read uses the supplied WorldDatabase and WorldStatements selector; no transaction is opened.",
+      "current_order": "Executes the selected source statement once, obtains native fields for each row, and appends only successfully decoded typed rows in result order with table and row context.",
+      "failure_and_unknown_commit": "Query, native-field or row decode errors abort the whole result without returning accumulated rows; the outer startup port maps the error to Failed. Empty results succeed and no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter::checked_rows",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter/checked_rows.rs",
+      "enclosing": "fn serverside_effects",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Uses the supplied configured WorldDatabase through the shared checked query helper.",
+      "current_order": "Loads exactly SEL_SERVERSIDE_SPELL_EFFECT and decodes serverside_spell_effect rows through decode_effect; the startup caller retains family order.",
+      "failure_and_unknown_commit": "The complete decoded vector or an error is returned to the outer typed Loaded/Failed classifier; no partial batch or COMMIT outcome is returned."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter::checked_rows",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter/checked_rows.rs",
+      "enclosing": "fn serverside_spells",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Uses the supplied configured WorldDatabase through the shared checked query helper.",
+      "current_order": "Loads exactly SEL_SERVERSIDE_SPELL and decodes serverside_spell rows through decode_spell; the startup caller retains family order.",
+      "failure_and_unknown_commit": "The complete decoded vector or an error is returned to the outer typed Loaded/Failed classifier; no partial batch or COMMIT outcome is returned."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::acquisition_startup_adapter::checked_rows",
+      "source": "crates/wow-database/src/spell/acquisition_startup_adapter/checked_rows.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Private World statement and native-field vocabulary remains subordinate to the spell-acquisition startup adapter; module scope acquires no connection.",
+      "current_order": "Declares checked decoders and exact serverside effect/spell read wrappers; the enclosing startup caller retains their invocation order.",
+      "failure_and_unknown_commit": "Declarations and pure decoders perform no I/O or COMMIT; checked query errors propagate to the existing full-load typed classifier."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::core_db2_hotfix_adapter",
+      "source": "crates/wow-database/src/spell/core_db2_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_aura_options_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free core SpellInfo Hotfix DB2 overlays (#509)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Independent reads use the configured HotfixDatabase through query_official_then_custom_like_cpp; no transaction or cross-database atomicity is added.",
+      "current_order": "Prepares HotfixStatements::base(SPELL_AURA_OPTIONS_SQL), reads official rows before custom rows, and decodes the spell_aura_options native projection through decode::spell_aura_options in result order.",
+      "failure_and_unknown_commit": "Any query, native-field or checked row decode error maps to Failed for the whole family; complete empty batches return Loaded(empty). Reads have no COMMIT or unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::core_db2_hotfix_adapter",
+      "source": "crates/wow-database/src/spell/core_db2_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_class_options_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free core SpellInfo Hotfix DB2 overlays (#509)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Independent reads use the configured HotfixDatabase through query_official_then_custom_like_cpp; no transaction or cross-database atomicity is added.",
+      "current_order": "Prepares HotfixStatements::base(SPELL_CLASS_OPTIONS_SQL), reads official rows before custom rows, and decodes the spell_class_options native projection through decode::spell_class_options in result order.",
+      "failure_and_unknown_commit": "Any query, native-field or checked row decode error maps to Failed for the whole family; complete empty batches return Loaded(empty). Reads have no COMMIT or unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::core_db2_hotfix_adapter",
+      "source": "crates/wow-database/src/spell/core_db2_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_label_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free core SpellInfo Hotfix DB2 overlays (#509)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Independent reads use the configured HotfixDatabase through query_official_then_custom_like_cpp; no transaction or cross-database atomicity is added.",
+      "current_order": "Prepares HotfixStatements::base(SPELL_LABEL_SQL), reads official rows before custom rows, and decodes the spell_label native projection through decode::spell_label in result order.",
+      "failure_and_unknown_commit": "Any query, native-field or checked row decode error maps to Failed for the whole family; complete empty batches return Loaded(empty). Reads have no COMMIT or unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::core_db2_hotfix_adapter",
+      "source": "crates/wow-database/src/spell/core_db2_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_levels_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free core SpellInfo Hotfix DB2 overlays (#509)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Independent reads use the configured HotfixDatabase through query_official_then_custom_like_cpp; no transaction or cross-database atomicity is added.",
+      "current_order": "Prepares HotfixStatements::base(SPELL_LEVELS_SQL), reads official rows before custom rows, and decodes the spell_levels native projection through decode::spell_levels in result order.",
+      "failure_and_unknown_commit": "Any query, native-field or checked row decode error maps to Failed for the whole family; complete empty batches return Loaded(empty). Reads have no COMMIT or unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::core_db2_hotfix_adapter",
+      "source": "crates/wow-database/src/spell/core_db2_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_procs_per_minute_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free core SpellInfo Hotfix DB2 overlays (#509)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Independent reads use the configured HotfixDatabase through query_official_then_custom_like_cpp; no transaction or cross-database atomicity is added.",
+      "current_order": "Prepares HotfixStatements::base(SPELL_PROCS_PER_MINUTE_SQL), reads official rows before custom rows, and decodes the spell_procs_per_minute native projection through decode::spell_procs_per_minute in result order.",
+      "failure_and_unknown_commit": "Any query, native-field or checked row decode error maps to Failed for the whole family; complete empty batches return Loaded(empty). Reads have no COMMIT or unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell::world_catalog_adapter",
+      "source": "crates/wow-database/src/spell/world_catalog_adapter.rs",
+      "enclosing": "fn query_checked_proc_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free SpellMgr World catalog capability (#515/#517)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One independent read uses the configured WorldDatabase and SEL_SPELL_PROC; no transaction is opened.",
+      "current_order": "Executes the existing spell_proc statement, extracts each native row and appends its checked proc projection in database order with row context.",
+      "failure_and_unknown_commit": "Query, native-field or proc decode errors abort the complete batch and propagate to the existing typed Failed classifier; an empty result succeeds. No COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::static_data_overlay_adapter",
+      "source": "crates/wow-database/src/static_data_overlay_adapter.rs",
+      "enclosing": "impl MariaDbStaticDataOverlayPersistenceAdapterLikeCpp::customization_display_info_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free static data overlay capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Uses the adapter configured HotfixDatabase handle for two independent reads; the World handle is unused by this method.",
+      "current_order": "Prepares SEL_CHR_CUSTOMIZATION_DISPLAY_INFO with official=true then false and reads ID, ShapeshiftFormID and DisplayID through the existing getters, appending rows in that order.",
+      "failure_and_unknown_commit": "A query error aborts the complete helper result and the enclosing load port maps it to Failed; empty batches are allowed. This read-only helper performs no COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::lifecycle_auras",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/lifecycle_auras.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for lifecycle aura families in the Player character-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Module imports acquire no connection; its statement builders are pure.",
+      "current_order": "The save coordinator deletes effects before aura rows for selected spell families, then inserts selected aura rows and effects after action buttons and before equipment sets.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs in module declarations or statement builders."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::lifecycle_auras",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/lifecycle_auras.rs",
+      "enclosing": "fn delete",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for lifecycle aura families in the Player character-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement bindings only; the lifecycle adapter appends the selected statements to its one Characters save transaction.",
+      "current_order": "Builds DEL_CHAR_AURA_BY_KEY for (player guid, caster GUID, item GUID, spell); the builder does not execute it.",
+      "failure_and_unknown_commit": "No I/O or acknowledgement occurs here; the enclosing character-save transaction owns rollback and unknown-COMMIT classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::lifecycle_auras",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/lifecycle_auras.rs",
+      "enclosing": "fn delete_effects",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for lifecycle aura families in the Player character-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement bindings only; the lifecycle adapter appends the selected statements to its one Characters save transaction.",
+      "current_order": "Builds DEL_CHAR_AURA_EFFECT_BY_KEY for (player guid, caster GUID, item GUID, spell); the builder does not execute it.",
+      "failure_and_unknown_commit": "No I/O or acknowledgement occurs here; the enclosing character-save transaction owns rollback and unknown-COMMIT classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::lifecycle_auras",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/lifecycle_auras.rs",
+      "enclosing": "fn bind_key",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for lifecycle aura families in the Player character-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure in-place binding of the caller-provided PreparedStatement; no connection or transaction is acquired.",
+      "current_order": "Binds (player guid, caster GUID, item GUID, spell) for the by-key aura and aura-effect delete builders; execution remains in the enclosing character-save transaction.",
+      "failure_and_unknown_commit": "No I/O or acknowledgement occurs here; the enclosing character-save transaction owns rollback and unknown-COMMIT classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::lifecycle_auras",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/lifecycle_auras.rs",
+      "enclosing": "fn delete_by_spell",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for lifecycle aura families in the Player character-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement bindings only; the lifecycle adapter appends the selected statements to its one Characters save transaction.",
+      "current_order": "Builds DEL_CHAR_AURA_BY_SPELL for (player guid, spell); the character save uses this broad spell key for selected lifecycle families.",
+      "failure_and_unknown_commit": "No I/O or acknowledgement occurs here; the enclosing character-save transaction owns rollback and unknown-COMMIT classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::lifecycle_auras",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/lifecycle_auras.rs",
+      "enclosing": "fn bind_spell_key",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for lifecycle aura families in the Player character-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure in-place binding of the caller-provided PreparedStatement; no connection or transaction is acquired.",
+      "current_order": "Binds (player guid, spell) for the by-spell aura and aura-effect delete builders; execution remains in the enclosing character-save transaction.",
+      "failure_and_unknown_commit": "No I/O or acknowledgement occurs here; the enclosing character-save transaction owns rollback and unknown-COMMIT classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::lifecycle_auras",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/lifecycle_auras.rs",
+      "enclosing": "fn delete_effects_by_spell",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for lifecycle aura families in the Player character-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement bindings only; the lifecycle adapter appends the selected statements to its one Characters save transaction.",
+      "current_order": "Builds DEL_CHAR_AURA_EFFECT_BY_SPELL for (player guid, spell); the character save orders this before the matching aura delete.",
+      "failure_and_unknown_commit": "No I/O or acknowledgement occurs here; the enclosing character-save transaction owns rollback and unknown-COMMIT classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::lifecycle_auras",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/lifecycle_auras.rs",
+      "enclosing": "fn insert_aura",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for lifecycle aura families in the Player character-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement bindings only; the lifecycle adapter appends the selected statements to its one Characters save transaction.",
+      "current_order": "Builds INS_AURA keyed by (player guid, caster GUID, item GUID, spell, effect mask), followed by the aura payload columns.",
+      "failure_and_unknown_commit": "No I/O or acknowledgement occurs here; the enclosing character-save transaction owns rollback and unknown-COMMIT classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::lifecycle_auras",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/lifecycle_auras.rs",
+      "enclosing": "fn insert_effect",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for lifecycle aura families in the Player character-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement bindings only; the lifecycle adapter appends the selected statements to its one Characters save transaction.",
+      "current_order": "Builds INS_AURA_EFFECT keyed by (player guid, caster GUID, item GUID, spell, effect mask), followed by effect index and values.",
+      "failure_and_unknown_commit": "No I/O or acknowledgement occurs here; the enclosing character-save transaction owns rollback and unknown-COMMIT classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::pet_save",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/pet_save.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement builders for the two Player pet-save plan variants (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Module imports acquire no connection; statement builders return plans for the lifecycle adapter.",
+      "current_order": "The AurasSpellsAndHistory and PetRow variants produce distinct ordered statement vectors.",
+      "failure_and_unknown_commit": "No I/O, acknowledgement or commit classification occurs in module declarations or statement builders."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::pet_save",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/pet_save.rs",
+      "enclosing": "fn player_pet_save_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement builder for Player pet-save transaction variants (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure plan construction; one returned vector is appended by one lifecycle-adapter transaction invocation.",
+      "current_order": "AurasSpellsAndHistory deletes pet aura effects then auras by pet number (the DB guid/id); inserts each aura with matching effects and appends unmatched supplied effects; applies supplied spell operations; replaces cooldowns then charges. PetRow deletes character_pet by id, then inserts the pet row.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs here; the lifecycle adapter owns each transaction outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::pet_save",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/pet_save.rs",
+      "enclosing": "fn pet_number_statement",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement binding helper for Player pet saves (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement construction; callers append the result to the current pet-save plan.",
+      "current_order": "Binds the pet number (the DB guid/id) for the selected delete statement: aura/effect rows, cooldowns, charges, or character_pet by id.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs here."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::pet_save",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/pet_save.rs",
+      "enclosing": "fn insert_pet_aura",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement binding helper for Player pet aura saves (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement construction; the lifecycle adapter supplies the transaction.",
+      "current_order": "Builds pet_aura with identity (pet number, caster GUID, spell, effect mask), followed by aura state.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs here."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::pet_save",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/pet_save.rs",
+      "enclosing": "fn insert_pet_aura_effect",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement binding helper for Player pet aura-effect saves (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement construction; the lifecycle adapter supplies the transaction.",
+      "current_order": "Builds pet_aura_effect with identity (pet number, caster GUID, spell, effect mask), followed by effect index and values.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs here."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_plan",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_plan.rs",
+      "enclosing": "fn append_player_item_save_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement builder for item rows embedded in the Player full-save plan (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement construction; the complete item statement sequence is appended to the one character-save transaction.",
+      "current_order": "New/changed items replace the inventory link, insert/update item_instance by item guid, update wrapped gift ownership when applicable, then replace gem and transmog rows by item guid. Removed items delete the character_inventory link, item_instance row, gem/transmog rows, and wrapped gift row when applicable.",
+      "failure_and_unknown_commit": "No I/O or commit classification occurs here; save_character_like_cpp owns transaction outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter",
+      "source": "crates/wow-database/src/player/lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::persist_pet_save_transaction_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "MariaDB transaction owner for one Player pet-save request (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each invocation uses one transaction on the configured Characters pool for the supplied pet-save plan.",
+      "current_order": "Appends the selected pet_save plan in order and commits it; Applied reports the statement count.",
+      "failure_and_unknown_commit": "Confirmed commit maps to Applied, DefinitelyRolledBack to Failed, and CommitOutcomeUnknown to Unknown."
+    },
+    {
       "package": "bnet-server",
       "module": "crate",
       "source": "crates/bnet-server/src/main.rs",
@@ -6801,36 +7461,6 @@
       "package": "wow-database",
       "module": "crate::hotfix::difficulty_adapter",
       "source": "crates/wow-database/src/hotfix/difficulty_adapter.rs",
-      "enclosing": "fn difficulty_row_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "MariaDB adapter for the SQLx-free effective Difficulty Hotfix capability (#532)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The row comes from one query on the adapter's Hotfix handle and opens no transaction.",
-      "current_order": "Decode the five represented Difficulty fields at their exact C++ statement positions.",
-      "failure_and_unknown_commit": "A missing, non-integer or out-of-width consumed field fails the complete overlay result before publication."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::hotfix::difficulty_adapter",
-      "source": "crates/wow-database/src/hotfix/difficulty_adapter.rs",
-      "enclosing": "fn read_integer_checked_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "MariaDB adapter for the SQLx-free effective Difficulty Hotfix capability (#532)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Decoding reads only the current Hotfix-query row and opens no transaction.",
-      "current_order": "Try every represented signed and unsigned SQL integer width without fabricating a default.",
-      "failure_and_unknown_commit": "A missing or non-integer required value fails both overlay batches before publication."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::hotfix::difficulty_adapter",
-      "source": "crates/wow-database/src/hotfix/difficulty_adapter.rs",
       "enclosing": "impl MariaDbDifficultyHotfixPersistenceAdapterLikeCpp::new",
       "logical_databases": [
         "hotfix"
@@ -9500,8 +10130,8 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Each read uses the configured Characters adapter and one prepared statement; these read-only loads claim no wider transaction.",
-      "current_order": "Runs only the statement selected by the typed request and decodes rows in database order. The caller preserves pet/group/profile publication, progression validation and side effects, plus character-aura correlation/application and inventory interpretation/repair/installation ordering at their existing login points.",
-      "failure_and_unknown_commit": "A query error returns Failed without rows; successful and empty results return Loaded, and reads have no unknown-COMMIT state. Character aura and aura-effect reads retain independent outcomes so authority completes only after both succeed. Inventory, bag-content and void-storage reads retain independent loaded-empty and failed outcomes."
+      "current_order": "Runs only the statement selected by the typed request and decodes rows in database order. The caller preserves pet/group/profile publication, progression validation and side effects, plus character-aura correlation/application and inventory interpretation/repair/installation ordering at their existing login points. CorpseLocation selects by player guid and maps an empty result to Loaded(None).",
+      "failure_and_unknown_commit": "Query errors return Failed without rows; malformed character aura or effect rows also return Failed after a successful query without returning partial rows. Successful decodes and empty results return Loaded, including Loaded(None) for an empty corpse location; reads have no unknown-COMMIT state. Character aura and aura-effect reads retain independent outcomes so authority completes only after both succeed. Inventory, bag-content and void-storage reads retain independent loaded-empty and failed outcomes."
     },
     {
       "package": "wow-database",
@@ -9757,7 +10387,7 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The semantic Player snapshot is decomposed into statements, appended and committed on one connection from the Characters pool.",
-      "current_order": "Expand semantic groups in the frozen Player-save order, begin one transaction, execute every existing prepared statement in order, then COMMIT before returning Applied.",
+      "current_order": "Expands semantic groups in the frozen Player-save order, appends every prepared statement to one Characters transaction, and commits before returning Applied. The request committed-groups value accompanies the resulting outcome.",
       "failure_and_unknown_commit": "DefinitelyRolledBack maps to Failed; CommitOutcomeUnknown maps to Unknown; neither is collapsed into Applied."
     },
     {
@@ -10018,7 +10648,7 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Pure decoding of one successful Characters result row; it opens no connection and executes no statement.",
-      "current_order": "Decodes the exact CHAR_SEL_CHARACTER columns consumed by the existing Rust Player-login path; required fields retain strict reads and optional fields remain Option values for caller-owned defaults.",
+      "current_order": "Decodes the exact CHAR_SEL_CHARACTER columns consumed by the existing Rust Player-login path, including death_expire_time at result index 42; required fields retain strict reads and optional fields remain Option values for caller-owned defaults.",
       "failure_and_unknown_commit": "The helper receives only a successful non-empty result; query failure and absence are classified by the owning adapter, and reads have no unknown-COMMIT state."
     },
     {
@@ -10078,7 +10708,7 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Pure Characters-database statement construction; each semantic request selects one existing statement and exact identity bind.",
-      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement; pet, group, profile, progression, character-aura and inventory requests preserve their exact identity and bind widths without introducing a wider transaction.",
+      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement for the typed request; CorpseLocation adds SEL_CORPSE_LOCATION bound by the UInt64 player guid. Existing pet, group, profile, progression, aura and inventory identities retain their bind order without introducing a wider transaction or query reordering.",
       "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later read as Loaded typed rows or Failed."
     },
     {
@@ -10198,7 +10828,7 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Pure plan expansion; the lifecycle adapter appends the resulting statements to one Characters transaction.",
-      "current_order": "Expands semantic groups in the frozen Player-save order without exposing that decomposition through the port.",
+      "current_order": "Expands semantic groups in the frozen Player-save order without exposing that decomposition through the port. Death metadata follows health; item durability follows explored zones; inventory-item statements splice after durability and before void storage; quest statements follow void storage; lifecycle aura replacements follow action buttons and precede equipment sets; currencies splice before CUF profiles. Existing sort and filter behavior remains as coded.",
       "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter normalizes definite rollback and unknown COMMIT."
     },
     {
@@ -12881,36 +13511,6 @@
       "package": "wow-database",
       "module": "crate::spell::acquisition_startup_adapter",
       "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
-      "enclosing": "fn decode_serverside_effect_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
-      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
-      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::spell::acquisition_startup_adapter",
-      "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
-      "enclosing": "fn decode_serverside_spell_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
-      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
-      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::spell::acquisition_startup_adapter",
-      "source": "crates/wow-database/src/spell/acquisition_startup_adapter.rs",
       "enclosing": "fn f32_bits_like_cpp",
       "logical_databases": [
         "hotfix"
@@ -13134,21 +13734,6 @@
       "connection_affinity": "One adapter owns independent HotfixDatabase and WorldDatabase handles; ordered startup reads are not represented as one distributed transaction.",
       "current_order": "The composition root preserves server-side effects -> server-side spells -> acquisition catalogs -> trainer audit, while each Hotfix family preserves WDC -> official -> custom -> RecordRemoved order.",
       "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::spell::core_db2_hotfix_adapter",
-      "source": "crates/wow-database/src/spell/core_db2_hotfix_adapter.rs",
-      "enclosing": "fn classify_rows_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "MariaDB adapter for SQLx-free core SpellInfo Hotfix DB2 overlays (#509)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
-      "current_order": "Each row family is queried with official rows first and custom rows second; world-server preserves SpellName, the existing key seed, then Categories, Misc, Effect, Shapeshift, Interrupts, CastTimes, Cooldowns, CastingRequirements, Power and PowerDifficulty before hydration.",
-      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port."
     },
     {
       "package": "wow-database",
@@ -13529,36 +14114,6 @@
       "package": "wow-database",
       "module": "crate::spell::info_key_hotfix_adapter",
       "source": "crates/wow-database/src/spell/info_key_hotfix_adapter.rs",
-      "enclosing": "fn read_u32_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
-      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
-      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::spell::info_key_hotfix_adapter",
-      "source": "crates/wow-database/src/spell/info_key_hotfix_adapter.rs",
-      "enclosing": "fn read_u8_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
-      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
-      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::spell::info_key_hotfix_adapter",
-      "source": "crates/wow-database/src/spell/info_key_hotfix_adapter.rs",
       "enclosing": "impl MariaDbSpellInfoKeyHotfixPersistenceAdapterLikeCpp::new",
       "logical_databases": [
         "hotfix"
@@ -13635,21 +14190,6 @@
       "module": "crate::spell::world_catalog_adapter",
       "source": "crates/wow-database/src/spell/world_catalog_adapter.rs",
       "enclosing": "fn classify_rows_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "MariaDB adapter for the SQLx-free SpellMgr World catalog capability (#515/#517)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Every workflow uses only the World connection; the ten reads are independent startup queries and imply no transaction or cross-database atomicity.",
-      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
-      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::spell::world_catalog_adapter",
-      "source": "crates/wow-database/src/spell/world_catalog_adapter.rs",
-      "enclosing": "fn proc_row_like_cpp",
       "logical_databases": [
         "world"
       ],

@@ -31,8 +31,8 @@ mod tests {
         session
     }
 
-    #[test]
-    fn pending_far_completion_normalizes_orientation_before_exact_post_add_comparison() {
+    #[tokio::test]
+    async fn pending_far_completion_normalizes_orientation_before_exact_post_add_comparison() {
         for orientation in [180.0, -7.0, std::f32::consts::TAU] {
             let mut session = save_fixture();
             session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
@@ -51,7 +51,11 @@ mod tests {
                     .update_player_teleport_state_like_cpp(|state| state.far_pending = true)
             );
             assert_eq!(session.pending_teleport_like_cpp(), Some((1, expected)));
-            assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+            assert!(
+                session
+                    .finish_worldport_native_before_disconnect_like_cpp()
+                    .await
+            );
             assert_eq!(
                 crate::session::hub_ref(&session).player_position_like_cpp(),
                 Some(expected)
@@ -65,8 +69,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn prepared_save_rejects_retained_post_add_until_native_completion() {
+    #[tokio::test]
+    async fn prepared_save_rejects_retained_post_add_until_native_completion() {
         let mut session = save_fixture();
         let position = crate::session::hub_ref(&session)
             .player_position_like_cpp()
@@ -81,7 +85,11 @@ mod tests {
                 .post_add
                 .is_some()
         );
-        assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+        assert!(
+            session
+                .finish_worldport_native_before_disconnect_like_cpp()
+                .await
+        );
         assert!(session.prepare_player_save_like_cpp(1).is_some());
     }
 
@@ -131,7 +139,11 @@ mod tests {
         }
         assert_eq!(session.lifecycle.next_player_save_ms_like_cpp(), 100);
         assert!(!session.lifecycle.pending_periodic_player_save_like_cpp());
-        assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+        assert!(
+            session
+                .finish_worldport_native_before_disconnect_like_cpp()
+                .await
+        );
         // Unavailable persistence is not a confirmation and must retain the intent.
         assert_eq!(
             session.save_current_player_to_db_like_cpp().await,

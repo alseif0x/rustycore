@@ -7,7 +7,7 @@
 //! (#1363 slice 11a; moved from the World `session/movement/transfer.rs`).
 
 use tracing::{info, warn};
-use wow_core::Position;
+use wow_core::{ObjectGuid, Position};
 use wow_world_core::session::SessionState;
 use wow_world_core::session::movement_protocol::{
     TELE_TO_SEAMLESS_LIKE_CPP, TeleportToOptionsLikeCpp,
@@ -18,7 +18,6 @@ use super::far_transfer::{
     initiate_far_teleport_after_delay_like_cpp,
     maybe_leave_represented_battleground_on_far_teleport_like_cpp,
 };
-use super::teleport_ack::resurrect_player_percent_for_teleport_like_cpp;
 use super::{
     CLASS_DEATH_KNIGHT_LIKE_CPP, DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP,
     DEATH_KNIGHT_START_MAP_LIKE_CPP, PlayerTeleportHostLikeCpp, TELE_REVIVE_AT_TELEPORT_LIKE_CPP,
@@ -44,7 +43,37 @@ pub async fn teleport_to_with_options<H: PlayerTeleportHostLikeCpp>(
     host: &mut H,
     new_map: u32,
     new_pos: wow_core::Position,
+    options: TeleportToOptionsLikeCpp,
+) {
+    if options & TELE_REVIVE_AT_TELEPORT_LIKE_CPP != 0
+        && host.hub_ref().resolved_player_is_alive_like_cpp() == Some(false)
+    {
+        // The ordinary teleport capability has no resurrection catalogs.
+        // Preserve its fail-closed behavior without imposing corpse operations
+        // on callers that issue an ordinary area-trigger or recovery teleport.
+        return;
+    }
+    teleport_to_inner(host, new_map, new_pos, options, None).await;
+}
+
+pub async fn teleport_to_with_options_and_resurrection<H>(
+    host: &mut H,
+    new_map: u32,
+    new_pos: wow_core::Position,
+    options: TeleportToOptionsLikeCpp,
+    catalogs: crate::ResurrectionOperationCatalogs<'_>,
+) where
+    H: PlayerTeleportHostLikeCpp,
+{
+    teleport_to_inner(host, new_map, new_pos, options, Some(catalogs)).await;
+}
+
+async fn teleport_to_inner<H: PlayerTeleportHostLikeCpp>(
+    host: &mut H,
+    new_map: u32,
+    new_pos: wow_core::Position,
     mut options: TeleportToOptionsLikeCpp,
+    resurrection_catalogs: Option<crate::ResurrectionOperationCatalogs<'_>>,
 ) {
     if host
         .hub_ref()
@@ -165,7 +194,14 @@ pub async fn teleport_to_with_options<H: PlayerTeleportHostLikeCpp>(
         {
             return;
         }
-        initiate_same_map_near_teleport_like_cpp(host, new_map, new_pos, options);
+        initiate_same_map_near_teleport_like_cpp(
+            host,
+            new_map,
+            new_pos,
+            options,
+            resurrection_catalogs,
+        )
+        .await;
         return;
     }
 
@@ -367,11 +403,12 @@ fn exit_represented_vehicle_for_teleport_like_cpp<H: PlayerTeleportHostLikeCpp>(
     host.sync_player_registry_state_like_cpp();
     true
 }
-fn initiate_same_map_near_teleport_like_cpp<H: PlayerTeleportHostLikeCpp>(
+async fn initiate_same_map_near_teleport_like_cpp<H: PlayerTeleportHostLikeCpp>(
     host: &mut H,
     map_id: u32,
     destination: wow_core::Position,
     options: TeleportToOptionsLikeCpp,
+    resurrection_catalogs: Option<crate::ResurrectionOperationCatalogs<'_>>,
 ) {
     let Some(can_delay) = host
         .hub_ref()
@@ -410,7 +447,15 @@ fn initiate_same_map_near_teleport_like_cpp<H: PlayerTeleportHostLikeCpp>(
     if host.hub_ref().resolved_player_is_alive_like_cpp() == Some(false)
         && options & TELE_REVIVE_AT_TELEPORT_LIKE_CPP != 0
     {
-        resurrect_player_percent_for_teleport_like_cpp(host, 0.5);
+        let Some(catalogs) = resurrection_catalogs else {
+            return;
+        };
+        if !host
+            .revive_for_teleport(catalogs, map_id, destination)
+            .await
+        {
+            return;
+        }
     }
 
     if options & TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP == 0 {
@@ -447,7 +492,8 @@ fn initiate_same_map_near_teleport_like_cpp<H: PlayerTeleportHostLikeCpp>(
                 facing: destination.orientation,
                 sequence_index,
                 preload_world: 0,
-                transport_guid: None,
+                // Unit::SendTeleportPacket engages this optional even without a transport.
+                transport_guid: Some(ObjectGuid::EMPTY),
             });
         }
     }
@@ -466,11 +512,17 @@ pub async fn process_represented_delayed_teleport_after_update_like_cpp<
     H: PlayerTeleportHostLikeCpp,
 >(
     host: &mut H,
+    catalogs: crate::ResurrectionOperationCatalogs<'_>,
 ) -> bool {
     let Some(teleport) = host.hub_ref().player_teleport_state_snapshot_like_cpp() else {
         return false;
     };
-    if !teleport.has_delayed || host.hub_ref().resolved_player_is_alive_like_cpp() != Some(true) {
+    if !teleport.has_delayed {
+        return false;
+    }
+    // C++ Player::Update only executes a delayed teleport for a living player
+    // (`Player.cpp:1151-1155`); a ghost must keep its pending intent.
+    if host.hub_ref().resolved_player_is_alive_like_cpp() != Some(true) {
         return false;
     }
 
@@ -498,7 +550,14 @@ pub async fn process_represented_delayed_teleport_after_update_like_cpp<
         .current_canonical_player_map_key_like_cpp()
         .is_some_and(|key| key.map_id == map_id)
     {
-        initiate_same_map_near_teleport_like_cpp(host, map_id, destination, options);
+        initiate_same_map_near_teleport_like_cpp(
+            host,
+            map_id,
+            destination,
+            options,
+            Some(catalogs),
+        )
+        .await;
     } else {
         initiate_far_teleport_after_delay_like_cpp(host, map_id, destination, options).await;
     }

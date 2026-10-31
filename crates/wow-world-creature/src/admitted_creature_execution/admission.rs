@@ -254,7 +254,9 @@ pub fn capture_admitted_creature_execution_on_manager_like_cpp(
 /// The record owns its `Creature`; a replacement allocates a new one. The
 /// address is only ever compared while the same map guard that captured it is
 /// held, so it cannot be observed across a free.
-fn canonical_creature_record_identity_like_cpp(creature: &wow_entities::Creature) -> u64 {
+pub(super) fn canonical_creature_record_identity_like_cpp(
+    creature: &wow_entities::Creature,
+) -> u64 {
     std::ptr::from_ref(creature) as usize as u64
 }
 

@@ -96,6 +96,21 @@ fn represented_run_speed_minimum_speed_removal_recomputes_like_cpp() {
         effect_index: 2,
         ..Default::default()
     };
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (20_013, 0),
+        (20_014, 0),
+        (20_015, 0),
+    ]);
+    let mut speed_info = test_spell_info_like_cpp(20_013);
+    speed_info.effects = vec![speed.clone()];
+    spell_store.insert(20_013, speed_info);
+    let mut slow_info = test_spell_info_like_cpp(20_014);
+    slow_info.effects = vec![slow.clone()];
+    spell_store.insert(20_014, slow_info);
+    let mut minimum_info = test_spell_info_like_cpp(20_015);
+    minimum_info.effects = vec![minimum.clone()];
+    spell_store.insert(20_015, minimum_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(
@@ -214,6 +229,15 @@ fn represented_run_speed_minimum_speed_rate_removal_recomputes_like_cpp() {
         effect_index: 1,
         ..Default::default()
     };
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(20_018, 0), (20_019, 0)]);
+    let mut slow_info = test_spell_info_like_cpp(20_018);
+    slow_info.effects = vec![slow.clone()];
+    spell_store.insert(20_018, slow_info);
+    let mut minimum_rate_info = test_spell_info_like_cpp(20_019);
+    minimum_rate_info.effects = vec![minimum_rate.clone()];
+    spell_store.insert(20_019, minimum_rate_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(

@@ -11,6 +11,7 @@ impl WorldSession {
         let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let progression = self.progression_catalogs_for_test_like_cpp();
+        let item_guid_generator = self.id_generators_for_test_like_cpp().item;
         wow_world_entities::handle_movement_with_catalogs_like_cpp(
             self,
             &area_trigger_catalogs,
@@ -18,6 +19,7 @@ impl WorldSession {
             &progression,
             &crate::session::SessionHandlerCatalogsLikeCpp::default().player_grid_loader,
             pkt,
+            item_guid_generator.as_ref(),
         )
         .await;
     }
@@ -30,6 +32,7 @@ impl WorldSession {
         let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let progression = self.progression_catalogs_for_test_like_cpp();
+        let item_guid_generator = self.id_generators_for_test_like_cpp().item;
         wow_world_entities::handle_movement_info_with_catalogs_like_cpp(
             self,
             &area_trigger_catalogs,
@@ -38,6 +41,7 @@ impl WorldSession {
             &crate::session::SessionHandlerCatalogsLikeCpp::default().player_grid_loader,
             opcode,
             info,
+            item_guid_generator.as_ref(),
         )
         .await;
     }

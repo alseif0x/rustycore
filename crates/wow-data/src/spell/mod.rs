@@ -9,14 +9,21 @@
 //! responsibility. Every public type and data contract is unchanged.
 
 mod acquisition;
+mod cast_costs;
 mod catalog;
 mod corrections;
+mod proc_sources;
+mod resolution;
 mod stores;
+mod visuals;
 
 pub use acquisition::*;
+pub use cast_costs::*;
 pub use catalog::*;
 pub use corrections::*;
+pub use resolution::*;
 pub use stores::*;
+pub use visuals::*;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -60,10 +67,16 @@ pub use state_1::*;
 pub use state_2::*;
 
 pub mod attributes {
+    /// C++ `SPELL_ATTR7_BYPASS_NO_RESURRECT_AURA` (`SharedDefines.h:717`).
+    pub const SPELL_ATTR7_BYPASS_NO_RESURRECT_AURA: u32 = 0x0800_0000;
+    /// C++ `SPELL_ATTR5_NO_REAGENT_COST_WITH_AURA`.
+    pub const SPELL_ATTR5_NO_REAGENT_COST_WITH_AURA: u32 = 0x0000_0002;
     /// C++ `SPELL_ATTR0_IS_ABILITY` (`SharedDefines.h`).
     pub const SPELL_ATTR0_IS_ABILITY: u32 = 0x0000_0010;
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    /// C++ `SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD` (`SharedDefines.h:454`).
+    pub const SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD: u32 = 0x0080_0000;
     /// C++ `SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG` (`SharedDefines.h`).
     pub const SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG: u32 = 0x0000_0080;
     /// C++ `SPELL_ATTR0_NOT_SHAPESHIFTED` (`SharedDefines.h`).
@@ -90,6 +103,10 @@ pub mod attributes {
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
     /// C++ `SPELL_ATTR1_NO_AURA_ICON` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AURA_ICON: u32 = 0x1000_0000;
+    /// C++ `SPELL_ATTR7_ALWAYS_CAST_LOG` (`SharedDefines.h`).
+    pub const SPELL_ATTR7_ALWAYS_CAST_LOG: u32 = 0x8000_0000;
+    /// C++ `SPELL_ATTR8_AURA_POINTS_ON_CLIENT` (`SharedDefines.h`).
+    pub const SPELL_ATTR8_AURA_POINTS_ON_CLIENT: u32 = 0x0000_1000;
     /// C++ `SPELL_ATTR2_IGNORE_LINE_OF_SIGHT` (`SharedDefines.h`).
     pub const SPELL_ATTR2_IGNORE_LINE_OF_SIGHT: u32 = 0x0000_0004;
     /// C++ `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM` (`SharedDefines.h`).

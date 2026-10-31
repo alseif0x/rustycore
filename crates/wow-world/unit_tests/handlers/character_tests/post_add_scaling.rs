@@ -30,6 +30,16 @@ async fn retained_worldport_before_zone_finishes_native_effects_before_disconnec
     assert_post_add_scaling(true, OutputClosure::RetainedBeforeZone).await;
 }
 
+#[tokio::test]
+async fn worldport_initial_aura_failure_does_not_resume_native_or_deferred_save() {
+    assert_post_add_scaling(true, OutputClosure::SelectedAuraUnavailable).await;
+}
+
+#[tokio::test]
+async fn login_initial_aura_failure_aborts_the_partial_login() {
+    assert_post_add_scaling(false, OutputClosure::SelectedAuraUnavailable).await;
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum OutputClosure {
     Never,
@@ -37,6 +47,7 @@ enum OutputClosure {
     DuringWorldStateRead,
     CancelDuringWorldStateRead,
     RetainedBeforeZone,
+    SelectedAuraUnavailable,
 }
 
 async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
@@ -56,10 +67,43 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
     ])));
     session.set_player_guid(Some(guid));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
     session.set_player_position_like_cpp(position);
     set_priest_level80_stats(&mut session, 1000, 20);
     assert!(session.player_stat_changes_like_cpp().is_some());
+    if closure == OutputClosure::SelectedAuraUnavailable {
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .insert_runtime_application_like_cpp(wow_entities::AuraApplicationLikeCpp {
+                        spell_id: 8_326,
+                        difficulty_id: 0,
+                        caster_guid: guid,
+                        slot: 4,
+                        duration_total: 60_000,
+                        duration_remaining: 60_000,
+                        stack_count: 1,
+                        aura_flags: 1,
+                        effect_mask: 1,
+                        aura_interrupt_flags: 0,
+                        aura_interrupt_flags2: 0,
+                        represented_effect: None,
+                        represented_amount: 0,
+                        represented_effect_amounts: Vec::new(),
+                        represented_misc_value: None,
+                        represented_multiplier: 1.0,
+                        applied_at: std::time::Instant::now(),
+                    });
+            })
+            .expect("canonical Player owns the selected initial aura");
+    }
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     let canonical = session.core.canonical_map_manager.as_ref().unwrap().clone();
     let port = CollectionLoadPortLikeCpp::for_initial_world_states([]);
@@ -103,28 +147,51 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
         }));
     session.set_player_lifecycle_port_like_cpp(port);
     if worldport {
-        assert!(
-            session.schedule_represented_resurrection_after_teleport_like_cpp(
-                wow_entities::PlayerResurrectionRequestLikeCpp {
-                    resurrecter: guid,
-                    map_id: 571,
-                    position,
-                    health: 100,
-                    mana: 50,
-                    aura: 0,
-                }
-            )
-        );
+        let mut native_player_state_before_post_add = None;
+        assert!(session.schedule_represented_resurrection_after_teleport(
+            wow_entities::PlayerResurrectionRequestLikeCpp {
+                resurrecter: guid,
+                map_id: 571,
+                position,
+                health: 100,
+                mana: 50,
+                aura: 0,
+            }
+        ));
         assert!(session.set_pending_teleport_like_cpp(Some((571, position))));
         assert!(session.set_represented_far_teleport_pending_like_cpp(true));
         session.set_state(crate::session::SessionState::Transfer);
+        if closure == OutputClosure::SelectedAuraUnavailable {
+            assert_eq!(
+                session.save_current_player_to_db_like_cpp().await,
+                crate::session::PlayerSaveOutcomeLikeCpp::Deferred
+            );
+            assert_eq!(
+                session.core.with_owned_player_like_cpp(|player| {
+                    player.has_deferred_player_save_like_cpp()
+                }),
+                Some(true)
+            );
+            native_player_state_before_post_add = Some(
+                session
+                    .core
+                    .with_owned_player_like_cpp(|player| {
+                        (player.unit().death_state(), player.unit().data().health)
+                    })
+                    .expect("canonical Player state before post-add initialization"),
+            );
+        }
         if closure == OutputClosure::RetainedBeforeZone {
             assert!(session.set_represented_far_teleport_pending_like_cpp(false));
             assert!(session.set_pending_teleport_like_cpp(None));
             assert!(session.begin_worldport_post_add_like_cpp(571, position));
             assert!(!session.begin_worldport_post_add_like_cpp(571, position));
             session.set_player_position_like_cpp(Position::new(4.0, 5.0, 6.0, 0.0));
-            assert!(!session.finish_worldport_native_before_disconnect_like_cpp());
+            assert!(
+                !session
+                    .finish_worldport_native_before_disconnect_like_cpp()
+                    .await
+            );
             assert!(!session.represented_using_pvp_item_levels_like_cpp());
             assert!(
                 session
@@ -155,6 +222,49 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
                 .handle_world_port_response(WorldPacket::new_empty())
                 .await;
         }
+        if closure == OutputClosure::SelectedAuraUnavailable {
+            assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+            assert!(
+                session
+                    .represented_delayed_resurrection_after_teleport_like_cpp()
+                    .is_some(),
+                "failed initial aura publication stops before native completion"
+            );
+            assert_eq!(
+                session.core.with_owned_player_like_cpp(|player| {
+                    player
+                        .resurrection_state_like_cpp()
+                        .delayed_after_teleport
+                        .map(|continuation| continuation.phase)
+                }),
+                Some(Some(
+                    wow_entities::PlayerResurrectionPhase::TeleportCompleted
+                )),
+                "the valid worldport ACK keeps its owned phase while post-add initialization fails"
+            );
+            assert_eq!(
+                session.core.with_owned_player_like_cpp(|player| {
+                    player.has_deferred_player_save_like_cpp()
+                }),
+                Some(true),
+                "initial aura failure leaves deferred save intent for later owner handling"
+            );
+            assert_eq!(
+                session
+                    .core
+                    .with_owned_player_like_cpp(|player| {
+                        (player.unit().death_state(), player.unit().data().health)
+                    })
+                    .expect("canonical Player state after failed post-add initialization"),
+                native_player_state_before_post_add
+                    .expect("initial failure case captures its pre-native Player state"),
+                "failed initial Aura publication does not apply native resurrection health or death state"
+            );
+            assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 0);
+            assert!(!session.represented_using_pvp_item_levels_like_cpp());
+            assert!(observed.load(std::sync::atomic::Ordering::SeqCst));
+            return;
+        }
         assert_eq!(
             session.state(),
             if closure != OutputClosure::Never {
@@ -170,15 +280,27 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
         );
         let pet_resummons = session.temporary_pet_resummon_requests_like_cpp();
         assert_eq!(pet_resummons, 1);
-        assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+        assert!(
+            session
+                .finish_worldport_native_before_disconnect_like_cpp()
+                .await
+        );
         assert_eq!(
             session.temporary_pet_resummon_requests_like_cpp(),
             pet_resummons
         );
     } else {
-        session
+        let complete = session
             .send_initial_packets_after_add_to_map(guid, &position, 571, false)
             .await;
+        if closure == OutputClosure::SelectedAuraUnavailable {
+            assert!(!complete, "the selected full aura update is unavailable");
+            assert_ne!(session.state(), crate::session::SessionState::LoggedIn);
+            wow_world_character::abort_partial_login_sequence_like_cpp(&mut session);
+            assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+            return;
+        }
+        assert!(complete, "the successful post-add sequence completes");
     }
     assert_eq!(
         observed.load(std::sync::atomic::Ordering::SeqCst),

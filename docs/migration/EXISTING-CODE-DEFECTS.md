@@ -44,6 +44,37 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
 
 ## Later verified open findings
 
+- **2026-10-28, #43 fixture admission — ItemSparse class-mask field,
+  locally repaired; final acceptance pending.** At `8eb73d12a`,
+  `crates/wow-data/src/item/stats/store.rs` captures `allowable_class_offset`
+  from field 48. Target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`,
+  `DB2Metadata.h:5673` / `ItemSparseMeta` and `DB2LoadInfo.h:3028`, put
+  signed `AllowableClass` at field 46, followed by `ItemRandomSuffixGroupID`
+  at 47 and `RandomSelect` at 48. The installed-data production-reader probe
+  returned class mask 0 for item 2121 (durability 40, chest) and item 17030
+  (reagent, stack size 10); its commands/results are retained under
+  `/tmp/rustycore43-qa-data-probe/`. These values do not prove legal fixture
+  admission: target `ItemTemplate.h:768` and `Player.cpp:11085,11138` use the
+  actual class mask. The selected correction now reads field 46. Its new
+  portable WDC4 sparse-loader regression passed with distinct class/suffix/
+  random-select sentinels and signed masks; the opt-in installed-data probe
+  returned `-1` for both items, permitting the Mage bit. The one focused case
+  passed (846 filtered), with evidence under
+  `/tmp/rustycore43-item-class-feedback/`. No item data was changed. Final
+  acceptance and broader consumer parity remain separate evidence boundaries.
+
+- **2026-10-27, #43 fixture review — shared DUMMY Aura constant differs from
+  the target enum.** At `7b09213ca`,
+  `crates/wow-data/src/spell/aura_types.rs:6` defines `SPELL_AURA_DUMMY = 0`.
+  Target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`,
+  `src/server/game/Spells/Auras/SpellAuraDefines.h:95–99`, defines NONE as 0
+  and DUMMY as 4. This is a verified constant mismatch, not a demonstrated
+  whole-gameplay blast radius. The #43 Aura cleanup fixture uses the target
+  value 4 with coherent effect and class-options rows; its two focused cases
+  pass. General Aura consumer reconciliation remains with the existing Aura
+  responsibility (#32/#49), rather than silently changing that programme in
+  the death-lifecycle delivery. No production constant was changed here.
+
 - **2026-10-06, #1263 F6 — five registered opcodes that 3.4.3 leaves unhandled, plus one
   dispatch-status divergence.** Method: a text pass over every world packet registration
   (`register_packet_handler_like_cpp!`, 104 entries at `641646ef4`) compared against the

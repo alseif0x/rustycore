@@ -22,6 +22,17 @@ use wow_world_core::session::{ProgressionCatalogsLikeCpp, SessionHubHostLikeCpp}
 use crate::CreatureSpawnCatalogsLikeCpp;
 
 pub trait PlayerMovementHostLikeCpp: SessionHubHostLikeCpp {
+    /// Await the required native death body at the damage admission point.
+    fn apply_native_player_damage_like_cpp<'a>(
+        &'a mut self,
+        damage: u32,
+        context: wow_entities::PlayerDeathOperationContext,
+        creature_spawns: &'a CreatureSpawnCatalogsLikeCpp,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+    ) -> wow_handler::HandlerFuture<
+        'a,
+        Result<wow_world_core::session::PlayerDamageResultLikeCpp, &'static str>,
+    >;
     /// The World area-trigger catalogs; their script dispatcher takes the
     /// session, so only the host can name them.
     type AreaTriggerCatalogsLikeCpp: Sync;

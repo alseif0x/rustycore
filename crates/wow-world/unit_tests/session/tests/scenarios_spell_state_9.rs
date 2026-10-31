@@ -15,6 +15,14 @@ fn cancel_mount_aura_removes_represented_mounted_aura_like_cpp() {
         effect_misc_value_1: 0,
         ..Default::default()
     };
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(100, 0)]);
+    let mut mount_info = test_spell_info_like_cpp(100);
+    mount_info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+    mount_info.effect_base_points = 77;
+    mount_info.aura_type = Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED);
+    mount_info.effects = vec![effect.clone()];
+    spell_store.insert(100, mount_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)

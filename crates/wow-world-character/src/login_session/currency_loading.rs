@@ -58,10 +58,15 @@ pub async fn load_character_currencies_for_login_like_cpp<H: CharacterLoginHostL
                 warn!("canonical Player currency owner unavailable after currency load");
                 return false;
             }
+            if !host.set_player_currencies_loaded_like_cpp(true) {
+                warn!("canonical Player currency owner unavailable after currency load");
+                return false;
+            }
             info!("Loaded {} currencies for {:?}", currency_count, guid);
         }
         wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
             warn!("Failed to load currencies for {:?}: {}", guid, reason);
+            return false;
         }
         _ => unreachable!("currency request returned a different row family"),
     }

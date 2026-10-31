@@ -183,13 +183,14 @@ fn db_backed_template_store_with_regen(
     entry: u32,
     regen_health: bool,
 ) -> CreatureTemplateLifecycleStoreLikeCpp {
-    db_backed_template_store_with_regen_and_vehicle(entry, regen_health, 0)
+    db_backed_template_store_with_regen_and_vehicle(entry, regen_health, 0, 0.0)
 }
 
 fn db_backed_template_store_with_regen_and_vehicle(
     entry: u32,
     regen_health: bool,
     vehicle_id: u32,
+    base_variance: f32,
 ) -> CreatureTemplateLifecycleStoreLikeCpp {
     CreatureTemplateLifecycleStoreLikeCpp::from_templates([
         wow_data::CreatureTemplateLifecycleRecordLikeCpp {
@@ -225,6 +226,7 @@ fn db_backed_template_store_with_regen_and_vehicle(
             flags_extra: 0x40,
             string_id: "template-string".to_string(),
             regen_health,
+            base_variance,
             spells: [10, 20, 0, 0, 0, 0, 0, 0],
             models: vec![
                 wow_data::CreatureTemplateLifecycleModelLikeCpp {

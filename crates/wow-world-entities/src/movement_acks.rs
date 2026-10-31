@@ -23,10 +23,13 @@ use wow_world_core::session::movement_protocol::{
 use wow_world_core::session::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP};
 
 use crate::movement_host::PlayerMovementHostLikeCpp;
+use crate::player_resurrection::PLAYER_FLAGS_IS_OUT_OF_BOUNDS;
 
-pub fn handle_fall_like_cpp<H: PlayerMovementHostLikeCpp>(
+pub async fn handle_fall_like_cpp<H: PlayerMovementHostLikeCpp>(
     host: &mut H,
     movement_info: &wow_packet::packets::movement::MovementInfo,
+    creature_spawns: &crate::CreatureSpawnCatalogsLikeCpp,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) -> Option<MovementFallDamageEvent> {
     let (_, last_fall_z) = host.hub_ref().resolved_fall_information_like_cpp()?;
     let damage_control = host.hub_ref().resolved_player_damage_control_like_cpp()?;
@@ -80,17 +83,22 @@ pub fn handle_fall_like_cpp<H: PlayerMovementHostLikeCpp>(
     } else {
         damage
     };
-    let (_original_health, health_after, _, final_damage, killed_player) =
-        host.hub_mut().apply_owned_player_damage_like_cpp(
+    let attacker = host.player_guid()?;
+    let result = host
+        .apply_native_player_damage_like_cpp(
             requested_damage,
-            wow_constants::DeathState::JustDied,
-        )?;
+            wow_entities::PlayerDeathOperationContext::new(attacker, false),
+            creature_spawns,
+            item_guid_generator,
+        )
+        .await
+        .ok()?;
+    let final_damage = result.applied_damage;
+    let killed_player = result.killed;
     host.sync_player_registry_state_like_cpp();
     if final_damage > 0
         && let Some(player_guid) = host.player_guid()
     {
-        host.core()
-            .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
         host.core().send_environmental_damage_log_like_cpp(
             player_guid,
             DAMAGE_FALL_LIKE_CPP,
@@ -99,8 +107,6 @@ pub fn handle_fall_like_cpp<H: PlayerMovementHostLikeCpp>(
             0,
         );
         if killed_player {
-            host.core()
-                .send_player_health_values_update_like_cpp(player_guid, 0);
             // C++ `Player::EnvironmentalDamage` fall-to-death branch
             // (`Player.cpp:663-670`): item durability loss plus the loss
             // message. Non-fall environmental damage never wears items.
@@ -108,12 +114,11 @@ pub fn handle_fall_like_cpp<H: PlayerMovementHostLikeCpp>(
                 .hub_ref()
                 .config
                 .durability_loss_on_death_rate_like_cpp();
-            if loss_rate > 0.0 {
-                host.apply_represented_durability_loss_all_like_cpp(f64::from(loss_rate), false);
-                host.send_packet(&wow_packet::packets::misc::DurabilityDamageDeath {
+            host.apply_represented_durability_loss_all_like_cpp(f64::from(loss_rate), false);
+            host.core()
+                .send_packet_realm(&wow_packet::packets::misc::DurabilityDamageDeath {
                     percent: (loss_rate * 100.0) as i32,
                 });
-            }
         }
     }
 
@@ -752,14 +757,19 @@ pub fn sanitize_movement_info_represented_like_cpp<H: PlayerMovementHostLikeCpp>
     )
 }
 
-pub fn handle_under_map_like_cpp<H: PlayerMovementHostLikeCpp>(
+pub async fn handle_under_map_like_cpp<H: PlayerMovementHostLikeCpp>(
     host: &mut H,
     movement_info: &wow_packet::packets::movement::MovementInfo,
+    creature_spawns: &crate::CreatureSpawnCatalogsLikeCpp,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) -> Option<MovementUnderMapDamageEvent> {
     let min_height = host
         .hub_ref()
         .player_min_height_like_cpp(movement_info.position);
     if movement_info.position.z >= min_height {
+        let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+            player.remove_player_flags_like_cpp(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+        });
         #[cfg(any(test, feature = "test-fixtures"))]
         if let Some(fixtures) = host.test_fixtures_like_cpp() {
             fixtures.movement.player_out_of_bounds_like_cpp = false;
@@ -773,19 +783,28 @@ pub fn handle_under_map_like_cpp<H: PlayerMovementHostLikeCpp>(
         return None;
     }
 
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        player.set_player_flag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+    });
     #[cfg(any(test, feature = "test-fixtures"))]
     if let Some(fixtures) = host.test_fixtures_like_cpp() {
         fixtures.movement.player_out_of_bounds_like_cpp = true;
     }
     let damage = max_health;
-    let (_, health_after, _, _, killed_player) = host
-        .hub_mut()
-        .apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)?;
-    if health_after != original_health
+    let attacker = host.player_guid()?;
+    let result = host
+        .apply_native_player_damage_like_cpp(
+            damage,
+            wow_entities::PlayerDeathOperationContext::new(attacker, false),
+            creature_spawns,
+            item_guid_generator,
+        )
+        .await
+        .ok()?;
+    let health_after = result.health_after;
+    if health_after != u64::from(original_health)
         && let Some(player_guid) = host.player_guid()
     {
-        host.core()
-            .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
         host.core().send_environmental_damage_log_like_cpp(
             player_guid,
             DAMAGE_FALL_TO_VOID_LIKE_CPP,
@@ -793,10 +812,6 @@ pub fn handle_under_map_like_cpp<H: PlayerMovementHostLikeCpp>(
             0,
             0,
         );
-        if killed_player {
-            host.core()
-                .send_player_health_values_update_like_cpp(player_guid, 0);
-        }
     }
 
     // C++ calls KillPlayer if EnvironmentalDamage did not kill due to GM/immunity.

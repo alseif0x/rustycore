@@ -264,6 +264,9 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
             faction_template_entry(1, 1, 0, 0, 0),
         ]),
     ));
+    session.set_faction_store(Arc::new(
+        wow_data::progression_rewards::FactionStore::from_entries([]),
+    ));
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
             trainer_guid,

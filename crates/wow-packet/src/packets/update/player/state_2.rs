@@ -140,7 +140,7 @@ impl PlayerCreateData {
         // SummonedBy, CreatedBy, DemonCreator, LookAtControllerTarget,
         // Target, BattlePetCompanionGUID
         write_empty_guid(buf); // Charm
-        write_empty_guid(buf); // Summon
+        buf.write_packed_guid(&self.summon); // Summon
         if is_owner {
             write_empty_guid(buf); // Critter (only if Owner)
         }
@@ -219,15 +219,10 @@ impl PlayerCreateData {
 
         // Flags, Flags2, Flags3, AuraState
         buf.write_uint32(0x0000_0008); // UnitFlags: UNIT_FLAG_PLAYER_CONTROLLED
-        buf.write_uint32(0); // Flags2
+        buf.write_uint32(self.unit_flags2);
         buf.write_uint32(0); // Flags3
-        // AuraState — C++ Unit::Update/ModifyAuraState applies health-based aura states to
-        // EVERY alive unit incl. the player (Unit.cpp:469-476); full HP => 0x00D00000.
-        buf.write_uint32(health_aura_state_like_cpp(
-            self.health,
-            self.max_health,
-            self.health > 0,
-        )); // AuraState
+        // C++ BuildAuraStateUpdateForTarget uses existing native state, not health here.
+        buf.write_uint32(self.aura_state);
 
         // AttackRoundBaseTime[2]
         buf.write_uint32(2000); // MainHand
@@ -706,8 +701,8 @@ impl PlayerCreateData {
         buf.write_int32(0);
 
         // NoReagentCostMask[4]
-        for _ in 0..4 {
-            buf.write_uint32(0);
+        for value in self.no_reagent_cost_mask {
+            buf.write_uint32(value);
         }
 
         // PetSpellPower
@@ -789,7 +784,7 @@ impl PlayerCreateData {
 
         // ConditionalTransmog.Size, SelfResSpells.Size, CharacterRestrictions.Size
         buf.write_int32(0);
-        buf.write_int32(0);
+        buf.write_int32(self.self_res_spells.len() as i32);
         buf.write_int32(0);
 
         // SpellPctModByLabel.Size, SpellFlatModByLabel.Size, TaskQuests.Size
@@ -835,6 +830,9 @@ impl PlayerCreateData {
         }
         for value in &self.transmog {
             buf.write_uint32(*value);
+        }
+        for value in &self.self_res_spells {
+            buf.write_int32(*value);
         }
         trace(buf, "dynamic_payloads");
 

@@ -12,7 +12,7 @@ impl SessionSpellState {
         hub: &mut HubMut<'_>,
         cast: SpellCastState,
     ) {
-        if cast.metadata.client_cast_id.is_none() {
+        if cast.metadata.client_cast_id.is_none() && !cast.metadata.server_normal_cast_like_cpp {
             return;
         }
         let visual = crate::present_visual(cast.spell_visual);
@@ -43,7 +43,7 @@ impl SessionSpellState {
         spell_id: i32,
         visual: &wow_packet::packets::spell::SpellCastVisual,
     ) {
-        if metadata.client_cast_id.is_none() {
+        if metadata.client_cast_id.is_none() && !metadata.server_normal_cast_like_cpp {
             return;
         }
         let Some(caster) = hub.core.player_guid() else {

@@ -132,6 +132,7 @@ pub(super) fn active_player_data_update_to_packet(
         &mut packet_update.active_player_data_mask,
     );
     packet_update.coinage = update.values.coinage;
+    packet_update.local_flags = update.local_flags;
     packet_update.xp = update.values.xp;
     packet_update.next_level_xp = update.values.next_level_xp;
     packet_update.character_points = update.values.character_points;
@@ -174,6 +175,9 @@ pub(super) fn active_player_data_update_to_packet(
     packet_update.conditional_transmog = update.values.conditional_transmog.clone();
     packet_update.conditional_transmog_update_mask =
         update.values.conditional_transmog_update_mask.clone();
+    packet_update.self_res_spells = update.values.self_res_spells.clone();
+    packet_update.self_res_spells_update_mask = update.values.self_res_spells_update_mask.clone();
+    packet_update.no_reagent_cost_mask = update.values.no_reagent_cost_mask;
     packet_update.quest_completed = update.values.quest_completed;
     packet_update
 }

@@ -16,6 +16,7 @@ pub(crate) mod isolated_creature_execution;
 mod map;
 mod map_session_pass;
 pub(crate) mod map_tick;
+mod native_player_death;
 mod tick_summary;
 mod world_session_pass;
 

@@ -344,42 +344,25 @@ impl SpellProcStoreLikeCpp {
     pub fn from_rows_and_stores_like_cpp<I>(
         rows: I,
         spells: &SpellStore,
+        serverside_spells: &ServersideSpellStoreLikeCpp,
         spell_chains: &SpellChainStoreLikeCpp,
+        difficulties: &crate::difficulty::DifficultyStore,
         spell_aura_options: &crate::spell_db2::SpellAuraOptionsStore,
-        spell_misc: &crate::spell_db2::SpellMiscStore,
         spell_class_options: &crate::spell_db2::SpellClassOptionsStore,
         spell_procs_per_minute: &crate::spell_db2::SpellProcsPerMinuteStore,
-    ) -> SpellProcLoadOutcomeLikeCpp
+    ) -> Result<SpellProcLoadOutcomeLikeCpp>
     where
         I: IntoIterator<Item = SpellProcRowLikeCpp>,
     {
-        let spell_infos = spells
-            .iter()
-            .filter_map(|spell| {
-                let spell_id = u32::try_from(spell.spell_id).ok()?;
-                SpellProcSourceSpellInfoLikeCpp::from_loaded_spell_like_cpp(
-                    spell_id,
-                    0,
-                    spells,
-                    spell_chains,
-                    spell_aura_options,
-                    spell_misc,
-                    spell_class_options,
-                    spell_procs_per_minute,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let spell_infos_by_id = spell_infos
-            .iter()
-            .cloned()
-            .map(|spell_info| (spell_info.spell_id, spell_info))
-            .collect::<BTreeMap<_, _>>();
-
-        Self::from_rows_and_spell_infos_like_cpp(
+        super::super::proc_sources::load_from_sources(
             rows,
-            |spell_id| spell_infos_by_id.get(&spell_id).cloned(),
-            spell_infos,
+            spells,
+            serverside_spells,
+            spell_chains,
+            difficulties,
+            spell_aura_options,
+            spell_class_options,
+            spell_procs_per_minute,
         )
     }
 
@@ -654,17 +637,33 @@ impl SpellTargetPositionStoreLikeCpp {
 pub struct SpellStore {
     pub(crate) spells: HashMap<i32, SpellInfo>,
     pub(crate) spell_info_keys_like_cpp: crate::spell_info_keys::SpellInfoKeyStoreLikeCpp,
+    pub(super) regular_visual_override_targets: BTreeSet<u32>,
     pub(super) spell_effects_by_difficulty: HashMap<(i32, u8), Vec<SpellEffectInfo>>,
     pub(super) spell_misc_attributes: HashMap<i32, [u32; 15]>,
     pub(super) spell_misc_attributes_by_difficulty: HashMap<(i32, u8), [u32; 15]>,
     pub(super) spell_interrupt_flags: HashMap<(i32, u8), ([u32; 2], [u32; 2])>,
     pub(super) spell_interrupt_rows_by_id: BTreeMap<u32, SpellInterruptRowLikeCpp>,
     pub(super) spell_hit_categories_by_difficulty: HashMap<(i32, u8), SpellHitCategoriesRowLikeCpp>,
+    /// Completeness provenance for the category component populated from a
+    /// complete typed `SpellCategoriesStore` by the effective DB2 hydrator.
+    pub(super) spell_categories_loaded: bool,
+    /// Completeness provenance for the school and launch fields populated
+    /// from a complete typed `SpellMiscStore` by the effective DB2 hydrator.
+    pub(super) spell_misc_loaded: bool,
     pub(super) spell_hit_misc_by_difficulty: HashMap<(i32, u8), SpellHitMiscRowLikeCpp>,
     pub(super) spell_hit_effect_mechanics_by_difficulty:
         HashMap<(i32, u8), BTreeMap<u32, SpellHitEffectMechanicRowLikeCpp>>,
     pub(super) spell_shapeshift_masks: HashMap<i32, (u64, u64)>,
     pub(super) implicit_target_conditions: HashMap<(i32, u32), ConditionsReference>,
+    pub(super) cast_costs_like_cpp: Option<SpellCastCostStoreLikeCpp>,
+    pub(super) cast_times_by_difficulty_like_cpp: HashMap<(i32, u8), (u16, Option<u32>)>,
+    pub(super) cast_time_payload_loaded_like_cpp: bool,
+    pub(super) cooldowns_by_difficulty_like_cpp: HashMap<(i32, u8), (u32, u32, u32)>,
+    pub(super) cooldown_payload_loaded_like_cpp: bool,
+    pub(super) power_costs_by_difficulty_like_cpp:
+        HashMap<(i32, u8), Vec<SpellPowerCostInfoLikeCpp>>,
+    pub(super) power_cost_payload_loaded_like_cpp: bool,
+    pub(super) spell_focus_requirements_like_cpp: HashMap<i32, u32>,
 }
 
 /// Effective DB2 authorities consumed together by C++

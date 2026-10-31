@@ -88,11 +88,29 @@ async fn cancel_cast_mismatch_cancels_pending_but_preserves_active_like_cpp() {
 async fn self_res_listed_spell_casts_and_removes_self_res_spell_like_cpp() {
     let (mut session, send_rx) = make_session();
     let spell_id = 20_001;
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 20_001);
 
-    session.set_player_guid(Some(ObjectGuid::create_player(1, 20_001)));
+    install_canonical_player(&mut session, &canonical, player_guid);
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     session.set_spell_store(self_res_spell_store(spell_id));
-    session.set_player_health_like_cpp(0, 100);
-    session.add_represented_self_res_spell_like_cpp(spell_id);
+    session.set_serverside_spell_store(Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()));
+    session.set_spell_category_store(Arc::new(wow_data::SpellCategoryStore::from_entries([])));
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.add_self_res_spell(spell_id);
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(0);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Dead);
+        })
+        .expect("owned Player with an admitted self-res spell");
 
     session.handle_self_res(int32_spell_packet(spell_id)).await;
 
@@ -150,7 +168,7 @@ async fn cast_spell_uses_represented_override_spell_info_like_cpp() {
         .await;
 
     let packets = drain_server_packet_bytes(&send_rx);
-    assert_eq!(packets.len(), 4);
+    assert_eq!(packets.len(), 3);
     assert_eq!(
         &packets[0][..2],
         &(ServerOpcodes::SpellPrepare as u16).to_le_bytes()
@@ -186,7 +204,7 @@ async fn cast_spell_falls_back_when_represented_override_missing_like_cpp() {
         .await;
 
     let packets = drain_server_packet_bytes(&send_rx);
-    assert_eq!(packets.len(), 4);
+    assert_eq!(packets.len(), 3);
     assert_eq!(
         &packets[0][..2],
         &(ServerOpcodes::SpellPrepare as u16).to_le_bytes()
@@ -478,7 +496,7 @@ async fn cast_spell_queues_within_spell_queue_window_and_executes_after_gcd_like
     assert!(session.pending_spell_cast_for_test_like_cpp().is_none());
     let opcodes = drain_server_opcodes(&send_rx);
     assert!(opcodes.contains(&ServerOpcodes::SpellGo));
-    assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
+    assert!(!opcodes.contains(&ServerOpcodes::CooldownEvent));
 }
 #[tokio::test]
 async fn cast_spell_rejects_active_cast_outside_spell_queue_window_like_cpp() {
@@ -544,5 +562,5 @@ async fn cast_spell_queues_near_active_cast_finish_and_executes_after_cast_like_
     assert!(session.pending_spell_cast_for_test_like_cpp().is_none());
     let opcodes = drain_server_opcodes(&send_rx);
     assert!(opcodes.contains(&ServerOpcodes::SpellGo));
-    assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
+    assert!(!opcodes.contains(&ServerOpcodes::CooldownEvent));
 }

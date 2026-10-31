@@ -13,8 +13,8 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
     let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
         &mut session,
         victim_guid,
-        0,
-        wow_constants::DeathState::JustDied,
+        95,
+        wow_constants::DeathState::Alive,
     );
     assert!(
         session
@@ -27,14 +27,14 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
                 victim_guid,
                 map_id: 571,
                 instance_id: 0,
-                damage: 100,
-                over_damage: 0,
+                damage: 5,
+                over_damage: -1,
                 target_level: 80,
-                victim_health_after: 0,
+                victim_health_after: 95,
                 victim_health_state_revision_after: committed_revision,
                 hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
                 victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
-                original_damage: 100,
+                original_damage: 5,
                 absorbed: 0,
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
@@ -47,21 +47,19 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
         .process_represented_session_commands_like_cpp()
         .await;
 
-    assert_eq!(session.player_health_like_cpp(), 0);
-    assert!(!session.player_is_alive_like_cpp());
-    // C++ `Unit::Kill` applies the creature-killer durability loss while the
-    // lethal damage is applied (`Unit.cpp:10639-10648`) and only afterwards
-    // does the victim session present the new health value.
-    let durability_packet = send_rx.recv().unwrap();
+    assert_eq!(session.player_health_like_cpp(), 95);
+    assert!(session.player_is_alive_like_cpp());
+    let health_packet = send_rx
+        .try_recv()
+        .expect("the committed nonlethal hit presents its health update");
+    let mut health_update = wow_packet::world_packet::WorldPacket::from_bytes(&health_packet);
     assert_eq!(
-        u16::from_le_bytes([durability_packet[0], durability_packet[1]]),
-        ServerOpcodes::DurabilityDamageDeath as u16
-    );
-    let health_packet = send_rx.recv().unwrap();
-    assert_eq!(
-        u16::from_le_bytes([health_packet[0], health_packet[1]]),
+        health_update.read_uint16().unwrap(),
         ServerOpcodes::HealthUpdate as u16
     );
+    assert_eq!(health_update.read_packed_guid().unwrap(), victim_guid);
+    assert_eq!(health_update.read_int64().unwrap(), 95);
+    assert!(send_rx.try_recv().is_err(), "no extra packets");
 }
 
 #[tokio::test]

@@ -19,6 +19,7 @@ is correctness proof. This guide does not override explicit user scope or approv
 - Toolchain is declared in rust-toolchain.toml / Cargo.toml (currently Rust 1.98, edition 2024).
 - Development host is aarch64; hosted runners are x86_64. Label machine-dependent evidence.
 - Local protoc: /home/ubuntu/.local/protoc/bin/protoc. Set PROTOC for protobuf-dependent builds.
+- Write documentation, checkpoints, and new or updated explanatory code comments in English.
 
 Start each session with:
 

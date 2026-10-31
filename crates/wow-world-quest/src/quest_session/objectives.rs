@@ -137,6 +137,17 @@ pub(crate) async fn apply_quest_item_added_objective_progress_filtered_like_cpp<
     else {
         return Vec::new();
     };
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &state_snapshot,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &changed_quest_ids,
+        );
+    }
     for quest_id in quests_to_complete {
         if let Some(quest) = quest_store.get(quest_id).cloned() {
             let completed = complete_represented_quest_after_add_with_generator_like_cpp(
@@ -232,6 +243,7 @@ pub fn apply_quest_item_removed_like_cpp<H: QuestItemStorageHostLikeCpp>(
     entry_id: u32,
 ) -> Option<Vec<u32>> {
     host.invalidate_player_quest_status_authority_like_cpp();
+    let before = host.player_quest_gameplay_snapshot_like_cpp()?;
     let Some(quest_store) = host.hub_ref().catalogs.quests.store.clone() else {
         return Some(Vec::new());
     };
@@ -258,18 +270,16 @@ pub fn apply_quest_item_removed_like_cpp<H: QuestItemStorageHostLikeCpp>(
         );
         changed
     })?;
-    let snapshot = host.player_quest_gameplay_snapshot_like_cpp()?;
-    let changed_slots = changed_quest_ids
-        .iter()
-        .filter_map(|quest_id| {
-            snapshot
-                .statuses_like_cpp()
-                .get(quest_id)
-                .map(|status| status.slot)
-        })
-        .collect::<Vec<_>>();
-    for slot in changed_slots {
-        host.send_represented_quest_log_slot_update_like_cpp(slot);
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &before,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &changed_quest_ids,
+        );
     }
     let _ = host.update_visible_gameobjects_or_spell_clicks_like_cpp();
     host.sync_player_registry_state_like_cpp();
@@ -283,39 +293,55 @@ pub fn apply_quest_item_added_non_bound_state_like_cpp<H: QuestSessionHostLikeCp
     count: u32,
 ) -> Vec<u32> {
     host.invalidate_player_quest_status_authority_like_cpp();
+    let Some(before) = host.player_quest_gameplay_snapshot_like_cpp() else {
+        return Vec::new();
+    };
     let Some(quest_store) = host.hub_ref().catalogs.quests.store.clone() else {
         return Vec::new();
     };
-    host.mutate_player_quest_gameplay_like_cpp(|state| {
-        let rewarded = state
-            .rewarded_quest_ids_like_cpp()
-            .iter()
-            .copied()
-            .collect();
-        let mut statuses = state
-            .statuses_like_cpp()
-            .iter()
-            .map(|(&id, status)| (id, status.clone()))
-            .collect();
-        let changed = wow_entities::apply_quest_item_added_non_bound_to_statuses_like_cpp(
-            |id| {
-                quest_store
-                    .get(id)
-                    .map(|quest| quest.objective_rules_like_cpp())
-            },
-            &rewarded,
-            &mut statuses,
-            entry_id,
-            quest_log_item_id,
-            count,
+    let changed = host
+        .mutate_player_quest_gameplay_like_cpp(|state| {
+            let rewarded = state
+                .rewarded_quest_ids_like_cpp()
+                .iter()
+                .copied()
+                .collect();
+            let mut statuses = state
+                .statuses_like_cpp()
+                .iter()
+                .map(|(&id, status)| (id, status.clone()))
+                .collect();
+            let changed = wow_entities::apply_quest_item_added_non_bound_to_statuses_like_cpp(
+                |id| {
+                    quest_store
+                        .get(id)
+                        .map(|quest| quest.objective_rules_like_cpp())
+                },
+                &rewarded,
+                &mut statuses,
+                entry_id,
+                quest_log_item_id,
+                count,
+            );
+            state.replace_statuses_like_cpp(
+                statuses.into_iter().collect(),
+                state.status_authority_complete_like_cpp(),
+            );
+            changed
+        })
+        .unwrap_or_default();
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &before,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &changed,
         );
-        state.replace_statuses_like_cpp(
-            statuses.into_iter().collect(),
-            state.status_authority_complete_like_cpp(),
-        );
-        changed
-    })
-    .unwrap_or_default()
+    }
+    changed
 }
 
 pub fn apply_quest_item_added_bound_state_like_cpp<H: QuestItemStorageHostLikeCpp>(
@@ -325,6 +351,9 @@ pub fn apply_quest_item_added_bound_state_like_cpp<H: QuestItemStorageHostLikeCp
     count: u32,
 ) -> Vec<u32> {
     host.invalidate_player_quest_status_authority_like_cpp();
+    let Some(before) = host.player_quest_gameplay_snapshot_like_cpp() else {
+        return Vec::new();
+    };
     let Some(quest_store) = host.hub_ref().catalogs.quests.store.clone() else {
         return Vec::new();
     };
@@ -359,6 +388,17 @@ pub fn apply_quest_item_added_bound_state_like_cpp<H: QuestItemStorageHostLikeCp
     }) else {
         return Vec::new();
     };
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &before,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &[quest_id],
+        );
+    }
     send_quest_bound_item_update_like_cpp(
         host,
         entry_id,
@@ -378,20 +418,6 @@ pub fn publish_quest_item_added_status_changes_like_cpp<H: QuestSessionHostLikeC
     let Some(state) = host.player_quest_gameplay_snapshot_like_cpp() else {
         return;
     };
-    let mut changed_slots = changed_quest_ids
-        .iter()
-        .filter_map(|quest_id| {
-            state
-                .statuses_like_cpp()
-                .get(quest_id)
-                .map(|status| status.slot)
-        })
-        .collect::<Vec<_>>();
-    changed_slots.sort_unstable();
-    changed_slots.dedup();
-    for slot in changed_slots {
-        host.send_represented_quest_log_slot_update_like_cpp(slot);
-    }
     for &quest_id in changed_quest_ids {
         if state
             .statuses_like_cpp()
@@ -413,7 +439,9 @@ pub async fn apply_quest_source_item_bound_objective_progress_for_object_with_ge
     object_id: i32,
     count_i32: i32,
 ) -> Vec<(u32, i32)> {
-    host.invalidate_player_quest_status_authority_like_cpp();
+    let Some(before) = host.player_quest_gameplay_snapshot_like_cpp() else {
+        return Vec::new();
+    };
     let ordered_quest_ids = crate::quest_bound_item_objective_quest_order_like_cpp(host);
     let Some(wow_entities::QuestBoundItemObjectiveProgressLikeCpp {
         updated_counts,
@@ -433,6 +461,27 @@ pub async fn apply_quest_source_item_bound_objective_progress_for_object_with_ge
     else {
         return Vec::new();
     };
+    // Player::ItemAddedQuestCheck leaves quest state unchanged when no bound
+    // objective matches (Player.cpp:16067). A no-op preflight must not discard
+    // loaded authority and prevent the next reagent in RemovePet's loop.
+    if !updated_counts.is_empty() {
+        host.invalidate_player_quest_status_authority_like_cpp();
+    }
+    let changed_quest_ids = updated_counts
+        .iter()
+        .map(|(quest_id, _)| *quest_id)
+        .collect::<Vec<_>>();
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &before,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &changed_quest_ids,
+        );
+    }
 
     for quest_id in quests_to_complete {
         if let Some(quest) = quest_store.get(quest_id).cloned() {

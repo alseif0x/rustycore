@@ -349,6 +349,49 @@ fn bridges_active_player_transmog_dynamic_field_like_cpp() {
 }
 
 #[test]
+fn bridges_ordered_self_res_spells_and_nested_mask_for_owner() {
+    let mut player = Player::new(Some(7), true);
+    player.clear_data_changes();
+    player.add_self_res_spell(3026);
+    player.add_self_res_spell(21169);
+    player.add_self_res_spell(3026);
+
+    let update = player.values_update(true);
+    let packet_update = player_values_update_to_packet(&update).unwrap();
+    let active = packet_update.active_player_data.unwrap();
+
+    assert_eq!(
+        packet_update.changed_object_type_mask,
+        1 << TYPEID_ACTIVE_PLAYER
+    );
+    assert!(mask_has(
+        &active.active_player_data_mask,
+        ACTIVE_PLAYER_DATA_PARENT_BIT
+    ));
+    assert!(mask_has(
+        &active.active_player_data_mask,
+        wow_entities::ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT
+    ));
+    assert_eq!(active.self_res_spells, vec![3026, 21169, 3026]);
+    assert_eq!(active.self_res_spells_update_mask, Some(vec![0b111]));
+}
+
+#[test]
+fn omits_self_res_spells_from_non_owner_values_update() {
+    let mut player = Player::new(Some(7), true);
+    player.clear_data_changes();
+    player.add_self_res_spell(3026);
+
+    let update = player.values_update(false);
+    assert_eq!(
+        update.changed_object_type_mask & (1 << TYPEID_ACTIVE_PLAYER),
+        0
+    );
+    assert!(update.active_player_data.is_none());
+    assert!(player_values_update_to_packet(&update).is_none());
+}
+
+#[test]
 fn bridges_quest_completed_bitmap_from_active_player_data_like_cpp() {
     let mut player = Player::new(Some(7), false);
     player

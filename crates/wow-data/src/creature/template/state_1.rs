@@ -198,6 +198,7 @@ pub struct CreatureTemplateLifecycleRecordLikeCpp {
     pub flags_extra: u32,
     pub string_id: String,
     pub regen_health: bool,
+    pub base_variance: f32,
     pub spells: [u32; MAX_CREATURE_SPELLS_LIKE_CPP],
     pub models: Vec<CreatureTemplateLifecycleModelLikeCpp>,
 }

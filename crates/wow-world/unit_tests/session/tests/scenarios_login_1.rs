@@ -156,6 +156,16 @@ fn represented_mount_capability_for_type_uses_session_state_like_cpp() {
     install_canonical_player_owner_for_test(&mut session, 1, 0);
     crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 77);
     session.set_known_spells_like_cpp(vec![456]);
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(123, 0)]);
+    let mut spell_info = test_spell_info_like_cpp(123);
+    spell_info.effects = vec![wow_data::SpellEffectInfo {
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+        ..Default::default()
+    }];
+    spell_store.insert(123, spell_info);
+    session.set_spell_store(Arc::new(spell_store));
     session.set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75)]));
     session
         .apply_aura(123, ObjectGuid::EMPTY, 30_000, 0)

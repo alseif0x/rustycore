@@ -35,6 +35,7 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
         0,
         80,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     let manager = session
         .core
         .canonical_map_manager
@@ -107,11 +108,7 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
         .collect();
     assert_eq!(
         opcodes,
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::AuraUpdate,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::AuraUpdate,]
     );
     // The `AuraUpdate` payload itself is covered by the packet writer's own
     // test; here the canonical registration and the sent opcode prove the
@@ -170,6 +167,97 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
     assert_eq!(
         removals, 2,
         "each expired aura publishes its removal: {after_expiry:?}"
+    );
+}
+
+#[tokio::test]
+async fn creature_aura_without_original_caster_keeps_caster_override_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let spell_id = 798_i32;
+    let player_guid = ObjectGuid::create_player(1, 798);
+    let creature_guid = test_creature_guid(18_798);
+    let position = Position::new(10.0, 10.0, 0.0, 0.0);
+    let canonical = shared_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CreatureAuraOverride".to_string(),
+        position,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_player_health_like_cpp(100, 100);
+    add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        creature_guid,
+        9001,
+        position,
+        0,
+        0,
+        80,
+    );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .expect("canonical map manager");
+    register_test_creature(&mut session, manager, creature_guid, 100);
+
+    let mut aura = threat_spell_info_like_cpp(
+        spell_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        7,
+    );
+    aura.effects[0].effect_aura = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN;
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
+    spell_store.insert(spell_id, aura);
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell_with_visual_and_target_data_with_metadata(
+            spell_id,
+            creature_guid,
+            ObjectGuid::EMPTY,
+            wow_packet::packets::spell::SpellCastVisual::default(),
+            SpellTargetData::default(),
+            SpellCastMetadata {
+                caster_guid_override: Some(creature_guid),
+                ..SpellCastMetadata::default()
+            },
+        )
+        .await
+        .expect("creature-caster aura should apply");
+
+    let aura_caster = session
+        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .applied_auras
+                .iter()
+                .find(|applied| applied.spell_id == spell_id as u32)
+                .map(|applied| applied.caster_guid)
+        })
+        .flatten()
+        .expect("creature aura is registered");
+    assert_eq!(aura_caster, creature_guid);
+
+    let bytes = send_rx.try_recv().expect("creature-cast SpellGo");
+    let mut spell_go = wow_packet::WorldPacket::from_bytes(&bytes);
+    assert_eq!(
+        spell_go.read_uint16().expect("SpellGo opcode"),
+        ServerOpcodes::SpellGo as u16
+    );
+    assert_eq!(
+        spell_go.read_packed_guid().expect("visible caster"),
+        creature_guid
     );
 }
 

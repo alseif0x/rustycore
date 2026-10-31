@@ -4,7 +4,64 @@
 //! Canonical faction-reaction inputs and Hub adapters shared with World.
 
 use crate::session::{HubRef, NpcInteractionAccessLikeCpp};
+use wow_data::progression_rewards::{
+    FactionStore, FactionTemplateStore, FriendshipRepReactionStore,
+};
+use wow_entities::PlayerReputationStateLikeCpp;
 use wow_progression::ReputationMgrLikeCpp;
+
+mod rules;
+pub use rules::{resolve_faction_reaction, resolve_faction_reaction_with_raid};
+
+#[derive(Clone, Copy)]
+pub struct FactionReactionCatalogs<'a> {
+    faction_store: Option<&'a FactionStore>,
+    faction_template_store: Option<&'a FactionTemplateStore>,
+    friendship_rep_reaction_store: Option<&'a FriendshipRepReactionStore>,
+}
+
+impl<'a> FactionReactionCatalogs<'a> {
+    #[must_use]
+    pub const fn new(
+        faction_store: Option<&'a FactionStore>,
+        faction_template_store: Option<&'a FactionTemplateStore>,
+        friendship_rep_reaction_store: Option<&'a FriendshipRepReactionStore>,
+    ) -> Self {
+        Self {
+            faction_store,
+            faction_template_store,
+            friendship_rep_reaction_store,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FactionReactionOwner<'a> {
+    reputation: &'a PlayerReputationStateLikeCpp,
+    race: u8,
+    class: u8,
+}
+
+impl<'a> FactionReactionOwner<'a> {
+    #[must_use]
+    pub const fn new(reputation: &'a PlayerReputationStateLikeCpp, race: u8, class: u8) -> Self {
+        Self {
+            reputation,
+            race,
+            class,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FactionReactionError {
+    UnknownFactionStore,
+    UnknownFactionTemplateStore,
+    UnknownFriendshipReactionStore,
+    UnknownSourcePlayerOwner,
+    UnknownTargetPlayerOwner,
+    UnknownRaidRelation,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepresentedFactionReactionInputLikeCpp {
@@ -38,6 +95,7 @@ pub struct RepresentedGetReactionInputLikeCpp {
     pub self_ignores_reputation: bool,
     pub target_ignores_reputation: bool,
     pub target_is_unit: bool,
+    pub self_player_contested_pvp: bool,
     pub target_player_contested_pvp: bool,
 }
 
@@ -153,203 +211,104 @@ impl NpcInteractionAccessLikeCpp<'_> {
         ReputationRankLikeCpp::Neutral
     }
 
-    fn cloned_reputation_state_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerReputationStateLikeCpp> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(player.reputation_like_cpp());
-            manager.cloned_state_like_cpp()
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if self.core.player_handle_like_cpp.is_none() {
-            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(self.fixtures.reputation_state);
-            return Some(manager.cloned_state_like_cpp());
-        }
-        None
-    }
-
     pub fn represented_faction_reaction_to_like_cpp(
         &self,
         input: RepresentedFactionReactionInputLikeCpp,
     ) -> wow_data::reputation::ReputationRankLikeCpp {
-        use wow_data::reputation::ReputationRankLikeCpp;
-
-        let Some(faction_template_store) = self.faction_template_store else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        let Some(source_faction_template) =
-            faction_template_store.get(input.source_faction_template_id)
-        else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        let Some(target_faction_template) =
-            faction_template_store.get(input.target_faction_template_id)
-        else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        let Some(reputation_state) = self.cloned_reputation_state_like_cpp() else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        let reputation_mgr = ReputationMgrLikeCpp::borrowing_like_cpp(&reputation_state);
-
-        if input.target_has_player_owner && input.target_player_owner_is_current_session {
-            if source_faction_template.is_contested_guard_faction_like_cpp()
-                && input.target_player_contested_pvp
-            {
-                return ReputationRankLikeCpp::Hostile;
-            }
-            if let Some(forced_rank) = reputation_mgr
-                .forced_rank_by_faction_id_like_cpp(u32::from(source_faction_template.faction))
-            {
-                return forced_rank;
-            }
-            if input.target_is_unit
-                && !input.target_ignores_reputation
-                && let Some(faction_store) = self.faction_store
-                && let Some(source_faction_entry) =
-                    faction_store.get(u32::from(source_faction_template.faction))
-                && source_faction_entry.can_have_reputation_like_cpp()
-            {
-                let mut rank = reputation_mgr.rank_for_faction_entry_like_cpp(
-                    source_faction_entry,
-                    self.friendship_rep_reaction_store,
-                    self.player_race_like_cpp(),
-                    self.player_class_like_cpp(),
-                );
-                if reputation_mgr.is_at_war_with_faction_like_cpp(source_faction_entry)
-                    && rank > ReputationRankLikeCpp::Neutral
-                {
-                    rank = ReputationRankLikeCpp::Neutral;
-                }
-                return rank;
-            }
-        }
-
-        if source_faction_template.is_hostile_to_like_cpp(target_faction_template) {
-            return ReputationRankLikeCpp::Hostile;
-        }
-        if source_faction_template.is_friendly_to_like_cpp(target_faction_template) {
-            return ReputationRankLikeCpp::Friendly;
-        }
-        if target_faction_template.is_friendly_to_like_cpp(source_faction_template) {
-            return ReputationRankLikeCpp::Friendly;
-        }
-        if source_faction_template.is_hostile_by_default_like_cpp() {
-            return ReputationRankLikeCpp::Hostile;
-        }
-        ReputationRankLikeCpp::Neutral
+        self.resolve_lower_reaction(input)
     }
 
     pub fn represented_get_reaction_to_like_cpp(
         &self,
         input: RepresentedGetReactionInputLikeCpp,
     ) -> wow_data::reputation::ReputationRankLikeCpp {
+        self.resolve_reaction(input)
+    }
+
+    fn resolve_lower_reaction(
+        &self,
+        input: RepresentedFactionReactionInputLikeCpp,
+    ) -> wow_data::reputation::ReputationRankLikeCpp {
         use wow_data::reputation::ReputationRankLikeCpp;
 
-        if input.same_object {
-            return ReputationRankLikeCpp::Friendly;
-        }
-        if input.attackable_by_summoner {
-            return ReputationRankLikeCpp::Neutral;
-        }
-        if input.same_charmer_or_owner_or_self {
-            return ReputationRankLikeCpp::Friendly;
-        }
-        let Some(reputation_state) = self.cloned_reputation_state_like_cpp() else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        let reputation_mgr = ReputationMgrLikeCpp::borrowing_like_cpp(&reputation_state);
-
-        if input.self_has_player_owner {
-            if let Some(faction_template_store) = self.faction_template_store
-                && let Some(target_faction_template) =
-                    faction_template_store.get(input.target_faction_template_id)
-                && let Some(forced_rank) = reputation_mgr
-                    .forced_rank_by_faction_id_like_cpp(u32::from(target_faction_template.faction))
+        let catalogs = FactionReactionCatalogs::new(
+            self.faction_store,
+            self.faction_template_store,
+            self.friendship_rep_reaction_store,
+        );
+        match rules::resolve_faction_template_reaction(input, None, catalogs) {
+            Ok(rank) => rank,
+            Err(FactionReactionError::UnknownTargetPlayerOwner)
+                if input.target_has_player_owner
+                    && input.target_player_owner_is_current_session =>
             {
-                return forced_rank;
+                self.with_session_reaction_owner(|owner| {
+                    rules::resolve_faction_template_reaction(input, Some(owner), catalogs)
+                        .unwrap_or(ReputationRankLikeCpp::Neutral)
+                })
+                .unwrap_or(ReputationRankLikeCpp::Neutral)
             }
-        } else if input.target_has_player_owner
-            && let Some(faction_template_store) = self.faction_template_store
-            && faction_template_store
-                .get(input.self_faction_template_id)
-                .is_some()
-            && let Some(forced_rank) = input.target_owner_forced_rank_for_self
-        {
-            return forced_rank;
+            Err(_) => ReputationRankLikeCpp::Neutral,
+        }
+    }
+
+    fn resolve_reaction(
+        &self,
+        input: RepresentedGetReactionInputLikeCpp,
+    ) -> wow_data::reputation::ReputationRankLikeCpp {
+        use wow_data::reputation::ReputationRankLikeCpp;
+
+        let catalogs = FactionReactionCatalogs::new(
+            self.faction_store,
+            self.faction_template_store,
+            self.friendship_rep_reaction_store,
+        );
+        let needs_session_owner =
+            input.self_has_player_owner || input.target_player_owner_is_current_session;
+
+        match resolve_faction_reaction(input, None, None, catalogs) {
+            Ok(rank) => return rank,
+            Err(
+                FactionReactionError::UnknownSourcePlayerOwner
+                | FactionReactionError::UnknownTargetPlayerOwner,
+            ) if needs_session_owner => {}
+            Err(_) => return ReputationRankLikeCpp::Neutral,
         }
 
-        if input.self_unit_player_controlled && input.target_unit_player_controlled {
-            if input.self_has_player_owner && input.target_has_player_owner {
-                if input.same_player_owner {
-                    return ReputationRankLikeCpp::Friendly;
-                }
-                if input.duel_in_progress {
-                    return ReputationRankLikeCpp::Hostile;
-                }
-                if input.same_raid {
-                    return ReputationRankLikeCpp::Friendly;
-                }
-            }
+        self.with_session_reaction_owner(|owner| {
+            resolve_faction_reaction(
+                input,
+                input.self_has_player_owner.then_some(owner),
+                input
+                    .target_player_owner_is_current_session
+                    .then_some(owner),
+                catalogs,
+            )
+            .unwrap_or(ReputationRankLikeCpp::Neutral)
+        })
+        .unwrap_or(ReputationRankLikeCpp::Neutral)
+    }
 
-            if input.self_ffa_pvp && input.target_ffa_pvp {
-                return ReputationRankLikeCpp::Hostile;
-            }
-
-            if input.self_has_player_owner {
-                let Some(faction_template_store) = self.faction_template_store else {
-                    return self.represented_faction_reaction_to_like_cpp(
-                        RepresentedFactionReactionInputLikeCpp {
-                            source_faction_template_id: input.self_faction_template_id,
-                            target_faction_template_id: input.target_faction_template_id,
-                            target_has_player_owner: input.target_has_player_owner,
-                            target_player_owner_is_current_session: input
-                                .target_player_owner_is_current_session,
-                            target_player_contested_pvp: input.target_player_contested_pvp,
-                            target_is_unit: input.target_is_unit,
-                            target_ignores_reputation: input.target_ignores_reputation,
-                        },
-                    );
-                };
-                if let Some(target_faction_template) =
-                    faction_template_store.get(input.target_faction_template_id)
-                {
-                    if let Some(forced_rank) = reputation_mgr.forced_rank_by_faction_id_like_cpp(
-                        u32::from(target_faction_template.faction),
-                    ) {
-                        return forced_rank;
-                    }
-                    if !input.self_ignores_reputation
-                        && let Some(faction_store) = self.faction_store
-                        && let Some(target_faction_entry) =
-                            faction_store.get(u32::from(target_faction_template.faction))
-                        && target_faction_entry.can_have_reputation_like_cpp()
-                    {
-                        if target_faction_template.is_contested_guard_faction_like_cpp()
-                            && input.target_player_contested_pvp
-                        {
-                            return ReputationRankLikeCpp::Hostile;
-                        }
-                        if reputation_mgr.is_at_war_with_faction_like_cpp(target_faction_entry) {
-                            return ReputationRankLikeCpp::Hostile;
-                        }
-                        return ReputationRankLikeCpp::Friendly;
-                    }
-                }
-            }
+    fn with_session_reaction_owner<R>(
+        &self,
+        f: impl FnOnce(FactionReactionOwner<'_>) -> R,
+    ) -> Option<R> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.core.player_handle_like_cpp.is_none() {
+            let owner = FactionReactionOwner::new(
+                self.fixtures.reputation_state,
+                *self.fixtures.player_race,
+                *self.fixtures.player_class,
+            );
+            return Some(f(owner));
         }
 
-        self.represented_faction_reaction_to_like_cpp(RepresentedFactionReactionInputLikeCpp {
-            source_faction_template_id: input.self_faction_template_id,
-            target_faction_template_id: input.target_faction_template_id,
-            target_has_player_owner: input.target_has_player_owner,
-            target_player_owner_is_current_session: input.target_player_owner_is_current_session,
-            target_player_contested_pvp: input.target_player_contested_pvp,
-            target_is_unit: input.target_is_unit,
-            target_ignores_reputation: input.target_ignores_reputation,
+        self.core.with_owned_player_like_cpp(|player| {
+            f(FactionReactionOwner::new(
+                player.reputation_like_cpp(),
+                player.race_like_cpp(),
+                player.class_like_cpp(),
+            ))
         })
     }
 }

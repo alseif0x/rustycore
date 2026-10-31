@@ -42,10 +42,12 @@ mod persistence_load;
 mod player_items_session;
 mod publication;
 pub use new_item_push::send_new_item_plan;
+pub use stat_planning::plan_player_stats;
 mod currency_session;
 mod quest_reward;
 mod registry_sync;
 mod scaling;
+mod stat_planning;
 mod state;
 mod stats;
 mod stats_application;
@@ -226,7 +228,7 @@ pub use item_session::{
     ItemEquippedHookEventLikeCpp, ItemSessionHostLikeCpp,
     destroy_inventory_full_stack_by_pos_like_cpp,
     destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp,
-    handle_auto_equip_item_slot_with_generator_like_cpp,
+    destroy_quest_item_count_like_cpp, handle_auto_equip_item_slot_with_generator_like_cpp,
     handle_auto_equip_item_with_generator_like_cpp,
     handle_auto_store_bag_item_with_generator_like_cpp,
     handle_autobank_item_with_generator_like_cpp,

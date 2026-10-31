@@ -68,7 +68,7 @@ async fn suspend_token_response_no_op_without_far_teleport_like_cpp() {
 }
 
 #[tokio::test]
-async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
+async fn far_teleport_self_create_projects_native_quest_log_and_live_self_res_spells() {
     let (mut session, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 0xE1C3);
     session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
@@ -91,6 +91,30 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Dead);
+            player.add_self_res_spell(3026);
+            player.add_self_res_spell(21169);
+            player.add_self_res_spell(3026);
+            player
+                .unit_mut()
+                .set_unit_flags2_like_cpp(wow_constants::UnitFlags2::from_bits_retain(0x8000_0800));
+            assert!(player.set_quest_slot_like_cpp(4, 0x1234_5678));
+            assert!(player.set_quest_slot_end_time_like_cpp(4, 86_400));
+            assert!(player.set_quest_slot_counter_like_cpp(4, 7, 0x1234));
+            assert!(player.set_quest_slot_state_like_cpp(4, 1));
+        })
+        .expect("owned Player before self CREATE");
+    assert_eq!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().death_state()),
+        Some(wow_constants::DeathState::Dead)
+    );
     crate::session::hub_mut(&mut session).set_player_xp_like_cpp(1_234_567);
     crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(2_345_678);
     assert_eq!(
@@ -106,9 +130,24 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
         "unloaded traits are not an authoritative empty CREATE"
     );
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
-    let prepared = wow_world_character::prepare_player_self_create_for_teleport_like_cpp(&session)
-        .unwrap()
-        .to_bytes();
+    assert_eq!(
+        session.quest_log_create_entries_like_cpp()[4],
+        (0x1234_5678, 1, 86_400, {
+            let mut counters = [0; 24];
+            counters[7] = 0x1234;
+            counters
+        }),
+        "self CREATE projects native Player QuestLog values"
+    );
+    let prepared_update =
+        wow_world_character::prepare_player_self_create_for_teleport_like_cpp(&session).unwrap();
+    let wow_packet::packets::update::UpdateBlock::CreateObject { create_data, .. } =
+        &prepared_update.blocks[0]
+    else {
+        panic!("native self CREATE");
+    };
+    assert_eq!(create_data.unit_flags2, 0x8000_0800);
+    let prepared = prepared_update.to_bytes();
     assert!(send_rx.is_empty(), "building a CREATE must not publish it");
 
     assert_eq!(
@@ -135,6 +174,20 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
             .any(|window| window == 1_234_567i32.to_le_bytes()),
         "ActivePlayerData::XP must survive a far-map self CREATE"
     );
+    assert!(bytes.windows(12).any(|window| {
+        window
+            == [
+                0xD2, 0x0B, 0, 0, // 3026
+                0xB1, 0x52, 0, 0, // 21169
+                0xD2, 0x0B, 0, 0, // duplicate 3026
+            ]
+    }));
+    assert!(
+        bytes
+            .windows(4)
+            .any(|window| window == 0x1234_5678_u32.to_le_bytes()),
+        "self CREATE serializes the canonical QuestLog QuestID"
+    );
     drop(send_rx);
     assert_eq!(
         wow_world_character::prepare_player_self_create_for_teleport_like_cpp(&session)
@@ -151,6 +204,22 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
         Some(false),
         "closed delivery is separate from successful construction"
     );
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_unit_flags2_like_cpp(wow_constants::UnitFlags2::from_bits_retain(0x8000_0000));
+        })
+        .unwrap();
+    let after_removal =
+        wow_world_character::prepare_player_self_create_for_teleport_like_cpp(&session).unwrap();
+    let wow_packet::packets::update::UpdateBlock::CreateObject { create_data, .. } =
+        &after_removal.blocks[0]
+    else {
+        panic!("native self CREATE after aura removal");
+    };
+    assert_eq!(create_data.unit_flags2, 0x8000_0000);
 }
 
 #[tokio::test]
@@ -198,6 +267,9 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
     assert!(session.set_pending_teleport_like_cpp(Some((0, destination))));
     session.set_player_health_like_cpp(135_791, 2_000_000);
@@ -230,18 +302,16 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         option_id: 0x1234ABCD,
         choice_id: 0x3456CDEF,
     }];
-    assert!(
-        session.schedule_represented_resurrection_after_teleport_like_cpp(
-            wow_entities::PlayerResurrectionRequestLikeCpp {
-                resurrecter: player_guid,
-                map_id: 0,
-                position: destination,
-                health: 1_234_567,
-                mana: 0,
-                aura: 0,
-            }
-        )
-    );
+    assert!(session.schedule_represented_resurrection_after_teleport(
+        wow_entities::PlayerResurrectionRequestLikeCpp {
+            resurrecter: player_guid,
+            map_id: 0,
+            position: destination,
+            health: 1_234_567,
+            mana: 0,
+            aura: 0,
+        }
+    ));
     session.set_represented_far_teleport_pending_like_cpp(true);
     session.set_state(crate::session::SessionState::Transfer);
 
@@ -286,6 +356,7 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
     // UpdateObject after TimeSyncRequest is SendInitSelf (the player's own ActivePlayer
     // create for the destination map — C++ Map::AddPlayerToMap initPlayer=true). The final
     // send_stat_update emits nothing in this minimal test (no stat stores configured).
+    // Delayed resurrection sends release location, movement controls, then native power.
     let packets: Vec<_> = send_rx.try_iter().collect();
     let create = packets
         .iter()
@@ -345,7 +416,19 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
             ServerOpcodes::InitWorldStates as u16,
             ServerOpcodes::LoadCufProfiles as u16,
             ServerOpcodes::PhaseShiftChange as u16,
+            ServerOpcodes::DeathReleaseLoc as u16,
+            ServerOpcodes::MoveSetLandWalk as u16,
+            ServerOpcodes::MoveUnroot as u16,
+            ServerOpcodes::PowerUpdate as u16,
         ]
+    );
+    assert_eq!(
+        packets.last().unwrap(),
+        &wow_packet::packets::combat::PowerUpdate {
+            guid: player_guid,
+            powers: vec![(0, wow_constants::PowerType::Mana as u8)],
+        }
+        .to_bytes()
     );
 }
 

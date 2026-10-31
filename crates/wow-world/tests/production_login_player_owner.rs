@@ -6,6 +6,9 @@
 //! its end. None of this is a database integration test.
 //! Run in both dev and release: storage mutations must survive disabled debug assertions.
 
+// The production finalization future's nested type layout exceeds the default query depth.
+#![recursion_limit = "256"]
+
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -29,6 +32,8 @@ struct LoginPort {
     /// `module_hook`: every load answers empty so the login runs to its end,
     /// and the online mark is recorded instead of refused.
     full_login: AtomicBool,
+    seed_self_res_spells_on_customizations_load: AtomicBool,
+    unit_flags2_load_probe: std::sync::Mutex<Option<(u32, bool)>>,
     events: std::sync::Mutex<Vec<&'static str>>,
 }
 
@@ -256,6 +261,7 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
                 summoned_pet_number: None,
                 at_login_flags: Some(0),
                 zone_id: Some(12),
+                death_expire_time: Some(0),
                 dungeon_difficulty: None,
                 chosen_title: None,
                 health: Some(100),
@@ -298,6 +304,64 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
         if self.full_login.load(Ordering::SeqCst) {
+            let probe = *self.unit_flags2_load_probe.lock().unwrap();
+            if let Some((unrelated, remove_on_aura_load)) = probe {
+                let seed = matches!(
+                    &request,
+                    PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable { .. }
+                );
+                let aura_load = matches!(
+                    &request,
+                    PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras { .. }
+                );
+                if seed || aura_load {
+                    let mut manager = self.manager.lock().unwrap();
+                    let (handle, _) = manager
+                        .current_player_admission_like_cpp(ObjectGuid::create_player(1, 42))
+                        .unwrap();
+                    manager
+                        .with_player_mut_like_cpp(handle, |player| {
+                            let unit = player.unit_mut();
+                            if seed {
+                                unit.set_unit_flags2_like_cpp(
+                                    wow_constants::UnitFlags2::from_bits_retain(unrelated),
+                                );
+                            } else {
+                                assert_eq!(
+                                    unit.data().flags2,
+                                    unrelated | wow_constants::UnitFlags2::REGENERATE_POWER.bits(),
+                                    "InitStats load seed must precede aura loading"
+                                );
+                                if remove_on_aura_load {
+                                    unit.set_unit_flags2_like_cpp(
+                                        wow_constants::UnitFlags2::from_bits_retain(unrelated),
+                                    );
+                                }
+                                self.events.lock().unwrap().push("flags2-before-auras");
+                            }
+                        })
+                        .unwrap();
+                }
+            }
+            if matches!(
+                &request,
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { .. }
+            ) && self
+                .seed_self_res_spells_on_customizations_load
+                .swap(false, Ordering::SeqCst)
+            {
+                let player_guid = ObjectGuid::create_player(1, 42);
+                let mut manager = self.manager.lock().unwrap();
+                let player = manager
+                    .find_map_mut(0, 0)
+                    .expect("login map exists before self CREATE")
+                    .map_mut()
+                    .get_typed_player_mut(player_guid)
+                    .expect("canonical login Player exists before self CREATE");
+                for spell_id in [3026, 21169, 3026] {
+                    player.add_self_res_spell(spell_id);
+                }
+            }
             return module_hook::empty_auxiliary_load(request);
         }
         match request {
@@ -387,6 +451,8 @@ async fn hydrate(
         stop_at_pet_load,
         manager: Arc::clone(&manager),
         full_login: AtomicBool::new(false),
+        seed_self_res_spells_on_customizations_load: AtomicBool::new(false),
+        unit_flags2_load_probe: std::sync::Mutex::new(None),
         events: std::sync::Mutex::new(Vec::new()),
     });
     let maps = Arc::new(MapStore::from_entries([MapEntry {
@@ -438,6 +504,7 @@ async fn hydrate(
         addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
         equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
         power_types: Arc::new(PowerTypeStore::from_entries([])),
+        localized_names: Arc::new(Default::default()),
     };
     let progression = ProgressionCatalogsLikeCpp {
         no_reset_talent_cost: false,

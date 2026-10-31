@@ -9,9 +9,17 @@ impl WorldSession {
         &mut self,
     ) -> crate::FinalizationReport {
         let generators = self.id_generators_for_test_like_cpp();
-        self.finalize_session_with_generator_like_cpp(
+        let creature_spawns = self.creature_spawn_catalogs_for_test_like_cpp();
+        let graveyards = self.catalogs.graveyard_store().cloned();
+        wow_world_application::finalize_session_with_resurrection_catalogs(
+            self,
             FinalizationMode::Disconnect,
             generators.item.as_ref(),
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creature_spawns,
+                graveyards: graveyards.as_deref(),
+            },
         )
         .await
     }

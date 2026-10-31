@@ -33,19 +33,26 @@ async fn pending_worldport_uses_separate_cpp_connections() {
     let marker = realm_packets
         .pop()
         .expect("realm writer fence after TransferPending");
+    let before_fence_instance: Vec<_> = instance
+        .try_iter()
+        .map(|packet| u16::from_le_bytes(packet[..2].try_into().unwrap()))
+        .collect();
     assert!(
-        instance
-            .try_iter()
-            .all(|packet| u16::from_le_bytes(packet[..2].try_into().unwrap())
-                != ServerOpcodes::SuspendToken as u16),
+        !before_fence_instance.contains(&(ServerOpcodes::SuspendToken as u16)),
         "SuspendToken cannot overtake TransferPending"
     );
+    assert!(!before_fence_instance.contains(&(ServerOpcodes::CancelCombat as u16)));
     assert!(fence.acknowledge_marker_like_cpp(&marker));
     transfer.await;
-    assert_eq!(realm_packets.len(), 1);
     assert_eq!(
-        u16::from_le_bytes(realm_packets[0][..2].try_into().unwrap()),
-        ServerOpcodes::TransferPending as u16
+        realm_packets
+            .iter()
+            .map(|packet| u16::from_le_bytes(packet[..2].try_into().unwrap()))
+            .collect::<Vec<_>>(),
+        vec![
+            ServerOpcodes::CancelCombat as u16,
+            ServerOpcodes::TransferPending as u16,
+        ]
     );
     let instance_opcodes: Vec<_> = instance
         .try_iter()
@@ -53,6 +60,7 @@ async fn pending_worldport_uses_separate_cpp_connections() {
         .collect();
     assert!(instance_opcodes.contains(&(ServerOpcodes::SuspendToken as u16)));
     assert!(!instance_opcodes.contains(&(ServerOpcodes::TransferPending as u16)));
+    assert!(!instance_opcodes.contains(&(ServerOpcodes::CancelCombat as u16)));
     session
         .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
         .await;

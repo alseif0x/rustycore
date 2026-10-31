@@ -87,11 +87,7 @@ async fn a_player_cast_raises_spell_cast_once_after_spell_go() {
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::Chat,
-            ServerOpcodes::CooldownEvent
-        ],
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::Chat,],
         "the module's message follows SMSG_SPELL_GO and precedes the effects"
     );
 }
@@ -111,8 +107,5 @@ async fn zero_modules_leave_the_cast_packets_unchanged() {
         .await
         .expect("the spell executes");
 
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

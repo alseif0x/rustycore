@@ -63,6 +63,7 @@ impl TravelHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
             wow_world_character::handle_world_port_response_with_catalogs_like_cpp(
                 self,
                 catalogs.creature_spawns.as_ref(),
+                Some(catalogs.graveyards.as_ref()),
                 catalogs.player_bootstrap.trait_node_entries.as_ref(),
                 catalogs.id_generators.item.as_ref(),
                 pkt,

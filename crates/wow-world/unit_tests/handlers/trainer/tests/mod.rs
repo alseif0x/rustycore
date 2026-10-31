@@ -495,6 +495,30 @@ fn trainer_buy_packet(trainer_guid: ObjectGuid, trainer_id: i32, spell_id: i32) 
 
 fn seed_feign_death(session: &mut WorldSession, slot: u8) {
     let player_guid = session.player_guid().expect("active player");
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(5384, 0)]);
+    spell_store.insert(
+        5384,
+        wow_data::SpellInfo {
+            spell_id: 5384,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(66),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: 66,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().add_unit_state(UnitState::DIED.bits());
@@ -506,8 +530,8 @@ fn seed_feign_death(session: &mut WorldSession, slot: u8) {
             difficulty_id: 0,
             caster_guid: player_guid,
             slot,
-            duration_total: 0,
-            duration_remaining: 0,
+            duration_total: -1,
+            duration_remaining: -1,
             stack_count: 1,
             aura_flags: 0,
             effect_mask: 1,
@@ -532,8 +556,8 @@ fn seed_unclassified_active_aura(session: &mut WorldSession, slot: u8) {
             difficulty_id: 0,
             caster_guid: player_guid,
             slot,
-            duration_total: 0,
-            duration_remaining: 0,
+            duration_total: -1,
+            duration_remaining: -1,
             stack_count: 1,
             aura_flags: 0,
             effect_mask: 1,

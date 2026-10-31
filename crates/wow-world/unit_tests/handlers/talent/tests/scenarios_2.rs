@@ -433,10 +433,41 @@ async fn confirm_respec_wipe_removes_feign_death_before_reset_talents_like_cpp()
             player.unit_mut().add_unit_state(UnitState::DIED.bits());
         })
         .expect("canonical player");
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(5384, 0)]);
+    spell_store.insert(
+        5384,
+        wow_data::SpellInfo {
+            spell_id: 5384,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(66),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: 66,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     let mut feign_death = visible_aura(feign_slot, 0);
     feign_death.spell_id = 5384;
     feign_death.represented_effect = Some(RepresentedAuraEffectLikeCpp::FeignDeath);
     assert!(session.insert_player_visible_aura_like_cpp(feign_death));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .contains_key(&feign_slot)
+    );
 
     session
         .handle_confirm_respec_wipe(confirm_respec_wipe_packet(

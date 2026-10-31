@@ -480,3 +480,22 @@ fn stand_state_update_writes_anim_kit_then_state_like_cpp() {
     assert_eq!(pkt.remaining(), 0);
     assert_eq!(&bytes[2..], &[0, 0, 0, 0, 1]);
 }
+
+#[test]
+fn crossed_inebriation_threshold_matches_native_packet_bytes() {
+    let packet = CrossedInebriationThreshold {
+        guid: ObjectGuid::new(0x1000_0000_0000_0000, 0x1234),
+        threshold: 2,
+        item_id: 0xF123_4567_u32 as i32,
+    };
+    let bytes = packet.to_bytes();
+    assert_eq!(
+        bytes,
+        [
+            0xc2, 0x26, // SMSG_CROSSED_INEBRIATION_THRESHOLD
+            0x03, 0x80, 0x34, 0x12, 0x10, // packed ObjectGuid
+            0x02, 0x00, 0x00, 0x00, // int32 Threshold
+            0x67, 0x45, 0x23, 0xF1, // int32 ItemID preserves the uint32 item bits
+        ]
+    );
+}

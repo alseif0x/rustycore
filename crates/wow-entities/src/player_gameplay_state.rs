@@ -119,6 +119,8 @@ pub struct PlayerGameplayState {
     pub achievement_criteria: Vec<PlayerAchievementCriteriaRecord>,
     /// C++ `Player::_currencyStorage`, including its per-row persistence state.
     pub currencies: HashMap<u32, PlayerCurrency>,
+    /// True only after the matching character currency query completed.
+    pub currencies_loaded_like_cpp: bool,
     pub spell_cooldowns: Vec<PlayerSpellCooldownRecord>,
     pub spell_charges: Vec<PlayerSpellChargeRecord>,
     pub rest: PlayerRestState,
@@ -247,14 +249,85 @@ pub struct PlayerResurrectionRequestLikeCpp {
     pub aura: u32,
 }
 
-/// C++ Player-owned resurrection lifecycle state: `_resurrectionData`,
-/// `SelfResSpells`, `m_deathTimer`, delayed resurrection and spirit-healer queue.
+/// The single Player-owned continuation for C++ resurrection work that crosses
+/// a teleport or an async visibility/persistence boundary.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerResurrectionContinuation {
+    pub operation: PlayerResurrectionOperation,
+    pub phase: PlayerResurrectionPhase,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PlayerResurrectionOperation {
+    RequestData(PlayerResurrectionRequestLikeCpp),
+    /// Native `Spell::EffectSelfResurrect` inputs frozen before Player revival.
+    SelfRes {
+        health: u32,
+        mana: u32,
+    },
+    TeleportRevivePercent {
+        map_id: u32,
+        position: wow_core::Position,
+        restore_percent: f32,
+    },
+    ReclaimCorpse {
+        restore_percent: f32,
+    },
+    SpiritHealer {
+        corpse_graveyard: Option<u32>,
+    },
+    CorpseLogin {
+        validated_corpse_location: Option<(u32, wow_core::Position, bool)>,
+    },
+    ForcedRepop,
+    Repop,
+    CreateCorpse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerResurrectionPhase {
+    TeleportInFlight,
+    AwaitingTeleport,
+    TeleportCompleted,
+    ResurrectPlayerReady,
+    ResurrectPlayerInFlight,
+    VisibilityInFlight,
+    ObtainSpellsInFlight,
+    ApplyRequestValues,
+    AuraInFlight,
+    BonesInFlight,
+    ReadyToSavePlayer,
+    SavingPlayer,
+    PlayerSaveDeferred,
+    /// The exact native save receipt confirmed while this continuation was in
+    /// `SavingPlayer`; post-save recovery work still belongs to the operation.
+    PlayerSaveApplied,
+    RecoveryBonesReady,
+    RecoveryCorpseBonesInFlight,
+    RecoveryBonesConfirmed,
+    SpiritHealerDurabilityInFlight,
+    CorpseLoginGhostReady,
+    CorpseLoginGhostInFlight,
+    ReleaseWispAuraInFlight,
+    ReleaseGhostAuraInFlight,
+    CorpseBonesInFlight,
+    CorpseSaveInFlight,
+    CorpsePublished,
+    Complete,
+}
+
+/// Player-owned resurrection lifecycle state: `_resurrectionData`,
+/// `m_deathTimer`, delayed resurrection and spirit-healer queue.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PlayerResurrectionStateLikeCpp {
     pub request: Option<PlayerResurrectionRequestLikeCpp>,
-    pub delayed_after_teleport: Option<PlayerResurrectionRequestLikeCpp>,
-    pub self_res_spells: BTreeSet<i32>,
-    pub death_timer_active: bool,
+    pub delayed_after_teleport: Option<PlayerResurrectionContinuation>,
+    /// Remaining C++ `Player::m_deathTimer` countdown in milliseconds.
+    pub death_timer_remaining_ms: u32,
+    /// Monotonic automatic-release deadline. This intentionally preserves the
+    /// observable six-minute contract when async Recovery diff is insufficient;
+    /// the parent must record that contract in `STATE.md`.
+    pub death_timer_deadline: Option<std::time::Instant>,
     pub area_spirit_healer_guid: ObjectGuid,
     /// C++ `Player::_corpseLocation`: the map and position of the Player's
     /// resurrectable corpse; `None` is C++ `MAPID_INVALID` (no corpse).

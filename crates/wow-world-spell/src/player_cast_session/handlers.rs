@@ -11,6 +11,7 @@
 
 use tracing::{debug, warn};
 use wow_constants::ClientOpcodes;
+use wow_core::ObjectGuid;
 use wow_entities::PendingSpellCastRequestLikeCpp as RepresentedPendingSpellCastRequestLikeCpp;
 use wow_entities::SpellCastMetadata;
 use wow_packet::ClientPacket;
@@ -24,6 +25,204 @@ use crate::spell_click_session::{
     execute_represented_spell_click_plan_with_generator_like_cpp,
     represented_handle_spell_click_plan_like_cpp,
 };
+
+fn player_has_aura_spell_like_cpp<H: PlayerCastHostLikeCpp>(
+    host: &H,
+    spell_id: i32,
+) -> Option<bool> {
+    let hub = host.hub_ref();
+    if hub.player_aura_authority_ready_like_cpp() != Some(true) {
+        return None;
+    }
+    hub.resolved_player_visible_auras_like_cpp()
+        .map(|auras| auras.values().any(|aura| aura.spell_id == spell_id))
+}
+
+fn player_has_aura_type_like_cpp<H: PlayerCastHostLikeCpp>(
+    host: &H,
+    aura_type: i32,
+) -> Option<bool> {
+    use wow_data::ServersideSpellInfoLikeCpp;
+
+    enum Source<'a> {
+        Regular(u8),
+        Server(&'a ServersideSpellInfoLikeCpp),
+    }
+
+    let hub = host.hub_ref();
+    if hub.player_aura_authority_ready_like_cpp() != Some(true) {
+        return None;
+    }
+    let auras = hub.resolved_player_visible_auras_like_cpp()?;
+    let regular = hub.catalogs.spell_store().map(AsRef::as_ref)?;
+    let serverside = hub.catalogs.spell_catalogs.serverside_spell_store.as_ref();
+    let difficulties = hub.catalogs.difficulty_store().map(AsRef::as_ref);
+
+    for aura in auras.values() {
+        if aura.effect_mask == 0 {
+            continue;
+        }
+        let spell_id = aura.spell_id as u32;
+        let has_any_key = regular.contains_spell_info_any_difficulty_like_cpp(spell_id)
+            || serverside.is_some_and(|store| {
+                (u8::MIN..=u8::MAX).any(|difficulty| {
+                    store
+                        .get_serverside_spell_like_cpp(spell_id, u32::from(difficulty))
+                        .is_some()
+                })
+            });
+        let source = wow_data::spell::resolve_spell_catalog_value(
+            aura.difficulty_id,
+            difficulties,
+            has_any_key,
+            |difficulty_id| {
+                let regular_key =
+                    regular.contains_spell_info_exact_like_cpp(spell_id, difficulty_id);
+                let server_info = serverside.and_then(|store| {
+                    store.get_serverside_spell_like_cpp(spell_id, u32::from(difficulty_id))
+                });
+                match (regular_key, server_info) {
+                    (true, Some(_)) => Some(Err(())),
+                    (true, None) => Some(Ok(Source::Regular(difficulty_id))),
+                    (false, Some(info)) => Some(Ok(Source::Server(info))),
+                    (false, None) => None,
+                }
+            },
+        )
+        .ok()??
+        .ok()?;
+        let active_effects = match source {
+            Source::Regular(difficulty_id) => wow_data::spell::resolve_spell_effect_rows(
+                regular,
+                aura.spell_id,
+                difficulty_id,
+                difficulties,
+            )
+            .ok()?
+            .into_iter()
+            .map(|effect| {
+                Some((
+                    i32::try_from(effect.effect_index).ok()?,
+                    i32::from(effect.effect_aura),
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?,
+            Source::Server(info) => info
+                .effects
+                .iter()
+                .map(|effect| (effect.effect_index, effect.effect_aura))
+                .collect(),
+        };
+        for effect_index in 0..32u32 {
+            if aura.effect_mask & (1 << effect_index) == 0 {
+                continue;
+            }
+            let Some((_, effect_aura)) = active_effects
+                .iter()
+                .find(|(index, _)| *index == effect_index as i32)
+            else {
+                return None;
+            };
+            if *effect_aura == aura_type {
+                return Some(true);
+            }
+        }
+    }
+    Some(false)
+}
+
+/// Execute a native normal Player `CastSpell` call using the shared prepare,
+/// active-cast, START/GCD and timer path. Instant effects finish before return;
+/// an accepted timed cast remains installed for the regular cast driver.
+pub async fn cast_server_normal_player_spell_with_generator_like_cpp<H: PlayerCastHostLikeCpp>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    spell_id: i32,
+    target_guid: ObjectGuid,
+    metadata: SpellCastMetadata,
+) -> bool {
+    try_cast_server_normal_player_spell_with_generator_like_cpp(
+        host,
+        item_guid_generator,
+        creature_spawn_catalogs,
+        spell_id,
+        target_guid,
+        metadata,
+    )
+    .await
+    .unwrap_or(false)
+}
+
+/// Server-normal cast result for operations that must retain their owner when
+/// canonical cast inputs disappear. Ordinary C++ rejection remains `Ok(false)`.
+pub async fn try_cast_server_normal_player_spell_with_generator_like_cpp<
+    H: PlayerCastHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    spell_id: i32,
+    target_guid: ObjectGuid,
+    metadata: SpellCastMetadata,
+) -> Result<bool, &'static str> {
+    let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
+    match crate::player_cast::prepare_server_normal(
+        host,
+        spell_id,
+        difficulty_id,
+        target_guid,
+        metadata,
+    ) {
+        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Rejected => Ok(false),
+        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason) => Err(reason),
+        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Started => Ok(true),
+        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Instant => {
+            let Some(cast) = super::take_ready_player_cast_like_cpp(host) else {
+                return Err("instant server-normal cast owner disappeared before execution");
+            };
+            match crate::execution_session::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                host,
+                item_guid_generator,
+                creature_spawn_catalogs,
+                cast.spell_id,
+                cast.target_guid,
+                cast.cast_id,
+                crate::spell_cast_adapter::present_visual(cast.spell_visual.clone()),
+                crate::spell_cast_adapter::present_targets(cast.target_data),
+                cast.metadata,
+            )
+            .await
+            {
+                Ok(()) => Ok(true),
+                Err(reason) => {
+                    warn!(
+                        account = host.core().account_id,
+                        spell_id = cast.spell_id,
+                        reason,
+                        "Instant server-normal spell execution failed"
+                    );
+                    Err(reason)
+                }
+            }
+        }
+        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Direct(cast) => {
+            crate::execution_session::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                host,
+                item_guid_generator,
+                creature_spawn_catalogs,
+                cast.spell_id,
+                cast.target_guid,
+                cast.cast_id,
+                crate::spell_cast_adapter::present_visual(cast.spell_visual),
+                crate::spell_cast_adapter::present_targets(cast.target_data),
+                cast.metadata,
+            )
+            .await
+            .map(|()| true)
+        }
+    }
+}
 
 /// Handle `CMSG_CAST_SPELL` (0x329C).
 ///
@@ -97,6 +296,7 @@ pub async fn handle_cast_spell_with_catalogs_like_cpp<H: PlayerCastHostLikeCpp>(
             player_grid_loader,
             Some(ClientOpcodes::MoveStop),
             move_update,
+            item_guid_generator,
         )
         .await;
     }
@@ -226,11 +426,40 @@ pub async fn handle_self_res_with_generator_like_cpp<H: PlayerCastHostLikeCpp>(
     let Some(player_guid) = host.player_guid() else {
         return;
     };
-    // C++ `HandleSelfResOpcode` uses
-    // `CastSpell(_player, SpellID, GetMap()->GetDifficultyID())`, whose
-    // trigger flags are TRIGGERED_NONE: not a triggered cast, and the
-    // global cooldown applies.
-    if crate::execute_server_triggered_spell_like_cpp(
+    let requested_difficulty = host.core().current_map_difficulty_id_like_cpp();
+    let Some((spell_info, actual_difficulty)) =
+        host.spell_for_difficulty(request.spell_id, requested_difficulty)
+    else {
+        return;
+    };
+    match player_has_aura_type_like_cpp(
+        host,
+        wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION,
+    ) {
+        Some(false) => {}
+        Some(true) => {
+            let bypass = host.hub_ref().catalogs.spell_store().is_some_and(|store| {
+                store.has_attribute_for_difficulty_like_cpp(
+                    spell_info.spell_id,
+                    actual_difficulty,
+                    host.hub_ref()
+                        .catalogs
+                        .difficulty_store()
+                        .map(AsRef::as_ref),
+                    7,
+                    wow_data::spell::attributes::SPELL_ATTR7_BYPASS_NO_RESURRECT_AURA,
+                )
+            });
+            if !bypass {
+                return;
+            }
+        }
+        None => return,
+    }
+    // C++ `HandleSelfResOpcode` uses normal `CastSpell` with the current Map
+    // difficulty. The self-res list is consumed after the prepare attempt,
+    // including native busy/cost/cooldown rejection.
+    let _ = cast_server_normal_player_spell_with_generator_like_cpp(
         host,
         item_guid_generator,
         creature_spawn_catalogs,
@@ -238,12 +467,7 @@ pub async fn handle_self_res_with_generator_like_cpp<H: PlayerCastHostLikeCpp>(
         player_guid,
         SpellCastMetadata::default(),
     )
-    .await
-    .is_ok()
-    {
-        {
-            let (s, mut h) = host.split_spell_state_mut();
-            s.remove_represented_self_res_spell_like_cpp(&mut h, request.spell_id)
-        };
-    }
+    .await;
+    let (s, mut h) = host.split_spell_state_mut();
+    s.remove_represented_self_res_spell_like_cpp(&mut h, request.spell_id);
 }

@@ -13,6 +13,9 @@ use crate::session::mailbox::{
 use std::sync::{Arc, Mutex};
 use wow_packet::ServerPacket;
 
+#[path = "player_cast_lifecycle/dead_caster.rs"]
+mod dead_caster;
+
 const TEST_SPELL_ID: i32 = 133;
 
 fn install_canonical_player(
@@ -414,7 +417,10 @@ async fn canonical_prepare_applies_cast_speed_auras_like_cpp() {
     let haste_spell_id = 90_999_i32;
     let mut spell = minimal_spell();
     spell.cast_time_ms = 1_500;
-    let mut spells = SpellStore::new();
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([
+        (TEST_SPELL_ID as u32, 0),
+        (haste_spell_id as u32, 0),
+    ]);
     spells.insert(TEST_SPELL_ID, spell);
     spells.insert(
         haste_spell_id,
@@ -727,6 +733,39 @@ fn prepared_cancel_orders_interruption_before_result_and_clears_gcd_like_cpp() {
 }
 
 #[test]
+fn server_normal_item_cast_cancel_uses_the_player_cast_interruption_route() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let guid = ObjectGuid::create_player(1, 58_932);
+    install_canonical_player(&mut session, &canonical, guid, 571, 0, Position::ZERO);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let revision = canonical
+        .lock()
+        .unwrap()
+        .player_active_residence_revision_like_cpp(handle)
+        .unwrap()
+        .1;
+    let mut cast = prepared_cast(guid, revision);
+    cast.cast_time_ms = 1_500;
+    cast.metadata.client_cast_id = None;
+    cast.metadata.from_client = false;
+    cast.metadata.server_normal_cast_like_cpp = true;
+    assert!(session.set_active_spell_cast_like_cpp(Some(cast)));
+
+    session.cancel_client_cast_request_like_cpp(Some(TEST_SPELL_ID));
+
+    assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![
+            ServerOpcodes::SpellFailure,
+            ServerOpcodes::SpellFailedOther,
+            ServerOpcodes::CastFailed,
+        ]
+    );
+}
+
+#[test]
 fn normal_visual_uses_server_relation_id_and_cpp_equal_condition_order() {
     use crate::player_cast::Runtime;
     let (mut session, _, _) = make_session();
@@ -855,6 +894,192 @@ async fn normal_start_and_go_carry_cpp_cast_flags_like_cpp() {
         go_data.remaining_runes.is_none() && go_data.ammo_display_id.is_none(),
         "a plain mana spell selects neither the rune nor the ammo section"
     );
+}
+
+#[test]
+fn caster_only_stuck_start_clears_explicit_self_target_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let actor = ObjectGuid::create_player(1, 58_935);
+    install_canonical_player(&mut session, &canonical, actor, 571, 0, Position::ZERO);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let revision = canonical
+        .lock()
+        .unwrap()
+        .player_active_residence_revision_like_cpp(handle)
+        .unwrap()
+        .1;
+    let mut cast = prepared_cast(actor, revision);
+    cast.target_data = wow_entities::SpellCastTargetsLikeCpp {
+        flags: 0x0000_0002,
+        unit: actor,
+        ..Default::default()
+    };
+    let mut spell = minimal_spell();
+    spell.effects = vec![wow_data::SpellEffectInfo {
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK,
+        ..Default::default()
+    }];
+
+    <WorldSession as crate::player_cast::Runtime>::start(&mut session, &cast, &spell);
+
+    let start = send_rx.try_recv().expect("caster-only Stuck SpellStart");
+    let target = decode_spell_start_target_data_like_cpp(&start, spell.spell_id);
+    assert_eq!(
+        target,
+        wow_packet::packets::spell::SpellTargetData::default()
+    );
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
+fn hearthstone_start_clears_explicit_self_target_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let actor = ObjectGuid::create_player(1, 58_936);
+    install_canonical_player(&mut session, &canonical, actor, 571, 0, Position::ZERO);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let revision = canonical
+        .lock()
+        .unwrap()
+        .player_active_residence_revision_like_cpp(handle)
+        .unwrap()
+        .1;
+    let mut cast = prepared_cast(actor, revision);
+    cast.spell_id = 8690;
+    cast.target_data = wow_entities::SpellCastTargetsLikeCpp {
+        flags: 0x0000_0042,
+        unit: actor,
+        ..Default::default()
+    };
+    let mut spell = minimal_spell();
+    spell.spell_id = 8690;
+    spell.effects = vec![
+        wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
+            ..Default::default()
+        },
+        wow_data::SpellEffectInfo {
+            effect_index: 1,
+            effect: 77,
+            ..Default::default()
+        },
+    ];
+
+    <WorldSession as crate::player_cast::Runtime>::start(&mut session, &cast, &spell);
+
+    let start = send_rx.try_recv().expect("hearthstone SpellStart");
+    let target = decode_spell_start_target_data_like_cpp(&start, spell.spell_id);
+    assert_eq!(
+        target,
+        wow_packet::packets::spell::SpellTargetData::default()
+    );
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
+fn server_normal_physical_item_publication_keeps_actor_in_caster_unit() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let actor = ObjectGuid::create_player(1, 58_933);
+    install_canonical_player(&mut session, &canonical, actor, 571, 0, Position::ZERO);
+    let item = ObjectGuid::create_item(1, 58_934);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let revision = canonical
+        .lock()
+        .unwrap()
+        .player_active_residence_revision_like_cpp(handle)
+        .unwrap()
+        .1;
+    let spell = minimal_spell();
+    let metadata = SpellCastMetadata {
+        server_normal_cast_like_cpp: true,
+        prepared_residence_revision: Some(revision),
+        cast_item_entry: Some(9001),
+        cast_item_guid: Some(item),
+        cast_item_level: Some(123),
+        ..SpellCastMetadata::default()
+    };
+    let cast = SpellCastState {
+        spell_id: spell.spell_id,
+        target_guid: actor,
+        target_data: Default::default(),
+        cast_id: ObjectGuid::new(6, 0xCA57),
+        cast_start_time: std::time::Instant::now(),
+        cast_time_ms: 0,
+        spell_visual: Default::default(),
+        metadata,
+    };
+    <WorldSession as crate::player_cast::Runtime>::start(&mut session, &cast, &spell);
+    let start = send_rx.try_recv().expect("server-normal SpellStart");
+    let mut start_payload = WorldPacket::from_bytes(&start[2..]);
+    assert_eq!(start_payload.read_packed_guid().unwrap(), item);
+    assert_eq!(start_payload.read_packed_guid().unwrap(), actor);
+    assert!(
+        send_rx.try_recv().is_err(),
+        "normal StartCooldown has no unconditional CooldownEvent publication"
+    );
+
+    let (go_data, _) = session.player_cast_publication_like_cpp(
+        &spell,
+        &metadata,
+        crate::session::player_cast::wire::PlayerCastPublicationPhaseLikeCpp::Go,
+    );
+    let go = wow_packet::packets::spell::SpellGoPkt {
+        cast_data: go_data,
+        caster: item,
+        cast_id: ObjectGuid::new(6, 0xCA57),
+        original_cast_id: ObjectGuid::EMPTY,
+        spell_id: spell.spell_id,
+        visual: Default::default(),
+        cast_flags: 0,
+        cast_flags_ex: 0,
+        cast_time_ms: 0,
+        target: Default::default(),
+        hit_targets: Vec::new(),
+        miss_targets: Vec::new(),
+    }
+    .to_bytes();
+    let mut payload = WorldPacket::from_bytes(&go[2..]);
+    assert_eq!(payload.read_packed_guid().unwrap(), item);
+    assert_eq!(payload.read_packed_guid().unwrap(), actor);
+}
+
+fn decode_spell_start_target_data_like_cpp(
+    bytes: &[u8],
+    expected_spell_id: i32,
+) -> wow_packet::packets::spell::SpellTargetData {
+    let mut packet = WorldPacket::from_bytes(bytes);
+    assert_eq!(
+        packet.read_uint16().expect("SpellStart opcode"),
+        ServerOpcodes::SpellStart as u16
+    );
+    for field in ["caster", "caster unit", "cast id", "original cast id"] {
+        packet.read_packed_guid().expect(field);
+    }
+    assert_eq!(packet.read_int32().expect("spell id"), expected_spell_id);
+    wow_packet::packets::spell::SpellCastVisual::read(&mut packet).expect("spell visual");
+    packet.read_uint32().expect("cast flags");
+    packet.read_uint32().expect("cast flags ex");
+    packet.read_uint32().expect("cast time");
+    packet.read_int32().expect("missile travel time");
+    packet.read_float().expect("missile pitch");
+    packet.read_uint8().expect("destination cast index");
+    packet.read_uint32().expect("immunity school");
+    packet.read_uint32().expect("immunity value");
+    packet.read_uint32().expect("heal prediction points");
+    packet.read_uint8().expect("heal prediction type");
+    packet.read_packed_guid().expect("heal prediction beacon");
+    packet.read_bits(16).expect("hit target count");
+    packet.read_bits(16).expect("miss target count");
+    packet.read_bits(16).expect("miss status count");
+    packet.read_bits(9).expect("remaining power count");
+    packet.read_bit().expect("remaining runes presence");
+    packet.read_bits(16).expect("target point count");
+    packet.read_bit().expect("ammo display presence");
+    packet.read_bit().expect("ammo inventory presence");
+    wow_packet::packets::spell::SpellTargetData::read(&mut packet).expect("SpellStart target data")
 }
 
 /// Read `SpellCastData::CastFlags` out of a serialized Start/Go frame.

@@ -3,8 +3,9 @@
 use super::*;
 use wow_entities::{
     AccessorObjectKind, AreaTriggerValuesUpdate, ConversationValuesUpdate, CorpseValuesUpdate,
-    DynamicObjectValuesUpdate, GameObjectValuesUpdate, PlayerValuesUpdate, SceneObjectValuesUpdate,
-    UnitValuesUpdate,
+    DynamicObjectValuesUpdate, GameObjectValuesUpdate, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
+    ITEM_DATA_PARENT_BIT, ItemDataUpdate, ItemDataValues, ItemValuesUpdate, PlayerValuesUpdate,
+    SceneObjectValuesUpdate, TYPEID_ITEM, UnitValuesUpdate, UpdateMask,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,6 +18,7 @@ pub struct RepresentedDynamicObjectValuesUpdateLikeCpp {
 pub struct RepresentedPlayerValuesUpdateLikeCpp {
     pub guid: ObjectGuid,
     pub values_update: PlayerValuesUpdate,
+    pub owned_item_durability_updates: Vec<(ObjectGuid, ItemValuesUpdate)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -141,13 +143,45 @@ where
             match record.kind() {
                 AccessorObjectKind::Player => {
                     let player = record.player_mut().expect("typed Player record");
+                    let owned_item_durability_updates = player
+                        .inventory_runtime_mut_like_cpp()
+                        .take_pending_durability_update_guids_like_cpp()
+                        .into_iter()
+                        .filter_map(|item_guid| {
+                            let item = player
+                                .inventory_runtime_like_cpp()
+                                .item_objects()
+                                .get(&item_guid)?;
+                            if item.object().guid() != item_guid || item.owner_guid() != guid {
+                                return None;
+                            }
+                            let mut mask = UpdateMask::new(ITEM_DATA_BITS);
+                            mask.set(ITEM_DATA_PARENT_BIT);
+                            mask.set(ITEM_DATA_DURABILITY_BIT);
+                            Some((
+                                item_guid,
+                                ItemValuesUpdate {
+                                    changed_object_type_mask: 1 << TYPEID_ITEM,
+                                    object_data: None,
+                                    item_data: Some(ItemDataUpdate {
+                                        mask,
+                                        values: ItemDataValues {
+                                            durability: item.data().durability,
+                                            ..Default::default()
+                                        },
+                                    }),
+                                },
+                            ))
+                        })
+                        .collect::<Vec<_>>();
                     let values_update = player.values_update(true);
-                    if values_update.has_data() {
+                    if values_update.has_data() || !owned_item_durability_updates.is_empty() {
                         summary
                             .player_values_updates
                             .push(RepresentedPlayerValuesUpdateLikeCpp {
                                 guid,
                                 values_update,
+                                owned_item_durability_updates,
                             });
                     }
                     player.clear_data_changes();

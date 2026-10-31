@@ -55,7 +55,24 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                     source_guid,
                     None,
                 );
-                let mut spell_store = wow_data::SpellStore::new();
+                let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+                    (standing_spell_id as u32, 0),
+                    (standing_spell_id as u32, 2),
+                    (kept_spell_id as u32, 0),
+                    (snapshot_standing_spell_id as u32, 0),
+                ]);
+                for spell_id in [standing_spell_id, kept_spell_id, snapshot_standing_spell_id] {
+                    let mut info = test_spell_info_like_cpp(spell_id);
+                    info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+                    info.aura_type = Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY);
+                    info.effects = vec![wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+                        ..Default::default()
+                    }];
+                    spell_store.insert(spell_id, info);
+                }
                 spell_store.insert_spell_interrupt_flags_like_cpp(
                     standing_spell_id,
                     [0x20, 0],
@@ -442,7 +459,21 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
             standing_aura_slot,
             0x1,
         );
-        let mut spell_store = wow_data::SpellStore::new();
+        let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+            (standing_aura_spell_id as u32, 0),
+            (channel_spell_id as u32, 0),
+            (channel_spell_id as u32, 2),
+        ]);
+        let mut standing_info = test_spell_info_like_cpp(standing_aura_spell_id);
+        standing_info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+        standing_info.aura_type = Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY);
+        standing_info.effects = vec![wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+            ..Default::default()
+        }];
+        spell_store.insert(standing_aura_spell_id, standing_info);
         spell_store.insert_spell_interrupt_flags_like_cpp(channel_spell_id, [0, 0], [0x20, 0]);
         spell_store.insert_spell_interrupt_flags_for_difficulty_like_cpp(
             channel_spell_id,

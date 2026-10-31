@@ -38,6 +38,7 @@ pub struct CreatureTemplatePersistenceRowLikeCpp {
     pub flags_extra: u32,
     pub string_id: String,
     pub regen_health: bool,
+    pub base_variance: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

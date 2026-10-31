@@ -660,16 +660,18 @@ fn broadcast_info(
 ) -> PlayerSessionRegistrationLikeCpp {
     let (command_tx, _command_rx) = flume::bounded(1);
     PlayerSessionRegistrationLikeCpp {
-        identity: PlayerDirectoryIdentityLikeCpp {
-            player_name: format!("Player{}", guid.counter()),
-            account_id: guid.counter() as u32,
-            battlenet_account_id: 0,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            active_expansion: 2,
-        },
+        identity: PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+            format!("Player{}", guid.counter()),
+            guid.counter() as u32,
+            0,
+            0,
+            1,
+            1,
+            0,
+            2,
+            "enUS",
+            None,
+        ),
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,

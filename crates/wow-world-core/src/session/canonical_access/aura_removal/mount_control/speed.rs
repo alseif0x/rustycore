@@ -5,7 +5,6 @@ use super::{AuraMountControlAccessLikeCpp, PlayerAuraRemovalAccessLikeCpp};
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 use crate::session::movement_protocol::{PLAYER_BASE_MOVE_SPEED_LIKE_CPP, UnitMoveTypeLikeCpp};
 use std::time::Instant;
-use tracing::warn;
 use wow_constants::{MovementFlag, ServerOpcodes};
 use wow_core::ObjectGuid;
 use wow_entities::RepresentedAuraEffectLikeCpp;
@@ -157,9 +156,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
             sequence_index,
         }
         .to_bytes();
-        if self.core.send_tx().send(self_packet).is_err() {
-            warn!("Send channel closed for account {}", self.core.account_id);
-        }
+        self.core.send_raw_packet(&self_packet);
 
         let Some(status) = self.current_player_movement_info_like_cpp(player_guid) else {
             return;
@@ -313,10 +310,8 @@ impl crate::session::state::SessionCore {
             .map(|key| key.instance_id)
             .unwrap_or(0);
 
-        if self.client_visible_guids_like_cpp.contains(&pet_guid)
-            && self.send_tx().send(packet_bytes.clone()).is_err()
-        {
-            warn!("Send channel closed for account {}", self.account_id);
+        if self.client_visible_guids_like_cpp.contains(&pet_guid) {
+            self.send_raw_packet(&packet_bytes);
         }
 
         let (Some(player_guid), Some(registry)) = (self.player_guid(), self.player_registry())
@@ -635,9 +630,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
             speed,
         }
         .to_bytes();
-        if self.core.send_tx().send(self_packet).is_err() {
-            warn!("Send channel closed for account {}", self.core.account_id);
-        }
+        self.core.send_raw_packet(&self_packet);
 
         let Some(status) = self.current_player_movement_info_like_cpp(player_guid) else {
             return;
@@ -783,10 +776,49 @@ impl AuraMountControlAccessLikeCpp<'_> {
         presentation: &PlayerAuraRemovalAccessLikeCpp<'_>,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
-        crate::session::state::SessionCore::max_represented_aura_amount_like_cpp_from_snapshot(
-            presentation.visible_auras_snapshot_like_cpp(),
-            effect,
-        )
+        let active_type = match effect {
+            RepresentedAuraEffectLikeCpp::Speed => {
+                Some(wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED)
+            }
+            RepresentedAuraEffectLikeCpp::SwimSpeed => {
+                Some(wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED)
+            }
+            _ => None,
+        };
+        let snapshot = presentation.aura_subsystem_snapshot_like_cpp()?;
+        let canonical = active_type.and_then(|aura_type| {
+            snapshot.applied_aura_types.get(&aura_type).map(|rows| {
+                let slots: std::collections::HashSet<_> =
+                    rows.iter().map(|aura| aura.slot).collect();
+                let amount = rows
+                    .iter()
+                    .map(|aura| {
+                        snapshot
+                            .applied_aura_amounts
+                            .get(aura)
+                            .copied()
+                            .unwrap_or(0)
+                    })
+                    .filter(|amount| *amount > 0)
+                    .max()
+                    .unwrap_or(0);
+                (slots, amount)
+            })
+        });
+        let mut result = canonical.as_ref().map_or(0, |(_, amount)| *amount);
+        for aura in snapshot
+            .runtime_applications_like_cpp()
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+        {
+            let tracked = canonical
+                .as_ref()
+                .is_some_and(|(slots, _)| slots.contains(&aura.slot));
+            if !tracked {
+                result = result.max(aura.represented_amount.max(0));
+            }
+        }
+        Some(result)
     }
     fn max_negative_represented_aura_amount_like_cpp(
         &self,

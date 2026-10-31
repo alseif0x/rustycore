@@ -115,6 +115,7 @@
       "wow-data",
       "wow-entities",
       "wow-handler",
+      "wow-map",
       "wow-packet",
       "wow-persistence",
       "wow-spell-acquisition",
@@ -697,6 +698,7 @@
       "wow-world-application": {
         "normal": [
           "num-traits",
+          "rand",
           "tracing"
         ],
         "build": []

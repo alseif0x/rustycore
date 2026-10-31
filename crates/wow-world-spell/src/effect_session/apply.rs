@@ -19,7 +19,11 @@ pub async fn apply_effect_teleport_units_like_cpp<H: SpellEffectHostLikeCpp>(
     target_guid: ObjectGuid,
     target_data: &SpellTargetData,
 ) {
-    if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS {
+    if !matches!(
+        effect.effect,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD
+            | wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS
+    ) {
         return;
     }
 

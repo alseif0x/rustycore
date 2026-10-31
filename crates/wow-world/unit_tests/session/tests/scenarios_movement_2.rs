@@ -81,6 +81,11 @@ fn represented_mounted_flight_speed_removal_unsets_can_fly_when_last_source_like
         effect_index: 0,
         ..Default::default()
     };
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(20_032, 0)]);
+    let mut spell_info = test_spell_info_like_cpp(20_032);
+    spell_info.effects = vec![mounted_flight.clone()];
+    spell_store.insert(20_032, spell_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(
@@ -168,6 +173,11 @@ fn represented_swim_speed_removal_recomputes_like_cpp() {
         effect_index: 0,
         ..Default::default()
     };
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(20_030, 0)]);
+    let mut spell_info = test_spell_info_like_cpp(20_030);
+    spell_info.effects = vec![swim.clone()];
+    spell_store.insert(20_030, spell_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(
@@ -409,6 +419,11 @@ fn represented_backward_speed_slow_removal_restores_base_speeds_like_cpp() {
         effect_index: 0,
         ..Default::default()
     };
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(20_039, 0)]);
+    let mut spell_info = test_spell_info_like_cpp(20_039);
+    spell_info.effects = vec![slow.clone()];
+    spell_store.insert(20_039, spell_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(
@@ -558,7 +573,8 @@ fn represented_dismount_restores_active_normal_run_speed_like_cpp() {
             req_map_id: 0,
         },
     ])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(100, 0), (12_346, 0)]);
     spell_store.insert(
         12_346,
         wow_data::SpellInfo {
@@ -581,7 +597,6 @@ fn represented_dismount_restores_active_normal_run_speed_like_cpp() {
             }],
         },
     );
-    session.set_spell_store(Arc::new(spell_store));
     let mounted = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
@@ -589,6 +604,10 @@ fn represented_dismount_restores_active_normal_run_speed_like_cpp() {
         effect_misc_value_1: 0,
         ..Default::default()
     };
+    let mut mounted_info = test_spell_info_like_cpp(100);
+    mounted_info.effects = vec![mounted.clone()];
+    spell_store.insert(100, mounted_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_mounted_aura_like_cpp(100, caster, &mounted)
@@ -697,6 +716,15 @@ fn represented_run_speed_slow_removal_recomputes_like_cpp() {
         effect_index: 1,
         ..Default::default()
     };
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(20_008, 0), (20_009, 0)]);
+    let mut speed_info = test_spell_info_like_cpp(20_008);
+    speed_info.effects = vec![speed.clone()];
+    spell_store.insert(20_008, speed_info);
+    let mut slow_info = test_spell_info_like_cpp(20_009);
+    slow_info.effects = vec![slow.clone()];
+    spell_store.insert(20_009, slow_info);
+    session.set_spell_store(Arc::new(spell_store));
     session
         .apply_represented_aura_modifier_like_cpp(
             20_008,
@@ -805,6 +833,15 @@ fn represented_run_speed_use_normal_movement_speed_removal_recomputes_like_cpp()
         effect_index: 1,
         ..Default::default()
     };
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(20_022, 0), (20_023, 0)]);
+    let mut speed_info = test_spell_info_like_cpp(20_022);
+    speed_info.effects = vec![speed.clone()];
+    spell_store.insert(20_022, speed_info);
+    let mut normal_cap_info = test_spell_info_like_cpp(20_023);
+    normal_cap_info.effects = vec![normal_cap.clone()];
+    spell_store.insert(20_023, normal_cap_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(

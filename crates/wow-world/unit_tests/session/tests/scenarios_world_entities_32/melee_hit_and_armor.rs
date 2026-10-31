@@ -82,7 +82,12 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_150, 0),
+        (91_151, 0),
+        (91_152, 0),
+        (91_153, 0),
+    ]);
     for (spell_id, aura_type, amount, misc_value_b) in [
         (
             91_150_i32,
@@ -468,7 +473,8 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(91_170, 0), (91_171, 0)]);
     spell_store.insert(
         91_170,
         wow_data::SpellInfo {

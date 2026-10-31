@@ -7,10 +7,69 @@
 
 use super::*;
 
+pub(crate) fn spell_go_original_cast_id_like_cpp(
+    metadata: SpellCastMetadata,
+    cast_id: ObjectGuid,
+    selected_full_server_aura: bool,
+) -> ObjectGuid {
+    if metadata.server_normal_cast_like_cpp || selected_full_server_aura {
+        metadata.original_cast_id
+    } else {
+        metadata.original_cast_id_or(cast_id)
+    }
+}
+
 /// Represented aura duration for a creature target: the same bounded 30-second
 /// convention the player self-cast chain uses until `SpellDuration.db2` is
 /// consumed for every represented aura.
 const REPRESENTED_CREATURE_AURA_DURATION_MS_LIKE_CPP: u32 = 30_000;
+
+fn unit_is_in_world_on_map(map: &wow_map::Map, guid: ObjectGuid) -> bool {
+    if guid.is_player() {
+        map.get_typed_player(guid)
+            .is_some_and(|player| player.unit().world().object().is_in_world())
+    } else if guid.is_creature() {
+        map.get_typed_creature(guid)
+            .is_some_and(|creature| creature.unit().world().object().is_in_world())
+    } else if guid.is_pet() {
+        map.get_typed_pet(guid)
+            .is_some_and(|pet| pet.creature().unit().world().object().is_in_world())
+    } else {
+        false
+    }
+}
+
+/// C++ `Spell` resolves a distinct `originalCasterGUID` through the caster's
+/// Map and discards it when the Unit is absent or out of world. Equal GUIDs
+/// use `m_caster->ToUnit()` directly. Return `None` for an unresolved explicit
+/// original so each existing aura path can keep its own caster fallback.
+fn resolve_original_aura_caster_guid<H: SpellExecutionHostLikeCpp>(
+    host: &H,
+    caster_guid: ObjectGuid,
+    original_caster_guid: Option<ObjectGuid>,
+) -> Option<ObjectGuid> {
+    let original_caster_guid = original_caster_guid?;
+    if original_caster_guid == caster_guid {
+        return Some(caster_guid);
+    }
+
+    let core = host.core();
+    let player_guid = core.player_guid()?;
+    let handle = core.player_handle_like_cpp?;
+    if handle.guid() != player_guid || (caster_guid.is_player() && caster_guid != player_guid) {
+        return None;
+    }
+    let manager = core.canonical_map_manager.as_ref()?.lock().ok()?;
+    let key = match manager.player_residence_like_cpp(handle)? {
+        wow_map::PlayerResidenceLikeCpp::Active(key) => key,
+        wow_map::PlayerResidenceLikeCpp::Detached => return None,
+    };
+    let map = manager.find_map(key.map_id, key.instance_id)?.map();
+    if !unit_is_in_world_on_map(map, caster_guid) {
+        return None;
+    }
+    unit_is_in_world_on_map(map, original_caster_guid).then_some(original_caster_guid)
+}
 
 pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp<
     H: SpellExecutionHostLikeCpp,
@@ -21,21 +80,108 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     spell_id: i32,
     target_guid: ObjectGuid,
     cast_id: ObjectGuid,
-    spell_visual: wow_packet::packets::spell::SpellCastVisual,
+    mut spell_visual: wow_packet::packets::spell::SpellCastVisual,
     target_data: SpellTargetData,
-    metadata: SpellCastMetadata,
+    mut metadata: SpellCastMetadata,
 ) -> Result<(), &'static str> {
     let player_guid = host.player_guid().ok_or("No player GUID")?;
     let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
+    let selected_aura_routes = super::execution_support::selected_aura_execution_routes_like_cpp(
+        host,
+        spell_id,
+        player_guid,
+        target_guid,
+        caster_guid,
+        metadata,
+    );
+    let player_resurrection_sickness = selected_aura_routes.player_resurrection_sickness;
+    let server_triggered_resurrection_sickness =
+        selected_aura_routes.server_triggered_resurrection_sickness;
+    let server_triggered_player_ghost_wisp =
+        selected_aura_routes.server_triggered_player_ghost_wisp;
+    let selected_full_server_aura = selected_aura_routes.selected_full_server_aura();
+    let selected_execution_effects = selected_aura_routes.selected_effects();
+    let effect_route_context = super::execution_support::SpellEffectRouteContextLikeCpp {
+        player_guid,
+        target_guid,
+        selected_aura_constructor: selected_execution_effects,
+        spell_has_no_unrepresented_runtime_hooks: u32::try_from(spell_id)
+            .is_ok_and(|spell_id| host.spell_has_no_unrepresented_runtime_hooks_like_cpp(spell_id)),
+    };
+    if selected_execution_effects {
+        spell_visual.spell_visual_id = super::selected_cast_visual::resolve(host, spell_id)?;
+    }
 
-    // Load spell metadata.
-    let spell_info = host
-        .hub_ref()
-        .catalogs
-        .spell_store()
-        .and_then(|store| store.get(spell_id))
-        .cloned()
-        .ok_or("Spell not found")?;
+    // Native normal Player casts execute the exact key admitted during
+    // prepare and resolve each represented payload family through the
+    // canonical difficulty chain. They do not borrow the legacy key-zero
+    // payload. A full-mask
+    // selected server aura may instead use a transient carrier after its
+    // exact nonzero key is proven; its effects and attributes come from the
+    // selected rows, and the carrier is never installed in SpellStore.
+    let (legacy_spell_info, has_difficulty_zero_key, normal_spell_info) = {
+        let spell_store = host
+            .hub_ref()
+            .catalogs
+            .spell_store()
+            .ok_or("Spell not found")?;
+        let has_difficulty_zero_key = u32::try_from(spell_id)
+            .ok()
+            .is_some_and(|spell_id| spell_store.contains_spell_info_exact_like_cpp(spell_id, 0));
+        let normal_spell_info = if metadata.server_normal_cast_like_cpp {
+            let actual_difficulty = metadata
+                .actual_spell_difficulty_id_like_cpp
+                .ok_or("Normal Player cast lost selected SpellInfo difficulty")?;
+            let difficulties = host
+                .hub_ref()
+                .catalogs
+                .difficulty_store()
+                .map(AsRef::as_ref);
+            Some(
+                spell_store
+                    .spell_info_for_exact_key_like_cpp(spell_id, actual_difficulty, difficulties)
+                    .map_err(|error| {
+                        tracing::warn!(
+                            spell_id,
+                            actual_difficulty,
+                            ?error,
+                            "Normal Player cast SpellInfo payload unavailable"
+                        );
+                        "Normal Player cast SpellInfo payload unavailable"
+                    })?
+                    .ok_or("Normal Player cast exact SpellInfo key unavailable")?,
+            )
+        } else {
+            None
+        };
+        (
+            spell_store.get(spell_id).cloned(),
+            has_difficulty_zero_key,
+            normal_spell_info,
+        )
+    };
+    let mut transient_selected_threat_plan = None;
+    let mut spell_info = match normal_spell_info {
+        Some(spell_info) => spell_info,
+        None => match legacy_spell_info {
+            Some(spell_info) => spell_info,
+            None if selected_full_server_aura && !has_difficulty_zero_key => {
+                let (spell_info, threat_plan) =
+                    super::selected_effects::resolve_transient_full_aura(host, spell_id)?;
+                transient_selected_threat_plan = Some(threat_plan);
+                spell_info
+            }
+            None => return Err("Spell not found"),
+        },
+    };
+    let selected_cast_threat_plan = if selected_execution_effects {
+        match transient_selected_threat_plan {
+            Some(threat_plan) => threat_plan,
+            None => super::selected_effects::resolve(host, spell_id, &mut spell_info)?,
+        }
+    } else {
+        super::selected_effects::SelectedCastThreatPlan::Legacy
+    };
     let effect_type = spell_info.effect_type;
     let effect_base_points = spell_info.effect_base_points;
 
@@ -51,6 +197,9 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         host,
         &spell_info,
         &target_data,
+        player_guid,
+        target_guid,
+        selected_execution_effects,
         spell_id,
         cast_id,
         &spell_visual,
@@ -74,7 +223,58 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         &spell_info,
         target_data,
         represented_focus_object,
+        selected_full_server_aura,
     );
+    let hit_targets = super::target_resolution::spell_go_hit_targets_like_cpp(
+        &spell_info,
+        &target_data,
+        target_guid,
+    );
+
+    let mut deferred_server_normal_cast_item_use = false;
+    let mut take_server_normal_cast_item_before_effects = false;
+    if metadata.server_normal_cast_like_cpp {
+        match host.server_normal_pre_go_like_cpp(&spell_info, cast_id, &spell_visual, metadata) {
+            Ok(plan) => {
+                metadata = plan.metadata;
+                deferred_server_normal_cast_item_use = plan.take_cast_item;
+                take_server_normal_cast_item_before_effects = plan.take_cast_item_before_effects;
+            }
+            Err(failure) => {
+                if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                    tracing::info!(
+                        spell_id,
+                        caster_guid = ?caster_guid,
+                        ?failure,
+                        "RUST_STUCK server_normal_pre_go_failure"
+                    );
+                }
+                let (reason, fail_arg1, fail_arg2, unavailable) =
+                    server_normal_pre_go_failure_publication_like_cpp(failure);
+                if !matches!(failure, super::ServerNormalPreGoFailureLikeCpp::Power) {
+                    host.send_packet(&wow_packet::packets::spell::CastFailed {
+                        cast_id,
+                        spell_id,
+                        visual: spell_visual.clone(),
+                        reason,
+                        fail_arg1,
+                        fail_arg2,
+                    });
+                }
+                publish_player_cast_interrupted_frames_like_cpp(
+                    host,
+                    metadata,
+                    cast_id,
+                    spell_id,
+                    &spell_visual,
+                );
+                if let Some(reason) = unavailable {
+                    return Err(reason);
+                }
+                return Ok(());
+            }
+        }
+    }
 
     // Send SMSG_SPELL_GO
     use wow_packet::packets::spell::SpellGoPkt;
@@ -84,39 +284,65 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     // above. Triggered consumers keep their own explicit metadata flags;
     // normal client defaults are never imposed on them.
     let go_phase = crate::PlayerCastPublicationPhaseLikeCpp::Go;
-    let (cast_data, cast_flags) = if metadata.client_cast_id.is_some() {
+    let publishes_player_cast =
+        metadata.client_cast_id.is_some() || metadata.server_normal_cast_like_cpp;
+    let (cast_data, cast_flags) = if publishes_player_cast {
         player_cast_publication_like_cpp(host, &spell_info, &metadata, go_phase)
     } else {
         (Default::default(), metadata.cast_flags)
     };
-    let go_pkt = SpellGoPkt {
-        cast_data,
-        caster: caster_guid,
-        cast_id,
-        original_cast_id: metadata.original_cast_id_or(cast_id),
-        spell_id,
-        visual: spell_visual,
-        cast_flags,
-        cast_flags_ex: metadata.cast_flags_ex,
-        cast_time_ms: wow_world_core::session::game_time_ms_like_cpp(),
-        target: spell_go_target_data,
-        hit_targets: vec![target_guid],
-        miss_targets: Vec::new(),
-    };
-    if metadata.client_cast_id.is_some() {
-        publish_player_cast_frame_like_cpp(
-            host,
-            metadata,
-            wow_packet::ServerPacket::to_bytes(&go_pkt),
-        );
-    } else {
-        host.send_packet(&go_pkt);
+    let send_spell_go =
+        if server_triggered_resurrection_sickness || server_triggered_player_ghost_wisp {
+            super::resurrection_sickness::should_send_resurrection_sickness_spell_go(
+                host,
+                spell_id,
+                spell_visual.spell_visual_id,
+            )?
+        } else {
+            true
+        };
+    if send_spell_go {
+        let go_caster_guid = if metadata.server_normal_cast_like_cpp {
+            metadata.cast_item_guid.unwrap_or(caster_guid)
+        } else {
+            caster_guid
+        };
+        let go_pkt = SpellGoPkt {
+            cast_data,
+            caster: go_caster_guid,
+            cast_id,
+            original_cast_id: spell_go_original_cast_id_like_cpp(
+                metadata,
+                cast_id,
+                selected_full_server_aura,
+            ),
+            spell_id,
+            visual: spell_visual,
+            cast_flags,
+            cast_flags_ex: metadata.cast_flags_ex,
+            cast_time_ms: wow_world_core::session::game_time_ms_like_cpp(),
+            target: spell_go_target_data,
+            hit_targets,
+            miss_targets: Vec::new(),
+        };
+        if publishes_player_cast {
+            publish_player_cast_frame_like_cpp(
+                host,
+                metadata,
+                wow_packet::ServerPacket::to_bytes(&go_pkt),
+            );
+        } else {
+            host.send_packet(&go_pkt);
+        }
+        if caster_guid != player_guid && caster_guid.is_any_type_creature() {
+            host.broadcast_creature_packet_to_visible_set_like_cpp(
+                caster_guid,
+                wow_packet::ServerPacket::to_bytes(&go_pkt),
+            );
+        }
     }
-    if caster_guid != player_guid && caster_guid.is_any_type_creature() {
-        host.broadcast_creature_packet_to_visible_set_like_cpp(
-            caster_guid,
-            wow_packet::ServerPacket::to_bytes(&go_pkt),
-        );
+    if take_server_normal_cast_item_before_effects && deferred_server_normal_cast_item_use {
+        metadata = host.take_server_normal_cast_item_like_cpp(&spell_info, metadata)?;
     }
     // #1444 H3: TrinityCore `Spell::_cast` raises `OnPlayerSpellCast` for a
     // player caster (`Spell.cpp:3671`). Modules observe a cast that already
@@ -128,7 +354,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             spell_id: spell_id as u32,
             cast_id,
             target_guid,
-            triggered: metadata.triggered_ignores_global_cooldown_like_cpp,
+            triggered: metadata.trigger_cast_flags_like_cpp != 0,
         });
     }
     apply_post_spell_go_target_effects_like_cpp(
@@ -204,6 +430,30 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             x if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(x) => {}
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
                 apply_instakill_like_cpp(host, item_guid_generator, spell_id, target_guid).await?;
+            }
+            x if x == super::resurrection_offer::SPELL_EFFECT_RESURRECT
+                || x == super::resurrection_offer::SPELL_EFFECT_RESURRECT_NEW
+                || x == super::resurrection_offer::SPELL_EFFECT_RESURRECT_WITH_AURA =>
+            {
+                if let Some(effect_info) = spell_info
+                    .effects()
+                    .iter()
+                    .find(|effect| effect.effect_index == direct_effect_index)
+                {
+                    let hit_guid = if direct_effect_target_data.unit.is_empty() {
+                        target_guid
+                    } else {
+                        direct_effect_target_data.unit
+                    };
+                    super::resurrection_offer::apply_resurrection_offer(
+                        host,
+                        creature_spawn_catalogs,
+                        &spell_info,
+                        effect_info,
+                        caster_guid,
+                        hit_guid,
+                    );
+                }
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
                 if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
@@ -283,7 +533,13 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 );
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INEBRIATE => {
-                apply_inebriate_effect_like_cpp(host, direct_effect_base_points, target_guid);
+                apply_inebriate_effect_like_cpp(
+                    host,
+                    direct_effect_base_points,
+                    target_guid,
+                    metadata.cast_item_guid,
+                    metadata.cast_item_entry,
+                )?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_REPUTATION => {
                 host.apply_reputation_effect_like_cpp(
@@ -306,6 +562,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 apply_power_drain_effect_like_cpp(
                     host,
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     spell_id,
                     x,
                     drain_damage,
@@ -354,6 +611,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 apply_power_drain_effect_like_cpp(
                     host,
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     spell_id,
                     x,
                     burn_damage,
@@ -436,6 +694,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                     wow_entities::AuraCastProvenanceLikeCpp {
                         cast_id,
                         spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        caster_level: None,
                     },
                 )?;
             }
@@ -461,12 +720,40 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT => {
                 apply_self_resurrect_effect_like_cpp(
                     host,
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    caster_guid,
                     direct_effect_base_points,
                     direct_effect_misc_value_1,
-                );
+                )
+                .await?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK => {
-                apply_stuck_effect_like_cpp(host).await;
+                if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                    tracing::info!(
+                        caster_guid = ?caster_guid,
+                        spell_id,
+                        direct_effect_index,
+                        "RUST_STUCK direct_spell_effect_stuck_before_host"
+                    );
+                }
+                let result = host
+                    .apply_stuck_effect_like_cpp(
+                        item_guid_generator,
+                        creature_spawn_catalogs,
+                        caster_guid,
+                    )
+                    .await;
+                if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                    tracing::info!(
+                        caster_guid = ?caster_guid,
+                        spell_id,
+                        direct_effect_index,
+                        ?result,
+                        "RUST_STUCK direct_spell_effect_stuck_after_host"
+                    );
+                }
+                result?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE => {
                 apply_play_movie_effect_like_cpp(host, target_guid, direct_effect_misc_value_1);
@@ -599,9 +886,27 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                         ..Default::default()
                     },
                     target_guid,
-                );
+                    creature_spawn_catalogs,
+                    item_guid_generator,
+                )
+                .await;
             }
-            _ => {}
+            _ => match super::execution_support::classify_spell_effect_route_like_cpp(
+                &spell_info,
+                direct_effect_type,
+                Some(direct_effect_index),
+                effect_route_context,
+            ) {
+                super::execution_support::SpellEffectExecutionRouteLikeCpp::PostGo
+                | super::execution_support::SpellEffectExecutionRouteLikeCpp::ApplyAura
+                | super::execution_support::SpellEffectExecutionRouteLikeCpp::SourceInert => {}
+                super::execution_support::SpellEffectExecutionRouteLikeCpp::Direct => {
+                    return Err("spell effect direct-dispatch route drifted");
+                }
+                super::execution_support::SpellEffectExecutionRouteLikeCpp::Unavailable => {
+                    return Err("spell effect has no represented execution route");
+                }
+            },
         }
     }
 
@@ -634,10 +939,41 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         // caster. The represented player chain below is the host-cast path;
         // a creature target receives one canonical `AuraApplication`
         // carrying every applied effect slot.
+        let original_aura_caster_guid =
+            resolve_original_aura_caster_guid(host, caster_guid, metadata.original_caster_guid);
+        if player_resurrection_sickness {
+            super::resurrection_sickness::apply_resurrection_sickness_aura(
+                host,
+                spell_id,
+                original_aura_caster_guid.unwrap_or(caster_guid),
+                &spell_info,
+                cast_id,
+                spell_visual_id,
+                metadata.resurrection_sickness_remaining_ms,
+                metadata,
+            )?;
+        } else if server_triggered_player_ghost_wisp {
+            super::resurrection_auras::apply(
+                host,
+                spell_id,
+                original_aura_caster_guid.unwrap_or(player_guid),
+                &spell_info,
+                cast_id,
+                spell_visual_id,
+            )?;
+        }
         let mut creature_aura_applied = false;
         for effect in spell_info.effects().iter().filter(|effect| {
             effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
         }) {
+            // C++ `Spell::DoSpellEffectHit` creates the Aura with the resolved
+            // original caster when present. Keep the spell's visible caster
+            // above for `SMSG_SPELL_GO`; this scoped value reaches only Aura
+            // application caster fields and C++ `Aura::GenerateKey` identity.
+            let aura_caster_guid = original_aura_caster_guid.unwrap_or(player_guid);
+            if player_resurrection_sickness || server_triggered_player_ghost_wisp {
+                continue;
+            }
             // The represented taunt path owns `SPELL_AURA_MOD_TAUNT` and
             // its `EffectTaunt` current-victim gate, so that aura keeps
             // flowing through the chain below instead of the generic
@@ -662,24 +998,25 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                     });
                 host.apply_creature_aura_with_provenance_like_cpp(
                     spell_id,
-                    caster_guid,
+                    original_aura_caster_guid.unwrap_or(caster_guid),
                     target_guid,
                     effect_mask,
                     REPRESENTED_CREATURE_AURA_DURATION_MS_LIKE_CPP,
                     wow_entities::AuraCastProvenanceLikeCpp {
                         cast_id,
                         spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        caster_level: None,
                     },
                 )?;
                 continue;
             }
             if effect.is_mounted_aura_like_cpp() {
-                apply_represented_mounted_aura_like_cpp(host, spell_id, player_guid, effect)?;
+                apply_represented_mounted_aura_like_cpp(host, spell_id, aura_caster_guid, effect)?;
             } else if effect.is_provide_spell_focus_aura_like_cpp() {
                 apply_represented_provide_spell_focus_aura_like_cpp(
                     host,
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                 )?;
             } else if effect.is_battle_pet_xp_pct_aura_like_cpp() {
@@ -687,14 +1024,14 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 state.apply_represented_battle_pet_xp_pct_aura_like_cpp(
                     &mut hub,
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                 )?;
             } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::ModDetectRange,
                     30_000,
@@ -704,7 +1041,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::ModDetectedRange,
                     30_000,
@@ -714,7 +1051,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
                     30_000,
@@ -734,13 +1071,14 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                         wow_entities::AuraCastProvenanceLikeCpp {
                             cast_id,
                             spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                            caster_level: None,
                         },
                     )?;
                 }
             } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::ModScale,
                     30_000,
@@ -750,7 +1088,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::ModSpeedNoControl,
                     30_000,
@@ -760,7 +1098,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::Speed,
                     30_000,
@@ -772,7 +1110,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::SwimSpeed,
                     30_000,
@@ -784,7 +1122,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::DecreaseSpeed,
                     30_000,
@@ -798,7 +1136,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
                     30_000,
@@ -810,7 +1148,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::MinimumSpeed,
                     30_000,
@@ -822,7 +1160,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
                     30_000,
@@ -833,7 +1171,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::SpeedAlways,
                     30_000,
@@ -845,7 +1183,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::SpeedNotStack,
                     30_000,
@@ -857,7 +1195,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::MountedSpeed,
                     30_000,
@@ -869,7 +1207,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::MountedSpeedAlways,
                     30_000,
@@ -881,7 +1219,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::MountedSpeedNotStack,
                     30_000,
@@ -893,7 +1231,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
                     30_000,
@@ -904,7 +1242,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_FLY {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::Fly,
                     30_000,
@@ -915,7 +1253,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::FlightSpeed,
                     30_000,
@@ -927,7 +1265,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
                     30_000,
@@ -939,7 +1277,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
                     30_000,
@@ -951,32 +1289,31 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             {
                 host.apply_represented_aura_modifier_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     effect,
                     RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
                     30_000,
                 )?;
                 host.hub_mut()
                     .recompute_represented_mounted_speed_rates_like_cpp();
+            } else if super::execution_support::is_explicitly_handled_player_aura_like_cpp(effect) {
+                return Err("represented special player aura route drifted");
             } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
                 host.apply_aura_with_effect_mask_and_provenance_like_cpp(
                     spell_id,
-                    player_guid,
+                    aura_caster_guid,
                     30000,
                     0x00000001,
                     1u32 << effect.effect_index,
                     wow_entities::AuraCastProvenanceLikeCpp {
                         cast_id,
                         spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        caster_level: None,
                     },
+                    true,
                 )?;
             } else {
-                debug!(
-                    account = host.core().account_id,
-                    spell_id,
-                    effect_index = effect.effect_index,
-                    "Skipping represented generic multi-effect aura grouping until C++ aura effect-mask application is ported"
-                );
+                return Err("represented generic multi-effect aura grouping is unavailable");
             }
         }
     }
@@ -989,7 +1326,12 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         player_guid,
         cast_id,
         spell_visual_id,
+        effect_route_context,
     )?;
+
+    if deferred_server_normal_cast_item_use && !take_server_normal_cast_item_before_effects {
+        metadata = host.take_server_normal_cast_item_like_cpp(&spell_info, metadata)?;
+    }
 
     complete_spell_execution_like_cpp(
         host,
@@ -999,7 +1341,47 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         player_guid,
         spell_info,
         metadata,
+        selected_full_server_aura,
+        selected_cast_threat_plan,
     )?;
 
     Ok(())
 }
+
+fn server_normal_pre_go_failure_publication_like_cpp(
+    failure: super::ServerNormalPreGoFailureLikeCpp,
+) -> (i32, i32, i32, Option<&'static str>) {
+    match failure {
+        super::ServerNormalPreGoFailureLikeCpp::MissingReagent(entry_id) => (
+            wow_constants::SpellCastResult::Reagents as i32,
+            entry_id as i32,
+            0,
+            None,
+        ),
+        super::ServerNormalPreGoFailureLikeCpp::MissingCurrency(currency_id) => (
+            wow_constants::SpellCastResult::Reagents as i32,
+            -1,
+            i32::from(currency_id),
+            None,
+        ),
+        super::ServerNormalPreGoFailureLikeCpp::Power => (
+            wow_constants::SpellCastResult::DontReport as i32,
+            0,
+            0,
+            None,
+        ),
+        super::ServerNormalPreGoFailureLikeCpp::Unavailable(reason) => {
+            tracing::warn!(reason, "Normal Player pre-GO authority unavailable");
+            (
+                wow_constants::SpellCastResult::SpellUnavailable as i32,
+                0,
+                0,
+                Some(reason),
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "../../unit_tests/execution_session_tests.rs"]
+mod tests;

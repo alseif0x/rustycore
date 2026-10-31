@@ -60,7 +60,7 @@ pub use login_session::{
     complete_represented_trait_config_authority_load_like_cpp,
     delete_invalid_character_homebind_like_cpp, enqueue_character_rename_like_cpp,
     fallback_direct_login, finalize_player_spell_map_for_login_like_cpp,
-    handle_hearth_and_resurrect, handle_logout_request_with_generator_like_cpp,
+    handle_hearth_and_resurrect, handle_logout_request_with_catalogs,
     load_action_buttons_for_login_like_cpp, load_character_auras_for_login_like_cpp,
     load_character_currencies_for_login_like_cpp,
     load_character_favorite_spells_for_login_like_cpp, load_character_glyphs_for_login_like_cpp,
@@ -90,6 +90,7 @@ pub use login_session::{
 // The far-transfer completion (#1363 slice 13a).
 pub use worldport_session::{
     WorldportHostLikeCpp, finish_worldport_native_before_disconnect_like_cpp,
+    finish_worldport_native_without_resurrection_catalogs,
     handle_world_port_response_with_catalogs_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]

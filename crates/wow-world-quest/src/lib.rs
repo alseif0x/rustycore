@@ -34,7 +34,7 @@ pub use quest::{
     quest_log_create_entries_like_cpp, reconcile_durable_loot_money_before_save_like_cpp,
     represented_can_see_spell_click_on_like_cpp,
     represented_viewer_dependent_creature_npc_flags_like_cpp, save_changed_quest_statuses_like_cpp,
-    save_quest_to_db_like_cpp, send_represented_quest_log_slot_update_like_cpp,
+    save_quest_to_db_like_cpp,
 };
 pub use quest::{QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -57,6 +57,9 @@ pub use quest::{
     represented_gameobject_is_for_quests_like_cpp, represented_has_quest_for_gameobject_like_cpp,
     represented_meets_player_condition_id_like_cpp, update_visible_gameobjects_like_cpp,
     update_visible_gameobjects_or_spell_clicks_like_cpp, update_visible_spell_clicks_like_cpp,
+};
+pub(crate) use quest::{
+    apply_quest_log_status_delta_like_cpp, initialize_quest_log_from_loaded_state_like_cpp,
 };
 pub use quest::{
     clear_represented_pending_quest_sharing_like_cpp, mutate_player_quest_gameplay_like_cpp,
@@ -112,15 +115,15 @@ pub use quest_session::{
     apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp,
     apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp,
     apply_represented_quest_rewarded_spells_like_cpp,
-    begin_item_transfer_quest_persistence_like_cpp,
+    begin_item_transfer_quest_persistence_like_cpp, begin_native_quest_failure_like_cpp,
     begin_player_quest_status_authority_load_like_cpp, build_quest_poi_store_like_cpp,
     can_complete_repeatable_quest_represented_bounded_like_cpp,
     can_reward_quest_represented_bounded_like_cpp,
     can_see_start_quest_represented_bounded_like_cpp, can_take_quest,
     clear_loaded_quest_completed_bit_like_cpp,
     complete_represented_quest_after_add_with_generator_like_cpp,
-    finish_item_transfer_quest_persistence_like_cpp, first_free_quest_slot_like_cpp,
-    get_represented_quest_giver_status_with_catalog_like_cpp,
+    finish_item_transfer_quest_persistence_like_cpp, finish_native_quest_failure_like_cpp,
+    first_free_quest_slot_like_cpp, get_represented_quest_giver_status_with_catalog_like_cpp,
     handle_adventure_map_start_quest_with_catalog_like_cpp, handle_push_quest_to_party,
     handle_quest_confirm_accept_with_generator_like_cpp,
     handle_quest_giver_accept_quest_with_generator_like_cpp,

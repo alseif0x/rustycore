@@ -124,7 +124,8 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
 
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport],
+        "a living player processes the delayed near teleport after Unit::Update"
     );
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
@@ -133,6 +134,71 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
         Some(false)
     );
     assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
+}
+
+#[tokio::test]
+async fn update_keeps_delayed_teleport_for_ghost_without_emitting() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 8251);
+    let source = Position::new(10.0, 20.0, 30.0, 0.0);
+    let destination = Position::new(124.0, 224.0, 54.0, 4.3);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
+    session.core.expansion = 1;
+    session.core.state = SessionState::LoggedIn;
+    session.core.admission.socket_timeout_deadline_like_cpp =
+        Instant::now() + Duration::from_secs(60);
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "GhostDelayedTeleport".to_string(),
+        source,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
+    wow_world_entities::set_player_ghost_flag_like_cpp(&mut session, true);
+    assert!(!session.player_is_alive_like_cpp());
+    session.set_represented_can_delay_teleport_like_cpp(true);
+
+    session.teleport_to(571, destination).await;
+    assert!(send_rx.try_recv().is_err());
+    assert!(session.represented_has_delayed_teleport_like_cpp());
+    assert_eq!(
+        session.represented_delayed_teleport_like_cpp(),
+        Some((571, destination, TELE_TO_NONE_LIKE_CPP))
+    );
+
+    let pending_before = session
+        .player_teleport_state_snapshot_like_cpp()
+        .expect("canonical teleport state");
+    // Player::Update closes the delay window before its trailing IsAlive check.
+    session.update(50).await;
+
+    let pending_after = session
+        .player_teleport_state_snapshot_like_cpp()
+        .expect("canonical teleport state remains owned");
+    assert_eq!(session.core.state, SessionState::LoggedIn);
+    assert!(!pending_after.can_delay);
+    assert!(pending_after.has_delayed);
+    assert_eq!(pending_after.delayed, pending_before.delayed);
+    assert!(pending_after.near_pending);
+    assert_eq!(
+        pending_after.near_destination,
+        pending_before.near_destination
+    );
+    assert!(
+        send_rx.try_recv().is_err(),
+        "C++ Player::Update must not teleport a ghost or consume its delayed intent"
+    );
 }
 #[tokio::test]
 async fn teleport_to_same_map_fanouts_move_update_teleport_to_visible_players_like_cpp() {
@@ -345,6 +411,9 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
         session
             .ensure_canonical_player_owner_for_map_like_cpp(wow_map::MapKey::new(571, 0), source,)
     );
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_max_health(400);
@@ -354,10 +423,10 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
             player.unit_mut().set_health(0);
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
             player.unit_mut().set_power_index(PowerType::Rage, Some(1));
+            player.unit_mut().set_power_index(PowerType::Focus, Some(2));
             player
                 .unit_mut()
                 .set_power_index(PowerType::Energy, Some(3));
-            player.unit_mut().set_power_index(PowerType::Focus, Some(4));
             player.unit_mut().set_max_power(PowerType::Mana, 200);
             player.unit_mut().set_power(PowerType::Mana, 0);
             player.unit_mut().set_max_power(PowerType::Rage, 100);
@@ -368,18 +437,19 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
             player.unit_mut().set_power(PowerType::Focus, 0);
         })
         .expect("canonical player exists");
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
 
     session
-        .teleport_to_with_options(571, destination, TELE_REVIVE_AT_TELEPORT_LIKE_CPP)
+        .teleport_to_with_options_and_resurrection(
+            571,
+            destination,
+            TELE_REVIVE_AT_TELEPORT_LIKE_CPP,
+        )
         .await;
 
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
-    );
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(session.player_health_like_cpp(), 200);
-    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| {
@@ -394,6 +464,36 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
             .expect("canonical player exists"),
         (200, 100, 0, 60, 40),
         "C++ Player::ResurrectPlayer(0.5f) restores health/mana/energy/focus by percent and resets rage"
+    );
+    assert!(
+        crate::session::hub_ref(&session).near_teleport_pending_like_cpp(),
+        "the native revive effects and restored vitals precede near-transfer admission"
+    );
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player.unit().world().object().is_object_updated()
+        }),
+        Some(true),
+        "restored native health and powers await Map SendObjectUpdates"
+    );
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![
+            ServerOpcodes::DeathReleaseLoc,
+            ServerOpcodes::MoveSetLandWalk,
+            ServerOpcodes::MoveUnroot,
+            ServerOpcodes::PowerUpdate,
+            ServerOpcodes::PowerUpdate,
+            ServerOpcodes::PowerUpdate,
+            ServerOpcodes::PowerUpdate,
+            ServerOpcodes::CancelCombat,
+            ServerOpcodes::MoveTeleport,
+            ServerOpcodes::UpdateObject,
+        ]
     );
 }
 #[tokio::test]
@@ -595,8 +695,8 @@ async fn teleport_to_same_map_not_unsummon_pet_option_preserves_pet_like_cpp() {
     );
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 0);
 }
-#[test]
-fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
+#[tokio::test]
+async fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     let (mut session, _, _) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 74);
@@ -638,8 +738,15 @@ fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     fall_land.position.z = 100.0;
     fall_land.jump.fall_time = 1_500;
 
-    let fall = wow_world_entities::handle_fall_like_cpp(&mut session, &fall_land)
-        .expect("fall damage should apply");
+    let item_guid_generator = session.id_generators_for_test_like_cpp().item;
+    let fall = wow_world_entities::handle_fall_like_cpp(
+        &mut session,
+        &fall_land,
+        &Default::default(),
+        item_guid_generator.as_ref(),
+    )
+    .await
+    .expect("fall damage should apply");
     assert!(fall.final_damage > 0);
     let damaged_health = session.player_health_like_cpp();
     assert!(damaged_health < 6_310);
@@ -657,8 +764,8 @@ fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     assert_eq!(snapshot.max_health, 6_310);
     assert_eq!(session.player_health_like_cpp(), damaged_health);
 }
-#[test]
-fn fall_death_applies_item_durability_loss_message_like_cpp() {
+#[tokio::test]
+async fn fall_death_applies_item_durability_loss_message_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 75);
@@ -696,13 +803,21 @@ fn fall_death_applies_item_durability_loss_message_like_cpp() {
         .unwrap();
     session.set_player_health_like_cpp(100, 100);
     session.set_durability_loss_on_death_rate_like_cpp(0.1);
+    crate::native_death_test_fixtures::prepare(&mut session);
     crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 1_000.0);
     let mut fall_land = wow_packet::packets::movement::MovementInfo::default();
     fall_land.position.z = 100.0;
     fall_land.jump.fall_time = 1_500;
 
-    let fall = wow_world_entities::handle_fall_like_cpp(&mut session, &fall_land)
-        .expect("lethal fall damage should apply");
+    let item_guid_generator = session.id_generators_for_test_like_cpp().item;
+    let fall = wow_world_entities::handle_fall_like_cpp(
+        &mut session,
+        &fall_land,
+        &Default::default(),
+        item_guid_generator.as_ref(),
+    )
+    .await
+    .expect("lethal fall damage should apply");
 
     assert!(fall.final_damage > 0);
     assert_eq!(

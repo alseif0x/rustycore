@@ -4,9 +4,10 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use wow_persistence::{
-    AreaTableHotfixRowLikeCpp, PersistenceFutureLikeCpp, PowerTypeHotfixRowLikeCpp,
-    SpellEnchantProcPersistenceRowLikeCpp, StaticDataOverlayPersistencePortLikeCpp,
-    StaticDataRowsLoadOutcomeLikeCpp, UiMapXMapArtHotfixRowLikeCpp,
+    AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow, PersistenceFutureLikeCpp,
+    PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
+    StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
+    UiMapXMapArtHotfixRowLikeCpp,
 };
 
 use crate::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
@@ -113,6 +114,33 @@ impl MariaDbStaticDataOverlayPersistenceAdapterLikeCpp {
         Ok(rows)
     }
 
+    async fn customization_display_info_rows(
+        &self,
+    ) -> Result<Vec<ChrCustomizationDisplayInfoHotfixRow>> {
+        let mut rows = Vec::new();
+        for official in OFFICIAL_THEN_CUSTOM_LIKE_CPP {
+            let mut stmt = self
+                .hotfix_db
+                .prepare(HotfixStatements::SEL_CHR_CUSTOMIZATION_DISPLAY_INFO);
+            stmt.set_bool(0, official);
+            let mut result = self.hotfix_db.query(&stmt).await?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                rows.push(ChrCustomizationDisplayInfoHotfixRow {
+                    id: result.read(0),
+                    shapeshift_form_id: result.read(1),
+                    display_id: result.read(2),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        Ok(rows)
+    }
+
     async fn enchant_rows(&self) -> Result<Vec<SpellEnchantProcPersistenceRowLikeCpp>> {
         let stmt = self
             .world_db
@@ -177,6 +205,15 @@ impl StaticDataOverlayPersistencePortLikeCpp for MariaDbStaticDataOverlayPersist
         StaticDataRowsLoadOutcomeLikeCpp<Vec<UiMapXMapArtHotfixRowLikeCpp>>,
     > {
         Box::pin(async move { load_outcome!(self.ui_map_rows()) })
+    }
+
+    fn load_chr_customization_display_info_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        StaticDataRowsLoadOutcomeLikeCpp<Vec<ChrCustomizationDisplayInfoHotfixRow>>,
+    > {
+        Box::pin(async move { load_outcome!(self.customization_display_info_rows()) })
     }
 
     fn load_spell_enchant_proc_rows_like_cpp(

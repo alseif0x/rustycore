@@ -668,8 +668,14 @@ async fn handle_movement_discovers_current_area_like_cpp() {
     let guid = ObjectGuid::create_player(1, 1094);
     let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
     let moved_position = Position::new(11.0, 22.0, 33.0, 1.0);
+    let data_dir = unique_temp_data_dir("zone-area-movement");
+    write_single_area_map_tile_like_cpp(&data_dir, 571, moved_position.x, moved_position.y, 9_104);
 
     canonical.lock().unwrap().create_world_map(571, 0);
+    session.set_mmap_runtime_config_like_cpp(MMapRuntimeConfigLikeCpp {
+        data_dir: data_dir.to_string_lossy().into_owned(),
+        ..MMapRuntimeConfigLikeCpp::default()
+    });
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -690,7 +696,7 @@ async fn handle_movement_discovers_current_area_like_cpp() {
             area_bit: 65,
             exploration_level: 12,
             mount_flags: 0,
-            flags: 0,
+            flags: wow_data::AREA_FLAG_NO_PVP_LIKE_CPP,
         },
     ])));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -703,8 +709,19 @@ async fn handle_movement_discovers_current_area_like_cpp() {
         10,
         0,
     ));
-    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(9_104, 9_104);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(9_103, 9_103);
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().clear_unit_data_changes();
+            player
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .clear_update_mask(false);
+        })
+        .expect("movement fixture has its canonical Player");
 
     let movement = MovementInfo {
         guid,
@@ -715,6 +732,32 @@ async fn handle_movement_discovers_current_area_like_cpp() {
     session
         .handle_movement(movement_packet(ClientOpcodes::MoveHeartbeat, &movement))
         .await;
+
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((9_104, 9_104)),
+        "a changed resolved tuple still runs the normal UpdateZone path"
+    );
+    let (changed_pvp_mask, changed_object_queue) = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            (
+                player
+                    .unit()
+                    .unit_data_changes_mask()
+                    .is_set(wow_entities::UNIT_DATA_PVP_FLAGS_BIT),
+                player.unit().world().object().is_object_updated(),
+            )
+        })
+        .expect("movement fixture retains its canonical Player");
+    assert!(
+        changed_pvp_mask,
+        "UpdateArea retains the native PvP dirty bit"
+    );
+    assert!(
+        changed_object_queue,
+        "the changed sanctuary value queues updates"
+    );
 
     assert_eq!(
         session
@@ -732,8 +775,40 @@ async fn handle_movement_discovers_current_area_like_cpp() {
     assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::UpdateObject));
 
     session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().clear_unit_data_changes();
+            player
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .clear_update_mask(false);
+        })
+        .expect("movement fixture has its canonical Player");
+    session
         .handle_movement(movement_packet(ClientOpcodes::MoveHeartbeat, &movement))
         .await;
+
+    let (unchanged_pvp_mask, unchanged_object_queue) = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            (
+                player
+                    .unit()
+                    .unit_data_changes_mask()
+                    .is_set(wow_entities::UNIT_DATA_PVP_FLAGS_BIT),
+                player.unit().world().object().is_object_updated(),
+            )
+        })
+        .expect("movement fixture retains its canonical Player");
+    assert!(
+        !unchanged_pvp_mask,
+        "an unchanged tuple skips native PvP marking"
+    );
+    assert!(
+        !unchanged_object_queue,
+        "an unchanged tuple queues no PvP update"
+    );
     assert_eq!(
         session.represented_reveal_world_map_overlay_criteria_like_cpp(),
         &[9_104],

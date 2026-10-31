@@ -75,6 +75,9 @@ impl WorldSession {
     pub fn set_world_safe_loc_store_like_cpp(&mut self, store: Arc<WorldSafeLocStore>) {
         self.catalogs.world_safe_loc_store_like_cpp = Some(store);
     }
+    pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
+        self.catalogs.set_graveyard_store(store);
+    }
     pub fn set_access_requirement_store(&mut self, store: Arc<AccessRequirementStoreLikeCpp>) {
         self.catalogs.access_requirement_store = Some(store);
     }
@@ -139,6 +142,9 @@ impl WorldSession {
     }
     pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
         self.catalogs.chr.races_store = Some(store);
+    }
+    pub fn set_shapeshift_display_links_absent(&mut self, absent: bool) {
+        self.catalogs.chr.shapeshift_display_links_absent = Some(absent);
     }
     pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
@@ -240,6 +246,9 @@ impl WorldSession {
     pub fn set_max_player_level_config_like_cpp(&mut self, max_player_level_config: u32) {
         self.config.max_player_level_config_like_cpp = max_player_level_config;
     }
+    pub fn set_group_visibility_mode(&mut self, mode: i32) {
+        self.config.group_visibility_mode = mode;
+    }
     #[cfg(test)]
     pub(crate) fn set_rested_xp_config_like_cpp(
         &mut self,
@@ -272,6 +281,22 @@ impl WorldSession {
     ) {
         wow_world_character::send_session_init_packets_with_policy_like_cpp(self, policy, hotfixes)
     }
+}
+
+/// Install the complete immutable condition-row presence catalog at composition.
+pub fn install_condition_presence_catalog(
+    session: &mut WorldSession,
+    catalog: Arc<wow_data::ConditionPresenceCatalog>,
+) {
+    session.catalogs.condition_presence = Some(catalog);
+}
+
+/// Install the effective server-side spell catalog as known session metadata.
+pub fn install_serverside_spell_catalog(
+    session: &mut WorldSession,
+    catalog: Arc<wow_data::ServersideSpellStoreLikeCpp>,
+) {
+    session.catalogs.spell_catalogs.serverside_spell_store = Some(catalog);
 }
 
 #[cfg(test)]

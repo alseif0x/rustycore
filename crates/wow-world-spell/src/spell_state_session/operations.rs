@@ -38,15 +38,11 @@ pub fn player_resurrection_state_snapshot_like_cpp<H: SpellExecutionHostLikeCpp 
                 .fixtures
                 .combat
                 .represented_delayed_resurrection_after_teleport_like_cpp,
-            self_res_spells: host
-                .spell_state()
-                .represented_self_res_spells_for_test_like_cpp()
-                .clone(),
-            death_timer_active: host
+            death_timer_remaining_ms: host
                 .hub_ref()
                 .fixtures
                 .combat
-                .represented_death_timer_active_like_cpp,
+                .represented_death_timer_remaining_ms_like_cpp,
             area_spirit_healer_guid: host
                 .hub_ref()
                 .fixtures
@@ -62,8 +58,20 @@ pub fn has_represented_self_res_spell_like_cpp<H: SpellExecutionHostLikeCpp>(
     host: &H,
     spell_id: i32,
 ) -> bool {
-    player_resurrection_state_snapshot_like_cpp(host)
-        .is_some_and(|state| state.self_res_spells.contains(&spell_id))
+    let canonical = host
+        .core()
+        .with_owned_player_like_cpp(|player| player.self_res_spells().contains(&spell_id));
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some()
+        && canonical.is_none()
+        && host.core().player_handle_like_cpp.is_none()
+    {
+        return host
+            .spell_state()
+            .represented_self_res_spells_for_test_like_cpp()
+            .contains(&spell_id);
+    }
+    canonical.unwrap_or(false)
 }
 
 pub fn interrupt_non_melee_spells_for_far_teleport_like_cpp<H: SpellStateHostLikeCpp>(

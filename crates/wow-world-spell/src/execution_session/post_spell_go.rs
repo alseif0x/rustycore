@@ -16,6 +16,18 @@ use wow_packet::packets::spell::SpellTargetData;
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 use wow_world_entities::spell_click_values::spell_effect_is_represented_summon_object_slot_like_cpp;
 
+pub(super) fn is_post_spell_go_effect_type_like_cpp(effect_type: u32) -> bool {
+    effect_type == wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_FARSIGHT
+        || matches!(
+            effect_type,
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD
+                | wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS
+        )
+        || effect_type == wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
+        || effect_type == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
+        || spell_effect_is_represented_summon_object_slot_like_cpp(effect_type)
+}
+
 pub(super) async fn apply_post_spell_go_target_effects_like_cpp<H: SpellExecutionHostLikeCpp>(
     host: &mut H,
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,

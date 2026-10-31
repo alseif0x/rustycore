@@ -86,6 +86,29 @@ impl ServerPacket for PetMode {
     }
 }
 
+/// C++ default `WorldPackets::Pet::PetSpells` sent by `Player::RemovePet`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ClearPetSpells;
+
+impl ServerPacket for ClearPetSpells {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PetSpellsMessage;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint16(0); // CreatureFamily
+        pkt.write_uint16(0); // Specialization
+        pkt.write_uint32(0); // TimeLimit
+        pkt.write_uint16(0); // CommandState and Flag
+        pkt.write_uint8(0); // ReactState
+        for _ in 0..10 {
+            pkt.write_int32(0); // ActionButtons
+        }
+        pkt.write_uint32(0); // Actions count
+        pkt.write_uint32(0); // Cooldowns count
+        pkt.write_uint32(0); // SpellHistory count
+    }
+}
+
 /// C++ `WorldPackets::Pet::PetStableResult`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PetStableResult {
@@ -160,6 +183,16 @@ mod tests {
             &1u16.to_le_bytes()
         );
         assert_eq!(bytes[bytes.len() - 1], REACT_PASSIVE_LIKE_CPP);
+    }
+
+    #[test]
+    fn clear_pet_spells_matches_cpp_default_opcode_and_payload() {
+        let bytes = ClearPetSpells.to_bytes();
+
+        assert_eq!(ClearPetSpells::OPCODE as u16, 0x2c22);
+        assert_eq!(&bytes[..2], &0x2c22u16.to_le_bytes());
+        assert_eq!(bytes.len(), 67);
+        assert_eq!(&bytes[2..], &[0; 65]);
     }
 
     #[test]

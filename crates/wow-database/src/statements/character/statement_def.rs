@@ -220,12 +220,28 @@ impl StatementDef for CharStatements {
                  ii.randomPropertiesSeed, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, \
                  ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, \
                  ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, \
-                 ir.paidMoney, ir.paidExtendedCost, ii.duration, ii.charges \
+                 ir.paidMoney, ir.paidExtendedCost, ii.duration, ii.charges, \
+                 ii.creatorGuid, ii.giftCreatorGuid, ii.text, ii.battlePetSpeciesId, \
+                 ii.battlePetBreedData, ii.battlePetLevel, ii.battlePetDisplayId, \
+                 iit.itemGuid AS transmogItemGuid, \
+                 iit.itemModifiedAppearanceAllSpecs, iit.itemModifiedAppearanceSpec1, \
+                 iit.itemModifiedAppearanceSpec2, iit.itemModifiedAppearanceSpec3, \
+                 iit.itemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, \
+                 iit.spellItemEnchantmentAllSpecs, iit.spellItemEnchantmentSpec1, \
+                 iit.spellItemEnchantmentSpec2, iit.spellItemEnchantmentSpec3, \
+                 iit.spellItemEnchantmentSpec4, iit.spellItemEnchantmentSpec5, \
+                 iit.secondaryItemModifiedAppearanceAllSpecs, \
+                 iit.secondaryItemModifiedAppearanceSpec1, iit.secondaryItemModifiedAppearanceSpec2, \
+                 iit.secondaryItemModifiedAppearanceSpec3, iit.secondaryItemModifiedAppearanceSpec4, \
+                 iit.secondaryItemModifiedAppearanceSpec5, \
+                 istd.itemGuid AS soulboundTradeItemGuid, istd.allowedPlayers \
                  FROM character_inventory ci \
                  JOIN item_instance ii ON ci.item = ii.guid \
                  LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid \
                  LEFT JOIN item_refund_instance ir \
                    ON ir.item_guid = ci.item AND ir.player_guid = ci.guid \
+                 LEFT JOIN item_instance_transmog iit ON ii.guid = iit.itemGuid \
+                 LEFT JOIN item_soulbound_trade_data istd ON ii.guid = istd.itemGuid \
                  WHERE ci.guid = ? AND ci.bag = 0"
             }
             Self::UPD_CHAR_INVENTORY_SLOT => {
@@ -801,6 +817,18 @@ impl StatementDef for CharStatements {
             Self::DEL_CHAR_ACTION => "DELETE FROM character_action WHERE guid = ?",
             Self::DEL_CHAR_AURA => "DELETE FROM character_aura WHERE guid = ?",
             Self::DEL_CHAR_AURA_EFFECT => "DELETE FROM character_aura_effect WHERE guid = ?",
+            Self::DEL_CHAR_AURA_BY_KEY => {
+                "DELETE FROM character_aura WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?"
+            }
+            Self::DEL_CHAR_AURA_EFFECT_BY_KEY => {
+                "DELETE FROM character_aura_effect WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?"
+            }
+            Self::DEL_CHAR_AURA_BY_SPELL => {
+                "DELETE FROM character_aura WHERE guid = ? AND spell = ?"
+            }
+            Self::DEL_CHAR_AURA_EFFECT_BY_SPELL => {
+                "DELETE FROM character_aura_effect WHERE guid = ? AND spell = ?"
+            }
             Self::DEL_CHAR_GIFT => "DELETE FROM character_gifts WHERE guid = ?",
             Self::DEL_CHAR_INVENTORY => "DELETE FROM character_inventory WHERE guid = ?",
             Self::DEL_CHAR_QUESTSTATUS_REWARDED => {
@@ -1108,6 +1136,9 @@ impl StatementDef for CharStatements {
             }
             Self::SEL_CHAR_MONEY => "SELECT money FROM characters WHERE guid = ?",
             Self::UPD_CHAR_HEALTH => "UPDATE characters SET health = ? WHERE guid = ?",
+            Self::UPD_CHAR_DEATH_METADATA => {
+                "UPDATE characters SET at_login = ?, death_expire_time = ? WHERE guid = ?"
+            }
             Self::UPD_CHAR_POWERS => {
                 "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?"
             }
@@ -1176,6 +1207,9 @@ impl StatementDef for CharStatements {
             Self::UPD_ITEM_INSTANCE_COUNT => "UPDATE item_instance SET count = ? WHERE guid = ?",
             Self::UPD_ITEM_INSTANCE_DURABILITY => {
                 "UPDATE item_instance SET durability = ? WHERE guid = ?"
+            }
+            Self::UPD_ITEM_INSTANCE_DURABILITY_OWNED => {
+                "UPDATE item_instance INNER JOIN character_inventory ON character_inventory.item = item_instance.guid SET item_instance.durability = ? WHERE item_instance.guid = ? AND item_instance.owner_guid = ? AND character_inventory.guid = ?"
             }
             Self::UPD_ITEM_INSTANCE_FLAGS => "UPDATE item_instance SET flags = ? WHERE guid = ?",
             Self::UPD_ITEM_INSTANCE_ENCHANTMENTS => {
@@ -1544,7 +1578,21 @@ impl StatementDef for CharStatements {
                  ii.randomPropertiesSeed, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, \
                  ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, \
                  ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, \
-                 ir.paidMoney, ir.paidExtendedCost, ii.duration, ii.charges \
+                 ir.paidMoney, ir.paidExtendedCost, ii.duration, ii.charges, \
+                 ii.creatorGuid, ii.giftCreatorGuid, ii.text, ii.battlePetSpeciesId, \
+                 ii.battlePetBreedData, ii.battlePetLevel, ii.battlePetDisplayId, \
+                 iit.itemGuid AS transmogItemGuid, \
+                 iit.itemModifiedAppearanceAllSpecs, iit.itemModifiedAppearanceSpec1, \
+                 iit.itemModifiedAppearanceSpec2, iit.itemModifiedAppearanceSpec3, \
+                 iit.itemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, \
+                 iit.spellItemEnchantmentAllSpecs, iit.spellItemEnchantmentSpec1, \
+                 iit.spellItemEnchantmentSpec2, iit.spellItemEnchantmentSpec3, \
+                 iit.spellItemEnchantmentSpec4, iit.spellItemEnchantmentSpec5, \
+                 iit.secondaryItemModifiedAppearanceAllSpecs, \
+                 iit.secondaryItemModifiedAppearanceSpec1, iit.secondaryItemModifiedAppearanceSpec2, \
+                 iit.secondaryItemModifiedAppearanceSpec3, iit.secondaryItemModifiedAppearanceSpec4, \
+                 iit.secondaryItemModifiedAppearanceSpec5, \
+                 istd.itemGuid AS soulboundTradeItemGuid, istd.allowedPlayers \
                  FROM character_inventory ci \
                  JOIN character_inventory bag_ci \
                    ON bag_ci.guid = ci.guid AND bag_ci.item = ci.bag \
@@ -1552,6 +1600,8 @@ impl StatementDef for CharStatements {
                  LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid \
                  LEFT JOIN item_refund_instance ir \
                    ON ir.item_guid = ci.item AND ir.player_guid = ci.guid \
+                 LEFT JOIN item_instance_transmog iit ON ii.guid = iit.itemGuid \
+                 LEFT JOIN item_soulbound_trade_data istd ON ii.guid = istd.itemGuid \
                  WHERE ci.guid = ? AND bag_ci.bag = 0 AND ((bag_ci.slot >= 30 AND bag_ci.slot < 34) OR \
                  (bag_ci.slot >= 87 AND bag_ci.slot < 94) OR \
                  (bag_ci.slot >= 34 AND bag_ci.slot < 35))"

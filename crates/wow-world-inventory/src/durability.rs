@@ -1,7 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use wow_core::ObjectGuid;
 use wow_entities::{
@@ -10,6 +10,19 @@ use wow_entities::{
     PLAYER_SLOT_END, is_equipment_packed_pos, make_item_pos,
 };
 use wow_world_core::session::HubRef;
+
+fn carried_bag_slots(
+    inventory_items: &HashMap<u8, wow_entities::PlayerInventoryItem>,
+) -> HashMap<ObjectGuid, u8> {
+    inventory_items
+        .iter()
+        .filter_map(|(&slot, item)| {
+            (INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END)
+                .contains(&slot)
+                .then_some((item.guid, slot))
+        })
+        .collect()
+}
 
 impl crate::InventoryState {
     /// The `DurabilityLossAll`/`DurabilityPointsLossAll` target set.
@@ -21,28 +34,36 @@ impl crate::InventoryState {
         let Some(items) = self.resolved_inventory_item_objects_like_cpp(hub) else {
             return Vec::new();
         };
+        let Some(inventory_items) = self.resolved_inventory_items_like_cpp(hub) else {
+            return Vec::new();
+        };
+        let carried_bags = carried_bag_slots(&inventory_items);
         let inventory_end = INVENTORY_SLOT_ITEM_START
             .saturating_add(
                 self.resolved_player_inventory_slot_count_like_cpp(hub)
                     .unwrap_or(0),
             )
             .min(INVENTORY_SLOT_ITEM_END);
-        items
+        let mut ordered = items
             .iter()
             .filter_map(|(guid, item)| {
                 let slot = item.slot();
                 if item.container_guid().is_empty() {
                     if is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)) {
-                        return Some((*guid, slot, true));
+                        return Some(((0, slot, 0), (*guid, slot, true)));
                     }
                     if inventory && (INVENTORY_SLOT_ITEM_START..inventory_end).contains(&slot) {
-                        return Some((*guid, slot, false));
+                        return Some(((1, slot, 0), (*guid, slot, false)));
                     }
                     return None;
                 }
-                inventory.then_some((*guid, slot, false))
+                let parent_slot = *carried_bags.get(&item.container_guid())?;
+                (inventory && usize::from(slot) < MAX_BAG_SIZE)
+                    .then_some(((2, parent_slot, slot), (*guid, slot, false)))
             })
-            .collect()
+            .collect::<Vec<_>>();
+        ordered.sort_by_key(|(order, _)| *order);
+        ordered.into_iter().map(|(_, target)| target).collect()
     }
 
     pub fn repairable_inventory_item_costs_like_cpp(
@@ -80,15 +101,9 @@ impl crate::InventoryState {
             }
         }
 
-        let represented_bag_guids: HashSet<_> = inventory_items
-            .iter()
-            .filter_map(|(&slot, item)| {
-                ((INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&slot))
-                    .then_some(item.guid)
-            })
-            .collect();
+        let represented_bag_guids = carried_bag_slots(&inventory_items);
         for item_object in item_objects.values() {
-            if !represented_bag_guids.contains(&item_object.container_guid())
+            if !represented_bag_guids.contains_key(&item_object.container_guid())
                 || item_object.slot() as usize >= MAX_BAG_SIZE
             {
                 continue;

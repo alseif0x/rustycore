@@ -2,9 +2,11 @@
 //! No transaction grouping or scheduling policy is defined by this adapter.
 //! (#1363 slice 13b; moved from the World `session/lifecycle/finalization.rs`.)
 use wow_core::ObjectGuid;
+use wow_entities::{PlayerResurrectionOperation, PlayerResurrectionPhase};
 use wow_packet::packets::misc::LogoutComplete;
 use wow_world_core::session::SessionState;
 use wow_world_entities::PlayerTeleportHostLikeCpp;
+use wow_world_entities::ResurrectionOperationCatalogs;
 use wow_world_lifecycle::{
     FinalizationDisposition, FinalizationMode, FinalizationOutcome, FinalizationReport,
     FinalizationStep, PlayerSaveOutcomeLikeCpp, SessionFinalization, SessionLifecycleState,
@@ -33,22 +35,61 @@ fn begin_finalization_step_like_cpp(
     lifecycle.finalization_mut().unwrap().begin(step)
 }
 
+/// A logout can cancel C++ `ResurrectUsingRequestData` before it has crossed
+/// the near teleport ACK boundary. Only the canonical Player can prove that
+/// this is the still-unstarted RequestData operation for the current near
+/// transfer; every later or uncertain phase stays fenced.
+fn discard_unstarted_near_resurrection_for_finalization<H: SessionLifecycleHostLikeCpp>(
+    host: &H,
+) -> bool {
+    let Some(player_guid) = host.player_guid() else {
+        return false;
+    };
+    let core = host.core();
+    let Some(handle) = core.player_handle_like_cpp else {
+        return false;
+    };
+    if handle.guid() != player_guid || core.player_guid() != Some(player_guid) {
+        return false;
+    }
+
+    core.with_owned_player_mut_like_cpp(|player| {
+        if player.guid() != player_guid || !player.teleport_state_like_cpp().near_pending {
+            return false;
+        }
+        let state = player.resurrection_state_mut_like_cpp();
+        let unstarted_request = state.delayed_after_teleport.is_some_and(|continuation| {
+            continuation.phase == PlayerResurrectionPhase::AwaitingTeleport
+                && matches!(
+                    continuation.operation,
+                    PlayerResurrectionOperation::RequestData(_)
+                )
+        });
+        if unstarted_request {
+            state.delayed_after_teleport = None;
+        }
+        unstarted_request
+    })
+    .unwrap_or(false)
+}
+
 /// C++ `WorldSession::Update` (`WorldSession.cpp:505-511`): when the logout
 /// timer is due, `LogoutPlayer(true)` — the `TimedLogout` finalization, back to
 /// character selection.
-pub async fn run_logout_timer_with_generator_like_cpp<H: SessionLifecycleHostLikeCpp>(
+pub async fn run_logout_timer_with_catalogs<H: SessionLifecycleHostLikeCpp>(
     host: &mut H,
-    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    catalogs: ResurrectionOperationCatalogs<'_>,
 ) {
     let due = {
         let (state, mut hub) = host.split_lifecycle_mut();
         state.run_logout_timer_like_cpp(&mut hub)
     };
     if due {
-        let _ = finalize_session_with_generator_like_cpp(
+        let _ = finalize_session_with_resurrection_catalogs(
             host,
             FinalizationMode::TimedLogout,
-            item_guid_generator,
+            catalogs.item_guid_generator,
+            catalogs,
         )
         .await;
     }
@@ -58,6 +99,25 @@ pub async fn finalize_session_with_generator_like_cpp<H: SessionLifecycleHostLik
     host: &mut H,
     mode: FinalizationMode,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
+) -> FinalizationReport {
+    finalize_session_with_catalogs(host, mode, item_guid_generator, None).await
+}
+
+pub async fn finalize_session_with_resurrection_catalogs<H: SessionLifecycleHostLikeCpp>(
+    host: &mut H,
+    mode: FinalizationMode,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    resurrection_catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
+) -> FinalizationReport {
+    finalize_session_with_catalogs(host, mode, item_guid_generator, Some(resurrection_catalogs))
+        .await
+}
+
+async fn finalize_session_with_catalogs<H: SessionLifecycleHostLikeCpp>(
+    host: &mut H,
+    mode: FinalizationMode,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    resurrection_catalogs: Option<wow_world_entities::ResurrectionOperationCatalogs<'_>>,
 ) -> FinalizationReport {
     let no_player = host.player_guid().is_none();
     if let Some(previous) = host.lifecycle_mut().finalization_mut() {
@@ -84,6 +144,9 @@ pub async fn finalize_session_with_generator_like_cpp<H: SessionLifecycleHostLik
         !no_player,
         hub.core.player_handle_like_cpp,
     ));
+    if mode == FinalizationMode::Disconnect {
+        host.set_state(SessionState::Disconnecting);
+    }
 
     while let Some(step) = host.lifecycle_mut().finalization().unwrap().next_step() {
         if !begin_finalization_step_like_cpp(host.lifecycle_mut(), step) {
@@ -96,7 +159,14 @@ pub async fn finalize_session_with_generator_like_cpp<H: SessionLifecycleHostLik
                 .finish(step, FinalizationOutcome::Unavailable);
             return finalization_result(host);
         }
-        let outcome = execute_finalization_step(host, step, mode, item_guid_generator).await;
+        let outcome = execute_finalization_step_with_catalogs(
+            host,
+            step,
+            mode,
+            item_guid_generator,
+            resurrection_catalogs,
+        )
+        .await;
         if !host
             .lifecycle_mut()
             .finalization_mut()
@@ -121,10 +191,43 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
     mode: FinalizationMode,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) -> FinalizationOutcome {
+    execute_finalization_step_with_catalogs(host, step, mode, item_guid_generator, None).await
+}
+
+async fn execute_finalization_step_with_catalogs<H: SessionLifecycleHostLikeCpp>(
+    host: &mut H,
+    step: FinalizationStep,
+    mode: FinalizationMode,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    resurrection_catalogs: Option<wow_world_entities::ResurrectionOperationCatalogs<'_>>,
+) -> FinalizationOutcome {
     use FinalizationStep::*;
+    // Player::setDeathState is synchronous in C++ (Player.cpp:1158–1200).
+    // Its Rust continuation must finish before logout can mutate, save or
+    // unpublish this incarnation. A cancelled continuation retains its owner.
+    if host
+        .core()
+        .with_owned_player_like_cpp(|player| player.has_unresolved_native_death_operation())
+        == Some(true)
+    {
+        return FinalizationOutcome::Deferred;
+    }
     match step {
         NativeTransfer => {
-            if !wow_world_character::finish_worldport_native_before_disconnect_like_cpp(host) {
+            discard_unstarted_near_resurrection_for_finalization(host);
+            let completed = match resurrection_catalogs {
+                Some(catalogs) => {
+                    wow_world_character::finish_worldport_native_before_disconnect_like_cpp(
+                        host, catalogs,
+                    )
+                    .await
+                }
+                None => {
+                    wow_world_character::finish_worldport_native_without_resurrection_catalogs(host)
+                        .await
+                }
+            };
+            if !completed {
                 return FinalizationOutcome::Unavailable;
             }
             if mode.returns_to_character_selection_like_cpp()
@@ -151,6 +254,14 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
                 }
             }
             FinalizationOutcome::Applied
+        }
+        DeathRelease => {
+            super::death_release::release_dead_player_before_logout_like_cpp(
+                host,
+                mode,
+                resurrection_catalogs,
+            )
+            .await
         }
         Buyback => {
             host.session_account_save_cx_like_cpp()
@@ -210,6 +321,9 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
                 .await
         }
         Retirement => {
+            if let Some(outcome) = super::cleanup::recovery_retirement_outcome(host) {
+                return outcome;
+            }
             {
                 let (state, hub) = host.split_lifecycle_ref();
                 state.unregister_from_player_registry(hub)
@@ -233,6 +347,8 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
             // (`WorldSession.cpp:664`, `TradeCancel(false)`) after the logout
             // hook and before `RemovePlayerFromMap`.
             host.cancel_trade_before_logout_like_cpp();
+            host.stop_combat_for_logout_death_release_like_cpp();
+            host.stop_combat_for_logout_death_release_like_cpp();
             wow_world_spell::notify_other_players_visibility_changed_like_cpp(host);
             {
                 let (s, mut h) = host.split_lifecycle_mut();

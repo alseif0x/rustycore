@@ -694,7 +694,6 @@ async fn environmental_damage_spell_damages_player_and_logs_fire_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::HealthUpdate,
             ServerOpcodes::EnvironmentalDamageLog,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 
@@ -785,7 +784,6 @@ async fn primary_environmental_damage_spell_damages_player_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::HealthUpdate,
             ServerOpcodes::EnvironmentalDamageLog,
-            ServerOpcodes::CooldownEvent,
         ],
         "C++ dispatches primary SPELL_EFFECT_ENVIRONMENTAL_DAMAGE through EffectEnvironmentalDMG"
     );

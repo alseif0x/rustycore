@@ -3,6 +3,7 @@
 pub mod aura_effects;
 mod aura_rows;
 mod aura_session;
+mod aura_update_session;
 mod effect_session;
 mod execution_session;
 mod login_spell_application;
@@ -14,11 +15,14 @@ pub mod player_cast;
 mod player_cast_session;
 mod profession;
 mod records;
+mod selected_wisp_transform;
+mod self_resurrection;
 mod session;
 mod spell_acquisition;
 mod spell_acquisition_application;
 pub mod spell_cast_adapter;
 mod spell_click_session;
+mod spell_history_maintenance;
 mod spell_state_session;
 mod spellbook_session;
 mod state;
@@ -28,19 +32,22 @@ mod test_support;
 mod toy_session;
 
 pub use aura_rows::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
+pub use aura_session::selected_aura_max_charges;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::update_represented_flight_flags_for_flight_aura_like_cpp;
 pub use aura_session::{
-    AuraHostLikeCpp, insert_player_visible_aura_like_cpp,
+    AuraHostLikeCpp, SelectedAuraLifetimeResult, insert_player_visible_aura_like_cpp,
     load_represented_character_auras_like_cpp, next_player_visible_aura_slot_like_cpp,
     remove_auras_with_interrupt_flags_like_cpp,
     remove_indoor_outdoor_auras_for_current_position_represented_like_cpp,
     remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp,
+    remove_represented_auras_due_to_item_spell_like_cpp,
     remove_represented_auras_due_to_spell_like_cpp,
     remove_represented_mounted_auras_by_type_like_cpp,
     represented_mount_capability_selection_for_type_like_cpp,
     represented_spell_area_autocast_source_is_empty_like_cpp,
-    represented_trait_config_aura_source_is_empty_like_cpp, send_aura_update_applied, tick_auras,
+    represented_trait_config_aura_source_is_empty_like_cpp, send_aura_update_applied,
+    set_player_aura_duration, tick_auras_expiry_only, tick_selected_aura_lifetimes,
     update_player_collision_height_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -50,6 +57,10 @@ pub use aura_session::{
     represented_mount_aura_display_candidates_like_cpp,
     represented_player_aura_state_mask_like_cpp, represented_unit_aura_state_mask_like_cpp,
 };
+pub use aura_session::{SelectedAuraRefreshPolicy, selected_aura_refresh_policy};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use aura_session::{flush_pending_selected_aura_updates, tick_auras};
+pub use aura_update_session::handle_player_aura_update;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use effect_session::{
     ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp,
@@ -69,26 +80,32 @@ pub use effect_session::{
 pub use effect_session::{
     SpellEffectHostLikeCpp, apply_block_effect_like_cpp, apply_parry_effect_like_cpp,
     canonical_threatened_by_me_owner_guids_like_cpp, current_map_dungeon_state_like_cpp,
-    current_map_is_dungeon_like_cpp, hydrate_canonical_threat_relevant_auras_like_cpp,
+    current_map_is_dungeon_like_cpp, disallowed_mount_form_from_catalogs,
+    hydrate_canonical_threat_relevant_auras_like_cpp,
     notify_other_players_visibility_changed_like_cpp, persist_player_homebind_like_cpp,
     player_current_map_instanceable_like_cpp, record_spell_execute_log_durability_damage_like_cpp,
     represented_disallowed_mount_form_like_cpp, represented_homebind_like_cpp,
     set_represented_homebind_like_cpp, sync_represented_creature_threat_to_canonical_like_cpp,
 };
+pub use execution_session::take_spell_power_like_cpp;
 pub use execution_session::{
-    SpellExecutionHostLikeCpp, apply_durability_damage_effect_like_cpp,
+    ServerNormalPreGoFailureLikeCpp, ServerNormalPreGoPlanLikeCpp, SpellExecutionHostLikeCpp,
+    apply_durability_damage_effect_like_cpp,
     apply_inventory_item_obtain_spells_with_generator_like_cpp, apply_proficiency_effect_like_cpp,
-    check_represented_cast_preparation_like_cpp, consume_add_farsight_set_seer_outcome_like_cpp,
+    cast_all_obtain_spells_like_cpp, check_represented_cast_preparation_like_cpp,
+    check_represented_caster_death_like_cpp, consume_add_farsight_set_seer_outcome_like_cpp,
     execute_server_triggered_spell_like_cpp,
     execute_spell_with_visual_and_target_data_and_generator_like_cpp,
     execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp,
-    player_cast_publication_like_cpp, publish_player_cast_frame_like_cpp,
-    represented_nearby_entry_destination_like_cpp,
+    normalize_caster_only_stuck_target_data_like_cpp,
+    normalize_hearthstone_spell_start_target_data_like_cpp, player_cast_publication_like_cpp,
+    publish_player_cast_frame_like_cpp, represented_nearby_entry_destination_like_cpp,
+    validate_server_normal_spell_execution_availability_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use execution_session::{
     represented_transport_destination_world_position_like_cpp,
-    send_set_viewpoint_target_visibility_like_cpp, take_spell_power_like_cpp,
+    send_set_viewpoint_target_visibility_like_cpp,
 };
 pub use login_spell_application::{
     apply_loaded_known_spell_dependencies_like_cpp,
@@ -103,6 +120,17 @@ pub use login_spell_application::{
 };
 pub use module_hooks::SpellCastHookEventLikeCpp;
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
+pub use player_cast::{
+    PhysicalCastItemLikeCpp, ServerNormalCastCostFactsLikeCpp, ServerNormalCastItemUsePlanLikeCpp,
+    ServerNormalCastItemUsePlanResultLikeCpp, ServerNormalCooldownFactsLikeCpp,
+    ServerNormalCooldownMutationLikeCpp, ServerNormalCooldownPlanLikeCpp,
+    ServerNormalCostResultLikeCpp, add_server_normal_global_cooldown_like_cpp,
+    apply_server_normal_cooldown_plan_like_cpp, server_normal_cast_item_use_plan_like_cpp,
+    server_normal_cooldown_plan_like_cpp, server_normal_cooldown_ready_like_cpp,
+    server_normal_cost_plan_like_cpp, server_normal_cost_result_like_cpp,
+    server_normal_global_cooldown_state_like_cpp,
+    server_normal_take_cast_item_before_effects_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_cast_session::take_ready_player_cast_like_cpp;
 pub use player_cast_session::{
@@ -111,6 +139,10 @@ pub use player_cast_session::{
     handle_self_res_with_generator_like_cpp, handle_spell_click_with_generator_like_cpp,
     is_spell_disabled_for_player_like_cpp, next_represented_spell_cast_guid_like_cpp,
     tick_active_spell_cast_with_generator_like_cpp,
+};
+pub use player_cast_session::{
+    cast_server_normal_player_spell_with_generator_like_cpp,
+    try_cast_server_normal_player_spell_with_generator_like_cpp,
 };
 pub use profession::{
     DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,
@@ -130,10 +162,18 @@ pub use records::{
     canonical_player_spell_record_like_cpp, represented_player_spell_record_like_cpp,
     represented_player_spell_runtime_like_cpp,
 };
+pub use selected_wisp_transform::apply_selected_wisp_transform;
 pub use session::{
     AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedShapeshiftMutationLikeCpp,
+    SelectedAuraPublicationCatalogs, collect_player_pending_selected_aura_updates,
     player_aura_info_like_cpp, represented_aura_effect_amounts_like_cpp,
     shapeshift_form_of_spell_like_cpp, unit_owned_apply_aura_effect_mask_like_cpp,
+};
+
+pub(crate) use aura_session::validate_selected_aura_application;
+pub use self_resurrection::{
+    SelfResurrectionError, active_spell_cooldown_aura_affects_like_cpp,
+    initialize_self_resurrection_spells,
 };
 pub use spell_acquisition_application::{
     EffectLearningRuntimeLikeCpp, PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
@@ -165,6 +205,7 @@ pub use spell_click_session::{
     execute_represented_spell_click_plan_with_generator_like_cpp,
     represented_handle_spell_click_plan_like_cpp,
 };
+pub use spell_history_maintenance::update_player_spell_history;
 pub use spell_state_session::{
     SpellStateHostLikeCpp, apply_login_known_spell_proficiencies_like_cpp,
     has_represented_self_res_spell_like_cpp, interrupt_non_melee_spells_for_far_teleport_like_cpp,

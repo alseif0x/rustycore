@@ -1,5 +1,97 @@
 use super::*;
 
+#[test]
+fn durability_loss_marks_canonical_item_changed_for_full_save_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let player_guid = crate::canonical_player_access::install_canonical_player_owner_for_test(
+        &mut session,
+        571,
+        0,
+    );
+    session.core.current_map_id = 571;
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_player_aura_authority_complete_like_cpp(true);
+        })
+        .expect("canonical durability fixture Aura owner");
+    session.set_item_effect_store(Arc::new(wow_data::ItemEffectStore::from_entries([])));
+    let item_guid = ObjectGuid::create_item(1, 9121);
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            let mut item = wow_entities::Item::new(0);
+            item.object_mut().create(item_guid);
+            item.object_mut().set_entry(2121);
+            item.set_owner_guid(player_guid);
+            item.set_contained_in(player_guid);
+            item.set_count(1);
+            item.set_slot(wow_entities::EQUIPMENT_SLOT_CHEST);
+            item.set_max_durability(60);
+            item.set_durability(40);
+            item.force_state(wow_constants::ItemUpdateState::Unchanged);
+            player
+                .store_top_level_item(wow_entities::EQUIPMENT_SLOT_CHEST, item_guid)
+                .unwrap();
+            let runtime = player.inventory_runtime_mut_like_cpp();
+            runtime.store_item_in_slot_like_cpp(
+                wow_entities::EQUIPMENT_SLOT_CHEST,
+                wow_entities::PlayerInventoryItem {
+                    guid: item_guid,
+                    entry_id: 2121,
+                    db_guid: item_guid.counter() as u64,
+                    inventory_type: Some(InventoryType::Chest as u8),
+                },
+            );
+            runtime.store_item_object_like_cpp(item);
+            runtime.set_equipment_inventory_authority_complete_like_cpp(true);
+        })
+        .unwrap();
+    let baseline = session.prepare_player_save_like_cpp(123).unwrap().request;
+    assert!(baseline.inventory_items.unwrap().is_empty());
+
+    assert_eq!(
+        session.apply_represented_durability_loss_all_like_cpp(0.1, false),
+        1
+    );
+    session
+        .with_owned_player_like_cpp(|player| {
+            let item = &player.inventory_runtime_like_cpp().item_objects()[&item_guid];
+            assert_eq!(item.data().durability, 34);
+            assert_eq!(item.update_state(), wow_constants::ItemUpdateState::Changed);
+        })
+        .unwrap();
+    let saved = session.prepare_player_save_like_cpp(124).unwrap().request;
+    let rows = saved.inventory_items.unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        (
+            rows[0].item_guid,
+            rows[0].item_entry,
+            rows[0].owner_guid,
+            rows[0].state,
+            rows[0].durability,
+            rows[0].slot
+        ),
+        (
+            item_guid.counter() as u64,
+            2121,
+            player_guid.counter() as u64,
+            wow_persistence::PlayerItemSaveStateLikeCpp::Changed,
+            34,
+            wow_entities::EQUIPMENT_SLOT_CHEST
+        )
+    );
+    assert_eq!(
+        saved.item_durability,
+        Some(Vec::new()),
+        "the full item row owns persistence without a duplicate partial durability row"
+    );
+    assert!(
+        send_rx.try_recv().is_err(),
+        "durability mutation leaves publication to Map"
+    );
+}
+
 #[tokio::test]
 async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
     let (mut session, _, _) = make_session();
@@ -176,7 +268,7 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
             inventory_type: Some(InventoryType::Bag as u8),
         },
     );
-    let weapon = session.make_inventory_item_object(
+    let mut weapon = session.make_inventory_item_object(
         weapon_guid,
         100,
         player_guid,
@@ -185,6 +277,9 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
         ItemContext::None,
         EQUIPMENT_SLOT_OFFHAND,
     );
+    // Repair-cost rounding is tested against explicit per-instance maxima;
+    // effective template derivation has separate catalog regressions.
+    weapon.set_max_durability(50);
     let bag = session.make_inventory_item_object(
         bag_guid,
         200,
@@ -203,6 +298,7 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
         ItemContext::None,
         0,
     );
+    armor.set_max_durability(13);
     armor.set_container_guid_and_slot(bag_guid, 0);
     session.insert_inventory_item_object(weapon);
     session.insert_inventory_item_object(bag);
@@ -384,8 +480,8 @@ fn equip_durability_test_weapon_like_cpp(
             [(
                 300,
                 ItemRandomPropertyTemplateEntry {
-                    item_level: 57,
-                    quality: ItemQuality::Rare as i8,
+                    item_level: 10,
+                    quality: ItemQuality::Normal as i8,
                     inventory_type: InventoryType::Weapon as i8,
                 },
             )],
@@ -451,7 +547,7 @@ fn durability_points_loss_breaks_and_removes_equipped_item_mods_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 43);
     let weapon_guid = ObjectGuid::create_item(1, 903);
     session.set_player_guid(Some(player_guid));
-    // 5 of 50 durability: the minimum one-point loss breaks the item.
+    // Ten percent of the effective 50-point maximum breaks the remaining five.
     equip_durability_test_weapon_like_cpp(&mut session, player_guid, weapon_guid, 5);
 
     let affected = session.apply_represented_durability_loss_all_like_cpp(0.1, false);
@@ -560,11 +656,7 @@ fn durability_execute_log_row_like_cpp(
                     .expect("server opcode")
             })
             .collect::<Vec<_>>(),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::SpellExecuteLog,
-            ServerOpcodes::CooldownEvent
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellExecuteLog,]
     );
     let log_bytes = packets
         .iter()

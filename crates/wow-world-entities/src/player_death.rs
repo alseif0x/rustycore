@@ -18,21 +18,26 @@
 //! through [`wow_persistence::MapCorpsePersistencePortLikeCpp`] after the Map
 //! guard is released. No Map guard crosses an await.
 //!
-//! Not represented here (no Rust owner yet; tracked in #43's follow-ups):
-//! `RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`, `SetRooted`,
-//! `SetWaterWalking`, `StopMirrorTimers`, `PLAYER_LOCAL_FLAG_RELEASE_TIMER`,
-//! the battleground/battlefield graveyard selectors and `OnPlayerRepop`.
+//! Native JUST_DIED cleanup belongs to Application's admitted death operation;
+//! repop delegates RemovePet to `CorpseHostLikeCpp::remove_pet_for_repop_like_cpp`.
+//! Wider controlled-unit/pet effects, ongoing mirror-timer progression and
+//! drowning, battleground/battlefield graveyard selectors and `OnPlayerRepop`
+//! remain follow-ups. The unconditional mirror-stop packets are represented.
 
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use tracing::warn;
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
 use wow_data::{GraveyardLookupContextLikeCpp, GraveyardStore};
-use wow_entities::{Corpse, CorpseCustomizationChoice, CorpseType};
-use wow_packet::packets::misc::{CorpseReclaimDelay, DeathReleaseLoc, PreRessurect};
+use wow_entities::{Corpse, CorpseType};
+use wow_packet::packets::misc::{CorpseReclaimDelay, DeathReleaseLoc};
 use wow_world_core::session::DeathPolicyLikeCpp;
 use wow_world_core::session::connection_identity::unix_now;
 
+use crate::player_resurrection::PLAYER_FLAGS_IS_OUT_OF_BOUNDS;
 use crate::{
     CorpseHostLikeCpp, CreatureSpawnCatalogsLikeCpp, TELE_REVIVE_AT_TELEPORT_LIKE_CPP,
     TELE_TO_NONE_LIKE_CPP,
@@ -74,6 +79,26 @@ pub struct CorpseLifecycleCatalogsLikeCpp<'a> {
     pub item_guid_generator: &'a ObjectGuidGenerator,
     pub creature_spawns: &'a CreatureSpawnCatalogsLikeCpp,
     pub graveyards: &'a GraveyardStore,
+}
+
+/// Catalog inputs consumed by resurrection recovery and its triggered casts.
+/// Graveyard data is borrowed only by recovery phases that perform the
+/// post-save corpse or ghost graveyard search.
+#[derive(Clone, Copy)]
+pub struct ResurrectionOperationCatalogs<'a> {
+    pub item_guid_generator: &'a ObjectGuidGenerator,
+    pub creature_spawns: &'a CreatureSpawnCatalogsLikeCpp,
+    pub graveyards: Option<&'a GraveyardStore>,
+}
+
+impl<'a> CorpseLifecycleCatalogsLikeCpp<'a> {
+    pub fn resurrection(self) -> ResurrectionOperationCatalogs<'a> {
+        ResurrectionOperationCatalogs {
+            item_guid_generator: self.item_guid_generator,
+            creature_spawns: self.creature_spawns,
+            graveyards: Some(self.graveyards),
+        }
+    }
 }
 
 // ── Pure C++ rules ──────────────────────────────────────────────────────────
@@ -193,10 +218,6 @@ fn current_map_entry_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> Option<wow_data
         .and_then(|store| store.get(map_id).copied())
 }
 
-fn current_map_instanceable_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> bool {
-    current_map_entry_like_cpp(host).is_some_and(|entry| entry.is_instanceable_like_cpp())
-}
-
 fn in_arena_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> bool {
     host.hub_ref().player_in_represented_battleground_like_cpp()
         && current_map_entry_like_cpp(host)
@@ -210,7 +231,7 @@ pub fn player_in_arena_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> bool {
 
 /// C++ `Player::CalculateCorpseReclaimDelay(false)` in milliseconds: the
 /// corpse type decides PvP when a corpse exists, else `PLAYER_EXTRA_PVP_DEATH`.
-fn calculate_corpse_reclaim_delay_ms_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> u32 {
+pub(crate) fn calculate_corpse_reclaim_delay_ms_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> u32 {
     let pvp = player_corpse_type_like_cpp(host)
         .map(|corpse_type| corpse_type == CorpseType::ResurrectablePvp)
         .unwrap_or_else(|| player_pvp_death_like_cpp(host));
@@ -266,35 +287,115 @@ fn send_corpse_reclaim_delay_like_cpp<H: CorpseHostLikeCpp>(host: &H, delay_ms: 
 // ── KillPlayer ──────────────────────────────────────────────────────────────
 
 /// C++ `Player::KillPlayer` as `HandleRepopRequest` calls it for a Player
-/// still in `JUST_DIED`: `setDeathState(CORPSE)`, clear dynamic flags, arm
-/// the 6-minute death timer, `UpdateCorpseReclaimDelay`, and send the reclaim
-/// delay. The fall, root, mirror timers and release-timer local flag have no
-/// Rust owner yet.
-pub fn kill_player_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
+/// still in `JUST_DIED`: `setDeathState(CORPSE)`, clear dynamic flags,
+/// `UpdateCorpseReclaimDelay`, and send the reclaim delay. The Rust death
+/// bookkeeping is updated here; rooting is published here too. The six-minute
+/// `m_deathTimer` countdown advances separately in PlayerUpdate, after SaveTimer.
+/// Forced visibility follows the reclaim-delay packet; falling and ongoing
+/// mirror-timer progression remain outside this operation.
+pub async fn kill_player_like_cpp<H: CorpseHostLikeCpp>(
+    host: &mut H,
+    creature_spawns: &CreatureSpawnCatalogsLikeCpp,
+) -> bool {
+    let Some(owner) = crate::recovery_fences::owner(host) else {
+        return false;
+    };
     let policy = host.hub_ref().config.death_policy_like_cpp;
     let now = unix_now();
     let pvp = player_pvp_death_like_cpp(host);
+    // C++ `Player::KillPlayer` roots before changing JUST_DIED to CORPSE.
+    host.hub_mut().set_player_rooted_like_cpp(true);
+    stop_mirror_timers_like_cpp(host);
     let changed = host.core().with_owned_player_mut_like_cpp(|player| {
         player
             .unit_mut()
             .set_death_state(wow_constants::DeathState::Corpse);
-        player
-            .unit_mut()
-            .world_mut()
-            .object_mut()
-            .replace_all_dynamic_flags(0);
+    });
+    if changed.is_none()
+        || host.finish_player_non_alive_state_like_cpp().is_err()
+        || !crate::recovery_fences::owner_is_current(host, owner)
+    {
+        return false;
+    }
+    let changed = host.core().with_owned_player_mut_like_cpp(|player| {
+        let object = player.unit_mut().world_mut().object_mut();
+        object.replace_all_dynamic_flags(0);
+        object.force_dynamic_flags_update_like_cpp();
+    });
+    if changed.is_none() {
+        return false;
+    }
+
+    // C++ `KillPlayer` Set/RemovePlayerLocalFlag(PLAYER_LOCAL_FLAG_RELEASE_TIMER)
+    // after clearing dynamic flags and before arming m_deathTimer (`Player.cpp:4417`).
+    let release_timer = current_map_entry_like_cpp(host)
+        .is_some_and(|entry| !entry.is_instanceable_like_cpp())
+        && !host
+            .hub_ref()
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION,
+            )
+            .is_some_and(|effects| !effects.is_empty());
+    let changed = host.core().with_owned_player_mut_like_cpp(|player| {
+        if release_timer {
+            player.set_player_local_flags_like_cpp(crate::PLAYER_LOCAL_FLAG_RELEASE_TIMER);
+        } else {
+            player.remove_player_local_flags_like_cpp(crate::PLAYER_LOCAL_FLAG_RELEASE_TIMER);
+        }
+    });
+    if changed.is_none() {
+        return false;
+    }
+
+    let changed = host.core().with_owned_player_mut_like_cpp(|player| {
         let state = player.resurrection_state_mut_like_cpp();
-        state.death_timer_active = true;
+        state.death_timer_remaining_ms = 360_000;
+        state.death_timer_deadline = Some(Instant::now() + Duration::from_millis(360_000));
         state.death_expire_time =
             updated_death_expire_time_like_cpp(pvp, state.death_expire_time, now, policy);
     });
     if changed.is_none() {
-        return;
+        return false;
     }
     host.sync_player_registry_state_like_cpp();
 
     // C++ `CalculateCorpseReclaimDelay()` is non-negative without `load`.
     send_corpse_reclaim_delay_like_cpp(host, calculate_corpse_reclaim_delay_ms_like_cpp(host));
+
+    // Player.cpp:4437 forces visibility after the reclaim-delay phase. The
+    // owner/residence fence is rechecked after the World visibility await.
+    if current_player_is_in_world_like_cpp(host) {
+        if !host
+            .force_player_visibility_with_catalogs_like_cpp(creature_spawns)
+            .await
+        {
+            return false;
+        }
+        return crate::recovery_fences::owner_is_current_in_residence(host, owner);
+    }
+
+    crate::recovery_fences::owner_is_current(host, owner)
+}
+
+pub(crate) fn stop_mirror_timers_like_cpp<H: CorpseHostLikeCpp>(host: &H) {
+    // Player.cpp:609,711 sends every type unconditionally, even without an active bar.
+    for timer in 0..3 {
+        host.core()
+            .send_packet_realm(&wow_packet::packets::misc::StopMirrorTimer { timer });
+    }
+}
+
+pub(crate) fn current_player_is_in_world_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> bool {
+    let Some(handle) = host.core().player_handle_like_cpp else {
+        return false;
+    };
+    host.player_guid() == Some(handle.guid())
+        && host
+            .core()
+            .with_owned_player_like_cpp(|player| {
+                player.guid() == handle.guid() && player.unit().world().object().is_in_world()
+            })
+            .unwrap_or(false)
 }
 
 // ── SpawnCorpseBones ────────────────────────────────────────────────────────
@@ -308,9 +409,42 @@ pub async fn spawn_corpse_bones_like_cpp<H: CorpseHostLikeCpp>(
     item_guid_generator: &ObjectGuidGenerator,
     trigger_save: bool,
 ) -> bool {
+    match convert_corpse_to_bones_for_resurrection(host).await {
+        CorpseBonesConversion::Unavailable => false,
+        CorpseBonesConversion::NoCorpse => true,
+        CorpseBonesConversion::Converted => {
+            if trigger_save && !host.player_logout_with_save_like_cpp() {
+                return host
+                    .save_player_after_corpse_bones_like_cpp(item_guid_generator)
+                    .await
+                    == crate::ResurrectionSaveOutcome::Applied;
+            }
+            true
+        }
+    }
+}
+
+pub(crate) enum CorpseBonesConversion {
+    Unavailable,
+    NoCorpse,
+    Converted,
+}
+
+pub(crate) async fn convert_corpse_to_bones_for_resurrection<H: CorpseHostLikeCpp>(
+    host: &mut H,
+) -> CorpseBonesConversion {
     set_player_corpse_location_like_cpp(host, None);
-    let Some(owner) = host.player_guid() else {
-        return false;
+    let Some(binding) = crate::recovery_fences::owner(host) else {
+        return CorpseBonesConversion::Unavailable;
+    };
+    if !crate::recovery_fences::owner_is_current_in_residence(host, binding) {
+        return CorpseBonesConversion::Unavailable;
+    }
+    let owner = binding.guid;
+    let Some(continuation) = host.core().with_owned_player_like_cpp(|player| {
+        player.resurrection_state_like_cpp().delayed_after_teleport
+    }) else {
+        return CorpseBonesConversion::Unavailable;
     };
     let policy = host.hub_ref().config.death_policy_like_cpp;
     let bones_enabled =
@@ -320,215 +454,85 @@ pub async fn spawn_corpse_bones_like_cpp<H: CorpseHostLikeCpp>(
             policy.bones_world
         };
     let now = unix_now();
-    let converted = with_current_map_like_cpp(host, |map| {
-        map.convert_corpse_to_bones_like_cpp(owner, bones_enabled, now)
-    })
-    .flatten();
-    let Some(_converted) = converted else {
-        return false;
+    let Some(manager) = host.core().canonical_map_manager.as_ref().cloned() else {
+        return CorpseBonesConversion::Unavailable;
     };
-
-    // C++ `Map::ConvertCorpseToBones` commits `Corpse::DeleteFromDB` in its
-    // own transaction.
-    if let Some(port) = host.map_corpse_persistence_port_like_cpp() {
-        if let wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Failed { reason } =
-            port.delete_corpse_like_cpp(owner.counter() as u64).await
+    let prepared = {
+        let Ok(mut manager) = manager.lock() else {
+            return CorpseBonesConversion::Unavailable;
+        };
+        let Some((key, revision)) =
+            manager.player_active_residence_revision_like_cpp(binding.handle)
+        else {
+            return CorpseBonesConversion::Unavailable;
+        };
+        if binding.residence != Some((key, revision))
+            || !manager
+                .with_player_like_cpp(binding.handle, |player| {
+                    let world = player.unit().world();
+                    player.guid() == owner
+                        && world.object().is_in_world()
+                        && world.has_current_map()
+                        && wow_map::MapKey::new(world.map_id(), world.instance_id()) == key
+                        && player.resurrection_state_like_cpp().delayed_after_teleport
+                            == continuation
+                })
+                .unwrap_or(false)
         {
-            warn!(
-                player = ?owner,
-                "C++ Corpse::DeleteFromDB for bones conversion failed: {reason}"
-            );
+            return CorpseBonesConversion::Unavailable;
         }
-    }
+        let Some(map) = manager.find_map_mut(key.map_id, key.instance_id) else {
+            return CorpseBonesConversion::Unavailable;
+        };
+        let map = map.map_mut();
+        let Some(converted) = map.convert_corpse_to_bones_like_cpp(owner, bones_enabled, now)
+        else {
+            return CorpseBonesConversion::NoCorpse;
+        };
+        let destroyed = map.take_object_visibility_destroy_for_guid_like_cpp(converted.corpse_guid);
+        crate::visibility_session::prepare_corpse_visibility_like_cpp(
+            &manager,
+            binding.handle,
+            converted.bones_guid,
+            destroyed,
+            crate::visibility_session::CorpseBirthKind::Bones,
+        )
+    };
+    // C++ enqueues the delete transaction (DBPool.cpp:302-325), then Map::AddToMap
+    // immediately publishes bones. Native visibility is not the durable receipt.
+    let published = crate::recovery_fences::owner_is_current_in_residence(host, binding)
+        && prepared.as_ref().is_some_and(|prepared| {
+            crate::visibility_session::publish_corpse_visibility_like_cpp(host, prepared)
+        });
 
-    if trigger_save && !host.player_logout_with_save_like_cpp() {
-        host.save_player_after_corpse_bones_like_cpp(item_guid_generator)
-            .await;
+    // Preserve the existing Rust completion fence even when publication failed:
+    // the committed native conversion still requires its delete attempt.
+    let Some(port) = host.map_corpse_persistence_port_like_cpp() else {
+        return CorpseBonesConversion::Unavailable;
+    };
+    if let wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Failed { reason } =
+        port.delete_corpse_like_cpp(owner.counter() as u64).await
+    {
+        warn!(
+            player = ?owner,
+            "C++ Corpse::DeleteFromDB for bones conversion was not confirmed: {reason}"
+        );
+        // The port cannot distinguish a returned error before COMMIT from
+        // an error after COMMIT. Neither outcome authorizes completion.
+        return CorpseBonesConversion::Unavailable;
     }
-    true
+    if !published
+        || !crate::recovery_fences::owner_is_current_in_residence(host, binding)
+        || host.core().with_owned_player_like_cpp(|player| {
+            player.resurrection_state_like_cpp().delayed_after_teleport
+        }) != Some(continuation)
+    {
+        return CorpseBonesConversion::Unavailable;
+    }
+    CorpseBonesConversion::Converted
 }
 
 // ── CreateCorpse ────────────────────────────────────────────────────────────
-
-/// The corpse built by C++ `Player::CreateCorpse` before `Map::AddCorpse`,
-/// plus its `Corpse::SaveToDB` request when the map is not instanceable.
-struct CreatedCorpseLikeCpp {
-    corpse: Corpse,
-    save: Option<wow_persistence::CorpseSaveRequestLikeCpp>,
-}
-
-fn build_corpse_from_player_like_cpp<H: CorpseHostLikeCpp>(
-    host: &H,
-    corpse_low_guid: i64,
-) -> Option<CreatedCorpseLikeCpp> {
-    let owner = host.player_guid()?;
-    let corpse_type = if player_pvp_death_like_cpp(host) {
-        CorpseType::ResurrectablePvp
-    } else {
-        CorpseType::ResurrectablePve
-    };
-    let in_battleground = host.hub_ref().player_in_represented_battleground_like_cpp();
-    let in_arena = in_arena_like_cpp(host);
-    let instanceable = current_map_instanceable_like_cpp(host);
-    let hub = host.hub_ref();
-    let catalogs = &hub.catalogs;
-
-    host.core()
-        .with_owned_player_like_cpp(|player| {
-            let world = player.unit().world();
-            let position = world.position();
-            if !position.is_valid_map_coord_like_cpp() {
-                return None;
-            }
-            let map_id = world.map_id();
-            let instance_id = world.instance_id();
-            let race = player.race_like_cpp();
-            let faction_template = catalogs.faction_template_for_race_like_cpp(race)?;
-
-            let mut corpse = Corpse::new_at(corpse_type, unix_now());
-            corpse
-                .world_mut()
-                .object_mut()
-                .create(ObjectGuid::create_world_object(
-                    wow_core::guid::HighGuid::Corpse,
-                    0,
-                    owner.realm_id(),
-                    map_id as u16,
-                    0,
-                    0,
-                    corpse_low_guid,
-                ));
-            corpse.world_mut().set_map(map_id, instance_id).ok()?;
-            corpse.world_mut().relocate(position);
-            corpse.world_mut().object_mut().set_scale(1.0);
-            corpse.set_owner_guid(owner);
-            // C++ `PhasingHandler::InheritPhaseShift(this, owner)`.
-            *corpse.world_mut().phase_shift_mut() = world.phase_shift().clone();
-
-            let flags =
-                corpse_flags_like_cpp(player.unit().data().pvp_flags, in_battleground, in_arena);
-            corpse.set_race(race);
-            corpse.set_sex(player.data().native_sex);
-            corpse.set_class(player.class_like_cpp());
-            corpse.set_customizations(
-                player
-                    .gameplay_state()
-                    .customizations
-                    .iter()
-                    .map(|choice| CorpseCustomizationChoice {
-                        option_id: choice.option_id,
-                        choice_id: choice.choice_id,
-                    })
-                    .collect(),
-            );
-            corpse.replace_all_flags(flags);
-            corpse
-                .set_display_id(u32::try_from(player.unit().data().native_display_id).unwrap_or(0));
-            corpse.set_faction_template(faction_template);
-
-            for (slot, visible) in player.data().visible_items.iter().enumerate() {
-                let Ok(item_id) = u32::try_from(visible.item_id) else {
-                    continue;
-                };
-                if item_id == 0 {
-                    continue;
-                }
-                let display_id = catalogs
-                    .item_display_id(item_id, u32::from(visible.item_appearance_mod_id))
-                    .unwrap_or(0);
-                let inventory_type = catalogs
-                    .items
-                    .store
-                    .as_ref()
-                    .and_then(|store| store.get(item_id))
-                    .map(|item| item.inventory_type as u8 as u32)
-                    .unwrap_or(0);
-                corpse.set_item(slot, display_id | (inventory_type << 24));
-            }
-
-            // C++ "we do not need to save corpses for instances".
-            let save = (!instanceable).then(|| {
-                let data = corpse.data();
-                wow_persistence::CorpseSaveRequestLikeCpp {
-                    owner_guid: owner.counter() as u64,
-                    pos_x: position.x,
-                    pos_y: position.y,
-                    pos_z: position.z,
-                    orientation: position.orientation,
-                    map_id: map_id as u16,
-                    display_id: data.display_id,
-                    item_cache: corpse_item_cache_like_cpp(&data.items),
-                    race: data.race_id,
-                    class: data.class,
-                    sex: data.sex,
-                    flags: data.flags as u8,
-                    dynamic_flags: data.dynamic_flags as u8,
-                    ghost_time: corpse.ghost_time() as u32,
-                    corpse_type: corpse.corpse_type() as u8,
-                    instance_id,
-                    phases: corpse
-                        .world()
-                        .phase_shift()
-                        .phases_like_cpp()
-                        .map(|phase| phase.id())
-                        .collect(),
-                    customizations: data
-                        .customizations
-                        .iter()
-                        .map(|choice| (choice.option_id, choice.choice_id))
-                        .collect(),
-                }
-            });
-
-            Some(CreatedCorpseLikeCpp { corpse, save })
-        })
-        .flatten()
-}
-
-/// C++ `Player::CreateCorpse` followed by `BuildPlayerRepop`'s
-/// `GetMap()->AddToMap(corpse)`. Returns the corpse GUID.
-pub async fn create_corpse_like_cpp<H: CorpseHostLikeCpp>(
-    host: &mut H,
-    item_guid_generator: &ObjectGuidGenerator,
-) -> Option<ObjectGuid> {
-    // prevent the existence of 2 corpses for one player
-    spawn_corpse_bones_like_cpp(host, item_guid_generator, true).await;
-
-    let low_guid = with_current_map_like_cpp(host, |map| {
-        map.generate_low_guid_like_cpp(wow_core::guid::HighGuid::Corpse)
-            .ok()
-    })
-    .flatten()?;
-    let created = build_corpse_from_player_like_cpp(host, low_guid)?;
-    // C++ `SetPvPDeath(false)` after choosing the corpse type.
-    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-        player.set_pvp_death_like_cpp(false);
-    });
-
-    let corpse_guid = created.corpse.world().object().guid();
-    let location = (
-        created.corpse.world().map_id(),
-        created.corpse.world().position(),
-    );
-    let added = with_current_map_like_cpp(host, |map| {
-        map.add_corpse_to_map_like_cpp(created.corpse).is_ok()
-    })
-    .unwrap_or(false);
-    if !added {
-        return None;
-    }
-    // C++ `_corpseLocation.WorldRelocate(*this)`.
-    set_player_corpse_location_like_cpp(host, Some(location));
-
-    if let Some(save) = created.save
-        && let Some(port) = host.map_corpse_persistence_port_like_cpp()
-        && let wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Failed { reason } =
-            port.save_corpse_like_cpp(save).await
-    {
-        warn!(corpse = ?corpse_guid, "C++ Corpse::SaveToDB failed: {reason}");
-    }
-    Some(corpse_guid)
-}
 
 // ── BuildPlayerRepop ────────────────────────────────────────────────────────
 
@@ -536,68 +540,110 @@ pub async fn create_corpse_like_cpp<H: CorpseHostLikeCpp>(
 pub async fn build_player_repop_like_cpp<H: CorpseHostLikeCpp>(
     host: &mut H,
     catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
+) -> bool {
+    crate::player_release::build_player_repop_like_cpp(host, catalogs).await
+}
+
+/// C++ `Player::Update` death-timer phase (`Player.cpp:1101`): only a running
+/// timer on a known non-instanceable map without `SPELL_AURA_PREVENT_RESURRECTION`
+/// advances. At expiry, build the corpse before the graveyard repop.
+pub async fn tick_player_death_timer<H: CorpseHostLikeCpp>(
+    host: &mut H,
+    diff_ms: u32,
+    catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
 ) {
-    let Some(player_guid) = host.player_guid() else {
+    let Some((remaining_ms, death_timer_deadline)) =
+        host.core().with_owned_player_like_cpp(|player| {
+            let state = player.resurrection_state_like_cpp();
+            (state.death_timer_remaining_ms, state.death_timer_deadline)
+        })
+    else {
         return;
     };
-    // SMSG_PRE_RESSURECT is a realm-connection opcode (Opcodes.cpp:1915).
-    host.core().send_packet_realm(&PreRessurect { player_guid });
-
-    // If the player has the Wisp racial then cast the Wisp aura on them.
-    if host.player_has_spell_like_cpp(SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP) {
-        host.cast_triggered_self_spell_like_cpp(catalogs, SPELL_WISP_SPIRIT_AURA_LIKE_CPP)
-            .await;
+    let now = Instant::now();
+    let (remaining_after_tick, expired) = if let Some(deadline) = death_timer_deadline {
+        let expired = now >= deadline;
+        let remaining_after_tick = if expired {
+            0
+        } else {
+            u32::try_from(deadline.saturating_duration_since(now).as_millis())
+                .unwrap_or(u32::MAX)
+                .max(1)
+        };
+        (remaining_after_tick, expired)
+    } else {
+        // Loaded and fixture states without a deadline retain native diff accounting.
+        let expired = diff_ms >= remaining_ms;
+        let remaining_after_tick = if expired { 0 } else { remaining_ms - diff_ms };
+        (remaining_after_tick, expired)
+    };
+    if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() && remaining_ms > 0 {
+        let player_guid = host.player_guid();
+        let delayed_after_teleport = host
+            .core()
+            .with_owned_player_like_cpp(|player| {
+                player.resurrection_state_like_cpp().delayed_after_teleport
+            })
+            .flatten();
+        let current_map_instanceable =
+            current_map_entry_like_cpp(host).map(|entry| entry.is_instanceable_like_cpp());
+        let prevent_resurrection_effect_count = host
+            .hub_ref()
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION,
+            )
+            .map(|effects| effects.len());
+        let outcome = if remaining_ms == 0 {
+            "gate_refused_remaining_zero"
+        } else if current_map_instanceable != Some(false) {
+            "gate_refused_map"
+        } else if prevent_resurrection_effect_count.is_some_and(|count| count != 0) {
+            "gate_refused_prevent_resurrection"
+        } else if expired {
+            "expiry_entering_existing_repop"
+        } else {
+            "timer_advanced"
+        };
+        tracing::info!(
+            player_guid = ?player_guid,
+            remaining_ms,
+            remaining_after_tick,
+            diff_ms,
+            death_timer_deadline = ?death_timer_deadline,
+            clock = if death_timer_deadline.is_some() { "monotonic" } else { "diff" },
+            current_map_instanceable = ?current_map_instanceable,
+            prevent_resurrection_effect_count = ?prevent_resurrection_effect_count,
+            delayed_operation = ?delayed_after_teleport.map(|continuation| continuation.operation),
+            delayed_phase = ?delayed_after_teleport.map(|continuation| continuation.phase),
+            outcome,
+            "RUST_DEATH_TIMER tick"
+        );
     }
-    host.cast_triggered_self_spell_like_cpp(catalogs, SPELL_GHOST_LIKE_CPP)
-        .await;
-    // C++ `AuraEffect::HandleAuraGhost` sets PLAYER_FLAGS_GHOST when 8326
-    // applies; the represented aura has no effect handler, so the flag is
-    // written here, at the same point of the release.
-    crate::set_player_ghost_flag_like_cpp(host, true);
-
-    host.remove_auras_with_interrupt_flags_like_cpp(SPELL_AURA_INTERRUPT_FLAG_RELEASE_LIKE_CPP, 0);
-
-    // the player cannot have a corpse already on current map, only bones
-    if player_corpse_location_like_cpp(host)
-        .is_some_and(|(map_id, _)| map_id == u32::from(host.core().player_map_id_like_cpp()))
+    if remaining_ms == 0
+        || !current_map_entry_like_cpp(host).is_some_and(|entry| !entry.is_instanceable_like_cpp())
+        || host
+            .hub_ref()
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION,
+            )
+            .is_some_and(|effects| !effects.is_empty())
     {
-        warn!(player = ?player_guid, "Player::BuildPlayerRepop: player already has a corpse");
         return;
     }
 
-    if create_corpse_like_cpp(host, catalogs.item_guid_generator)
-        .await
-        .is_none()
-    {
-        warn!(player = ?player_guid, "Player::BuildPlayerRepop: error creating corpse");
-        return;
-    }
-
-    // convert player body to ghost: setDeathState(DEAD), SetHealth(1)
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-        player
-            .unit_mut()
-            .set_death_state(wow_constants::DeathState::Dead);
-        player.unit_mut().set_health(1);
-        // BG - remove insignia related
-        let flags = player.unit().unit_flags_like_cpp() - wow_constants::UnitFlags::SKINNABLE;
-        player.unit_mut().set_unit_flags_like_cpp(flags);
-    });
-    host.sync_player_registry_state_like_cpp();
-    host.core()
-        .send_player_health_update_like_cpp(player_guid, 1);
-
-    send_corpse_reclaim_delay_like_cpp(host, calculate_corpse_reclaim_delay_ms_like_cpp(host));
-
-    // to prevent cheating: corpse->ResetGhostTime()
-    let now = unix_now();
-    let _ = with_current_map_like_cpp(host, |map| {
-        if let Some(guid) = map.corpse_guid_by_player_like_cpp(player_guid)
-            && let Some(corpse) = map.get_typed_corpse_mut(guid)
-        {
-            corpse.reset_ghost_time(now);
+        let state = player.resurrection_state_mut_like_cpp();
+        state.death_timer_remaining_ms = remaining_after_tick;
+        if expired {
+            state.death_timer_deadline = None;
         }
     });
+
+    if expired {
+        if build_player_repop_like_cpp(host, catalogs).await {
+            repop_at_graveyard_like_cpp(host, catalogs).await;
+        }
+    }
 }
 
 // ── RepopAtGraveyard / GetClosestGraveyard ──────────────────────────────────
@@ -712,9 +758,11 @@ pub fn closest_graveyard_like_cpp<H: CorpseHostLikeCpp>(
 
 /// C++ `m_deathTimer = 0` ("stop countdown until repop"); the World test
 /// build also counts each `RepopAtGraveyard`.
-fn stop_repop_countdown_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
+pub(crate) fn stop_repop_countdown_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-        player.resurrection_state_mut_like_cpp().death_timer_active = false;
+        let state = player.resurrection_state_mut_like_cpp();
+        state.death_timer_remaining_ms = 0;
+        state.death_timer_deadline = None;
     });
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -761,7 +809,22 @@ pub async fn repop_at_graveyard_like_cpp<H: CorpseHostLikeCpp>(
         || host.hub_ref().player_on_transport_state_like_cpp() == Some(true)
         || below_min_height;
     if should_resurrect {
-        spawn_corpse_bones_like_cpp(host, catalogs.item_guid_generator, true).await;
+        if !crate::recovery_fences::begin(
+            host,
+            wow_entities::PlayerResurrectionOperation::ForcedRepop,
+            wow_entities::PlayerResurrectionPhase::RecoveryBonesReady,
+        ) {
+            return;
+        }
+        match crate::recovery_fences::continue_operation(host, catalogs.resurrection()).await {
+            crate::recovery_fences::Progress::Complete
+            | crate::recovery_fences::Progress::Waiting => {}
+            crate::recovery_fences::Progress::Continue | crate::recovery_fences::Progress::Held => {
+                host.core_mut()
+                    .kick("forced graveyard recovery did not complete; retain Player owner");
+            }
+        }
+        return;
     }
 
     // Battleground and battlefield graveyard selectors are not represented;
@@ -784,8 +847,13 @@ pub async fn repop_at_graveyard_like_cpp<H: CorpseHostLikeCpp>(
         } else {
             TELE_TO_NONE_LIKE_CPP
         };
-        host.teleport_to_with_options_like_cpp(grave_map_id, grave_position, options)
-            .await;
+        host.teleport_to_with_options_like_cpp(
+            catalogs.resurrection(),
+            grave_map_id,
+            grave_position,
+            options,
+        )
+        .await;
         // not send if alive, because it used in TeleportTo()
         if host.hub_ref().resolved_player_is_alive_like_cpp() == Some(false) {
             // SMSG_DEATH_RELEASE_LOC is a realm-connection opcode (Opcodes.cpp:1333).
@@ -803,13 +871,19 @@ pub async fn repop_at_graveyard_like_cpp<H: CorpseHostLikeCpp>(
             .flatten()
     {
         host.teleport_to_with_options_like_cpp(
+            catalogs.resurrection(),
             homebind.map_id,
             homebind.position,
             TELE_TO_NONE_LIKE_CPP,
         )
         .await;
     }
-    // RemovePlayerFlag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS): not represented.
+    // C++ `Player::RepopAtGraveyard` clears this after teleport/homebind
+    // handling (`Player.cpp:4790`). Re-resolve the canonical Player after the
+    // awaited teleport rather than retaining an owner across it.
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        player.remove_player_flags_like_cpp(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+    });
 }
 
 // ── HandleRepopRequest ──────────────────────────────────────────────────────
@@ -846,10 +920,19 @@ pub async fn repop_request_like_cpp<H: CorpseHostLikeCpp>(
         })
         .unwrap_or(false);
     if just_died {
-        kill_player_like_cpp(host);
+        if !kill_player_like_cpp(host, catalogs.creature_spawns).await {
+            return;
+        }
     }
 
-    // RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true): no Rust owner yet.
-    build_player_repop_like_cpp(host, catalogs).await;
-    repop_at_graveyard_like_cpp(host, catalogs).await;
+    if let Err(reason) = host.remove_pet_for_repop_like_cpp(catalogs).await {
+        warn!(
+            account = host.core().account_id,
+            reason, "release pet removal failed"
+        );
+        return;
+    }
+    if build_player_repop_like_cpp(host, catalogs).await {
+        repop_at_graveyard_like_cpp(host, catalogs).await;
+    }
 }

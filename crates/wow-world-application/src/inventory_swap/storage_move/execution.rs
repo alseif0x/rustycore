@@ -101,23 +101,20 @@ pub async fn execute_inventory_storage_move_like_cpp<H>(
     } else {
         0
     };
-    let (apply_obtain_spells, current_non_bank_count) = {
+    let obtain_item_guids = plan
+        .destination_items_in_order
+        .iter()
+        .filter(|(bag, _, _)| bank_store_destination_applies_obtain_spells_like_cpp(*bag))
+        .map(|(_, _, item_guid)| *item_guid)
+        .collect::<Vec<_>>();
+    let current_non_bank_count = {
         let cx = host.storage_move_cx_like_cpp();
-        let apply_obtain_spells = plan
-            .moved_destination
-            .is_some_and(|(bag, _, _)| bank_store_destination_applies_obtain_spells_like_cpp(bag))
-            || plan.existing_updates.iter().any(|update| {
-                cx.get_inventory_item_by_guid_like_cpp(update.item.guid)
-                    .is_some_and(|(bag, _, _)| {
-                        bank_store_destination_applies_obtain_spells_like_cpp(bag)
-                    })
-            });
         let Some(current_non_bank_count) =
             cx.represented_non_bank_item_count_like_cpp(plan.source.entry_id)
         else {
             return;
         };
-        (apply_obtain_spells, current_non_bank_count)
+        current_non_bank_count
     };
     let post_move_non_bank_count = if quest_checks
         == InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved
@@ -478,11 +475,11 @@ pub async fn execute_inventory_storage_move_like_cpp<H>(
         }
         host.storage_move_record_avg_equipped_item_level_update_like_cpp();
     }
-    if apply_obtain_spells {
+    for item_guid in obtain_item_guids {
         host.storage_move_apply_obtain_spells_like_cpp(
             item_guid_generator,
             creature_spawn_catalogs,
-            plan.source.entry_id,
+            item_guid,
         )
         .await;
     }

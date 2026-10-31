@@ -9,13 +9,18 @@ use crate::CharacterLoginHostLikeCpp;
 use std::sync::Arc;
 use tracing::{info, warn};
 use wow_core::ObjectGuid;
-use wow_world_lifecycle::login_transport::object_guid_from_db_binary_like_cpp;
 use wow_world_spell::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
+
+fn object_guid_from_aura_db_binary(raw: &[u8]) -> Option<ObjectGuid> {
+    let bytes = <[u8; 16]>::try_from(raw).ok()?;
+    Some(ObjectGuid::from_raw_bytes(&bytes))
+}
 
 pub async fn load_character_auras_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
     host: &mut H,
     player_lifecycle_port: &Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
     guid: ObjectGuid,
+    timediff_secs: u32,
 ) {
     host.set_player_aura_authority_complete_like_cpp(false);
     let mut aura_rows = Vec::new();
@@ -32,17 +37,29 @@ pub async fn load_character_auras_for_login_like_cpp<H: CharacterLoginHostLikeCp
             wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuras(rows),
         ) => {
             aura_rows_complete = true;
-            aura_rows.extend(rows.into_iter().map(|row| CharacterAuraRowLikeCpp {
-                caster_guid: object_guid_from_db_binary_like_cpp(row.caster_guid_binary),
-                spell_id: row.spell_id,
-                effect_mask: row.effect_mask,
-                recalculate_mask: row.recalculate_mask,
-                difficulty: row.difficulty,
-                stack_count: row.stack_count,
-                max_duration_ms: row.max_duration_ms,
-                remain_time_ms: row.remain_time_ms,
-                remain_charges: row.remain_charges,
-            }));
+            for row in rows {
+                let (Some(caster_guid), Some(item_guid)) = (
+                    object_guid_from_aura_db_binary(&row.caster_guid_binary),
+                    object_guid_from_aura_db_binary(&row.item_guid_binary),
+                ) else {
+                    aura_rows_complete = false;
+                    continue;
+                };
+                aura_rows.push(CharacterAuraRowLikeCpp {
+                    caster_guid,
+                    item_guid,
+                    spell_id: row.spell_id,
+                    effect_mask: row.effect_mask,
+                    recalculate_mask: row.recalculate_mask,
+                    difficulty: row.difficulty,
+                    stack_count: row.stack_count,
+                    max_duration_ms: row.max_duration_ms,
+                    remain_time_ms: row.remain_time_ms,
+                    remain_charges: row.remain_charges,
+                    cast_item_id: row.cast_item_id,
+                    cast_item_level: row.cast_item_level,
+                });
+            }
         }
         wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
             warn!("Failed to load character auras for {:?}: {}", guid, reason)
@@ -64,14 +81,24 @@ pub async fn load_character_auras_for_login_like_cpp<H: CharacterLoginHostLikeCp
             wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuraEffects(rows),
         ) => {
             aura_effect_rows_complete = true;
-            aura_effect_rows.extend(rows.into_iter().map(|row| CharacterAuraEffectRowLikeCpp {
-                caster_guid: object_guid_from_db_binary_like_cpp(row.caster_guid_binary),
-                spell_id: row.spell_id,
-                effect_mask: row.effect_mask,
-                effect_index: row.effect_index,
-                amount: row.amount,
-                base_amount: row.base_amount,
-            }));
+            for row in rows {
+                let (Some(caster_guid), Some(item_guid)) = (
+                    object_guid_from_aura_db_binary(&row.caster_guid_binary),
+                    object_guid_from_aura_db_binary(&row.item_guid_binary),
+                ) else {
+                    aura_effect_rows_complete = false;
+                    continue;
+                };
+                aura_effect_rows.push(CharacterAuraEffectRowLikeCpp {
+                    caster_guid,
+                    item_guid,
+                    spell_id: row.spell_id,
+                    effect_mask: row.effect_mask,
+                    effect_index: row.effect_index,
+                    amount: row.amount,
+                    base_amount: row.base_amount,
+                });
+            }
         }
         wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
             warn!(
@@ -81,11 +108,11 @@ pub async fn load_character_auras_for_login_like_cpp<H: CharacterLoginHostLikeCp
         }
         _ => unreachable!("character-aura-effect request returned a different row family"),
     }
-    let loaded_character_auras =
-        host.load_represented_character_auras_like_cpp(aura_rows, aura_effect_rows, 0);
     host.set_player_aura_authority_complete_like_cpp(
         aura_rows_complete && aura_effect_rows_complete,
     );
+    let loaded_character_auras =
+        host.load_represented_character_auras_like_cpp(aura_rows, aura_effect_rows, timediff_secs);
     info!(
         loaded_character_auras,
         player_guid = guid.counter(),

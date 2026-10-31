@@ -8,7 +8,10 @@ use super::*;
 async fn cancel_aura_removes_matching_represented_mount_aura_like_cpp() {
     let (mut session, send_rx) = make_session();
     let caster_guid = ObjectGuid::create_player(1, 42);
-    session.set_player_guid(Some(caster_guid));
+    let canonical = shared_canonical_map_manager();
+    install_canonical_player(&mut session, &canonical, caster_guid);
+    session.set_spell_store(mounted_spell_store(12_345, 0));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     let effect = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
@@ -20,20 +23,38 @@ async fn cancel_aura_removes_matching_represented_mount_aura_like_cpp() {
     session
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
-    session.set_spell_store(mounted_spell_store(12_345, 0));
     assert!(session.player_mounted_like_cpp());
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
+    let _ = drain_server_opcodes(&send_rx);
 
     session
         .handle_cancel_aura(cancel_aura_packet(12_345, caster_guid))
         .await;
 
     assert!(!session.player_mounted_like_cpp());
+    assert!(
+        !session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345)
+    );
     assert!(!send_rx.is_empty());
 }
 #[tokio::test]
 async fn cancel_aura_no_aura_cancel_spell_preserves_represented_mount_like_cpp() {
     let (mut session, send_rx) = make_session();
     let caster_guid = ObjectGuid::create_player(1, 42);
+    let canonical = shared_canonical_map_manager();
+    install_canonical_player(&mut session, &canonical, caster_guid);
+    session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     let effect = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
@@ -45,7 +66,13 @@ async fn cancel_aura_no_aura_cancel_spell_preserves_represented_mount_like_cpp()
     session
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
-    session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
     let _ = drain_server_opcodes(&send_rx);
 
     session
@@ -53,6 +80,13 @@ async fn cancel_aura_no_aura_cancel_spell_preserves_represented_mount_like_cpp()
         .await;
 
     assert!(session.player_mounted_like_cpp());
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
     assert!(send_rx.is_empty());
 }
 #[tokio::test]
@@ -60,6 +94,10 @@ async fn cancel_aura_preserves_represented_mount_from_other_caster_like_cpp() {
     let (mut session, _send_rx) = make_session();
     let caster_guid = ObjectGuid::create_player(1, 42);
     let other_caster_guid = ObjectGuid::create_player(1, 43);
+    let canonical = shared_canonical_map_manager();
+    install_canonical_player(&mut session, &canonical, caster_guid);
+    session.set_spell_store(mounted_spell_store(12_345, 0));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     let effect = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
@@ -71,18 +109,35 @@ async fn cancel_aura_preserves_represented_mount_from_other_caster_like_cpp() {
     session
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
-    session.set_spell_store(mounted_spell_store(12_345, 0));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
 
     session
         .handle_cancel_aura(cancel_aura_packet(12_345, other_caster_guid))
         .await;
 
     assert!(session.player_mounted_like_cpp());
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
 }
 #[tokio::test]
 async fn cancel_aura_empty_caster_matches_represented_mount_like_cpp() {
     let (mut session, _send_rx) = make_session();
     let caster_guid = ObjectGuid::create_player(1, 42);
+    let canonical = shared_canonical_map_manager();
+    install_canonical_player(&mut session, &canonical, caster_guid);
+    session.set_spell_store(mounted_spell_store(12_345, 0));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     let effect = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
@@ -94,18 +149,35 @@ async fn cancel_aura_empty_caster_matches_represented_mount_like_cpp() {
     session
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
-    session.set_spell_store(mounted_spell_store(12_345, 0));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
 
     session
         .handle_cancel_aura(cancel_aura_packet(12_345, ObjectGuid::EMPTY))
         .await;
 
     assert!(!session.player_mounted_like_cpp());
+    assert!(
+        !session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345)
+    );
 }
 #[tokio::test]
 async fn cancel_mount_aura_no_aura_cancel_spell_preserves_mount_like_cpp() {
     let (mut session, send_rx) = make_session();
     let caster_guid = ObjectGuid::create_player(1, 42);
+    let canonical = shared_canonical_map_manager();
+    install_canonical_player(&mut session, &canonical, caster_guid);
+    session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     let effect = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
@@ -117,7 +189,13 @@ async fn cancel_mount_aura_no_aura_cancel_spell_preserves_mount_like_cpp() {
     session
         .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
         .unwrap();
-    session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
     let _ = drain_server_opcodes(&send_rx);
 
     session
@@ -125,6 +203,13 @@ async fn cancel_mount_aura_no_aura_cancel_spell_preserves_mount_like_cpp() {
         .await;
 
     assert!(session.player_mounted_like_cpp());
+    assert!(
+        session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .values()
+            .any(|aura| aura.spell_id == 12_345 && aura.caster_guid == caster_guid)
+    );
     assert!(send_rx.is_empty());
 }
 #[tokio::test]

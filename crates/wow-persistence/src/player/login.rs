@@ -100,6 +100,9 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     CharacterAuraEffects {
         player_guid: u64,
     },
+    CorpseLocation {
+        player_guid: u64,
+    },
     EquipmentInventory {
         player_guid: u64,
     },
@@ -184,6 +187,7 @@ pub struct PlayerCharacterBaseLoadRowLikeCpp {
     pub summoned_pet_number: Option<u32>,
     pub at_login_flags: Option<u16>,
     pub zone_id: Option<u16>,
+    pub death_expire_time: Option<i64>,
     pub dungeon_difficulty: Option<u32>,
     pub chosen_title: Option<u32>,
     pub health: Option<u32>,
@@ -364,6 +368,18 @@ pub struct PlayerHomebindLocationLoadRowLikeCpp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerGuildMembershipLoadRowLikeCpp {
     pub guild_id: Option<u64>,
+}
+
+/// Raw columns returned by C++ `CHAR_SEL_CORPSE_LOCATION` for Player login.
+/// Missing columns remain unknown; the Player owner decides whether the
+/// location is usable.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerCorpseLocationLoadRow {
+    pub map_id: Option<u16>,
+    pub x: Option<f32>,
+    pub y: Option<f32>,
+    pub z: Option<f32>,
+    pub orientation: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -553,6 +569,7 @@ pub struct PlayerReputationLoadRowLikeCpp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerCharacterAuraLoadRowLikeCpp {
     pub caster_guid_binary: Vec<u8>,
+    pub item_guid_binary: Vec<u8>,
     pub spell_id: u32,
     pub effect_mask: u32,
     pub recalculate_mask: u32,
@@ -561,16 +578,45 @@ pub struct PlayerCharacterAuraLoadRowLikeCpp {
     pub max_duration_ms: i32,
     pub remain_time_ms: i32,
     pub remain_charges: u8,
+    pub cast_item_id: u32,
+    pub cast_item_level: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerCharacterAuraEffectLoadRowLikeCpp {
     pub caster_guid_binary: Vec<u8>,
+    pub item_guid_binary: Vec<u8>,
     pub spell_id: u32,
     pub effect_mask: u32,
     pub effect_index: u8,
     pub amount: i32,
     pub base_amount: i32,
+}
+
+/// Complete persisted payload for the additional C++ `Item::LoadFromDB`
+/// fields not represented by the existing inventory row projection.
+///
+/// `None` on `PlayerInventoryItemLoadRowLikeCpp` means the database adapter
+/// could not prove the full projection was present and decodable. The raw
+/// nullable text fields retain SQL NULL separately from an empty string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInventoryItemLoadPayload {
+    pub creator_guid: u64,
+    pub gift_creator_guid: u64,
+    pub text: Option<String>,
+    pub battle_pet_species_id: u32,
+    pub battle_pet_breed_data: u32,
+    pub battle_pet_level: u16,
+    pub battle_pet_display_id: u32,
+    /// Appearance modifiers in AllSpecs, Spec1 through Spec5 order.
+    pub transmog_appearance: [u32; 6],
+    /// Enchant illusion modifiers in AllSpecs, Spec1 through Spec5 order.
+    pub transmog_enchant_illusion: [u32; 6],
+    /// Secondary appearance modifiers in AllSpecs, Spec1 through Spec5 order.
+    pub transmog_secondary_appearance: [u32; 6],
+    /// Space-separated GUIDs from `item_soulbound_trade_data.allowedPlayers`.
+    /// `None` is a proven absence of the joined trade row.
+    pub soulbound_trade_allowed_players: Option<String>,
 }
 
 /// Shared item-instance projection selected by both halves of C++
@@ -593,6 +639,9 @@ pub struct PlayerInventoryItemLoadRowLikeCpp {
     pub paid_extended_cost: Option<u16>,
     pub expiration: u32,
     pub spell_charges: String,
+    /// Present only when both the legacy 23-column projection and the full
+    /// appended `Item::LoadFromDB` payload decode completely.
+    pub complete_payload: Option<PlayerInventoryItemLoadPayload>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -646,7 +695,7 @@ pub struct PlayerTraitConfigLoadRowLikeCpp {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     Mail(Vec<PlayerMailLoadRowLikeCpp>),
     Customizations(Vec<PlayerCustomizationLoadRowLikeCpp>),
@@ -680,11 +729,12 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     EquipmentInventory(Vec<PlayerEquipmentInventoryLoadRowLikeCpp>),
     BagInventory(Vec<PlayerBagInventoryLoadRowLikeCpp>),
     VoidStorage(Vec<PlayerVoidStorageLoadRowLikeCpp>),
+    CorpseLocation(Option<PlayerCorpseLocationLoadRow>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either
 /// produced typed rows or failed before publication.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PlayerLoginAuxiliaryLoadOutcomeLikeCpp {
     Loaded(PlayerLoginAuxiliaryLoadedLikeCpp),
     Failed { reason: String },

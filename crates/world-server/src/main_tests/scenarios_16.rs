@@ -24,6 +24,10 @@ use crate::runtime::canonical_creature_runtime::{
 // #1263 F6-8D3b-3: chase and the first creature swing, end to end.
 #[path = "scenarios_16/chase.rs"]
 mod chase;
+#[path = "scenarios_16/native_death.rs"]
+mod native_death;
+#[path = "scenarios_16/selected_recovery.rs"]
+mod selected_recovery;
 // #1444 H2: `world.update` on the booted loop, every tick guard released.
 #[path = "scenarios_16/world_hook.rs"]
 mod world_hook;
@@ -151,8 +155,12 @@ async fn d3b_session_like_cpp(
     player: ObjectGuid,
     name: &str,
     position: Position,
-) -> (wow_world::session::WorldSession, flume::Receiver<Vec<u8>>) {
-    let (_pkt_tx, pkt_rx) = flume::bounded(16);
+) -> (
+    wow_world::session::WorldSession,
+    flume::Receiver<Vec<u8>>,
+    flume::Sender<wow_packet::WorldPacket>,
+) {
+    let (pkt_tx, pkt_rx) = flume::bounded(16);
     let (send_tx, send_rx) = flume::unbounded();
     let mut session = wow_world::session::WorldSession::new(
         1,
@@ -181,7 +189,7 @@ async fn d3b_session_like_cpp(
             .await,
         "the canonical map admits the player"
     );
-    (session, send_rx)
+    (session, send_rx, pkt_tx)
 }
 
 /// The player swings at the creature: the attack state the session's
@@ -272,6 +280,17 @@ fn d3b_drain_like_cpp(
         let opcode = wow_packet::WorldPacket::from_bytes(&bytes).server_opcode();
         let about_creature = bytes.windows(packed.len()).any(|window| window == packed);
         match opcode {
+            Some(ServerOpcodes::AttackStart) => observed.attack_starts += 1,
+            Some(ServerOpcodes::AttackerStateUpdate) => {
+                let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
+                packet.skip_opcode();
+                let _log_data = packet.read_uint8().unwrap();
+                let _round_size = packet.read_uint32().unwrap();
+                let _hit_info = packet.read_uint32().unwrap();
+                if packet.read_packed_guid().unwrap() == world.creature {
+                    observed.creature_melee += 1;
+                }
+            }
             Some(ServerOpcodes::UpdateObject) if about_creature => {
                 *observed.creature_update_objects.entry(stage).or_default() += 1;
                 if values_step {
@@ -340,8 +359,6 @@ impl D3bObservedLikeCpp {
         command: &SessionCommand,
     ) {
         match command {
-            SessionCommand::CreatureAttackStartLikeCpp(_) => self.attack_starts += 1,
-            SessionCommand::ApplyCreatureMeleeDamageLikeCpp(_) => self.creature_melee += 1,
             SessionCommand::ApplyPlayerMeleeResultLikeCpp(result) => {
                 self.player_melee_results += 1;
                 self.kills += usize::from(result.killed_creature.is_some());
@@ -451,7 +468,11 @@ async fn d3b_run_like_cpp(
     session: &mut wow_world::session::WorldSession,
     send_rx: &flume::Receiver<Vec<u8>>,
     deadline: Duration,
-    mut on_first_creature_melee: impl FnMut(&D3bWorldLikeCpp, &CanonicalCreatureRuntimeProbeLikeCpp),
+    mut on_first_creature_melee: impl FnMut(
+        &D3bWorldLikeCpp,
+        &wow_map::MapManager,
+        &CanonicalCreatureRuntimeProbeLikeCpp,
+    ),
 ) -> (
     D3bObservedLikeCpp,
     Arc<CanonicalCreatureRuntimeProbeLikeCpp>,
@@ -480,7 +501,38 @@ async fn d3b_run_like_cpp(
         }
         if observed.creature_melee > 0 && !seen_creature_melee {
             seen_creature_melee = true;
-            on_first_creature_melee(world, &probe);
+            while started.elapsed() < deadline {
+                let tick_completed = {
+                    let manager = world.canonical.lock().unwrap();
+                    if manager.tick_coordination_like_cpp()
+                        == wow_map::MapTickCoordinationStateLikeCpp::Idle
+                    {
+                        on_first_creature_melee(world, &manager, &probe);
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if tick_completed {
+                    break;
+                }
+
+                // The producer may still be waiting for another Session phase
+                // reply. Drain it and its resulting packets before yielding so
+                // the admitted Map tick can reach its completed boundary.
+                let stage = observed.stage_like_cpp();
+                let creature = world.creature;
+                session
+                    .run_session_commands_and_kills_for_test_like_cpp(|command| {
+                        observed.record_like_cpp(creature, stage, command);
+                    })
+                    .await;
+                opcodes.extend(d3b_drain_like_cpp(world, send_rx, &mut observed, false));
+                if session.send_map_unit_values_updates_for_test_like_cpp() > 0 {
+                    opcodes.extend(d3b_drain_like_cpp(world, send_rx, &mut observed, true));
+                }
+                tokio::task::yield_now().await;
+            }
         }
         let alive = d3b_canonical_creature_like_cpp(world, wow_entities::Creature::is_alive);
         if observed.kills > 0 && !observed.just_died && alive == Some(false) {
@@ -552,7 +604,7 @@ async fn canonical_map_owner_runs_the_session_kill_path_end_to_end_like_cpp() {
     let world = d3b_world_like_cpp(96_300);
     let player = ObjectGuid::create_player(1, 96_301);
     let player_position = Position::new(11.0, 10.0, 0.0, std::f32::consts::PI);
-    let (mut session, send_rx) =
+    let (mut session, send_rx, _input_peer) =
         d3b_session_like_cpp(&world, player, "D3bPlayer", player_position).await;
     assert!(
         session.client_sees_guid_for_test_like_cpp(world.creature),
@@ -567,11 +619,10 @@ async fn canonical_map_owner_runs_the_session_kill_path_end_to_end_like_cpp() {
         &mut session,
         &send_rx,
         Duration::from_secs(10),
-        |world, probe| {
-            // Read under the canonical guard, which the executor holds while
-            // it advances the clock and the probe: both are this tick's values.
-            let guard = world.canonical.lock().unwrap();
-            let creature_clock = guard
+        |world, manager, probe| {
+            // The helper invokes this only after the producer has completed its
+            // Map tick, holding the manager guard across both clock reads.
+            let creature_clock = manager
                 .find_map(0, 0)
                 .unwrap()
                 .map()
@@ -581,7 +632,6 @@ async fn canonical_map_owner_runs_the_session_kill_path_end_to_end_like_cpp() {
                 creature_clock,
                 probe.clock_advanced_ms.load(Ordering::Relaxed),
             ));
-            drop(guard);
         },
     )
     .await;
@@ -740,7 +790,7 @@ async fn canonical_map_owner_runs_the_session_kill_path_end_to_end_like_cpp() {
 
     // Login near the respawned creature: a fresh session entering the map
     // gets the creature's CREATE from the canonical map.
-    let (newcomer, newcomer_rx) = d3b_session_like_cpp(
+    let (newcomer, newcomer_rx, _newcomer_input_peer) = d3b_session_like_cpp(
         &world,
         ObjectGuid::create_player(1, 96_302),
         "D3bNewcomer",

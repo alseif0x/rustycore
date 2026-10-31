@@ -4,6 +4,13 @@
 use std::time::Instant;
 use wow_core::{ObjectGuid, Position};
 
+pub const TRIGGERED_IGNORE_GCD_LIKE_CPP: u32 = 0x0000_0001;
+pub const TRIGGERED_IGNORE_SPELL_AND_CATEGORY_CD_LIKE_CPP: u32 = 0x0000_0002;
+pub const TRIGGERED_IGNORE_POWER_AND_REAGENT_COST_LIKE_CPP: u32 = 0x0000_0004;
+pub const TRIGGERED_IGNORE_CAST_ITEM_LIKE_CPP: u32 = 0x0000_0008;
+pub const TRIGGERED_CAST_DIRECTLY_LIKE_CPP: u32 = 0x0000_0080;
+pub const TRIGGERED_FULL_MASK_LIKE_CPP: u32 = 0x0007_FFFF;
+
 /// Resolve C++ `SpellEffectInfo::MiscValue` into the target area id.
 pub fn bind_area_id_like_cpp(effect_misc_value: i32, current_area_id: u32) -> u32 {
     if effect_misc_value != 0 {
@@ -35,19 +42,31 @@ pub struct SpellCastMetadata {
     /// The map adapter rechecks it before consuming a prepared client cast.
     pub prepared_residence_revision: Option<u64>,
     pub client_started_global_cooldown: bool,
+    /// C++ `TriggerCastFlags`, distinct from packet CastFlags.
+    pub trigger_cast_flags_like_cpp: u32,
+    /// The exact SpellInfo key selected from the caster's current Map.
+    pub actual_spell_difficulty_id_like_cpp: Option<u8>,
     /// Overrides the visible/effect caster for represented triggered casts.
     /// Normal player casts leave this empty and use the logged-in player GUID.
     pub caster_guid_override: Option<ObjectGuid>,
+    /// C++ `Spell::m_originalCasterGUID`: kept distinct from the caster in
+    /// `SMSG_SPELL_GO` and from `caster_guid_override`.
+    pub original_caster_guid: Option<ObjectGuid>,
     /// C++ `SpellCastData::CastFlags` for the emitted `SMSG_SPELL_GO`.
     pub cast_flags: u32,
     pub misc: [i32; 2],
     pub cast_item_entry: Option<u32>,
+    pub cast_item_guid: Option<ObjectGuid>,
+    pub cast_item_level: Option<u32>,
     pub cast_item_battle_pet_modifiers: Option<SpellCastBattlePetItemModifiersLikeCpp>,
     pub cast_flags_ex: u32,
     pub original_cast_id: ObjectGuid,
     pub unit_target_battle_pet_companion_guid: Option<ObjectGuid>,
     pub restore_last_spell_cast_time_on_power_failure: bool,
     pub previous_last_spell_cast_time_on_power_failure: Option<Instant>,
+    /// A server-normal cast starts its GCD during prepare like C++.
+    pub server_normal_started_global_cooldown: bool,
+    pub server_normal_cast_like_cpp: bool,
     /// C++ `SpellCastTargets::HasTraj()`, which is `m_speed != 0` after
     /// `HandleCastSpellOpcode` copies the request's `MissileTrajectory.Speed`.
     /// Retained so publication can recognise a trajectory cast; the pitch and
@@ -56,12 +75,9 @@ pub struct SpellCastMetadata {
     /// C++ `SpellCastTargets::m_pitch`, written back by `SendSpellGo` as
     /// `MissileTrajectory.Pitch` under `CAST_FLAG_ADJUST_MISSILE`.
     pub request_trajectory_pitch_like_cpp: f32,
-    /// C++ `TRIGGERED_IGNORE_GCD`, part of `TRIGGERED_FULL_MASK`.
-    /// `Spell::prepare` calls `TriggerGlobalCooldown` only when the trigger
-    /// flags do not carry it, so a `CastSpell(..., true)` server cast leaves
-    /// the player's global cooldown untouched while a `TRIGGERED_NONE` server
-    /// cast still starts it.
-    pub triggered_ignores_global_cooldown_like_cpp: bool,
+    /// Optional remaining-time override for the race-selected spirit-healer
+    /// sickness aura. Its maximum duration continues to come from SpellDuration.
+    pub resurrection_sickness_remaining_ms: Option<u32>,
 }
 
 impl Default for SpellCastMetadata {
@@ -71,19 +87,26 @@ impl Default for SpellCastMetadata {
             client_cast_id: None,
             prepared_residence_revision: None,
             client_started_global_cooldown: false,
+            trigger_cast_flags_like_cpp: 0,
+            actual_spell_difficulty_id_like_cpp: None,
             caster_guid_override: None,
+            original_caster_guid: None,
             cast_flags: 0,
             misc: [0, 0],
             cast_item_entry: None,
+            cast_item_guid: None,
+            cast_item_level: None,
             cast_item_battle_pet_modifiers: None,
             cast_flags_ex: 0,
             original_cast_id: ObjectGuid::EMPTY,
             unit_target_battle_pet_companion_guid: None,
             restore_last_spell_cast_time_on_power_failure: false,
             previous_last_spell_cast_time_on_power_failure: None,
+            server_normal_started_global_cooldown: false,
+            server_normal_cast_like_cpp: false,
             request_has_trajectory_like_cpp: false,
             request_trajectory_pitch_like_cpp: 0.0,
-            triggered_ignores_global_cooldown_like_cpp: false,
+            resurrection_sickness_remaining_ms: None,
         }
     }
 }
@@ -165,7 +188,9 @@ impl CastExecutionStateLikeCpp {
             return None;
         }
         let cast = self.active.take()?;
-        if cast.metadata.client_started_global_cooldown {
+        if cast.metadata.client_started_global_cooldown
+            || cast.metadata.server_normal_started_global_cooldown
+        {
             self.last_cast_time = None;
         }
         Some(cast)
@@ -204,7 +229,7 @@ impl CastExecutionStateLikeCpp {
             return None;
         }
         let mut cast = self.active.take()?;
-        if cast.metadata.client_cast_id.is_some() {
+        if cast.metadata.client_cast_id.is_some() || cast.metadata.server_normal_cast_like_cpp {
             // Normal client casts start GCD during preparation. Consuming a
             // ready cast must not restart it or apply the old triggered-cast
             // timestamp rollback policy to that already-published start.

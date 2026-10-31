@@ -5497,9 +5497,9 @@
           "module": "crate::handlers::character_login_host",
           "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "finalize_session_with_generator_like_cpp",
+          "name": "finalize_session_with_resurrection_catalogs",
           "visibility": "private",
-          "signature": "fn finalize_session_with_generator_like_cpp (& mut self , mode : FinalizationMode , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = FinalizationReport > + Send",
+          "signature": "fn finalize_session_with_resurrection_catalogs (& mut self , mode : FinalizationMode , catalogs : wow_world_entities :: ResurrectionOperationCatalogs < '_ > ,) -> impl Future < Output = FinalizationReport > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6052,6 +6052,21 @@
           "name": "set_player_currencies_like_cpp",
           "visibility": "private",
           "signature": "fn set_player_currencies_like_cpp (& mut self , currencies : HashMap < u32 , PlayerCurrency >) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character_login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_player_currencies_loaded_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_currencies_loaded_like_cpp (& mut self , loaded : bool) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8076,9 +8091,37 @@
           "module": "crate::handlers::entities::corpse::host",
           "trait_path": "CorpseHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
-          "name": "handle_resurrect_response_like_cpp",
+          "name": "handle_resurrect_response_with_catalogs_like_cpp",
           "visibility": "private",
-          "signature": "fn handle_resurrect_response_like_cpp < 'a > (& 'a mut self , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "signature": "fn handle_resurrect_response_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "apply_spirit_healer_durability_loss",
+          "visibility": "private",
+          "signature": "fn apply_spirit_healer_durability_loss (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "cast_all_obtain_spells_like_cpp",
+          "visibility": "private",
+          "signature": "fn cast_all_obtain_spells_like_cpp < 'a > (& 'a mut self , catalogs : wow_world_entities :: ResurrectionOperationCatalogs < 'a > ,) -> impl std :: future :: Future < Output = Result < () , & 'static str > > + Send + 'a",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8092,7 +8135,21 @@
           "kind": "method",
           "name": "cast_triggered_self_spell_like_cpp",
           "visibility": "private",
-          "signature": "fn cast_triggered_self_spell_like_cpp (& mut self , catalogs : wow_world_entities :: CorpseLifecycleCatalogsLikeCpp < '_ > , spell_id : i32 ,) -> impl std :: future :: Future < Output = bool > + Send",
+          "signature": "fn cast_triggered_self_spell_like_cpp (& mut self , catalogs : wow_world_entities :: ResurrectionOperationCatalogs < '_ > , spell_id : i32 , sickness_remaining_ms : Option < u32 > , original_caster_guid : Option < wow_core :: ObjectGuid > ,) -> impl std :: future :: Future < Output = bool > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "force_player_visibility_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn force_player_visibility_with_catalogs_like_cpp < 'a > (& 'a mut self , creature_spawns : & 'a wow_world_entities :: CreatureSpawnCatalogsLikeCpp ,) -> impl std :: future :: Future < Output = bool > + Send + 'a",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8107,6 +8164,20 @@
           "name": "graveyard_conditions_meet_like_cpp",
           "visibility": "private",
           "signature": "fn graveyard_conditions_meet_like_cpp (& mut self , conditions_ref : & wow_data :: ConditionsReference ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "is_logging_out_for_repop",
+          "visibility": "private",
+          "signature": "fn is_logging_out_for_repop (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8176,7 +8247,21 @@
           "kind": "method",
           "name": "remove_auras_due_to_spell_like_cpp",
           "visibility": "private",
-          "signature": "fn remove_auras_due_to_spell_like_cpp (& mut self , spell_id : i32) -> usize",
+          "signature": "fn remove_auras_due_to_spell_like_cpp (& mut self , spell_id : i32) -> Result < usize , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "remove_pet_for_repop_like_cpp",
+          "visibility": "private",
+          "signature": "fn remove_pet_for_repop_like_cpp (& mut self , catalogs : wow_world_entities :: CorpseLifecycleCatalogsLikeCpp < '_ > ,) -> impl std :: future :: Future < Output = Result < () , & 'static str > > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8206,21 +8291,7 @@
           "kind": "method",
           "name": "save_player_after_corpse_bones_like_cpp",
           "visibility": "private",
-          "signature": "fn save_player_after_corpse_bones_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl std :: future :: Future < Output = () > + Send",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::corpse::host",
-          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
-          "kind": "method",
-          "name": "schedule_represented_resurrection_after_teleport_like_cpp",
-          "visibility": "private",
-          "signature": "fn schedule_represented_resurrection_after_teleport_like_cpp (& mut self , request : wow_entities :: PlayerResurrectionRequestLikeCpp ,) -> bool",
+          "signature": "fn save_player_after_corpse_bones_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl std :: future :: Future < Output = wow_world_entities :: ResurrectionSaveOutcome > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8248,7 +8319,7 @@
           "kind": "method",
           "name": "teleport_to_with_options_like_cpp",
           "visibility": "private",
-          "signature": "fn teleport_to_with_options_like_cpp (& mut self , new_map : u32 , new_pos : wow_core :: Position , options : wow_world_core :: session :: movement_protocol :: TeleportToOptionsLikeCpp ,) -> impl std :: future :: Future < Output = () > + Send",
+          "signature": "fn teleport_to_with_options_like_cpp (& mut self , catalogs : wow_world_entities :: ResurrectionOperationCatalogs < '_ > , new_map : u32 , new_pos : wow_core :: Position , options : wow_world_core :: session :: movement_protocol :: TeleportToOptionsLikeCpp ,) -> impl std :: future :: Future < Output = () > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10952,7 +11023,7 @@
           "kind": "method",
           "name": "send_initial_packets_after_add_to_map",
           "visibility": "pub (crate)",
-          "signature": "async fn send_initial_packets_after_add_to_map (& mut self , guid : ObjectGuid , position : & Position , map_id : i32 , updateobject_trace_enabled : bool ,)",
+          "signature": "async fn send_initial_packets_after_add_to_map (& mut self , guid : ObjectGuid , position : & Position , map_id : i32 , updateobject_trace_enabled : bool ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -13543,7 +13614,7 @@
           "kind": "method",
           "name": "handle_under_map_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn handle_under_map_like_cpp (& mut self , movement_info : & wow_packet :: packets :: movement :: MovementInfo ,) -> Option < crate :: session :: MovementUnderMapDamageEvent >",
+          "signature": "async fn handle_under_map_like_cpp (& mut self , movement_info : & wow_packet :: packets :: movement :: MovementInfo ,) -> Option < crate :: session :: MovementUnderMapDamageEvent >",
           "cfg": [
             "cfg (test)"
           ],
@@ -13615,7 +13686,7 @@
           "kind": "method",
           "name": "handle_move_teleport_ack_like_cpp",
           "visibility": "private",
-          "signature": "fn handle_move_teleport_ack_like_cpp (& mut self , mover_guid : ObjectGuid , ack_index : i32 , move_time : i32 ,)",
+          "signature": "fn handle_move_teleport_ack_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , mover_guid : ObjectGuid , ack_index : i32 , move_time : i32 ,) -> HandlerFuture < 'a , () >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -13742,6 +13813,20 @@
           "name": "npc_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn npc_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> NpcHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::npc_host",
+          "trait_path": "NpcHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "send_spirit_resurrect",
+          "visibility": "private",
+          "signature": "fn send_spirit_resurrect < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> HandlerFuture < 'a , () >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -15492,20 +15577,6 @@
           "name": "quest_log_create_entries_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn quest_log_create_entries_like_cpp (& self) -> Vec < (u32 , u32 , i64 , [u16 ; 24]) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_quest_log_slot_update_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_represented_quest_log_slot_update_like_cpp (& mut self , slot : u8)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19971,9 +20042,9 @@
           "module": "crate::handlers::teleport_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_delayed_resurrection_after_teleport_like_cpp",
+          "name": "process_represented_delayed_teleport_after_update",
           "visibility": "pub (crate)",
-          "signature": "fn represented_delayed_resurrection_after_teleport_like_cpp (& self ,) -> Option < PlayerResurrectionRequestLikeCpp >",
+          "signature": "async fn process_represented_delayed_teleport_after_update (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -19987,9 +20058,25 @@
           "module": "crate::handlers::teleport_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "schedule_represented_resurrection_after_teleport_like_cpp",
+          "name": "represented_delayed_resurrection_after_teleport_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn schedule_represented_resurrection_after_teleport_like_cpp (& mut self , request : PlayerResurrectionRequestLikeCpp ,) -> bool",
+          "signature": "fn represented_delayed_resurrection_after_teleport_like_cpp (& self ,) -> Option < PlayerResurrectionContinuation >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "schedule_represented_resurrection_after_teleport",
+          "visibility": "pub (crate)",
+          "signature": "fn schedule_represented_resurrection_after_teleport (& mut self , request : PlayerResurrectionRequestLikeCpp ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -20006,6 +20093,22 @@
           "name": "teleport_to_with_options",
           "visibility": "pub (crate)",
           "signature": "async fn teleport_to_with_options (& mut self , new_map : u32 , new_pos : wow_core :: Position , options : wow_world_core :: session :: movement_protocol :: TeleportToOptionsLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "teleport_to_with_options_and_resurrection",
+          "visibility": "pub (crate)",
+          "signature": "async fn teleport_to_with_options_and_resurrection (& mut self , new_map : u32 , new_pos : wow_core :: Position , options : wow_world_core :: session :: movement_protocol :: TeleportToOptionsLikeCpp ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -21310,7 +21413,7 @@
           "kind": "method",
           "name": "register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)",
+          "signature": "fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , type_flags : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -21678,7 +21781,7 @@
           "kind": "method",
           "name": "finish_worldport_native_before_disconnect_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn finish_worldport_native_before_disconnect_like_cpp (& mut self) -> bool",
+          "signature": "async fn finish_worldport_native_before_disconnect_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -22240,17 +22343,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "admission_still_describes_this_session_like_cpp",
-          "visibility": "private",
-          "signature": "fn admission_still_describes_this_session_like_cpp (& self , admission : & MapPhaseAdmissionLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -24498,7 +24590,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "initial_player_fixture_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn initial_player_fixture_like_cpp (& self) -> Option < Player >",
           "cfg": [
             "cfg (test)"
@@ -26011,17 +26103,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "phase_authority_is_current_like_cpp",
-          "visibility": "private",
-          "signature": "fn phase_authority_is_current_like_cpp (& mut self , phase : PacketUpdatePhase , coordinator_id : u64 , tick_epoch : u64 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "plan_inventory_storage_move_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn plan_inventory_storage_move_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , target : InventoryStorageTargetLikeCpp ,) -> Option < Result < InventoryStorageMovePlanLikeCpp , InventoryResult > >",
@@ -26578,6 +26659,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_save_snapshot_blocked_for_test",
+          "visibility": "pub (crate)",
+          "signature": "fn player_save_snapshot_blocked_for_test (& mut self , now : i64) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_scaling_level_delta_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_scaling_level_delta_like_cpp (& self) -> i32",
@@ -26836,6 +26932,21 @@
           "signature": "async fn poll_instance_link_with_catalogs_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & super :: CreatureSpawnCatalogsLikeCpp , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & super :: PlayerRestRatePolicyLikeCpp , progression : & super :: ProgressionCatalogsLikeCpp , feature_policy : & super :: SupportFeaturePolicyLikeCpp , player_grid_loader : & super :: PlayerGridLoadResolverLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "prepare_native_death_inputs_for_test_like_cpp",
+          "visibility": "pub",
+          "signature": "fn prepare_native_death_inputs_for_test_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -27296,6 +27407,21 @@
           "signature": "fn record_spell_acquisition_post_commit_action_like_cpp (& mut self , action : crate :: spell_acquisition :: SpellAcquisitionPostCommitActionLikeCpp ,)",
           "cfg": [
             "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "refresh_visibility_for_test_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn refresh_visibility_for_test_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
           ],
           "source_class": "test_fixture",
           "guards": [
@@ -32224,10 +32350,8 @@
           "name": "set_graveyard_store",
           "visibility": "pub",
           "signature": "fn set_graveyard_store (& mut self , store : Arc < GraveyardStore >)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "setter",
             "visible"
@@ -32256,6 +32380,20 @@
           "name": "set_group_registry",
           "visibility": "pub",
           "signature": "fn set_group_registry (& mut self , reg : Arc < GroupRegistry > , invites : Arc < PendingInvites >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_group_visibility_mode",
+          "visibility": "pub",
+          "signature": "fn set_group_visibility_mode (& mut self , mode : i32)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -34285,6 +34423,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_quest_status_save_policy_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_quest_status_save_policy_like_cpp (& mut self , ignore_auto_complete : bool , keep_abandoned : Option < bool > ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_quest_store",
           "visibility": "pub",
           "signature": "fn set_quest_store (& mut self , store : Arc < wow_data :: quest :: QuestStore >)",
@@ -35222,6 +35374,20 @@
           "name": "set_session_mgr",
           "visibility": "pub",
           "signature": "fn set_session_mgr (& mut self , mgr : Arc < SessionManager >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_shapeshift_display_links_absent",
+          "visibility": "pub",
+          "signature": "fn set_shapeshift_display_links_absent (& mut self , absent : bool)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -37987,7 +38153,7 @@
           "kind": "method",
           "name": "storage_move_apply_obtain_spells_like_cpp",
           "visibility": "private",
-          "signature": "fn storage_move_apply_obtain_spells_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator , creature_spawn_catalogs : & 'a CreatureSpawnCatalogsLikeCpp , entry_id : u32 ,) -> impl Future < Output = () > + Send + 'a",
+          "signature": "fn storage_move_apply_obtain_spells_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator , creature_spawn_catalogs : & 'a CreatureSpawnCatalogsLikeCpp , item_guid : ObjectGuid ,) -> impl Future < Output = () > + Send + 'a",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38144,6 +38310,19 @@
           "name": "player_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn player_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> PlayerHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "PlayerMovementHostLikeCpp",
+          "kind": "method",
+          "name": "apply_native_player_damage_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_native_player_damage_like_cpp < 'a > (& 'a mut self , damage : u32 , context : wow_entities :: PlayerDeathOperationContext , creature_spawns : & 'a CreatureSpawnCatalogsLikeCpp , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator ,) -> wow_handler :: HandlerFuture < 'a , Result < wow_world_core :: session :: PlayerDamageResultLikeCpp , & 'static str > , >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38453,19 +38632,6 @@
           "module": "crate::session",
           "trait_path": "QuestSessionHostLikeCpp",
           "kind": "method",
-          "name": "send_represented_quest_log_slot_update_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_represented_quest_log_slot_update_like_cpp (& mut self , slot : u8)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestSessionHostLikeCpp",
-          "kind": "method",
           "name": "split_quest_state_mut",
           "visibility": "private",
           "signature": "fn split_quest_state_mut (& mut self) -> (& mut SessionQuestState , HubMut < '_ >)",
@@ -38570,6 +38736,19 @@
           "module": "crate::session",
           "trait_path": "Runtime",
           "kind": "method",
+          "name": "check_caster_death_outcome",
+          "visibility": "private",
+          "signature": "fn check_caster_death_outcome (& mut self , spell : & wow_data :: SpellInfo , cast : ObjectGuid , visual : & SpellCastVisualLikeCpp , metadata : & mut SpellCastMetadata ,) -> Result < bool , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
           "name": "check_power",
           "visibility": "private",
           "signature": "fn check_power (& mut self , spell : & wow_data :: SpellInfo , cast : ObjectGuid , visual : & SpellCastVisualLikeCpp ,) -> bool",
@@ -38586,6 +38765,45 @@
           "name": "check_preconditions",
           "visibility": "private",
           "signature": "fn check_preconditions (& mut self , spell : & wow_data :: SpellInfo , cast : ObjectGuid , visual : & SpellCastVisualLikeCpp , metadata : SpellCastMetadata ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "check_preconditions_outcome",
+          "visibility": "private",
+          "signature": "fn check_preconditions_outcome (& mut self , spell : & wow_data :: SpellInfo , cast : ObjectGuid , visual : & SpellCastVisualLikeCpp , metadata : SpellCastMetadata ,) -> Result < bool , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "check_server_normal_costs",
+          "visibility": "private",
+          "signature": "fn check_server_normal_costs (& mut self , spell : & wow_data :: SpellInfo , cast : ObjectGuid , visual : & SpellCastVisualLikeCpp , metadata : SpellCastMetadata ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "check_server_normal_costs_outcome",
+          "visibility": "private",
+          "signature": "fn check_server_normal_costs_outcome (& mut self , spell : & wow_data :: SpellInfo , cast : ObjectGuid , visual : & SpellCastVisualLikeCpp , metadata : SpellCastMetadata ,) -> Result < bool , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38625,6 +38843,19 @@
           "name": "install",
           "visibility": "private",
           "signature": "fn install (& mut self , cast : SpellCastState) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "install_server_normal",
+          "visibility": "private",
+          "signature": "fn install_server_normal (& mut self , cast : SpellCastState) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38726,9 +38957,100 @@
           "module": "crate::session",
           "trait_path": "Runtime",
           "kind": "method",
+          "name": "server_normal_busy",
+          "visibility": "private",
+          "signature": "fn server_normal_busy (& mut self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "server_normal_cooldown_at_cast_start",
+          "visibility": "private",
+          "signature": "fn server_normal_cooldown_at_cast_start (& mut self , spell : & wow_data :: SpellInfo , _actual_difficulty_id : u8 , metadata : SpellCastMetadata ,) -> Option < () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "server_normal_effects_available",
+          "visibility": "private",
+          "signature": "fn server_normal_effects_available (& mut self , spell : & wow_data :: SpellInfo , target_guid : ObjectGuid , metadata : SpellCastMetadata ,) -> Result < () , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "server_normal_global_cooldown_state",
+          "visibility": "private",
+          "signature": "fn server_normal_global_cooldown_state (& self , spell : & wow_data :: SpellInfo , actual_difficulty_id : u8 ,) -> Option < (u32 , bool) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "server_normal_on_cooldown",
+          "visibility": "private",
+          "signature": "fn server_normal_on_cooldown (& self , spell : & wow_data :: SpellInfo , actual_difficulty_id : u8 , metadata : SpellCastMetadata ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
           "name": "spell",
           "visibility": "private",
           "signature": "fn spell (& self , id : i32) -> Option < wow_data :: SpellInfo >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "spell_for_difficulty",
+          "visibility": "private",
+          "signature": "fn spell_for_difficulty (& self , id : i32 , difficulty_id : u8 ,) -> Option < (wow_data :: SpellInfo , u8) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "Runtime",
+          "kind": "method",
+          "name": "spell_for_difficulty_outcome",
+          "visibility": "private",
+          "signature": "fn spell_for_difficulty_outcome (& self , id : i32 , difficulty_id : u8 ,) -> Result < Option < (wow_data :: SpellInfo , u8) > , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39434,19 +39756,6 @@
           "module": "crate::session",
           "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
           "kind": "method",
-          "name": "publish_creature_melee_death_durability_loss_like_cpp",
-          "visibility": "private",
-          "signature": "fn publish_creature_melee_death_durability_loss_like_cpp (& mut self , over_damage : i32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
-          "kind": "method",
           "name": "represented_player_is_polymorphed_like_cpp",
           "visibility": "private",
           "signature": "fn represented_player_is_polymorphed_like_cpp (& self) -> Option < bool >",
@@ -39580,6 +39889,19 @@
           "name": "resummon_pet_temporary_unsummoned_like_cpp",
           "visibility": "private",
           "signature": "fn resummon_pet_temporary_unsummoned_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "revive_for_teleport",
+          "visibility": "private",
+          "signature": "fn revive_for_teleport < 'a > (& 'a mut self , catalogs : wow_world_entities :: ResurrectionOperationCatalogs < 'a > , map_id : u32 , destination : Position ,) -> impl Future < Output = bool > + Send + 'a",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40004,6 +40326,19 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: AuraHostLikeCpp",
           "kind": "method",
+          "name": "apply_loaded_ghost_wisp_aura",
+          "visibility": "private",
+          "signature": "fn apply_loaded_ghost_wisp_aura (& mut self , aura : & wow_entities :: AuraApplicationLikeCpp ,) -> Result < () , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: AuraHostLikeCpp",
+          "kind": "method",
           "name": "next_represented_spell_cast_guid_like_cpp",
           "visibility": "private",
           "signature": "fn next_represented_spell_cast_guid_like_cpp (& self , spell_id : i32) -> Option < ObjectGuid >",
@@ -40160,6 +40495,19 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellClickHostLikeCpp",
           "kind": "method",
+          "name": "apply_native_player_damage_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_native_player_damage_like_cpp < 'a > (& 'a mut self , damage : u32 , context : wow_entities :: PlayerDeathOperationContext , creature_spawns : & 'a wow_world_entities :: CreatureSpawnCatalogsLikeCpp , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator ,) -> wow_handler :: HandlerFuture < 'a , Result < wow_world_core :: session :: PlayerDamageResultLikeCpp , & 'static str > , >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellClickHostLikeCpp",
+          "kind": "method",
           "name": "represented_unit_values_update_to_update_object_like_cpp",
           "visibility": "private",
           "signature": "fn represented_unit_values_update_to_update_object_like_cpp (& self , unit_guid : ObjectGuid , map_id : u16 , values_update : & wow_entities :: UnitValuesUpdate ,) -> Option < wow_packet :: packets :: update :: UpdateObject >",
@@ -40290,6 +40638,20 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellEffectHostLikeCpp",
           "kind": "method",
+          "name": "set_player_drunk_value_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_drunk_value_like_cpp (& mut self , target_guid : ObjectGuid , effect_amount : i32 , cast_item_guid : Option < ObjectGuid > , cast_item_entry : Option < u32 > ,) -> Result < bool , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellEffectHostLikeCpp",
+          "kind": "method",
           "name": "set_represented_homebind_like_cpp",
           "visibility": "private",
           "signature": "fn set_represented_homebind_like_cpp (& mut self , homebind : RepresentedHomebindLikeCpp) -> bool",
@@ -40332,7 +40694,7 @@
           "kind": "method",
           "name": "apply_aura_with_effect_mask_and_provenance_like_cpp",
           "visibility": "private",
-          "signature": "fn apply_aura_with_effect_mask_and_provenance_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , duration_ms : u32 , aura_flags : u32 , effect_mask : u32 , provenance : wow_entities :: AuraCastProvenanceLikeCpp ,) -> Result < () , & 'static str >",
+          "signature": "fn apply_aura_with_effect_mask_and_provenance_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , duration_ms : u32 , aura_flags : u32 , effect_mask : u32 , provenance : wow_entities :: AuraCastProvenanceLikeCpp , send_update : bool ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40408,6 +40770,19 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
           "kind": "method",
+          "name": "apply_ghost_wisp_aura",
+          "visibility": "private",
+          "signature": "fn apply_ghost_wisp_aura (& mut self , spell_id : i32 , caster_guid : ObjectGuid , spell_info : & wow_data :: SpellInfo , duration_ms : u32 , effect_mask : u32 , stack_amount : u32 , attributes1 : u32 , attributes5 : u32 , creation : Result < (u32 , wow_entities :: AuraCastProvenanceLikeCpp , u8) , & 'static str > ,) -> Result < () , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
           "name": "apply_learn_spell_effect_like_cpp",
           "visibility": "private",
           "signature": "fn apply_learn_spell_effect_like_cpp (& mut self , spell : i32 , target : ObjectGuid ,) -> impl Future < Output = bool > + Send",
@@ -40437,6 +40812,32 @@
           "name": "apply_reputation_effect_like_cpp",
           "visibility": "private",
           "signature": "fn apply_reputation_effect_like_cpp (& mut self , damage : i32 , misc_value : i32 , target_guid : ObjectGuid ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
+          "name": "apply_resurrection_sickness_aura",
+          "visibility": "private",
+          "signature": "fn apply_resurrection_sickness_aura (& mut self , spell_id : i32 , caster_guid : ObjectGuid , spell_info : & wow_data :: SpellInfo , duration_total : i32 , stack_amount : u32 , attributes1 : u32 , attributes5 : u32 , creation : Result < (u32 , wow_entities :: AuraCastProvenanceLikeCpp , u8) , & 'static str > , cast_metadata : wow_entities :: SpellCastMetadata ,) -> Result < () , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
+          "name": "apply_stuck_effect_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_stuck_effect_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & 'a CreatureSpawnCatalogsLikeCpp , caster_guid : ObjectGuid ,) -> Pin < Box < dyn Future < Output = Result < () , & 'static str > > + Send + 'a > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40540,13 +40941,12 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
           "kind": "method",
-          "name": "set_player_alive_like_cpp",
+          "name": "self_resurrect_player_like_cpp",
           "visibility": "private",
-          "signature": "fn set_player_alive_like_cpp (& mut self , alive : bool)",
+          "signature": "fn self_resurrect_player_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & 'a CreatureSpawnCatalogsLikeCpp , health : u32 , mana : u32 ,) -> Pin < Box < dyn Future < Output = Result < () , & 'static str > > + Send + 'a > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter",
             "trait_impl"
           ]
         },
@@ -40554,13 +40954,25 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
           "kind": "method",
-          "name": "set_player_ghost_flag_like_cpp",
+          "name": "server_normal_physical_item_facts_like_cpp",
           "visibility": "private",
-          "signature": "fn set_player_ghost_flag_like_cpp (& mut self , ghost : bool)",
+          "signature": "fn server_normal_physical_item_facts_like_cpp (& self , item_guid : ObjectGuid ,) -> Option < (u32 , u32) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
+          "name": "server_normal_pre_go_like_cpp",
+          "visibility": "private",
+          "signature": "fn server_normal_pre_go_like_cpp (& mut self , spell_info : & wow_data :: SpellInfo , cast_id : ObjectGuid , visual : & wow_packet :: packets :: spell :: SpellCastVisual , metadata : wow_entities :: SpellCastMetadata ,) -> Result < wow_world_spell :: ServerNormalPreGoPlanLikeCpp , wow_world_spell :: ServerNormalPreGoFailureLikeCpp , >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
             "trait_impl"
           ]
         },
@@ -40600,6 +41012,32 @@
           "name": "spell_cast_hook_wanted_like_cpp",
           "visibility": "private",
           "signature": "fn spell_cast_hook_wanted_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
+          "name": "spell_has_no_unrepresented_runtime_hooks_like_cpp",
+          "visibility": "private",
+          "signature": "fn spell_has_no_unrepresented_runtime_hooks_like_cpp (& self , spell_id : u32) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
+          "name": "take_server_normal_cast_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn take_server_normal_cast_item_like_cpp (& mut self , spell_info : & wow_data :: SpellInfo , metadata : wow_entities :: SpellCastMetadata ,) -> Result < wow_entities :: SpellCastMetadata , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41036,6 +41474,47 @@
           "source_class": "production",
           "guards": [
             "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "finish_player_non_alive_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn finish_player_non_alive_state_like_cpp (& mut self) -> Result < () , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "send_player_power_update_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_player_power_update_like_cpp (& self , guid : wow_core :: ObjectGuid , power : wow_constants :: PowerType , value : i32 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SessionLifecycleHostLikeCpp",
+          "kind": "method",
+          "name": "stop_combat_for_logout_death_release_like_cpp",
+          "visibility": "private",
+          "signature": "fn stop_combat_for_logout_death_release_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
             "trait_impl"
           ]
         }
@@ -41634,6 +42113,27 @@
         {
           "package": "wow-world-core",
           "module": "crate::session::admission",
+          "self_type": "SessionCore",
+          "resolved_provider": [
+            {
+              "package": "wow-world-core",
+              "module": "crate::session::state::session_core",
+              "symbol": "SessionCore",
+              "kind": "struct",
+              "source_path": "crates/wow-world-core/src/session/state/session_core.rs",
+              "guards": []
+            }
+          ],
+          "trait_path": null,
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::admission::player_recovery",
           "self_type": "SessionCore",
           "resolved_provider": [
             {
@@ -43611,6 +44111,81 @@
           "name": "stage_packet_spoof_ban_like_cpp",
           "visibility": "pub",
           "signature": "fn stage_packet_spoof_ban_like_cpp (& mut self)",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::admission::player_recovery",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "current_player_binding_guid",
+          "visibility": "private",
+          "signature": "fn current_player_binding_guid (& self , registration : crate :: session :: directory :: PlayerRegistration , handle : wow_map :: PlayerHandle ,) -> Option < ObjectGuid >",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::admission::player_recovery",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "is_map_combat_admission_current",
+          "visibility": "pub",
+          "signature": "fn is_map_combat_admission_current (& self , phase : & MapPhaseAdmissionLikeCpp , map_tick_epoch : u64 ,) -> bool",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::admission::player_recovery",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "is_map_phase_admission_current",
+          "visibility": "pub",
+          "signature": "fn is_map_phase_admission_current (& self , admission : & MapPhaseAdmissionLikeCpp) -> bool",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::admission::player_recovery",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "is_native_player_death_admission_current",
+          "visibility": "pub",
+          "signature": "fn is_native_player_death_admission_current (& self , admission : & crate :: session :: mailbox :: NativePlayerDeathAdmission ,) -> bool",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::admission::player_recovery",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "is_player_recovery_admission_current",
+          "visibility": "pub",
+          "signature": "fn is_player_recovery_admission_current (& self , admission : & PlayerRecoveryAdmission ,) -> bool",
           "cfg": [],
           "availability": {
             "production": true,
@@ -46164,7 +46739,7 @@
           "kind": "method",
           "name": "player_save_operation_access_like_cpp",
           "visibility": "pub",
-          "signature": "fn player_save_operation_access_like_cpp < 'a > (& 'a mut self , talent_store : Option < & 'a wow_data :: TalentStore > , spell_store : Option < & 'a wow_data :: SpellStore > ,) -> PlayerSaveOperationAccessLikeCpp < 'a >",
+          "signature": "fn player_save_operation_access_like_cpp < 'a > (& 'a mut self , talent_store : Option < & 'a wow_data :: TalentStore > , spell_store : Option < & 'a wow_data :: SpellStore > , chr_races_store : Option < & 'a wow_data :: character_progression :: ChrRacesStore > , difficulty_store : Option < & 'a wow_data :: DifficultyStore > , item_effect_store : Option < & 'a wow_data :: ItemEffectStore > , enchantment_store : Option < & 'a wow_data :: SpellItemEnchantmentStore > , currency_types_store : Option < & 'a wow_data :: CurrencyTypesStore > , quest_store : Option < & 'a wow_data :: quest :: QuestStore > , quest_status_keep_abandoned : Option < bool > ,) -> PlayerSaveOperationAccessLikeCpp < 'a >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -46976,7 +47551,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , live_terrain : Arc < wow_world :: terrain :: LiveTerrainHeights > , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , creature_aggro_config : wow_world :: session :: CreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:7c336e8b39b8da56e794a5601ebf36e9:len=4159",
+      "body_fingerprint": "fnv1a64x2:809aefb3c47c8618215d6562716b9beb:len=4502",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -46988,9 +47563,9 @@
         },
         {
           "module": "crate::session_factory::finalization",
-          "name": "finalize_owned_world_session_like_cpp",
-          "signature": "async fn finalize_owned_world_session_like_cpp (mut session : WorldSession , outcome : WorldSessionRunOutcomeLikeCpp , account_id : u32 , active_session_registration : ActiveWorldSessionRegistrationGuardLikeCpp , world_runtime_state : & WorldRuntimeStateLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , step_timeout : Duration ,)",
-          "body_fingerprint": "fnv1a64x2:3f26c6cb6872cd58a2a87de133ad87db:len=2235",
+          "name": "finalize_owned_world_session_with_resurrection_catalogs",
+          "signature": "async fn finalize_owned_world_session_with_resurrection_catalogs (session : WorldSession , outcome : WorldSessionRunOutcomeLikeCpp , account_id : u32 , active_session_registration : ActiveWorldSessionRegistrationGuardLikeCpp , world_runtime_state : & WorldRuntimeStateLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , resurrection_catalogs : wow_world_application :: ResurrectionOperationCatalogs < '_ > , step_timeout : Duration ,)",
+          "body_fingerprint": "fnv1a64x2:b02ee84c94b35b4f96f5553a3e1de814:len=203",
           "cfg": [],
           "source_class": "production"
         }
@@ -47306,6 +47881,16 @@
         },
         {
           "module": "crate::tests::scenarios_16",
+          "callee": "WorldSession::new",
+          "argument_count": 11,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 1
+        },
+        {
+          "module": "crate::handlers::entities::tests::corpse",
           "callee": "WorldSession::new",
           "argument_count": 11,
           "cfg": [
@@ -47894,6 +48479,21 @@
             {
               "name": "0",
               "type": "SendPartyUpdateLikeCppCommand",
+              "visibility": "private",
+              "cfg": [],
+              "source_class": "production"
+            }
+          ],
+          "discriminant": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "SendPlayerAuraUpdate",
+          "fields": [
+            {
+              "name": "0",
+              "type": "SendPlayerAuraUpdateCommand",
               "visibility": "private",
               "cfg": [],
               "source_class": "production"
@@ -49781,6 +50381,55 @@
       {
         "definition": {
           "module": "crate::session::mailbox::protocol",
+          "name": "SendPlayerAuraUpdateCommand",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "committed_visibility",
+            "type": "SharedClientVisibleGuidsLikeCpp",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "map_key",
+            "type": "MapKey",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "packet_bytes",
+            "type": "Vec < u8 >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "recipient_handle",
+            "type": "PlayerHandle",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "residence_revision",
+            "type": "u64",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::protocol",
           "name": "SendPlayerSpellIfVisibleLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -50926,6 +51575,14 @@
       },
       {
         "module": "crate::session::mailbox::protocol",
+        "target": "SendPlayerAuraUpdateCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
         "target": "SendPlayerSpellIfVisibleLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -51703,6 +52360,32 @@
           "package": "world-server",
           "module": "crate::runtime::canonical_creature_runtime",
           "source": "crates/world-server/src/runtime/canonical_creature_runtime.rs",
+          "enclosing": "impl CanonicalCreatureRuntimeLikeCpp::run_with_native_death",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::canonical_creature_runtime",
+          "source": "crates/world-server/src/runtime/canonical_creature_runtime.rs",
+          "enclosing": "impl CanonicalCreatureRuntimeLikeCpp::run_with_native_death",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "run_map_player_combat_call",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::canonical_creature_runtime",
+          "source": "crates/world-server/src/runtime/canonical_creature_runtime.rs",
           "enclosing": "struct CanonicalCreatureRuntimeLikeCpp",
           "registry": "GroupRegistry",
           "operation": "type_reference",
@@ -52431,6 +53114,32 @@
           "package": "world-server",
           "module": "crate::runtime::map::update_loop",
           "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "run_player_recovery_passes",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry . as_ref ()",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "run_with_native_death",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& player_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
           "enclosing": "module",
           "registry": "PlayerRegistry",
           "operation": "import_alias",
@@ -52457,6 +53166,149 @@
           "package": "world-server",
           "module": "crate::runtime::map_session_pass",
           "source": "crates/world-server/src/runtime/map_session_pass.rs",
+          "enclosing": "fn run_player_recovery_passes",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map_session_pass",
+          "source": "crates/world-server/src/runtime/map_session_pass.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "wow_world::session::directory::PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
+          "enclosing": "fn finish_map_player_death",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
+          "enclosing": "fn finish_map_player_death",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "publish_required_combat_events_like_cpp",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
+          "enclosing": "fn present_committed_creature_melee",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
+          "enclosing": "fn present_committed_creature_melee",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "publish_required_combat_events_like_cpp",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
+          "enclosing": "fn publish_required_combat_events_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
+          "enclosing": "fn run_map_player_combat_call",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
+          "enclosing": "fn run_map_player_combat_call",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "finish_map_player_death",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
+          "enclosing": "fn run_map_player_combat_call",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "present_committed_creature_melee",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
+          "enclosing": "fn run_map_player_combat_call",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "publish_required_combat_events_like_cpp",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::native_player_death",
+          "source": "crates/world-server/src/runtime/native_player_death.rs",
           "enclosing": "module",
           "registry": "PlayerRegistry",
           "operation": "import_alias",
@@ -53066,9 +53918,9 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::session::driver::phase_consumer",
-          "source": "crates/wow-world/src/session/driver/phase_consumer.rs",
-          "enclosing": "impl WorldSession::admission_still_describes_this_session_like_cpp",
+          "module": "crate::session::driver::player_recovery",
+          "source": "crates/wow-world/src/session/driver/player_recovery.rs",
+          "enclosing": "fn binding_still_current",
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
@@ -53079,15 +53931,15 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::session::driver::phase_consumer",
-          "source": "crates/wow-world/src/session/driver/phase_consumer.rs",
-          "enclosing": "impl WorldSession::admission_still_describes_this_session_like_cpp",
+          "module": "crate::session::driver::player_recovery",
+          "source": "crates/wow-world/src/session/driver/player_recovery.rs",
+          "enclosing": "fn capture_player_binding",
           "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
+          "operation": "accessor",
+          "symbol": "player_registry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
+          "fingerprint": "player_registry()",
           "count": 1
         },
         {
@@ -53664,6 +54516,19 @@
         },
         {
           "package": "wow-world-core",
+          "module": "crate::session::admission::player_recovery",
+          "source": "crates/wow-world-core/src/session/admission/player_recovery.rs",
+          "enclosing": "impl SessionCore::current_player_binding_guid",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
           "module": "crate::session::canonical_access::acquisition_owner",
           "source": "crates/wow-world-core/src/session/canonical_access/acquisition_owner.rs",
           "enclosing": "impl PlayerAcquisitionOwnerAccessLikeCpp::registry_control_binding",
@@ -53855,6 +54720,84 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "self . core . directory . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::group_owner",
+          "source": "crates/wow-world-core/src/session/canonical_access/group_owner.rs",
+          "enclosing": "fn authoritative_current_group_members_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "& GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::group_owner",
+          "source": "crates/wow-world-core/src/session/canonical_access/group_owner.rs",
+          "enclosing": "fn authoritative_current_group_members_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::group_owner",
+          "source": "crates/wow-world-core/src/session/canonical_access/group_owner.rs",
+          "enclosing": "impl PlayerGroupOwnerAccessLikeCpp::party_group_for_values_update_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::group_owner",
+          "source": "crates/wow-world-core/src/session/canonical_access/group_owner.rs",
+          "enclosing": "impl PlayerGroupOwnerAccessLikeCpp::party_group_for_values_update_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::group_owner",
+          "source": "crates/wow-world-core/src/session/canonical_access/group_owner.rs",
+          "enclosing": "impl PlayerGroupOwnerAccessLikeCpp::party_group_for_values_update_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "authoritative_current_group_members_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::group_owner",
+          "source": "crates/wow-world-core/src/session/canonical_access/group_owner.rs",
+          "enclosing": "module",
+          "registry": "GroupRegistry",
+          "operation": "import_alias",
+          "symbol": "GroupRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "wow_social::group::GroupRegistry",
           "count": 1
         },
         {
@@ -54613,6 +55556,58 @@
         },
         {
           "package": "wow-world-core",
+          "module": "crate::session::publication::access",
+          "source": "crates/wow-world-core/src/session/publication/access.rs",
+          "enclosing": "impl PacketPublicationAccessLikeCpp::publish_prepared_player_visible_packet",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::access",
+          "source": "crates/wow-world-core/src/session/publication/access.rs",
+          "enclosing": "impl PacketPublicationAccessLikeCpp::publish_prepared_player_visible_packet",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "deliver_observers_to_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::access",
+          "source": "crates/wow-world-core/src/session/publication/access.rs",
+          "enclosing": "impl PacketPublicationAccessLikeCpp::publish_selected_aura_update",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::access",
+          "source": "crates/wow-world-core/src/session/publication/access.rs",
+          "enclosing": "impl PacketPublicationAccessLikeCpp::publish_selected_aura_update",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "deliver_observers_to_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
           "module": "crate::session::publication::operations",
           "source": "crates/wow-world-core/src/session/publication/operations.rs",
           "enclosing": "impl SessionCore::try_send_connected_player_command_like_cpp",
@@ -54622,6 +55617,97 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::selected_aura",
+          "source": "crates/wow-world-core/src/session/publication/selected_aura.rs",
+          "enclosing": "fn enqueue",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::selected_aura",
+          "source": "crates/wow-world-core/src/session/publication/selected_aura.rs",
+          "enclosing": "impl PreparedPlayerVisiblePacket::deliver_observers_to_registry",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::selected_aura",
+          "source": "crates/wow-world-core/src/session/publication/selected_aura.rs",
+          "enclosing": "impl PreparedPlayerVisiblePacket::deliver_observers_to_registry",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "enqueue",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::selected_aura",
+          "source": "crates/wow-world-core/src/session/publication/selected_aura.rs",
+          "enclosing": "impl PreparedPlayerVisiblePacket::deliver_to_registry",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::selected_aura",
+          "source": "crates/wow-world-core/src/session/publication/selected_aura.rs",
+          "enclosing": "impl PreparedPlayerVisiblePacket::deliver_to_registry",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "deliver_observers_to_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::selected_aura",
+          "source": "crates/wow-world-core/src/session/publication/selected_aura.rs",
+          "enclosing": "impl PreparedPlayerVisiblePacket::deliver_to_registry",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "enqueue",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::selected_aura",
+          "source": "crates/wow-world-core/src/session/publication/selected_aura.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "crate::session::{directory::PlayerRegistry,mailbox::SendPlayerAuraUpdateCommand}",
           "count": 1
         },
         {
@@ -54964,6 +56050,32 @@
         },
         {
           "package": "wow-world-entities",
+          "module": "crate::visibility_session::corpse_birth",
+          "source": "crates/wow-world-entities/src/visibility_session/corpse_birth.rs",
+          "enclosing": "fn publish_to_recipient",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::visibility_session::corpse_birth",
+          "source": "crates/wow-world-entities/src/visibility_session/corpse_birth.rs",
+          "enclosing": "fn publish_to_recipient",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
           "module": "crate::visibility_session::session_visibility",
           "source": "crates/wow-world-entities/src/visibility_session/session_visibility.rs",
           "enclosing": "fn visible_other_players_from_registry_like_cpp",
@@ -54986,6 +56098,32 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::visibility_session::session_visibility",
+          "source": "crates/wow-world-entities/src/visibility_session/session_visibility.rs",
+          "enclosing": "fn visible_other_players_from_registry_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::visibility_session::session_visibility",
+          "source": "crates/wow-world-entities/src/visibility_session/session_visibility.rs",
+          "enclosing": "fn visible_other_players_from_registry_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& guid)",
           "count": 1
         },
         {
@@ -60187,6 +61325,45 @@
           "operation": "clone",
           "symbol": "cloned",
           "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "cloned()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-spell",
+          "module": "crate::execution_session::resurrection_offer",
+          "source": "crates/wow-world-spell/src/execution_session/resurrection_offer.rs",
+          "enclosing": "fn apply_resurrection_offer",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-spell",
+          "module": "crate::execution_session::resurrection_offer",
+          "source": "crates/wow-world-spell/src/execution_session/resurrection_offer.rs",
+          "enclosing": "fn apply_resurrection_offer",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-spell",
+          "module": "crate::execution_session::resurrection_offer",
+          "source": "crates/wow-world-spell/src/execution_session/resurrection_offer.rs",
+          "enclosing": "fn apply_resurrection_offer",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub (super)",
           "cfg": [],
           "fingerprint": "cloned()",
           "count": 1

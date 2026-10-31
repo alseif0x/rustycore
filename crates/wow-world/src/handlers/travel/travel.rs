@@ -32,6 +32,7 @@ impl crate::session::WorldSession {
         wow_world_character::handle_world_port_response_with_catalogs_like_cpp(
             self,
             creature_spawn_catalogs,
+            None,
             trait_node_entries,
             item_guid_generator,
             pkt,

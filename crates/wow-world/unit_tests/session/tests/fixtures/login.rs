@@ -5,52 +5,108 @@
 
 use super::*;
 
-pub(in crate::session::tests) fn stuck_spell_info_like_cpp(spell_id: i32) -> wow_data::SpellInfo {
-    wow_data::SpellInfo {
-        spell_id,
-        cast_time_ms: 0,
-        cooldown_ms: 0,
-        recovery_time_ms: 0,
-        effect_type: 0,
-        effect_base_points: 0,
-        effect_bonus_coefficient: 0.0,
-        aura_type: None,
-        display_flags: 0,
-        requires_spell_focus: 0,
-        power_costs: Vec::new(),
-        effects: vec![wow_data::SpellEffectInfo {
-            effect_index: 0,
-            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK,
-            ..Default::default()
-        }],
-    }
-}
-
-pub(in crate::session::tests) fn hearthstone_spell_info_like_cpp() -> wow_data::SpellInfo {
-    wow_data::SpellInfo {
-        spell_id: 8690,
-        cast_time_ms: 0,
-        cooldown_ms: 0,
-        recovery_time_ms: 0,
-        effect_type: 0,
-        effect_base_points: 0,
-        effect_bonus_coefficient: 0.0,
-        aura_type: None,
-        display_flags: 0,
-        requires_spell_focus: 0,
-        power_costs: Vec::new(),
-        effects: Vec::new(),
-    }
-}
-
 pub(in crate::session::tests) fn set_stuck_spell_store_like_cpp(
     session: &mut WorldSession,
     spell_id: i32,
+    allow_while_dead: bool,
+    hearthstone_category: i16,
 ) {
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, stuck_spell_info_like_cpp(spell_id));
-    spell_store.insert(8690, hearthstone_spell_info_like_cpp());
+    let keys = [(spell_id as u32, 0), (8690, 0)];
+    let mut stuck_attributes = [0; 15];
+    if allow_while_dead {
+        stuck_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD as i32;
+    }
+    let categories = wow_data::spell_db2::SpellCategoriesStore::from_entries([
+        wow_data::spell_db2::SpellCategoriesEntry {
+            id: 1,
+            difficulty_id: 0,
+            category: 0,
+            defense_type: 0,
+            dispel_type: 0,
+            mechanic: 0,
+            prevention_type: 0,
+            start_recovery_category: 0,
+            charge_category: 0,
+            spell_id: spell_id as u32,
+        },
+        wow_data::spell_db2::SpellCategoriesEntry {
+            id: 2,
+            difficulty_id: 0,
+            category: hearthstone_category,
+            defense_type: 0,
+            dispel_type: 0,
+            mechanic: 0,
+            prevention_type: 0,
+            start_recovery_category: 0,
+            charge_category: 0,
+            spell_id: 8690,
+        },
+    ]);
+    let misc = wow_data::spell_db2::SpellMiscStore::from_entries([
+        wow_data::spell_db2::SpellMiscEntry {
+            id: 1,
+            difficulty_id: 0,
+            attributes: stuck_attributes,
+            spell_id: spell_id as u32,
+            ..Default::default()
+        },
+        wow_data::spell_db2::SpellMiscEntry {
+            id: 2,
+            difficulty_id: 0,
+            attributes: [0; 15],
+            spell_id: 8690,
+            ..Default::default()
+        },
+    ]);
+    let effect = wow_data::spell_db2::SpellEffectDb2Entry {
+        id: 1,
+        difficulty_id: 0,
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK,
+        effect_amplitude: 0.0,
+        effect_attributes: 0,
+        effect_aura: 0,
+        effect_aura_period: 0,
+        effect_base_points: 0,
+        effect_bonus_coefficient: 0.0,
+        effect_chain_amplitude: 0.0,
+        effect_chain_targets: 0,
+        effect_die_sides: 0,
+        effect_item_type: 0,
+        effect_mechanic: 0,
+        effect_points_per_resource: 0.0,
+        effect_pos_facing: 0.0,
+        effect_real_points_per_level: 0.0,
+        effect_trigger_spell: 0,
+        bonus_coefficient_from_ap: 0.0,
+        pvp_multiplier: 0.0,
+        coefficient: 0.0,
+        variance: 0.0,
+        resource_coefficient: 0.0,
+        group_size_base_points_coefficient: 0.0,
+        effect_misc_value: [0; 2],
+        effect_radius_index: [0; 2],
+        effect_spell_class_mask: [0; 4],
+        implicit_target: [0; 2],
+        spell_id: spell_id as u32,
+    };
+    let effective = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
+        categories,
+        misc,
+        wow_data::spell_db2::SpellEffectDb2Store::from_entries([effect]),
+        wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
+        wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastTimesStore::from_entries([]),
+        wow_data::spell_db2::SpellCooldownsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastingRequirementsStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
+    );
+    let spell_store = crate::selected_spell_fixtures::canonical_spell_store(keys)
+        .hydrate_effective_core_db2_like_cpp(effective);
     session.set_spell_store(Arc::new(spell_store));
+    session.set_serverside_spell_store(Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()));
+    session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([])));
 }
 
 pub(in crate::session::tests) fn threat_spell_info_like_cpp(

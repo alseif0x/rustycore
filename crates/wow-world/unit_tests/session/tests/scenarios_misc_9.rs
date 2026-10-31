@@ -162,6 +162,149 @@ fn update_zone_missing_zone_keeps_area_criteria_but_skips_top_level_like_cpp() {
         "C++ Player::UpdateZone returns after UpdateArea when AreaTable lacks the new zone"
     );
 }
+
+#[test]
+fn update_zone_recovers_disabled_war_mode_only_for_known_zone_like_cpp() {
+    const WAR_MODE_DESIRED: u32 = 0x0000_0800;
+    const WAR_MODE_ACTIVE: u32 = 0x0000_0400;
+    const LOCAL_WAR_MODE: u32 = 0x0000_0800;
+    const LOCAL_FLAGS_PRESERVED: u32 = 0x0000_8088;
+    const OTHER_PLAYER_FLAG: u32 = 0x0000_0040;
+    let aura_spell_ids = [269_083, 282_559, 90_003, 90_004];
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store(
+        aura_spell_ids.map(|spell_id| (spell_id as u32, 0)),
+    );
+    for spell_id in aura_spell_ids {
+        let mut info = test_spell_info_like_cpp(spell_id);
+        info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+        info.aura_type = Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY);
+        info.effects.push(wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+            ..Default::default()
+        });
+        spell_store.insert(spell_id, info);
+    }
+    let spell_store = Arc::new(spell_store);
+
+    for (desired, in_pvp, known_zone) in [
+        (false, false, true),
+        (false, true, true),
+        (true, false, true),
+        (false, false, false),
+    ] {
+        let (mut session, _, _player_guid) = session_with_canonical_player_for_away_like_cpp();
+        assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+        // Removal preflight resolves catalog effects even for inert auras.
+        session.set_spell_store(Arc::clone(&spell_store));
+        crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 101);
+        let rows = if known_zone {
+            vec![
+                wow_data::AreaTableEntry {
+                    id: 20,
+                    continent_id: 571,
+                    parent_area_id: 0,
+                    area_bit: -1,
+                    exploration_level: 0,
+                    mount_flags: 0,
+                    flags: 0,
+                },
+                wow_data::AreaTableEntry {
+                    id: 102,
+                    continent_id: 571,
+                    parent_area_id: 20,
+                    area_bit: -1,
+                    exploration_level: 0,
+                    mount_flags: 0,
+                    flags: 0,
+                },
+            ]
+        } else {
+            Vec::new()
+        };
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries(rows)));
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(WAR_MODE_ACTIVE | OTHER_PLAYER_FLAG);
+                if desired {
+                    player.set_player_flag(WAR_MODE_DESIRED);
+                }
+                if in_pvp {
+                    player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                }
+                player.set_player_local_flags_like_cpp(LOCAL_WAR_MODE | LOCAL_FLAGS_PRESERVED);
+                player.unit_mut().replace_all_pvp_flags_like_cpp(
+                    UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP | UnitPvpFlags::UNK1,
+                );
+
+                let outside = test_visible_aura(1, 269_083);
+                let inside = test_visible_aura(2, 282_559);
+                let mut interrupted = test_visible_aura(3, 90_003);
+                interrupted.aura_interrupt_flags2 = 0x0002_0000;
+                let unrelated = test_visible_aura(4, 90_004);
+                let auras = &mut player.unit_mut().subsystems_mut().auras;
+                auras.insert_runtime_application_like_cpp(outside);
+                auras.insert_runtime_application_like_cpp(inside);
+                auras.insert_runtime_application_like_cpp(interrupted);
+                auras.insert_runtime_application_like_cpp(unrelated);
+                player.clear_data_changes();
+            })
+            .expect("canonical Player fixture");
+
+        assert!(session.update_zone_represented_like_cpp(20, 102));
+
+        let recover = known_zone && !desired;
+        let state = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.gameplay_state().active_local_flags,
+                    player.has_player_flag(WAR_MODE_DESIRED),
+                    player.has_player_flag(WAR_MODE_ACTIVE),
+                    player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP),
+                    player.has_player_flag(OTHER_PLAYER_FLAG),
+                    player.unit().pvp_flags_like_cpp(),
+                    player.active_player_data_changes_mask().is_set(69),
+                    player.player_data_changes_mask().is_set(7),
+                    player
+                        .unit()
+                        .subsystems()
+                        .auras
+                        .runtime_applications_like_cpp()
+                        .keys()
+                        .copied()
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .expect("canonical Player fixture");
+        assert_eq!(
+            state.0,
+            LOCAL_FLAGS_PRESERVED | if recover { 0 } else { LOCAL_WAR_MODE },
+            "the local War Mode flag clears only for a known zone with desired mode disabled"
+        );
+        assert_eq!(state.1, desired);
+        assert_eq!(state.2, !recover);
+        assert_eq!(state.3, in_pvp);
+        assert!(state.4, "unrelated PlayerFlags survive recovery");
+        let expected_pvp = UnitPvpFlags::FFA_PVP
+            | UnitPvpFlags::UNK1
+            | if in_pvp || !recover {
+                UnitPvpFlags::PVP
+            } else {
+                UnitPvpFlags::empty()
+            };
+        assert_eq!(state.5, expected_pvp);
+        assert_eq!(state.6, recover);
+        assert_eq!(state.7, recover);
+        let mut aura_slots = state.8;
+        aura_slots.sort_unstable();
+        assert_eq!(
+            aura_slots,
+            if recover { vec![4] } else { vec![1, 2, 3, 4] },
+            "known disabled War Mode removes both spells, then WarModeLeave auras"
+        );
+    }
+}
 #[tokio::test]
 async fn check_area_explore_marks_block_sends_update_and_records_criteria_like_cpp() {
     let (mut session, _, send_rx) = make_session();

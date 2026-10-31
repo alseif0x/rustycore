@@ -320,7 +320,27 @@ pub(in crate::packets::update) fn write_stationary_world_object_create_prefix_li
     scene_object: bool,
     conversation_texture_kit_id: Option<u32>,
 ) {
-    buf.write_uint8(UpdateType::CreateObject as u8);
+    write_stationary_world_object_create_prefix_with_type_like_cpp(
+        buf,
+        UpdateType::CreateObject,
+        guid,
+        type_id,
+        position,
+        scene_object,
+        conversation_texture_kit_id,
+    );
+}
+
+pub(in crate::packets::update) fn write_stationary_world_object_create_prefix_with_type_like_cpp(
+    buf: &mut WorldPacket,
+    update_type: UpdateType,
+    guid: &ObjectGuid,
+    type_id: TypeId,
+    position: Position,
+    scene_object: bool,
+    conversation_texture_kit_id: Option<u32>,
+) {
+    buf.write_uint8(update_type as u8);
     buf.write_packed_guid(guid);
     buf.write_uint8(type_id as u8);
 

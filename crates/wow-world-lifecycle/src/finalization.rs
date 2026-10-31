@@ -27,6 +27,7 @@ impl FinalizationMode {
 pub enum FinalizationStep {
     NativeTransfer,
     LootSettlement,
+    DeathRelease,
     Buyback,
     CharacterSave,
     Mounts,
@@ -42,7 +43,7 @@ pub enum FinalizationStep {
     Release,
 }
 
-const STEP_COUNT: usize = 15;
+const STEP_COUNT: usize = 16;
 
 #[cfg(test)]
 #[path = "finalization/tests.rs"]
@@ -107,6 +108,7 @@ impl SessionFinalization {
         if has_player {
             for step in [
                 LootSettlement,
+                DeathRelease,
                 Buyback,
                 CharacterSave,
                 Mounts,
@@ -167,6 +169,7 @@ impl SessionFinalization {
                 FinalizationMode::CharacterSelection | FinalizationMode::TimedLogout => &[
                     NativeTransfer,
                     LootSettlement,
+                    DeathRelease,
                     Buyback,
                     CharacterSave,
                     Mounts,
@@ -183,6 +186,7 @@ impl SessionFinalization {
                 FinalizationMode::Disconnect => &[
                     NativeTransfer,
                     LootSettlement,
+                    DeathRelease,
                     Buyback,
                     CharacterSave,
                     Mounts,

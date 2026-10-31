@@ -45,7 +45,7 @@ async fn apply_heal_spends_player_heal_absorb_shield_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_621, 0)]);
     for (spell_id, aura_type, amount, is_heal) in [
         (91_620_i32, 0_i32, 20_i32, true),
         (

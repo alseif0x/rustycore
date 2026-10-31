@@ -347,7 +347,7 @@ fn loaded_total_stat_percentage_uses_persisted_effect_amount_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 17);
     session.set_player_guid(Some(player_guid));
 
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(20_600, 0)]);
     spell_store.insert(
         20_600,
         SpellInfo {
@@ -368,11 +368,15 @@ fn loaded_total_stat_percentage_uses_persisted_effect_amount_like_cpp() {
         },
     );
     session.set_spell_store(Arc::new(spell_store));
+    session.set_chr_races_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([]),
+    ));
 
     assert_eq!(
         session.load_represented_character_auras_like_cpp(
             [CharacterAuraRowLikeCpp {
                 caster_guid: player_guid,
+                item_guid: ObjectGuid::EMPTY,
                 spell_id: 20_600,
                 effect_mask: 1,
                 recalculate_mask: 0,
@@ -381,9 +385,12 @@ fn loaded_total_stat_percentage_uses_persisted_effect_amount_like_cpp() {
                 max_duration_ms: -1,
                 remain_time_ms: -1,
                 remain_charges: 0,
+                cast_item_id: 0,
+                cast_item_level: -1,
             }],
             [CharacterAuraEffectRowLikeCpp {
                 caster_guid: player_guid,
+                item_guid: ObjectGuid::EMPTY,
                 spell_id: 20_600,
                 effect_mask: 1,
                 effect_index: 0,
@@ -469,6 +476,7 @@ fn loaded_player_aura_recreates_cast_and_unconditional_visual_provenance_like_cp
         session.load_represented_character_auras_like_cpp(
             [CharacterAuraRowLikeCpp {
                 caster_guid: player_guid,
+                item_guid: ObjectGuid::EMPTY,
                 spell_id: spell_id as u32,
                 effect_mask: 1,
                 recalculate_mask: 0,
@@ -477,6 +485,8 @@ fn loaded_player_aura_recreates_cast_and_unconditional_visual_provenance_like_cp
                 max_duration_ms: -1,
                 remain_time_ms: -1,
                 remain_charges: 0,
+                cast_item_id: 0,
+                cast_item_level: -1,
             }],
             std::iter::empty::<CharacterAuraEffectRowLikeCpp>(),
             0,
@@ -495,6 +505,7 @@ fn loaded_player_aura_recreates_cast_and_unconditional_visual_provenance_like_cp
         .expect("canonical player aura provenance");
     assert!(!provenance.cast_id.is_empty());
     assert_eq!(provenance.spell_visual_id, 20_613);
+    assert_eq!(provenance.caster_level, None);
 }
 #[test]
 fn loaded_condition_counts_persisted_gems_without_socket_template_like_cpp() {

@@ -31,7 +31,12 @@ async fn school_resistances_follow_update_resistances_like_cpp() {
 
     // C++ `Unit::UpdateResistances` (`Unit.cpp:9148-9163`) with the aura
     // producers of `HandleAuraModResistance` and `HandleModResistancePercent`.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_700, 0),
+        (90_701, 0),
+        (90_702, 0),
+        (90_703, 0),
+    ]);
     for (spell_id, aura_type, misc_value, amount) in [
         (90_700, 22, 2, 20),   // MOD_RESISTANCE, holy mask
         (90_701, 22, 4, 30),   // MOD_RESISTANCE, fire mask
@@ -124,7 +129,12 @@ async fn attack_power_aura_producers_follow_update_attack_power_like_cpp() {
 
     // C++ `HandleAuraModAttackPower`/`HandleAuraModAttackPowerPercent` and the
     // ranged variants (`SpellAuraEffects.cpp:4434-4492`).
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_800, 0),
+        (90_801, 0),
+        (90_802, 0),
+        (90_803, 0),
+    ]);
     for (spell_id, aura_type, amount) in [
         (90_800, 99, 50),
         (90_801, 166, 50),
@@ -227,7 +237,8 @@ async fn override_attack_power_by_spell_power_aura_replaces_both_attack_mods_lik
         }
     ));
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_820, 0), (90_821, 0)]);
     for (spell_id, amount) in [(90_820, 15), (90_821, 5)] {
         spell_store.insert(
             spell_id,
@@ -328,7 +339,23 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
         }
     ));
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_900, 0),
+        (90_901, 0),
+        (90_902, 0),
+        (90_903, 0),
+        (90_904, 0),
+        (90_905, 0),
+        (90_906, 0),
+        (90_907, 0),
+        (90_908, 0),
+        (90_909, 0),
+        (90_910, 0),
+        (90_911, 0),
+        (90_912, 0),
+        (90_913, 0),
+        (90_915, 0),
+    ]);
     for (spell_id, aura_type, misc_value_1, misc_value_2, amount) in [
         // +30 holy damage, +20 fire damage and -50 fire damage.
         (90_900, 13, 1 << 1, 0, 30),
@@ -501,7 +528,7 @@ async fn override_spell_power_by_ap_publishes_the_field_and_recomputes_like_cpp(
         }
     ));
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(90_920, 0)]);
     spell_store.insert(
         90_920,
         wow_data::SpellInfo {

@@ -3,11 +3,17 @@
 
 //! Selected canonical authority for aura-removal transitions.
 
+#[path = "aura_removal/aura_refresh.rs"]
+mod aura_refresh;
 mod mount_control;
 mod pet_control;
 mod read_views;
 mod stats;
 mod threat;
+pub use aura_refresh::{
+    SelectedAuraEffectRefresh, SelectedAuraKind, SelectedAuraRefresh,
+    selected_aura_refreshes_timers,
+};
 pub use mount_control::AuraMountControlAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use mount_control::AuraMountControlFixtureRefsLikeCpp;
@@ -100,6 +106,69 @@ impl SessionCore {
 }
 
 impl PlayerAuraRemovalAccessLikeCpp<'_> {
+    pub fn set_no_reagent_cost_mask_like_cpp(&self, mask: [u32; 4]) -> Option<()> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            player.set_no_reagent_cost_mask_like_cpp(mask);
+        })
+    }
+
+    pub fn set_visible_aura_update_pending(&self, slot: u8, pending: bool) -> Option<()> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            let visible_auras_to_update = &mut player
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .visible_auras_to_update;
+            if pending {
+                visible_auras_to_update.insert(slot);
+            } else {
+                visible_auras_to_update.remove(&slot);
+            };
+        })
+    }
+
+    pub fn set_ghost_aura(&self, ghost: bool) -> bool {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                if ghost {
+                    player.set_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
+                }
+                let visibility = if ghost { 0x2 } else { 0x1 };
+                player
+                    .unit_mut()
+                    .set_server_side_ghost_visibility_like_cpp(visibility);
+                player
+                    .unit_mut()
+                    .set_server_side_ghost_visibility_detect_like_cpp(visibility);
+            })
+            .is_some()
+    }
+
+    pub fn player_shape_display_state(&self) -> Option<(u8, u8, u32, u32, u32)> {
+        self.core.with_owned_player_like_cpp(|player| {
+            let unit = player.unit();
+            (
+                player.race_like_cpp(),
+                player.data().native_sex,
+                u32::from(unit.shapeshift_form_id_like_cpp()),
+                unit.subsystems().auras.transform_spell_like_cpp().max(0) as u32,
+                u32::try_from(unit.data().native_display_id).unwrap_or_default(),
+            )
+        })
+    }
+
+    pub fn set_player_display_model(&self, display_id: u32) -> Option<bool> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            if u32::try_from(player.unit().data().display_id).unwrap_or_default() == display_id {
+                return false;
+            }
+            player.unit_mut().set_display_id(display_id, false);
+            true
+        })
+    }
+
     pub fn has_canonical_died_state_like_cpp(&self) -> Option<bool> {
         self.core.mutate_canonical_player_like_cpp(|player| {
             player
@@ -296,6 +365,13 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
     ) -> Option<std::collections::HashMap<u8, AuraApplicationLikeCpp>> {
         self.aura_subsystem_snapshot_like_cpp()
             .map(|auras| auras.runtime_applications_like_cpp().clone())
+    }
+
+    pub fn player_aura_authority_ready_like_cpp(&self) -> Option<bool> {
+        self.aura_subsystem_snapshot_like_cpp().map(|auras| {
+            auras.persisted_player_aura_authority_complete_like_cpp()
+                && !auras.spell_hit_aura_authority_tombstoned_like_cpp()
+        })
     }
 
     pub fn player_has_visible_aura_spell_like_cpp(&self, spell_id: i32) -> Option<bool> {
@@ -512,6 +588,8 @@ impl SessionCore {
             object_data: None,
             unit_data: Some(wow_entities::UnitDataUpdate {
                 mask,
+                aura_state: 0,
+                aura_state_per_caster: Vec::new(),
                 values: wow_entities::UnitDataValues {
                     display_power: current,
                     ..Default::default()
@@ -519,6 +597,7 @@ impl SessionCore {
             }),
             player_data: None,
             active_player_data: None,
+            derived_stats: None,
         };
         if let Some(packet) = crate::entity_update_bridge::player_values_update_to_update_object(
             player_guid,

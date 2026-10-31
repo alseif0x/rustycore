@@ -509,6 +509,7 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
     const FEIGN_SLOT: u8 = 24;
     let (mut session, send_rx, canonical) = make_bank_slot_session(4);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let old_trainer = creature_guid(9306, 304);
     let vendor = creature_guid(2456, 305);
     insert_banker_creature(
@@ -527,7 +528,6 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
             option_npc: GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
             action_menu_id: 0,
         });
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
 
     session.handle_gossip_hello(Hello { unit: vendor }).await;
 
@@ -538,9 +538,8 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT),
         "the direct-service shortcut represents a successful C++ gossip selection"
     );
@@ -704,6 +703,7 @@ async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_
     const FEIGN_SLOT: u8 = 21;
     let (mut session, send_rx, canonical) = make_bank_slot_session(4);
     insert_bank_test_player_in_world(&session, &canonical);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     let guid = creature_guid(2_456, 513);
     insert_banker_creature(&canonical, guid, NPCFlags1::TRAINER.bits());
     session.set_trainer_store_like_cpp(Arc::new(
@@ -775,9 +775,8 @@ async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_
     assert!(session.player_trainer_interaction_matches_like_cpp(guid, TRAINER_ID as i32));
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
@@ -852,6 +851,7 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
     const FEIGN_SLOT: u8 = 22;
     let (mut session, send_rx, canonical) = make_bank_slot_session(2);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let banker = creature_guid(15_513, 523);
     insert_banker_creature(
         &canonical,
@@ -859,17 +859,15 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
         NPCFlags1::GOSSIP.bits() | NPCFlags1::BANKER.bits(),
     );
     session.set_player_trainer_interaction_like_cpp(banker, 77);
-    session
-        .interaction
-        .gossip_options_for_test_mut_like_cpp()
-        .push(crate::session::GossipOptionInfo {
+    assert!(session.replace_player_gossip_options_like_cpp(vec![
+        crate::session::GossipOptionInfo {
             gossip_option_id: 61,
             menu_id: 62,
             order_index: 63,
             option_npc: 6,
             action_menu_id: 0,
-        });
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+        },
+    ]));
 
     session
         .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
@@ -895,9 +893,8 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));

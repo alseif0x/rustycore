@@ -265,7 +265,7 @@ async fn queued_spell_with_mana_cost_deducts_when_executed_like_cpp() {
     let opcodes = drain_server_opcodes(&send_rx);
     assert!(opcodes.contains(&ServerOpcodes::UpdateObject));
     assert!(opcodes.contains(&ServerOpcodes::SpellGo));
-    assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
+    assert!(!opcodes.contains(&ServerOpcodes::CooldownEvent));
 }
 #[tokio::test]
 async fn mana_cost_spell_on_non_mana_class_does_not_spend_primary_power_like_cpp() {

@@ -18,12 +18,6 @@ impl wow_world_entities::CombatSessionHostLikeCpp for WorldSession {
             .view
             .last_presented_creature_melee_health_state_revision_like_cpp
     }
-    fn publish_creature_melee_death_durability_loss_like_cpp(&mut self, over_damage: i32) {
-        wow_world_inventory::publish_creature_melee_death_durability_loss_like_cpp(
-            self,
-            over_damage,
-        )
-    }
     fn resolved_visible_resting_like_cpp(&self) -> Option<bool> {
         wow_world_entities::resolved_visible_resting_like_cpp(self)
     }

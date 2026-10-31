@@ -55,13 +55,16 @@ pub use wow_world_creature::{
 pub use wow_world_creature::{
     AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
-    AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
-    CreatureExecutionLeaseLikeCpp, CreatureExecutionOwnerLikeCpp,
-    CreatureExecutionTransitionLikeCpp, IsolatedCreatureExecutionOutcomeLikeCpp,
-    SharedCreatureExecutionLeaseLikeCpp, capture_admitted_creature_execution_like_cpp,
+    AdmittedCreatureExecutionObjectLikeCpp, CommittedMapCreatureMelee,
+    CreatureExecutionAdmissionLikeCpp, CreatureExecutionLeaseLikeCpp,
+    CreatureExecutionOwnerLikeCpp, CreatureExecutionTransitionLikeCpp,
+    IsolatedCreatureExecutionOutcomeLikeCpp, MapPlayerCombatCall, NativePlayerDeathFailure,
+    PendingMapPlayerDeath, SharedCreatureExecutionLeaseLikeCpp,
+    capture_admitted_creature_execution_like_cpp,
     capture_admitted_creature_execution_on_manager_like_cpp,
     run_admitted_creature_combat_phases_isolated_like_cpp,
     run_admitted_creature_combat_phases_on_locked_manager_like_cpp,
+    run_admitted_creature_combat_phases_with_native_death,
     run_admitted_creature_execution_isolated_like_cpp,
 };
 // #1363 slice 3: the runtime decisions the unit tests still call; the
@@ -72,6 +75,7 @@ use wow_world_creature::{
 };
 mod canonical_access;
 mod catalogs;
+pub use catalogs::{install_condition_presence_catalog, install_serverside_spell_catalog};
 mod chat;
 mod collections;
 mod lifecycle_ops;

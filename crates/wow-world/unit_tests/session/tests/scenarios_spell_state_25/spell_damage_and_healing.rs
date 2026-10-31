@@ -33,7 +33,12 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
         gated_spell_id,
         caster_modifier_gated_spell_id,
     ])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (735, 0),
+        (736, 0),
+        (737, 0),
+        (90_989, 0),
+    ]);
     spell_store.insert(
         plain_spell_id,
         represented_direct_damage_spell_like_cpp(plain_spell_id, 100),
@@ -206,6 +211,12 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
     // The scripted term reads the *caster's* wounded state, not the victim's.
     session.set_player_health_like_cpp(50, 100);
     session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().update_health_aura_states_like_cpp();
+        })
+        .expect("native caster Unit health phase");
+    session
         .execute_spell(spell_id, guid)
         .await
         .expect("Drain Soul from a healthy caster");
@@ -220,6 +231,12 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
     );
 
     session.set_player_health_like_cpp(10, 100);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().update_health_aura_states_like_cpp();
+        })
+        .expect("native caster Unit health phase");
     session
         .execute_spell(spell_id, guid)
         .await
@@ -264,7 +281,8 @@ async fn spell_direct_heal_applies_damage_done_versus_aurastate_like_cpp() {
         .expect("wounded creature with a defensive aura state");
 
     session.set_spell_misc_store(Arc::new(represented_frost_spell_misc_like_cpp(&[spell_id])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0), (90_990, 0)]);
     spell_store.insert(
         spell_id,
         represented_direct_heal_spell_like_cpp(spell_id, 100, 0.0),

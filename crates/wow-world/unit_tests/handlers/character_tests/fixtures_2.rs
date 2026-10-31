@@ -383,7 +383,7 @@ pub(super) fn total_stat_percentage_spell_store_like_cpp(
     spell_id: i32,
     is_ability: bool,
 ) -> wow_data::SpellStore {
-    let mut store = wow_data::SpellStore::new();
+    let mut store = crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -778,18 +778,14 @@ pub(super) fn insert_bank_test_player_in_world(
     canonical: &Arc<std::sync::Mutex<wow_map::MapManager>>,
 ) {
     let player_guid = session.player_guid().expect("player guid");
-    let mut player = wow_entities::Player::new(Some(1), false);
-    player
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .create(player_guid);
-    player.unit_mut().world_mut().set_map(571, 0).unwrap();
-    player
-        .unit_mut()
-        .world_mut()
-        .relocate(Position::new(0.0, 0.0, 0.0, 0.0));
-    player.unit_mut().world_mut().object_mut().add_to_world();
+    let player = session
+        .initial_player_fixture_like_cpp()
+        .expect("bank fixture preserves the loaded Player vitals, faction, and gold");
+    assert_eq!(player.guid(), player_guid);
+    assert_eq!(player.unit().world().map_id(), 571);
+    assert_eq!(player.unit().world().instance_id(), 0);
+    assert_eq!(player.unit().world().position(), Position::ZERO);
+    assert!(player.unit().world().object().is_in_world());
     canonical
         .lock()
         .unwrap()

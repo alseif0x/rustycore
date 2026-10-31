@@ -8,12 +8,26 @@ use std::sync::Arc;
 pub struct AuraApplicationCatalogsLikeCpp<'a> {
     mount_capabilities: Option<&'a wow_data::MountCapabilityStore>,
     spell_store: Option<&'a Arc<wow_data::SpellStore>>,
+    serverside_spell_store: Option<&'a Arc<wow_data::ServersideSpellStoreLikeCpp>>,
+    spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
+    spell_misc_store: Option<&'a wow_data::SpellMiscStore>,
+    spell_class_options_store: Option<&'a wow_data::SpellClassOptionsStore>,
+    spell_duration_store: Option<&'a wow_data::SpellDurationStore>,
+    spell_proc_store: Option<&'a wow_data::SpellProcStoreLikeCpp>,
     classes_store: Option<&'a wow_data::character_progression::ChrClassesStore>,
     difficulty_store: Option<&'a wow_data::DifficultyStore>,
     item_store: Option<&'a Arc<wow_data::ItemStore>>,
     item_stats: Option<&'a Arc<wow_data::ItemStatsStore>>,
     item_effects: Option<&'a Arc<wow_data::ItemEffectStore>>,
     form_store: Option<&'a wow_data::SpellShapeshiftFormStore>,
+    map_difficulty_id: u8,
+    display_info_store: Option<&'a wow_data::CreatureDisplayInfoStore>,
+    display_info_extra_store: Option<&'a wow_data::CreatureDisplayInfoExtraStore>,
+    model_data_store: Option<&'a wow_data::CreatureModelDataStore>,
+    races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+    shapeshift_display_links_absent: Option<bool>,
+    creature_template_store: Option<&'a wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
+    creature_model_info_store: Option<&'a wow_data::CreatureModelInfoStoreLikeCpp>,
     map_store: Option<&'a wow_data::map::MapStore>,
     item_mod_catalogs: wow_world_inventory::ItemModsCatalogsViewLikeCpp<'a>,
 }
@@ -22,27 +36,62 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
     pub fn new(
         mount_capabilities: Option<&'a wow_data::MountCapabilityStore>,
         spell_store: Option<&'a Arc<wow_data::SpellStore>>,
+        spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
+        spell_misc_store: Option<&'a wow_data::SpellMiscStore>,
+        spell_class_options_store: Option<&'a wow_data::SpellClassOptionsStore>,
+        spell_duration_store: Option<&'a wow_data::SpellDurationStore>,
+        spell_proc_store: Option<&'a wow_data::SpellProcStoreLikeCpp>,
         classes_store: Option<&'a wow_data::character_progression::ChrClassesStore>,
         difficulty_store: Option<&'a wow_data::DifficultyStore>,
         item_store: Option<&'a Arc<wow_data::ItemStore>>,
         item_stats: Option<&'a Arc<wow_data::ItemStatsStore>>,
         item_effects: Option<&'a Arc<wow_data::ItemEffectStore>>,
         form_store: Option<&'a wow_data::SpellShapeshiftFormStore>,
+        map_difficulty_id: u8,
+        display_info_store: Option<&'a wow_data::CreatureDisplayInfoStore>,
+        display_info_extra_store: Option<&'a wow_data::CreatureDisplayInfoExtraStore>,
+        model_data_store: Option<&'a wow_data::CreatureModelDataStore>,
+        races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+        shapeshift_display_links_absent: Option<bool>,
+        creature_template_store: Option<&'a wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
+        creature_model_info_store: Option<&'a wow_data::CreatureModelInfoStoreLikeCpp>,
         map_store: Option<&'a wow_data::map::MapStore>,
         item_mod_catalogs: wow_world_inventory::ItemModsCatalogsViewLikeCpp<'a>,
     ) -> Self {
         Self {
             mount_capabilities,
             spell_store,
+            serverside_spell_store: None,
+            spell_aura_options_store,
+            spell_misc_store,
+            spell_class_options_store,
+            spell_duration_store,
+            spell_proc_store,
             classes_store,
             difficulty_store,
             item_store,
             item_stats,
             item_effects,
             form_store,
+            map_difficulty_id,
+            display_info_store,
+            display_info_extra_store,
+            model_data_store,
+            races_store,
+            shapeshift_display_links_absent,
+            creature_template_store,
+            creature_model_info_store,
             map_store,
             item_mod_catalogs,
         }
+    }
+
+    pub fn with_serverside_spell_store_like_cpp(
+        mut self,
+        store: Option<&'a Arc<wow_data::ServersideSpellStoreLikeCpp>>,
+    ) -> Self {
+        self.serverside_spell_store = store;
+        self
     }
 }
 
@@ -99,6 +148,33 @@ impl<'a> AuraApplicationFixtureRefsLikeCpp<'a> {
 }
 
 impl<'a> AuraRemovalCxLikeCpp<'a> {
+    pub(super) fn is_current_race_sickness_spell(&mut self, spell_id: i32) -> Option<bool> {
+        let races_store = self.races_store?;
+        let race_id = {
+            let player = self.stats.reborrow_like_cpp(
+                &self.player,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &*self.shapeshift_form,
+            );
+            player.player_race_like_cpp()
+        };
+        races_store
+            .get(u32::from(race_id))
+            .map(|race| race.res_sickness_spell_id == spell_id)
+    }
+
+    pub(super) fn stat_application_uses_values(&mut self, required_sickness: bool) -> bool {
+        if required_sickness {
+            return true;
+        }
+        let player = self.stats.reborrow_like_cpp(
+            &self.player,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &*self.shapeshift_form,
+        );
+        player.defer_stat_packet_for_current_player() == Some(true)
+    }
+
     pub fn new(
         spell: &'a mut wow_world_spell::SessionSpellState,
         inventory: &'a mut wow_world_inventory::InventoryState,
@@ -124,12 +200,26 @@ impl<'a> AuraRemovalCxLikeCpp<'a> {
             consumer_test,
             mount_capabilities: catalogs.mount_capabilities,
             spell_store: catalogs.spell_store,
+            serverside_spell_store: catalogs.serverside_spell_store,
+            spell_aura_options_store: catalogs.spell_aura_options_store,
+            spell_misc_store: catalogs.spell_misc_store,
+            spell_class_options_store: catalogs.spell_class_options_store,
+            spell_duration_store: catalogs.spell_duration_store,
+            spell_proc_store: catalogs.spell_proc_store,
             classes_store: catalogs.classes_store,
             difficulty_store: catalogs.difficulty_store,
             item_store: catalogs.item_store,
             item_stats: catalogs.item_stats,
             item_effects: catalogs.item_effects,
             form_store: catalogs.form_store,
+            map_difficulty_id: catalogs.map_difficulty_id,
+            display_info_store: catalogs.display_info_store,
+            display_info_extra_store: catalogs.display_info_extra_store,
+            model_data_store: catalogs.model_data_store,
+            races_store: catalogs.races_store,
+            shapeshift_display_links_absent: catalogs.shapeshift_display_links_absent,
+            creature_template_store: catalogs.creature_template_store,
+            creature_model_info_store: catalogs.creature_model_info_store,
             map_store: catalogs.map_store,
             item_mod_catalogs: catalogs.item_mod_catalogs,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -267,6 +357,14 @@ pub fn player_aura_application_cx_like_cpp<'a>(
     let catalogs = AuraApplicationCatalogsLikeCpp::new(
         catalogs.mount_capability_store.as_deref(),
         catalogs.spell_catalogs.spell_store.as_ref(),
+        catalogs.spell_catalogs.spell_aura_options_store.as_deref(),
+        catalogs.spell_catalogs.spell_misc_store.as_deref(),
+        catalogs
+            .spell_catalogs
+            .spell_class_options_store()
+            .map(AsRef::as_ref),
+        catalogs.spell_catalogs.spell_duration_store.as_deref(),
+        catalogs.spell_catalogs.spell_proc_store.as_deref(),
         catalogs.chr.classes_store.as_deref(),
         catalogs.difficulty_store().map(AsRef::as_ref),
         catalogs.items.store.as_ref(),
@@ -276,6 +374,17 @@ pub fn player_aura_application_cx_like_cpp<'a>(
             .spell_catalogs
             .spell_shapeshift_form_store
             .as_deref(),
+        core.current_map_difficulty_id_like_cpp(),
+        catalogs.creatures.display_info_store.as_deref(),
+        catalogs.creatures.display_info_extra_store.as_deref(),
+        catalogs.creatures.model_data_store.as_deref(),
+        catalogs.chr.races_store.as_deref(),
+        catalogs.chr.shapeshift_display_links_absent,
+        catalogs
+            .creatures
+            .template_lifecycle_store_like_cpp
+            .as_deref(),
+        catalogs.creatures.model_info_store.as_deref(),
         catalogs.map_store().map(AsRef::as_ref),
         wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
             catalogs.items.store.as_ref(),
@@ -285,7 +394,8 @@ pub fn player_aura_application_cx_like_cpp<'a>(
             catalogs.shield_block_regular_game_table.as_ref(),
             catalogs.spell_catalogs.spell_shapeshift_form_store(),
         ),
-    );
+    )
+    .with_serverside_spell_store_like_cpp(catalogs.spell_catalogs.serverside_spell_store.as_ref());
     AuraRemovalCxLikeCpp::new(
         spell_state,
         inventory,

@@ -6,7 +6,8 @@ async fn represented_haste_aura_scales_attack_time_multiplier_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 76);
     session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_991, 0), (90_992, 0)]);
     // `SPELL_AURA_MOD_MELEE_HASTE` and `SPELL_AURA_MOD_SPEED_SLOW_ALL` with
     // opposite signs exercise both branches of `ApplyAttackTimePercentMod`.
     spell_store.insert(
@@ -96,7 +97,8 @@ async fn represented_shapeshift_combat_round_time_sets_form_attack_time_like_cpp
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     let form_id = 8_u32;
     let spell_id = 90_993_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(
         spell_id,
         represented_aura_spell_like_cpp(

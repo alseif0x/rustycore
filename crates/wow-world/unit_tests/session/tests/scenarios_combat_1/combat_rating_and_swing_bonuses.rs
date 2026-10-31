@@ -83,7 +83,7 @@ fn white_swing_applies_autoattack_damage_auras_like_cpp() {
         .unwrap();
 
     let aura_spell_id = 90_997_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(90_997, 0)]);
     spell_store.insert(
         aura_spell_id,
         wow_data::SpellInfo {
@@ -235,7 +235,8 @@ fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
         ]),
     ));
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_998, 0), (90_999, 0)]);
     for (spell_id, aura, amount) in [
         (
             90_998_i32,
@@ -395,7 +396,11 @@ fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_100, 0),
+        (91_101, 0),
+        (91_102, 0),
+    ]);
     for (spell_id, aura, amount, misc) in [
         (
             91_100_i32,

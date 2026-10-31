@@ -46,6 +46,8 @@ pub enum HotfixStatements {
     SEL_POWER_TYPE,
     /// C++ `HOTFIX_SEL_CHR_SPECIALIZATION`.
     SEL_CHR_SPECIALIZATION,
+    /// Typed projection used to fail closed on unsupported shapeshift display links.
+    SEL_CHR_CUSTOMIZATION_DISPLAY_INFO,
     /// C++ `HOTFIX_SEL_DIFFICULTY` projected to represented gameplay fields.
     SEL_DIFFICULTY,
     /// C++ `HOTFIX_SEL_SKILL_LINE` projected to represented acquisition fields.
@@ -240,6 +242,7 @@ impl HotfixStatements {
                 | Self::SEL_VEHICLE_SEAT
                 | Self::SEL_POWER_TYPE
                 | Self::SEL_CHR_SPECIALIZATION
+                | Self::SEL_CHR_CUSTOMIZATION_DISPLAY_INFO
                 | Self::SEL_DIFFICULTY
                 | Self::SEL_SKILL_LINE
                 | Self::SEL_SKILL_LINE_ABILITY
@@ -368,6 +371,10 @@ impl StatementDef for HotfixStatements {
                 "SELECT Name, FemaleName, Description, ID, ClassID, OrderIndex, PetTalentType, Role, Flags, ",
                 "SpellIconFileID, PrimaryStatPriority, AnimReplacements, MasterySpellID1, MasterySpellID2 ",
                 "FROM chr_specialization WHERE (`VerifiedBuild` > 0) = ?"
+            ),
+            Self::SEL_CHR_CUSTOMIZATION_DISPLAY_INFO => concat!(
+                "SELECT ID, ShapeshiftFormID, DisplayID FROM chr_customization_display_info ",
+                "WHERE (`VerifiedBuild` > 0) = ? AND ShapeshiftFormID <> 0"
             ),
             Self::SEL_DIFFICULTY => concat!(
                 "SELECT ID, Name, InstanceType, OrderIndex, OldEnumValue, FallbackDifficultyID, ",

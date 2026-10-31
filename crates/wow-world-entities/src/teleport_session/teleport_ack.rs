@@ -6,110 +6,56 @@
 //! the resurrection delayed across a teleport (#1363 slice 11a; moved from the
 //! World `session/movement/transfer.rs`).
 
-use wow_constants::PowerType;
 use wow_core::ObjectGuid;
-use wow_entities::PlayerResurrectionRequestLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_entities::{
+    PlayerResurrectionContinuation, PlayerResurrectionOperation, PlayerResurrectionPhase,
+    PlayerResurrectionRequestLikeCpp,
+};
 use wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::session::movement_protocol::MoveTeleportAckEventLikeCpp;
 
 use super::PlayerTeleportHostLikeCpp;
 
-pub(super) fn resurrect_player_percent_for_teleport_like_cpp<H: PlayerTeleportHostLikeCpp>(
-    host: &mut H,
-    restore_percent: f32,
-) {
-    let restored = host.core().with_owned_player_mut_like_cpp(|player| {
-        let max_health = player
-            .unit()
-            .data()
-            .max_health
-            .clamp(1, u64::from(u32::MAX)) as u32;
-        let health = ((max_health as f32) * restore_percent)
-            .max(0.0)
-            .min(max_health as f32) as u32;
-        player
-            .unit_mut()
-            .set_death_state(wow_constants::DeathState::Alive);
-        player.unit_mut().set_health(u64::from(health));
-        let mana = ((player.get_max_power(PowerType::Mana).max(0) as f32) * restore_percent)
-            .max(0.0) as i32;
-        let energy = ((player.get_max_power(PowerType::Energy).max(0) as f32) * restore_percent)
-            .max(0.0) as i32;
-        let focus = ((player.get_max_power(PowerType::Focus).max(0) as f32) * restore_percent)
-            .max(0.0) as i32;
-        player.unit_mut().set_power(PowerType::Mana, mana);
-        player.unit_mut().set_power(PowerType::Rage, 0);
-        player.unit_mut().set_power(PowerType::Energy, energy);
-        player.unit_mut().set_power(PowerType::Focus, focus);
-        health
-    });
-    if restored.is_none() {
-        return;
-    }
-    host.sync_player_registry_state_like_cpp();
-}
-pub fn schedule_represented_resurrection_after_teleport_like_cpp<H: PlayerTeleportHostLikeCpp>(
-    host: &mut H,
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn schedule_represented_resurrection_after_teleport(
+    host: &mut impl PlayerTeleportHostLikeCpp,
     request: PlayerResurrectionRequestLikeCpp,
 ) -> bool {
+    let continuation = PlayerResurrectionContinuation {
+        operation: PlayerResurrectionOperation::RequestData(request),
+        phase: PlayerResurrectionPhase::AwaitingTeleport,
+    };
     let canonical = host
         .core()
         .with_owned_player_mut_like_cpp(|player| {
-            player
-                .resurrection_state_mut_like_cpp()
-                .delayed_after_teleport = Some(request);
+            let state = player.resurrection_state_mut_like_cpp();
+            if state.delayed_after_teleport.is_some() {
+                return false;
+            }
+            state.delayed_after_teleport = Some(continuation);
+            true
         })
-        .is_some();
-    #[cfg(any(test, feature = "test-fixtures"))]
+        .unwrap_or(false);
     if canonical || host.core().player_handle_like_cpp.is_none() {
         if let Some(fixtures) = host.test_fixtures_like_cpp() {
             fixtures
                 .combat
-                .represented_delayed_resurrection_after_teleport_like_cpp = Some(request);
+                .represented_delayed_resurrection_after_teleport_like_cpp = Some(continuation);
         }
     }
-    #[cfg(any(test, feature = "test-fixtures"))]
     let world_test = host.test_fixtures_ref_like_cpp().is_some();
-    #[cfg(not(any(test, feature = "test-fixtures")))]
-    let world_test = false;
     canonical || world_test && host.core().player_handle_like_cpp.is_none()
 }
-pub fn process_represented_delayed_resurrection_after_teleport_like_cpp<
-    H: PlayerTeleportHostLikeCpp,
+
+pub async fn process_represented_delayed_resurrection_after_teleport_like_cpp<
+    H: PlayerTeleportHostLikeCpp + crate::CorpseHostLikeCpp,
 >(
     host: &mut H,
-) {
-    let canonical = host
-        .core()
-        .with_owned_player_mut_like_cpp(|player| {
-            player
-                .resurrection_state_mut_like_cpp()
-                .delayed_after_teleport
-                .take()
-        })
-        .flatten();
-    #[cfg(any(test, feature = "test-fixtures"))]
-    let request = canonical.or_else(|| {
-        (host.core().player_handle_like_cpp.is_none())
-            .then(|| {
-                host.test_fixtures_like_cpp().and_then(|fixtures| {
-                    fixtures
-                        .combat
-                        .represented_delayed_resurrection_after_teleport_like_cpp
-                        .take()
-                })
-            })
-            .flatten()
-    });
-    #[cfg(not(any(test, feature = "test-fixtures")))]
-    let request = canonical;
-    let Some(request) = request else {
-        return;
-    };
-
-    host.hub_mut()
-        .apply_represented_resurrection_health_like_cpp(request.health);
+    catalogs: crate::ResurrectionOperationCatalogs<'_>,
+) -> bool {
+    crate::resurrection_request::process_after_teleport(host, catalogs).await
 }
 pub fn handle_move_teleport_ack_like_cpp<H: PlayerTeleportHostLikeCpp>(
     host: &mut H,
@@ -330,7 +276,6 @@ pub fn handle_move_teleport_ack_like_cpp<H: PlayerTeleportHostLikeCpp>(
     }
 
     host.resummon_pet_temporary_unsummoned_like_cpp();
-    process_represented_delayed_resurrection_after_teleport_like_cpp(host);
     #[cfg(any(test, feature = "test-fixtures"))]
     if let Some(fixtures) = host.test_fixtures_like_cpp() {
         fixtures.movement.delayed_operations_processed_like_cpp = fixtures

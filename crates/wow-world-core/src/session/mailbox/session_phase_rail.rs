@@ -31,6 +31,12 @@ pub enum SessionPhaseRequestLikeCpp {
     /// C++ `Map::Update` driving its players' sessions with `MapSessionFilter`
     /// (`Map.cpp:669-680`, `WorldSession.cpp:64-86`).
     Map(RunMapPhasePassLikeCppCommand),
+    /// Player timer work admitted between the Map respawn prelude and tail.
+    PlayerRecovery(RunPlayerRecoveryRequest),
+    /// Required native death continuation before this Map combat future resumes.
+    NativePlayerDeath(super::RunNativePlayerDeathRequest),
+    /// Primary melee callbacks/presentation before the next canonical swing.
+    CommittedCreatureMelee(super::RunCommittedCreatureMeleeRequest),
 }
 
 impl SessionPhaseRequestLikeCpp {
@@ -40,8 +46,39 @@ impl SessionPhaseRequestLikeCpp {
         match self {
             Self::World(request) => request.coordinator_id,
             Self::Map(command) => command.admission.coordinator_id,
+            Self::PlayerRecovery(request) => request.admission.coordinator_id,
+            Self::NativePlayerDeath(request) => request.admission.map_phase.coordinator_id,
+            Self::CommittedCreatureMelee(request) => request.admission.map_phase.coordinator_id,
         }
     }
+}
+
+/// One admitted Player recovery step on an already split Map tick.
+#[derive(Clone, Debug)]
+pub struct RunPlayerRecoveryRequest {
+    pub admission: PlayerRecoveryAdmission,
+    pub permit: Arc<SessionPhasePermitLikeCpp>,
+    pub response_tx: flume::Sender<PlayerRecoveryReply>,
+}
+
+/// The terminal result for an admitted Player recovery pass.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlayerRecoveryStatus {
+    Completed,
+    PlayerLeft,
+    Unavailable,
+}
+
+/// Completion is reported only after all work covered by the status has
+/// stopped. A claimed request with no known status leaves its permit running.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlayerRecoveryReply {
+    pub coordinator_id: u64,
+    pub tick_epoch: u64,
+    pub map_tick_epoch: u64,
+    pub outcome: SessionPhasePassOutcomeLikeCpp,
+    pub status: Option<PlayerRecoveryStatus>,
+    pub disconnecting: bool,
 }
 
 /// One admitted world-phase pass.
@@ -146,6 +183,25 @@ pub struct MapPhaseAdmissionLikeCpp {
     pub residence_revision: u64,
     /// The effective diff of that tick, which feeds this pass's tails.
     pub diff_ms: u32,
+}
+
+/// Frozen identity facts for a selected Player recovery pass on one admitted
+/// Map tick. The coordinator epoch and Map plan epoch are independent spaces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerRecoveryAdmission {
+    pub coordinator_id: u64,
+    /// Epoch assigned by the canonical session-phase coordinator.
+    pub tick_epoch: u64,
+    /// Epoch assigned by `MapManager::begin_tick_like_cpp`.
+    pub map_tick_epoch: u64,
+    pub registration: crate::session::directory::PlayerRegistration,
+    pub handle: wow_map::PlayerHandle,
+    pub map_key: wow_map::MapKey,
+    pub map_incarnation: u64,
+    pub residence_revision: u64,
+    pub diff_ms: u32,
+    /// One Unix-nanosecond snapshot shared by every Player admitted in this tick.
+    pub unix_time_ns: u128,
 }
 
 /// The completion boundary of one map-phase pass.

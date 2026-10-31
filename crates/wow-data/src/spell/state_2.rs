@@ -204,7 +204,7 @@ pub(super) fn implicit_proc_aura_spell_type_mask_like_cpp(aura_type: i32) -> u32
 pub struct ImplicitSpellProcSourceLikeCpp {
     pub spell_id: u32,
     pub difficulty: u32,
-    pub spell_family_name: u16,
+    pub spell_family_name: u32,
     pub proc_flags: [u32; 2],
     pub proc_chance: f32,
     pub proc_cooldown_ms: u32,
@@ -687,13 +687,17 @@ pub(super) const fn implicit_target_category_accepts_conditions_like_cpp(target:
 pub(super) struct SpellHitCategoriesRowLikeCpp {
     pub(super) record_id: u32,
     pub(super) category_id: u32,
+    pub(super) start_recovery_category_id: u32,
     pub(super) charge_category_id: u32,
+    pub(super) prevention_type: u32,
     pub(super) defense_type: i8,
     pub(super) spell_mechanic: i8,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct SpellHitMiscRowLikeCpp {
     pub(super) record_id: u32,
     pub(super) school_mask: u8,
+    pub(super) speed: f32,
+    pub(super) launch_delay: f32,
 }

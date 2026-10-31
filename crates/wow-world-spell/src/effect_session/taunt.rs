@@ -10,7 +10,7 @@ use std::time::Instant;
 use tracing::debug;
 use wow_core::ObjectGuid;
 use wow_data::spell_duration_ms_like_cpp;
-use wow_entities::AuraApplicationLikeCpp as AuraApplication;
+use wow_entities::{AuraApplicationLikeCpp as AuraApplication, legacy_aura_duration_pair};
 
 /// C++ `Spell::EffectTaunt` / `SPELL_EFFECT_ATTACK_ME`.
 pub fn apply_taunt_effect_like_cpp<H: SpellEffectHostLikeCpp>(
@@ -65,6 +65,16 @@ pub fn apply_taunt_effect_like_cpp<H: SpellEffectHostLikeCpp>(
                 .as_deref(),
         )
     };
+    let visible_duration = if duration_ms == -1 {
+        Some((-1, -1))
+    } else {
+        u32::try_from(duration_ms)
+            .ok()
+            .and_then(|duration| legacy_aura_duration_pair(duration, duration))
+    };
+    let Some((visible_duration_total, visible_duration_remaining)) = visible_duration else {
+        return Err("Taunt aura duration exceeds the signed application range");
+    };
 
     let Some((threat_value, taunt_slot)) = host
         .core_mut()
@@ -114,14 +124,13 @@ pub fn apply_taunt_effect_like_cpp<H: SpellEffectHostLikeCpp>(
     if let (Some(slot), Some(effect_mask)) = (taunt_slot, taunt_effect_mask) {
         use wow_packet::ServerPacket;
 
-        let visible_duration_ms = u32::try_from(duration_ms).unwrap_or(u32::MAX);
         let aura = AuraApplication {
             spell_id,
             difficulty_id: host.core().current_map_difficulty_id_like_cpp(),
             caster_guid: player_guid,
             slot,
-            duration_total: visible_duration_ms,
-            duration_remaining: visible_duration_ms,
+            duration_total: visible_duration_total,
+            duration_remaining: visible_duration_remaining,
             stack_count: 1,
             aura_flags: 0,
             effect_mask,
@@ -134,14 +143,25 @@ pub fn apply_taunt_effect_like_cpp<H: SpellEffectHostLikeCpp>(
             represented_multiplier: 1.0,
             applied_at: Instant::now(),
         };
+        let mut aura_info = crate::session::player_aura_info_like_cpp(
+            &aura,
+            host.hub_ref().player_level_like_cpp(),
+            host.core().player_map_id_like_cpp(),
+        );
+        if duration_ms == -1 {
+            // Preserve this Taunt packet's legacy optional -1 duration fields;
+            // canonical AuraApplication state remains signed at -1/-1.
+            let data = aura_info
+                .aura_data
+                .as_mut()
+                .expect("Taunt AuraInfo carries aura data");
+            data.duration_ms = Some(-1);
+            data.remaining_ms = Some(-1);
+        }
         let packet = wow_packet::packets::misc::AuraUpdate {
             unit_guid: target_guid,
             update_all: false,
-            auras: vec![crate::session::player_aura_info_like_cpp(
-                &aura,
-                host.hub_ref().player_level_like_cpp(),
-                host.core().player_map_id_like_cpp(),
-            )],
+            auras: vec![aura_info],
         };
         host.send_packet(&packet);
         host.broadcast_creature_packet_to_visible_set_like_cpp(target_guid, packet.to_bytes());

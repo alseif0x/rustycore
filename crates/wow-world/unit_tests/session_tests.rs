@@ -4,6 +4,8 @@
 mod active_cast_owner;
 #[path = "session/tests/admission.rs"]
 mod admission;
+#[path = "session/tests/aura_duration.rs"]
+mod aura_duration;
 #[path = "session/tests/cinematic_catalog.rs"]
 mod cinematic_catalog;
 #[path = "session/tests/connection.rs"]
@@ -26,6 +28,8 @@ mod instance_occupancy;
 mod lifecycle;
 #[path = "session/tests/lifecycle_persistence.rs"]
 mod lifecycle_persistence;
+pub(crate) use lifecycle_persistence::RecordingPlayerLifecyclePort;
+pub(crate) use lifecycle_persistence::install_worldport_ack_inputs;
 #[path = "session/tests/login_auxiliary_persistence.rs"]
 mod login_auxiliary_persistence;
 #[path = "session/tests/mailbox_pump.rs"]
@@ -204,6 +208,8 @@ mod scenarios_spell_state_24;
 mod scenarios_spell_state_25;
 #[path = "session/tests/scenarios_spell_state_26.rs"]
 mod scenarios_spell_state_26;
+#[path = "session/tests/scenarios_spell_state_27.rs"]
+mod scenarios_spell_state_27;
 #[path = "session/tests/scenarios_spell_state_3.rs"]
 mod scenarios_spell_state_3;
 #[path = "session/tests/scenarios_spell_state_4.rs"]

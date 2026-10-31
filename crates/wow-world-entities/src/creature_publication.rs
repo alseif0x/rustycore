@@ -170,6 +170,7 @@ mod tests {
             wow_entities::AuraCastProvenanceLikeCpp {
                 cast_id,
                 spell_visual_id: 7_822,
+                caster_level: None,
             },
         );
 

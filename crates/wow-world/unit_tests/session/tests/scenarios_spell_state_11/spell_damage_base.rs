@@ -45,10 +45,7 @@ async fn spell_effect_school_damage_negative_amount_is_noop_like_cpp() {
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(world_creature.current_hp(), 40);
     let opcodes = drain_server_opcodes(&send_rx);
-    assert_eq!(
-        opcodes,
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(opcodes, vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_direct_heal_and_damage_use_spell_effect_rows_like_cpp() {
@@ -120,7 +117,6 @@ async fn spell_direct_heal_and_damage_use_spell_effect_rows_like_cpp() {
             ServerOpcodes::UpdateObject,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
 }

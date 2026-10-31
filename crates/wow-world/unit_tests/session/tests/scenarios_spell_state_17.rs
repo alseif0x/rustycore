@@ -42,7 +42,7 @@ async fn spell_force_deselect_effect_row_records_break_and_clear_packets_like_cp
 
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+        vec![ServerOpcodes::SpellGo],
         "C++ sends break/clear to hostile visible clients, not directly to the caster session"
     );
     let evidence = session
@@ -184,7 +184,7 @@ async fn spell_change_raid_marker_effect_row_stores_marker_and_fanouts_like_cpp(
     }
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+        vec![ServerOpcodes::SpellGo],
         "RaidMarkersChanged is sent to represented group members, not as an extra direct caster packet"
     );
 }
@@ -265,10 +265,7 @@ async fn spell_change_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
         0
     );
     assert!(member_rx.try_recv().is_err());
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp() {
@@ -343,11 +340,7 @@ async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp(
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::QuestUpdateComplete,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::QuestUpdateComplete,]
     );
 }
 #[tokio::test]
@@ -377,6 +370,7 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
                 slot: 0,
             },
         );
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
 
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -402,31 +396,31 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
         },
     );
     session.set_spell_store(Arc::new(spell_store));
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
 
     session
         .execute_spell(spell_id, player_guid)
         .await
         .expect("represented tracking quest-complete spell row should execute");
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
-    );
+    let quests = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state after spell reward");
+    assert!(!quests.statuses_like_cpp().contains_key(&quest_id));
+    assert!(quests.rewarded_quest_ids_like_cpp().contains(&quest_id));
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::QuestUpdateComplete,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
-            ServerOpcodes::CooldownEvent,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }
@@ -489,10 +483,7 @@ async fn spell_quest_complete_effect_rewards_unlogged_tracking_event_like_cpp() 
             .quest_state
             .fixture_has_represented_quest_completed_bit_like_cpp(65)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_quest_complete_effect_keeps_failed_active_quest_unchanged_like_cpp() {
@@ -560,10 +551,7 @@ async fn spell_quest_complete_effect_keeps_failed_active_quest_unchanged_like_cp
         status.status,
         crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_cpp_unused_effect_row_is_represented_noop_like_cpp() {
@@ -629,10 +617,7 @@ async fn spell_cpp_unused_effect_row_is_represented_noop_like_cpp() {
         .expect("represented C++ EffectUnused row should no-op");
 
     assert_eq!(session.player_health_like_cpp(), 77);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_play_movie_sends_trigger_movie_for_valid_player_target_like_cpp() {
@@ -683,7 +668,7 @@ async fn spell_play_movie_sends_trigger_movie_for_valid_player_target_like_cpp()
 
     assert_eq!(session.represented_movie_like_cpp(), Some(movie_id));
     let packets = drain_server_packet_bytes(&send_rx);
-    assert_eq!(packets.len(), 3);
+    assert_eq!(packets.len(), 2);
     assert_eq!(
         packets[0][0..2],
         (ServerOpcodes::SpellGo as u16).to_le_bytes()
@@ -694,10 +679,6 @@ async fn spell_play_movie_sends_trigger_movie_for_valid_player_target_like_cpp()
     );
     assert_eq!(&packets[1][2..6], &movie_id.to_le_bytes());
     assert_eq!(packets[1].len(), 6);
-    assert_eq!(
-        packets[2][0..2],
-        (ServerOpcodes::CooldownEvent as u16).to_le_bytes()
-    );
 }
 #[tokio::test]
 async fn spell_play_movie_skips_missing_movie_or_non_player_target_like_cpp() {
@@ -753,10 +734,7 @@ async fn spell_play_movie_skips_missing_movie_or_non_player_target_like_cpp() {
             .await
             .expect("represented C++ EffectPlayMovie guard should no-op");
         assert_eq!(session.represented_movie_like_cpp(), None);
-        assert_eq!(
-            drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-        );
+        assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     }
 }
 #[tokio::test]
@@ -905,9 +883,6 @@ async fn spell_cpp_empty_real_handler_is_represented_noop_like_cpp() {
             .await
             .expect("C++ real no-op spell handler should no-op");
         assert_eq!(session.player_health_like_cpp(), 91);
-        assert_eq!(
-            drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-        );
+        assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
     }
 }

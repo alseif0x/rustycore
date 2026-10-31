@@ -130,7 +130,6 @@ pub async fn handle_list_inventory<H: VendorSessionHostLikeCpp>(host: &mut H, he
             let extended_cost = row.extended_cost as i32;
             let item_type = i32::from(row.item_type);
             let buy_price = row.buy_price;
-            let durability = row.max_durability as i32;
             let stack_count = row.buy_count as i32;
             let do_not_filter = row.do_not_filter;
             let incr_time = row.incr_time;
@@ -190,6 +189,14 @@ pub async fn handle_list_inventory<H: VendorSessionHostLikeCpp>(host: &mut H, he
                     );
                     continue;
                 }
+                let hub = host.hub_ref();
+                let durability = hub
+                    .catalogs
+                    .item_stats_store()
+                    .and_then(|store| store.sparse_template(item_id as u32))
+                    .map_or(row.max_durability, |_| {
+                        hub.catalogs.item_template_max_durability(item_id as u32)
+                    }) as i32;
                 let current_count = host.interaction_mut().vendor_item_current_count(
                     vendor_guid,
                     item_id as u32,

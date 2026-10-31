@@ -74,7 +74,8 @@ fn legacy_creature_melee_tick_once_honors_player_damage_immunity_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(91_350, 0), (91_351, 0)]);
     for (spell_id, aura_type, amount, misc_value) in [
         (
             91_350_i32,
@@ -239,7 +240,11 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_363, 0),
+        (91_364, 0),
+        (91_365, 0),
+    ]);
     for (spell_id, aura_type, amount, misc_value) in [
         (
             91_363_i32,
@@ -306,6 +311,7 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
                 wow_entities::AuraCastProvenanceLikeCpp {
                     cast_id: split_cast_id,
                     spell_visual_id: 7_364,
+                    caster_level: None,
                 },
             );
         })
@@ -572,6 +578,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
             wow_entities::AuraCastProvenanceLikeCpp {
                 cast_id: split_cast_id,
                 spell_visual_id: 7_374,
+                caster_level: None,
             },
         );
     }

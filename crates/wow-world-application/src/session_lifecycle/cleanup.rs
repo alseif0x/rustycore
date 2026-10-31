@@ -17,9 +17,49 @@ use wow_world_lifecycle::{FinalizationDisposition, FinalizationOutcome};
 
 use super::SessionLifecycleHostLikeCpp;
 
+pub(super) fn recovery_retirement_outcome<H: SessionLifecycleHostLikeCpp>(
+    host: &H,
+) -> Option<FinalizationOutcome> {
+    let core = host.core();
+    let Some(handle) = core.player_handle_like_cpp else {
+        return core
+            .player_guid()
+            .is_some()
+            .then_some(FinalizationOutcome::Unavailable);
+    };
+    if core.player_guid() != Some(handle.guid()) {
+        return Some(FinalizationOutcome::Unavailable);
+    }
+    let Some(manager) = core.canonical_map_manager.as_ref() else {
+        return Some(FinalizationOutcome::Unavailable);
+    };
+    let Ok(manager) = manager.lock() else {
+        return Some(FinalizationOutcome::Unavailable);
+    };
+    match manager
+        .with_player_like_cpp(handle, |player| {
+            (player.guid() == handle.guid()).then_some(
+                player
+                    .resurrection_state_like_cpp()
+                    .delayed_after_teleport
+                    .is_some()
+                    || player.has_unresolved_native_death_operation(),
+            )
+        })
+        .flatten()
+    {
+        Some(true) => Some(FinalizationOutcome::Deferred),
+        Some(false) => None,
+        None => Some(FinalizationOutcome::Unavailable),
+    }
+}
+
 pub fn cleanup_shared_runtime_state<H: SessionLifecycleHostLikeCpp>(
     host: &mut H,
 ) -> FinalizationOutcome {
+    if let Some(outcome) = recovery_retirement_outcome(host) {
+        return outcome;
+    }
     if host
         .lifecycle_mut()
         .finalization()

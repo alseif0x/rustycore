@@ -91,12 +91,13 @@ async fn production_disconnect_reports_unavailable_save_without_retiring_owner()
 
 #[tokio::test]
 async fn production_explicit_logout_completes_pending_transfer_before_save_and_retirement() {
-    pending_far_disconnect(DisconnectDestination::Requested, true).await;
+    pending_far_disconnect(DisconnectDestination::Requested, true, true).await;
 }
 
 #[tokio::test]
 async fn production_explicit_logout_terminal_recovery_leaves_one_source_save_to_disconnect() {
-    pending_far_disconnect(DisconnectDestination::Rejected, true).await;
+    pending_far_disconnect(DisconnectDestination::Rejected, true, false).await;
+    pending_far_disconnect(DisconnectDestination::Rejected, true, true).await;
 }
 
 async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
@@ -125,16 +126,20 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
     });
     *port.save_probe.lock().unwrap() = Some(probe.clone());
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    let creature_spawns = wow_world_entities::CreatureSpawnCatalogsLikeCpp::default();
+    let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+        item_guid_generator: &generator,
+        creature_spawns: &creature_spawns,
+        graveyards: None,
+    };
     let request = wow_packet::packets::misc::LogoutRequest { idle_logout: false };
     if cancel {
         use std::future::Future;
-        let mut logout = Box::pin(
-            wow_world_character::handle_logout_request_with_generator_like_cpp(
-                &mut session,
-                &generator,
-                request,
-            ),
-        );
+        let mut logout = Box::pin(wow_world_character::handle_logout_request_with_catalogs(
+            &mut session,
+            resurrection_catalogs,
+            request,
+        ));
         assert!(
             std::future::poll_fn(|cx| std::task::Poll::Ready(
                 logout.as_mut().poll(cx).is_pending()
@@ -145,9 +150,9 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
         drop(logout);
         session.kick("controlled explicit logout cancellation after save submission");
     } else {
-        wow_world_character::handle_logout_request_with_generator_like_cpp(
+        wow_world_character::handle_logout_request_with_catalogs(
             &mut session,
-            &generator,
+            resurrection_catalogs,
             request,
         )
         .await;
@@ -278,9 +283,15 @@ async fn production_explicit_logout_rejects_unavailable_source_save_without_reti
             .relocate(Position::new(f32::NAN, 0.0, 0.0, 0.0));
     }
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
-    wow_world_character::handle_logout_request_with_generator_like_cpp(
+    let creature_spawns = wow_world_entities::CreatureSpawnCatalogsLikeCpp::default();
+    let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+        item_guid_generator: &generator,
+        creature_spawns: &creature_spawns,
+        graveyards: None,
+    };
+    wow_world_character::handle_logout_request_with_catalogs(
         &mut session,
-        &generator,
+        resurrection_catalogs,
         wow_packet::packets::misc::LogoutRequest { idle_logout: false },
     )
     .await;

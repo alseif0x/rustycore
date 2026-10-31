@@ -236,6 +236,7 @@ pub(in crate::session::tests) fn creature_template_lifecycle_store_for_test(
             flags_extra: 0,
             string_id: String::new(),
             regen_health: true,
+            base_variance: 0.0,
             spells: [0; wow_data::MAX_CREATURE_SPELLS_LIKE_CPP],
             models: Vec::new(),
         },

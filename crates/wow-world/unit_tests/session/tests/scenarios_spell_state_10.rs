@@ -387,7 +387,6 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent
         ]
     );
     let log_bytes = packets
@@ -625,24 +624,58 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
         |entry| entry == 9008,
         |spell| spell == u32::try_from(spell_id).unwrap(),
     )));
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(
-        spell_id,
-        wow_data::SpellInfo {
-            spell_id,
-            cast_time_ms: 0,
-            cooldown_ms: 0,
-            recovery_time_ms: 0,
-            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
-            effect_base_points: 9,
-            effect_bonus_coefficient: 0.0,
-            aura_type: None,
-            display_flags: 0,
-            requires_spell_focus: 0,
-            power_costs: Vec::new(),
-            effects: Vec::new(),
-        },
+    let effect = wow_data::spell_db2::SpellEffectDb2Entry {
+        id: 1,
+        difficulty_id: 0,
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+        effect_amplitude: 0.0,
+        effect_attributes: 0,
+        effect_aura: 0,
+        effect_aura_period: 0,
+        effect_base_points: 9,
+        effect_bonus_coefficient: 0.0,
+        effect_chain_amplitude: 0.0,
+        effect_chain_targets: 0,
+        effect_die_sides: 0,
+        effect_item_type: 0,
+        effect_mechanic: 0,
+        effect_points_per_resource: 0.0,
+        effect_pos_facing: 0.0,
+        effect_real_points_per_level: 0.0,
+        effect_trigger_spell: 0,
+        bonus_coefficient_from_ap: 0.0,
+        pvp_multiplier: 0.0,
+        coefficient: 0.0,
+        variance: 0.0,
+        resource_coefficient: 0.0,
+        group_size_base_points_coefficient: 0.0,
+        effect_misc_value: [0; 2],
+        effect_radius_index: [0; 2],
+        effect_spell_class_mask: [0; 4],
+        implicit_target: [0; 2],
+        spell_id: spell_id as u32,
+    };
+    let effective = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
+        wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
+        wow_data::spell_db2::SpellMiscStore::from_entries([wow_data::spell_db2::SpellMiscEntry {
+            id: 1,
+            difficulty_id: 0,
+            attributes: [0; 15],
+            spell_id: spell_id as u32,
+            ..Default::default()
+        }]),
+        wow_data::spell_db2::SpellEffectDb2Store::from_entries([effect]),
+        wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
+        wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastTimesStore::from_entries([]),
+        wow_data::spell_db2::SpellCooldownsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastingRequirementsStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
     );
+    let spell_store = crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)])
+        .hydrate_effective_core_db2_like_cpp(effective);
     session.set_spell_store(Arc::new(spell_store));
 
     let plan = session.represented_handle_spell_click_plan_like_cpp(creature_guid);
@@ -691,6 +724,32 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
     assert_eq!(
         &packets[1][0..2],
         &(ServerOpcodes::HealthUpdate as u16).to_le_bytes()
+    );
+
+    // Source Unit::Kill must not skip the Player update's KillPlayer phase.
+    crate::native_death_test_fixtures::prepare(&mut session);
+    session.mutate_canonical_player_like_cpp(|player| player.unit_mut().set_health(5));
+    let outcome = session
+        .execute_represented_spell_click_plan_like_cpp(creature_guid, &plan)
+        .await;
+    assert_eq!(outcome.executed_casts, 1);
+    assert_eq!(
+        session.mutate_canonical_player_like_cpp(|player| (
+            player.unit().data().health,
+            player.unit().death_state(),
+        )),
+        Some((0, wow_constants::DeathState::JustDied))
+    );
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::CancelCombat,
+            ServerOpcodes::PowerUpdate,
+            ServerOpcodes::StandStateUpdate,
+            ServerOpcodes::DurabilityDamageDeath,
+        ],
+        "lethal creature-caster damage completes the native death packets before returning"
     );
 }
 #[tokio::test]
@@ -843,7 +902,6 @@ async fn represented_spellclick_executes_owner_original_caster_when_owner_is_cli
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent
         ]
     );
 }
@@ -951,7 +1009,12 @@ fn represented_unit_values_update_filters_spellclick_npc_flags_delta_like_cpp() 
     let update = UnitValuesUpdate {
         changed_object_type_mask: 1 << TYPEID_UNIT,
         object_data: None,
-        unit_data: Some(UnitDataUpdate { mask, values }),
+        unit_data: Some(UnitDataUpdate {
+            mask,
+            values,
+            aura_state: 0,
+            aura_state_per_caster: Vec::new(),
+        }),
     };
 
     let packet = wow_world_quest::unit_update_publication::represented_unit_values_update_to_update_object_like_cpp(&session, creature_guid, 571, &update)

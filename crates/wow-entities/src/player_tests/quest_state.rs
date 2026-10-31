@@ -12,7 +12,7 @@ use super::*;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{PlayerQuestGameplayState, PlayerQuestStatusRecord};
+use crate::{PlayerQuestGameplayState, PlayerQuestStatusRecord, PlayerQuestStatusSaveTypeLikeCpp};
 
 fn status(quest_id: u32, slot: u8) -> PlayerQuestStatusRecord {
     PlayerQuestStatusRecord {
@@ -66,6 +66,70 @@ fn quest_statuses_insert_and_remove_by_id_like_cpp() {
     assert!(state.remove_status_like_cpp(10).is_some());
     assert!(state.remove_status_like_cpp(10).is_none());
     assert!(state.status_like_cpp(10).is_none());
+}
+
+#[test]
+fn quest_save_intents_follow_source_operation_specific_rules_like_cpp() {
+    let mut state = PlayerQuestGameplayState::default();
+    state.replace_loaded_statuses_like_cpp(BTreeMap::from([(10, status(10, 0))]), true);
+    assert!(state.status_save_intents_like_cpp().is_empty());
+
+    // SetQuestStatus marks Default even when the assigned status is unchanged.
+    assert_eq!(state.set_status_like_cpp(10, 1, true), 1);
+    assert_eq!(
+        state.status_save_type_like_cpp(10),
+        Some(PlayerQuestStatusSaveTypeLikeCpp::Default)
+    );
+
+    // The effective turn-in branch skips this assignment without erasing the prior dirty kind.
+    state.mark_status_save_like_cpp(10, PlayerQuestStatusSaveTypeLikeCpp::Delete);
+    assert_eq!(state.set_status_like_cpp(10, 1, false), 1);
+    assert_eq!(
+        state.status_save_type_like_cpp(10),
+        Some(PlayerQuestStatusSaveTypeLikeCpp::Delete)
+    );
+
+    // RemoveActiveQuest marks Delete only when an active status was actually erased.
+    assert!(state.remove_status_like_cpp(999).is_none());
+    assert!(state.status_save_type_like_cpp(999).is_none());
+    assert!(state.remove_status_like_cpp(10).is_some());
+    assert_eq!(
+        state.status_save_type_like_cpp(10),
+        Some(PlayerQuestStatusSaveTypeLikeCpp::Delete)
+    );
+
+    // AddQuest's explicit marker replaces a prior Delete with Default.
+    state.add_active_status_like_cpp(10, status(10, 2));
+    assert_eq!(
+        state.status_save_type_like_cpp(10),
+        Some(PlayerQuestStatusSaveTypeLikeCpp::Default)
+    );
+
+    // A template-gated SetQuestStatus uses map indexing and creates the C++ default
+    // QuestStatusData row (MAX_QUEST_LOG_SIZE means no quest-log slot is assigned).
+    assert_eq!(state.set_status_like_cpp(30, 0, true), 0);
+    let created = state.status_like_cpp(30).unwrap();
+    assert_eq!(created.status, 0);
+    assert!(!created.explored);
+    assert_eq!(created.accept_time_secs, 0);
+    assert_eq!(created.end_time_secs, 0);
+    assert!(created.objective_counts.is_empty());
+    assert_eq!(created.slot, 25);
+    assert_eq!(
+        state.status_save_type_like_cpp(30),
+        Some(PlayerQuestStatusSaveTypeLikeCpp::Default)
+    );
+}
+
+#[test]
+fn loading_replaces_quest_statuses_without_dirtying_unrelated_or_loaded_rows_like_cpp() {
+    let mut state = PlayerQuestGameplayState::default();
+    state.add_active_status_like_cpp(10, status(10, 0));
+    state.replace_loaded_statuses_like_cpp(BTreeMap::from([(20, status(20, 1))]), true);
+
+    assert!(state.status_like_cpp(10).is_none());
+    assert!(state.status_like_cpp(20).is_some());
+    assert!(state.status_save_intents_like_cpp().is_empty());
 }
 
 #[test]

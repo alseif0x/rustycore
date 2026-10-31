@@ -45,6 +45,74 @@ pub(crate) struct CanonicalMapSessionPassMapLikeCpp {
     pub(crate) participants: Vec<wow_map::MapSessionPassParticipantLikeCpp>,
 }
 
+/// The owned result of the admitted synchronous respawn prelude. The next
+/// producer step can inspect the plan and queued DB intents before consuming
+/// this value in the continuation.
+pub(crate) struct CanonicalMapRecoveryPrelude {
+    plan: wow_map::MapTickPlanLikeCpp,
+    summary: CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+}
+
+impl CanonicalMapRecoveryPrelude {
+    /// The admitted map set used to prepare and resume this tick.
+    pub(crate) fn plan(&self) -> &wow_map::MapTickPlanLikeCpp {
+        &self.plan
+    }
+
+    /// Respawn DB intents and counts produced by the synchronous prelude.
+    pub(crate) fn summary(&self) -> &CanonicalSpawnGroupConditionTickSummaryLikeCpp {
+        &self.summary
+    }
+
+    /// Mutable access for submitting this prelude's DB intents exactly once
+    /// while the existing respawn-order gate is held.
+    pub(crate) fn summary_mut(&mut self) -> &mut CanonicalSpawnGroupConditionTickSummaryLikeCpp {
+        &mut self.summary
+    }
+
+    /// Return the one owned plan when the producer must abandon this tick.
+    pub(crate) fn into_plan(self) -> wow_map::MapTickPlanLikeCpp {
+        self.plan
+    }
+}
+
+/// Freeze the Player set the admitted object-update visits will reach after
+/// respawns have run. Both map identity and Player residence are rechecked
+/// under the manager guard before the caller releases it for phase delivery.
+pub(crate) fn player_recovery_pass_maps(
+    manager: &wow_map::MapManager,
+    prelude: &CanonicalMapRecoveryPrelude,
+) -> Vec<CanonicalMapSessionPassMapLikeCpp> {
+    let diff_ms = prelude.plan.effective_diff_ms();
+    prelude
+        .plan
+        .updated_maps_like_cpp()
+        .iter()
+        .filter_map(|admitted| {
+            if manager.map_incarnation_like_cpp(admitted.key) != Some(admitted.incarnation) {
+                return None;
+            }
+            let map = manager.find_map(admitted.key.map_id, admitted.key.instance_id)?;
+            let visited = map
+                .map()
+                .object_update_visit_plan_for_current_tick(diff_ms)
+                .player_update_guids
+                .into_iter()
+                .collect::<std::collections::BTreeSet<_>>();
+            let participants = manager
+                .map_session_pass_participants_like_cpp(admitted.key)
+                .into_iter()
+                .filter(|participant| visited.contains(&participant.guid))
+                .collect();
+            Some(CanonicalMapSessionPassMapLikeCpp {
+                key: admitted.key,
+                incarnation: admitted.incarnation,
+                participants,
+            })
+        })
+        .collect()
+}
+
 /// A process-unique identity for one canonical map coordinator.
 ///
 /// Two coordinators would produce the same epoch sequence, so the epoch alone
@@ -122,11 +190,42 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     creature_phase: Option<CanonicalMapCreaturePhaseLikeCpp<'_>>,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
+    let prelude = prepare_map_recovery_prelude(
+        manager,
+        plan,
+        scheduler,
+        canonical_spawn_metadata,
+        condition_store,
+        map_store,
+        loaded_grid_creature_respawn_caches,
+    )?;
+    continue_map_recovery_prelude(
+        manager,
+        prelude,
+        canonical_spawn_metadata,
+        map_store,
+        loaded_grid_creature_respawn_caches,
+        creature_phase,
+    )
+}
+
+/// Run the existing respawn prelude while the manager still owns the same
+/// admitted tick. Invalid epochs are rejected before any respawn effects.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_map_recovery_prelude(
+    manager: &mut wow_map::MapManager,
+    plan: wow_map::MapTickPlanLikeCpp,
+    scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
+    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    condition_store: &wow_data::ConditionEntriesByTypeStore,
+    map_store: &wow_data::MapStore,
+    loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
+) -> Option<CanonicalMapRecoveryPrelude> {
     let effective_diff_ms = plan.effective_diff_ms();
     if manager.tick_coordination_like_cpp()
         != wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(plan.epoch_like_cpp())
     {
-        // Respawn work is part of the same admitted tick.  Refuse it before
+        // Respawn work is part of the same admitted tick. Refuse it before
         // touching any map when the coordinator no longer owns that plan.
         return None;
     }
@@ -134,7 +233,7 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
     // the map's session pass and before ObjectUpdater (`Map.cpp:682-693`).
     // Keep that phase inside the admitted map incarnations, before the resume
     // method visits objects and captures SendObjectUpdates values.
-    let respawn_summary = canonical_map_tick_respawn_phase_like_cpp(
+    let summary = canonical_map_tick_respawn_phase_like_cpp(
         manager,
         plan.updated_maps_like_cpp(),
         effective_diff_ms,
@@ -144,15 +243,35 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
         map_store,
         loaded_grid_creature_respawn_caches,
     );
+    Some(CanonicalMapRecoveryPrelude { plan, summary })
+}
+
+/// Continue the same owned tick after its prelude. The manager's existing
+/// resume operation validates admitted map incarnations and runs the tick tail
+/// only when that plan successfully resumes.
+pub(crate) fn continue_map_recovery_prelude(
+    manager: &mut wow_map::MapManager,
+    prelude: CanonicalMapRecoveryPrelude,
+    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    map_store: &wow_data::MapStore,
+    loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
+    creature_phase: Option<CanonicalMapCreaturePhaseLikeCpp<'_>>,
+) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
+    if manager.tick_coordination_like_cpp()
+        != wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(prelude.plan.epoch_like_cpp())
+    {
+        return None;
+    }
+
     if let Some(creature_phase) = creature_phase {
-        creature_phase(manager, &plan);
+        creature_phase(manager, &prelude.plan);
     }
     // The canonical map still carries an intentionally incomplete Creature
     // visitor. Production behaviour is owned by the legacy/session runtime;
     // declare that owner so this tick cannot mutate and discard a shadow plan.
     let resumed = manager
         .resume_tick_with_pool_update_loaded_grid_records_context_owner_and_selection_like_cpp(
-            plan,
+            prelude.plan,
             canonical_spawn_metadata.spawn_store(),
             canonical_spawn_metadata.pool_mgr_like_cpp(),
             |map, object_type, spawn_id| match object_type {
@@ -171,11 +290,11 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
             wow_map::MapObjectUpdateSelectionLikeCpp::NearbyCells,
         );
     if resumed != wow_map::MapTickResumeLikeCpp::Resumed {
-        // The manager is not holding this tick any more: nothing was mutated and
-        // no tail may run, or the summary would report phases that never ran.
+        // Earlier respawn and Creature phases may already have
+        // mutated map state. Do not run or report the remaining tick tail.
         return None;
     }
-    canonical_map_tick_tail_like_cpp(manager, respawn_summary, map_store)
+    canonical_map_tick_tail_like_cpp(manager, prelude.summary, map_store)
 }
 
 pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
@@ -654,3 +773,7 @@ fn append_map_object_values_updates_like_cpp(
             });
     }
 }
+
+#[cfg(test)]
+#[path = "map_tick_tests.rs"]
+mod tests;

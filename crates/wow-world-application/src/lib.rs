@@ -9,8 +9,23 @@ pub use character_account_handlers::{
     CharacterAccountHandlerHostLikeCpp, register_character_account_handlers_like_cpp,
 };
 mod continue_login;
+mod pet_reagents;
 mod player_cast_session;
 mod player_handlers;
+mod player_spell_costs;
+mod player_stuck;
+pub use pet_reagents::{PetReagentReturnOutcome, return_pet_reagent_like_cpp};
+pub use player_stuck::apply_stuck_effect_like_cpp;
+mod pet_removal;
+pub use pet_removal::remove_pet_not_in_slot_like_cpp;
+mod player_death;
+pub use player_death::{
+    apply_player_damage_with_native_death_like_cpp, finish_native_player_death_like_cpp,
+    finish_player_non_alive_state_like_cpp, force_player_visibility_with_catalogs_like_cpp,
+    set_player_just_died_like_cpp,
+};
+mod quest_failure;
+pub use quest_failure::{fail_quests_with_flag_like_cpp, send_quest_update_like_cpp};
 mod session_lifecycle;
 pub use continue_login::{
     ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,
@@ -30,6 +45,11 @@ pub use player_cast_session::{
     remaining_global_cooldown_ms_like_cpp, request_represented_spell_cast_like_cpp,
     tick_pending_spell_cast_request_with_generator_like_cpp,
 };
+pub use player_spell_costs::{
+    apply_server_normal_cooldown_at_cast_start_like_cpp, server_normal_cast_cost_facts_like_cpp,
+    server_normal_cooldown_facts_like_cpp, server_normal_pre_go_like_cpp,
+    take_server_normal_cast_item_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use session_lifecycle::{
     AT_LOGIN_RESET_TALENTS_LIKE_CPP, CommittedRepresentedTalentResetLikeCpp,
@@ -39,10 +59,12 @@ pub use session_lifecycle::{
 pub use session_lifecycle::{
     PlayerLogoutHookEventLikeCpp, SessionAccountSaveCxLikeCpp, SessionLifecycleHostLikeCpp,
     cleanup_shared_runtime_state, finalize_session_with_generator_like_cpp,
+    finalize_session_with_resurrection_catalogs,
     handle_confirm_respec_wipe_with_generator_like_cpp,
     process_pending_periodic_player_save_with_generator_like_cpp,
-    resume_deferred_player_save_with_generator_like_cpp, run_logout_timer_with_generator_like_cpp,
+    resume_deferred_player_save_with_generator_like_cpp, run_logout_timer_with_catalogs,
 };
+pub use wow_world_entities::ResurrectionOperationCatalogs;
 mod spell_handlers;
 mod stand_state_session;
 pub use stand_state_session::{
@@ -55,8 +77,10 @@ pub use player_handlers::{
     PlayerHandlerCxLikeCpp, PlayerHandlerHostLikeCpp, register_player_handlers_like_cpp,
 };
 mod creature_damage;
+mod inebriation;
 mod inventory_move_planning;
 pub use creature_damage::{CreatureDamageHostLikeCpp, apply_damage_from_caster_like_cpp};
+pub use inebriation::{PlayerDrunkValueInput, set_player_drunk_value_like_cpp};
 mod player_items_session;
 pub use player_items_session::*;
 mod trainer_handlers;

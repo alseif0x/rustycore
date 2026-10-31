@@ -20,6 +20,7 @@ use wow_packet::packets::misc::{
 };
 use wow_packet::packets::update::PlayerCombatStats;
 use wow_world_core::session::{SessionState, SupportFeaturePolicyLikeCpp};
+use wow_world_entities::ResurrectionOperationCatalogs;
 use wow_world_lifecycle::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, FinalizationDisposition, FinalizationMode,
     GLOBAL_CACHE_MASK_LIKE_CPP,
@@ -97,9 +98,9 @@ pub fn logout_admission_like_cpp(
 /// `SMSG_LOGOUT_RESPONSE`, then either `LogoutPlayer(true)` at once or start
 /// the 20 s countdown that `WorldSession::Update` completes
 /// (`WorldSession.cpp:505-511`).
-pub async fn handle_logout_request_with_generator_like_cpp<H: CharacterLoginHostLikeCpp>(
+pub async fn handle_logout_request_with_catalogs<H: CharacterLoginHostLikeCpp>(
     host: &mut H,
-    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    catalogs: ResurrectionOperationCatalogs<'_>,
     req: LogoutRequest,
 ) {
     if host.state() == SessionState::Disconnecting {
@@ -143,9 +144,9 @@ pub async fn handle_logout_request_with_generator_like_cpp<H: CharacterLoginHost
     // Instant logout in taverns/cities, on taxi, or with the permission.
     if instant_logout {
         let report = host
-            .finalize_session_with_generator_like_cpp(
+            .finalize_session_with_resurrection_catalogs(
                 FinalizationMode::CharacterSelection,
-                item_guid_generator,
+                catalogs,
             )
             .await;
         if report.disposition == FinalizationDisposition::Complete {

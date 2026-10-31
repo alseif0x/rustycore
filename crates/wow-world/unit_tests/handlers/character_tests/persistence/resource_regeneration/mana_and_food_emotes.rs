@@ -11,7 +11,12 @@ fn mana_regen_applies_canonical_aura_producers_like_cpp() {
     set_priest_level80_stats(&mut session, 1000, 40);
     attach_stat_update_player_with_mana_and_health(&mut session, player_guid, 777, 1320, 77, 110);
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_087, 0),
+        (90_088, 0),
+        (90_089, 0),
+        (90_090, 0),
+    ]);
     for (spell_id, aura_type, amount, misc_value) in [
         (
             90_087,
@@ -289,7 +294,8 @@ fn food_emote_session_like_cpp(
 #[test]
 fn food_emote_visual_prefers_standing_food_aura_like_cpp() {
     let (mut session, send_rx, player_guid) = food_emote_session_like_cpp(110);
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(90_110, 0), (90_111, 0)]);
     // C++ prefers the food visual (`SPELL_VISUAL_KIT_FOOD`) when both a Standing
     // `SPELL_AURA_MOD_REGEN` and a Standing `SPELL_AURA_MOD_POWER_REGEN` apply.
     insert_food_emote_spell_like_cpp(
@@ -351,7 +357,7 @@ fn food_emote_visual_prefers_standing_food_aura_like_cpp() {
 #[test]
 fn drink_emote_visual_uses_standing_power_regen_aura_like_cpp() {
     let (mut session, send_rx, player_guid) = food_emote_session_like_cpp(111);
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(90_112, 0)]);
     insert_food_emote_spell_like_cpp(
         &mut spell_store,
         90_112,
@@ -386,7 +392,7 @@ fn drink_emote_visual_uses_standing_power_regen_aura_like_cpp() {
 #[test]
 fn food_emote_visual_skips_auras_without_standing_interrupt_flag_like_cpp() {
     let (mut session, send_rx, player_guid) = food_emote_session_like_cpp(112);
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(90_113, 0)]);
     // A regeneration aura that is not interrupted by standing still never
     // produces the emote, and neither does a spell with no interrupt metadata.
     insert_food_emote_spell_like_cpp(

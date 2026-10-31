@@ -98,6 +98,8 @@ where
             corpse_guid.counter(),
         );
         bones.world_mut().object_mut().create(bones_guid);
+        // Map.cpp:3769 constructs new bones without copying the old Object scale.
+        bones.world_mut().object_mut().set_scale(0.0);
         bones
             .world_mut()
             .set_map(self.map_id(), self.instance_id())
@@ -118,6 +120,12 @@ where
         // C++ `PhasingHandler::InheritPhaseShift(bones, corpse)`.
         *bones.world_mut().phase_shift_mut() = corpse.world().phase_shift().clone();
         self.add_corpse_to_map_like_cpp(bones).ok()?;
+        // AddToMap ends its generic create scope. This caller publishes the
+        // actual bones birth outside the Map borrow, before its first await.
+        self.get_typed_corpse_mut(bones_guid)?
+            .world_mut()
+            .object_mut()
+            .set_is_new_object(true);
         Some(bones_guid)
     }
 }

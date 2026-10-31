@@ -49,6 +49,15 @@ pub fn unix_now() -> i64 {
         .as_secs() as i64
 }
 
+/// Current Unix timestamp in milliseconds for native Player spell history.
+pub fn unix_now_ms_like_cpp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .min(u128::from(u64::MAX)) as u64
+}
+
 impl crate::session::state::SessionCore {
     pub fn auto_reply_msg_like_cpp(&self) -> Option<String> {
         self.canonical_player_snapshot_like_cpp(|player| {

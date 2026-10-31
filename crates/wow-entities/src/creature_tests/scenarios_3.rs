@@ -146,6 +146,7 @@ fn creature_addon_aura_provenance_is_pending_until_map_settlement_like_cpp() {
         AuraCastProvenanceLikeCpp {
             cast_id,
             spell_visual_id: 901,
+            caster_level: None,
         }
     );
 

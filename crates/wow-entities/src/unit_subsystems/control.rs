@@ -77,7 +77,6 @@ impl CharmInfoState {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControlSubsystem {
     pub owner_guid: Option<ObjectGuid>,
-    pub minion_guid: Option<ObjectGuid>,
     pub summon_slots: [ObjectGuid; MAX_SUMMON_SLOT],
     pub gameobject_slots: [ObjectGuid; MAX_GAMEOBJECT_SLOT],
     pub owned_gameobjects: Vec<ObjectGuid>,
@@ -99,10 +98,6 @@ pub struct ControlSubsystem {
 impl ControlSubsystem {
     pub fn set_owner_guid(&mut self, owner: Option<ObjectGuid>) {
         self.owner_guid = owner;
-    }
-
-    pub fn set_minion_guid(&mut self, minion: Option<ObjectGuid>) {
-        self.minion_guid = minion;
     }
 
     pub fn pet_guid(&self) -> ObjectGuid {

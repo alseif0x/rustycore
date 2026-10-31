@@ -29,6 +29,8 @@ impl SessionCore {
             object_data: None,
             unit_data: Some(UnitDataUpdate {
                 mask,
+                aura_state: 0,
+                aura_state_per_caster: Vec::new(),
                 values: UnitDataValues {
                     emote_state: emote_state.min(i32::MAX as u32) as i32,
                     ..Default::default()
@@ -36,6 +38,7 @@ impl SessionCore {
             }),
             player_data: None,
             active_player_data: None,
+            derived_stats: None,
         };
         player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
     }

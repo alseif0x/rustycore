@@ -13,6 +13,7 @@
 //! body called it before the move.
 
 use std::future::Future;
+use std::pin::Pin;
 
 use tracing::{debug, info};
 use wow_core::{ObjectGuid, Position};
@@ -50,12 +51,17 @@ use primary_effect_fallback::apply_primary_spell_effect_fallback_like_cpp;
 use target_resolution::{
     ResolvedSpellEffectTargetsLikeCpp, resolve_spell_effect_target_data_like_cpp,
 };
+pub use target_resolution::{
+    normalize_caster_only_stuck_target_data_like_cpp,
+    normalize_hearthstone_spell_start_target_data_like_cpp,
+};
 
 mod cast_state;
 mod checks;
 mod completion;
 mod destinations;
 mod execution;
+mod execution_support;
 mod farsight;
 mod item_effects;
 mod nearby_entry;
@@ -64,12 +70,36 @@ mod player_effects;
 mod post_spell_go;
 mod preparation;
 mod primary_effect_fallback;
+mod resurrection_auras;
+mod resurrection_offer;
+mod resurrection_sickness;
+mod selected_cast_visual;
+mod selected_creation;
+mod selected_effects;
 mod target_resolution;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerNormalPreGoFailureLikeCpp {
+    MissingReagent(u32),
+    MissingCurrency(u16),
+    Power,
+    Unavailable(&'static str),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ServerNormalPreGoPlanLikeCpp {
+    pub metadata: SpellCastMetadata,
+    pub take_cast_item: bool,
+    pub take_cast_item_before_effects: bool,
+}
 
 pub use cast_state::*;
 pub use checks::*;
 pub use destinations::*;
+pub(crate) use execution::spell_go_original_cast_id_like_cpp;
 pub use execution::*;
+pub use execution_support::validate_server_normal_spell_execution_availability_like_cpp;
+pub(crate) use execution_support::validate_spell_effect_routes_like_cpp;
 pub use farsight::*;
 pub use item_effects::*;
 pub use nearby_entry::*;
@@ -84,10 +114,40 @@ pub use player_effects::*;
 pub trait SpellExecutionHostLikeCpp:
     SpellEffectHostLikeCpp + wow_world_inventory::BattlePetSessionHostLikeCpp
 {
+    /// Resolve a physical Player item through its canonical owner and the
+    /// existing effective item-level catalogs before a normal cast retains it.
+    fn server_normal_physical_item_facts_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> Option<(u32, u32)>;
+    /// Source `TakePower`/`TakeReagents`/`SendSpellCooldown` operation. It
+    /// applies canonical native costs and history before SpellGo and returns
+    /// only the deferred physical cast-item action.
+    fn server_normal_pre_go_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        cast_id: ObjectGuid,
+        visual: &wow_packet::packets::spell::SpellCastVisual,
+        metadata: SpellCastMetadata,
+    ) -> Result<ServerNormalPreGoPlanLikeCpp, ServerNormalPreGoFailureLikeCpp>;
+    /// Source `TakeCastItem`, called at its actual hit-delay phase. The World
+    /// adapter re-reads the retained physical item here, after any intervening
+    /// effects, and recomputes charge/count consumption.
+    fn take_server_normal_cast_item_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        metadata: SpellCastMetadata,
+    ) -> Result<SpellCastMetadata, &'static str>;
     fn mutate_cast_execution_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
     ) -> Option<R>;
+    /// Prove the complete absence of C++ script and linked-spell runtime hooks
+    /// for one exact source spell. Hosts without that authority fail closed.
+    fn spell_has_no_unrepresented_runtime_hooks_like_cpp(&self, spell_id: u32) -> bool {
+        let _ = spell_id;
+        false
+    }
     fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool;
     fn represented_battle_pet_like_cpp(
         &self,
@@ -125,6 +185,31 @@ pub trait SpellExecutionHostLikeCpp:
         aura_flags: u32,
         effect_mask: u32,
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        send_update: bool,
+    ) -> Result<(), &'static str>;
+    fn apply_ghost_wisp_aura(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        spell_info: &wow_data::SpellInfo,
+        duration_ms: u32,
+        effect_mask: u32,
+        stack_amount: u32,
+        attributes1: u32,
+        attributes5: u32,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
+    ) -> Result<(), &'static str>;
+    fn apply_resurrection_sickness_aura(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        spell_info: &wow_data::SpellInfo,
+        duration_total: i32,
+        stack_amount: u32,
+        attributes1: u32,
+        attributes5: u32,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
+        cast_metadata: SpellCastMetadata,
     ) -> Result<(), &'static str>;
     fn apply_durability_damage_effect_like_cpp(
         &mut self,
@@ -163,10 +248,25 @@ pub trait SpellExecutionHostLikeCpp:
         quest_id: i32,
     ) -> impl Future<Output = Result<(), &'static str>> + Send;
     fn apply_force_deselect_effect_like_cpp(&mut self) -> bool;
-    /// The World resurrection snapshot, ghost flag and alive state the moved
-    /// stuck effect reads and writes (#1363 slice 12b2).
-    fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool);
-    fn set_player_alive_like_cpp(&mut self, alive: bool);
+    /// C++ `Spell::EffectStuck` spans canonical spell history, death/repop,
+    /// and teleport owners. This boxed callback breaks the obtain-spell cast
+    /// recursion while the Application operation retains those owners.
+    fn apply_stuck_effect_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
+        caster_guid: ObjectGuid,
+    ) -> Pin<Box<dyn Future<Output = Result<(), &'static str>> + Send + 'a>>;
+    /// C++ `Spell::EffectSelfResurrect` after its input values are frozen.
+    /// The boxed future breaks the real obtain-spell -> normal-cast -> effect
+    /// recursion while retaining the canonical Player continuation.
+    fn self_resurrect_player_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
+        health: u32,
+        mana: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<(), &'static str>> + Send + 'a>>;
     /// The World test session's handle-less capability owner for the moved
     /// proficiency effect's fixture step; `None` for every other host.
     #[cfg(any(test, feature = "test-fixtures"))]

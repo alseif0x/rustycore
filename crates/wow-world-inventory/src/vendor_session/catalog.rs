@@ -85,6 +85,17 @@ pub(super) async fn resolve_vendor_buy_item_by_cpp_slot<H: VendorSessionHostLike
                     if row_item_id != expected_item_id {
                         return None;
                     }
+                    let hub = host.hub_ref();
+                    let max_durability = if item_type == ItemVendorType::Item as i32 {
+                        hub.catalogs
+                            .item_stats_store()
+                            .and_then(|store| store.sparse_template(row_item_id))
+                            .map_or(row.max_durability, |_| {
+                                hub.catalogs.item_template_max_durability(row_item_id)
+                            })
+                    } else {
+                        row.max_durability
+                    };
                     return Some(VendorBuyItem {
                         item_id: row_item_id,
                         item_type,
@@ -94,7 +105,7 @@ pub(super) async fn resolve_vendor_buy_item_by_cpp_slot<H: VendorSessionHostLike
                         has_vendor_conditions: row.has_vendor_conditions,
                         extended_cost: row.extended_cost,
                         buy_price: row.buy_price,
-                        max_durability: row.max_durability,
+                        max_durability,
                         buy_count: row.buy_count,
                     });
                 }

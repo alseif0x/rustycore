@@ -16,16 +16,21 @@ use std::time::Instant;
 
 use wow_core::ObjectGuid;
 use wow_loot::{LootClaimLease, OwnedLootAuthority};
+use wow_map::{MapKey, PlayerHandle};
 use wow_packet::packets::loot::LootEntry;
 use wow_packet::packets::party::PartyUpdate;
 pub use wow_social::group::GroupDifficultyKindLikeCpp;
 
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 
+#[path = "protocol/visibility.rs"]
+mod visibility;
+
 /// C++ `Player::m_clientGUIDs` held behind a shared handle.
 ///
-/// The owning session is the only writer, but recipient selection for durable
-/// fan-out runs on the map tick, which has no access to session-local state.
+/// The owning session replaces its visibility snapshot; immediate object birth
+/// also commits discovery through this same ledger after successful enqueue.
+/// Recipient selection for durable fan-out runs on the map tick.
 /// Publishing the membership through the player registry lets a producer commit
 /// the recipient decision at the moment the message is resolved instead of
 /// re-deriving it from mutable state when the receiving session drains.
@@ -158,8 +163,13 @@ impl SessionCommand {
             Self::SendIfVisibleLikeCpp(_)
                 | Self::SendCreatureSpellCastIfVisibleLikeCpp(_)
                 | Self::SendPlayerSpellIfVisibleLikeCpp(_)
+                | Self::SendPlayerAuraUpdate(_)
                 | Self::SendRealmIfVisibleLikeCpp(_)
         )
+    }
+
+    pub(super) fn is_committed_aura_update(&self) -> bool {
+        matches!(self, Self::SendPlayerAuraUpdate(_))
     }
 
     pub(super) fn is_directed_object_destroy_like_cpp(&self) -> bool {
@@ -232,6 +242,10 @@ pub enum SessionCommand {
     SendCreatureSpellCastIfVisibleLikeCpp(SendCreatureSpellCastIfVisibleLikeCppCommand),
     /// One Player cast frame with recipients committed at its publication phase.
     SendPlayerSpellIfVisibleLikeCpp(SendPlayerSpellIfVisibleLikeCppCommand),
+    /// One selected Player AuraUpdate whose recipient was committed by the
+    /// producer. The receiver validates this session incarnation and residence
+    /// without re-checking source presence or visibility at drain.
+    SendPlayerAuraUpdate(SendPlayerAuraUpdateCommand),
     /// Same visibility/phase/range gate as `SendIfVisibleLikeCpp`, but route
     /// the accepted packet through the receiver's realm connection.
     SendRealmIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
@@ -570,6 +584,16 @@ pub struct SendPlayerSpellIfVisibleLikeCppCommand {
     pub instance_id: u32,
     pub packet_bytes: Vec<u8>,
     pub committed_visibility_like_cpp: SharedClientVisibleGuidsLikeCpp,
+}
+
+/// A selected Player AuraUpdate committed to this session incarnation.
+#[derive(Clone, Debug)]
+pub struct SendPlayerAuraUpdateCommand {
+    pub recipient_handle: PlayerHandle,
+    pub map_key: MapKey,
+    pub residence_revision: u64,
+    pub committed_visibility: SharedClientVisibleGuidsLikeCpp,
+    pub packet_bytes: Vec<u8>,
 }
 
 /// Carries C++ `WorldSession::DoLootRelease`'s forced creature DynamicFlags

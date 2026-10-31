@@ -373,11 +373,19 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
     let canonical = shared_canonical_map_manager();
     let hearth_effect = wow_data::SpellEffectInfo {
         effect_index: 0,
-        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
-        implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
+        implicit_target_1: 1,
+        implicit_target_2: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
         ..Default::default()
     };
-    let spell_info = teleport_units_spell_info_like_cpp(spell_id, vec![hearth_effect]);
+    let script_effect = wow_data::SpellEffectInfo {
+        effect_index: 1,
+        effect: 77,
+        implicit_target_1: 1,
+        ..Default::default()
+    };
+    let spell_info =
+        teleport_units_spell_info_like_cpp(spell_id, vec![hearth_effect, script_effect]);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -399,18 +407,27 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(spell_id, spell_info);
     session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
+    session.set_spell_linked_store(Arc::new(wow_data::SpellLinkedStoreLikeCpp::default()));
+    session.set_spell_runtime_script_authority_like_cpp(
+        Arc::new(std::collections::BTreeSet::new()),
+        Arc::new(std::collections::BTreeSet::new()),
+        Arc::new(std::collections::BTreeSet::new()),
+        Arc::new(std::collections::BTreeSet::new()),
+    );
 
     session
         .execute_spell_with_visual_and_target_data(
             spell_id,
             player_guid,
-            ObjectGuid::EMPTY,
+            player_guid,
             wow_packet::packets::spell::SpellCastVisual {
                 spell_visual_id: 8690,
                 script_visual_id: 0,
             },
             SpellTargetData {
-                flags: 0x0000_0040,
+                flags: 0x0000_0042,
+                unit: player_guid,
                 dst_location: Some(wow_packet::packets::spell::TargetLocation {
                     transport: ObjectGuid::EMPTY,
                     position: Position::new(999.0, 998.0, 997.0, 0.0),
@@ -423,8 +440,11 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
         .expect("TARGET_DEST_HOME hearthstone teleport should execute");
 
     let bytes = send_rx.try_recv().expect("hearthstone SpellGo");
-    let packet_target = decode_spell_go_target_data_like_cpp(&bytes, spell_id);
-    assert_ne!(packet_target.flags & 0x0000_0040, 0);
+    let (packet_target, hit_targets) =
+        decode_spell_go_target_data_and_hit_targets_like_cpp(&bytes, spell_id);
+    assert_eq!(packet_target.flags & 0x0000_0042, 0x0000_0042);
+    assert_eq!(packet_target.unit, ObjectGuid::EMPTY);
+    assert_eq!(hit_targets, vec![player_guid]);
     assert_eq!(
         packet_target
             .dst_location
@@ -439,6 +459,100 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
         Some((1, home_position))
     );
     assert_eq!(session.core.state, SessionState::Transfer);
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![
+            ServerOpcodes::CancelCombat,
+            ServerOpcodes::TransferPending,
+            ServerOpcodes::SuspendToken,
+        ],
+        "the admitted script row must not publish effects beyond the home teleport and cast completion"
+    );
+}
+
+#[tokio::test]
+async fn teleport_units_target_dest_home_script_effect_requires_complete_hook_absence_like_cpp() {
+    for exact_hook_present in [false, true] {
+        let (mut session, _, send_rx) = make_session();
+        session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 1]));
+        let spell_id = 8690_i32;
+        let player_guid =
+            ObjectGuid::create_player(1, if exact_hook_present { 7043 } else { 7042 });
+        let player_position = Position::new(300.0, 400.0, 60.0, 0.5);
+        let home_position = Position::new(40.0, 50.0, 60.0, 1.25);
+        let canonical = shared_canonical_map_manager();
+        let hearth_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD,
+            implicit_target_1: 1,
+            implicit_target_2: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+        let script_effect = wow_data::SpellEffectInfo {
+            effect_index: 1,
+            effect: 77,
+            implicit_target_1: 1,
+            ..Default::default()
+        };
+        let spell_info =
+            teleport_units_spell_info_like_cpp(spell_id, vec![hearth_effect, script_effect]);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            format!("HearthHook{exact_hook_present}"),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 1,
+            area_id: 1519,
+            position: home_position,
+        });
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, spell_info);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
+        session.set_spell_linked_store(Arc::new(wow_data::SpellLinkedStoreLikeCpp::default()));
+        if exact_hook_present {
+            session.set_spell_runtime_script_authority_like_cpp(
+                Arc::new(std::collections::BTreeSet::from([8690_u32])),
+                Arc::new(std::collections::BTreeSet::new()),
+                Arc::new(std::collections::BTreeSet::new()),
+                Arc::new(std::collections::BTreeSet::new()),
+            );
+        }
+
+        let result = session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 8690,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await;
+
+        assert_eq!(
+            result,
+            Err("normal cast contains an unimplemented spell effect"),
+            "exact_hook_present={exact_hook_present}"
+        );
+        assert_eq!(session.pending_teleport_like_cpp(), None);
+        assert_ne!(session.core.state, SessionState::Transfer);
+        assert!(
+            send_rx.try_recv().is_err(),
+            "a rejected script row must not publish SpellGo"
+        );
+    }
 }
 #[tokio::test]
 async fn teleport_units_target_dest_home_without_homebind_is_noop_boundary_like_cpp() {
@@ -858,6 +972,15 @@ fn represented_non_mounted_flight_speed_removal_recomputes_like_cpp() {
         effect_index: 1,
         ..Default::default()
     };
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(20_027, 0), (20_028, 0)]);
+    let mut flight_info = test_spell_info_like_cpp(20_027);
+    flight_info.effects = vec![flight.clone()];
+    spell_store.insert(20_027, flight_info);
+    let mut vehicle_flight_info = test_spell_info_like_cpp(20_028);
+    vehicle_flight_info.effects = vec![vehicle_flight.clone()];
+    spell_store.insert(20_028, vehicle_flight_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(

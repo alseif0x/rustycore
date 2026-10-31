@@ -5,6 +5,16 @@ use wow_core::ObjectGuid;
 pub const DAMAGE_FALL_LIKE_CPP: u8 = 2;
 pub const DAMAGE_FALL_TO_VOID_LIKE_CPP: u8 = 6;
 
+/// Owned damage facts; native health stays full width through publication.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerDamageResultLikeCpp {
+    pub health_before: u64,
+    pub health_after: u64,
+    pub max_health: u64,
+    pub applied_damage: u32,
+    pub killed: bool,
+}
+
 impl SessionCore {
     pub fn send_environmental_damage_log_like_cpp(
         &self,
@@ -14,7 +24,8 @@ impl SessionCore {
         resisted: u32,
         absorbed: u32,
     ) {
-        self.send_packet(&wow_packet::packets::combat::EnvironmentalDamageLog {
+        // C++ Opcodes.cpp:1373 registers SMSG_ENVIRONMENTAL_DAMAGE_LOG on REALM.
+        self.send_packet_realm(&wow_packet::packets::combat::EnvironmentalDamageLog {
             victim,
             damage_type: if damage_type == DAMAGE_FALL_TO_VOID_LIKE_CPP {
                 DAMAGE_FALL_LIKE_CPP
@@ -59,18 +70,17 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubRef<'_> {
-    /// Preserve `AttackerStateUpdate -> self share -> primary health` on the
-    /// victim session's FIFO for C++ `SPELL_AURA_SHARE_DAMAGE_PCT`.
+    /// Preserve C++ call/enqueue order for
+    /// `AttackerStateUpdate -> self share -> primary health` across the instance
+    /// and realm connections for `SPELL_AURA_SHARE_DAMAGE_PCT`. Cross-connection
+    /// network delivery order is not guaranteed.
     pub fn publish_self_share_health_like_cpp(
         &self,
         command: &crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand,
     ) {
         for health in &command.self_share_health_updates {
             self.core
-                .send_packet(&wow_packet::packets::combat::HealthUpdate {
-                    guid: command.victim_guid,
-                    health: (*health).min(i64::MAX as u64) as i64,
-                });
+                .send_player_health_update_like_cpp(command.victim_guid, *health);
         }
     }
 
@@ -125,6 +135,7 @@ impl crate::session::HubRef<'_> {
     }
 }
 
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::HubMut<'_> {
     /// Apply damage to the canonical Player owner and return
     /// `(before, after, max, applied, killed)`.

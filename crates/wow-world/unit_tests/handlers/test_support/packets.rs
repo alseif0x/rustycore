@@ -257,7 +257,7 @@ pub(crate) fn port_graveyard_packet() -> WorldPacket {
 
 pub(crate) fn reclaim_corpse_packet(corpse_guid: ObjectGuid) -> WorldPacket {
     let mut pkt = WorldPacket::new_empty();
-    pkt.write_bytes(&corpse_guid.to_raw_bytes());
+    pkt.write_packed_guid(&corpse_guid);
     pkt
 }
 

@@ -96,7 +96,6 @@ async fn spell_instakill_effect_row_kills_creature_and_logs_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellInstakillLog,
             ServerOpcodes::SpellNonMeleeDamageLog,
-            ServerOpcodes::CooldownEvent
         ]
     );
     let mut instakill = wow_packet::WorldPacket::from_bytes(&packets[1]);

@@ -28,6 +28,7 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
     let other_guid = ObjectGuid::create_player(1, 43);
     let pet_guid =
         ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 0, 0, 500, 44);
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(100, 0)]);
     let registry = Arc::new(PlayerRegistry::default());
     let (other_tx, _other_rx) = flume::bounded(8);
     let (other_command_tx, other_command_rx) = flume::bounded(8);
@@ -177,6 +178,10 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
         effect_misc_value_1: 1234,
         ..Default::default()
     };
+    let mut spell_info = test_spell_info_like_cpp(100);
+    spell_info.effects = vec![effect.clone()];
+    spell_store.insert(100, spell_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
@@ -767,6 +772,7 @@ fn represented_fly_aura_removal_unsets_can_fly_and_resets_fall_info_like_cpp() {
     session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 44.0, 0.0));
     crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 80.0);
     let caster = ObjectGuid::create_player(1, 42);
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(20_034, 0)]);
     let fly = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
@@ -774,6 +780,10 @@ fn represented_fly_aura_removal_unsets_can_fly_and_resets_fall_info_like_cpp() {
         effect_index: 0,
         ..Default::default()
     };
+    let mut spell_info = test_spell_info_like_cpp(20_034);
+    spell_info.effects = vec![fly.clone()];
+    spell_store.insert(20_034, spell_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(
@@ -829,6 +839,7 @@ fn represented_fly_aura_removal_skips_move_fall_when_gravity_disabled_like_cpp()
     session.set_player_movement_flags_like_cpp(MovementFlag::DISABLE_GRAVITY);
     crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 80.0);
     let caster = ObjectGuid::create_player(1, 42);
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(20_037, 0)]);
     let fly = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
@@ -836,6 +847,10 @@ fn represented_fly_aura_removal_skips_move_fall_when_gravity_disabled_like_cpp()
         effect_index: 0,
         ..Default::default()
     };
+    let mut spell_info = test_spell_info_like_cpp(20_037);
+    spell_info.effects = vec![fly.clone()];
+    spell_store.insert(20_037, spell_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(
@@ -882,6 +897,8 @@ fn represented_fly_aura_removal_preserves_flags_when_mounted_flight_remains_like
     let (mut session, _, send_rx) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     let caster = ObjectGuid::create_player(1, 42);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(20_035, 0), (20_036, 0)]);
     let fly = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
@@ -896,6 +913,13 @@ fn represented_fly_aura_removal_preserves_flags_when_mounted_flight_remains_like
         effect_index: 0,
         ..Default::default()
     };
+    let mut fly_info = test_spell_info_like_cpp(20_035);
+    fly_info.effects = vec![fly.clone()];
+    spell_store.insert(20_035, fly_info);
+    let mut mounted_flight_info = test_spell_info_like_cpp(20_036);
+    mounted_flight_info.effects = vec![mounted_flight.clone()];
+    spell_store.insert(20_036, mounted_flight_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(
@@ -962,7 +986,8 @@ fn represented_mount_removal_removes_capability_speed_aura_like_cpp() {
             req_map_id: 0,
         },
     ])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(100, 0), (12_346, 0)]);
     spell_store.insert(
         12_346,
         wow_data::SpellInfo {
@@ -985,7 +1010,6 @@ fn represented_mount_removal_removes_capability_speed_aura_like_cpp() {
             }],
         },
     );
-    session.set_spell_store(Arc::new(spell_store));
     let effect = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
         effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
@@ -993,6 +1017,10 @@ fn represented_mount_removal_removes_capability_speed_aura_like_cpp() {
         effect_misc_value_1: 0,
         ..Default::default()
     };
+    let mut mounted_info = test_spell_info_like_cpp(100);
+    mounted_info.effects = vec![effect.clone()];
+    spell_store.insert(100, mounted_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)

@@ -1,6 +1,7 @@
 //! Session-independent mailbox protocol, durable rails, and phase admission values.
 
 mod durable;
+mod native_death;
 mod protocol;
 mod pump;
 mod session_phase_permit;
@@ -9,6 +10,11 @@ mod trade_commit;
 
 pub use self::durable::{
     DurableCreatureRuntimeCommandsLikeCpp, MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP,
+};
+pub use self::native_death::{
+    CommittedCreatureMeleeAdmission, CommittedCreatureMeleeReply,
+    CreatureMeleePresentationStageLikeCpp, NativePlayerDeathAdmission, NativePlayerDeathReply,
+    RunCommittedCreatureMeleeRequest, RunNativePlayerDeathRequest,
 };
 pub use self::protocol::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupDifficultyLikeCppCommand,
@@ -26,12 +32,13 @@ pub use self::protocol::{
     ResetSeasonalQuestStatusCommand, SendAddonIfRegisteredLikeCppCommand,
     SendCreatureLootReleaseValuesUpdateLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendPartyUpdateLikeCppCommand, SendPlayerSpellIfVisibleLikeCppCommand,
-    SendRealmPacketLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
-    SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
-    SendRepresentedTradeStatusLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
-    SetQuestSharingInfoAndSendDetailsCommand, SharedClientVisibleGuidsLikeCpp,
-    SharedClientVisibleTransportsLikeCpp, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SendPartyUpdateLikeCppCommand, SendPlayerAuraUpdateCommand,
+    SendPlayerSpellIfVisibleLikeCppCommand, SendRealmPacketLikeCppCommand,
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
+    SendRepresentedDuelRequestedLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand, SetQuestSharingInfoAndSendDetailsCommand,
+    SharedClientVisibleGuidsLikeCpp, SharedClientVisibleTransportsLikeCpp,
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
@@ -41,9 +48,10 @@ pub use self::session_phase_permit::{
     SessionPhaseRevokeLikeCpp,
 };
 pub use self::session_phase_rail::{
-    MapPhaseAdmissionLikeCpp, PendingWorldPhaseFinalizationLikeCpp, RunMapPhasePassLikeCppCommand,
-    RunMapPhasePassResultLikeCpp, RunWorldPhasePassLikeCppRequest, RunWorldPhasePassResultLikeCpp,
-    SessionPhasePassOutcomeLikeCpp, SessionPhaseRequestLikeCpp,
+    MapPhaseAdmissionLikeCpp, PendingWorldPhaseFinalizationLikeCpp, PlayerRecoveryAdmission,
+    PlayerRecoveryReply, PlayerRecoveryStatus, RunMapPhasePassLikeCppCommand,
+    RunMapPhasePassResultLikeCpp, RunPlayerRecoveryRequest, RunWorldPhasePassLikeCppRequest,
+    RunWorldPhasePassResultLikeCpp, SessionPhasePassOutcomeLikeCpp, SessionPhaseRequestLikeCpp,
 };
 pub use self::trade_commit::{
     TradeCommitParkedLikeCpp, TradeCommitRequestLikeCpp, TradeSideOutcomeLikeCpp,

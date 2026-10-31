@@ -10,7 +10,7 @@ use super::*;
 /// phase: the damage the primary apply commits and the publications its
 /// delivery owns.
 #[derive(Default)]
-pub(super) struct MeleeSecondaryTargetsOutcomeLikeCpp {
+pub(crate) struct MeleeSecondaryTargetsOutcomeLikeCpp {
     pub(super) damage: u32,
     /// C++ sends `AttackerStateUpdate` before the share loop's secondary
     /// mutation, so the primary keeps its pre-share health for wire overkill
@@ -22,6 +22,26 @@ pub(super) struct MeleeSecondaryTargetsOutcomeLikeCpp {
     pub(super) share_mutation_events: Vec<RuntimeEvent>,
     pub(super) primary_was_share_target: bool,
     pub(super) primary_player_share_health_updates: Vec<u64>,
+}
+
+impl MeleeSecondaryTargetsOutcomeLikeCpp {
+    pub(crate) fn awaited_like_cpp(
+        damage: u32,
+        primary_wire_health_before: u64,
+        represented_damage_done: u32,
+        primary_was_share_target: bool,
+    ) -> Self {
+        Self {
+            damage,
+            primary_wire_health_before: Some(primary_wire_health_before),
+            represented_damage_done,
+            split_mutation_events: Vec::new(),
+            split_combat_log_packets: Vec::new(),
+            share_mutation_events: Vec::new(),
+            primary_was_share_target,
+            primary_player_share_health_updates: Vec::new(),
+        }
+    }
 }
 
 /// C++ `Unit::CalcAbsorbResist`'s split tail (`Unit.cpp:1958-2015`) and

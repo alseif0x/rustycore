@@ -12,8 +12,8 @@ mod deferred_visibility;
 use crate::canonical_player_access::{
     HonorStatsLikeCpp, canonical_player_aggro_unit_state_like_cpp,
     canonical_player_honor_stats_like_cpp, canonical_player_presentation_like_cpp,
-    canonical_player_reputation_standings_like_cpp, with_canonical_player_at_like_cpp,
-    with_canonical_player_at_mut_like_cpp,
+    canonical_player_reputation_standings_like_cpp, canonical_player_vitals_like_cpp,
+    with_canonical_player_at_like_cpp, with_canonical_player_at_mut_like_cpp,
 };
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::session::SharedCanonicalMapManager;
@@ -36,6 +36,7 @@ use std::sync::{
 use wow_constants::UnitFlags;
 use wow_core::{ObjectGuid, Position};
 use wow_loot::OwnedLootAuthority;
+use wow_map::PlayerHandle;
 use wow_packet::packets::movement::TransportInfo;
 use wow_packet::packets::party::{
     PartyMemberAuraState, PartyMemberPetStats, PartyMemberPhaseStates,
@@ -438,6 +439,7 @@ pub struct PlayerAggroCandidateSnapshot {
 #[derive(Clone, Debug)]
 pub struct PlayerVisibilityCreateSnapshot {
     pub guid: ObjectGuid,
+    pub summon: ObjectGuid,
     pub position: Position,
     pub race: u8,
     pub class: u8,
@@ -447,6 +449,8 @@ pub struct PlayerVisibilityCreateSnapshot {
     pub zone_id: u32,
     pub current_health: u32,
     pub max_health: u32,
+    pub aura_state: u32,
+    pub unit_flags2: u32,
     pub power_type: u8,
     pub current_power: u16,
     pub max_power: u16,
@@ -462,6 +466,9 @@ pub struct PlayerVisibilityCreateSnapshot {
 struct PlayerRegistryEntry {
     generation: u64,
     identity: PlayerDirectoryIdentityLikeCpp,
+    /// Canonical incarnation supplied by the registering session, never
+    /// inferred from a GUID lookup that could already name a replacement.
+    player_handle: Option<PlayerHandle>,
     placement: PlayerDirectoryPlacementLikeCpp,
     active_loot_rolls: Vec<LootRollCommandIdentityLikeCpp>,
     /// Delivery handles for this incarnation, private to the directory (#270).
@@ -578,7 +585,7 @@ impl PlayerRegistry {
         self.install_canonical_player_fixture_like_cpp(guid, &registration);
         let generation = self.next_generation();
         let PlayerSessionRegistrationLikeCpp {
-            identity,
+            mut identity,
             placement,
             active_loot_rolls,
             send_tx,
@@ -591,11 +598,13 @@ impl PlayerRegistry {
             advanced_combat_logging_enabled_like_cpp,
             visibility_refresh_pending_like_cpp,
         } = registration;
+        let player_handle = identity.take_player_handle();
         self.entries.insert(
             guid,
             PlayerRegistryEntry {
                 generation,
                 identity,
+                player_handle,
                 placement,
                 active_loot_rolls,
                 send_tx,

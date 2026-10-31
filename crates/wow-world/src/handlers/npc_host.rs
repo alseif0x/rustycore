@@ -8,6 +8,7 @@
 //! context; the session only lends its hub, so no session reference crosses
 //! into the handler.
 
+use wow_handler::HandlerFuture;
 use wow_world_interaction::{NpcHandlerCxLikeCpp, NpcHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
@@ -18,5 +19,21 @@ impl NpcHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> NpcHandlerCxLikeCpp<'a> {
         NpcHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+    }
+
+    fn send_spirit_resurrect<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            self.player_aura_application_cx_like_cpp()
+                .remove_represented_feign_death_if_needed_like_cpp();
+            let corpse_catalogs = wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+                item_guid_generator: catalogs.id_generators.item.as_ref(),
+                creature_spawns: catalogs.creature_spawns.as_ref(),
+                graveyards: catalogs.graveyards.as_ref(),
+            };
+            wow_world_entities::send_spirit_resurrect(self, corpse_catalogs).await;
+        })
     }
 }

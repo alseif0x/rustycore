@@ -80,4 +80,30 @@ impl SessionSpellState {
             }],
         });
     }
+
+    pub fn send_aura_removal_for_spell(
+        &self,
+        target_guid: Option<wow_core::ObjectGuid>,
+        publication: &wow_world_core::session::PacketPublicationAccessLikeCpp<'_>,
+        slot: u8,
+        selected_update: bool,
+    ) {
+        let Some(target_guid) = target_guid else {
+            return;
+        };
+        let packet = wow_packet::packets::misc::AuraUpdate {
+            unit_guid: target_guid,
+            update_all: false,
+            auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
+                slot,
+                aura_data: None,
+            }],
+        };
+        if selected_update {
+            use wow_packet::ServerPacket;
+            publication.publish_selected_aura_update(target_guid, &packet.to_bytes());
+        } else {
+            publication.send_packet(&packet);
+        }
+    }
 }

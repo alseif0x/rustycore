@@ -10,11 +10,14 @@
 //! location, writer, mirror or runtime clock changed.
 
 mod auras;
+pub use auras::AuraDurationUpdatePolicy;
 mod away_status;
 mod collections;
 mod damage_control;
+mod death_operation;
 mod deferred_save;
 mod identity;
+mod inebriation;
 mod inventory_runtime;
 pub use inventory_runtime::{ItemObjectUpdateLikeCpp, PlayerInventoryRuntime};
 mod battleground;
@@ -34,6 +37,7 @@ mod persistent_capabilities;
 mod pet_lifecycle;
 mod progression;
 mod pvp;
+mod quest_log;
 mod quest_state;
 mod reputation;
 mod rest;
@@ -48,7 +52,11 @@ mod world_local;
 pub use battleground::PlayerBattlegroundState;
 pub use cinematic::PlayerCinematicStateLikeCpp;
 pub use collection_state::PlayerCollectionStateLikeCpp;
-pub use effective_stats::PlayerEffectiveCombatStatsLikeCpp;
+pub use death_operation::{
+    PlayerDeathOperationContext, PlayerDeathOperationId, PlayerDeathOperationPhase,
+    PlayerDeathOperationSnapshot,
+};
+pub use effective_stats::{PlayerDerivedStatValuesUpdate, PlayerEffectiveCombatStatsLikeCpp};
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
 pub use item_modifiers::{
     PlayerItemBonusStateLikeCpp, PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp,
@@ -60,13 +68,19 @@ pub use items::{
     plan_inventory_storage_move_like_cpp,
 };
 pub use items::{
+    PlayerSpellCastCurrencyDebitActionLikeCpp, PlayerSpellCastItemDebitActionLikeCpp,
+    PlayerSpellCastItemUseOutcomeLikeCpp, PlayerSpellCastItemUsePlanLikeCpp,
+    PlayerSpellCastResourceDebitOutcomeLikeCpp, PlayerSpellCastResourceDebitPlanLikeCpp,
+};
+pub use items::{
     represented_avg_total_item_level_maybe_replace_slot_like_cpp,
     represented_total_avg_equipment_slot_candidates_like_cpp,
 };
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
+pub use quest_log::{QuestLogRowUpdateLikeCpp, QuestLogValuesLikeCpp};
 pub use quest_state::{
-    PlayerQuestGameplayState, QuestBoundItemObjectiveProgressLikeCpp,
-    QuestItemObjectiveProgressLikeCpp,
+    PlayerQuestGameplayState, PlayerQuestStatusSaveIntentLikeCpp, PlayerQuestStatusSaveTypeLikeCpp,
+    QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp,
 };
 pub use reputation::{
     PlayerFactionStateLikeCpp, PlayerReputationStateLikeCpp, ReputationRankCounterLikeCpp,
@@ -87,7 +101,11 @@ mod recent_instances;
 mod resurrection;
 mod save_ack;
 mod scalar_transitions;
-pub use save_ack::{PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp};
+pub use save_ack::{
+    PlayerQuestNativeSaveProjectionLikeCpp, PlayerQuestObjectiveSaveValueLikeCpp,
+    PlayerQuestStatusSaveProjectionLikeCpp, PlayerSaveAcknowledgementLikeCpp,
+    PlayerSavedGroupsLikeCpp,
+};
 mod social;
 mod spellbook;
 mod trait_config;
@@ -935,6 +953,9 @@ pub const ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT: usize = 8;
 pub const ACTIVE_PLAYER_DATA_TOYS_BIT: usize = 9;
 pub const ACTIVE_PLAYER_DATA_TRANSMOG_BIT: usize = 10;
 pub const ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT: usize = 11;
+pub const ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT: usize = 12;
+pub const ACTIVE_PLAYER_DATA_NO_REAGENT_COST_MASK_PARENT_BIT: usize = 615;
+pub const ACTIVE_PLAYER_DATA_NO_REAGENT_COST_MASK_FIRST_BIT: usize = 616;
 pub const ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT: usize = 102;
 pub const ACTIVE_PLAYER_DATA_HONOR_BIT: usize = 109;
 pub const ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT: usize = 110;
@@ -3417,6 +3438,7 @@ pub struct PlayerDataValues {
     pub current_battle_pet_breed_quality: u8,
     pub honor_level: i32,
     pub visible_items: [VisibleItemValues; EQUIPMENT_SLOT_END as usize],
+    quest_log: [QuestLogValuesLikeCpp; quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
 }
 
 impl Default for PlayerDataValues {
@@ -3434,6 +3456,7 @@ impl Default for PlayerDataValues {
             current_battle_pet_breed_quality: 0,
             honor_level: 0,
             visible_items: [VisibleItemValues::default(); EQUIPMENT_SLOT_END as usize],
+            quest_log: [QuestLogValuesLikeCpp::default(); quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
         }
     }
 }
@@ -3467,6 +3490,9 @@ pub struct ActivePlayerDataValues {
     pub transmog_update_mask: Option<Vec<u32>>,
     pub conditional_transmog: Vec<i32>,
     pub conditional_transmog_update_mask: Option<Vec<u32>>,
+    pub self_res_spells: Vec<i32>,
+    pub self_res_spells_update_mask: Option<Vec<u32>>,
+    pub no_reagent_cost_mask: [u32; 4],
     pub quest_completed: [u64; QUESTS_COMPLETED_BITS_SIZE],
 }
 
@@ -3506,6 +3532,9 @@ impl Default for ActivePlayerDataValues {
             transmog_update_mask: None,
             conditional_transmog: Vec::new(),
             conditional_transmog_update_mask: None,
+            self_res_spells: Vec::new(),
+            self_res_spells_update_mask: None,
+            no_reagent_cost_mask: [0; 4],
             quest_completed: [0; QUESTS_COMPLETED_BITS_SIZE],
         }
     }
@@ -3515,12 +3544,15 @@ impl Default for ActivePlayerDataValues {
 pub struct PlayerDataUpdate {
     pub mask: UpdateMask,
     pub values: PlayerDataValues,
+    pub quest_log: [QuestLogRowUpdateLikeCpp; quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActivePlayerDataUpdate {
     pub mask: UpdateMask,
     pub values: ActivePlayerDataValues,
+    /// Immutable projection of the canonical gameplay field for this delta.
+    pub local_flags: u32,
     pub rest_info_change_masks: [u8; 2],
 }
 
@@ -3531,6 +3563,7 @@ pub struct PlayerValuesUpdate {
     pub unit_data: Option<UnitDataUpdate>,
     pub player_data: Option<PlayerDataUpdate>,
     pub active_player_data: Option<ActivePlayerDataUpdate>,
+    pub derived_stats: Option<PlayerDerivedStatValuesUpdate>,
 }
 
 impl PlayerValuesUpdate {
@@ -3554,9 +3587,13 @@ pub struct Player {
     effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp,
     /// C++ `Player::m_swingErrorMsg`, updated by `Player::SetAttackSwingError`.
     swing_error_msg_like_cpp: Option<u8>,
+    /// C++ `Player::m_drunkTimer`, reset by `SetDrunkValue` while not sobering.
+    drunk_timer: u32,
     deferred_save: deferred_save::DeferredPlayerSave,
+    death_operation: death_operation::PlayerDeathOperationState,
     player_xp_table_like_cpp: Option<Arc<Vec<u32>>>,
     player_data_changes: UpdateMask,
+    quest_log_change_masks: [u32; quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
     active_player_data_changes: UpdateMask,
     rest_info_change_masks: [u8; 2],
     mod_melee_hit_chance: f32,
@@ -3599,9 +3636,12 @@ impl Player {
             gameplay_state,
             effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp::default(),
             swing_error_msg_like_cpp: None,
+            drunk_timer: 0,
             deferred_save: deferred_save::DeferredPlayerSave::default(),
+            death_operation: death_operation::PlayerDeathOperationState::default(),
             player_xp_table_like_cpp: None,
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
+            quest_log_change_masks: [0; quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
             active_player_data_changes: UpdateMask::new(ACTIVE_PLAYER_DATA_BITS),
             rest_info_change_masks: [0; 2],
             mod_melee_hit_chance: 7.5,
@@ -3894,11 +3934,14 @@ impl Player {
 
     pub fn clear_player_data_changes(&mut self) {
         self.player_data_changes.reset_all();
+        self.reset_quest_log_change_masks_like_cpp();
     }
 
     pub fn clear_active_player_data_changes(&mut self) {
         self.active_player_data_changes.reset_all();
         self.rest_info_change_masks = [0; 2];
+        self.active_data.self_res_spells_update_mask =
+            Some(vec![0; self.active_data.self_res_spells.len().div_ceil(32)]);
     }
 
     pub fn clear_data_changes(&mut self) {
@@ -4249,6 +4292,10 @@ impl Player {
     fn mark_player_data(&mut self, bit: usize) {
         self.player_data_changes.set(PLAYER_DATA_PARENT_BIT);
         self.player_data_changes.set(bit);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 
     fn mark_player_data_array(
@@ -4259,12 +4306,20 @@ impl Player {
     ) {
         self.player_data_changes.set(parent_bit);
         self.player_data_changes.set(first_element_bit + index);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 
     fn mark_active_player_data(&mut self, bit: usize) {
         self.active_player_data_changes
             .set(ACTIVE_PLAYER_DATA_PARENT_BIT);
         self.active_player_data_changes.set(bit);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 
     fn mark_active_player_data_section(&mut self, parent_bit: usize, bit: usize) {
@@ -4272,6 +4327,10 @@ impl Player {
             .set(ACTIVE_PLAYER_DATA_PARENT_BIT);
         self.active_player_data_changes.set(parent_bit);
         self.active_player_data_changes.set(bit);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 
     fn mark_active_player_data_array(
@@ -4283,6 +4342,10 @@ impl Player {
         self.active_player_data_changes.set(parent_bit);
         self.active_player_data_changes
             .set(first_element_bit + index);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 }
 

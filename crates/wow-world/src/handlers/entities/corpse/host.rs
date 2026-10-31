@@ -18,11 +18,19 @@ use wow_world_entities::CorpseHandlerHostLikeCpp;
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
 impl CorpseHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
-    fn handle_resurrect_response_like_cpp<'a>(
+    fn handle_resurrect_response_with_catalogs_like_cpp<'a>(
         &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { wow_world_entities::handle_resurrect_response(self, pkt).await })
+        Box::pin(async move {
+            wow_world_entities::handle_resurrect_response(
+                self,
+                resurrection_operation_catalogs(catalogs),
+                pkt,
+            )
+            .await
+        })
     }
 
     fn handle_repop_request_with_catalogs_like_cpp<'a>(
@@ -82,14 +90,57 @@ pub(crate) fn corpse_lifecycle_catalogs_like_cpp(
     }
 }
 
+fn resurrection_operation_catalogs(
+    catalogs: &SessionHandlerCatalogsLikeCpp,
+) -> wow_world_entities::ResurrectionOperationCatalogs<'_> {
+    wow_world_entities::ResurrectionOperationCatalogs {
+        item_guid_generator: catalogs.id_generators.item.as_ref(),
+        creature_spawns: catalogs.creature_spawns.as_ref(),
+        graveyards: Some(catalogs.graveyards.as_ref()),
+    }
+}
+
 impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
+    fn send_player_power_update_like_cpp(
+        &self,
+        guid: wow_core::ObjectGuid,
+        power: wow_constants::PowerType,
+        value: i32,
+    ) {
+        wow_world_entities::send_player_power_update_like_cpp(self, guid, power, value);
+    }
+    fn remove_pet_for_repop_like_cpp(
+        &mut self,
+        catalogs: wow_world_entities::CorpseLifecycleCatalogsLikeCpp<'_>,
+    ) -> impl std::future::Future<Output = Result<(), &'static str>> + Send {
+        async move {
+            let result = wow_world_application::remove_pet_not_in_slot_like_cpp(
+                self,
+                catalogs.resurrection(),
+            )
+            .await;
+            if let Err(reason) = result
+                && self
+                    .lifecycle
+                    .durable_loot_money_persistence_tracker_like_cpp()
+                    .is_indeterminate_like_cpp()
+            {
+                self.core.kick(reason);
+            }
+            result
+        }
+    }
+
     fn teleport_to_with_options_like_cpp(
         &mut self,
+        catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
         new_map: u32,
         new_pos: wow_core::Position,
         options: wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp,
     ) -> impl std::future::Future<Output = ()> + Send {
-        wow_world_entities::teleport_to_with_options(self, new_map, new_pos, options)
+        wow_world_entities::teleport_to_with_options_and_resurrection(
+            self, new_map, new_pos, options, catalogs,
+        )
     }
 
     fn pending_teleport_like_cpp(&self) -> Option<(u32, wow_core::Position)> {
@@ -105,22 +156,39 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
             .map(std::sync::Arc::clone)
     }
 
-    fn remove_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> usize {
-        let Some(auras) = crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return 0;
-        };
-        let slots = auras
-            .values()
-            .filter_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
-            .collect::<Vec<_>>();
+    fn remove_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> Result<usize, &'static str> {
+        let slots = self
+            .core
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .ordered_slots_for_spell_removal(spell_id)
+            })
+            .ok_or("Canonical Player aura owner is unavailable")??;
         let removed = slots.len();
         for slot in slots {
             let _ = self
                 .player_aura_application_cx_like_cpp()
-                .remove_aura_like_cpp(slot);
+                .remove_aura_like_cpp(slot)?;
         }
-        removed
+        Ok(removed)
+    }
+
+    fn finish_player_non_alive_state_like_cpp(&mut self) -> Result<(), &'static str> {
+        wow_world_application::finish_player_non_alive_state_like_cpp(self)
+    }
+
+    fn force_player_visibility_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        creature_spawns: &'a wow_world_entities::CreatureSpawnCatalogsLikeCpp,
+    ) -> impl std::future::Future<Output = bool> + Send + 'a {
+        wow_world_application::force_player_visibility_with_catalogs_like_cpp(self, creature_spawns)
+    }
+
+    fn apply_spirit_healer_durability_loss(&mut self) {
+        wow_world_inventory::apply_spirit_healer_durability_loss(self);
     }
 
     fn player_has_spell_like_cpp(&self, spell_id: i32) -> bool {
@@ -134,10 +202,26 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
             .unwrap_or(false)
     }
 
+    fn cast_all_obtain_spells_like_cpp<'a>(
+        &'a mut self,
+        catalogs: wow_world_entities::ResurrectionOperationCatalogs<'a>,
+    ) -> impl std::future::Future<Output = Result<(), &'static str>> + Send + 'a {
+        async move {
+            Box::pin(wow_world_spell::cast_all_obtain_spells_like_cpp(
+                self,
+                catalogs.item_guid_generator,
+                catalogs.creature_spawns,
+            ))
+            .await
+        }
+    }
+
     fn cast_triggered_self_spell_like_cpp(
         &mut self,
-        catalogs: wow_world_entities::CorpseLifecycleCatalogsLikeCpp<'_>,
+        catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
         spell_id: i32,
+        sickness_remaining_ms: Option<u32>,
+        original_caster_guid: Option<wow_core::ObjectGuid>,
     ) -> impl std::future::Future<Output = bool> + Send {
         async move {
             let Some(player_guid) = self.player_guid() else {
@@ -153,11 +237,21 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
                 player_guid,
                 wow_entities::SpellCastMetadata {
                     cast_flags: 0x0000_0001,
-                    triggered_ignores_global_cooldown_like_cpp: true,
+                    trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
+                    resurrection_sickness_remaining_ms: sickness_remaining_ms,
+                    original_caster_guid,
                     ..wow_entities::SpellCastMetadata::default()
                 },
             )
             .await
+            .inspect_err(|reason| {
+                tracing::warn!(
+                    account = self.core.account_id,
+                    spell_id,
+                    reason = *reason,
+                    "Triggered self spell execution failed"
+                )
+            })
             .is_ok()
         }
     }
@@ -168,16 +262,33 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         self.lifecycle.player_logout_like_cpp()
     }
 
+    fn is_logging_out_for_repop(&self) -> bool {
+        self.lifecycle.is_logging_out_like_cpp()
+    }
+
     fn save_player_after_corpse_bones_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) -> impl std::future::Future<Output = ()> + Send {
+    ) -> impl std::future::Future<Output = wow_world_entities::ResurrectionSaveOutcome> + Send {
         async move {
-            wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
+            match wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
                 self,
                 item_guid_generator,
             )
-            .await;
+            .await
+            {
+                wow_world_lifecycle::PlayerSaveOutcomeLikeCpp::Applied => {
+                    wow_world_entities::ResurrectionSaveOutcome::Applied
+                }
+                wow_world_lifecycle::PlayerSaveOutcomeLikeCpp::Deferred => {
+                    wow_world_entities::ResurrectionSaveOutcome::Deferred
+                }
+                wow_world_lifecycle::PlayerSaveOutcomeLikeCpp::Unavailable
+                | wow_world_lifecycle::PlayerSaveOutcomeLikeCpp::Failed
+                | wow_world_lifecycle::PlayerSaveOutcomeLikeCpp::Quarantined => {
+                    wow_world_entities::ResurrectionSaveOutcome::Unresolved
+                }
+            }
         }
     }
 
@@ -194,13 +305,6 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         resurrecter: wow_core::ObjectGuid,
     ) -> bool {
         WorldSession::represented_resurrection_requested_by_like_cpp(self, resurrecter)
-    }
-
-    fn schedule_represented_resurrection_after_teleport_like_cpp(
-        &mut self,
-        request: wow_entities::PlayerResurrectionRequestLikeCpp,
-    ) -> bool {
-        wow_world_entities::schedule_represented_resurrection_after_teleport_like_cpp(self, request)
     }
 
     fn teleport_to(

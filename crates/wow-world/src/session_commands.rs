@@ -192,6 +192,9 @@ impl WorldSession {
             SessionCommand::SendPlayerSpellIfVisibleLikeCpp(command) => {
                 wow_world_spell::handle_player_cast_publication_like_cpp(self, command);
             }
+            SessionCommand::SendPlayerAuraUpdate(command) => {
+                wow_world_spell::handle_player_aura_update(self, command);
+            }
             SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
                 self.handle_send_if_visible_like_cpp_command_like_cpp(command, true);
             }

@@ -243,6 +243,13 @@ impl Unit {
             self.mark_unit_data_nested(UNIT_DATA_MODS_PARENT_BIT, UNIT_DATA_EMOTE_STATE_BIT);
         }
     }
+    /// Unit.cpp:8566-8570 assigns both presentation fields even when already zero.
+    pub fn reset_death_presentation_like_cpp(&mut self) {
+        self.set_emote_state_like_cpp(0);
+        self.set_stand_state_like_cpp(UnitStandStateType::Stand);
+        self.mark_unit_data_nested(UNIT_DATA_MODS_PARENT_BIT, UNIT_DATA_EMOTE_STATE_BIT);
+        self.mark_unit_data_nested(UNIT_DATA_STAND_STATE_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT);
+    }
     pub(super) fn apply_creature_attack_ai_side_effects_like_cpp(
         &mut self,
         victim_guid: ObjectGuid,
@@ -473,6 +480,18 @@ impl Unit {
     pub fn set_target(&mut self, target: ObjectGuid) {
         self.set_guid_field(UNIT_DATA_TARGET_BIT, target, |data| &mut data.target);
     }
+    /// C++ `Unit::GetMinionGUID` reads `UnitData::Summon`.
+    pub fn minion_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        (!self.data.summon.is_empty()).then_some(self.data.summon)
+    }
+    /// C++ `Unit::SetMinionGUID` dirties `UnitData::Summon` (field bit 12).
+    pub fn set_minion_guid_like_cpp(&mut self, minion: Option<ObjectGuid>) {
+        self.set_guid_field(
+            UNIT_DATA_SUMMON_BIT,
+            minion.unwrap_or(ObjectGuid::EMPTY),
+            |data| &mut data.summon,
+        );
+    }
     pub fn critter_guid_like_cpp(&self) -> Option<ObjectGuid> {
         (!self.data.critter.is_empty()).then_some(self.data.critter)
     }
@@ -509,6 +528,11 @@ impl Unit {
             self.data.flags = flags.bits();
             self.mark_unit_data(UNIT_DATA_FLAGS_BIT);
         }
+    }
+    /// Unit.h:812 / UpdateField.h:262 marks Flags even when none were present.
+    pub fn remove_unit_flags_like_cpp(&mut self, flags: UnitFlags) {
+        self.data.flags &= !flags.bits();
+        self.mark_unit_data_nested(UNIT_DATA_STAND_STATE_PARENT_BIT, UNIT_DATA_FLAGS_BIT);
     }
     pub fn unit_flags_like_cpp(&self) -> UnitFlags {
         UnitFlags::from_bits_truncate(self.data.flags)
@@ -636,15 +660,31 @@ impl Unit {
         }
     }
     pub fn replace_all_pvp_flags_like_cpp(&mut self, flags: UnitPvpFlags) {
-        self.set_u8_field(UNIT_DATA_PVP_FLAGS_BIT, flags.bits(), |data| {
-            &mut data.pvp_flags
-        });
+        let previous = self.data.pvp_flags;
+        self.data.pvp_flags = flags.bits();
+        self.unit_data_changes.set(UNIT_DATA_MODS_PARENT_BIT);
+        self.unit_data_changes.set(UNIT_DATA_PVP_FLAGS_BIT);
+        if self.data.pvp_flags != previous {
+            self.world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
+        }
     }
     pub fn set_pvp_flag_like_cpp(&mut self, flags: UnitPvpFlags) {
         self.replace_all_pvp_flags_like_cpp(self.pvp_flags_like_cpp() | flags);
     }
     pub fn remove_pvp_flag_like_cpp(&mut self, flags: UnitPvpFlags) {
         self.replace_all_pvp_flags_like_cpp(self.pvp_flags_like_cpp() & !flags);
+    }
+    /// Player.cpp:7327-7333 / Unit.h:844-845 mark the area sanctuary flag
+    /// even when unchanged, without replacing the remaining native PvP flags.
+    /// Object update admission still follows whether the canonical value changed.
+    pub fn set_sanctuary_from_area_like_cpp(&mut self, sanctuary: bool) {
+        if sanctuary {
+            self.set_pvp_flag_like_cpp(UnitPvpFlags::SANCTUARY);
+        } else {
+            self.remove_pvp_flag_like_cpp(UnitPvpFlags::SANCTUARY);
+        }
     }
     pub fn pvp_flags_like_cpp(&self) -> UnitPvpFlags {
         UnitPvpFlags::from_bits_retain(self.data.pvp_flags)
@@ -731,6 +771,10 @@ impl Unit {
     pub fn set_health(&mut self, mut value: u64) {
         if matches!(self.death_state, DeathState::JustDied | DeathState::Corpse) {
             value = 0;
+        } else if self.world().object().type_id() == TypeId::Player
+            && self.death_state == DeathState::Dead
+        {
+            value = 1;
         } else if value > self.data.max_health {
             value = self.data.max_health;
         }
@@ -796,6 +840,26 @@ impl Unit {
         if self.data.power[index] != value {
             self.data.power[index] = value;
             self.mark_unit_data_array(UNIT_DATA_POWER_PARENT_BIT, UNIT_DATA_POWER_FIRST_BIT, index);
+        }
+    }
+    /// Unit.cpp:9287-9306 marks supported power even when unchanged; its
+    /// immediate power packet is independent of object update admission. Queue
+    /// the values update only when the clamped canonical value changes.
+    pub fn set_power_for_native_transition_like_cpp(&mut self, power: PowerType, value: i32) {
+        let Some(index) = self.get_power_index(power) else {
+            return;
+        };
+        let max = self.data.max_power[index];
+        let value = value.min(max);
+        let changed = self.data.power[index] != value;
+        self.data.power[index] = value;
+        self.unit_data_changes.set(UNIT_DATA_POWER_PARENT_BIT);
+        self.unit_data_changes
+            .set(UNIT_DATA_POWER_FIRST_BIT + index);
+        if changed {
+            self.world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
         }
     }
     /// C++ `Player::Regenerate` throttled write: `SetUpdateFieldValue` for
@@ -894,6 +958,32 @@ impl Unit {
                 0
             }
     }
+    /// Unit.cpp:469-476 maintains these six states only during an alive Unit update.
+    pub fn update_health_aura_states_like_cpp(&mut self) {
+        if !self.is_alive() {
+            return;
+        }
+        const HEALTH_STATES: u32 = 0x00D0_1022;
+        let health_states = crate::Creature::health_aura_state_like_cpp(
+            self.data.health,
+            self.data.max_health,
+            true,
+        );
+        let previous = self.subsystems.auras.aura_state_mask;
+        let current = (previous & !HEALTH_STATES) | health_states;
+        if previous != current {
+            for state in [2, 6, 13, 21, 23, 24] {
+                let mask = 1_u32 << (state - 1);
+                if (previous ^ current) & mask != 0 {
+                    self.subsystems
+                        .auras
+                        .modify_aura_state(state, current & mask != 0);
+                }
+            }
+            self.mark_unit_data_nested(UNIT_DATA_STAND_STATE_PARENT_BIT, UNIT_DATA_AURA_STATE_BIT);
+        }
+    }
+
     pub fn values_update(&self) -> UnitValuesUpdate {
         let object_update = self.world.object().values_update();
         UnitValuesUpdate {
@@ -902,6 +992,14 @@ impl Unit {
             unit_data: self.unit_data_changes.is_any_set().then(|| UnitDataUpdate {
                 mask: self.unit_data_changes.clone(),
                 values: self.data,
+                aura_state: self
+                    .subsystems
+                    .auras
+                    .build_aura_state_update_for_target(self.world.object().guid()),
+                aura_state_per_caster: self
+                    .subsystems
+                    .auras
+                    .aura_state_per_caster_contributions_like_cpp(),
             }),
         }
     }

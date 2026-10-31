@@ -207,6 +207,7 @@ fn creature_lifecycle_create_record() -> CreatureCreateLifecycleRecord {
     }
 }
 
+mod ghost_visibility;
 mod scenarios_1;
 mod scenarios_2;
 mod scenarios_3;

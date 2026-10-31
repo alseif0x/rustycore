@@ -3115,9 +3115,12 @@ dependencies = [
  "wow-social",
  "wow-world",
  "wow-world-application",
+ "wow-world-core",
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-social",
+ "wow-world-spell",
+ "wow-world-test-support",
 ]
 
 [[package]]
@@ -3499,6 +3502,7 @@ name = "wow-world-application"
 version = "0.1.0"
 dependencies = [
  "num-traits",
+ "rand",
  "tokio",
  "tracing",
  "wow-constants",
@@ -3506,6 +3510,7 @@ dependencies = [
  "wow-data",
  "wow-entities",
  "wow-handler",
+ "wow-map",
  "wow-packet",
  "wow-persistence",
  "wow-spell-acquisition",
@@ -3871,6 +3876,7 @@ dependencies = [
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-spell",
+ "wow-world-test-support",
 ]
 
 [[package]]

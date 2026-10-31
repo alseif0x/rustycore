@@ -70,4 +70,14 @@ impl crate::session::HubRef<'_> {
                 &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
             )
     }
+
+    /// Source-dependent aura reads may treat absence as known only after the
+    /// persisted application/effect load completed without an authority
+    /// tombstone for this Player lifetime.
+    pub fn player_aura_authority_ready_like_cpp(&self) -> Option<bool> {
+        self.player_aura_subsystem_snapshot_like_cpp().map(|auras| {
+            auras.persisted_player_aura_authority_complete_like_cpp()
+                && !auras.spell_hit_aura_authority_tombstoned_like_cpp()
+        })
+    }
 }

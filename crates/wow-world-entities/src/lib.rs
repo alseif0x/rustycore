@@ -1,11 +1,14 @@
 //! Session-independent world-entity state and represented creature publication.
 
+pub(crate) const PLAYER_LOCAL_FLAG_RELEASE_TIMER: u32 = 0x0000_0008;
+
 mod aggro;
 mod catalogs;
 mod combat_handlers;
 mod combat_session;
 mod contracts;
 mod corpse_handlers;
+mod corpse_login;
 mod corpse_registrations;
 mod creature;
 pub mod creature_aggro_contracts;
@@ -51,11 +54,15 @@ mod movement_opcodes;
 mod pending_runtime;
 mod player_attack;
 mod player_death;
+mod player_release;
 mod player_resurrection;
 mod player_vitals;
+mod recovery_fences;
+mod resurrection_request;
 mod spawn;
 mod spell_click;
 pub mod spell_click_values;
+mod spirit_healer;
 mod state;
 mod teleport_session;
 mod travel_handlers;
@@ -71,14 +78,15 @@ pub use catalogs::CreatureSpawnCatalogsLikeCpp;
 pub use combat_handlers::{
     CombatHandlerCxLikeCpp, CombatHandlerHostLikeCpp, register_combat_handlers_like_cpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use combat_session::send_player_power_update_like_cpp;
 pub use combat_session::{
     CombatSessionHostLikeCpp, apply_represented_ffa_pvp_login_state_like_cpp, combat_stop_like_cpp,
     handle_apply_creature_melee_damage_like_cpp_command_like_cpp,
     handle_creature_attack_start_like_cpp_command_like_cpp,
     handle_creature_attack_stop_like_cpp_command_like_cpp,
-    handle_reconcile_pvp_combat_expiry_like_cpp, reset_contested_pvp_like_cpp,
+    handle_reconcile_pvp_combat_expiry_like_cpp,
+    present_committed_creature_melee_hit_at_stage_like_cpp,
+    present_committed_creature_melee_hit_like_cpp, publish_creature_melee_prefix_like_cpp,
+    reset_contested_pvp_like_cpp, send_player_power_update_like_cpp,
     set_represented_ffa_pvp_flag_like_cpp, tick_player_regeneration_like_cpp,
     update_pvp_flag_like_cpp,
 };
@@ -90,10 +98,12 @@ pub use contracts::{
     RepresentedSpellClickCreatureSnapshotLikeCpp,
 };
 pub use corpse_handlers::{
-    CorpseHostLikeCpp, handle_reclaim_corpse, handle_repop_request,
+    CorpseHostLikeCpp, ResurrectionSaveOutcome, handle_reclaim_corpse, handle_repop_request,
     handle_request_cemetery_list_with_catalog_like_cpp, handle_resurrect_response,
 };
+pub use corpse_login::restore_player_corpse_after_login;
 pub use module_hooks::CreatureKillHookEventLikeCpp;
+pub use spirit_healer::send_spirit_resurrect;
 // The exact `ApplicationCorpse` owner facade the handler-contract checker
 // requires (#1263 F5 deferred families).
 pub use corpse_registrations::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};
@@ -207,17 +217,30 @@ pub use player_attack::{
     start_player_attack_like_cpp,
 };
 pub use player_death::{
-    CORPSE_RECLAIM_RADIUS_LIKE_CPP, CorpseLifecycleCatalogsLikeCpp, SPELL_GHOST_LIKE_CPP,
-    SPELL_WISP_SPIRIT_AURA_LIKE_CPP, SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP,
-    build_player_repop_like_cpp, closest_graveyard_like_cpp, corpse_flags_like_cpp,
-    corpse_item_cache_like_cpp, corpse_reclaim_delay_secs_like_cpp, create_corpse_like_cpp,
-    kill_player_like_cpp, player_corpse_like_cpp, player_corpse_location_like_cpp,
-    player_in_arena_like_cpp, repop_at_graveyard_like_cpp, repop_request_like_cpp,
-    spawn_corpse_bones_like_cpp, updated_death_expire_time_like_cpp,
+    CORPSE_RECLAIM_RADIUS_LIKE_CPP, CorpseLifecycleCatalogsLikeCpp, ResurrectionOperationCatalogs,
+    SPELL_GHOST_LIKE_CPP, SPELL_WISP_SPIRIT_AURA_LIKE_CPP, SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP,
+    closest_graveyard_like_cpp, corpse_flags_like_cpp, corpse_item_cache_like_cpp,
+    corpse_reclaim_delay_secs_like_cpp, kill_player_like_cpp, player_corpse_like_cpp,
+    player_corpse_location_like_cpp, player_in_arena_like_cpp, repop_at_graveyard_like_cpp,
+    repop_request_like_cpp, spawn_corpse_bones_like_cpp, tick_player_death_timer,
+    updated_death_expire_time_like_cpp,
 };
-pub use player_resurrection::{reclaim_corpse_like_cpp, resurrect_player_like_cpp};
+pub use player_release::{build_player_repop_like_cpp, create_corpse_like_cpp};
+pub use player_resurrection::{
+    reclaim_corpse_like_cpp, resurrect_player_like_cpp, self_resurrect_player_like_cpp,
+};
 pub use player_vitals::{set_player_alive_like_cpp, set_player_ghost_flag_like_cpp};
+pub use recovery_fences::{
+    RecoveryResumeState, resume_state as resurrection_recovery_resume_state,
+};
+pub use resurrection_request::{
+    continue_player_resurrection_after_teleport, mark_player_resurrection_teleport_completed,
+    player_resurrection_continuation_pending, player_resurrection_save_waiting_for_transfer,
+    revive_player_for_teleport,
+};
 pub use state::WorldEntitiesState;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use teleport_session::schedule_represented_resurrection_after_teleport;
 pub use teleport_session::{
     CLASS_DEATH_KNIGHT_LIKE_CPP, DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP,
     DEATH_KNIGHT_START_MAP_LIKE_CPP, PlayerTeleportHostLikeCpp, TELE_REVIVE_AT_TELEPORT_LIKE_CPP,
@@ -226,8 +249,8 @@ pub use teleport_session::{
     TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP, handle_move_teleport_ack_like_cpp,
     pending_teleport_save_destination_like_cpp,
     process_represented_delayed_resurrection_after_teleport_like_cpp,
-    process_represented_delayed_teleport_after_update_like_cpp,
-    schedule_represented_resurrection_after_teleport_like_cpp, teleport_to_with_options,
+    process_represented_delayed_teleport_after_update_like_cpp, teleport_to_with_options,
+    teleport_to_with_options_and_resurrection,
 };
 pub use travel_handlers::{
     TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp, register_travel_handlers_like_cpp,
@@ -254,9 +277,9 @@ pub use visibility_session::{
     flush_pending_visibility_refresh_with_catalogs_like_cpp,
     force_update_visibility_with_catalogs_like_cpp,
     handle_destroy_visible_object_like_cpp_command_like_cpp,
-    represented_gameobject_go_state_for_viewer_like_cpp, represented_player_flags_value_like_cpp,
-    represented_player_has_flag_like_cpp, represented_player_phase_shift_like_cpp,
-    represented_visibility_source_combat_reach_like_cpp,
+    publish_corpse_birth_visibility_like_cpp, represented_gameobject_go_state_for_viewer_like_cpp,
+    represented_player_flags_value_like_cpp, represented_player_has_flag_like_cpp,
+    represented_player_phase_shift_like_cpp, represented_visibility_source_combat_reach_like_cpp,
     represented_visibility_source_position_like_cpp, resolved_visible_resting_like_cpp,
     send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects,
     send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp,
@@ -270,7 +293,7 @@ pub use visibility_session::{
 pub use visibility_session::{
     WAYPOINT_MOTION_TYPE_LIKE_CPP, choose_creature_flags_like_cpp,
     creature_create_movement_flags_like_cpp, creature_create_position_after_hover_offset_like_cpp,
-    creature_movement_generator_type_from_db_like_cpp,
+    creature_movement_generator_type_from_db_like_cpp, materialize_creature_spawn_row_for_test,
     normalize_creature_template_speed_run_like_cpp,
     normalize_creature_template_speed_walk_like_cpp, normalized_creature_wander_distance_like_cpp,
     spawn_difficulties_contains_spawn_mode_like_cpp,

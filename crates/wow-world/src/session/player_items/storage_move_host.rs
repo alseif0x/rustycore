@@ -18,7 +18,7 @@
 use std::future::Future;
 
 use wow_constants::InventoryResult;
-use wow_core::ObjectGuidGenerator;
+use wow_core::{ObjectGuid, ObjectGuidGenerator};
 use wow_entities::InventoryStorageMovePlanLikeCpp;
 use wow_world_application::{
     InventoryStorageMoveCxLikeCpp, InventoryStorageMoveHostLikeCpp,
@@ -209,16 +209,24 @@ impl InventoryStorageMoveHostLikeCpp for WorldSession {
         &'a mut self,
         item_guid_generator: &'a ObjectGuidGenerator,
         creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
-        entry_id: u32,
+        item_guid: ObjectGuid,
     ) -> impl Future<Output = ()> + Send + 'a {
         async move {
-            let _ = wow_world_spell::apply_inventory_item_obtain_spells_with_generator_like_cpp(
-                self,
-                item_guid_generator,
-                creature_spawn_catalogs,
-                entry_id,
-            )
-            .await;
+            if let Err(reason) =
+                wow_world_spell::apply_inventory_item_obtain_spells_with_generator_like_cpp(
+                    self,
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    item_guid,
+                )
+                .await
+            {
+                tracing::warn!(
+                    ?item_guid,
+                    reason,
+                    "Item obtain spell operation was unavailable"
+                );
+            }
         }
     }
 

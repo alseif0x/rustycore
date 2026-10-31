@@ -145,38 +145,69 @@ pub fn represented_disallowed_mount_form_like_cpp<H: SpellEffectHostLikeCpp>(
     else {
         return Some(None);
     };
-    let Some(display) = display_store.get(display_id) else {
-        return Some(Some(display_id));
-    };
-    let Ok(display_extra_id) = u32::try_from(display.extended_display_info_id) else {
-        return Some(Some(display_id));
-    };
-    let Some(display_extra) = display_extra_store.get(display_extra_id) else {
-        return Some(Some(display_id));
-    };
+    let disallowed = disallowed_mount_form_from_catalogs(
+        0,
+        display_id,
+        native_display_id,
+        None,
+        Some(display_store),
+        Some(display_extra_store),
+        host.hub_ref()
+            .catalogs
+            .creatures
+            .model_data_store
+            .as_deref(),
+        host.hub_ref().catalogs.chr.races_store.as_deref(),
+    )
+    .unwrap_or(false);
+    Some(disallowed.then_some(display_id))
+}
 
-    if let (Some(model_store), Some(chr_races_store)) = (
-        host.hub_ref().catalogs.creatures.model_data_store.as_ref(),
-        host.hub_ref().catalogs.chr.races_store.as_ref(),
-    ) {
-        let model_cannot_mount =
-            model_store
-                .get(u32::from(display.model_id))
-                .is_some_and(|model| {
-                    model.flags
-                        & CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP
-                        == 0
-                });
-        let race_cannot_mount = u32::try_from(display_extra.display_race_id)
-            .ok()
-            .and_then(|race_id| chr_races_store.get(race_id))
-            .is_some_and(|race| race.flags & CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP == 0);
-        if model_cannot_mount && race_cannot_mount {
-            return Some(Some(display_id));
+/// C++ `Unit::IsDisallowedMountForm` for the selected DB2 form/display
+/// inputs. `None` means a required catalog was not available to resolve the
+/// decision; an absent row in an available catalog follows C++ lookup rules.
+pub fn disallowed_mount_form_from_catalogs(
+    form_id: u32,
+    display_id: u32,
+    native_display_id: u32,
+    form_store: Option<&wow_data::SpellShapeshiftFormStore>,
+    display_store: Option<&wow_data::CreatureDisplayInfoStore>,
+    display_extra_store: Option<&wow_data::CreatureDisplayInfoExtraStore>,
+    model_store: Option<&wow_data::CreatureModelDataStore>,
+    races_store: Option<&wow_data::character_progression::ChrRacesStore>,
+) -> Option<bool> {
+    if form_id != 0 {
+        let form = form_store?.get(form_id);
+        if form.is_none_or(|form| form.flags & SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP == 0) {
+            return Some(true);
         }
     }
-
-    Some(None)
+    if display_id == native_display_id {
+        return Some(false);
+    }
+    let display = display_store?.get(display_id);
+    let Some(display) = display else {
+        return Some(true);
+    };
+    let Ok(display_extra_id) = u32::try_from(display.extended_display_info_id) else {
+        return Some(true);
+    };
+    let display_extra = display_extra_store?.get(display_extra_id);
+    let Some(display_extra) = display_extra else {
+        return Some(true);
+    };
+    let model_store = model_store?;
+    let races_store = races_store?;
+    let model_cannot_mount = model_store
+        .get(u32::from(display.model_id))
+        .is_some_and(|model| {
+            model.flags & CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP == 0
+        });
+    let race_cannot_mount = u32::try_from(display_extra.display_race_id)
+        .ok()
+        .and_then(|race_id| races_store.get(race_id))
+        .is_some_and(|race| race.flags & CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP == 0);
+    Some(model_cannot_mount && race_cannot_mount)
 }
 
 fn represented_transform_spell_allows_mount_like_cpp<H: SpellEffectHostLikeCpp>(
@@ -296,34 +327,26 @@ pub fn apply_add_extra_attacks_effect_like_cpp<H: SpellEffectHostLikeCpp>(
 
 /// C++ `Spell::EffectInebriate`.
 ///
-/// Represented boundary: current canonical player target/caster only. This
-/// updates `PlayerData::Inebriation` with C++ clamp semantics. Drunken
-/// Vomit (`67468`), fake-inebriate aura/invisibility side effects,
-/// sobering timer reset and `SMSG_CROSSED_INEBRIATION_THRESHOLD` fanout
-/// remain outside this bounded slice.
+/// Represented boundary: current canonical player target only. The owning
+/// application computes the C++ clamped delta and applies the complete native
+/// `SetDrunkValue` transition. Its boolean reports only whether the drunken
+/// threshold changed, not whether the stored value changed. Drunken Vomit
+/// (`67468`) remains unimplemented.
 pub fn apply_inebriate_effect_like_cpp<H: SpellEffectHostLikeCpp>(
     host: &mut H,
     damage: i32,
     target_guid: ObjectGuid,
-) -> bool {
+    cast_item_guid: Option<ObjectGuid>,
+    cast_item_entry: Option<u32>,
+) -> Result<bool, &'static str> {
     let Some(player_guid) = host.player_guid() else {
-        return false;
+        return Ok(false);
     };
     if target_guid != player_guid {
-        return false;
+        return Ok(false);
     }
 
-    host.core()
-        .mutate_canonical_player_like_cpp(|player| {
-            let current = i32::from(player.inebriation_like_cpp());
-            let next = (current + damage).clamp(0, 100) as u8;
-            if next == player.inebriation_like_cpp() {
-                return false;
-            }
-            player.set_inebriation_like_cpp(next);
-            true
-        })
-        .unwrap_or(false)
+    host.set_player_drunk_value_like_cpp(target_guid, damage, cast_item_guid, cast_item_entry)
 }
 
 /// C++ `Spell::EffectDismissPet`.

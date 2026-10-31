@@ -114,6 +114,7 @@ impl Creature {
             .unwrap_or(record.selected_original_equipment_id);
 
         self.unit.world_mut().object_mut().create(record.guid);
+        self.initialize_ghost_visibility_from_type_flags(template.type_flags);
         let _ = self.unit.world_mut().set_map(map_id, instance_id);
         self.unit.world_mut().relocate(position);
         self.unit.world_mut().set_name(template.name.clone());
@@ -290,6 +291,7 @@ impl Creature {
         self.lifecycle_metadata.ground_movement_type =
             normalize_creature_ground_movement_type_like_cpp(template.ground_movement_type);
         self.load_creatures_addon_represented_like_cpp(record.addon.as_ref());
+        self.override_ghost_visibility_after_addon(template.flags_extra);
 
         let init_entry_static_flags = self.init_entry_static_flags_like_cpp(template);
         let init_entry_rooted = CreatureStaticFlags::from_bits_truncate(init_entry_static_flags[0])
@@ -482,6 +484,30 @@ impl Creature {
     }
     pub fn set_type_flags_runtime_like_cpp(&mut self, type_flags: u32) {
         self.lifecycle_metadata.type_flags = type_flags;
+    }
+    /// C++ `Creature::Create` applies `VISIBLE_TO_GHOSTS` before
+    /// `CreateFromProto` (`Creature.cpp:1104-1106`).
+    pub fn initialize_ghost_visibility_from_type_flags(&mut self, type_flags: u32) {
+        if wow_constants::CreatureTypeFlags::from_bits_truncate(type_flags)
+            .contains(wow_constants::CreatureTypeFlags::VISIBLE_TO_GHOSTS)
+        {
+            self.unit.set_server_side_ghost_visibility_like_cpp(0b11);
+        }
+    }
+    /// C++ applies the healer/extra visibility override after loading addons
+    /// (`Creature.cpp:1148-1152`).
+    pub fn override_ghost_visibility_after_addon(&mut self, flags_extra: u32) {
+        let npc_flags = self.unit.npc_flags_like_cpp()[0];
+        let healer_flags = wow_constants::NPCFlags1::SPIRIT_HEALER.bits()
+            | wow_constants::NPCFlags1::AREA_SPIRIT_HEALER.bits();
+        let healer = npc_flags & healer_flags != 0;
+        let extra = wow_constants::CreatureFlagsExtra::from_bits_truncate(flags_extra)
+            .contains(wow_constants::CreatureFlagsExtra::GHOST_VISIBILITY);
+        if healer || extra {
+            self.unit.set_server_side_ghost_visibility_like_cpp(0b10);
+            self.unit
+                .set_server_side_ghost_visibility_detect_like_cpp(0b10);
+        }
     }
     pub fn is_civilian_like_cpp(&self) -> bool {
         CreatureFlagsExtra::from_bits_truncate(self.lifecycle_metadata.flags_extra)

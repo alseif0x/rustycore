@@ -24,6 +24,23 @@ use crate::session::{
 };
 
 impl WorldSession {
+    /// The caller declares its installed rows to be the complete fixture input,
+    /// including known-empty spell, Aura, quest and equipment rows where absent.
+    pub fn prepare_native_death_inputs_for_test_like_cpp(&mut self) {
+        crate::native_death_test_fixtures::prepare(self);
+    }
+
+    /// Recompute this real Session's current visibility after additional test
+    /// Players have entered the canonical map.
+    pub async fn refresh_visibility_for_test_like_cpp(&mut self) {
+        let catalogs = SessionHandlerCatalogsLikeCpp::default();
+        wow_world_entities::force_update_visibility_with_catalogs_like_cpp(
+            self,
+            catalogs.creature_spawns.as_ref(),
+        )
+        .await;
+    }
+
     /// Put this session's character in the world on its canonical map and
     /// register it in `registry`, the way the login path leaves a session:
     /// controller attached, canonical player on the map, active mover

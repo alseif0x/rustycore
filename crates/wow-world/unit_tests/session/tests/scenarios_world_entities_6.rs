@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "scenarios_world_entities_6/creature_visibility.rs"]
+mod creature_visibility;
+
 #[tokio::test]
 async fn gameobject_visual_despawn_shared_vision_phase_range_and_have_at_client_gates_like_cpp() {
     let (mut session, _, send_rx) = make_session();

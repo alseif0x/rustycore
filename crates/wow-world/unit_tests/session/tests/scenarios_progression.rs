@@ -55,7 +55,13 @@ async fn reputation_min_tracking_event_objective_auto_rewards_like_cpp() {
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session.reputation_changed_like_cpp(faction_id, 100).await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     // #1359: the App owner marked this completion as tracking-event rewarded.
@@ -69,9 +75,9 @@ async fn reputation_min_tracking_event_objective_auto_rewards_like_cpp() {
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }
@@ -120,16 +126,22 @@ async fn increase_reputation_tracking_event_objective_auto_rewards_like_cpp() {
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session.reputation_changed_like_cpp(faction_id, 100).await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }
@@ -183,15 +195,21 @@ async fn reputation_max_tracking_event_objective_auto_rewards_like_cpp() {
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session.reputation_changed_like_cpp(faction_id, -100).await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }

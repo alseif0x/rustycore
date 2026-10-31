@@ -39,6 +39,13 @@ use crate::session::{
     RepresentedPlayerSkillStateLikeCpp, SessionCore, represented_player_skill_record_like_cpp,
 };
 
+mod currency;
+mod ghost_wisp;
+#[path = "player_save_owner/inventory.rs"]
+mod item_capture;
+mod quest_status;
+mod resurrection_sickness;
+
 /// Lifecycle-owned values that join the canonical Player projection in one save request.
 pub struct PlayerSaveSessionInputsLikeCpp<'a> {
     now_unix_secs: i64,
@@ -99,6 +106,7 @@ pub struct PlayerSaveReceiptLikeCpp {
     handle: PlayerHandle,
     owner: wow_entities::PlayerSaveAcknowledgementLikeCpp,
     expected: PlayerCharacterCommittedGroupsLikeCpp,
+    resurrection_inventory_covered: bool,
     tutorials: Option<PlayerTutorialsSaveLikeCpp>,
 }
 
@@ -113,6 +121,13 @@ pub struct PlayerSaveOwnerAccessLikeCpp<'a> {
     core: &'a SessionCore,
     talent_store: Option<&'a wow_data::TalentStore>,
     spell_store: Option<&'a wow_data::SpellStore>,
+    chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+    difficulty_store: Option<&'a wow_data::DifficultyStore>,
+    item_effect_store: Option<&'a wow_data::ItemEffectStore>,
+    enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
+    currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
+    quest_store: Option<&'a wow_data::quest::QuestStore>,
+    quest_status_keep_abandoned: Option<bool>,
 }
 
 impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
@@ -120,11 +135,25 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
         core: &'a SessionCore,
         talent_store: Option<&'a wow_data::TalentStore>,
         spell_store: Option<&'a wow_data::SpellStore>,
+        chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+        difficulty_store: Option<&'a wow_data::DifficultyStore>,
+        item_effect_store: Option<&'a wow_data::ItemEffectStore>,
+        enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
+        currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
+        quest_store: Option<&'a wow_data::quest::QuestStore>,
+        quest_status_keep_abandoned: Option<bool>,
     ) -> Self {
         Self {
             core,
             talent_store,
             spell_store,
+            chr_races_store,
+            difficulty_store,
+            item_effect_store,
+            enchantment_store,
+            currency_types_store,
+            quest_store,
+            quest_status_keep_abandoned,
         }
     }
 
@@ -139,7 +168,19 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
         let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let residence = manager.player_residence_like_cpp(handle)?;
         manager.with_player_like_cpp(handle, |player| {
+            if player.has_unresolved_native_death_operation() {
+                return None;
+            }
             let teleport = player.teleport_state_like_cpp();
+            if player
+                .resurrection_state_like_cpp()
+                .delayed_after_teleport
+                .is_some_and(|continuation| {
+                    continuation.phase != wow_entities::PlayerResurrectionPhase::SavingPlayer
+                })
+            {
+                return None;
+            }
             if teleport.post_add.is_some()
                 || (teleport.far_pending
                     && teleport.recovery != wow_entities::PlayerTransferRecovery::Terminal)
@@ -157,18 +198,68 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                     return None;
                 }
             }
+            let quest_status_capture = quest_status::capture_like_cpp(
+                player,
+                self.quest_store,
+                self.quest_status_keep_abandoned,
+            )?;
+            let quest_status_acknowledgement = quest_status_capture.acknowledgement_projection;
             let request = request(
                 self.core,
                 self.talent_store,
                 self.spell_store,
+                self.chr_races_store,
+                self.difficulty_store,
+                self.item_effect_store,
+                self.enchantment_store,
+                self.currency_types_store,
+                quest_status_capture.requests,
                 player,
                 &header,
                 &inputs,
             )?;
+            let saved_item_ids = request
+                .inventory_items
+                .as_ref()
+                .map(|items| {
+                    items
+                        .iter()
+                        .map(|item| item.item_guid)
+                        .collect::<HashSet<_>>()
+                })
+                .unwrap_or_default();
+            let saved_item_guids = player
+                .inventory_runtime_like_cpp()
+                .item_objects()
+                .keys()
+                .filter(|guid| saved_item_ids.contains(&(guid.counter() as u64)))
+                .copied()
+                .collect::<Vec<_>>();
+            let saved_currency_ids = request
+                .currencies
+                .as_ref()
+                .map(|currencies| {
+                    currencies
+                        .rows
+                        .iter()
+                        .map(|row| u32::from(row.currency_id))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
             Some(CapturedPlayerSaveLikeCpp {
                 receipt: PlayerSaveReceiptLikeCpp {
                     handle,
-                    owner: player.capture_save_acknowledgement_like_cpp(),
+                    resurrection_inventory_covered: item_capture::resurrection_inventory_covered(
+                        player,
+                        request.inventory_items.as_deref(),
+                        request.item_durability.as_deref(),
+                        self.item_effect_store,
+                    ),
+                    owner: player.capture_save_acknowledgement_with_quest_status_like_cpp(
+                        &saved_item_guids,
+                        &saved_currency_ids,
+                        &quest_status_acknowledgement,
+                    ),
                     expected: request.committed_groups_like_cpp(),
                     tutorials: request.tutorials.clone(),
                 },
@@ -250,11 +341,6 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                 .max(1)
                 .min(u64::from(u32::MAX)) as u32;
             let canonical_health = player.unit().data().health.min(u64::from(u32::MAX)) as u32;
-            let health = if player.unit().is_alive() && canonical_health > 0 {
-                canonical_health
-            } else {
-                0
-            };
             snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
                 guid,
                 map_id,
@@ -263,7 +349,7 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                 level,
                 xp,
                 money,
-                health,
+                health: canonical_health,
                 max_health,
                 powers,
             });
@@ -286,6 +372,9 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
             tutorials_changed: expected.tutorials_changed && committed.tutorials_changed,
             tutorials_insert: expected.tutorials_insert && committed.tutorials_insert,
             reputation: expected.reputation && committed.reputation,
+            inventory_items: expected.inventory_items && committed.inventory_items,
+            currencies: expected.currencies && committed.currencies,
+            quest_statuses: expected.quest_statuses && committed.quest_statuses,
         };
         let handle = receipt.handle;
         if core.player_handle_like_cpp != Some(handle) || core.player_guid() != Some(handle.guid())
@@ -306,6 +395,10 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                             skills: groups.player_skills,
                             equipment: groups.equipment_sets,
                             reputations: groups.reputation,
+                            inventory_items: groups.inventory_items,
+                            resurrection_inventory_covered: receipt.resurrection_inventory_covered,
+                            currencies: groups.currencies,
+                            quest_statuses: groups.quest_statuses,
                         },
                     );
                 })
@@ -327,6 +420,13 @@ pub struct PlayerSaveOperationAccessLikeCpp<'a> {
     core: &'a mut SessionCore,
     talent_store: Option<&'a wow_data::TalentStore>,
     spell_store: Option<&'a wow_data::SpellStore>,
+    chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+    difficulty_store: Option<&'a wow_data::DifficultyStore>,
+    item_effect_store: Option<&'a wow_data::ItemEffectStore>,
+    enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
+    currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
+    quest_store: Option<&'a wow_data::quest::QuestStore>,
+    quest_status_keep_abandoned: Option<bool>,
 }
 
 impl SessionCore {
@@ -335,11 +435,25 @@ impl SessionCore {
         &'a mut self,
         talent_store: Option<&'a wow_data::TalentStore>,
         spell_store: Option<&'a wow_data::SpellStore>,
+        chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+        difficulty_store: Option<&'a wow_data::DifficultyStore>,
+        item_effect_store: Option<&'a wow_data::ItemEffectStore>,
+        enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
+        currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
+        quest_store: Option<&'a wow_data::quest::QuestStore>,
+        quest_status_keep_abandoned: Option<bool>,
     ) -> PlayerSaveOperationAccessLikeCpp<'a> {
         PlayerSaveOperationAccessLikeCpp {
             core: self,
             talent_store,
             spell_store,
+            chr_races_store,
+            difficulty_store,
+            item_effect_store,
+            enchantment_store,
+            currency_types_store,
+            quest_store,
+            quest_status_keep_abandoned,
         }
     }
 }
@@ -350,8 +464,19 @@ impl PlayerSaveOperationAccessLikeCpp<'_> {
         &self,
         inputs: PlayerSaveSessionInputsLikeCpp<'_>,
     ) -> Option<CapturedPlayerSaveLikeCpp> {
-        PlayerSaveOwnerAccessLikeCpp::new_like_cpp(&*self.core, self.talent_store, self.spell_store)
-            .capture_like_cpp(inputs)
+        PlayerSaveOwnerAccessLikeCpp::new_like_cpp(
+            &*self.core,
+            self.talent_store,
+            self.spell_store,
+            self.chr_races_store,
+            self.difficulty_store,
+            self.item_effect_store,
+            self.enchantment_store,
+            self.currency_types_store,
+            self.quest_store,
+            self.quest_status_keep_abandoned,
+        )
+        .capture_like_cpp(inputs)
     }
 
     /// Apply a committed receipt through the existing incarnation-bound owner.
@@ -391,7 +516,8 @@ impl PlayerSaveOperationAccessLikeCpp<'_> {
         self.core.player_handle_like_cpp.is_none()
     }
 
-    /// Apply the existing transfer deferral to the selected canonical Player.
+    /// Apply canonical full-save admission to the selected Player: transfer
+    /// deferral and the resurrection phase gate share this owner operation.
     /// `None` means the session has no matching owner; the inner `None` means
     /// the Player's deferred-save revision could not be advanced.
     pub fn defer_player_save_for_transfer_like_cpp(&mut self) -> Option<Option<bool>> {
@@ -443,12 +569,10 @@ fn player_save_header_like_cpp(
     let max_health = unit.data().max_health.clamp(1, u64::from(u32::MAX)) as u32;
     let health = match residence {
         PlayerResidenceLikeCpp::Active(_) => {
-            let health = unit.data().health.min(u64::from(u32::MAX)) as u32;
-            if unit.is_alive() && health > 0 {
-                health
-            } else {
-                0
-            }
+            // C++ Player::SaveToDB writes GetHealth() directly
+            // (Player.cpp:19422, 19557); BuildPlayerRepop leaves a ghost at
+            // health 1, so liveness is not a valid save-time filter.
+            unit.data().health.min(u64::from(u32::MAX)) as u32
         }
         PlayerResidenceLikeCpp::Detached => unit.data().health.min(u64::from(max_health)) as u32,
     };
@@ -470,6 +594,12 @@ fn request(
     core: &SessionCore,
     talent_store: Option<&wow_data::TalentStore>,
     spell_store: Option<&wow_data::SpellStore>,
+    chr_races_store: Option<&wow_data::character_progression::ChrRacesStore>,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+    item_effect_store: Option<&wow_data::ItemEffectStore>,
+    enchantment_store: Option<&wow_data::SpellItemEnchantmentStore>,
+    currency_types_store: Option<&wow_data::CurrencyTypesStore>,
+    quest_statuses: Option<Vec<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp>>,
     player: &Player,
     snapshot: &PlayerSaveToDbSnapshotLikeCpp,
     inputs: &PlayerSaveSessionInputsLikeCpp<'_>,
@@ -524,7 +654,33 @@ fn request(
         dungeon_difficulty,
         raid_difficulty,
         legacy_raid_difficulty,
+        at_login_flags: player.persistent_capability_state_like_cpp().at_login_flags,
+        death_expire_time: player.resurrection_state_like_cpp().death_expire_time,
     };
+
+    // C++ Item::SaveToDB (Item.cpp:383-425) persists durability for an
+    // existing item row. Capture only that field; other Item writes retain
+    // their current owners and transaction fences.
+    let mut item_durability = item_capture::capture_durability(player);
+    let inventory_items = if player
+        .inventory_runtime_like_cpp()
+        .equipment_inventory_authority_complete_like_cpp()
+    {
+        let rows = item_capture::capture_item_saves(player, item_effect_store, enchantment_store)?;
+        if let Some(durability) = item_durability.as_mut() {
+            let covered = rows.iter().map(|row| row.item_guid).collect::<HashSet<_>>();
+            durability.retain(|row| !covered.contains(&row.item_guid));
+        }
+        Some(rows)
+    } else {
+        None
+    };
+
+    let currencies = currency::capture(player, currency_types_store, guid_counter);
+
+    let resurrection_sickness =
+        resurrection_sickness::capture(player, chr_races_store, spell_store, difficulty_store);
+    let ghost_wisp = ghost_wisp::capture(player, spell_store, difficulty_store);
 
     let spell_runtime = Some(&game.spells);
     let spells = if let Some(spells) = (game.spells.rows_loaded_like_cpp()
@@ -819,11 +975,8 @@ fn request(
         _ => None,
     };
 
-    // C++ `_SaveQuestStatus` only consumes entries present in `m_QuestStatusSave`; it does
-    // not rewrite every loaded quest during Player::SaveToDB. Rust's quest mutation paths
-    // already persist their changed quest directly, but there is no coherent dirty-set seam
-    // yet. Rewriting every active quest here can delete objective rows that were not mapped
-    // into represented state, so preserve them until that dirty tracking exists.
+    // `quest_statuses` was projected from the canonical Player dirty map before
+    // this request builder; loaded-but-clean status rows remain untouched.
 
     let tutorials = if *inputs.tutorials_changed {
         if *inputs.tutorials_loaded_coherently {
@@ -902,6 +1055,11 @@ fn request(
         account_id: core.account_id,
         wall_clock_unix_secs: inputs.now_unix_secs,
         character,
+        item_durability,
+        inventory_items,
+        currencies,
+        resurrection_sickness,
+        ghost_wisp,
         spells,
         skills,
         glyphs,
@@ -911,6 +1069,7 @@ fn request(
         action_buttons,
         equipment_sets,
         void_storage,
+        quest_statuses,
         tutorials,
         instance_lock_times,
         played_time,
@@ -939,3 +1098,7 @@ fn represented_talent_for_save_like_cpp(
     };
     wow_data::represented_spell_valid_with_seen_like_cpp(spell_store, spell_id, &mut HashSet::new())
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/player_save_owner.rs"]
+mod tests;

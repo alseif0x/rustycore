@@ -442,13 +442,18 @@ pub(super) async fn create_session(
         ready_for_phases_like_cpp.as_ref(),
     )
     .await;
-    finalization::finalize_owned_world_session_like_cpp(
+    finalization::finalize_owned_world_session_with_resurrection_catalogs(
         session,
         outcome,
         account_id,
         active_session_registration,
         world_runtime_state.as_ref(),
         resources.core.handler_catalogs.id_generators.item.as_ref(),
+        wow_world_application::ResurrectionOperationCatalogs {
+            item_guid_generator: resources.core.handler_catalogs.id_generators.item.as_ref(),
+            creature_spawns: resources.core.handler_catalogs.creature_spawns.as_ref(),
+            graveyards: Some(resources.core.handler_catalogs.graveyards.as_ref()),
+        },
         WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
     )
     .await;

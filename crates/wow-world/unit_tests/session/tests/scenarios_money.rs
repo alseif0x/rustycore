@@ -84,7 +84,13 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session.money_changed_like_cpp(100).await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
@@ -97,7 +103,7 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
             new_status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
             send_quest_update_called: true,
             quest_slot_state_complete_represented: true,
-            quest_slot_state_live_update_unrepresented: true,
+            quest_slot_state_live_update_unrepresented: false,
             visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
             spell_area_runtime_unrepresented: true,
             tracking_event_auto_reward_unrepresented: false,
@@ -108,9 +114,9 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }
@@ -155,16 +161,29 @@ async fn apply_player_money_change_sets_gold_and_drains_objective_queue_like_cpp
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session.apply_player_money_change_like_cpp(90, 100).await;
 
     assert_eq!(session.player_gold_like_cpp(), 100);
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player.unit().world().object().is_object_updated()
+        }),
+        Some(true),
+        "the action's native field changes remain pending for Map SendObjectUpdates"
+    );
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
+    assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }
@@ -283,10 +302,16 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     assert!(
         session
             .complete_represented_quest_after_add_if_ready_like_cpp(&reward_quest)
             .await
+    );
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
     );
 
     assert_eq!(session.player_gold_like_cpp(), 100);
@@ -295,12 +320,11 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
-            ServerOpcodes::UpdateObject,
+            ServerOpcodes::QuestGiverQuestComplete,
+            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
         ]
     );
 }
@@ -357,16 +381,22 @@ async fn currency_tracking_event_objective_auto_rewards_like_cpp() {
     let _ = drain_server_opcodes(&send_rx);
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session.currency_changed_like_cpp(currency_id, 100).await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::SetCurrency,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }
@@ -411,16 +441,22 @@ async fn have_currency_tracking_event_objective_auto_rewards_like_cpp() {
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session.currency_changed_like_cpp(currency_id, 100).await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }
@@ -465,16 +501,22 @@ async fn obtain_currency_tracking_event_objective_auto_rewards_like_cpp() {
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session.currency_changed_like_cpp(currency_id, 100).await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }

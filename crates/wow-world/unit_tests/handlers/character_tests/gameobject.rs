@@ -11,6 +11,7 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
     const GOSSIP_ID: u32 = 72;
     let (mut session, send_rx, canonical) = make_bank_slot_session(2);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let goober = gameobject_guid(9304, 304);
     insert_gossip_gameobject(
         &canonical,
@@ -33,17 +34,15 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
             },
         );
     session.set_player_interaction_source_like_cpp(goober);
-    session
-        .interaction
-        .gossip_options_for_test_mut_like_cpp()
-        .push(crate::session::GossipOptionInfo {
+    assert!(session.replace_player_gossip_options_like_cpp(vec![
+        crate::session::GossipOptionInfo {
             gossip_option_id: 71,
             menu_id: GOSSIP_ID,
             order_index: 0,
             option_npc: 0,
             action_menu_id: 0,
-        });
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+        },
+    ]));
 
     session
         .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
@@ -61,9 +60,8 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
@@ -146,6 +144,7 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
     ] {
         let (mut session, send_rx, canonical) = make_bank_slot_session(2);
         insert_bank_test_player_in_world(&session, &canonical);
+        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
         let gameobject = gameobject_guid(9305, 305);
         insert_gossip_gameobject(&canonical, gameobject, 9305, position, go_type, in_world);
         session
@@ -161,17 +160,15 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
                 },
             );
         session.set_player_interaction_source_like_cpp(gameobject);
-        session
-            .interaction
-            .gossip_options_for_test_mut_like_cpp()
-            .push(crate::session::GossipOptionInfo {
+        assert!(session.replace_player_gossip_options_like_cpp(vec![
+            crate::session::GossipOptionInfo {
                 gossip_option_id: 81,
                 menu_id: GOSSIP_ID,
                 order_index: 0,
                 option_npc: 0,
                 action_menu_id: 0,
-            });
-        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+            },
+        ]));
         if in_taxi {
             session.set_taxi_flight_state_like_cpp(
                 RepresentedTaxiFlightNodeLikeCpp {
@@ -207,9 +204,8 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
         );
         assert!(
             session
-                .fixtures
-                .auras
-                .visible_auras
+                .resolved_player_visible_auras_like_cpp()
+                .expect("canonical Player AuraSubsystem")
                 .contains_key(&FEIGN_SLOT),
             "{case}: rejected source must preserve fake death"
         );
@@ -229,6 +225,7 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
     const GOSSIP_ID: u32 = 92;
     let (mut session, send_rx, canonical) = make_bank_slot_session(2);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let goober = gameobject_guid(9306, 306);
     insert_gossip_gameobject(
         &canonical,
@@ -251,17 +248,15 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
             },
         );
     session.set_player_interaction_source_like_cpp(goober);
-    session
-        .interaction
-        .gossip_options_for_test_mut_like_cpp()
-        .push(crate::session::GossipOptionInfo {
+    assert!(session.replace_player_gossip_options_like_cpp(vec![
+        crate::session::GossipOptionInfo {
             gossip_option_id: 91,
             menu_id: GOSSIP_ID,
             order_index: 0,
             option_npc: 6, // Banker is invalid for every C++ GameObject menu.
             action_menu_id: 0,
-        });
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+        },
+    ]));
 
     session
         .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
@@ -283,9 +278,8 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));

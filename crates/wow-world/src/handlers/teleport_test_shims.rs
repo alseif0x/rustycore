@@ -14,7 +14,7 @@
 #![cfg(test)]
 
 use crate::session::*;
-use wow_entities::PlayerResurrectionRequestLikeCpp;
+use wow_entities::{PlayerResurrectionContinuation, PlayerResurrectionRequestLikeCpp};
 
 #[path = "../../unit_tests/session/movement/far_transfer/f3_shims.rs"]
 mod far_transfer_f3_shims;
@@ -28,15 +28,49 @@ impl WorldSession {
     ) {
         wow_world_entities::teleport_to_with_options(self, new_map, new_pos, options).await
     }
-    pub(crate) fn schedule_represented_resurrection_after_teleport_like_cpp(
+    pub(crate) async fn teleport_to_with_options_and_resurrection(
+        &mut self,
+        new_map: u32,
+        new_pos: wow_core::Position,
+        options: wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp,
+    ) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawns = self.creature_spawn_catalogs_for_test_like_cpp();
+        wow_world_entities::teleport_to_with_options_and_resurrection(
+            self,
+            new_map,
+            new_pos,
+            options,
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creature_spawns,
+                graveyards: None,
+            },
+        )
+        .await;
+    }
+    pub(crate) async fn process_represented_delayed_teleport_after_update(&mut self) -> bool {
+        let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawns = self.creature_spawn_catalogs_for_test_like_cpp();
+        wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(
+            self,
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creature_spawns,
+                graveyards: None,
+            },
+        )
+        .await
+    }
+    pub(crate) fn schedule_represented_resurrection_after_teleport(
         &mut self,
         request: PlayerResurrectionRequestLikeCpp,
     ) -> bool {
-        wow_world_entities::schedule_represented_resurrection_after_teleport_like_cpp(self, request)
+        wow_world_entities::schedule_represented_resurrection_after_teleport(self, request)
     }
     pub(crate) fn represented_delayed_resurrection_after_teleport_like_cpp(
         &self,
-    ) -> Option<PlayerResurrectionRequestLikeCpp> {
+    ) -> Option<PlayerResurrectionContinuation> {
         self.player_resurrection_state_snapshot_like_cpp()
             .and_then(|state| state.delayed_after_teleport)
     }

@@ -95,6 +95,12 @@ pub fn resummon_pet_temporary_unsummoned_like_cpp<H: PetSessionHostLikeCpp>(host
         );
 
         let mut pet = Pet::new(owner_guid, info.pet_type);
+        if info.pet_type == PetType::Hunter {
+            // Pet.cpp:298: retain rename eligibility through load and the next save.
+            pet.creature_mut()
+                .unit_mut()
+                .replace_all_pet_flags_like_cpp(if info.was_renamed { 0x02 } else { 0x03 });
+        }
         pet.set_created_by_spell_id_like_cpp(info.created_by_spell_id);
         pet.set_specialization(info.specialization_id);
         pet.creature_mut()
@@ -232,19 +238,7 @@ pub fn resummon_pet_temporary_unsummoned_like_cpp<H: PetSessionHostLikeCpp>(host
                     None,
                 ));
                 aura_subsystem.add_applied(applied);
-                aura_subsystem.set_loaded_aura_state_like_cpp(
-                    aura_ref,
-                    wow_entities::LoadedAuraStateLikeCpp::new(
-                        aura.max_duration_ms,
-                        aura.remain_time_ms,
-                        aura.remain_charges,
-                        aura.stack_count,
-                        aura.recalculate_mask,
-                    ),
-                );
-                aura_subsystem.visible_auras.insert(slot, aura_ref);
-
-                let effect_amounts: Vec<_> = pet_aura_effects
+                let matching_effects: Vec<_> = pet_aura_effects
                     .iter()
                     .filter(|effect| {
                         let effect_caster_guid = if effect.caster_guid.is_empty() {
@@ -256,6 +250,26 @@ pub fn resummon_pet_temporary_unsummoned_like_cpp<H: PetSessionHostLikeCpp>(host
                             && effect.spell_id == aura.spell_id
                             && effect.effect_mask == aura.effect_mask
                     })
+                    .collect();
+                let base_amounts = matching_effects
+                    .iter()
+                    .map(|effect| (effect.effect_index, effect.base_amount))
+                    .collect();
+                aura_subsystem.set_loaded_aura_state_like_cpp(
+                    aura_ref,
+                    wow_entities::LoadedAuraStateLikeCpp::new(
+                        aura.max_duration_ms,
+                        aura.remain_time_ms,
+                        aura.remain_charges,
+                        aura.stack_count,
+                        aura.recalculate_mask,
+                    )
+                    .with_pet_persistence_fields_like_cpp(aura.difficulty, base_amounts),
+                );
+                aura_subsystem.visible_auras.insert(slot, aura_ref);
+
+                let effect_amounts: Vec<_> = matching_effects
+                    .into_iter()
                     .map(|effect| {
                         let effect_ref = wow_entities::AppliedAuraRef::new(
                             aura.spell_id,
@@ -309,7 +323,7 @@ pub fn resummon_pet_temporary_unsummoned_like_cpp<H: PetSessionHostLikeCpp>(host
         return;
     }
     if let Some(pet_guid) = inserted_guid {
-        let _ = hub.set_player_pet_guid_like_cpp(Some(pet_guid));
+        let _ = hub.attach_resummoned_player_pet_like_cpp(pet_guid);
         #[cfg(any(test, feature = "test-fixtures"))]
         if fixtures_enabled
             && let Some(info) = hub

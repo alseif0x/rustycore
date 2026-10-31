@@ -23,15 +23,62 @@ pub(super) async fn retain_session_until_process_teardown(session: &mut WorldSes
     let _ = session.finalization_report_like_cpp();
 }
 
-/// The production task's finalization and destructor boundary. Taking the
-/// session and registration by value keeps both alive on fail-stop retention.
+/// Test-only no-catalog finalization boundary. The production task uses the
+/// catalog-bearing sibling; this wrapper keeps fail-stop lifecycle tests terse.
+#[cfg(test)]
 pub(super) async fn finalize_owned_world_session_like_cpp(
+    session: WorldSession,
+    outcome: WorldSessionRunOutcomeLikeCpp,
+    account_id: u32,
+    active_session_registration: ActiveWorldSessionRegistrationGuardLikeCpp,
+    world_runtime_state: &WorldRuntimeStateLikeCpp,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    step_timeout: Duration,
+) {
+    finalize_owned_world_session_inner(
+        session,
+        outcome,
+        account_id,
+        active_session_registration,
+        world_runtime_state,
+        item_guid_generator,
+        None,
+        step_timeout,
+    )
+    .await;
+}
+
+pub(super) async fn finalize_owned_world_session_with_resurrection_catalogs(
+    session: WorldSession,
+    outcome: WorldSessionRunOutcomeLikeCpp,
+    account_id: u32,
+    active_session_registration: ActiveWorldSessionRegistrationGuardLikeCpp,
+    world_runtime_state: &WorldRuntimeStateLikeCpp,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    resurrection_catalogs: wow_world_application::ResurrectionOperationCatalogs<'_>,
+    step_timeout: Duration,
+) {
+    finalize_owned_world_session_inner(
+        session,
+        outcome,
+        account_id,
+        active_session_registration,
+        world_runtime_state,
+        item_guid_generator,
+        Some(resurrection_catalogs),
+        step_timeout,
+    )
+    .await;
+}
+
+async fn finalize_owned_world_session_inner(
     mut session: WorldSession,
     outcome: WorldSessionRunOutcomeLikeCpp,
     account_id: u32,
     active_session_registration: ActiveWorldSessionRegistrationGuardLikeCpp,
     world_runtime_state: &WorldRuntimeStateLikeCpp,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
+    resurrection_catalogs: Option<wow_world_application::ResurrectionOperationCatalogs<'_>>,
     step_timeout: Duration,
 ) {
     let pending_finalization = match outcome {
@@ -75,21 +122,11 @@ pub(super) async fn finalize_owned_world_session_like_cpp(
         run_world_session_shutdown_finalize_step_like_cpp(
             world_runtime_state,
             step_timeout,
-            session.finalize_session_with_generator_like_cpp(
-                wow_world::FinalizationMode::Disconnect,
-                item_guid_generator,
-            ),
+            finalize_session(&mut session, item_guid_generator, resurrection_catalogs),
         )
         .await
     } else {
-        Some(
-            session
-                .finalize_session_with_generator_like_cpp(
-                    wow_world::FinalizationMode::Disconnect,
-                    item_guid_generator,
-                )
-                .await,
-        )
+        Some(finalize_session(&mut session, item_guid_generator, resurrection_catalogs).await)
     };
     let report = attempt.or_else(|| session.interrupt_finalization_like_cpp());
     if !completed_session_finalization(&report) {
@@ -113,6 +150,38 @@ pub(super) async fn finalize_owned_world_session_like_cpp(
     if let Some(pending) = pending_finalization {
         pending.complete_like_cpp();
     }
+}
+
+fn finalize_session<'a>(
+    session: &'a mut WorldSession,
+    item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+    resurrection_catalogs: Option<wow_world_application::ResurrectionOperationCatalogs<'a>>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = wow_world::FinalizationReport> + Send + 'a>>
+{
+    // One allocation per finalization keeps the complete gameplay call tree
+    // out of the supervisor's future layout; cancellation still owns this
+    // exact Session borrow and its outstanding persistence work.
+    Box::pin(async move {
+        match resurrection_catalogs {
+            Some(catalogs) => {
+                wow_world_application::finalize_session_with_resurrection_catalogs(
+                    session,
+                    wow_world::FinalizationMode::Disconnect,
+                    item_guid_generator,
+                    catalogs,
+                )
+                .await
+            }
+            None => {
+                session
+                    .finalize_session_with_generator_like_cpp(
+                        wow_world::FinalizationMode::Disconnect,
+                        item_guid_generator,
+                    )
+                    .await
+            }
+        }
+    })
 }
 
 #[cfg(test)]

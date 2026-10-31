@@ -2,10 +2,38 @@
 
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 use std::time::Instant;
-use wow_constants::ServerOpcodes;
+use wow_constants::{MovementFlag, ServerOpcodes};
 use wow_core::ObjectGuid;
 
 impl crate::session::HubMut<'_> {
+    /// C++ `Unit::SetWaterWalking`: update the canonical Player movement flag
+    /// and publish exactly one status packet when the flag changes.
+    pub fn set_player_water_walking(&mut self, enable: bool) -> bool {
+        let Some(changed) = self.core.with_owned_player_mut_like_cpp(|player| {
+            let mut flags = player.unit().movement_flags_like_cpp();
+            let currently_enabled = flags.contains(MovementFlag::WATER_WALK);
+            if enable == currently_enabled {
+                return false;
+            }
+
+            flags.set(MovementFlag::WATER_WALK, enable);
+            player.unit_mut().set_movement_flags_like_cpp(flags);
+            true
+        }) else {
+            return false;
+        };
+        if !changed {
+            return false;
+        }
+
+        self.send_player_move_set_flag_like_cpp(if enable {
+            ServerOpcodes::MoveSetWaterWalk
+        } else {
+            ServerOpcodes::MoveSetLandWalk
+        });
+        true
+    }
+
     pub fn send_movement_set_collision_height_like_cpp(&mut self, reason: u8) {
         let (presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
         control.send_movement_set_collision_height_like_cpp(&presentation, reason);

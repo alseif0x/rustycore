@@ -611,6 +611,11 @@ fn spell_proc_source_builds_implicit_source_from_spell_effects_like_cpp() {
 #[test]
 fn spell_proc_source_builds_from_loaded_spell_and_db2_stores_like_cpp() {
     let mut spells = SpellStore::new();
+    spells.spell_info_keys_like_cpp =
+        crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::from_candidate_keys_like_cpp(
+            [(100, 1), (100, 2)],
+            &HashSet::from([100]),
+        );
     spells.insert(
         100,
         SpellInfo {
@@ -635,6 +640,29 @@ fn spell_proc_source_builds_from_loaded_spell_and_db2_stores_like_cpp() {
         },
     );
     spells.insert(101, test_spell_info_without_aura(101));
+    let mut base_attributes = [0; 15];
+    base_attributes[3] = 0x0100;
+    spells.insert_spell_misc_attributes_for_difficulty_like_cpp(100, 0, base_attributes);
+    let mut heroic_attributes = [0; 15];
+    heroic_attributes[3] = attributes::SPELL_ATTR3_CAN_PROC_FROM_PROCS;
+    spells.insert_spell_misc_attributes_for_difficulty_like_cpp(100, 1, heroic_attributes);
+
+    let difficulties = crate::difficulty::DifficultyStore::from_entries([
+        crate::difficulty::DifficultyEntry {
+            id: 1,
+            instance_type: 0,
+            flags: 0,
+            fallback_difficulty_id: 0,
+            toggle_difficulty_id: 0,
+        },
+        crate::difficulty::DifficultyEntry {
+            id: 2,
+            instance_type: 0,
+            flags: 0,
+            fallback_difficulty_id: 0,
+            toggle_difficulty_id: 0,
+        },
+    ]);
 
     let chains = SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
         [SpellRankEdgeLikeCpp {
@@ -646,10 +674,6 @@ fn spell_proc_source_builds_from_loaded_spell_and_db2_stores_like_cpp() {
     let aura_options = crate::spell_db2::SpellAuraOptionsStore::from_entries([
         test_spell_aura_options_entry_like_cpp(1, 100, 0, [1, 0], 10, 2, 300, 9),
         test_spell_aura_options_entry_like_cpp(2, 100, 1, [-1, 7], 35, -2, -300, 42),
-    ]);
-    let misc = crate::spell_db2::SpellMiscStore::from_entries([
-        test_spell_misc_entry_like_cpp(1, 100, 0, 0x0100),
-        test_spell_misc_entry_like_cpp(2, 100, 1, attributes::SPELL_ATTR3_CAN_PROC_FROM_PROCS),
     ]);
     let class_options = crate::spell_db2::SpellClassOptionsStore::from_entries([
         crate::spell_db2::SpellClassOptionsEntry {
@@ -672,12 +696,13 @@ fn spell_proc_source_builds_from_loaded_spell_and_db2_stores_like_cpp() {
         100,
         1,
         &spells,
+        &difficulties,
         &chains,
         &aura_options,
-        &misc,
         &class_options,
         &ppm,
     )
+    .unwrap()
     .unwrap();
 
     assert_eq!(source.spell_id, 100);
@@ -701,16 +726,18 @@ fn spell_proc_source_builds_from_loaded_spell_and_db2_stores_like_cpp() {
         100,
         2,
         &spells,
+        &difficulties,
         &chains,
         &aura_options,
-        &misc,
         &class_options,
         &ppm,
     )
+    .unwrap()
     .unwrap();
     assert_eq!(fallback_source.proc_flags, [1, 0]);
     assert_eq!(fallback_source.attributes3, 0x0100);
 }
+
 #[test]
 fn spell_proc_store_generates_from_spell_infos_after_sql_like_cpp() {
     let mut generated = test_spell_proc_source_like_cpp(901, 901, None);

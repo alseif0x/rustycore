@@ -232,6 +232,9 @@ impl SessionSpellState {
         let remaining_power = self.represented_cast_remaining_power_like_cpp(hub, spell);
         let mut cast_data = wow_packet::packets::spell::SpellCastData::default();
         let mut cast_flags = 0_u32;
+        if metadata.server_normal_cast_like_cpp && metadata.cast_item_guid.is_some() {
+            cast_data.caster_unit = hub.core.player_guid();
+        }
 
         // `CAST_FLAG_PENDING` is deliberately absent from both phases: C++ sets
         // it only for a triggered cast that is not `m_fromClient`, and every
@@ -294,7 +297,12 @@ impl SessionSpellState {
                             pitch: metadata.request_trajectory_pitch_like_cpp,
                         };
                 }
-                if spell.cooldown_ms == 0 {
+                let has_global_cooldown = if metadata.server_normal_cast_like_cpp {
+                    metadata.server_normal_started_global_cooldown
+                } else {
+                    spell.cooldown_ms != 0
+                };
+                if !has_global_cooldown {
                     cast_flags |= cast_flags_like_cpp::NO_GCD;
                 }
             }

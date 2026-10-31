@@ -15,9 +15,14 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
     let represented_moving_slot = 11;
     let represented_turning_slot = 12;
     let represented_kept_slot = 13;
-    let canonical_moving = wow_entities::AppliedAuraRef::new(62_807, player_guid, 0, 0x1);
-    let canonical_turning = wow_entities::AppliedAuraRef::new(62_808, player_guid, 1, 0x1);
-    let canonical_kept = wow_entities::AppliedAuraRef::new(62_809, player_guid, 2, 0x1);
+    // Each visible AuraApplication projects one active effect into the
+    // canonical AuraSubsystem index; these refs are not extra Auras.
+    let canonical_moving =
+        wow_entities::AppliedAuraRef::new(62_817, player_guid, represented_moving_slot, 0x1);
+    let canonical_turning =
+        wow_entities::AppliedAuraRef::new(62_818, player_guid, represented_turning_slot, 0x1);
+    let canonical_kept =
+        wow_entities::AppliedAuraRef::new(62_819, player_guid, represented_kept_slot, 0x1);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
@@ -41,6 +46,35 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
         },
     ])));
     session.core.expansion = 1;
+    let active_spell_ids = [62_817_u32, 62_818, 62_819];
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store(
+        active_spell_ids.into_iter().map(|spell_id| (spell_id, 0)),
+    );
+    for spell_id in active_spell_ids {
+        spell_store.insert(
+            spell_id as i32,
+            wow_data::SpellInfo {
+                spell_id: spell_id as i32,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(4), // Pinned 3.4.3 SPELL_AURA_DUMMY.
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: 4,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportRemoveInterruptAuras".to_string(),
@@ -51,6 +85,9 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
         80,
         0,
     ));
+    add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     for (slot, spell_id, flags) in [
         (
             represented_moving_slot,
@@ -64,9 +101,8 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
         ),
         (represented_kept_slot, 62_819, 0),
     ] {
-        session.fixtures.auras.visible_auras.insert(
-            slot,
-            AuraApplication {
+        assert!(
+            session.insert_player_visible_aura_like_cpp(AuraApplication {
                 spell_id,
                 difficulty_id: 0,
                 caster_guid: player_guid,
@@ -84,10 +120,9 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
                 represented_misc_value: None,
                 represented_multiplier: 1.0,
                 applied_at: Instant::now(),
-            },
+            })
         );
     }
-    add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
     session.mutate_canonical_player_like_cpp(|player| {
         let auras = &mut player.unit_mut().subsystems_mut().auras;
         auras.register_applied_aura(
@@ -103,6 +138,34 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
             0,
         );
         auras.register_applied_aura(canonical_kept, None, 0, 0);
+    });
+    let visible_before = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player AuraSubsystem");
+    assert_eq!(
+        visible_before
+            .get(&represented_moving_slot)
+            .map(|aura| aura.spell_id),
+        Some(62_817)
+    );
+    assert_eq!(
+        visible_before
+            .get(&represented_turning_slot)
+            .map(|aura| aura.spell_id),
+        Some(62_818)
+    );
+    assert_eq!(
+        visible_before
+            .get(&represented_kept_slot)
+            .map(|aura| aura.spell_id),
+        Some(62_819)
+    );
+    drop(visible_before);
+    session.mutate_canonical_player_like_cpp(|player| {
+        let auras = &player.unit().subsystems().auras;
+        assert!(auras.has_applied(canonical_moving));
+        assert!(auras.has_applied(canonical_turning));
+        assert!(auras.has_applied(canonical_kept));
     });
 
     session.teleport_to(0, destination).await;
@@ -120,23 +183,20 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&represented_moving_slot)
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&represented_turning_slot)
     );
     assert!(
         session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&represented_kept_slot)
     );
     session.mutate_canonical_player_like_cpp(|player| {
@@ -200,6 +260,7 @@ async fn teleport_to_allows_death_knight_after_escape_spell_like_cpp() {
 #[tokio::test]
 async fn spell_stuck_kills_player_when_hearthstone_has_cooldown_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     let spell_id = 784_i32;
     let player_guid = ObjectGuid::create_player(1, 784);
     let position = Position::new(11.0, 21.0, 31.0, 1.0);
@@ -215,34 +276,165 @@ async fn spell_stuck_kills_player_when_hearthstone_has_cooldown_like_cpp() {
         80,
         0,
     ));
-    session.set_player_health_like_cpp(100, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
-    session.mutate_cast_execution_like_cpp(|state| {
-        state.last_cast_time_per_spell.insert(8690, Instant::now());
-    });
-    set_stuck_spell_store_like_cpp(&mut session, spell_id);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session.set_player_health_like_cpp(100, 100);
+    set_stuck_spell_store_like_cpp(&mut session, spell_id, false, 0);
+    crate::native_death_test_fixtures::prepare(&mut session);
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .spells
+                    .history
+                    .add_cooldown(8690, 0, u64::MAX, 0, 0, false)
+            })
+            .expect("canonical Player history"),
+        "seed native raw-spell cooldown membership"
+    );
 
     session
         .execute_spell(spell_id, player_guid)
         .await
         .expect("represented stuck spell cooldown branch should execute");
 
-    assert!(!session.player_is_alive_like_cpp());
-    assert_eq!(session.player_health_like_cpp(), 0);
     assert_eq!(
+        session.with_owned_player_like_cpp(|player| (
+            player.unit().data().health,
+            player.unit().death_state(),
+            player.extra_flags() & 0x0100 != 0,
+            player.has_unresolved_native_death_operation(),
+        )),
+        Some((0, wow_constants::DeathState::JustDied, true, false)),
+        "C++ KillSelf completes native Player death and retires its operation"
+    );
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes = packets
+        .iter()
+        .filter_map(|bytes| WorldPacket::from_bytes(bytes).server_opcode())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        opcodes,
+        vec![
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::CancelCombat,
+            ServerOpcodes::PowerUpdate,
+            ServerOpcodes::StandStateUpdate,
+        ],
+        "the native KillSelf death body runs before Stuck's completion cooldown, with no immediate HealthUpdate"
+    );
+    let spell_go = packets
+        .iter()
+        .find(|bytes| {
+            WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::SpellGo)
+        })
+        .expect("Stuck publishes SpellGo");
+    assert_eq!(
+        decode_spell_go_target_data_like_cpp(spell_go, spell_id),
+        SpellTargetData::default(),
+        "Stuck's explicit self target is removed before SpellGo"
+    );
+    assert_eq!(
+        decode_spell_go_hit_target_count_like_cpp(spell_go, spell_id),
+        0,
+        "caster-only Stuck retains its empty hit list"
+    );
+}
+
+#[tokio::test]
+async fn spell_stuck_kills_from_category_only_cooldown_at_native_u64_health_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
+    let spell_id = 787_i32;
+    let player_guid = ObjectGuid::create_player(1, 787);
+    let position = Position::new(14.0, 24.0, 34.0, 1.0);
+    let canonical = shared_canonical_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "StuckCategoryCooldown".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    set_stuck_spell_store_like_cpp(&mut session, spell_id, false, 7);
+    crate::native_death_test_fixtures::prepare(&mut session);
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    let max_health = u64::from(u32::MAX) + 1;
+    assert!(
         session
-            .mutate_canonical_player_like_cpp(|player| player.unit().data().health)
-            .unwrap(),
-        0
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_max_health(max_health);
+                player.unit_mut().set_health(max_health);
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .spells
+                    .history
+                    .add_cooldown(41_337, 0, u64::MAX, 7, u64::MAX, false)
+            })
+            .expect("canonical Player history")
+    );
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| {
+            let history = &player.unit().subsystems().spells.history;
+            (
+                player.unit().data().health,
+                history.cooldown(8690),
+                history.category_cooldowns.get(&7).copied(),
+            )
+        }),
+        Some((max_health, None, Some(41_337))),
+        "the fixture has only the native category membership, with health above u32"
+    );
+
+    session
+        .execute_spell(spell_id, player_guid)
+        .await
+        .expect("category-only Hearthstone cooldown should run C++ KillSelf");
+
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| (
+            player.unit().data().health,
+            player.unit().data().max_health,
+            player.unit().death_state(),
+            player.extra_flags() & 0x0100 != 0,
+            player.has_unresolved_native_death_operation(),
+            player.unit().subsystems().spells.history.cooldown(8690),
+        )),
+        Some((
+            0,
+            max_health,
+            wow_constants::DeathState::JustDied,
+            true,
+            false,
+            None,
+        )),
+        "native KillSelf handles full u64 health, records PvP death and retires its fence"
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        vec![
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::CancelCombat,
+            ServerOpcodes::PowerUpdate,
+            ServerOpcodes::StandStateUpdate,
+        ],
+        "category membership selects the same KillSelf/native death packet path without HealthUpdate"
     );
 }
 #[tokio::test]
 async fn spell_stuck_dead_player_without_death_timer_repops_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571]));
     let spell_id = 785_i32;
     let player_guid = ObjectGuid::create_player(1, 785);
     let position = Position::new(12.0, 22.0, 32.0, 1.0);
@@ -258,9 +450,20 @@ async fn spell_stuck_dead_player_without_death_timer_repops_like_cpp() {
         80,
         0,
     ));
-    session.set_player_health_like_cpp(0, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
-    set_stuck_spell_store_like_cpp(&mut session, spell_id);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session.set_player_health_like_cpp(0, 100);
+    session.mutate_canonical_player_like_cpp(|player| {
+        player
+            .unit_mut()
+            .set_death_state(wow_constants::DeathState::Dead);
+        player
+            .resurrection_state_mut_like_cpp()
+            .death_timer_remaining_ms = 0;
+    });
+    session.set_graveyard_store(Arc::new(wow_data::GraveyardStore::default()));
+    set_stuck_spell_store_like_cpp(&mut session, spell_id, true, 0);
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
 
     session
         .execute_spell(spell_id, player_guid)
@@ -271,19 +474,31 @@ async fn spell_stuck_dead_player_without_death_timer_repops_like_cpp() {
         session.fixtures.combat.represented_repop_at_graveyard_count,
         1
     );
-    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+    assert!(
+        !crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp(),
+        "C++ RepopAtGraveyard does not manufacture the Ghost flag"
     );
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| (
+            player.unit().death_state(),
+            player
+                .resurrection_state_like_cpp()
+                .death_timer_remaining_ms,
+        )),
+        Some((wow_constants::DeathState::Dead, 0))
+    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
     let (mut session, _, send_rx) = make_session();
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 0]));
     let spell_id = 786_i32;
     let player_guid = ObjectGuid::create_player(1, 786);
     let position = Position::new(13.0, 23.0, 33.0, 1.0);
     let home = Position::new(101.0, 201.0, 41.0, 2.0);
+    let canonical = shared_canonical_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "StuckFlight".to_string(),
@@ -294,6 +509,8 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         80,
         0,
     ));
+    add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_health_like_cpp(100, 100);
     let _ = session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 0,
@@ -308,7 +525,13 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         },
         None,
     );
-    set_stuck_spell_store_like_cpp(&mut session, spell_id);
+    set_stuck_spell_store_like_cpp(&mut session, spell_id, false, 0);
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    let hearthstone_cooldown_before = session
+        .with_owned_player_like_cpp(|player| {
+            player.unit().subsystems().spells.history.cooldown(8690)
+        })
+        .expect("canonical Player history");
 
     session
         .execute_spell(spell_id, player_guid)
@@ -316,19 +539,19 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         .expect("represented stuck spell in-flight branch should execute as no-op");
 
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert!(
-        session
-            .spell_last_cast_time_like_cpp(8690)
-            .flatten()
-            .is_none(),
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| {
+            player.unit().subsystems().spells.history.cooldown(8690)
+        }),
+        Some(hearthstone_cooldown_before),
         "C++ EffectStuck returns before Hearthstone cooldown while player is in flight"
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 
     let (mut disabled_session, _, disabled_rx) = make_session();
+    let disabled_canonical = shared_canonical_map_manager();
+    disabled_session.set_canonical_map_manager(Arc::clone(&disabled_canonical));
+    disabled_session.set_map_store(crate::teleport_test_fixtures::world_maps([571, 0]));
     disabled_session.set_cast_unstuck_enabled_like_cpp(false);
     disabled_session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -340,13 +563,21 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         80,
         0,
     ));
+    add_canonical_test_player_on_map(&disabled_canonical, player_guid, position, 571, 0);
+    assert!(disabled_session.adopt_registered_canonical_player_fixture_like_cpp());
     disabled_session.set_player_health_like_cpp(100, 100);
     let _ = disabled_session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
         map_id: 0,
         area_id: 12,
         position: home,
     });
-    set_stuck_spell_store_like_cpp(&mut disabled_session, spell_id);
+    set_stuck_spell_store_like_cpp(&mut disabled_session, spell_id, false, 0);
+    disabled_session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    let disabled_hearthstone_cooldown_before = disabled_session
+        .with_owned_player_like_cpp(|player| {
+            player.unit().subsystems().spells.history.cooldown(8690)
+        })
+        .expect("canonical Player history");
 
     disabled_session
         .execute_spell(spell_id, player_guid)
@@ -354,15 +585,15 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
         .expect("disabled CastUnstuck should execute as C++ no-op");
 
     assert_eq!(disabled_session.pending_teleport_like_cpp(), None);
-    assert!(
-        disabled_session
-            .spell_last_cast_time_like_cpp(8690)
-            .flatten()
-            .is_none()
+    assert_eq!(
+        disabled_session.with_owned_player_like_cpp(|player| {
+            player.unit().subsystems().spells.history.cooldown(8690)
+        }),
+        Some(disabled_hearthstone_cooldown_before)
     );
     assert_eq!(
         drain_server_opcodes(&disabled_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        vec![ServerOpcodes::SpellGo]
     );
 }
 #[tokio::test]
@@ -477,10 +708,7 @@ async fn spell_taunt_effect_current_victim_is_ineffective_like_cpp() {
         session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
         Some(5.0)
     );
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_distract_effect_launches_facing_spline_like_cpp() {
@@ -559,11 +787,7 @@ async fn spell_distract_effect_launches_facing_spline_like_cpp() {
     drop(guard);
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::OnMonsterMove,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::OnMonsterMove,]
     );
 }
 #[tokio::test]
@@ -633,10 +857,7 @@ async fn spell_distract_effect_skips_engaged_target_like_cpp() {
     );
     assert!(creature.active_move_spline_like_cpp().is_none());
     drop(guard);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
@@ -748,10 +969,7 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
         .ai_ownership()
         .combat_target;
     assert_eq!(world_combat_target, None);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_effect_heal_negative_amount_is_noop_like_cpp() {
@@ -787,10 +1005,7 @@ async fn spell_effect_heal_negative_amount_is_noop_like_cpp() {
 
     assert_eq!(session.player_health_like_cpp(), 50);
     let opcodes = drain_server_opcodes(&send_rx);
-    assert_eq!(
-        opcodes,
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(opcodes, vec![ServerOpcodes::SpellGo]);
 }
 #[tokio::test]
 async fn spell_heal_mechanical_effect_row_heals_player_like_cpp_without_type_gate() {
@@ -845,7 +1060,6 @@ async fn spell_heal_mechanical_effect_row_heals_player_like_cpp_without_type_gat
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
-            ServerOpcodes::CooldownEvent,
         ]
     );
     // C++ `Unit::SendHealSpellLog` (`Unit.cpp:6538-6555`): the target and caster
@@ -908,8 +1122,5 @@ async fn spell_heal_mechanical_negative_amount_is_noop_like_cpp() {
         .expect("negative represented mechanical heal should execute as C++ no-op effect");
 
     assert_eq!(session.player_health_like_cpp(), 50);
-    assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
-    );
+    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::SpellGo]);
 }

@@ -39,7 +39,7 @@ pub(crate) async fn load_difficulty_store_like_cpp(
     removals: &wow_data::Db2HotfixRemovalStoreLikeCpp,
 ) -> Result<wow_data::DifficultyStore> {
     // C++ `LOAD_DB2`: WDC4 precedes official/custom SQL overlays.
-    let base = wow_data::DifficultyStore::load(data_dir, locale)?;
+    let base = wow_data::DifficultyStore::load_complete(data_dir, locale)?;
     let outcome = persistence.load_difficulty_hotfix_rows_like_cpp().await;
     apply_loaded_hotfix_outcome_like_cpp(base, outcome, removals)
 }
@@ -98,7 +98,7 @@ mod tests {
 
         let loader_source = include_str!("difficulty.rs");
         let wdc4_load = loader_source
-            .find("DifficultyStore::load(data_dir, locale)")
+            .find("DifficultyStore::load_complete(data_dir, locale)")
             .expect("composition must load the WDC4 authority");
         let overlay_load = loader_source
             .find("persistence.load_difficulty_hotfix_rows_like_cpp()")

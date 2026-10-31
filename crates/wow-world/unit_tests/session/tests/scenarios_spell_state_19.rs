@@ -95,12 +95,7 @@ async fn spell_parry_and_block_primary_fields_set_caster_flags_like_cpp() {
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::CooldownEvent,
-            ServerOpcodes::SpellGo,
-            ServerOpcodes::CooldownEvent,
-        ]
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::SpellGo,]
     );
 }
 #[tokio::test]
@@ -646,10 +641,20 @@ fn player_attack_uses_stalked_aura_as_always_detectable_like_cpp() {
 #[tokio::test]
 async fn check_area_explore_removes_indoor_outdoor_auras_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(9_101, test_spell_info_like_cpp(9_101));
-    spell_store.insert(9_102, test_spell_info_like_cpp(9_102));
-    spell_store.insert(9_103, test_spell_info_like_cpp(9_103));
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(9_101, 0), (9_102, 0), (9_103, 0)]);
+    for spell_id in [9_101, 9_102, 9_103] {
+        let mut info = test_spell_info_like_cpp(spell_id);
+        info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+        info.aura_type = Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY);
+        info.effects = vec![wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+            ..Default::default()
+        }];
+        spell_store.insert(spell_id, info);
+    }
     let mut indoor_attributes = [0; 15];
     indoor_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ONLY_INDOORS;
     spell_store.insert_spell_misc_attributes_like_cpp(9_101, indoor_attributes);

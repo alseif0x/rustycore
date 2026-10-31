@@ -23,7 +23,8 @@ impl ClientPacket for SetAdvancedCombatLogging {
     }
 }
 
-/// C++ `WorldPackets::Misc::ReclaimCorpse`: full raw corpse GUID.
+/// C++ `MiscPackets.cpp:274` reads the packed GUID through the two-mask
+/// extraction operator in `ObjectGuid.cpp:779-785`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReclaimCorpse {
     pub corpse_guid: ObjectGuid,
@@ -33,11 +34,8 @@ impl ClientPacket for ReclaimCorpse {
     const OPCODE: ClientOpcodes = ClientOpcodes::ReclaimCorpse;
 
     fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
-        let raw = packet.read_bytes(16)?;
-        let mut guid = [0u8; 16];
-        guid.copy_from_slice(&raw);
         Ok(Self {
-            corpse_guid: ObjectGuid::from_raw_bytes(&guid),
+            corpse_guid: packet.read_packed_guid()?,
         })
     }
 }

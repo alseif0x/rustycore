@@ -39,9 +39,11 @@ async fn post_add_flushes_deferred_rest_flag_update_after_world_states_like_cpp(
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_FACTION_AREA_LIKE_CPP, 0));
     let _ = drain_server_packet_bytes(&send_rx);
 
-    session
-        .send_initial_packets_after_add_to_map(player_guid, &player_position, 571, false)
-        .await;
+    assert!(
+        session
+            .send_initial_packets_after_add_to_map(player_guid, &player_position, 571, false)
+            .await
+    );
 
     let opcodes: Vec<_> = drain_server_packet_bytes(&send_rx)
         .iter()

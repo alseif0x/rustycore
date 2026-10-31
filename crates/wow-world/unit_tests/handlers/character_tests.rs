@@ -89,6 +89,7 @@ use wow_persistence::{
     PlayerNameQueryPersistencePortLikeCpp, PlayerNameQueryRequestLikeCpp,
     PlayerNameQueryRowLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
 };
+use wow_world_application as application;
 
 #[path = "character_tests/binder_cast_hook.rs"]
 mod binder_cast_hook;
@@ -132,6 +133,8 @@ mod pet;
 mod quest;
 #[path = "character_tests/raw_equip.rs"]
 mod raw_equip;
+#[path = "character_tests/sickness_loading.rs"]
+mod sickness_loading;
 #[path = "character_tests/skill.rs"]
 mod skill;
 #[path = "character_tests/spell.rs"]

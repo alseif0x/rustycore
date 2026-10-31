@@ -197,8 +197,8 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         Some(((900, 44.0), Some(7), 8, Some(0.75), 0.8, 2, false, false, 0))
     );
 }
-#[test]
-fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cpp() {
+#[tokio::test]
+async fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 5_580);
@@ -287,7 +287,11 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
 
     assert_eq!(session.player_teleport_state_snapshot_like_cpp(), None);
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert!(!session.finish_worldport_native_before_disconnect_like_cpp());
+    assert!(
+        !session
+            .finish_worldport_native_before_disconnect_like_cpp()
+            .await
+    );
     assert!(!session.set_pending_teleport_like_cpp(Some((1, destination))));
     assert!(!session.set_represented_can_delay_teleport_like_cpp(true));
     assert!(!session.set_represented_far_teleport_pending_like_cpp(false));

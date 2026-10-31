@@ -8,12 +8,22 @@
 //! `Spell::EffectDurabilityDamagePCT` slot and all-items branches and the
 //! `Unit::Kill` death-loss branches.
 
+use wow_constants::ItemUpdateState;
 use wow_core::ObjectGuid;
 use wow_entities::{
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, is_equipment_packed_pos, make_item_pos,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_entities::{
+    ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT, ItemDataUpdate, ItemValuesUpdate, TYPEID_ITEM,
+    UpdateMask,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_core::entity_update_bridge::item_values_update_to_update_object;
 
-use super::item_mods::record_represented_item_mods_like_cpp;
+use super::item_mods::{
+    record_represented_item_mods_like_cpp, send_represented_item_bonus_player_stat_update_like_cpp,
+};
 use crate::VendorSessionHostLikeCpp;
 
 /// C++ `Player::DurabilityLossAll` (`Player.cpp:4522-4544`).
@@ -34,6 +44,63 @@ pub fn apply_represented_durability_loss_all_like_cpp<H: VendorSessionHostLikeCp
         if apply_represented_durability_loss_item_like_cpp(host, guid, slot, equipped, percent) {
             affected += 1;
         }
+    }
+    affected
+}
+
+/// Spirit-healer `Player::DurabilityLossAll(0.25f, true)`; native item VALUES
+/// are batched by the owner's Map, while stat callbacks retain their order.
+pub fn apply_spirit_healer_durability_loss<H: VendorSessionHostLikeCpp>(host: &mut H) -> usize {
+    let targets = {
+        let (state, hub) = host.split_inventory_ref();
+        state.represented_durability_targets_like_cpp(hub, true)
+    };
+    let mut affected = 0;
+    let mut equipped_became_broken = false;
+    for (item_guid, slot, equipped) in targets {
+        let Some(was_broken) = ({
+            let (state, hub) = host.split_inventory_ref();
+            state
+                .resolved_inventory_item_object_like_cpp(hub, item_guid)
+                .map(|item| item.is_broken())
+        }) else {
+            continue;
+        };
+        if !apply_represented_durability_loss_item_like_cpp(host, item_guid, slot, equipped, 0.25) {
+            continue;
+        }
+        affected += 1;
+
+        if let Some(item) = {
+            let (state, hub) = host.split_inventory_ref();
+            state.resolved_inventory_item_object_like_cpp(hub, item_guid)
+        } {
+            equipped_became_broken |= equipped && !was_broken && item.is_broken();
+            // Handle-less legacy fixtures have no native Map publication owner.
+            #[cfg(any(test, feature = "test-fixtures"))]
+            if host.core().player_handle_like_cpp.is_none() {
+                let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
+                item_data_mask.set(ITEM_DATA_DURABILITY_BIT);
+                let durability_update = ItemValuesUpdate {
+                    changed_object_type_mask: 1 << TYPEID_ITEM,
+                    object_data: None,
+                    item_data: Some(ItemDataUpdate {
+                        mask: item_data_mask,
+                        values: item.data().clone(),
+                    }),
+                };
+                if let Some(update) = item_values_update_to_update_object(
+                    item_guid,
+                    host.core().player_map_id_like_cpp(),
+                    &durability_update,
+                ) {
+                    host.send_packet(&update);
+                }
+            }
+        }
+    }
+    if equipped_became_broken {
+        send_represented_item_bonus_player_stat_update_like_cpp(host);
     }
     affected
 }
@@ -163,12 +230,17 @@ fn apply_represented_durability_points_loss_like_cpp<H: VendorSessionHostLikeCpp
     }
     let updated = {
         let (state, mut hub) = host.split_inventory_mut();
+        // Player.cpp:4610-4616 commits the durability and persistent Changed state together.
         state.apply_inventory_item_object_updates_like_cpp(
             &mut hub,
             item_guid,
-            &[wow_entities::ItemObjectUpdateLikeCpp::SetDurability(
-                u32::try_from(new_durability).unwrap_or(0),
-            )],
+            &[
+                wow_entities::ItemObjectUpdateLikeCpp::SetDurability(
+                    u32::try_from(new_durability).unwrap_or(0),
+                ),
+                wow_entities::ItemObjectUpdateLikeCpp::SetState(ItemUpdateState::Changed),
+                wow_entities::ItemObjectUpdateLikeCpp::QueueDurabilityUpdate,
+            ],
         )
     };
     if new_durability > 0 && old_durability == 0 && equipped {
@@ -222,7 +294,7 @@ fn represented_prevent_durability_loss_like_cpp<H: VendorSessionHostLikeCpp>(hos
 /// `baseLoss - baseLoss * GetTotalAuraMultiplier(MOD_DURABILITY_LOSS)`.
 /// C++ truncates that value to `uint32`, so with no aura the message percent
 /// is 0; that legacy behaviour is reproduced rather than repaired.
-fn apply_represented_durability_loss_on_death_like_cpp<H: VendorSessionHostLikeCpp>(
+pub fn apply_represented_durability_loss_on_death_like_cpp<H: VendorSessionHostLikeCpp>(
     host: &mut H,
 ) -> u32 {
     let base_loss = f64::from(
@@ -234,30 +306,4 @@ fn apply_represented_durability_loss_on_death_like_cpp<H: VendorSessionHostLikeC
     let loss = (base_loss - base_loss * multiplier) as u32;
     apply_represented_durability_loss_all_like_cpp(host, base_loss, false);
     loss
-}
-
-/// C++ `Unit::Kill` creature-killer durability branch (`Unit.cpp:10639-10648`).
-///
-/// The map commits the lethal swing before delivery, so `over_damage >= 0`
-/// is the represented kill signal. C++ applies the PvE condition
-/// `durabilityLoss && !player && !victim->InBattleground()`; a battleground
-/// victim is skipped. The loss message is published before the melee result
-/// presentation, matching the C++ order inside `DealMeleeDamage`.
-pub fn publish_creature_melee_death_durability_loss_like_cpp<H: VendorSessionHostLikeCpp>(
-    host: &mut H,
-    over_damage: i32,
-) {
-    if over_damage < 0 || represented_player_in_battleground_like_cpp(host) {
-        return;
-    }
-    let loss = apply_represented_durability_loss_on_death_like_cpp(host);
-    host.send_packet(&wow_packet::packets::misc::DurabilityDamageDeath {
-        percent: loss as i32,
-    });
-}
-
-#[must_use]
-fn represented_player_in_battleground_like_cpp<H: VendorSessionHostLikeCpp>(host: &H) -> bool {
-    let (state, hub) = host.split_inventory_ref();
-    state.represented_player_in_battleground_like_cpp(hub)
 }

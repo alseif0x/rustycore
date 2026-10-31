@@ -63,57 +63,204 @@ pub fn sync_current_player_session_visibility_detection_like_cpp<
 pub fn visible_other_players_from_registry_like_cpp<H: VisibilitySessionHostLikeCpp>(
     host: &H,
     map_id: u16,
-    position: &Position,
-    visibility_radius: f32,
+    _position: &Position,
+    _visibility_radius: f32,
 ) -> Vec<(ObjectGuid, PlayerVisibilityCreateSnapshot)> {
-    let Some(player_guid) = host.player_guid() else {
+    let Some(viewer_handle) = host.core().player_handle_like_cpp else {
         return Vec::new();
     };
+    let viewer_guid = viewer_handle.guid();
+    if host.player_guid() != Some(viewer_guid) {
+        return Vec::new();
+    }
     let Some(registry) = &host.core().player_registry else {
         return Vec::new();
     };
-    let instance_id = host
+    let mode = host.hub_ref().config.group_visibility_mode;
+    let viewer_group_guid = host
         .core()
-        .current_canonical_player_map_key_like_cpp()
-        .map(|key| key.instance_id)
-        .unwrap_or(0);
-    let source_combat_reach = crate::represented_visibility_source_combat_reach_like_cpp(host);
-
-    registry
-        .player_visibility_create_candidates(
-            player_guid,
-            map_id,
-            instance_id,
-            *position,
-            source_combat_reach,
-            visibility_radius,
-        )
-        .into_iter()
-        .filter(|candidate| {
-            canonical_player_phase_visible_like_cpp(host, map_id, instance_id, candidate.guid)
-                == Some(true)
+        .with_owned_player_like_cpp(group_guid_from_player)
+        .flatten();
+    let group_snapshot = if matches!(mode, 2 | 3) {
+        None
+    } else {
+        viewer_group_guid.and_then(|guid| {
+            host.core()
+                .group_registry()
+                .and_then(|groups| groups.get(&guid))
         })
-        .map(|candidate| (candidate.guid, candidate))
+    };
+    let committed_visible = host
+        .core()
+        .client_visible_guids_like_cpp
+        .snapshot_like_cpp();
+
+    let (map_key, selected) = {
+        let Some(manager) = host.core().canonical_map_manager.as_ref() else {
+            return Vec::new();
+        };
+        let Ok(manager) = manager.lock() else {
+            return Vec::new();
+        };
+        let Some((map_key, _viewer_residence_revision)) =
+            manager.player_active_residence_revision_like_cpp(viewer_handle)
+        else {
+            return Vec::new();
+        };
+        if map_key.map_id != u32::from(map_id) {
+            return Vec::new();
+        }
+        let Some(map_entry) = manager.find_map(map_key.map_id, map_key.instance_id) else {
+            return Vec::new();
+        };
+        let map = map_entry.map();
+        let Some(selected) = manager.with_player_like_cpp(viewer_handle, |viewer| {
+            let viewer_world = viewer.unit().world();
+            if !viewer_world.object().is_in_world()
+                || viewer_world.map_id() != map_key.map_id
+                || viewer_world.instance_id() != map_key.instance_id
+                || group_guid_from_player(viewer) != viewer_group_guid
+            {
+                return Vec::new();
+            }
+
+            let viewpoint = super::ghost_visibility::canonical_viewpoint(viewer, map);
+            let search_radius = viewer_world.get_sight_range(None, map) + viewpoint.combat_reach();
+            let nearby = map.nearby_cell_guids_like_cpp(
+                viewpoint.position().x,
+                viewpoint.position().y,
+                search_radius,
+            );
+            let corpse = {
+                let seer = viewer.unit();
+                (seer.is_dead() && seer.data().health > 0)
+                    .then(|| {
+                        map.corpse_guid_by_player_like_cpp(viewer.guid())
+                            .and_then(|guid| map.get_typed_corpse(guid))
+                    })
+                    .flatten()
+            };
+
+            let mut target_guids: Vec<_> = nearby.world.players.into_iter().collect();
+            target_guids.sort_unstable();
+            target_guids.dedup();
+            let mut selected = Vec::new();
+            for target_guid in target_guids {
+                if target_guid == viewer_guid {
+                    continue;
+                }
+                let Some((target_handle, _)) =
+                    manager.current_player_admission_like_cpp(target_guid)
+                else {
+                    continue;
+                };
+                let Some((target_key, target_residence_revision)) =
+                    manager.player_active_residence_revision_like_cpp(target_handle)
+                else {
+                    continue;
+                };
+                if target_key != map_key {
+                    continue;
+                }
+                let Some(Some(())) = manager.with_player_like_cpp(target_handle, |target| {
+                    let target_world = target.unit().world();
+                    if !target_world.object().is_in_world()
+                        || target_world.map_id() != map_key.map_id
+                        || target_world.instance_id() != map_key.instance_id
+                    {
+                        return None;
+                    }
+
+                    let group_visible = match mode {
+                        2 => viewer.team() == target.team(),
+                        3 => false,
+                        _ => group_snapshot.as_ref().is_some_and(|group| {
+                            let Some(group_guid) = viewer_group_guid else {
+                                return false;
+                            };
+                            if group.group_guid != group_guid
+                                || group_guid_from_player(target) != Some(group_guid)
+                                || !group.members.contains(&viewer.guid())
+                                || !group.members.contains(&target.guid())
+                            {
+                                return false;
+                            }
+                            if mode == 1 {
+                                return true;
+                            }
+                            let viewer_subgroup = group
+                                .member_slots
+                                .iter()
+                                .find(|slot| slot.guid == viewer.guid())
+                                .map(|slot| slot.subgroup);
+                            let target_subgroup = group
+                                .member_slots
+                                .iter()
+                                .find(|slot| slot.guid == target.guid())
+                                .map(|slot| slot.subgroup);
+                            viewer_subgroup.is_some() && viewer_subgroup == target_subgroup
+                        }),
+                    };
+                    let context = super::ghost_visibility::unit_context(
+                        viewer,
+                        target.unit(),
+                        viewpoint,
+                        map,
+                        corpse,
+                    );
+                    let vehicle_visible = target
+                        .unit()
+                        .subsystems()
+                        .vehicle
+                        .vehicle_guid
+                        .is_none_or(|vehicle| committed_visible.contains(&vehicle));
+                    let context = wow_entities::UnitVisibilityContext {
+                        distance_allowed: context.distance_allowed && vehicle_visible,
+                        player_group_visibility: group_visible,
+                        ..context
+                    };
+                    viewer
+                        .unit()
+                        .can_see_or_detect_unit_with_context(
+                            target.unit(),
+                            false,
+                            true,
+                            false,
+                            context,
+                        )
+                        .then_some(())
+                }) else {
+                    continue;
+                };
+                selected.push((target_guid, target_handle, target_residence_revision));
+            }
+            selected
+        }) else {
+            return Vec::new();
+        };
+        drop(manager);
+        (map_key, selected)
+    };
+
+    selected
+        .into_iter()
+        .filter_map(|(guid, handle, residence_revision)| {
+            let registration = registry.control_address(guid)?.registration();
+            let candidate = registry.player_visibility_create_snapshot_for_candidate(
+                registration,
+                handle,
+                map_key,
+                residence_revision,
+                viewer_guid,
+            )?;
+            Some((guid, candidate))
+        })
         .collect()
 }
-/// Require the target to exist in the canonical map and apply the same
-/// phase gate as C++ `VisibleNotifier::Visit(PlayerMapType&)`. Missing map
-/// state returns `None` and fails closed at the caller: C++ cannot visit a
-/// registry-only player.
-fn canonical_player_phase_visible_like_cpp<H: VisibilitySessionHostLikeCpp>(
-    host: &H,
-    map_id: u16,
-    instance_id: u32,
-    target_guid: ObjectGuid,
-) -> Option<bool> {
-    // Resolve the viewer before taking the map lock; the handle resolver
-    // takes the same manager and must not recurse into that mutex.
-    let player_phase_shift = represented_player_phase_shift_like_cpp(host)?;
-    let manager = host.core().canonical_map_manager.as_ref()?;
-    let manager = manager.lock().ok()?;
-    let map = manager.find_map(u32::from(map_id), instance_id)?;
-    let target = map.map().get_typed_player(target_guid)?;
-    Some(player_phase_shift.can_see(target.unit().world().phase_shift()))
+
+fn group_guid_from_player(player: &wow_entities::Player) -> Option<u64> {
+    let guid = player.gameplay_state().group.as_ref()?.group_guid;
+    (!guid.is_empty()).then_some(guid.counter() as u64)
 }
 pub fn represented_player_phase_shift_like_cpp<H: VisibilitySessionHostLikeCpp>(
     host: &H,

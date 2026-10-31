@@ -519,6 +519,14 @@ free space after cleanup. Deleting the active incremental cache at each macro is
 retention policy and needlessly repeats compilation; if safe cleanup cannot restore headroom,
 pause new builds and report the concrete storage need while continuing safe inspection.
 
+For incremental caches, retain the newest variant of every crate and remove only inspected
+superseded variants. `/tmp` cleanup must preserve current QA campaigns, native references,
+manifests, private configuration and session logs. Docker pruning and removal of other
+projects or services require explicit operator authorization, an inventory of processes and
+paths, and confirmation that WoW, required databases, nginx/proxy configuration and the
+active agent toolchain are not dependencies. Stop services and containers before deleting
+their files. Do not use an unreviewed `docker system prune` as a routine cache policy.
+
 ### Visible output and background tasks
 
 Invoke the runner directly so its progress and real exit status remain visible. Never pipe

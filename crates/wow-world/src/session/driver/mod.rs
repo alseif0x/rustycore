@@ -28,20 +28,20 @@ pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
 pub(in crate::session) use wow_world_lifecycle::RenameCallbacks;
+mod native_death;
 mod phase_consumer;
 mod phase_pass;
+mod player_recovery;
 
 use phases::SessionDriverPhaseLikeCpp;
-use wow_world_application::run_logout_timer_with_generator_like_cpp;
+use wow_world_application::{ResurrectionOperationCatalogs, run_logout_timer_with_catalogs};
 
 #[cfg(test)]
 use std::sync::Arc;
 use std::time::Instant;
 
 use tracing::{debug, info};
-use wow_world_entities::{
-    send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects, update_pvp_flag_like_cpp,
-};
+use wow_world_entities::{send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects};
 
 use super::{ClientOpcodes, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 
@@ -157,37 +157,7 @@ impl WorldSession {
         if self.core.state == SessionState::LoggedIn {
             self.core
                 .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
-            update_pvp_flag_like_cpp(self, wow_entities::game_time_secs_like_cpp());
-            let _ = crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(true);
-            self.world_entities.advance_creature_tick_like_cpp();
-            // C++ `Player::Update` runs `RegenerateAll()` after
-            // `DoMeleeAttackIfReady` for every living in-world player. The
-            // canonical Player owns the accumulators; this session pass is the
-            // single writer and consumes the published stat snapshot.
-            let regen_game_tables = self.catalogs.regen_game_tables.clone();
-            wow_world_entities::tick_player_regeneration_like_cpp(
-                self,
-                diff_ms,
-                catalogs.creature_spawns.power_types.as_ref(),
-                regen_game_tables.as_deref(),
-                catalogs.player_regeneration_rates.as_ref(),
-            );
-            // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
-            if self.world_entities.creature_tick_like_cpp() % 4 == 0 {
-                wow_world_spell::tick_auras(self);
-            }
-            self.lifecycle.update_player_save_timer_like_cpp(diff_ms);
-            self.revalidate_represented_tavern_resting_with_catalog_like_cpp(
-                catalogs.area_triggers.db2.as_ref(),
-            );
-            self.tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
-                catalogs.player_rest_rates.as_ref(),
-                wow_core::GameTime::now().as_secs(),
-            );
-            let _ =
-                crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(false);
-            wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(self)
-                .await;
+            player_recovery::run_current_player_ticks(self, diff_ms, catalogs).await;
         }
 
         // ── Periodic TimeSyncRequest ──────────────────────────────
@@ -218,7 +188,15 @@ impl WorldSession {
         // coordinated session therefore runs it at the end of its world pass,
         // not here, where its own packets have not been dispatched yet.
         if !self.is_map_phase_coordinated_like_cpp() {
-            run_logout_timer_with_generator_like_cpp(self, &catalogs.id_generators.item).await;
+            run_logout_timer_with_catalogs(
+                self,
+                ResurrectionOperationCatalogs {
+                    item_guid_generator: catalogs.id_generators.item.as_ref(),
+                    creature_spawns: catalogs.creature_spawns.as_ref(),
+                    graveyards: Some(catalogs.graveyards.as_ref()),
+                },
+            )
+            .await;
         }
 
         processed
@@ -356,13 +334,16 @@ impl WorldSession {
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CharacterRenameCallbacks);
         self.process_ready_character_rename_callbacks_like_cpp();
-        self.core
-            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
-        wow_world_application::process_pending_periodic_player_save_with_generator_like_cpp(
-            self,
-            catalogs.id_generators.item.as_ref(),
-        )
-        .await;
+        if !self.is_map_phase_coordinated_like_cpp() {
+            // Coordinated sessions consume this SaveTimer work in their
+            // admitted PlayerRecovery pass immediately before the death timer.
+            // Keep this compatibility consumer for standalone Sessions.
+            wow_world_application::process_pending_periodic_player_save_with_generator_like_cpp(
+                self,
+                catalogs.id_generators.item.as_ref(),
+            )
+            .await;
+        }
     }
 
     #[cfg(test)]

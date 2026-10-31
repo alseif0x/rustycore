@@ -211,6 +211,14 @@ pub struct SpellReagentsPersistenceRowLikeCpp {
     pub reagent_count: [i16; 8],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellReagentsCurrencyPersistenceRowLikeCpp {
+    pub id: u32,
+    pub spell_id: u32,
+    pub currency_types_id: u16,
+    pub currency_count: u16,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TrainerSpellAuditPersistenceCatalogLikeCpp {
     pub script_binding_ids: Vec<i32>,
@@ -277,5 +285,13 @@ pub trait SpellAcquisitionStartupPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<
         '_,
         SpellAcquisitionStartupLoadOutcomeLikeCpp<Vec<SpellReagentsPersistenceRowLikeCpp>>,
+    >;
+
+    fn load_spell_reagents_currency_overlay_like_cpp(
+        &self,
+        official: bool,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellAcquisitionStartupLoadOutcomeLikeCpp<Vec<SpellReagentsCurrencyPersistenceRowLikeCpp>>,
     >;
 }

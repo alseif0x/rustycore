@@ -1,5 +1,8 @@
 use super::*;
 
+mod movement_controls;
+mod packet_waits;
+
 fn expected(rule: ExpectedRule) -> ExpectedFact {
     ExpectedFact {
         rule,
@@ -226,6 +229,71 @@ fn cast_request_preserves_empty_and_unit_target_wire_shapes() {
     assert_eq!(&empty[target_offset..target_offset + 5], &[0; 5]);
     assert_eq!(&unit[target_offset..target_offset + 5], &[0, 0, 0, 0x20, 0]);
     assert_ne!(empty, unit);
+    let mut explicit_empty = empty.clone();
+    explicit_empty[target_offset + 3] = 0x20;
+    assert_eq!(
+        build_cast_spell_payload(133, guid(1), Some(Guid { low: 0, high: 0 })),
+        explicit_empty
+    );
+    let corpse = Guid {
+        low: 1,
+        high: 14 << 58,
+    };
+    let corpse_request = build_cast_spell_payload(133, guid(1), Some(corpse));
+    let mut expected = empty[..target_offset].to_vec();
+    expected.extend([0, 0x08, 0, 0, 0]); // 28-bit TARGET_FLAG_CORPSE_ALLY
+    expected.extend(corpse.packed());
+    expected.extend([0, 0]); // Item GUID remains empty.
+    assert_eq!(corpse_request, expected);
+    let mut expected_unit = empty[..target_offset].to_vec();
+    expected_unit.extend([0, 0, 0, 0x20, 0]);
+    expected_unit.extend(guid(22).packed());
+    expected_unit.extend([0, 0]);
+    assert_eq!(unit, expected_unit, "ordinary unit bytes stay unchanged");
+}
+
+#[test]
+fn corpse_ally_expectation_requires_corpse_flag_exact_guid_and_empty_item() {
+    let corpse = Guid {
+        low: 1,
+        high: 14 << 58,
+    };
+    let target: TargetExpectation = serde_json::from_value(serde_json::json!({
+        "corpse_ally": {"low": corpse.low, "high": corpse.high}
+    }))
+    .unwrap();
+    for (flags, actual_guid, item, matched) in [
+        (0x8000, corpse, guid(0), true),
+        (0x2, corpse, guid(0), false),
+        (0x8000, guid(22), guid(0), false),
+        (0x8000, corpse, guid(23), false),
+    ] {
+        let mut event = decode_event(
+            0,
+            Connection::Instance,
+            SMSG_SPELL_START,
+            &spell_cast_body(guid(42), Some(corpse), false),
+        );
+        let actual = event.target.as_mut().unwrap();
+        actual.flags = flags;
+        actual.unit = actual_guid;
+        actual.item = item;
+        let mut evidence = Evidence {
+            events: vec![event],
+            expected_rules: vec![expected(ExpectedRule::Start {
+                client_cast_id: None,
+                server_cast_id: Some(guid(42)),
+                spell_id: 133,
+                target: target.clone(),
+                cast_flags: None,
+                cast_flags_ex: None,
+                metadata: None,
+            })],
+            ..Default::default()
+        };
+        evaluate(&mut evidence);
+        assert_eq!(evidence.expected_rules[0].matched, matched);
+    }
 }
 
 #[test]
@@ -722,6 +790,8 @@ fn missing_or_misrouted_logout_complete_fails_the_run() {
         ..Evidence::default()
     };
     let mut missing = base.clone();
+    missing.logout_request_completed = true;
+    missing.finish_completed = true;
     finalize_logout(&mut missing);
     assert!(missing.expected_rules[0].matched);
     assert!(!missing.passed);
@@ -731,12 +801,24 @@ fn missing_or_misrouted_logout_complete_fails_the_run() {
     );
 
     let mut confirmed = Evidence {
+        finish_completed: true,
+        logout_request_completed: true,
         logout_confirmed: true,
         logout_route: Some("realm".to_string()),
         ..base
     };
     finalize_logout(&mut confirmed);
     assert!(confirmed.passed);
+
+    let mut not_written = confirmed.clone();
+    not_written.logout_request_completed = false;
+    finalize_finish(&mut not_written);
+    assert!(!not_written.passed);
+    assert!(not_written
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("logout request was not locally written"));
 }
 
 fn correlated(events: Vec<ObservedEvent>, expected_rules: Vec<ExpectedFact>) -> Evidence {
@@ -1176,4 +1258,453 @@ fn cast_lifecycle_run_result_requires_a_proven_pass() {
         !result.success(false, false, false),
         "cast acceptance still requires a verified login"
     );
+}
+
+fn exact_packet_fact(connection: Connection, opcode: u16, body: &[u8]) -> ExpectedFact {
+    expected(ExpectedRule::Packet {
+        connection,
+        opcode,
+        body_hex: hex::encode(body),
+    })
+}
+
+#[test]
+fn death_action_builders_preserve_target_wire_bytes() {
+    assert_eq!(
+        build_action_packet(&Action::ReleaseSpirit {
+            check_instance: true
+        }),
+        (CMSG_RELEASE_SPIRIT, vec![0x80])
+    );
+    assert_eq!(
+        build_action_packet(&Action::ReleaseSpirit {
+            check_instance: false
+        }),
+        (CMSG_RELEASE_SPIRIT, vec![0x00])
+    );
+
+    let nonempty = guid(0x0102);
+    let packed_nonempty = vec![0x03, 0x00, 0x02, 0x01];
+    assert_eq!(
+        build_action_packet(&Action::ReclaimCorpse { corpse: nonempty }),
+        (CMSG_RECLAIM_CORPSE, packed_nonempty.clone())
+    );
+    assert_eq!(
+        build_action_packet(&Action::ReclaimCorpse {
+            corpse: Guid { low: 0, high: 0 }
+        }),
+        (CMSG_RECLAIM_CORPSE, vec![0, 0])
+    );
+    assert_eq!(
+        build_action_packet(&Action::SpiritHealerActivate {
+            healer: CreatureTarget::Guid(nonempty)
+        }),
+        (CMSG_SPIRIT_HEALER_ACTIVATE, packed_nonempty.clone())
+    );
+    assert_eq!(
+        build_action_packet(&Action::SpiritHealerActivate {
+            healer: CreatureTarget::Guid(Guid { low: 0, high: 0 })
+        }),
+        (CMSG_SPIRIT_HEALER_ACTIVATE, vec![0, 0])
+    );
+    assert_eq!(
+        build_action_packet(&Action::ResurrectResponse {
+            offerer: nonempty,
+            response: 0x0102_0304,
+        }),
+        (
+            CMSG_RESURRECT_RESPONSE,
+            vec![0x03, 0x00, 0x02, 0x01, 0x04, 0x03, 0x02, 0x01]
+        )
+    );
+    assert_eq!(
+        build_action_packet(&Action::ResurrectResponse {
+            offerer: Guid { low: 0, high: 0 },
+            response: 2,
+        }),
+        (CMSG_RESURRECT_RESPONSE, vec![0, 0, 2, 0, 0, 0])
+    );
+    assert_eq!(
+        build_action_packet(&Action::SelfRes { spell_id: 21_169 }),
+        (CMSG_SELF_RES, vec![0xB1, 0x52, 0, 0])
+    );
+    assert_eq!(
+        build_action_packet(&Action::AttackSwing {
+            target: CreatureTarget::Guid(nonempty)
+        }),
+        (CMSG_ATTACK_SWING, packed_nonempty.clone())
+    );
+    assert_eq!(
+        build_action_packet(&Action::AttackSwing {
+            target: CreatureTarget::Guid(Guid { low: 0, high: 0 })
+        }),
+        (CMSG_ATTACK_SWING, vec![0, 0])
+    );
+}
+
+#[test]
+fn attack_stop_preserves_native_empty_request_shape() {
+    let plan: Plan = serde_json::from_str(
+        r#"{"actions":[{"action":"attack_stop"}],"expect":[{"event":"packet","connection":"realm","opcode":9860,"body_hex":""}]}"#,
+    )
+    .unwrap();
+    plan::validate_plan(&plan).unwrap();
+    assert!(matches!(plan.actions.as_slice(), [Action::AttackStop]));
+    assert_eq!(
+        serde_json::to_value(&plan.actions[0]).unwrap(),
+        serde_json::json!({"action":"attack_stop"})
+    );
+    assert_eq!(build_action_packet(&plan.actions[0]), (0x3256, Vec::new()));
+}
+
+#[test]
+fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
+    let plan: Plan = serde_json::from_str(
+        r#"{
+            "actions":[
+                {"action":"release_spirit","check_instance":true},
+                {"action":"reclaim_corpse","corpse":{"low":0,"high":0}},
+                {"action":"spirit_healer_activate","healer":{"low":0,"high":0}},
+                {"action":"resurrect_response","offerer":{"low":0,"high":0},"response":4294967295},
+                {"action":"self_res","spell_id":21169},
+                {"action":"attack_swing","target":{"low":0,"high":0}}
+            ],
+            "expect":[{"event":"packet","connection":"realm","opcode":9860,"body_hex":""}]
+        }"#,
+    )
+    .unwrap();
+    plan::validate_plan(&plan).unwrap();
+    assert_eq!(plan.finish_policy, FinishPolicy::Logout);
+    assert!(matches!(
+        &plan.actions[2],
+        Action::SpiritHealerActivate {
+            healer: CreatureTarget::Guid(Guid { low: 0, high: 0 })
+        }
+    ));
+    assert_eq!(
+        build_action_packet(&plan.actions[2]),
+        (CMSG_SPIRIT_HEALER_ACTIVATE, vec![0, 0])
+    );
+    assert!(matches!(
+        &plan.actions[5],
+        Action::AttackSwing {
+            target: CreatureTarget::Guid(Guid { low: 0, high: 0 })
+        }
+    ));
+    assert_eq!(
+        build_action_packet(&plan.actions[5]),
+        (CMSG_ATTACK_SWING, vec![0, 0])
+    );
+
+    for bad_spell_id in [0, -1] {
+        let json = format!(
+            r#"{{"actions":[{{"action":"self_res","spell_id":{bad_spell_id}}}],"expect":[{{"event":"packet","connection":"realm","opcode":9860,"body_hex":""}}]}}"#
+        );
+        assert!(plan_rejected(&json), "self_res spell id {bad_spell_id}");
+    }
+    let explicit_disconnect: Plan = serde_json::from_str(
+        r#"{"finish_policy":"disconnect","actions":[],"expect":[{"event":"packet","connection":"realm","opcode":9860,"body_hex":""}]}"#,
+    )
+    .unwrap();
+    assert_eq!(explicit_disconnect.finish_policy, FinishPolicy::Disconnect);
+}
+
+#[test]
+fn exact_packet_plan_hex_is_bounded_and_auth_control_opcodes_are_forbidden() {
+    let valid = r#"{"actions":[],"expect":[{"event":"packet","connection":"realm","opcode":9860,"body_hex":""}]}"#;
+    let parsed: Plan = serde_json::from_str(valid).unwrap();
+    plan::validate_plan(&parsed).unwrap();
+
+    for (label, body_hex, opcode) in [
+        ("truncated byte", "abc", 9939),
+        ("non-hex body", "zz", 9939),
+        ("auth challenge", "", 0x3048),
+        ("encrypted mode", "", 0x3049),
+        ("connect-to key", "", 0x304D),
+        ("unsupported gameplay opcode", "", 0xFFFF),
+    ] {
+        let json = format!(
+            r#"{{"actions":[],"expect":[{{"event":"packet","connection":"realm","opcode":{opcode},"body_hex":"{body_hex}"}}]}}"#
+        );
+        assert!(
+            plan_rejected(&json),
+            "{label} must be rejected before login"
+        );
+    }
+
+    let oversized_hex = "00".repeat(64 * 1024 + 1);
+    let oversized_plan = format!(
+        r#"{{"actions":[],"expect":[{{"event":"packet","connection":"instance","opcode":9939,"body_hex":"{oversized_hex}"}}]}}"#
+    );
+    assert!(
+        plan_rejected(&oversized_plan),
+        "oversized packet bodies are bounded"
+    );
+}
+
+#[test]
+fn exact_packet_expectations_match_per_route_without_cross_route_ordering() {
+    let realm_body = [0x80, 0x01];
+    let instance_body = [0x02, 0x03];
+    let mut evidence = Evidence {
+        events: vec![
+            decode_event(
+                0,
+                Connection::Realm,
+                RAW_SMSG_DEATH_RELEASE_LOC,
+                &realm_body,
+            ),
+            decode_event(
+                1,
+                Connection::Instance,
+                RAW_SMSG_AURA_UPDATE,
+                &instance_body,
+            ),
+        ],
+        expected_rules: vec![
+            exact_packet_fact(Connection::Instance, RAW_SMSG_AURA_UPDATE, &instance_body),
+            exact_packet_fact(Connection::Realm, RAW_SMSG_DEATH_RELEASE_LOC, &realm_body),
+        ],
+        ..Evidence::default()
+    };
+    evaluate(&mut evidence);
+    assert!(
+        evidence.passed,
+        "opposite cross-route arrival is not a gate"
+    );
+    assert_eq!(
+        evidence
+            .expected_rules
+            .iter()
+            .map(|fact| fact.event_sequence)
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(0)]
+    );
+    assert_eq!(evidence.events[0].body_hex, "8001");
+}
+
+#[test]
+fn exact_packet_expectations_reject_wrong_route_duplicates_and_route_order() {
+    let body = [0x10, 0x20];
+    let opcode = RAW_SMSG_DEATH_RELEASE_LOC;
+    let mut wrong_route = Evidence {
+        events: vec![decode_event(0, Connection::Instance, opcode, &body)],
+        expected_rules: vec![exact_packet_fact(Connection::Realm, opcode, &body)],
+        ..Evidence::default()
+    };
+    evaluate(&mut wrong_route);
+    assert!(!wrong_route.passed);
+    assert!(!wrong_route.expected_rules[0].matched);
+    assert!(wrong_route
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("wrong-route"));
+
+    let mut duplicate = Evidence {
+        events: vec![
+            decode_event(0, Connection::Realm, opcode, &body),
+            decode_event(1, Connection::Realm, opcode, &body),
+        ],
+        expected_rules: vec![exact_packet_fact(Connection::Realm, opcode, &body)],
+        ..Evidence::default()
+    };
+    evaluate(&mut duplicate);
+    assert!(!duplicate.passed);
+    assert!(duplicate.failure.as_deref().unwrap().contains("duplicate"));
+
+    let first = [0x01];
+    let second = [0x02];
+    let mut out_of_order = Evidence {
+        events: vec![
+            decode_event(0, Connection::Realm, opcode, &second),
+            decode_event(1, Connection::Realm, opcode, &first),
+        ],
+        expected_rules: vec![
+            exact_packet_fact(Connection::Realm, opcode, &first),
+            exact_packet_fact(Connection::Realm, opcode, &second),
+        ],
+        ..Evidence::default()
+    };
+    evaluate(&mut out_of_order);
+    assert!(out_of_order.expected_rules[0].matched);
+    assert!(!out_of_order.expected_rules[1].matched);
+    assert!(!out_of_order.passed);
+}
+
+#[test]
+fn trace_keeps_write_attempt_failure_and_redacts_control_bodies() {
+    let mut evidence = Evidence::default();
+    record_action_boundary(
+        &mut evidence,
+        Some(0),
+        "release_spirit",
+        TraceKind::ActionStarted,
+        None,
+    );
+    let sent = record_send_attempt(
+        &mut evidence,
+        Connection::Instance,
+        Some(0),
+        "release_spirit",
+        CMSG_RELEASE_SPIRIT,
+        &[0x80],
+    );
+    record_write_failed(&mut evidence, sent, "connection reset during local write");
+    record_action_boundary(
+        &mut evidence,
+        Some(0),
+        "release_spirit",
+        TraceKind::ActionFailed,
+        Some("connection reset during local write".to_string()),
+    );
+    evidence.failure = Some("action failed: connection reset during local write".to_string());
+
+    let packet = &evidence.sent_packets[0];
+    assert!(packet.write_attempted);
+    assert!(!packet.write_completed);
+    assert_eq!(
+        packet.write_error.as_deref(),
+        Some("connection reset during local write")
+    );
+    assert_eq!(packet.body_hex, "80");
+    assert_eq!(
+        evidence
+            .trace
+            .iter()
+            .map(|entry| entry.kind.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            TraceKind::ActionStarted,
+            TraceKind::SendAttempted,
+            TraceKind::LocalWriteFailed,
+            TraceKind::ActionFailed,
+        ]
+    );
+    assert_eq!(packet.connection_sequence, 0);
+    assert_eq!(packet.observation_sequence, 1);
+    let failure_report = serde_json::to_string(&evidence).unwrap();
+    assert!(failure_report.contains("\"write_attempted\":true"));
+    assert!(failure_report.contains("\"write_completed\":false"));
+    assert!(failure_report.contains("\"body_hex\":\"80\""));
+
+    let completed = record_send_attempt(
+        &mut evidence,
+        Connection::Realm,
+        Some(1),
+        "resurrect_response",
+        CMSG_RESURRECT_RESPONSE,
+        &[0, 0, 0, 0, 0, 0],
+    );
+    record_write_completed(&mut evidence, completed);
+    assert!(evidence.sent_packets[completed].write_attempted);
+    assert!(evidence.sent_packets[completed].write_completed);
+    assert_eq!(evidence.sent_packets[completed].write_error, None);
+    assert_eq!(evidence.trace[4].kind, TraceKind::SendAttempted);
+    assert_eq!(evidence.trace[5].kind, TraceKind::LocalWriteCompleted);
+
+    let mut observed = Evidence::default();
+    assert_eq!(
+        record_observed_packet(
+            &mut observed,
+            Connection::Realm,
+            RAW_SMSG_DEATH_RELEASE_LOC,
+            &[0xA1],
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        record_observed_packet(
+            &mut observed,
+            Connection::Realm,
+            RAW_SMSG_CORPSE_RECLAIM_DELAY,
+            &[0xB2],
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        record_observed_packet(
+            &mut observed,
+            Connection::Instance,
+            RAW_SMSG_AURA_UPDATE,
+            &[0xC3],
+        ),
+        Some(2)
+    );
+    assert_eq!(observed.events[0].body_hex, "a1");
+    assert_eq!(observed.events[0].connection, Connection::Realm);
+    assert_eq!(observed.events[0].connection_sequence, 0);
+    assert_eq!(observed.events[0].observation_sequence, 0);
+    assert_eq!(observed.events[1].connection_sequence, 1);
+    assert_eq!(observed.events[1].observation_sequence, 1);
+    assert_eq!(observed.events[2].connection, Connection::Instance);
+    assert_eq!(observed.events[2].connection_sequence, 0);
+    assert_eq!(observed.events[2].observation_sequence, 2);
+    assert_eq!(
+        observed.packet_payload_encoding,
+        "logical_decrypted_uncompressed"
+    );
+    assert_eq!(observed.merged_observation_order, "client_poll_arrival");
+    assert!(!observed.cross_connection_order_is_server_enqueue);
+
+    let secret_payload = [0xDE, 0xAD, 0xBE, 0xEF];
+    let mut privacy = Evidence::default();
+    for (index, opcode) in [
+        REDACTED_SMSG_AUTH_CHALLENGE,
+        REDACTED_SMSG_AUTH_FAILED,
+        REDACTED_SMSG_AUTH_RESPONSE,
+        REDACTED_SMSG_ENTER_ENCRYPTED_MODE,
+        REDACTED_SMSG_CONNECT_TO,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(
+            record_observed_packet(&mut privacy, Connection::Realm, opcode, &secret_payload,),
+            None
+        );
+        assert_eq!(privacy.trace[index].sequence, index);
+        assert_eq!(privacy.trace[index].connection_sequence, Some(index));
+    }
+    assert!(privacy.events.is_empty());
+    assert_eq!(privacy.trace.len(), 5);
+    assert_eq!(privacy.trace[0].kind, TraceKind::PacketRedacted);
+    assert!(privacy.trace[0].body_redacted);
+    assert_eq!(privacy.trace[0].connection, Some(Connection::Realm));
+    assert_eq!(privacy.trace[0].connection_sequence, Some(0));
+    assert!(privacy.trace.iter().all(|entry| entry.opcode.is_some()));
+    let report_json = serde_json::to_string(&privacy).unwrap();
+    assert!(!report_json.contains("deadbeef"));
+    assert!(!report_json.contains(&format!("{:x}", Sha256::digest(secret_payload))));
+}
+
+#[test]
+fn finish_policies_keep_default_logout_and_disconnect_claims_distinct() {
+    assert_eq!(FinishPolicy::default(), FinishPolicy::Logout);
+    let body = [0x44];
+    let mut disconnected = Evidence {
+        finish_policy: FinishPolicy::Disconnect,
+        local_disconnect_recorded: true,
+        finish_completed: true,
+        logout_confirmed: true,
+        logout_route: Some("realm".to_string()),
+        events: vec![decode_event(
+            0,
+            Connection::Realm,
+            RAW_SMSG_DEATH_RELEASE_LOC,
+            &body,
+        )],
+        expected_rules: vec![exact_packet_fact(
+            Connection::Realm,
+            RAW_SMSG_DEATH_RELEASE_LOC,
+            &body,
+        )],
+        ..Evidence::default()
+    };
+    finalize_finish(&mut disconnected);
+    assert!(disconnected.passed);
+    assert!(disconnected.local_disconnect_recorded);
+    assert!(!disconnected.logout_confirmed);
+    assert_eq!(disconnected.logout_route, None);
+    assert!(disconnected.finish_completed);
 }

@@ -603,10 +603,7 @@ pub(crate) async fn run_bot_with_void_storage(
                             &local_challenge,
                             &server_challenge,
                         );
-                        info!(
-                            "[Bot {}] Encryption key derived: {:02x}{:02x}...",
-                            bot_index, enc_key[0], enc_key[1]
-                        );
+                        info!("[Bot {}] Encryption initialized", bot_index);
 
                         // Server's WorldPacketCrypt increments _clientCounter / _serverCounter
                         // on every packet — including the unencrypted SMSG_AUTH_CHALLENGE,
@@ -647,6 +644,9 @@ pub(crate) async fn run_bot_with_void_storage(
         let mut crypt = world_crypt.take().unwrap();
         let mut server_inflater = ServerPacketInflater::default();
         let mut realm_connection: Option<EncryptedWorldConnection> = None;
+        let mut cast_lifecycle_controller = cast_lifecycle_options.clone().map(|options| {
+            cast_lifecycle::Controller::new(options, bot.character_guid, realm_id())
+        });
 
         // ── Step 7a: Enumerate Characters ──────────────────────────────────────
         // The worldserver gates HandlePlayerLoginOpcode on `_legitCharacters` being
@@ -730,11 +730,55 @@ pub(crate) async fn run_bot_with_void_storage(
                 Ok(Ok((op, payload))) => {
                     result.seen_opcodes.push(format!("0x{:04X}", op));
                     login_stream::observe_login_packet(realm_connection.is_some(), op, &mut result);
+                    let controller_observation = match cast_lifecycle_controller.as_mut() {
+                        Some(controller) => Some(
+                            controller
+                                .observe_packet(
+                                    realm_connection.is_some(),
+                                    op,
+                                    &payload,
+                                    &mut stream,
+                                    &mut crypt,
+                                    &mut realm_connection,
+                                )
+                                .await,
+                        ),
+                        None => None,
+                    };
+                    if let Some(Err(error)) = controller_observation {
+                        if let Some(controller) = cast_lifecycle_controller.take() {
+                            cast_lifecycle::abort_login(
+                                controller,
+                                format!("initial login controller failed: {error}"),
+                                &mut stream,
+                                &mut realm_connection,
+                                &mut result,
+                            )
+                            .await;
+                            return Ok(result);
+                        }
+                    }
                     if op == crate::chat_say::SMSG_CHAT {
                         crate::chat_say::record(bot_index, &payload, &mut result);
                     }
                     if op == SMSG_SEND_KNOWN_SPELLS {
-                        let decoded = decode_login_known_spells_like_cpp(&payload)?;
+                        let decoded = match decode_login_known_spells_like_cpp(&payload) {
+                            Ok(decoded) => decoded,
+                            Err(error) => {
+                                if let Some(controller) = cast_lifecycle_controller.take() {
+                                    cast_lifecycle::abort_login(
+                                        controller,
+                                        format!("SMSG_SEND_KNOWN_SPELLS decode failed: {error}"),
+                                        &mut stream,
+                                        &mut realm_connection,
+                                        &mut result,
+                                    )
+                                    .await;
+                                    return Ok(result);
+                                }
+                                return Err(error);
+                            }
+                        };
                         if !decoded.initial_login {
                             bail!("login SMSG_SEND_KNOWN_SPELLS has InitialLogin=false");
                         }
@@ -788,9 +832,9 @@ pub(crate) async fn run_bot_with_void_storage(
                                         != (candidate.low, candidate.high) =>
                                 {
                                     bail!(
-                                    "vendor login discovery produced two different live candidates near SQL spawn {}",
-                                    options.vendor.spawn_guid
-                                );
+                                        "vendor login discovery produced two different live candidates near SQL spawn {}",
+                                        options.vendor.spawn_guid
+                                    );
                                 }
                                 _ => vendor_target_seen = Some(candidate),
                             }
@@ -827,9 +871,9 @@ pub(crate) async fn run_bot_with_void_storage(
                                         != (candidate.low, candidate.high) =>
                                 {
                                     bail!(
-                                    "void-storage login discovery produced two different live candidates near SQL spawn {}",
-                                    options.vault_keeper.spawn_guid
-                                );
+                                        "void-storage login discovery produced two different live candidates near SQL spawn {}",
+                                        options.vault_keeper.spawn_guid
+                                    );
                                 }
                                 _ => void_storage_target_seen = Some(candidate),
                             }
@@ -852,9 +896,9 @@ pub(crate) async fn run_bot_with_void_storage(
                             .unwrap_or_default();
                         if candidates.len() > 1 {
                             bail!(
-                            "detour login discovery found {} same-entry live candidates inside the pinned spawn radius",
-                            candidates.len()
-                        );
+                                "detour login discovery found {} same-entry live candidates inside the pinned spawn radius",
+                                candidates.len()
+                            );
                         }
                         if let Some(candidate) = candidates.into_iter().next() {
                             match detour_chase_target_seen {
@@ -863,9 +907,9 @@ pub(crate) async fn run_bot_with_void_storage(
                                         != (candidate.low, candidate.high) =>
                                 {
                                     bail!(
-                                    "detour login discovery produced two different live candidates for pinned spawn {}",
-                                    options.target_spawn_guid
-                                );
+                                        "detour login discovery produced two different live candidates for pinned spawn {}",
+                                        options.target_spawn_guid
+                                    );
                                 }
                                 _ => detour_chase_target_seen = Some(candidate),
                             }
@@ -874,8 +918,8 @@ pub(crate) async fn run_bot_with_void_storage(
                     if creature_spell_options.is_some() {
                         if op == SMSG_SPELL_START {
                             bail!(
-                            "creature began casting during login before the bot's body-pull heartbeat; the pre-login position is not isolated"
-                        );
+                                "creature began casting during login before the bot's body-pull heartbeat; the pre-login position is not isolated"
+                            );
                         }
                         let candidates = (op == SMSG_UPDATE_OBJECT)
                             .then(|| {
@@ -893,9 +937,9 @@ pub(crate) async fn run_bot_with_void_storage(
                             .unwrap_or_default();
                         if candidates.len() > 1 {
                             bail!(
-                            "creature spell login discovery found {} same-entry live candidates inside the pinned spawn radius",
-                            candidates.len()
-                        );
+                                "creature spell login discovery found {} same-entry live candidates inside the pinned spawn radius",
+                                candidates.len()
+                            );
                         }
                         if let Some(candidate) = candidates.into_iter().next() {
                             match creature_spell_target_seen {
@@ -904,9 +948,9 @@ pub(crate) async fn run_bot_with_void_storage(
                                         != (candidate.low, candidate.high) =>
                                 {
                                     bail!(
-                                    "creature spell login discovery produced two different live candidates for pinned spawn {}",
-                                    CREATURE_SPELL_FIXTURE_SPAWN_GUID
-                                );
+                                        "creature spell login discovery produced two different live candidates for pinned spawn {}",
+                                        CREATURE_SPELL_FIXTURE_SPAWN_GUID
+                                    );
                                 }
                                 _ => creature_spell_target_seen = Some(candidate),
                             }
@@ -970,20 +1014,52 @@ pub(crate) async fn run_bot_with_void_storage(
                     }
 
                     if op == 0x304D {
-                        let connect_to = parse_connect_to(&payload)
-                            .ok_or_else(|| anyhow!("Unable to parse SMSG_CONNECT_TO payload"))?;
+                        let connect_to = match parse_connect_to(&payload) {
+                            Some(connect_to) => connect_to,
+                            None => {
+                                let error = anyhow!("Unable to parse SMSG_CONNECT_TO payload");
+                                if let Some(controller) = cast_lifecycle_controller.take() {
+                                    cast_lifecycle::abort_login(
+                                        controller,
+                                        error.to_string(),
+                                        &mut stream,
+                                        &mut realm_connection,
+                                        &mut result,
+                                    )
+                                    .await;
+                                    return Ok(result);
+                                }
+                                return Err(error);
+                            }
+                        };
                         info!(
-                            "[Bot {}] SMSG_CONNECT_TO: {}:{} serial={} con={} key={}",
+                            "[Bot {}] SMSG_CONNECT_TO: {}:{} serial={} con={}",
                             bot_index,
                             connect_to.address,
                             connect_to.port,
                             connect_to.serial,
-                            connect_to.connection_type,
-                            connect_to.key
+                            connect_to.connection_type
                         );
                         let (instance_stream, instance_crypt) =
-                            connect_to_instance(bot_index, &connect_to, &derived_session_key)
-                                .await?;
+                            match connect_to_instance(bot_index, &connect_to, &derived_session_key)
+                                .await
+                            {
+                                Ok(connection) => connection,
+                                Err(error) => {
+                                    if let Some(controller) = cast_lifecycle_controller.take() {
+                                        cast_lifecycle::abort_login(
+                                            controller,
+                                            format!("instance auth handoff failed: {error}"),
+                                            &mut stream,
+                                            &mut realm_connection,
+                                            &mut result,
+                                        )
+                                        .await;
+                                        return Ok(result);
+                                    }
+                                    return Err(error);
+                                }
+                            };
                         // The server keeps cross-socket ordering fences alive after
                         // SMSG_CONNECT_TO, so the realm socket must stay open on every
                         // mode: closing it makes the realm writer disappear before it
@@ -1045,6 +1121,17 @@ pub(crate) async fn run_bot_with_void_storage(
                 }
                 Ok(Err(e)) => {
                     warn!("[Bot {}] Login read error: {}", bot_index, e);
+                    if let Some(controller) = cast_lifecycle_controller.take() {
+                        cast_lifecycle::abort_login(
+                            controller,
+                            format!("login stream read failed: {e}"),
+                            &mut stream,
+                            &mut realm_connection,
+                            &mut result,
+                        )
+                        .await;
+                        return Ok(result);
+                    }
                     break;
                 }
                 // A quiet five-second slice does not invalidate an otherwise
@@ -1053,6 +1140,17 @@ pub(crate) async fn run_bot_with_void_storage(
             }
         }
         if !login_ok {
+            if let Some(controller) = cast_lifecycle_controller.take() {
+                cast_lifecycle::abort_login(
+                    controller,
+                    "login window ended before LOGIN_VERIFY_WORLD".to_string(),
+                    &mut stream,
+                    &mut realm_connection,
+                    &mut result,
+                )
+                .await;
+                return Ok(result);
+            }
             bail!("Login verification failed");
         }
         if require_known_spells && !known_spells_seen {
@@ -1063,9 +1161,9 @@ pub(crate) async fn run_bot_with_void_storage(
         }
         result.player_login_verified = true;
 
-        if let Some(cast_lifecycle_options) = cast_lifecycle_options {
+        if let Some(cast_lifecycle_controller) = cast_lifecycle_controller {
             cast_lifecycle::run_after_login(
-                cast_lifecycle_options,
+                cast_lifecycle_controller,
                 &mut stream,
                 &mut crypt,
                 &mut server_inflater,
@@ -1372,14 +1470,14 @@ pub(crate) async fn run_bot_with_void_storage(
                 }
                 (None, Err(disconnect_error)) => {
                     result.creature_spell_failure = Some(format!(
-                    "creature spell capture did not confirm both socket shutdowns: {disconnect_error}"
-                ));
+                        "creature spell capture did not confirm both socket shutdowns: {disconnect_error}"
+                    ));
                     result.creature_spell_capture_passed = Some(false);
                 }
                 (Some(error), Err(disconnect_error)) => {
                     result.creature_spell_failure = Some(format!(
-                    "{error}; best-effort socket disconnect after failure also failed: {disconnect_error}"
-                ));
+                        "{error}; best-effort socket disconnect after failure also failed: {disconnect_error}"
+                    ));
                     result.creature_spell_capture_passed = Some(false);
                 }
             }
@@ -1477,9 +1575,9 @@ pub(crate) async fn run_bot_with_void_storage(
             )
             .await?;
             info!(
-            "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
-            bot_index
-        );
+                "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
+                bot_index
+            );
             return Ok(result);
         }
 
@@ -1607,7 +1705,11 @@ pub(crate) async fn run_bot_with_void_storage(
 
                     if op == 0x2594 {
                         // SMSG_NEW_WORLD
-                        info!("[Bot {}] 🌍 SMSG_NEW_WORLD ({} bytes) — replying with CMSG_WORLD_PORT_RESPONSE", bot_index, payload.len());
+                        info!(
+                            "[Bot {}] 🌍 SMSG_NEW_WORLD ({} bytes) — replying with CMSG_WORLD_PORT_RESPONSE",
+                            bot_index,
+                            payload.len()
+                        );
                         send_encrypted_packet(&mut stream, &mut crypt, 0x35FA, &[]).await?;
                         info!(
                             "[Bot {}] ✅ CMSG_WORLD_PORT_RESPONSE sent — should now be inside map",

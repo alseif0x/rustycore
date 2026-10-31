@@ -37,6 +37,60 @@ fn late_login_sequence_failure_releases_claim_and_partial_player_like_cpp() {
     retry.release_character_login_claim_like_cpp();
 }
 
+#[test]
+fn recovery_fences_character_abort_kicks_but_retains_held_owner_and_claim() {
+    let guid = ObjectGuid::create_player(1, 9_001_702);
+    let (mut session, _send_rx) = make_session_with_send_capacity(4);
+    assert!(session.try_claim_character_login_like_cpp(guid));
+    assert!(session.ensure_login_player_controller_like_cpp(
+        guid,
+        "HeldCorpseLogin".to_string(),
+        Position::ZERO,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical Player handle");
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .expect("canonical MapManager")
+        .clone();
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            assert!(player.begin_resurrection_operation(
+                wow_entities::PlayerResurrectionOperation::CorpseLogin {
+                    validated_corpse_location: None,
+                },
+                wow_entities::PlayerResurrectionPhase::RecoveryCorpseBonesInFlight,
+            ));
+        })
+        .unwrap();
+
+    wow_world_character::abort_partial_login_sequence_like_cpp(&mut session);
+
+    assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+    assert_eq!(session.player_guid(), Some(guid));
+    assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+    assert!(
+        manager
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(handle, |player| player.guid() == guid)
+            .unwrap()
+    );
+    let mut replacement = make_session_with_send_capacity(4).0;
+    assert!(!replacement.try_claim_character_login_like_cpp(guid));
+}
+
 #[tokio::test]
 async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);

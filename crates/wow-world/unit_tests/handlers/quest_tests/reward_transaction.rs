@@ -26,20 +26,8 @@ fn complete_quest_session_like_cpp(
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.special_flags |= special_flags;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session
-        .quest_state
-        .fixture_insert_player_quest_status_like_cpp(
-            quest_id,
-            PlayerQuestStatus {
-                quest_id,
-                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-                explored: false,
-                accept_time_secs: 0,
-                end_time_secs: 0,
-                objective_counts: Vec::new(),
-                slot: 0,
-            },
-        );
+    install_native_quest_log_player_like_cpp(&mut session);
+    add_active_quest_in_slot_with_status(&mut session, quest_id, 0, QUEST_STATUS_COMPLETE_LIKE_CPP);
     (session, send_rx)
 }
 
@@ -56,7 +44,7 @@ async fn choose_reward_like_cpp(session: &mut WorldSession, quest_id: u32) {
 }
 
 #[tokio::test]
-async fn quest_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
+async fn native_quest_log_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
     let quest_id = 7101;
     let (mut session, _send_rx) = complete_quest_session_like_cpp(quest_id, 0);
     let fixture = PlayerQuestRewardPersistencePortFixtureLikeCpp::default();
@@ -65,11 +53,19 @@ async fn quest_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
 
     choose_reward_like_cpp(&mut session, quest_id).await;
 
+    let quests = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state");
     assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id),
+        !quests.statuses_like_cpp().contains_key(&quest_id),
         "the operation must have run to completion before it commits"
+    );
+    assert!(
+        session
+            .quest_log_create_entries_like_cpp()
+            .iter()
+            .all(|entry| entry.0 == 0),
+        "RewardQuest's explicit SetQuestSlot(0) clears the native row after commit"
     );
     let requests = requests.lock().unwrap();
     assert_eq!(
@@ -89,7 +85,7 @@ async fn quest_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
 }
 
 #[tokio::test]
-async fn a_rolled_back_quest_reward_transaction_is_not_reported_as_rewarded_like_cpp() {
+async fn native_quest_log_rolled_back_reward_retains_its_row_like_cpp() {
     let quest_id = 7102;
     let (mut session, _send_rx) = complete_quest_session_like_cpp(quest_id, 0);
     let fixture = PlayerQuestRewardPersistencePortFixtureLikeCpp::with_outcome(
@@ -110,6 +106,11 @@ async fn a_rolled_back_quest_reward_transaction_is_not_reported_as_rewarded_like
     assert!(
         !session.represented_can_delay_teleport_like_cpp(),
         "the aborted reward must clear the delayed-teleport guard it took"
+    );
+    assert_eq!(
+        session.quest_log_create_entries_like_cpp()[0].0,
+        quest_id,
+        "a rolled-back RewardQuest retains the native QuestLog row"
     );
 }
 

@@ -49,8 +49,18 @@ impl WorldSession {
         let (state, hub) = crate::session::split_instances_ref(self);
         state.create_map_difficulty_context_like_cpp(hub, map_id, difficulty_id)
     }
-    pub(crate) fn finish_worldport_native_before_disconnect_like_cpp(&mut self) -> bool {
-        wow_world_character::finish_worldport_native_before_disconnect_like_cpp(self)
+    pub(crate) async fn finish_worldport_native_before_disconnect_like_cpp(&mut self) -> bool {
+        let generators = self.id_generators_for_test_like_cpp();
+        let creature_spawns = self.creature_spawn_catalogs_for_test_like_cpp();
+        wow_world_character::finish_worldport_native_before_disconnect_like_cpp(
+            self,
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creature_spawns,
+                graveyards: None,
+            },
+        )
+        .await
     }
     pub(crate) fn begin_worldport_post_add_like_cpp(
         &mut self,

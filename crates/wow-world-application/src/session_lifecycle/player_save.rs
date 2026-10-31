@@ -56,6 +56,11 @@ pub async fn process_pending_periodic_player_save_with_generator_like_cpp<
     if wow_world_entities::pending_teleport_save_destination_like_cpp(host).is_some() {
         return;
     }
+    if wow_world_entities::player_resurrection_continuation_pending(host) {
+        // Keep the periodic obligation pending until the Player-owned
+        // resurrection continuation reaches a confirmed terminal phase.
+        return;
+    }
 
     wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
         host,

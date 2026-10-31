@@ -7,6 +7,11 @@
 
 use super::*;
 
+mod application_order;
+mod duration;
+
+pub use duration::legacy_aura_duration_pair;
+
 /// Minimal bridge for TrinityCore `Unit` aura containers.
 ///
 /// This is metadata/state only: it does not run aura scripts, periodic ticks, proc logic,
@@ -39,6 +44,9 @@ pub struct AuraSubsystem {
     /// projection remains in the session adapter; lifetime and mutation live
     /// with the canonical Unit.
     runtime_applications_like_cpp: HashMap<u8, AuraApplicationLikeCpp>,
+    /// Player persistence provenance not represented by `AuraApplication`.
+    /// This is slot-scoped and expires with the canonical runtime application.
+    aura_persistence_metadata_by_slot: HashMap<u8, AuraPersistenceMetadata>,
     /// Provenance of the C++ `Aura` base associated with each active aura
     /// slot. The split-damage combat-log projection needs this identity, but
     /// it must not outlive the slot's application or leak into a replacement.
@@ -130,8 +138,8 @@ pub struct AuraApplicationLikeCpp {
     pub difficulty_id: u8,
     pub caster_guid: ObjectGuid,
     pub slot: u8,
-    pub duration_total: u32,
-    pub duration_remaining: u32,
+    pub duration_total: i32,
+    pub duration_remaining: i32,
     pub stack_count: u8,
     pub aura_flags: u32,
     pub effect_mask: u32,
@@ -145,6 +153,21 @@ pub struct AuraApplicationLikeCpp {
     pub applied_at: Instant,
 }
 
+/// Persisted Aura fields retained for an admitted runtime slot.
+///
+/// Duration, stacks and current effect amounts remain owned by the runtime
+/// application and its effect snapshot; this record stores only provenance
+/// that those canonical values do not represent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuraPersistenceMetadata {
+    pub item_guid: ObjectGuid,
+    pub cast_item_id: u32,
+    pub cast_item_level: i32,
+    pub recalculate_mask: u32,
+    pub charges: u8,
+    pub base_amounts: Vec<(u8, i32)>,
+}
+
 /// Cast identity retained by a C++ `Aura` base for split-damage log entries.
 ///
 /// This is deliberately separate from `AuraApplicationLikeCpp`: the
@@ -153,6 +176,8 @@ pub struct AuraApplicationLikeCpp {
 pub struct AuraCastProvenanceLikeCpp {
     pub cast_id: ObjectGuid,
     pub spell_visual_id: i32,
+    /// Captured at selected Aura creation; `None` means the origin has no known level.
+    pub caster_level: Option<u8>,
 }
 
 impl Default for AuraCastProvenanceLikeCpp {
@@ -160,6 +185,7 @@ impl Default for AuraCastProvenanceLikeCpp {
         Self {
             cast_id: ObjectGuid::EMPTY,
             spell_visual_id: 0,
+            caster_level: None,
         }
     }
 }
@@ -189,13 +215,18 @@ impl AuraThreatSnapshotLikeCpp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadedAuraStateLikeCpp {
     pub max_duration_ms: i32,
     pub duration_ms: i32,
     pub charges: u8,
     pub stack_amount: u8,
     pub recalculate_mask: u32,
+    /// Cast difficulty retained when these fields came from a persisted pet aura.
+    /// Other loaded-state producers leave it unknown instead of assuming difficulty zero.
+    pub cast_difficulty: Option<u8>,
+    /// Indexed persisted base amounts for effects loaded with this aura.
+    pub base_amounts: Vec<(u8, i32)>,
 }
 
 impl LoadedAuraStateLikeCpp {
@@ -212,7 +243,19 @@ impl LoadedAuraStateLikeCpp {
             charges,
             stack_amount,
             recalculate_mask,
+            cast_difficulty: None,
+            base_amounts: Vec::new(),
         }
+    }
+
+    pub fn with_pet_persistence_fields_like_cpp(
+        mut self,
+        cast_difficulty: u8,
+        base_amounts: Vec<(u8, i32)>,
+    ) -> Self {
+        self.cast_difficulty = Some(cast_difficulty);
+        self.base_amounts = base_amounts;
+        self
     }
 }
 
@@ -363,6 +406,7 @@ impl AuraSubsystem {
         // receive its provenance explicitly instead of inheriting the prior
         // Aura base's cast metadata.
         self.remove_aura_cast_provenance_like_cpp(aura.slot);
+        self.aura_persistence_metadata_by_slot.remove(&aura.slot);
         self.runtime_applications_like_cpp.insert(aura.slot, aura);
         self.invalidate_spell_hit_aura_authority_like_cpp();
     }
@@ -372,6 +416,7 @@ impl AuraSubsystem {
         slot: u8,
     ) -> Option<AuraApplicationLikeCpp> {
         let removed = self.runtime_applications_like_cpp.remove(&slot);
+        self.aura_persistence_metadata_by_slot.remove(&slot);
         if removed.is_some() {
             self.invalidate_spell_hit_aura_authority_like_cpp();
             self.remove_aura_cast_provenance_like_cpp(slot);
@@ -389,6 +434,7 @@ impl AuraSubsystem {
             self.runtime_applications_like_cpp.clear();
             self.invalidate_spell_hit_aura_authority_like_cpp();
         }
+        self.aura_persistence_metadata_by_slot.clear();
         for slot in removed_slots {
             self.remove_aura_cast_provenance_like_cpp(slot);
         }
@@ -396,6 +442,24 @@ impl AuraSubsystem {
         // clear is the character-identity boundary, where the reused canonical
         // Unit must not inherit the previous character's active transform.
         self.transform_spell_like_cpp = 0;
+    }
+
+    pub fn aura_persistence_metadata(&self, slot: u8) -> Option<&AuraPersistenceMetadata> {
+        self.aura_persistence_metadata_by_slot.get(&slot)
+    }
+
+    /// Store metadata only while the matching canonical runtime slot exists.
+    pub fn set_aura_persistence_metadata(
+        &mut self,
+        slot: u8,
+        metadata: AuraPersistenceMetadata,
+    ) -> bool {
+        if !self.runtime_applications_like_cpp.contains_key(&slot) {
+            return false;
+        }
+        self.aura_persistence_metadata_by_slot
+            .insert(slot, metadata);
+        true
     }
 
     /// Install the cast identity retained by the C++ `Aura` base for `slot`.
@@ -511,7 +575,13 @@ impl AuraSubsystem {
         self.spell_cast_log_aura_authority_inert_like_cpp && self.has_no_local_aura_state_like_cpp()
     }
 
-    fn has_no_local_aura_state_like_cpp(&self) -> bool {
+    /// Returns whether the represented local aura containers and flags covered here are empty.
+    ///
+    /// This predicate excludes `runtime_applications_like_cpp`; callers that
+    /// require complete native-container emptiness must check that map separately.
+    /// Local emptiness does not establish that persisted aura/effect rows were
+    /// loaded or authorize replacing them.
+    pub fn has_no_local_aura_state_like_cpp(&self) -> bool {
         self.owned_auras.is_empty()
             && self.applied_auras.is_empty()
             && self.applied_aura_types.is_empty()
@@ -1034,13 +1104,17 @@ impl AuraSubsystem {
     }
 
     pub fn unapply_aura(&mut self, aura: AppliedAuraRef, remove_mode_marker: u8) -> bool {
+        let previous_aura_states = self
+            .aura_state_auras
+            .keys()
+            .fold(0, |mask, state| mask | (1_u32 << (*state - 1)));
         let removed = self.remove_applied(aura);
         if removed {
             self.mark_removed(aura.aura_ref());
             if remove_mode_marker != 0 {
                 self.removed_auras_count = self.removed_auras_count.saturating_add(0);
             }
-            self.rebuild_aura_state_mask();
+            self.rebuild_aura_state_mask(previous_aura_states);
         }
         removed
     }
@@ -1111,6 +1185,19 @@ impl AuraSubsystem {
         aura_states
     }
 
+    pub(crate) fn aura_state_per_caster_contributions_like_cpp(&self) -> Vec<(ObjectGuid, u32)> {
+        let mut contributions = Vec::new();
+        for (state, auras) in &self.aura_state_auras {
+            let mask = 1_u32 << (*state - 1);
+            if mask & PER_CASTER_AURA_STATE_MASK != 0 {
+                contributions.extend(auras.iter().map(|aura| (aura.caster_guid, mask)));
+            }
+        }
+        contributions.sort_unstable();
+        contributions.dedup();
+        contributions
+    }
+
     pub fn can_proc(&self) -> bool {
         self.proc_depth == 0
     }
@@ -1177,8 +1264,10 @@ impl AuraSubsystem {
         }
     }
 
-    fn rebuild_aura_state_mask(&mut self) {
-        self.aura_state_mask = 0;
+    fn rebuild_aura_state_mask(&mut self, previous_aura_states: u32) {
+        // Aura removal owns only previously contributed bits. Health/reactive
+        // states maintained by Unit::Update must survive unrelated removals.
+        self.aura_state_mask &= !previous_aura_states;
         let states: Vec<_> = self.aura_state_auras.keys().copied().collect();
         for state in states {
             self.modify_aura_state(state, true);

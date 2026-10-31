@@ -8,6 +8,7 @@ use tracing::info;
 
 use crate::wdc4::Wdc4Reader;
 
+mod selected_scalars;
 mod state_1;
 mod state_2;
 mod state_3;

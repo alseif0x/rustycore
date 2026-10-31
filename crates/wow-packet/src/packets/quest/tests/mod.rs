@@ -204,6 +204,20 @@ fn quest_giver_quest_failed_writes_quest_id_then_reason_like_cpp() {
 }
 
 #[test]
+fn quest_update_failed_timer_writes_only_quest_id_like_cpp() {
+    let bytes = QuestUpdateFailedTimer {
+        quest_id: 0x0102_0304,
+    }
+    .to_bytes();
+
+    assert_eq!(
+        u16::from_le_bytes([bytes[0], bytes[1]]),
+        ServerOpcodes::QuestUpdateFailedTimer as u16
+    );
+    assert_eq!(&bytes[2..], &0x0102_0304_u32.to_le_bytes());
+}
+
+#[test]
 fn quest_update_add_pvp_credit_writes_cpp_shape() {
     let bytes = QuestUpdateAddPvpCredit {
         quest_id: 12_345,

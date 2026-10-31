@@ -232,16 +232,18 @@ fn broadcast_info_with_command(
     command_tx: flume::Sender<crate::session::mailbox::SessionCommand>,
 ) -> crate::session::directory::PlayerSessionRegistrationLikeCpp {
     crate::session::directory::PlayerSessionRegistrationLikeCpp {
-        identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp {
-            player_name: format!("Player{}", guid.counter()),
-            account_id: guid.counter() as u32,
-            battlenet_account_id: 0,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            active_expansion: 2,
-        },
+        identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+            format!("Player{}", guid.counter()),
+            guid.counter() as u32,
+            0,
+            0,
+            1,
+            1,
+            0,
+            2,
+            "enUS",
+            None,
+        ),
         placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,

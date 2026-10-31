@@ -61,36 +61,21 @@ pub fn remove_represented_active_rewarded_duplicates_like_cpp<H: QuestSessionHos
 }
 
 pub fn first_free_quest_slot_like_cpp<H: QuestSessionHostLikeCpp>(host: &H) -> Option<u8> {
-    (0..MAX_QUEST_LOG_SIZE_LIKE_CPP).find(|&slot| !quest_slot_has_active_entry_like_cpp(host, slot))
+    let owner = host.core().quest_objective_access_like_cpp();
+    let rows = owner.quest_log_values_snapshot_like_cpp()?;
+    rows.iter()
+        .position(|row| row.quest_id() == 0)
+        .and_then(|slot| u8::try_from(slot).ok())
 }
 
-fn quest_slot_has_active_entry_like_cpp<H: QuestSessionHostLikeCpp>(host: &H, slot: u8) -> bool {
-    // C++ `QuestSlotOffset` stores the quest id independently from the status fields;
-    // represented active slots are INCOMPLETE, COMPLETE, or FAILED.
-    slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
-        && host
-            .player_quest_gameplay_snapshot_like_cpp()
-            .is_some_and(|state| {
-                state.statuses_like_cpp().values().any(|status| {
-                    status.slot == slot
-                        && matches!(
-                            status.status,
-                            QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                                | QUEST_STATUS_COMPLETE_LIKE_CPP
-                                | QUEST_STATUS_FAILED_LIKE_CPP
-                        )
-                })
-            })
-}
-
-/// C++ `Player::SetQuestStatus` (`Player.cpp:15557`) installing one record.
+/// C++ `Player::AddQuest` installing a status and recording its explicit default save.
 pub fn insert_represented_quest_status_like_cpp<H: QuestSessionHostLikeCpp>(
     host: &mut H,
     quest_id: u32,
     status: wow_entities::PlayerQuestStatusRecord,
 ) -> bool {
     host.mutate_player_quest_gameplay_like_cpp(|state| {
-        state.insert_status_like_cpp(quest_id, status);
+        state.add_active_status_like_cpp(quest_id, status);
     })
     .is_some()
 }
@@ -115,12 +100,21 @@ pub fn mark_represented_quest_explored_like_cpp<H: QuestSessionHostLikeCpp>(
     failed_status: u8,
 ) -> Option<(bool, bool)> {
     host.mutate_player_quest_gameplay_like_cpp(|state| {
-        let Some(status) = state.status_mut_like_cpp(quest_id) else {
-            return (false, false);
+        let should_send = {
+            let Some(status) = state.status_mut_like_cpp(quest_id) else {
+                return (false, false);
+            };
+            let should_send = !status.explored && status.status != failed_status;
+            if should_send {
+                status.explored = true;
+            }
+            should_send
         };
-        let should_send = !status.explored && status.status != failed_status;
         if should_send {
-            status.explored = true;
+            state.mark_status_save_like_cpp(
+                quest_id,
+                wow_entities::PlayerQuestStatusSaveTypeLikeCpp::Default,
+            );
         }
         (true, should_send)
     })
@@ -133,7 +127,7 @@ pub(crate) fn install_represented_loaded_quest_statuses_like_cpp<H: QuestSession
     loaded: &wow_entities::PlayerQuestGameplayState,
 ) -> bool {
     host.mutate_player_quest_gameplay_like_cpp(|state| {
-        state.replace_statuses_like_cpp(
+        state.replace_loaded_statuses_like_cpp(
             loaded.statuses_snapshot_like_cpp(),
             loaded.status_authority_complete_like_cpp(),
         );
@@ -238,6 +232,14 @@ pub async fn add_quest_confirm_accept_local_state_like_cpp<H: QuestSessionHostLi
     if crate::insert_represented_quest_status_like_cpp(host, quest.id, status) == false {
         return None;
     }
+    let _ = host
+        .core()
+        .quest_objective_access_like_cpp()
+        .set_quest_slot_like_cpp(slot, quest.id);
+    let _ = host
+        .core()
+        .quest_objective_access_like_cpp()
+        .set_quest_slot_end_time_like_cpp(slot, end_time_secs);
     complete_represented_quest_after_add_with_generator_like_cpp(host, item_guid_generator, quest)
         .await;
     let durable = crate::save_represented_quest_status_like_cpp(host, quest.id)

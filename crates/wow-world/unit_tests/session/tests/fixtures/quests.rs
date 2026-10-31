@@ -5,6 +5,10 @@
 
 use super::*;
 
+#[path = "quests/quest_log_fixtures.rs"]
+mod quest_log_fixtures;
+pub(in crate::session::tests) use quest_log_fixtures::publish_quest_log_values_after_map_tick_like_cpp;
+
 pub(in crate::session::tests) fn test_quest_template(id: u32) -> wow_data::quest::QuestTemplate {
     wow_data::quest::QuestTemplate {
         id,
@@ -109,6 +113,12 @@ pub(in crate::session::tests) fn adopt_player_quest_fixture_into_canonical_owner
     let quests = session
         .player_quest_gameplay_snapshot_like_cpp()
         .expect("handle-less quest fixture");
+    let mut quest_statuses = quests
+        .statuses_like_cpp()
+        .values()
+        .cloned()
+        .collect::<Vec<_>>();
+    quest_statuses.sort_by_key(|status| (status.slot, status.quest_id));
     let currencies = session
         .player_currencies_like_cpp()
         .expect("handle-less currency fixture");
@@ -132,6 +142,8 @@ pub(in crate::session::tests) fn adopt_player_quest_fixture_into_canonical_owner
             .is_some(),
         "quest fixture must move to the canonical Player owner"
     );
+
+    quest_log_fixtures::seed_native_quest_log_statuses_like_cpp(session, &quest_statuses);
 }
 
 pub(in crate::session::tests) fn assert_canonical_quest_status_like_cpp(

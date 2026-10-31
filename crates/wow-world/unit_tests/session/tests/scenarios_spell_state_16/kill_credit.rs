@@ -65,31 +65,35 @@ async fn spell_kill_credit_effect_row_rewards_player_monster_objective_like_cpp(
         },
     );
     session.set_spell_store(Arc::new(spell_store));
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
 
     session
         .execute_spell(spell_id, player_guid)
         .await
         .expect("represented kill-credit spell row should execute");
 
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player.unit().world().object().is_object_updated()
+        }),
+        Some(true),
+        "quest fields await Map SendObjectUpdates after the immediate cast packets"
     );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::QuestUpdateAddCredit,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
-            ServerOpcodes::CooldownEvent,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }
@@ -159,31 +163,35 @@ async fn spell_kill_credit2_effect_row_rewards_current_session_like_cpp_without_
         },
     );
     session.set_spell_store(Arc::new(spell_store));
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
 
     session
         .execute_spell(spell_id, player_guid)
         .await
         .expect("represented kill-credit2 spell row should execute");
 
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
+    assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player.unit().world().object().is_object_updated()
+        }),
+        Some(true),
+        "quest fields await Map SendObjectUpdates after the immediate cast packets"
     );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::QuestUpdateAddCredit,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
-            ServerOpcodes::CooldownEvent,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }

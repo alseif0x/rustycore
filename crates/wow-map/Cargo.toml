@@ -6,12 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-entities = { workspace = true }
 rand = { workspace = true }
 
 [dev-dependencies]
-wow-constants = { workspace = true }
 wow-loot = { workspace = true }
 
 [lints]

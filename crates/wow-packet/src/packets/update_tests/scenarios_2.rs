@@ -401,6 +401,65 @@ fn game_object_values_update_block_matches_cpp_gameobjectdata_delta_shape() {
 }
 
 #[test]
+fn corpse_birth_create2_preserves_rediscovery_guid_movement_and_values() {
+    let mut items = [0; 19];
+    items[4] = 0xAABB_CCDD;
+    let create_data = CorpseCreateData {
+        guid: ObjectGuid::create_world_object(wow_core::guid::HighGuid::Corpse, 0, 0, 0, 0, 0, 1),
+        entry_id: 44,
+        object_dynamic_flags: 7,
+        scale: 1.25,
+        position: Position::new(1.0, 2.0, 3.0, 4.0),
+        corpse_dynamic_flags: 9,
+        owner: ObjectGuid::EMPTY,
+        party_guid: ObjectGuid::EMPTY,
+        guild_guid: ObjectGuid::EMPTY,
+        display_id: 123,
+        items,
+        race_id: 1,
+        sex: 0,
+        class: 2,
+        customizations: vec![ChrCustomizationChoiceValuesUpdate {
+            option_id: 11,
+            choice_id: 22,
+        }],
+        flags: 0x55,
+        faction_template: 35,
+    };
+    let ordinary = UpdateObject::create_world_objects(
+        vec![UpdateObject::create_corpse_block(create_data.clone())],
+        571,
+    )
+    .to_bytes();
+    let birth = UpdateObject::create_world_objects(
+        vec![UpdateObject::create_corpse_birth_block(create_data)],
+        571,
+    )
+    .to_bytes();
+
+    assert_eq!(
+        &birth[..2],
+        &(ServerOpcodes::UpdateObject as u16).to_le_bytes()
+    );
+    assert_eq!(&birth[2..9], &[1, 0, 0, 0, 0x3B, 0x02, 0]);
+    // Object.cpp:130 and Map.cpp:573 select CREATE2 only during AddToMap.
+    const BLOCK_START: usize = 13;
+    assert_eq!(ordinary[BLOCK_START], UpdateType::CreateObject as u8);
+    assert_eq!(
+        &birth[BLOCK_START..BLOCK_START + 6],
+        &[2, 0x01, 0x80, 0x01, 0x38, TypeId::Corpse as u8],
+        "CREATE2, packed corpse GUID (counter 1), then TYPEID_CORPSE"
+    );
+    assert_eq!(&birth[..BLOCK_START], &ordinary[..BLOCK_START]);
+    assert_eq!(&birth[BLOCK_START + 1..], &ordinary[BLOCK_START + 1..]);
+    assert_eq!(
+        &birth[BLOCK_START + 76..BLOCK_START + 80],
+        &0xAABB_CCDDu32.to_le_bytes(),
+        "the supplied corpse item values are unchanged"
+    );
+}
+
+#[test]
 fn corpse_values_update_block_matches_cpp_corpse_data_delta_shape() {
     let mut items = [0u32; 19];
     items[0] = 0xAABB_CCDD;

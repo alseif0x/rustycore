@@ -30,11 +30,14 @@ impl SessionLifecycleState {
         &mut self,
         hub: &mut HubMut<'_>,
     ) -> Option<crate::PlayerSaveOutcomeLikeCpp> {
-        let mut owner = hub.core.player_save_operation_access_like_cpp(None, None);
+        let mut owner = hub.core.player_save_operation_access_like_cpp(
+            None, None, None, None, None, None, None, None, None,
+        );
         self.defer_player_save_for_transfer_with_owner_like_cpp(&mut owner)
     }
 
-    /// Apply the save's transfer gate through its selected canonical owner.
+    /// Apply the save's transfer and resurrection gates through the selected
+    /// canonical Player owner before acquiring fences or capturing a snapshot.
     pub fn defer_player_save_for_transfer_with_owner_like_cpp(
         &mut self,
         owner: &mut PlayerSaveOperationAccessLikeCpp<'_>,

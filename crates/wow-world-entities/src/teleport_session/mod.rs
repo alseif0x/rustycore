@@ -17,6 +17,7 @@
 //! `#[cfg(test)]` fixture steps run through
 //! `SessionHubHostLikeCpp::test_fixtures_like_cpp`.
 
+use std::future::Future;
 use wow_core::Position;
 use wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp;
 
@@ -29,11 +30,13 @@ mod teleport_ack;
 pub use teleport::{
     pending_teleport_save_destination_like_cpp,
     process_represented_delayed_teleport_after_update_like_cpp, teleport_to_with_options,
+    teleport_to_with_options_and_resurrection,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use teleport_ack::schedule_represented_resurrection_after_teleport;
 pub use teleport_ack::{
     handle_move_teleport_ack_like_cpp,
     process_represented_delayed_resurrection_after_teleport_like_cpp,
-    schedule_represented_resurrection_after_teleport_like_cpp,
 };
 
 pub const TELE_TO_NONE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x00;
@@ -68,4 +71,12 @@ pub trait PlayerTeleportHostLikeCpp: CombatSessionHostLikeCpp {
     fn player_logout_like_cpp(&self) -> bool;
     /// `wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp`.
     fn resummon_pet_temporary_unsummoned_like_cpp(&mut self);
+    /// C++ `ResurrectPlayer` at `TELE_REVIVE_AT_TELEPORT`, using explicit
+    /// catalogs while keeping corpse operations inside the World adapter.
+    fn revive_for_teleport<'a>(
+        &'a mut self,
+        catalogs: crate::ResurrectionOperationCatalogs<'a>,
+        map_id: u32,
+        destination: Position,
+    ) -> impl Future<Output = bool> + Send + 'a;
 }

@@ -12,18 +12,18 @@
 //! admitted canonical executor: after the session phase and the respawn phase
 //! of a split tick, and before its object visitors, it admits the creatures of
 //! each admitted map's `NearbyCells` selection and runs every creature phase on
-//! the canonical incarnations in place, under the one canonical guard the tick
-//! resume already holds.
+//! the canonical incarnations in place. Required Player combat continuations
+//! release every guard and await the existing Session phase rail.
 //!
 //! Exclusivity. This is the only creature runtime: #1263 F6-8D3b-2 stopped
 //! spawning the legacy global creature loop and F6-8E deleted it, the
 //! per-session creature ticks and the owner value that selected between them.
 //! The executor's single-owner lease serialises its own transition claims.
 //!
-//! Delivery. The executor publishes nothing itself; every output is deferred
-//! and delivered here after all guards are released, in phase order. The
-//! respawn statements are submitted by the loop while it still holds the
-//! respawn mutation-order gate, after the tick's canonical respawn statements.
+//! Delivery. Player combat preludes finish before their following swing or
+//! native death. Other outputs retain their deferred delivery. Lifecycle DB
+//! intents enter the existing writer under its mutation-order gate before a
+//! later awaited Player callback can fail and abandon the tick.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -69,6 +69,116 @@ pub(crate) struct CanonicalCreatureTickInputsLikeCpp {
 }
 
 impl CanonicalCreatureRuntimeLikeCpp {
+    /// Run the admitted combat future outside every Map/spawn/respawn guard.
+    /// Required native Player callbacks return through the existing phase rail.
+    pub(crate) async fn run_with_native_death(
+        &mut self,
+        manager: &SharedCanonicalMapManager,
+        plan: &wow_map::MapTickPlanLikeCpp,
+        coordinator_id: u64,
+        tick_epoch: u64,
+        registry: &PlayerRegistry,
+        ack_timeout: Duration,
+        inputs: &CanonicalCreatureTickInputsLikeCpp,
+        map_store: &wow_data::MapStore,
+        now: Instant,
+        respawn_db_writer_tx: &RespawnDbWriterSenderLikeCpp,
+        respawn_db_mutation_order: &SharedRespawnDbMutationOrderLikeCpp,
+    ) -> Result<
+        wow_world::session::AdmittedCreatureCombatPhasesOutcomeLikeCpp,
+        wow_world::session::NativePlayerDeathFailure,
+    > {
+        let admission = {
+            let manager = manager
+                .lock()
+                .map_err(|_| "Creature admission Map lock is unavailable")?;
+            let mut objects = Vec::new();
+            for participant in plan.updated_maps_like_cpp() {
+                let key = participant.key;
+                let Some(map) = manager.find_map(key.map_id, key.instance_id) else {
+                    continue;
+                };
+                let map = map.map();
+                objects.extend(
+                    map.object_update_plan_for_current_tick_like_cpp(plan.effective_diff_ms())
+                        .update_guids
+                        .into_iter()
+                        .filter(|guid| map.get_typed_creature(*guid).is_some())
+                        .map(|guid| (key, guid)),
+                );
+            }
+            wow_world::session::capture_admitted_creature_execution_on_manager_like_cpp(
+                &manager,
+                coordinator_id,
+                plan.epoch_like_cpp(),
+                plan.effective_diff_ms(),
+                plan.updated_maps_like_cpp()
+                    .iter()
+                    .map(|map| (map.key, map.incarnation)),
+                objects,
+            )
+        };
+        let mut finish = |pending| -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = Result<(), wow_world::session::NativePlayerDeathFailure>,
+                    > + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(super::native_player_death::run_map_player_combat_call(
+                pending,
+                manager,
+                registry,
+                coordinator_id,
+                tick_epoch,
+                plan.epoch_like_cpp(),
+                plan.effective_diff_ms(),
+                ack_timeout,
+            ))
+        };
+        let mut submit_respawns =
+            |mutations: &mut Vec<wow_persistence::RespawnPersistenceMutationLikeCpp>| {
+                let _order = respawn_db_mutation_order
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                submit_creature_lifecycle_respawn_db_mutations_like_cpp(
+                    mutations,
+                    respawn_db_writer_tx,
+                );
+            };
+        let outcome = wow_world::session::run_admitted_creature_combat_phases_with_native_death(
+            &admission,
+            manager,
+            &self.lease,
+            wow_world::session::AdmittedCreatureCombatPhaseInputsLikeCpp {
+                player_melee_attackers: &inputs.attackers,
+                player_melee_phase_state: &mut self.player_melee_phase_state,
+                aggro_candidates: &inputs.aggro_candidates,
+                terrain: inputs.terrain.as_deref(),
+                mmap_config: &self.mmap_config,
+                mmap_pathfinder: self.mmap_pathfinder.as_deref(),
+                chase_targets: &inputs.chase_targets,
+                config: &self.aggro_config,
+                map_store,
+                now,
+                record_creature_module_events: inputs.record_creature_module_events,
+            },
+            &mut finish,
+            &mut submit_respawns,
+        )
+        .await?;
+        if outcome.executed_like_cpp() {
+            self.probe.executed_ticks.fetch_add(1, Ordering::Relaxed);
+            self.probe
+                .clock_advanced_ms
+                .fetch_add(outcome.clock_advanced_ms, Ordering::Relaxed);
+        } else {
+            self.probe.refused_ticks.fetch_add(1, Ordering::Relaxed);
+        }
+        Ok(outcome)
+    }
+
     #[must_use]
     pub(crate) fn new_like_cpp(
         mmap_config: MMapRuntimeConfigLikeCpp,
@@ -109,77 +219,6 @@ impl CanonicalCreatureRuntimeLikeCpp {
             terrain: self.terrain.clone(),
             record_creature_module_events,
         }
-    }
-
-    /// Admit and run every creature phase of one admitted map tick, on the
-    /// canonical manager the tick resume holds. Nothing is delivered here.
-    pub(crate) fn run_on_locked_manager_like_cpp(
-        &mut self,
-        manager: &mut wow_map::MapManager,
-        plan: &wow_map::MapTickPlanLikeCpp,
-        coordinator_id: u64,
-        inputs: &CanonicalCreatureTickInputsLikeCpp,
-        map_store: &wow_data::MapStore,
-        now: Instant,
-    ) -> wow_world::session::AdmittedCreatureCombatPhasesOutcomeLikeCpp {
-        let diff_ms = plan.effective_diff_ms();
-        // C++ `Map::Update` visits the cells around players and active objects
-        // (`VisitNearbyCellsOf`); the selection is the canonical map's own
-        // `NearbyCells` plan, the one its object visitors use, kept to creatures.
-        let mut objects = Vec::new();
-        for participant in plan.updated_maps_like_cpp() {
-            let key = participant.key;
-            let Some(map) = manager.find_map(key.map_id, key.instance_id) else {
-                continue;
-            };
-            let map = map.map();
-            objects.extend(
-                map.object_update_plan_for_current_tick_like_cpp(diff_ms)
-                    .update_guids
-                    .into_iter()
-                    .filter(|guid| map.get_typed_creature(*guid).is_some())
-                    .map(|guid| (key, guid)),
-            );
-        }
-        let admission = wow_world::session::capture_admitted_creature_execution_on_manager_like_cpp(
-            manager,
-            coordinator_id,
-            plan.epoch_like_cpp(),
-            diff_ms,
-            plan.updated_maps_like_cpp()
-                .iter()
-                .map(|participant| (participant.key, participant.incarnation)),
-            objects,
-        );
-        let mmap_pathfinder = self.mmap_pathfinder.clone();
-        let outcome =
-            wow_world::session::run_admitted_creature_combat_phases_on_locked_manager_like_cpp(
-                &admission,
-                manager,
-                &self.lease,
-                wow_world::session::AdmittedCreatureCombatPhaseInputsLikeCpp {
-                    player_melee_attackers: &inputs.attackers,
-                    player_melee_phase_state: &mut self.player_melee_phase_state,
-                    aggro_candidates: &inputs.aggro_candidates,
-                    terrain: inputs.terrain.as_deref(),
-                    mmap_config: &self.mmap_config,
-                    mmap_pathfinder: mmap_pathfinder.as_deref(),
-                    chase_targets: &inputs.chase_targets,
-                    config: &self.aggro_config,
-                    map_store,
-                    now,
-                    record_creature_module_events: inputs.record_creature_module_events,
-                },
-            );
-        if outcome.executed_like_cpp() {
-            self.probe.executed_ticks.fetch_add(1, Ordering::Relaxed);
-            self.probe
-                .clock_advanced_ms
-                .fetch_add(outcome.clock_advanced_ms, Ordering::Relaxed);
-        } else {
-            self.probe.refused_ticks.fetch_add(1, Ordering::Relaxed);
-        }
-        outcome
     }
 }
 

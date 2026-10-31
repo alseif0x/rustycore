@@ -147,16 +147,10 @@ impl crate::session::state::SessionCatalogs {
         &self,
         class: u8,
     ) -> Option<(u8, u8, u8)> {
-        self.chr
-            .classes_store
-            .as_ref()?
-            .get(u32::from(class))
-            .map(|entry| {
-                (
-                    entry.attack_power_per_strength,
-                    entry.attack_power_per_agility,
-                    entry.ranged_attack_power_per_agility,
-                )
-            })
+        crate::session::PlayerStatCatalogs::from_session_catalogs(
+            self,
+            wow_data::StatsLimitsLikeCpp::default(),
+        )
+        .player_class_attack_power_coefficients(class)
     }
 }

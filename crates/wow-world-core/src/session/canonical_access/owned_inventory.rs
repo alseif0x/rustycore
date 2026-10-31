@@ -278,7 +278,7 @@ impl OwnedInventoryAccessLikeCpp<'_> {
         update: impl FnOnce(&mut PlayerInventoryRuntime) -> R,
     ) -> Option<R> {
         self.core.with_owned_player_mut_like_cpp(|player| {
-            update(player.inventory_runtime_mut_like_cpp())
+            player.with_inventory_runtime_mut_like_cpp(update)
         })
     }
 

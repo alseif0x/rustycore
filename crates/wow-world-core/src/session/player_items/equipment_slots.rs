@@ -10,19 +10,10 @@ impl crate::session::state::SessionCatalogs {
         spell_id: i32,
         weapon_item_id: Option<u32>,
     ) -> bool {
-        let Some(equipped) = self
-            .spell_catalogs
-            .spell_equipped_items_store
-            .as_ref()
-            .and_then(|store| store.entry_for_spell_id_like_cpp(spell_id))
-        else {
-            return true;
-        };
-        if equipped.equipped_item_class < 0 {
-            return true;
-        }
-        weapon_item_id.is_some_and(|item_id| {
-            self.represented_item_fits_spell_requirements_like_cpp(item_id, equipped)
-        })
+        crate::session::PlayerStatCatalogs::from_session_catalogs(
+            self,
+            wow_data::StatsLimitsLikeCpp::default(),
+        )
+        .represented_aura_spell_fits_weapon(spell_id, weapon_item_id)
     }
 }

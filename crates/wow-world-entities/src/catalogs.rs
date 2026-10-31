@@ -4,7 +4,7 @@ use wow_data::character_progression::PowerTypeStore;
 use wow_data::{
     CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
     CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
-    CreatureEquipmentStoreLikeCpp,
+    CreatureEquipmentStoreLikeCpp, CreatureQueryCatalogLikeCpp,
 };
 
 /// Process-owned C++ `ObjectMgr` creature materialization catalogs and
@@ -13,7 +13,7 @@ use wow_data::{
 /// C++ resolves these through `sObjectMgr`/`sWorld` while `Creature::InitEntry`,
 /// `UpdateLevelDependantStats`, `LoadEquipment`, and `GetCreatureAddon` build a
 /// creature (`Creature.cpp:491-615,1550-1615,1931-1965,2722-2755`). A
-/// `WorldSession` borrows them only while adapting visibility; it owns none of
+/// `WorldSession` borrows them for visibility and creature spell effects; it owns none of
 /// the stores or rates.
 pub struct CreatureSpawnCatalogsLikeCpp {
     pub difficulty: Arc<CreatureDifficultyStoreLikeCpp>,
@@ -22,6 +22,9 @@ pub struct CreatureSpawnCatalogsLikeCpp {
     pub addons: Arc<CreatureAddonStoreLikeCpp>,
     pub equipment: Arc<CreatureEquipmentStoreLikeCpp>,
     pub power_types: Arc<PowerTypeStore>,
+    /// Immutable `ObjectMgr` creature names and locale rows used by server
+    /// effects that announce a creature as the offerer.
+    pub localized_names: Arc<CreatureQueryCatalogLikeCpp>,
 }
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -34,6 +37,7 @@ impl Default for CreatureSpawnCatalogsLikeCpp {
             addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
             equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
             power_types: Arc::new(PowerTypeStore::from_entries([])),
+            localized_names: Arc::new(CreatureQueryCatalogLikeCpp::default()),
         }
     }
 }

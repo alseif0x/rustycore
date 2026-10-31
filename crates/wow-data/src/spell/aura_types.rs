@@ -73,6 +73,7 @@ pub const SPELL_AURA_MOD_SPELL_CRIT_CHANCE: i32 = 57;
 /// critical percentage added to every weapon and spell critical chance.
 pub const SPELL_AURA_MOD_CRIT_PCT: i32 = 290;
 pub const SPELL_AURA_MOD_INCREASE_SWIM_SPEED: i32 = 58;
+pub const SPELL_AURA_GHOST: i32 = 95;
 pub const SPELL_AURA_MOD_SCALE: i32 = 61;
 pub const SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK: i32 = 65;
 /// C++ `AuraType::SPELL_AURA_HASTE_SPELLS` (`SpellAuraDefines.h:287`), handled
@@ -85,6 +86,12 @@ pub const SPELL_AURA_REFLECT_SPELLS_SCHOOL: i32 = 74;
 pub const SPELL_AURA_MECHANIC_IMMUNITY: i32 = 77;
 pub const SPELL_AURA_MOUNTED: i32 = 78;
 pub const SPELL_AURA_MOD_DAMAGE_PERCENT_DONE: i32 = 79;
+/// C++ `AuraType::SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT`
+/// (`SpellAuraEffects.cpp:4550-4559`): the offhand percentage operation
+/// multiplies by the sum of these amounts, without adding one.
+pub const SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT: i32 = 122;
+/// C++ `AuraType::SPELL_AURA_MOD_PERCENT_STAT`.
+pub const SPELL_AURA_MOD_PERCENT_STAT: i32 = 80;
 /// C++ `AuraType::SPELL_AURA_SPLIT_DAMAGE_PCT` (`SpellAuraDefines.h:176`),
 /// consumed after school and mana absorbs by `Unit::CalcAbsorbResist`
 /// (`Unit.cpp:1958-2015`).
@@ -130,6 +137,8 @@ pub const SPELL_AURA_MOD_INCREASE_HEALTH_PERCENT: i32 = 133;
 pub const SPELL_AURA_MOD_MANA_REGEN_INTERRUPT: i32 = 134;
 pub const SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS: i32 = 130;
 pub const SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE: i32 = 137;
+/// C++ `AuraType::SPELL_AURA_NO_PVP_CREDIT`.
+pub const SPELL_AURA_NO_PVP_CREDIT: i32 = 159;
 /// C++ `AuraType::SPELL_AURA_MOD_ATTACKSPEED` (`SpellAuraDefines.h:104`):
 /// `AuraEffect::HandleModAttackSpeed` (`SpellAuraEffects.cpp:4353-4361`) scales
 /// the main-hand attack time.

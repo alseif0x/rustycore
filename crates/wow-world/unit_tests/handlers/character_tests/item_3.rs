@@ -659,10 +659,10 @@ async fn banker_activate_removes_feign_after_validation_before_open_like_cpp() {
     const FEIGN_SLOT: u8 = 17;
     let (mut session, send_rx, canonical) = make_bank_slot_session(4);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 37);
     insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
     session.set_player_trainer_interaction_like_cpp(banker, 77);
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
 
     session.handle_banker_activate(Hello { unit: banker }).await;
 
@@ -676,9 +676,8 @@ async fn banker_activate_removes_feign_after_validation_before_open_like_cpp() {
     );
     assert!(
         !session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
@@ -693,12 +692,12 @@ async fn banker_activate_invalid_source_preserves_feign_and_provenance_like_cpp(
     const FEIGN_SLOT: u8 = 18;
     let (mut session, send_rx, canonical) = make_bank_slot_session(2);
     insert_bank_test_player_in_world(&session, &canonical);
+    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
     let invalid_banker =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 38);
     let active_source = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 39);
     insert_banker_creature(&canonical, invalid_banker, NPCFlags1::VENDOR.bits());
     session.set_player_trainer_interaction_like_cpp(active_source, 77);
-    seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
 
     session
         .handle_banker_activate(Hello {
@@ -709,9 +708,8 @@ async fn banker_activate_invalid_source_preserves_feign_and_provenance_like_cpp(
     assert!(send_rx.try_recv().is_err());
     assert!(
         session
-            .fixtures
-            .auras
-            .visible_auras
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player AuraSubsystem")
             .contains_key(&FEIGN_SLOT)
     );
     assert!(canonical_player_has_died_state_like_cpp(&mut session));

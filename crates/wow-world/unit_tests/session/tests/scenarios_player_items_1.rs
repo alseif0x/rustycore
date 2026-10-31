@@ -14,6 +14,19 @@ fn auto_unequip_offhand_records_titan_grip_penalty_check_like_cpp() {
     let offhand_guid = ObjectGuid::create_item(1, 30_013);
     let player_guid = ObjectGuid::create_player(1, 162);
     let penalty_spell_id = 49_152_u32;
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(penalty_spell_id, 0)]);
+    let mut penalty_info = test_spell_info_like_cpp(penalty_spell_id as i32);
+    penalty_info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+    penalty_info.aura_type = Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY);
+    penalty_info.effects = vec![wow_data::SpellEffectInfo {
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+        ..Default::default()
+    }];
+    spell_store.insert(penalty_spell_id as i32, penalty_info);
+    session.set_spell_store(Arc::new(spell_store));
     let canonical = shared_canonical_map_manager();
     canonical.lock().unwrap().create_world_map(0, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));

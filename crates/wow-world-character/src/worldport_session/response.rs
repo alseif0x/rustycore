@@ -13,7 +13,7 @@ use wow_world_entities::PlayerTeleportHostLikeCpp;
 
 use super::WorldportHostLikeCpp;
 use super::completion::{
-    begin_worldport_post_add_like_cpp, finish_worldport_native_before_disconnect_like_cpp,
+    WorldportNativeOutcome, begin_worldport_post_add_like_cpp, finish_worldport_after_ack,
 };
 use super::recovery::{recover_rejected_worldport_like_cpp, recovery_worldport_ack_ready_like_cpp};
 use super::self_create::prepare_player_self_create_for_teleport_like_cpp;
@@ -52,6 +52,7 @@ pub async fn send_player_self_create_for_teleport_like_cpp<H: WorldportHostLikeC
 pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostLikeCpp>(
     host: &mut H,
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    graveyards: Option<&wow_data::GraveyardStore>,
     trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
     _pkt: wow_packet::WorldPacket,
@@ -91,6 +92,11 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
     host.hub_mut()
         .set_represented_far_teleport_pending_like_cpp(false);
     if !host.set_pending_teleport_like_cpp(None) {
+        return;
+    }
+    if !wow_world_entities::mark_player_resurrection_teleport_completed(host) {
+        host.core_mut()
+            .kick("worldport resurrection continuation lost its Player owner");
         return;
     }
 
@@ -180,7 +186,7 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
 
     // SendInitialPacketsAfterAddToMap: post-add phase shift, InitWorldStates resolved for
     // the destination map, the PhasingHandler::OnMapChange phase shift, CUF profiles, auras.
-    crate::send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+    if !crate::send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
         host,
         creature_spawn_catalogs,
         guid,
@@ -188,7 +194,12 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
         new_map as i32,
         updateobject_trace_enabled,
     )
-    .await;
+    .await
+    {
+        host.core_mut()
+            .kick("worldport initial aura publication unavailable");
+        return;
+    }
 
     let Some((zone_id, area_id)) = host.hub_ref().player_zone_area_like_cpp() else {
         return;
@@ -196,10 +207,19 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
     // MovementHandler.cpp:156-234 completes after-add initialization and
     // zone updates before pet recovery and ProcessDelayedOperations.
     // In particular, self CREATE must precede the delayed resurrection.
-    if !finish_worldport_native_before_disconnect_like_cpp(host) {
-        host.core_mut()
-            .kick("worldport native completion unavailable");
-        return;
+    let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+        item_guid_generator,
+        creature_spawns: creature_spawn_catalogs,
+        graveyards,
+    };
+    match finish_worldport_after_ack(host, resurrection_catalogs).await {
+        WorldportNativeOutcome::Complete => {}
+        WorldportNativeOutcome::TransferPending => return,
+        WorldportNativeOutcome::Unavailable => {
+            host.core_mut()
+                .kick("worldport native completion unavailable");
+            return;
+        }
     }
 
     // Player.cpp:1494-1503: delayed resurrection precedes DELAYED_SAVE_PLAYER.

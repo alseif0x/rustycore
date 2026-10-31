@@ -5,6 +5,10 @@
 
 use crate::session::state::SessionCore;
 use wow_core::ObjectGuid;
+use wow_entities::PlayerQuestStatusSaveTypeLikeCpp;
+
+const QUEST_LOG_STATE_COMPLETE_LIKE_CPP: u32 = 0x0001;
+const QUEST_LOG_OBJECTIVE_FLAG_BASE_LIKE_CPP: u32 = 256;
 
 /// Borrowed access to the canonical quest gameplay state used by objective progress.
 pub struct QuestObjectiveAccessLikeCpp<'a> {
@@ -19,6 +23,55 @@ impl SessionCore {
 }
 
 impl QuestObjectiveAccessLikeCpp<'_> {
+    /// Read the canonical Player-owned QuestLog rows for CREATE and visibility.
+    pub fn quest_log_values_snapshot_like_cpp(
+        &self,
+    ) -> Option<[wow_entities::QuestLogValuesLikeCpp; 25]> {
+        self.core
+            .with_owned_player_like_cpp(|player| player.quest_log_values_like_cpp())
+    }
+
+    /// Read the live update-field QuestID, independently of quest-status slots.
+    pub fn quest_slot_quest_id_like_cpp(&self, slot: u8) -> Option<u32> {
+        self.core
+            .with_owned_player_like_cpp(|player| player.quest_slot_quest_id_like_cpp(slot))
+            .flatten()
+    }
+
+    pub fn set_quest_slot_like_cpp(&self, slot: u8, quest_id: u32) -> Option<bool> {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| player.set_quest_slot_like_cpp(slot, quest_id))
+    }
+
+    pub fn set_quest_slot_counter_like_cpp(
+        &self,
+        slot: u8,
+        counter: u8,
+        count: u16,
+    ) -> Option<bool> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            player.set_quest_slot_counter_like_cpp(slot, counter, count)
+        })
+    }
+
+    pub fn set_quest_slot_state_like_cpp(&self, slot: u8, state: u32) -> Option<bool> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            player.set_quest_slot_state_like_cpp(slot, state)
+        })
+    }
+
+    pub fn remove_quest_slot_state_like_cpp(&self, slot: u8, state: u32) -> Option<bool> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            player.remove_quest_slot_state_like_cpp(slot, state)
+        })
+    }
+
+    pub fn set_quest_slot_end_time_like_cpp(&self, slot: u8, end_time: i64) -> Option<bool> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            player.set_quest_slot_end_time_like_cpp(slot, end_time)
+        })
+    }
+
     /// Snapshot the visible GUID set in its existing iteration order for quest refresh.
     pub fn visible_guids_snapshot_like_cpp(&self) -> Vec<ObjectGuid> {
         self.core
@@ -92,6 +145,23 @@ impl QuestObjectiveAccessLikeCpp<'_> {
         })
     }
 
+    /// Record `SetQuestObjectiveData`/`SetQuestStatus` dirty work through the strict Player owner.
+    pub fn mark_quest_status_default_save_like_cpp(&self, quest_id: u32) -> Option<()> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            if player
+                .gameplay_state()
+                .quests
+                .status_like_cpp(quest_id)
+                .is_some()
+            {
+                player
+                    .gameplay_state_mut()
+                    .quests
+                    .mark_status_save_like_cpp(quest_id, PlayerQuestStatusSaveTypeLikeCpp::Default);
+            }
+        })
+    }
+
     /// Invalidate the derived spell-hit authority after quest status changes.
     pub fn invalidate_spell_hit_aura_authority_like_cpp(&self) {
         self.core
@@ -120,21 +190,45 @@ impl QuestObjectiveAccessLikeCpp<'_> {
         required: i32,
         add_count: i32,
     ) -> Option<Option<i32>> {
-        self.core.mutate_canonical_player_like_cpp(|player| {
-            let status = player
-                .gameplay_state_mut()
-                .quests
-                .status_mut_like_cpp(quest_id)?;
-            if status.objective_counts.len() <= objective_index {
-                status.objective_counts.resize(objective_index + 1, 0);
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            let (slot, count) = {
+                let status = player
+                    .gameplay_state_mut()
+                    .quests
+                    .status_mut_like_cpp(quest_id)?;
+                if status.objective_counts.len() <= objective_index {
+                    status.objective_counts.resize(objective_index + 1, 0);
+                }
+                if add_count >= 0 && status.objective_counts[objective_index] >= required {
+                    return None;
+                }
+                status.objective_counts[objective_index] = status.objective_counts[objective_index]
+                    .saturating_add(add_count)
+                    .clamp(0, required);
+                (status.slot, status.objective_counts[objective_index])
+            };
+            if let Ok(counter) = u8::try_from(objective_index) {
+                if slot < 25
+                    && objective_index < 24
+                    && player
+                        .quest_slot_objective_data_for_save_like_cpp(
+                            slot,
+                            objective_index as i8,
+                            false,
+                        )
+                        .is_some_and(|old| i32::from(old) != count)
+                {
+                    player
+                        .gameplay_state_mut()
+                        .quests
+                        .mark_status_save_like_cpp(
+                            quest_id,
+                            PlayerQuestStatusSaveTypeLikeCpp::Default,
+                        );
+                }
+                let _ = player.set_quest_slot_counter_like_cpp(slot, counter, count as u16);
             }
-            if add_count >= 0 && status.objective_counts[objective_index] >= required {
-                return None;
-            }
-            status.objective_counts[objective_index] = status.objective_counts[objective_index]
-                .saturating_add(add_count)
-                .clamp(0, required);
-            Some(status.objective_counts[objective_index])
+            Some(count)
         })
     }
 
@@ -145,17 +239,44 @@ impl QuestObjectiveAccessLikeCpp<'_> {
         objective_index: usize,
         add_count: i32,
     ) -> Option<Option<(bool, bool)>> {
-        self.core.mutate_canonical_player_like_cpp(|player| {
-            let status = player
-                .gameplay_state_mut()
-                .quests
-                .status_mut_like_cpp(quest_id)?;
-            if status.objective_counts.len() <= objective_index {
-                status.objective_counts.resize(objective_index + 1, 0);
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            let (slot, before, after) = {
+                let status = player
+                    .gameplay_state_mut()
+                    .quests
+                    .status_mut_like_cpp(quest_id)?;
+                if status.objective_counts.len() <= objective_index {
+                    status.objective_counts.resize(objective_index + 1, 0);
+                }
+                let before = status.objective_counts[objective_index] != 0;
+                status.objective_counts[objective_index] = i32::from(add_count > 0);
+                (
+                    status.slot,
+                    before,
+                    status.objective_counts[objective_index] != 0,
+                )
+            };
+            let state_flag = u32::try_from(objective_index)
+                .ok()
+                .and_then(|index| QUEST_LOG_OBJECTIVE_FLAG_BASE_LIKE_CPP.checked_shl(index))
+                .unwrap_or(0);
+            if slot < 25
+                && objective_index < 24
+                && player
+                    .quest_slot_objective_data_for_save_like_cpp(slot, objective_index as i8, true)
+                    .is_some_and(|old| i32::from(old) != i32::from(after))
+            {
+                player
+                    .gameplay_state_mut()
+                    .quests
+                    .mark_status_save_like_cpp(quest_id, PlayerQuestStatusSaveTypeLikeCpp::Default);
             }
-            let before = status.objective_counts[objective_index] != 0;
-            status.objective_counts[objective_index] = i32::from(add_count > 0);
-            Some((before, status.objective_counts[objective_index] != 0))
+            if after {
+                let _ = player.set_quest_slot_state_like_cpp(slot, state_flag);
+            } else {
+                let _ = player.remove_quest_slot_state_like_cpp(slot, state_flag);
+            }
+            Some((before, after))
         })
     }
 
@@ -165,19 +286,28 @@ impl QuestObjectiveAccessLikeCpp<'_> {
         quest_id: u32,
         complete_status: u8,
         incomplete_status: u8,
+        mark_default: bool,
     ) -> Option<bool> {
-        self.core.mutate_canonical_player_like_cpp(|player| {
-            let Some(status) = player
-                .gameplay_state_mut()
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            let should_change = player
+                .gameplay_state()
                 .quests
-                .status_mut_like_cpp(quest_id)
-            else {
-                return false;
-            };
-            if status.status != complete_status {
+                .status_like_cpp(quest_id)
+                .is_some_and(|status| status.status == complete_status);
+            if !should_change {
                 return false;
             }
-            status.status = incomplete_status;
+            player.gameplay_state_mut().quests.set_status_like_cpp(
+                quest_id,
+                incomplete_status,
+                mark_default,
+            );
+            // C++ IncompleteQuest changes status before consulting the
+            // independent update-field QuestID lookup.
+            if let Some(log_slot) = player.find_quest_slot_like_cpp(quest_id) {
+                let _ = player
+                    .remove_quest_slot_state_like_cpp(log_slot, QUEST_LOG_STATE_COMPLETE_LIKE_CPP);
+            }
             true
         })
     }
@@ -188,17 +318,26 @@ impl QuestObjectiveAccessLikeCpp<'_> {
         quest_id: u32,
         incomplete_status: u8,
         complete_status: u8,
+        mark_default: bool,
     ) -> Option<Option<u8>> {
-        self.core.mutate_canonical_player_like_cpp(|player| {
-            let status = player
-                .gameplay_state_mut()
-                .quests
-                .status_mut_like_cpp(quest_id)?;
-            (status.status == incomplete_status).then(|| {
-                let old_status = status.status;
-                status.status = complete_status;
-                old_status
-            })
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            let (old_status, slot) = {
+                let status = player
+                    .gameplay_state_mut()
+                    .quests
+                    .status_mut_like_cpp(quest_id)?;
+                if status.status != incomplete_status {
+                    return None;
+                }
+                (status.status, status.slot)
+            };
+            player.gameplay_state_mut().quests.set_status_like_cpp(
+                quest_id,
+                complete_status,
+                mark_default,
+            );
+            let _ = player.set_quest_slot_state_like_cpp(slot, QUEST_LOG_STATE_COMPLETE_LIKE_CPP);
+            Some(old_status)
         })
     }
 }

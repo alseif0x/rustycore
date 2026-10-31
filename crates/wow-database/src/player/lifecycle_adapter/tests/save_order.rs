@@ -11,6 +11,70 @@ use wow_persistence::{
 };
 
 #[test]
+fn dirty_quest_statuses_save_after_void_storage_before_spells() {
+    let mut request = minimal_character_request();
+    request.void_storage = Some(vec![PlayerVoidStorageSlotSaveLikeCpp {
+        slot: 1,
+        item: None,
+    }]);
+    request.quest_statuses = Some(vec![
+        PlayerQuestStatusPersistenceRequestLikeCpp::Save {
+            owner_guid: request.player_guid,
+            status: QuestStatusPersistenceLikeCpp {
+                quest_id: 100,
+                status: 5,
+                explored: false,
+                accept_time_secs: 10,
+                end_time_secs: 20,
+                objectives: vec![QuestObjectiveCountPersistenceLikeCpp {
+                    objective_index: 2,
+                    count: 3,
+                }],
+            },
+        },
+        PlayerQuestStatusPersistenceRequestLikeCpp::Delete {
+            owner_guid: request.player_guid,
+            quest_id: 101,
+        },
+    ]);
+    request.spells = Some(PlayerSpellSaveGroupLikeCpp::Complete {
+        rows: vec![PlayerSpellSaveLikeCpp {
+            spell_id: 200,
+            active: true,
+            disabled: false,
+            dependent: false,
+            favorite: false,
+            state: PlayerSpellStateLikeCpp::Changed,
+        }],
+        fallback_rows_were_present: false,
+    });
+    let statements = player_character_save_statements_like_cpp(&request);
+    let sql: Vec<_> = statements.iter().map(PreparedStatement::sql).collect();
+    let start = sql
+        .iter()
+        .position(|value| value.contains("DELETE FROM character_void_storage"))
+        .unwrap();
+    assert_eq!(
+        &sql[start + 1..start + 6],
+        &[
+            CharStatements::INS_CHAR_QUEST_STATUS.sql(),
+            CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+            CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql(),
+            CharStatements::DEL_CHAR_QUEST_STATUS.sql(),
+            CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+        ]
+    );
+    assert!(sql[start + 6].contains("character_spell"));
+    assert!(
+        !sql.iter()
+            .any(|value| value.contains("character_queststatus_rewarded"))
+    );
+    assert!(request.committed_groups_like_cpp().quest_statuses);
+    request.quest_statuses = None;
+    assert!(!request.committed_groups_like_cpp().quest_statuses);
+}
+
+#[test]
 fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
     let mut equipment_insert = equipment_row();
     equipment_insert.set_guid = 10;
@@ -62,7 +126,23 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
             dungeon_difficulty: 0,
             raid_difficulty: 0,
             legacy_raid_difficulty: 0,
+            at_login_flags: 0x104,
+            death_expire_time: 1_700_000_123,
         },
+        item_durability: Some(vec![
+            PlayerItemDurabilitySave {
+                item_guid: 22,
+                durability: 82,
+            },
+            PlayerItemDurabilitySave {
+                item_guid: 21,
+                durability: 81,
+            },
+        ]),
+        inventory_items: None,
+        currencies: None,
+        resurrection_sickness: None,
+        ghost_wisp: None,
         spells: Some(PlayerSpellSaveGroupLikeCpp::Complete {
             rows: vec![PlayerSpellSaveLikeCpp {
                 spell_id: 100,
@@ -140,6 +220,7 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
                 item: None,
             },
         ]),
+        quest_statuses: None,
         tutorials: Some(PlayerTutorialsSaveLikeCpp {
             tutorials: [0; 8],
             already_persisted: false,
@@ -181,8 +262,33 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
             },
         ]),
     };
+    let statements = player_character_save_statements_like_cpp(&request);
+    let durability_sql = CharStatements::UPD_ITEM_INSTANCE_DURABILITY_OWNED.sql();
+    let durability_binds = statements
+        .iter()
+        .filter(|statement| statement.sql() == durability_sql)
+        .map(PreparedStatement::params)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        durability_binds,
+        vec![
+            &[
+                crate::SqlParam::U32(81),
+                crate::SqlParam::U64(21),
+                crate::SqlParam::U64(1),
+                crate::SqlParam::U64(1),
+            ][..],
+            &[
+                crate::SqlParam::U32(82),
+                crate::SqlParam::U64(22),
+                crate::SqlParam::U64(1),
+                crate::SqlParam::U64(1),
+            ][..],
+        ],
+        "the adapter sorts per-item durability statements by item GUID"
+    );
     let mut runs: Vec<(String, usize)> = Vec::new();
-    for statement in player_character_save_statements_like_cpp(&request) {
+    for statement in statements {
         let sql = statement.sql().to_owned();
         match runs.last_mut() {
             Some((previous, count)) if *previous == sql => *count += 1,
@@ -199,6 +305,389 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
         "replace player-save-plan-order.json with:\n{}",
         serde_json::to_string_pretty(&runs).unwrap_or_default()
     );
+}
+
+#[test]
+fn lifecycle_aura_spell_reconciles_all_keys_before_sorted_inserts() {
+    let mut request = minimal_character_request();
+    let without_authority =
+        super::super::save_plan::player_character_save_statements_like_cpp(&request);
+    assert!(without_authority.iter().all(|statement| {
+        statement.sql() != CharStatements::DEL_CHAR_AURA_BY_SPELL.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+    }));
+
+    request.action_buttons = Some(PlayerActionButtonsSaveLikeCpp {
+        spec: 1,
+        trait_config_id: 2,
+        rows: vec![PlayerActionButtonSaveLikeCpp {
+            button: 3,
+            packed_action: 4,
+        }],
+    });
+    let saved_aura = |amount| PlayerLifecycleAuraSave {
+        difficulty: 0,
+        stack_count: 1,
+        max_duration: 60_000,
+        remaining_duration: 45_000,
+        charges: 0,
+        recalculate_mask: 0,
+        cast_item_id: 0,
+        cast_item_level: -1,
+        effects: vec![PlayerLifecycleAuraEffectSave {
+            index: 0,
+            amount,
+            base_amount: amount - 2,
+        }],
+    };
+    request.resurrection_sickness = Some(PlayerLifecycleAuraSpellSave {
+        spell_id: 15_007,
+        families: vec![
+            PlayerLifecycleAuraFamilySave {
+                spell_id: 15_007,
+                caster_guid_binary: [0x21; 16],
+                item_guid_binary: [0x22; 16],
+                auras: vec![saved_aura(21)],
+            },
+            PlayerLifecycleAuraFamilySave {
+                spell_id: 15_008,
+                caster_guid_binary: [0x31; 16],
+                item_guid_binary: [0x32; 16],
+                auras: vec![saved_aura(31)],
+            },
+            PlayerLifecycleAuraFamilySave {
+                spell_id: 15_007,
+                caster_guid_binary: [0x11; 16],
+                item_guid_binary: [0x12; 16],
+                auras: vec![saved_aura(11)],
+            },
+        ],
+    });
+    request.equipment_sets = Some(vec![equipment_row()]);
+
+    let statements = super::super::save_plan::player_character_save_statements_like_cpp(&request);
+    let index_of = |sql: &str| {
+        statements
+            .iter()
+            .position(|statement| statement.sql() == sql)
+            .expect("expected save statement")
+    };
+    let action = index_of(CharStatements::INS_CHAR_ACTION.sql());
+    let effect_delete = index_of(CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql());
+    let aura_delete = index_of(CharStatements::DEL_CHAR_AURA_BY_SPELL.sql());
+    let aura_insert = index_of(CharStatements::INS_AURA.sql());
+    let effect_insert = index_of(CharStatements::INS_AURA_EFFECT.sql());
+    let equipment = index_of(CharStatements::INS_EQUIP_SET.sql());
+    assert!(action < effect_delete);
+    assert!(effect_delete < aura_delete);
+    assert!(aura_delete < aura_insert);
+    assert!(aura_insert < effect_insert);
+    assert!(effect_insert < equipment);
+    let aura_sql = statements
+        .iter()
+        .filter(|statement| {
+            let sql = statement.sql();
+            sql == CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_BY_SPELL.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+                || sql == CharStatements::INS_AURA.sql()
+                || sql == CharStatements::INS_AURA_EFFECT.sql()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        aura_sql
+            .iter()
+            .map(|statement| statement.sql())
+            .collect::<Vec<_>>(),
+        vec![
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql(),
+            CharStatements::DEL_CHAR_AURA_BY_SPELL.sql(),
+            CharStatements::INS_AURA.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::INS_AURA.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+        ]
+    );
+    assert_eq!(
+        aura_sql[0].params(),
+        &[crate::SqlParam::U64(1), crate::SqlParam::U32(15_007)]
+    );
+    assert_eq!(aura_sql[1].params(), aura_sql[0].params());
+    for (aura_index, effect_index, caster, item, amount) in [
+        (2, 3, [0x11; 16], [0x12; 16], 11),
+        (4, 5, [0x21; 16], [0x22; 16], 21),
+    ] {
+        let statement = aura_sql[aura_index];
+        assert_eq!(
+            &statement.params()[..5],
+            &[
+                crate::SqlParam::U64(1),
+                crate::SqlParam::Bytes(caster.to_vec()),
+                crate::SqlParam::Bytes(item.to_vec()),
+                crate::SqlParam::U32(15_007),
+                crate::SqlParam::U32(1),
+            ]
+        );
+        let effect_statement = aura_sql[effect_index];
+        assert_eq!(effect_statement.params()[6], crate::SqlParam::I32(amount));
+    }
+
+    request
+        .resurrection_sickness
+        .as_mut()
+        .unwrap()
+        .families
+        .clear();
+    let empty_spell = super::super::save_plan::player_character_save_statements_like_cpp(&request);
+    assert_eq!(
+        empty_spell
+            .iter()
+            .filter(|statement| {
+                statement.sql() == CharStatements::DEL_CHAR_AURA_BY_SPELL.sql()
+                    || statement.sql() == CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql()
+            })
+            .count(),
+        2,
+        "Some(empty) still clears the selected spell's complete keyset"
+    );
+    assert!(empty_spell.iter().all(|statement| {
+        statement.sql() != CharStatements::INS_AURA.sql()
+            && statement.sql() != CharStatements::INS_AURA_EFFECT.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+    }));
+}
+
+#[test]
+fn ghost_wisp_lifecycle_aura_families_reconcile_by_spell_then_insert_full_keys() {
+    let mut request = minimal_character_request();
+    let without_authority = player_character_save_statements_like_cpp(&request);
+    assert!(without_authority.iter().all(|statement| {
+        statement.sql() != CharStatements::DEL_CHAR_AURA_BY_SPELL.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+            && statement.sql() != CharStatements::INS_AURA.sql()
+            && statement.sql() != CharStatements::INS_AURA_EFFECT.sql()
+    }));
+
+    request.ghost_wisp = Some(Vec::new());
+    let empty_snapshot = player_character_save_statements_like_cpp(&request);
+    let cleanup_sql = empty_snapshot
+        .iter()
+        .filter(|statement| {
+            statement.sql() == CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql()
+                || statement.sql() == CharStatements::DEL_CHAR_AURA_BY_SPELL.sql()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        cleanup_sql
+            .iter()
+            .map(|statement| statement.sql())
+            .collect::<Vec<_>>(),
+        vec![
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql(),
+            CharStatements::DEL_CHAR_AURA_BY_SPELL.sql(),
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql(),
+            CharStatements::DEL_CHAR_AURA_BY_SPELL.sql(),
+        ],
+        "Some(empty) still authorizes both fixed spell-family cleanups"
+    );
+    assert_eq!(
+        cleanup_sql
+            .iter()
+            .map(|statement| statement.params())
+            .collect::<Vec<_>>(),
+        vec![
+            &[crate::SqlParam::U64(1), crate::SqlParam::U32(8_326)][..],
+            &[crate::SqlParam::U64(1), crate::SqlParam::U32(8_326)][..],
+            &[crate::SqlParam::U64(1), crate::SqlParam::U32(20_584)][..],
+            &[crate::SqlParam::U64(1), crate::SqlParam::U32(20_584)][..],
+        ]
+    );
+    assert!(empty_snapshot.iter().all(|statement| {
+        statement.sql() != CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+            && statement.sql() != CharStatements::INS_AURA.sql()
+            && statement.sql() != CharStatements::INS_AURA_EFFECT.sql()
+    }));
+
+    let caster = [0xA5; 16];
+    let item = [0xB6; 16];
+    let foreign_caster = [0xC7; 16];
+    let ghost_aura = PlayerLifecycleAuraSave {
+        difficulty: 1,
+        stack_count: 2,
+        max_duration: -1,
+        remaining_duration: -1,
+        charges: 3,
+        recalculate_mask: 0b111,
+        cast_item_id: 4_321,
+        cast_item_level: 77,
+        effects: vec![
+            PlayerLifecycleAuraEffectSave {
+                index: 2,
+                amount: 50,
+                base_amount: 49,
+            },
+            PlayerLifecycleAuraEffectSave {
+                index: 0,
+                amount: -20,
+                base_amount: -21,
+            },
+            PlayerLifecycleAuraEffectSave {
+                index: 1,
+                amount: 50,
+                base_amount: 49,
+            },
+        ],
+    };
+    request.ghost_wisp = Some(vec![
+        PlayerLifecycleAuraFamilySave {
+            spell_id: 8_326,
+            caster_guid_binary: caster,
+            item_guid_binary: item,
+            auras: vec![ghost_aura.clone()],
+        },
+        PlayerLifecycleAuraFamilySave {
+            spell_id: 8_326,
+            caster_guid_binary: foreign_caster,
+            item_guid_binary: [0; 16],
+            auras: vec![ghost_aura.clone()],
+        },
+        PlayerLifecycleAuraFamilySave {
+            spell_id: 20_584,
+            caster_guid_binary: caster,
+            item_guid_binary: [0; 16],
+            auras: Vec::new(),
+        },
+        PlayerLifecycleAuraFamilySave {
+            spell_id: 1_861,
+            caster_guid_binary: caster,
+            item_guid_binary: item,
+            auras: vec![ghost_aura],
+        },
+    ]);
+
+    let statements = player_character_save_statements_like_cpp(&request);
+    let aura_statements = statements
+        .iter()
+        .filter(|statement| {
+            let sql = statement.sql();
+            sql == CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_BY_SPELL.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+                || sql == CharStatements::INS_AURA.sql()
+                || sql == CharStatements::INS_AURA_EFFECT.sql()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        aura_statements
+            .iter()
+            .map(|statement| statement.sql())
+            .collect::<Vec<_>>(),
+        vec![
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql(),
+            CharStatements::DEL_CHAR_AURA_BY_SPELL.sql(),
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql(),
+            CharStatements::DEL_CHAR_AURA_BY_SPELL.sql(),
+            CharStatements::INS_AURA.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::INS_AURA.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+        ],
+        "selected spell cleanup precedes all full-key inserts; unselected rows are omitted"
+    );
+
+    assert_eq!(
+        aura_statements[0].params(),
+        &[crate::SqlParam::U64(1), crate::SqlParam::U32(8_326)]
+    );
+    assert_eq!(
+        aura_statements[1].params(),
+        &[crate::SqlParam::U64(1), crate::SqlParam::U32(8_326)]
+    );
+    assert_eq!(
+        aura_statements[2].params(),
+        &[crate::SqlParam::U64(1), crate::SqlParam::U32(20_584)]
+    );
+    assert_eq!(
+        aura_statements[3].params(),
+        &[crate::SqlParam::U64(1), crate::SqlParam::U32(20_584)]
+    );
+    assert_eq!(
+        aura_statements[4].params(),
+        &[
+            crate::SqlParam::U64(1),
+            crate::SqlParam::Bytes(caster.to_vec()),
+            crate::SqlParam::Bytes(item.to_vec()),
+            crate::SqlParam::U32(8_326),
+            crate::SqlParam::U32(0b111),
+            crate::SqlParam::U32(0b111),
+            crate::SqlParam::U8(1),
+            crate::SqlParam::U8(2),
+            crate::SqlParam::I32(-1),
+            crate::SqlParam::I32(-1),
+            crate::SqlParam::U8(3),
+            crate::SqlParam::U32(4_321),
+            crate::SqlParam::I32(77),
+        ]
+    );
+    for (statement, index, amount, base_amount) in [
+        (&aura_statements[5], 0, -20, -21),
+        (&aura_statements[6], 1, 50, 49),
+        (&aura_statements[7], 2, 50, 49),
+    ] {
+        assert_eq!(
+            statement.params(),
+            &[
+                crate::SqlParam::U64(1),
+                crate::SqlParam::Bytes(caster.to_vec()),
+                crate::SqlParam::Bytes(item.to_vec()),
+                crate::SqlParam::U32(8_326),
+                crate::SqlParam::U32(0b111),
+                crate::SqlParam::U8(index),
+                crate::SqlParam::I32(amount),
+                crate::SqlParam::I32(base_amount),
+            ]
+        );
+    }
+    let foreign_ghost_key = vec![
+        crate::SqlParam::U64(1),
+        crate::SqlParam::Bytes(foreign_caster.to_vec()),
+        crate::SqlParam::Bytes(vec![0; 16]),
+        crate::SqlParam::U32(8_326),
+        crate::SqlParam::U32(0b111),
+    ];
+    assert_eq!(aura_statements[8].params()[..5], foreign_ghost_key[..]);
+    assert_eq!(aura_statements[8].params()[5], crate::SqlParam::U32(0b111));
+    for (statement, index, amount, base_amount) in [
+        (&aura_statements[9], 0, -20, -21),
+        (&aura_statements[10], 1, 50, 49),
+        (&aura_statements[11], 2, 50, 49),
+    ] {
+        assert_eq!(
+            statement.params()[..6],
+            [
+                crate::SqlParam::U64(1),
+                crate::SqlParam::Bytes(foreign_caster.to_vec()),
+                crate::SqlParam::Bytes(vec![0; 16]),
+                crate::SqlParam::U32(8_326),
+                crate::SqlParam::U32(0b111),
+                crate::SqlParam::U8(index),
+            ]
+        );
+        assert_eq!(statement.params()[6], crate::SqlParam::I32(amount));
+        assert_eq!(statement.params()[7], crate::SqlParam::I32(base_amount));
+    }
 }
 
 #[test]

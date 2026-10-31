@@ -1,11 +1,65 @@
-//! The World session as the host of the spell execution moved to
-//! `wow_world_spell` (#1363 slice 9d). Each operation names the inherent
-//! `WorldSession` method by path.
+//! The World session as the host of spell execution moved to `wow_world_spell`.
+//! Cross-domain normal Player costs are delegated to the Application owner.
 
 use super::*;
 use std::future::Future;
+use std::pin::Pin;
 
 impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
+    fn server_normal_physical_item_facts_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> Option<(u32, u32)> {
+        let item = self.core.with_owned_player_like_cpp(|player| {
+            player
+                .inventory_runtime_like_cpp()
+                .item_objects()
+                .get(&item_guid)
+                .filter(|item| {
+                    item.owner_guid() == player.guid()
+                        && !item.is_in_trade()
+                        && item.update_state() != wow_constants::ItemUpdateState::Removed
+                })
+                .cloned()
+        })??;
+        let entry_id = item.object().entry();
+        let item_level = self.inventory.represented_item_level_with_access_like_cpp(
+            &self.core.inventory_valuation_access_like_cpp(),
+            &self.core.owned_item_modifiers_access_like_cpp(),
+            &self.catalogs.inventory_valuation_catalog_view_like_cpp(),
+            entry_id,
+            Some(&item),
+            Self::MIN_ITEM_LEVEL_LIKE_CPP,
+            Self::MAX_ITEM_LEVEL_LIKE_CPP,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+        )?;
+        Some((entry_id, item_level))
+    }
+
+    fn server_normal_pre_go_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        cast_id: ObjectGuid,
+        visual: &wow_packet::packets::spell::SpellCastVisual,
+        metadata: wow_entities::SpellCastMetadata,
+    ) -> Result<
+        wow_world_spell::ServerNormalPreGoPlanLikeCpp,
+        wow_world_spell::ServerNormalPreGoFailureLikeCpp,
+    > {
+        wow_world_application::server_normal_pre_go_like_cpp(
+            self, spell_info, cast_id, visual, metadata,
+        )
+    }
+
+    fn take_server_normal_cast_item_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        metadata: wow_entities::SpellCastMetadata,
+    ) -> Result<wow_entities::SpellCastMetadata, &'static str> {
+        wow_world_application::take_server_normal_cast_item_like_cpp(self, spell_info, metadata)
+    }
+
     fn spell_cast_hook_wanted_like_cpp(&self) -> bool {
         self.module_hooks
             .wants_player_hook_like_cpp(wow_module_api::PlayerHook::SpellCast)
@@ -20,6 +74,10 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
     ) -> Option<R> {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         wow_world_application::mutate_cast_execution_like_cpp(&mut hub, state, f)
+    }
+    fn spell_has_no_unrepresented_runtime_hooks_like_cpp(&self, spell_id: u32) -> bool {
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.spell_has_no_unrepresented_runtime_hooks_like_cpp(hub, spell_id)
     }
     fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
         wow_world_inventory::has_represented_battle_pet_journal_lock_like_cpp(
@@ -96,16 +154,68 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         aura_flags: u32,
         effect_mask: u32,
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        send_update: bool,
     ) -> Result<(), &'static str> {
-        WorldSession::apply_aura_with_effect_mask_and_provenance_like_cpp(
-            self,
-            spell_id,
-            caster_guid,
-            duration_ms,
-            aura_flags,
-            effect_mask,
-            provenance,
-        )
+        self.player_aura_application_cx_like_cpp()
+            .apply_aura_with_effect_mask_provenance_and_update_like_cpp(
+                spell_id,
+                caster_guid,
+                duration_ms,
+                aura_flags,
+                effect_mask,
+                provenance,
+                send_update,
+            )
+    }
+    fn apply_ghost_wisp_aura(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        spell_info: &wow_data::SpellInfo,
+        duration_ms: u32,
+        effect_mask: u32,
+        stack_amount: u32,
+        attributes1: u32,
+        attributes5: u32,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
+    ) -> Result<(), &'static str> {
+        self.player_aura_application_cx_like_cpp()
+            .apply_ghost_wisp_aura(
+                spell_id,
+                caster_guid,
+                spell_info,
+                duration_ms,
+                effect_mask,
+                stack_amount,
+                attributes1,
+                attributes5,
+                creation,
+            )
+    }
+    fn apply_resurrection_sickness_aura(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        spell_info: &wow_data::SpellInfo,
+        duration_total: i32,
+        stack_amount: u32,
+        attributes1: u32,
+        attributes5: u32,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
+        cast_metadata: wow_entities::SpellCastMetadata,
+    ) -> Result<(), &'static str> {
+        self.player_aura_application_cx_like_cpp()
+            .apply_resurrection_sickness_aura(
+                spell_id,
+                caster_guid,
+                spell_info,
+                duration_total,
+                stack_amount,
+                attributes1,
+                attributes5,
+                creation,
+                cast_metadata,
+            )
     }
     fn apply_durability_damage_effect_like_cpp(
         &mut self,
@@ -174,11 +284,50 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
     fn apply_force_deselect_effect_like_cpp(&mut self) -> bool {
         wow_world_social::apply_force_deselect_effect_like_cpp(self)
     }
-    fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
-        wow_world_entities::set_player_ghost_flag_like_cpp(self, ghost)
+    fn apply_stuck_effect_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
+        caster_guid: ObjectGuid,
+    ) -> Pin<Box<dyn Future<Output = Result<(), &'static str>> + Send + 'a>> {
+        Box::pin(async move {
+            let result = wow_world_application::apply_stuck_effect_like_cpp(
+                self,
+                item_guid_generator,
+                creature_spawn_catalogs,
+                caster_guid,
+            )
+            .await;
+            if let Err(reason) = result {
+                if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                    tracing::info!(
+                        caster_guid = ?caster_guid,
+                        reason,
+                        "RUST_STUCK apply_stuck_effect_like_cpp_error"
+                    );
+                }
+                return Err(reason);
+            }
+            Ok(())
+        })
     }
-    fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        wow_world_entities::set_player_alive_like_cpp(self, alive)
+    fn self_resurrect_player_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
+        health: u32,
+        mana: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<(), &'static str>> + Send + 'a>> {
+        Box::pin(wow_world_entities::self_resurrect_player_like_cpp(
+            self,
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator,
+                creature_spawns: creature_spawn_catalogs,
+                graveyards: None,
+            },
+            health,
+            mana,
+        ))
     }
     #[cfg(test)]
     fn mutate_player_persistent_capability_state_like_cpp<R>(

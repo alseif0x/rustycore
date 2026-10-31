@@ -82,7 +82,7 @@ pub struct AdmittedCreatureCombatPhasesOutcomeLikeCpp {
 }
 
 impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
-    fn refused_like_cpp(
+    pub(super) fn refused_like_cpp(
         admission: CreatureExecutionAdmissionLikeCpp,
         owner: CreatureExecutionOwnerLikeCpp,
     ) -> Self {

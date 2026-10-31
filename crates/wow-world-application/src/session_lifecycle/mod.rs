@@ -27,6 +27,7 @@ use wow_world_spell::TalentHostLikeCpp;
 
 mod account_saves;
 mod cleanup;
+mod death_release;
 mod finalization;
 mod logout_hook;
 mod player_save;
@@ -36,7 +37,8 @@ pub use cleanup::cleanup_shared_runtime_state;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use finalization::execute_finalization_step;
 pub use finalization::{
-    finalize_session_with_generator_like_cpp, run_logout_timer_with_generator_like_cpp,
+    finalize_session_with_generator_like_cpp, finalize_session_with_resurrection_catalogs,
+    run_logout_timer_with_catalogs,
 };
 pub use logout_hook::PlayerLogoutHookEventLikeCpp;
 pub use player_save::{
@@ -64,6 +66,9 @@ pub trait SessionLifecycleHostLikeCpp:
     WorldportHostLikeCpp + LootSessionHostLikeCpp + TalentHostLikeCpp + PlayerSaveHostLikeCpp + Send
 {
     fn session_account_save_cx_like_cpp(&mut self) -> SessionAccountSaveCxLikeCpp<'_>;
+
+    /// WorldSession::LogoutPlayer stops combat before releasing a running death timer.
+    fn stop_combat_for_logout_death_release_like_cpp(&mut self);
 
     /// Hook port for `player.logout` (#1444 H1): C++ `ScriptMgr::OnPlayerLogout`
     /// from `WorldSession::LogoutPlayer`. The World adapter dispatches it to

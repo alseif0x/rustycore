@@ -608,6 +608,27 @@ fn gameobject_use_flagstand_removes_stealth_and_invisibility_auras_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 99);
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 41);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(1_001, 0), (1_002, 0)]);
+    for (spell_id, aura_type) in [
+        (1_001, wow_data::spell::aura_types::SPELL_AURA_MOD_STEALTH),
+        (
+            1_002,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_INVISIBILITY,
+        ),
+    ] {
+        let mut info = test_spell_info_like_cpp(spell_id);
+        info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+        info.aura_type = Some(aura_type);
+        info.effects = vec![wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: aura_type,
+            ..Default::default()
+        }];
+        spell_store.insert(spell_id, info);
+    }
+    session.set_spell_store(Arc::new(spell_store));
     session.set_player_guid(Some(player_guid));
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
 

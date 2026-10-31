@@ -19,6 +19,16 @@ use super::{
     destroy_item_count_action,
 };
 
+#[derive(Debug)]
+pub(super) enum PartialDestroyFailureLikeCpp {
+    PersistencePortUnavailable,
+    QuestPersistencePlanUnavailable,
+    Persistence { reason: String },
+    PlayerIncarnationChanged,
+    ItemCountApplicationUnavailable,
+    QuestRemovalCallbackUnavailable,
+}
+
 /// Handle CMSG_DESTROY_ITEM: delete an item from inventory.
 pub async fn handle_destroy_item<H: ItemSessionHostLikeCpp>(
     host: &mut H,
@@ -87,15 +97,6 @@ pub async fn handle_destroy_item<H: ItemSessionHostLikeCpp>(
         return;
     }
 
-    // Delete from DB
-    let inventory_port = match host
-        .lifecycle()
-        .player_inventory_persistence_port_like_cpp()
-    {
-        Some(port) => port,
-        None => return,
-    };
-
     let count_action = runtime_item
         .as_ref()
         .map(|item_object| {
@@ -107,70 +108,37 @@ pub async fn handle_destroy_item<H: ItemSessionHostLikeCpp>(
         .unwrap_or(DestroyItemCountAction::FullStack);
 
     if let DestroyItemCountAction::PartialStack { new_count } = count_action {
+        let item_entry_id = item.entry_id;
         let removed_count = runtime_item
             .as_ref()
             .map(|item_object| item_object.count().saturating_sub(new_count))
             .unwrap_or(0);
-        let Some(planned_quest_statuses) = plan_destroyed_inventory_quest_persistence_like_cpp(
+        match apply_partial_inventory_destroy_like_cpp(
             host,
-            &[DestroyQuestItemLikeCpp {
-                bag,
-                slot,
-                entry_id: item.entry_id,
-                count: removed_count,
-            }],
-        ) else {
-            return;
-        };
-        let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::PartialDestroy(
-            wow_persistence::InventoryPartialDestroyPersistenceLikeCpp {
-                owner_guid: player_guid.counter() as u64,
-                item_guid: item.db_guid,
-                new_count,
-                quest_statuses: host
-                    .hub_ref()
-                    .represented_quest_status_persistence_rows_like_cpp(&planned_quest_statuses),
-            },
-        );
-        let outcome = inventory_port
-            .persist_inventory_mutation_like_cpp(request)
-            .await;
-        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
-        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
-        {
-            warn!(error = %reason, "DestroyItem: update partial stack count failed");
-            host.core()
-                .send_packet_realm(&InventoryChangeFailure::error(
-                    InventoryResult::InternalBagError,
-                ));
-            return;
-        }
-
-        let _ = {
-            let (state, mut hub) = host.split_inventory_mut();
-            state.apply_inventory_item_object_updates_like_cpp(
-                &mut hub,
-                item.guid,
-                &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(new_count)],
-            )
-        };
-        let Some(changed_quest_ids) = host.apply_quest_item_removed_like_cpp(item.entry_id) else {
-            return;
-        };
-        debug_assert_eq!(
-            changed_quest_ids.len(),
-            planned_quest_statuses.len(),
-            "partial destroy quest persistence must match committed runtime removal"
-        );
-        host.send_packet(&UpdateObject::item_stack_count_update(
-            item.guid,
-            host.core().player_map_id_like_cpp(),
+            player_guid,
+            bag,
+            slot,
+            item,
             new_count,
-        ));
-        info!(
-            "Destroyed partial item entry={} at ({},{}) count={} for {:?}",
-            item.entry_id, bag, slot, destroy.count, player_guid
-        );
+            removed_count,
+            None,
+            "DestroyItem",
+        )
+        .await
+        {
+            Ok(()) => info!(
+                "Destroyed partial item entry={} at ({},{}) count={} for {:?}",
+                item_entry_id, bag, slot, destroy.count, player_guid
+            ),
+            Err(PartialDestroyFailureLikeCpp::Persistence { reason }) => {
+                warn!(error = %reason, "DestroyItem: update partial stack count failed");
+                host.core()
+                    .send_packet_realm(&InventoryChangeFailure::error(
+                        InventoryResult::InternalBagError,
+                    ));
+            }
+            Err(_) => {}
+        }
         return;
     }
 
@@ -190,6 +158,134 @@ pub async fn handle_destroy_item<H: ItemSessionHostLikeCpp>(
             destroyed_entry_id, bag, slot, player_guid
         );
     }
+}
+
+/// Persist and apply one partial stack removal shared by the client handler
+/// and native `Player::DestroyItemCount`. The optional owner identity is the
+/// generation-checked session Player captured by the native operation.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn apply_partial_inventory_destroy_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+    player_guid: ObjectGuid,
+    bag: u8,
+    slot: u8,
+    item: InventoryItem,
+    new_count: u32,
+    removed_count: u32,
+    expected_owner: Option<(ObjectGuid, u64)>,
+    context: &str,
+) -> Result<(), PartialDestroyFailureLikeCpp> {
+    let inventory_port = host
+        .lifecycle()
+        .player_inventory_persistence_port_like_cpp()
+        .ok_or(PartialDestroyFailureLikeCpp::PersistencePortUnavailable)?;
+    let Some(planned_quest_statuses) = plan_destroyed_inventory_quest_persistence_like_cpp(
+        host,
+        &[DestroyQuestItemLikeCpp {
+            bag,
+            slot,
+            entry_id: item.entry_id,
+            count: removed_count,
+        }],
+    ) else {
+        return Err(PartialDestroyFailureLikeCpp::QuestPersistencePlanUnavailable);
+    };
+    let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::PartialDestroy(
+        wow_persistence::InventoryPartialDestroyPersistenceLikeCpp {
+            owner_guid: player_guid.counter() as u64,
+            item_guid: item.db_guid,
+            new_count,
+            quest_statuses: host
+                .hub_ref()
+                .represented_quest_status_persistence_rows_like_cpp(&planned_quest_statuses),
+        },
+    );
+    let outcome = inventory_port
+        .persist_inventory_mutation_like_cpp(request)
+        .await;
+
+    if let Some((expected_guid, expected_generation)) = expected_owner
+        && !item_destruction_owner_matches_like_cpp(host, expected_guid, expected_generation)
+    {
+        return Err(PartialDestroyFailureLikeCpp::PlayerIncarnationChanged);
+    }
+
+    if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+    | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+    {
+        return Err(PartialDestroyFailureLikeCpp::Persistence { reason });
+    }
+
+    let count_applied = {
+        let (state, mut hub) = host.split_inventory_mut();
+        state.apply_inventory_item_object_updates_like_cpp(
+            &mut hub,
+            item.guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(new_count)],
+        )
+    };
+    if !count_applied && expected_owner.is_some() {
+        return Err(PartialDestroyFailureLikeCpp::ItemCountApplicationUnavailable);
+    }
+    let Some(changed_quest_ids) = host.apply_quest_item_removed_like_cpp(item.entry_id) else {
+        return Err(PartialDestroyFailureLikeCpp::QuestRemovalCallbackUnavailable);
+    };
+    debug_assert_eq!(
+        changed_quest_ids.len(),
+        planned_quest_statuses.len(),
+        "partial destroy quest persistence must match committed runtime removal"
+    );
+
+    let publish_update = if let Some((expected_guid, expected_generation)) = expected_owner {
+        if !item_destruction_owner_matches_like_cpp(host, expected_guid, expected_generation) {
+            return Err(PartialDestroyFailureLikeCpp::PlayerIncarnationChanged);
+        }
+        host.core()
+            .with_owned_player_like_cpp(|player| player.unit().world().object().is_in_world())
+            .ok_or(PartialDestroyFailureLikeCpp::PlayerIncarnationChanged)?
+    } else {
+        // Preserve the existing client handler's publication behavior.
+        true
+    };
+    if publish_update {
+        host.send_packet(&UpdateObject::item_stack_count_update(
+            item.guid,
+            host.core().player_map_id_like_cpp(),
+            new_count,
+        ));
+    }
+    debug!(
+        "{context}: applied partial item count entry={} bag={} slot={} count={new_count}",
+        item.entry_id, bag, slot
+    );
+    Ok(())
+}
+
+fn item_destruction_owner_matches_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &H,
+    expected_guid: ObjectGuid,
+    expected_generation: u64,
+) -> bool {
+    let actual_handle = host
+        .core()
+        .player_handle_like_cpp
+        .map(|handle| (handle.guid(), handle.generation()));
+    let current_player_guid = host
+        .core()
+        .with_owned_player_like_cpp(|player| player.guid());
+    item_destruction_identity_matches_like_cpp(
+        (expected_guid, expected_generation),
+        actual_handle,
+        current_player_guid,
+    )
+}
+
+fn item_destruction_identity_matches_like_cpp(
+    expected: (ObjectGuid, u64),
+    actual_handle: Option<(ObjectGuid, u64)>,
+    current_player_guid: Option<ObjectGuid>,
+) -> bool {
+    actual_handle == Some(expected) && current_player_guid == Some(expected.0)
 }
 
 pub fn plan_destroyed_inventory_quest_persistence_like_cpp<H: ItemSessionHostLikeCpp>(
@@ -239,12 +335,13 @@ pub async fn destroy_inventory_full_stack_by_pos_like_cpp<H: ItemSessionHostLike
     runtime_item: Option<wow_entities::Item>,
     context: &str,
 ) -> bool {
-    destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp(
+    destroy_inventory_full_stack_by_pos_common_like_cpp(
         host,
         bag,
         slot,
         item,
         runtime_item,
+        None,
         None,
         context,
     )
@@ -260,6 +357,54 @@ pub async fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp<
     item: InventoryItem,
     runtime_item: Option<wow_entities::Item>,
     expected_owner_db_guid: Option<u64>,
+    context: &str,
+) -> bool {
+    destroy_inventory_full_stack_by_pos_common_like_cpp(
+        host,
+        bag,
+        slot,
+        item,
+        runtime_item,
+        expected_owner_db_guid,
+        None,
+        context,
+    )
+    .await
+}
+
+pub(super) async fn destroy_inventory_full_stack_by_pos_with_expected_runtime_owner_like_cpp<
+    H: ItemSessionHostLikeCpp,
+>(
+    host: &mut H,
+    bag: u8,
+    slot: u8,
+    item: InventoryItem,
+    runtime_item: Option<wow_entities::Item>,
+    expected_runtime_owner: (ObjectGuid, u64),
+    context: &str,
+) -> bool {
+    destroy_inventory_full_stack_by_pos_common_like_cpp(
+        host,
+        bag,
+        slot,
+        item,
+        runtime_item,
+        None,
+        Some(expected_runtime_owner),
+        context,
+    )
+    .await
+}
+
+// Database item ownership and live Session Player incarnation are separate guards.
+async fn destroy_inventory_full_stack_by_pos_common_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+    bag: u8,
+    slot: u8,
+    item: InventoryItem,
+    runtime_item: Option<wow_entities::Item>,
+    expected_owner_db_guid: Option<u64>,
+    expected_runtime_owner: Option<(ObjectGuid, u64)>,
     context: &str,
 ) -> bool {
     let player_guid = match host.player_guid() {
@@ -352,6 +497,11 @@ pub async fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp<
     let outcome = inventory_port
         .persist_inventory_mutation_like_cpp(request)
         .await;
+    if let Some((expected_guid, expected_generation)) = expected_runtime_owner
+        && !item_destruction_owner_matches_like_cpp(host, expected_guid, expected_generation)
+    {
+        return false;
+    }
     if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
     | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
     {
@@ -364,10 +514,15 @@ pub async fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp<
     }
 
     if let Some(expected_owner_db_guid) = expected_owner_db_guid {
-        match host
+        let outcome = host
             .uncage_item_state_like_cpp(expected_owner_db_guid, item.db_guid)
-            .await
+            .await;
+        if let Some((expected_guid, expected_generation)) = expected_runtime_owner
+            && !item_destruction_owner_matches_like_cpp(host, expected_guid, expected_generation)
         {
+            return false;
+        }
+        match outcome {
             wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(state)
                 if state.owner_guid.is_none() && !state.inventory_linked => {}
             wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(state) => {
@@ -478,4 +633,26 @@ pub async fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp<
     }
 
     true
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    #[test]
+    fn item_destruction_owner_match_rejects_stale_player_generation() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let expected = (guid, 7);
+
+        assert!(item_destruction_identity_matches_like_cpp(
+            expected,
+            Some(expected),
+            Some(guid),
+        ));
+        assert!(!item_destruction_identity_matches_like_cpp(
+            expected,
+            Some((guid, 8)),
+            Some(guid),
+        ));
+    }
 }

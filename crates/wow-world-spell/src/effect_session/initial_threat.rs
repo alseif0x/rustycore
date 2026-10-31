@@ -30,6 +30,42 @@ pub fn apply_spell_initial_threat_like_cpp<H: SpellEffectHostLikeCpp>(
     target_guid: ObjectGuid,
     is_positive: bool,
 ) {
+    apply_spell_initial_threat_with_attributes(
+        host,
+        spell_id,
+        caster_guid,
+        target_guid,
+        is_positive,
+        None,
+    );
+}
+
+pub(crate) fn apply_selected_spell_initial_threat<H: SpellEffectHostLikeCpp>(
+    host: &mut H,
+    spell_id: i32,
+    caster_guid: ObjectGuid,
+    target_guid: ObjectGuid,
+    is_positive: bool,
+    attributes: &[u32; 15],
+) {
+    apply_spell_initial_threat_with_attributes(
+        host,
+        spell_id,
+        caster_guid,
+        target_guid,
+        is_positive,
+        Some(attributes),
+    );
+}
+
+fn apply_spell_initial_threat_with_attributes<H: SpellEffectHostLikeCpp>(
+    host: &mut H,
+    spell_id: i32,
+    caster_guid: ObjectGuid,
+    target_guid: ObjectGuid,
+    is_positive: bool,
+    selected_attributes: Option<&[u32; 15]>,
+) {
     let Ok(spell_id_u32) = u32::try_from(spell_id) else {
         return;
     };
@@ -39,34 +75,31 @@ pub fn apply_spell_initial_threat_like_cpp<H: SpellEffectHostLikeCpp>(
     // `!SpellInfo::HasInitialAggro()` return before calling
     // `ThreatManager::AddThreat`. The latter's engaged-owner exception
     // applies to per-effect damage threat, not this cast-level bonus.
-    if host.hub_ref().catalogs.spell_store().is_some_and(|store| {
-        store.has_attribute_for_difficulty_like_cpp(
-            spell_id,
-            difficulty,
-            difficulty_store.as_deref(),
-            1,
-            wow_data::spell::attributes::SPELL_ATTR1_NO_THREAT,
-        ) || store.has_attribute_for_difficulty_like_cpp(
-            spell_id,
-            difficulty,
-            difficulty_store.as_deref(),
-            2,
-            wow_data::spell::attributes::SPELL_ATTR2_NO_INITIAL_THREAT,
-        )
-    }) {
-        return;
-    }
-    if !is_positive
-        && host.hub_ref().catalogs.spell_store().is_some_and(|store| {
-            store.has_attribute_for_difficulty_like_cpp(
-                spell_id,
-                difficulty,
-                difficulty_store.as_deref(),
-                4,
-                wow_data::spell::attributes::SPELL_ATTR4_NO_HARMFUL_THREAT,
-            )
-        })
-    {
+    if has_spell_attribute(
+        host,
+        selected_attributes,
+        spell_id,
+        difficulty,
+        difficulty_store.as_deref(),
+        1,
+        wow_data::spell::attributes::SPELL_ATTR1_NO_THREAT,
+    ) || has_spell_attribute(
+        host,
+        selected_attributes,
+        spell_id,
+        difficulty,
+        difficulty_store.as_deref(),
+        2,
+        wow_data::spell::attributes::SPELL_ATTR2_NO_INITIAL_THREAT,
+    ) || has_spell_attribute(
+        host,
+        selected_attributes,
+        spell_id,
+        difficulty,
+        difficulty_store.as_deref(),
+        4,
+        wow_data::spell::attributes::SPELL_ATTR4_NO_HARMFUL_THREAT,
+    ) {
         return;
     }
 
@@ -126,15 +159,15 @@ pub fn apply_spell_initial_threat_like_cpp<H: SpellEffectHostLikeCpp>(
 
     // C++ positive-spell path:
     // `target->GetThreatManager().ForwardThreatForAssistingMe`.
-    if host.hub_ref().catalogs.spell_store().is_some_and(|store| {
-        store.has_attribute_for_difficulty_like_cpp(
-            spell_id,
-            difficulty,
-            difficulty_store.as_deref(),
-            4,
-            wow_data::spell::attributes::SPELL_ATTR4_NO_HELPFUL_THREAT,
-        )
-    }) {
+    if has_spell_attribute(
+        host,
+        selected_attributes,
+        spell_id,
+        difficulty,
+        difficulty_store.as_deref(),
+        4,
+        wow_data::spell::attributes::SPELL_ATTR4_NO_HELPFUL_THREAT,
+    ) {
         return;
     }
     let spell_school_mask = host
@@ -210,6 +243,31 @@ pub fn apply_spell_initial_threat_like_cpp<H: SpellEffectHostLikeCpp>(
     }
 }
 
+fn has_spell_attribute<H: SpellEffectHostLikeCpp>(
+    host: &H,
+    selected_attributes: Option<&[u32; 15]>,
+    spell_id: i32,
+    difficulty: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+    attribute_word: usize,
+    attribute: u32,
+) -> bool {
+    if let Some(attributes) = selected_attributes {
+        return attributes
+            .get(attribute_word)
+            .is_some_and(|word| word & attribute != 0);
+    }
+    host.hub_ref().catalogs.spell_store().is_some_and(|store| {
+        store.has_attribute_for_difficulty_like_cpp(
+            spell_id,
+            difficulty,
+            difficulty_store,
+            attribute_word,
+            attribute,
+        )
+    })
+}
+
 pub(crate) fn canonical_threat_aura_snapshot_for_difficulty_like_cpp<H: AuraHostLikeCpp>(
     host: &H,
     spell_id: i32,
@@ -252,6 +310,25 @@ fn sync_canonical_threat_relevant_aura_like_cpp<H: SessionHubHostLikeCpp>(
             );
         return;
     }
+    let selected_sickness = {
+        let hub = host.hub_ref();
+        let race_id = hub.player_race_like_cpp();
+        // This pass replaces canonical effect registrations. Preserve them
+        // when race data cannot distinguish sickness from ordinary auras.
+        if race_id == 0 {
+            return;
+        }
+        let Some(races) = hub.catalogs.chr.races_store.as_deref() else {
+            return;
+        };
+        let Some(race) = races.get(u32::from(race_id)) else {
+            return;
+        };
+        if race.res_sickness_spell_id < 0 {
+            return;
+        }
+        race.res_sickness_spell_id > 0 && race.res_sickness_spell_id == spell_id
+    };
     let mut hub = host.hub_mut();
     let catalogs = hub.catalogs;
     let spell_store = catalogs.spell_store().map(AsRef::as_ref);
@@ -262,6 +339,8 @@ fn sync_canonical_threat_relevant_aura_like_cpp<H: SessionHubHostLikeCpp>(
             caster_guid,
             slot,
             effect_mask,
+            selected_sickness,
+            false,
             represented_effect_amounts,
             spell_store,
             difficulty_store,

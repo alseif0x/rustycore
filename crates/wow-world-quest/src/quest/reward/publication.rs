@@ -6,19 +6,6 @@
 use super::QuestRewardCx;
 
 impl QuestRewardCx<'_> {
-    pub(super) fn send_quest_reward_log_slot_update_like_cpp(&self, slot: u8) {
-        let owner = self.player.quest_objective_access_like_cpp();
-        let publication = self.player.packet_publication_access_like_cpp();
-        super::super::quest_log::send_represented_quest_log_slot_update_like_cpp(
-            &owner,
-            self.quest_state,
-            self.catalogs,
-            &publication,
-            slot,
-            self.world_test_consumer,
-        );
-    }
-
     pub(super) fn sync_quest_reward_registry_like_cpp(
         &self,
         loot: &wow_world_loot::LootState,

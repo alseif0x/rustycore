@@ -89,8 +89,6 @@ pub fn handle_apply_player_melee_result_like_cpp_command_like_cpp<H: WorldEntiti
                     absorbed: 0,
                     victim_state: swing.victim_state,
                     school_mask: 1,
-                    target_level: command.target_level,
-                    expansion: 2,
                 }
                 .to_bytes(),
             );

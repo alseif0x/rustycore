@@ -41,6 +41,8 @@ impl SessionCore {
             object_data: None,
             unit_data: Some(UnitDataUpdate {
                 mask,
+                aura_state: 0,
+                aura_state_per_caster: Vec::new(),
                 values: UnitDataValues {
                     health,
                     ..Default::default()
@@ -48,6 +50,7 @@ impl SessionCore {
             }),
             player_data: None,
             active_player_data: None,
+            derived_stats: None,
         };
 
         if let Some(packet) =
@@ -58,7 +61,8 @@ impl SessionCore {
     }
 
     pub fn send_player_health_update_like_cpp(&self, guid: ObjectGuid, health: u64) {
-        self.send_packet(&wow_packet::packets::combat::HealthUpdate {
+        // C++ Opcodes.cpp:1564 registers SMSG_HEALTH_UPDATE on REALM.
+        self.send_packet_realm(&wow_packet::packets::combat::HealthUpdate {
             guid,
             health: health.min(i64::MAX as u64) as i64,
         });

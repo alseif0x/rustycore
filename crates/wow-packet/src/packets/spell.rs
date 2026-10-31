@@ -29,6 +29,9 @@ mod cast_payload;
 #[cfg(test)]
 mod cast_tests;
 mod cast_types;
+mod resurrection;
+
+pub use resurrection::ResurrectRequest;
 
 pub use cast_types::{
     CreatureImmunities, MissileTrajectoryResult, RuneData, SpellCastData, SpellHealPrediction,

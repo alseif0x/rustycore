@@ -4,6 +4,7 @@
 //! unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::quest_status_keep_abandoned_like_cpp;
 
 #[test]
 fn world_listener_captures_application_resources_outside_transport_boundary() {
@@ -175,9 +176,41 @@ fn session_resources_requires_named_capability_bundles() {
         !session_resources.contains("Option<"),
         "named capability bundles must be mandatory at production construction"
     );
+    // This unresolved cleaner-policy fact is configuration data, not an optional resource.
+    let optional_policy_field = "pub(super) quest_status_keep_abandoned: Option<bool>,";
+    assert_eq!(
+        resources_source.matches(optional_policy_field).count(),
+        1,
+        "the unresolved cleaner policy remains the one allowed optional config fact"
+    );
+    let resources_without_optional_policy = resources_source.replace(optional_policy_field, "");
     assert!(
-        !resources_source.contains("Option<"),
+        !resources_without_optional_policy.contains("Option<"),
         "every inner production capability must also be required by its Rust type"
+    );
+    let spell_capabilities = resources_source
+        .split("pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {")
+        .nth(1)
+        .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
+        .expect("SessionSpellCatalogCapabilitiesLikeCpp declaration should be present");
+    assert!(
+        spell_capabilities.contains(
+            "pub(super) serverside_spell_store: Arc<wow_data::ServersideSpellStoreLikeCpp>,"
+        ),
+        "the spell catalog bundle must require the canonical serverside spell catalog"
+    );
+    let world_capabilities = resources_source
+        .split("pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {")
+        .nth(1)
+        .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
+        .expect("SessionWorldCatalogCapabilitiesLikeCpp declaration should be present");
+    assert!(
+        world_capabilities.contains("pub(super) graveyards: Arc<wow_data::GraveyardStore>,"),
+        "EffectStuck's real graveyard repop requires the World catalog capability"
+    );
+    assert!(
+        resources_source.contains("session.set_graveyard_store(Arc::clone(&self.graveyards));"),
+        "the required World graveyard capability must be installed into the session"
     );
     for retired_test_only_catalog in [
         "adventure_map_poi_store",
@@ -199,7 +232,6 @@ fn session_resources_requires_named_capability_bundles() {
         "emotes_text_store",
         "feature_system_bpay_store_enabled",
         "feature_system_character_undelete_enabled",
-        "graveyard_store",
         "import_price_stores",
         "item_class_store",
         "item_currency_cost_store",
@@ -215,7 +247,6 @@ fn session_resources_requires_named_capability_bundles() {
         "player_create_info_store",
         "party_level_req",
         "party_raid_warnings",
-        "serverside_spell_store",
         "spell_enchant_proc_store",
         "spell_totem_model_store",
         "tact_key_store",
@@ -933,6 +964,38 @@ fn account_instances_per_hour_uses_cpp_world_config_key() {
         7
     );
 }
+
+#[test]
+fn quest_status_cleaner_policy_keeps_only_source_proven_modes() {
+    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+    // CharacterDatabaseCleaner.cpp:30-62 returns before reading flags when disabled.
+    wow_config::load_config_from_str("CleanCharacterDB = 0\nPersistentCharacterCleanFlags = 16\n")
+        .expect("config should load");
+    assert_eq!(
+        quest_status_keep_abandoned_like_cpp(&wow_config::load_world_config_values()),
+        Some(true)
+    );
+
+    // The cleaner post-mask `flags &= configuredPersistentFlags` clears the
+    // Source QUESTSTATUS bit (Player.cpp:20146) when the configured mask omits it.
+    wow_config::load_config_from_str("CleanCharacterDB = 1\nPersistentCharacterCleanFlags = 0\n")
+        .expect("config should load");
+    assert_eq!(
+        quest_status_keep_abandoned_like_cpp(&wow_config::load_world_config_values()),
+        Some(true)
+    );
+
+    // A mask that preserves QUESTSTATUS depends on the missing world_variable
+    // cleaner state and must remain unresolved here.
+    wow_config::load_config_from_str("CleanCharacterDB = 1\nPersistentCharacterCleanFlags = 16\n")
+        .expect("config should load");
+    assert_eq!(
+        quest_status_keep_abandoned_like_cpp(&wow_config::load_world_config_values()),
+        None
+    );
+}
+
 #[test]
 fn chat_fake_message_preventing_uses_cpp_world_config_key() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");

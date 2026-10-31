@@ -18,7 +18,7 @@ use super::protocol::{
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
     DestroyVisibleObjectLikeCppCommand, ReconcilePvpCombatExpiryLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
+    SendPlayerAuraUpdateCommand, SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
 };
 
 /// Retained FIFO handoff for committed map-owned creature transitions and
@@ -46,6 +46,10 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         command: SendPlayerSpellIfVisibleLikeCppCommand,
     ) -> bool {
         self.publish_like_cpp(SessionCommand::SendPlayerSpellIfVisibleLikeCpp(command))
+    }
+
+    pub fn publish_player_aura_update(&mut self, command: SendPlayerAuraUpdateCommand) -> bool {
+        self.publish_like_cpp(SessionCommand::SendPlayerAuraUpdate(command))
     }
 
     fn publish_like_cpp(&mut self, command: SessionCommand) -> bool {
@@ -154,8 +158,14 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
                 .iter()
                 .rposition(SessionCommand::is_directed_object_destroy_like_cpp)
                 .map_or(0, |index| index + 1);
+            let after_committed_aura = commands
+                .iter()
+                .rposition(SessionCommand::is_committed_aura_update)
+                .map_or(0, |index| index + 1);
             commands.insert(
-                first_visible.max(after_directed_destroy),
+                first_visible
+                    .max(after_directed_destroy)
+                    .max(after_committed_aura),
                 SessionCommand::RefreshDeferredPlayerVisibilityLikeCpp(intent),
             );
         }

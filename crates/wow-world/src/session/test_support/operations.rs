@@ -7,7 +7,7 @@ use super::*;
 
 impl WorldSession {
     #[cfg(test)]
-    pub(in crate::session) fn initial_player_fixture_like_cpp(&self) -> Option<Player> {
+    pub(crate) fn initial_player_fixture_like_cpp(&self) -> Option<Player> {
         self.build_initial_player_for_owner_like_cpp(
             wow_map::MapKey::new(u32::from(self.core.player_map_id_like_cpp()), 0),
             None,

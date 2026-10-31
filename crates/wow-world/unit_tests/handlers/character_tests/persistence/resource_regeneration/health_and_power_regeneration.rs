@@ -179,7 +179,7 @@ fn polymorph_transform_aura_allows_in_combat_health_regeneration_like_cpp() {
     // `SPELL_AURA_TRANSFORM` effect owns `Unit::m_transformSpell`. The MAGE
     // class options (`SpellClassOptions.db2`) classify the spell specific as
     // `SPELL_SPECIFIC_MAGE_POLYMORPH`.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(118, 0)]);
     spell_store.insert(
         118,
         wow_data::SpellInfo {

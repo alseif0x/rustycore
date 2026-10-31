@@ -24,6 +24,7 @@ const COMPLETED: u8 = 2;
 const REVOKED_BEFORE_START: u8 = 3;
 const REFUSED_BEFORE_START: u8 = 4;
 const INTERRUPTED_AFTER_START: u8 = 5;
+const COMPLETED_UNAVAILABLE: u8 = 6;
 
 /// The observable state of one admitted pass.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -34,6 +35,10 @@ pub enum SessionPhasePermitStateLikeCpp {
     Running,
     /// The session finished the pass and its tails.
     Completed,
+    /// The pass reached a terminal boundary with no live effects, but its
+    /// owner reported that the producer must abandon this tick's remaining
+    /// phases.
+    CompletedUnavailable,
     /// The coordinator won the race at the deadline: the pass provably never
     /// ran any effect and never will.
     RevokedBeforeStart,
@@ -88,6 +93,7 @@ impl SessionPhasePermitLikeCpp {
             PENDING => SessionPhasePermitStateLikeCpp::Pending,
             RUNNING => SessionPhasePermitStateLikeCpp::Running,
             COMPLETED => SessionPhasePermitStateLikeCpp::Completed,
+            COMPLETED_UNAVAILABLE => SessionPhasePermitStateLikeCpp::CompletedUnavailable,
             REVOKED_BEFORE_START => SessionPhasePermitStateLikeCpp::RevokedBeforeStart,
             REFUSED_BEFORE_START => SessionPhasePermitStateLikeCpp::RefusedBeforeStart,
             _ => SessionPhasePermitStateLikeCpp::InterruptedAfterStart,
@@ -144,6 +150,20 @@ impl SessionPhasePermitLikeCpp {
     pub fn complete_like_cpp(&self) -> bool {
         self.state
             .compare_exchange(RUNNING, COMPLETED, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+    }
+
+    /// Session side: finish a claimed Recovery pass whose Player state is
+    /// unavailable. The pass is quiescent, while its terminal state preserves
+    /// the required tick-tail fence even if the reply is lost.
+    pub fn complete_unavailable(&self) -> bool {
+        self.state
+            .compare_exchange(
+                RUNNING,
+                COMPLETED_UNAVAILABLE,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
             .is_ok()
     }
 

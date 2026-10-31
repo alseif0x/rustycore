@@ -104,8 +104,16 @@ pub fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
 
 mod enchantment;
 mod equipment;
+mod obtain;
+mod spell_costs;
 mod storage;
 mod storage_move;
+
+pub use spell_costs::{
+    PlayerSpellCastCurrencyDebitActionLikeCpp, PlayerSpellCastItemDebitActionLikeCpp,
+    PlayerSpellCastItemUseOutcomeLikeCpp, PlayerSpellCastItemUsePlanLikeCpp,
+    PlayerSpellCastResourceDebitOutcomeLikeCpp, PlayerSpellCastResourceDebitPlanLikeCpp,
+};
 
 pub use storage_move::{
     ExistingStorageStackUpdateLikeCpp, InventoryStorageMovePlanLikeCpp,

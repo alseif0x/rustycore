@@ -369,7 +369,7 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
             inventory_type: Some(InventoryType::Weapon as u8),
         },
     );
-    let item = session.make_inventory_item_object(
+    let mut item = session.make_inventory_item_object(
         item_guid,
         100,
         player_guid,
@@ -378,6 +378,8 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
         ItemContext::None,
         23,
     );
+    // Preserve this repair-NPC case's ten-point loss and exact repair charge.
+    item.set_max_durability(50);
     session.insert_inventory_item_object(item);
     session
         .mutate_canonical_player_like_cpp(|player| {
@@ -391,6 +393,18 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
         None,
     );
     feign_death.spell_id = 5384;
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(5384, 0)]);
+    let mut feign_info = test_spell_info_like_cpp(5384);
+    feign_info.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+    feign_info.aura_type = Some(66); // Pinned C++ SPELL_AURA_FEIGN_DEATH is 66.
+    feign_info.effects = vec![wow_data::SpellEffectInfo {
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        effect_aura: 66,
+        ..Default::default()
+    }];
+    spell_store.insert(5384, feign_info);
+    session.set_spell_store(Arc::new(spell_store));
     assert!(session.insert_player_visible_aura_like_cpp(feign_death));
 
     session
@@ -613,7 +627,7 @@ async fn repair_all_inventory_item_durability_charges_once_like_cpp() {
             inventory_type: Some(InventoryType::Bag as u8),
         },
     );
-    let weapon = session.make_inventory_item_object(
+    let mut weapon = session.make_inventory_item_object(
         weapon_guid,
         100,
         player_guid,
@@ -622,6 +636,9 @@ async fn repair_all_inventory_item_durability_charges_once_like_cpp() {
         ItemContext::None,
         EQUIPMENT_SLOT_OFFHAND,
     );
+    // Explicit instance maxima keep the repair-cost rounding inputs independent
+    // of effective template derivation, which has its own catalog regressions.
+    weapon.set_max_durability(50);
     let bag = session.make_inventory_item_object(
         bag_guid,
         200,
@@ -640,6 +657,7 @@ async fn repair_all_inventory_item_durability_charges_once_like_cpp() {
         ItemContext::None,
         0,
     );
+    armor.set_max_durability(13);
     armor.set_container_guid_and_slot(bag_guid, 0);
     session.insert_inventory_item_object(weapon);
     session.insert_inventory_item_object(bag);

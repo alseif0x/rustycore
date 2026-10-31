@@ -13,6 +13,31 @@ use wow_world_entities::PlayerMovementHostLikeCpp;
 use super::*;
 
 impl PlayerMovementHostLikeCpp for WorldSession {
+    fn apply_native_player_damage_like_cpp<'a>(
+        &'a mut self,
+        damage: u32,
+        context: wow_entities::PlayerDeathOperationContext,
+        creature_spawns: &'a CreatureSpawnCatalogsLikeCpp,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+    ) -> wow_handler::HandlerFuture<
+        'a,
+        Result<wow_world_core::session::PlayerDamageResultLikeCpp, &'static str>,
+    > {
+        Box::pin(async move {
+            let result = wow_world_application::apply_player_damage_with_native_death_like_cpp(
+                self,
+                damage,
+                context,
+                creature_spawns,
+                item_guid_generator,
+            )
+            .await;
+            if let Err(reason) = result {
+                self.core.kick(reason);
+            }
+            result
+        })
+    }
     type AreaTriggerCatalogsLikeCpp = AreaTriggerCatalogsLikeCpp;
 
     fn resolved_has_represented_aura_effect_like_cpp(
@@ -83,6 +108,15 @@ impl PlayerMovementHostLikeCpp for WorldSession {
 }
 
 impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
+    fn revive_for_teleport<'a>(
+        &'a mut self,
+        catalogs: wow_world_entities::ResurrectionOperationCatalogs<'a>,
+        map_id: u32,
+        destination: Position,
+    ) -> impl Future<Output = bool> + Send + 'a {
+        wow_world_entities::revive_player_for_teleport(self, catalogs, map_id, destination)
+    }
+
     fn is_map_disabled_for_player_like_cpp(&self, map_id: u32) -> bool {
         let (state, hub) = crate::session::split_instances_ref(self);
         state.is_map_disabled_for_player_like_cpp(hub, map_id)

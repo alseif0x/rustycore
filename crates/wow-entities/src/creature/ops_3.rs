@@ -70,6 +70,7 @@ impl Creature {
             crate::AuraCastProvenanceLikeCpp {
                 cast_id,
                 spell_visual_id,
+                caster_level: None,
             },
         );
         true

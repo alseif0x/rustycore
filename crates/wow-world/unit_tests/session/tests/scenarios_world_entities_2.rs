@@ -844,9 +844,15 @@ async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
         );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
     session
         .on_creature_killed(creature_entry, creature_guid)
         .await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
@@ -859,7 +865,7 @@ async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
             new_status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
             send_quest_update_called: true,
             quest_slot_state_complete_represented: true,
-            quest_slot_state_live_update_unrepresented: true,
+            quest_slot_state_live_update_unrepresented: false,
             visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
             spell_area_runtime_unrepresented: true,
             tracking_event_auto_reward_unrepresented: false,
@@ -871,9 +877,9 @@ async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }

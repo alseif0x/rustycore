@@ -26,34 +26,68 @@ use wow_persistence::{
     PlayerBuybackClearRequestLikeCpp, PlayerCharacterAuraEffectLoadRowLikeCpp,
     PlayerCharacterAuraLoadRowLikeCpp, PlayerCharacterBaseLoadOutcomeLikeCpp,
     PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerCufProfileLoadRowLikeCpp, PlayerCurrencyLoadRowLikeCpp,
-    PlayerCurrencySaveRequestLikeCpp, PlayerCustomizationLoadRowLikeCpp,
-    PlayerDurabilityRepairSaveLikeCpp, PlayerEquipmentInventoryLoadRowLikeCpp,
-    PlayerEquipmentSetLoadRowLikeCpp, PlayerGlyphLoadRowLikeCpp,
-    PlayerGuildMembershipLoadRowLikeCpp, PlayerHomebindLocationLoadRowLikeCpp,
-    PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
-    PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
-    PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerLoginAdmissionLoadOutcomeLikeCpp,
-    PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAdmissionLoadedLikeCpp,
-    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
-    PlayerLoginPetTalentResetOutcomeLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
-    PlayerLoginTransportLoadRequestLikeCpp, PlayerMailLoadRowLikeCpp,
-    PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
-    PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
-    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
-    PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
-    PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
-    PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
-    PlayerReputationLoadRowLikeCpp, PlayerSkillLoadRowLikeCpp, PlayerSpellChargeLoadRowLikeCpp,
-    PlayerSpellCooldownLoadRowLikeCpp, PlayerSpellLoadRowLikeCpp, PlayerTalentLoadRowLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerCorpseLocationLoadRow, PlayerCufProfileLoadRowLikeCpp,
+    PlayerCurrencyLoadRowLikeCpp, PlayerCurrencySaveRequestLikeCpp,
+    PlayerCustomizationLoadRowLikeCpp, PlayerDurabilityRepairSaveLikeCpp,
+    PlayerEquipmentInventoryLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
+    PlayerGlyphLoadRowLikeCpp, PlayerGuildMembershipLoadRowLikeCpp,
+    PlayerHomebindLocationLoadRowLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
+    PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
+    PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
+    PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAdmissionLoadOutcomeLikeCpp, PlayerLoginAdmissionLoadRequestLikeCpp,
+    PlayerLoginAdmissionLoadedLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
+    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
+    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
+    PlayerMailLoadRowLikeCpp, PlayerMoneyTransactionOutcomeLikeCpp,
+    PlayerMoneyTransactionRequestLikeCpp, PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerOnlineMarkRequestLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSaveTransactionLikeCpp,
+    PlayerPetSpellChargeLoadRowLikeCpp, PlayerPetSpellCooldownLoadRowLikeCpp,
+    PlayerPetSpellLoadRowLikeCpp, PlayerPetStableLoadRowLikeCpp,
+    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerReputationLoadRowLikeCpp,
+    PlayerSkillLoadRowLikeCpp, PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
+    PlayerSpellLoadRowLikeCpp, PlayerTalentLoadRowLikeCpp,
     PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
     PlayerTraitEntryLoadRowLikeCpp, PlayerTransmogOutfitLoadRowLikeCpp,
     PlayerUncageItemStateLikeCpp, PlayerUncageItemStateLoadOutcomeLikeCpp,
     PlayerUncageItemStateRequestLikeCpp, PlayerVoidStorageLoadRowLikeCpp,
     PlayerXpPersistenceRequestLikeCpp,
 };
+
+fn decode_character_aura_row(
+    result: &crate::SqlResult,
+) -> Option<PlayerCharacterAuraLoadRowLikeCpp> {
+    Some(PlayerCharacterAuraLoadRowLikeCpp {
+        caster_guid_binary: result.try_read::<Vec<u8>>(0)?,
+        item_guid_binary: result.try_read::<Vec<u8>>(1)?,
+        spell_id: result.try_read::<u32>(2)?,
+        effect_mask: result.try_read::<u32>(3)?,
+        recalculate_mask: result.try_read::<u32>(4)?,
+        difficulty: result.try_read::<u8>(5)?,
+        stack_count: result.try_read::<u8>(6)?,
+        max_duration_ms: result.try_read::<i32>(7)?,
+        remain_time_ms: result.try_read::<i32>(8)?,
+        remain_charges: result.try_read::<u8>(9)?,
+        cast_item_id: result.try_read::<u32>(10)?,
+        cast_item_level: result.try_read::<i32>(11)?,
+    })
+}
+
+fn decode_character_aura_effect_row(
+    result: &crate::SqlResult,
+) -> Option<PlayerCharacterAuraEffectLoadRowLikeCpp> {
+    Some(PlayerCharacterAuraEffectLoadRowLikeCpp {
+        caster_guid_binary: result.try_read::<Vec<u8>>(0)?,
+        item_guid_binary: result.try_read::<Vec<u8>>(1)?,
+        spell_id: result.try_read::<u32>(2)?,
+        effect_mask: result.try_read::<u32>(3)?,
+        effect_index: result.try_read::<u8>(4)?,
+        amount: result.try_read::<i32>(5)?,
+        base_amount: result.try_read::<i32>(6)?,
+    })
+}
 
 pub(crate) mod economy;
 use economy::{
@@ -69,6 +103,8 @@ use login_writes::{
     player_homebind_persistence_statement_like_cpp, player_login_item_repair_statements_like_cpp,
     player_login_pet_talent_reset_statements_like_cpp, player_online_mark_statement_like_cpp,
 };
+mod pet_save;
+use pet_save::player_pet_save_statements_like_cpp;
 mod save_plan;
 mod save_steps;
 use save_plan::player_character_save_statements_like_cpp;
@@ -1292,19 +1328,12 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     let mut rows = Vec::new();
                     if !result.is_empty() {
                         loop {
-                            rows.push(PlayerCharacterAuraLoadRowLikeCpp {
-                                caster_guid_binary: result
-                                    .try_read::<Vec<u8>>(0)
-                                    .unwrap_or_default(),
-                                spell_id: result.try_read::<u32>(2).unwrap_or(0),
-                                effect_mask: result.try_read::<u32>(3).unwrap_or(0),
-                                recalculate_mask: result.try_read::<u32>(4).unwrap_or(0),
-                                difficulty: result.try_read::<u8>(5).unwrap_or(0),
-                                stack_count: result.try_read::<u8>(6).unwrap_or(1),
-                                max_duration_ms: result.try_read::<i32>(7).unwrap_or(0),
-                                remain_time_ms: result.try_read::<i32>(8).unwrap_or(0),
-                                remain_charges: result.try_read::<u8>(9).unwrap_or(0),
-                            });
+                            let Some(row) = decode_character_aura_row(&result) else {
+                                return PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                                    reason: "invalid character aura row".to_owned(),
+                                };
+                            };
+                            rows.push(row);
                             if !result.next_row() {
                                 break;
                             }
@@ -1316,16 +1345,12 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     let mut rows = Vec::new();
                     if !result.is_empty() {
                         loop {
-                            rows.push(PlayerCharacterAuraEffectLoadRowLikeCpp {
-                                caster_guid_binary: result
-                                    .try_read::<Vec<u8>>(0)
-                                    .unwrap_or_default(),
-                                spell_id: result.try_read::<u32>(2).unwrap_or(0),
-                                effect_mask: result.try_read::<u32>(3).unwrap_or(0),
-                                effect_index: result.try_read::<u8>(4).unwrap_or(0),
-                                amount: result.try_read::<i32>(5).unwrap_or(0),
-                                base_amount: result.try_read::<i32>(6).unwrap_or(0),
-                            });
+                            let Some(row) = decode_character_aura_effect_row(&result) else {
+                                return PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                                    reason: "invalid character aura effect row".to_owned(),
+                                };
+                            };
+                            rows.push(row);
                             if !result.next_row() {
                                 break;
                             }
@@ -1384,6 +1409,16 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                         }
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::VoidStorage(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::CorpseLocation { .. } => {
+                    let row = (!result.is_empty()).then(|| PlayerCorpseLocationLoadRow {
+                        map_id: result.try_read(0),
+                        x: result.try_read(1),
+                        y: result.try_read(2),
+                        z: result.try_read(3),
+                        orientation: result.try_read(4),
+                    });
+                    PlayerLoginAuxiliaryLoadedLikeCpp::CorpseLocation(row)
                 }
             };
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
@@ -1451,6 +1486,37 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
             PlayerLoginPetTalentResetOutcomeLikeCpp {
                 spell_delete,
                 specialization_reset,
+            }
+        })
+    }
+
+    fn persist_pet_save_transaction_like_cpp<'a>(
+        &'a self,
+        request: PlayerPetSaveTransactionLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statements = player_pet_save_statements_like_cpp(request);
+            let rows = statements.len() as u64;
+            let mut transaction = SqlTransaction::new();
+            for statement in statements {
+                transaction.append(statement);
+            }
+
+            match transaction
+                .commit_with_outcome_like_cpp(self.character_db.pool())
+                .await
+            {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                    PersistenceOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    }
+                }
+                Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                    PersistenceOutcomeLikeCpp::Unknown {
+                        reason: error.to_string(),
+                    }
+                }
             }
         })
     }

@@ -11,6 +11,17 @@ does not prove reachability, exact phase order or lock safety.
 
 ## Why a trace before a cut
 
+**#43 working integration — 2026-10-27, uncommitted after `7b09213ca`:**
+The existing canonical producer now calls the admitted async combat entry from
+`canonical_creature_runtime.rs` before resuming the same Map plan. A lethal
+Player hit retains its operation on the canonical Player and awaits the existing
+Session phase rail. Every Map borrow ends before delivery or await; the same
+combat future resumes afterward, without another task, clock or replay cursor.
+The operation identity permits several deaths within one Map epoch. An unresolved
+operation retains the producer barrier and prevents its tick tail and later
+ticks. This is a description of the working call path, not accepted runtime
+evidence; [STATE.md](../migration/STATE.md) owns its checks and remaining limits.
+
 **#787 composition correction — 2026-09-12:** the canonical producer now owns
 World-before-Map scheduling through each session's phase rail. Its implementation
 is `runtime/map/update_loop.rs`, re-exported from `runtime/map.rs`; this is the

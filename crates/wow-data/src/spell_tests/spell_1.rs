@@ -271,6 +271,7 @@ fn exact_spell_info_key_does_not_fabricate_hydrated_payload() {
 
     assert!(store.contains_spell_info_exact_like_cpp(100, 0));
     assert!(store.get(100).is_none());
+    assert_eq!(store.misc_attributes_for_exact_difficulty(100, 0), None);
     assert_eq!(
         store.spell_info_keys_in_order_like_cpp(),
         [(100, 0), (200, 1), (200, 2)]
@@ -339,6 +340,92 @@ fn spell_store_db2_loader_keeps_mount_aura_spells_like_cpp() {
     );
     assert!(store.has_attribute0_like_cpp(spell_id as i32, attributes::SPELL_ATTR0_NO_AURA_CANCEL));
 }
+
+#[test]
+fn selected_effect_polarity_metadata_preserves_raw_db2_inputs_and_unknown_legacy_state() {
+    let spell_id = 72_001;
+    let mut base_effect = test_spell_effect_db2_entry_like_cpp(
+        1,
+        spell_id,
+        0,
+        0,
+        spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        0,
+    );
+    base_effect.effect_attributes = -0x12345;
+    base_effect.effect_real_points_per_level = -2.75;
+    base_effect.coefficient = -0.625;
+    base_effect.variance = -1.25;
+    base_effect.effect_base_points = 37;
+    base_effect.effect_die_sides = 4;
+    base_effect.effect_misc_value = [11, -12];
+    base_effect.implicit_target = [1, 2];
+
+    let zero_effect = test_spell_effect_db2_entry_like_cpp(
+        2,
+        spell_id,
+        2,
+        0,
+        spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        0,
+    );
+    let store = SpellStore::from_spell_db2_stores_like_cpp(
+        &crate::spell_db2::SpellCategoriesStore::from_entries([]),
+        &crate::spell_db2::SpellMiscStore::from_entries([test_spell_misc_entry_like_cpp(
+            1, spell_id, 0, 0,
+        )]),
+        &crate::spell_db2::SpellEffectDb2Store::from_entries([base_effect, zero_effect]),
+        &crate::spell_db2::SpellShapeshiftStore::from_entries([]),
+    );
+
+    let base_effects = store
+        .get(spell_id as i32)
+        .expect("base spell loaded")
+        .effects();
+    assert_eq!(base_effects.len(), 1);
+    let base_effect = &base_effects[0];
+    let metadata = base_effect
+        .polarity_metadata
+        .expect("raw DB2 polarity inputs retained");
+    assert_eq!(metadata.attributes, (-0x12345_i32) as u32);
+    assert_eq!(
+        metadata.real_points_per_level.to_bits(),
+        (-2.75_f32).to_bits()
+    );
+    assert_eq!(
+        metadata.scaling_coefficient.to_bits(),
+        (-0.625_f32).to_bits()
+    );
+    assert_eq!(metadata.scaling_variance.to_bits(), (-1.25_f32).to_bits());
+    assert_eq!(base_effect.effect_base_points, 37);
+    assert_eq!(base_effect.effect_die_sides, 4);
+    assert_eq!(base_effect.effect_misc_value_1, 11);
+    assert_eq!(base_effect.effect_misc_value_2, -12);
+    assert_eq!(base_effect.implicit_target_1, 1);
+    assert_eq!(base_effect.implicit_target_2, 2);
+
+    let difficulty_effects = store
+        .effects_for_difficulty_like_cpp(spell_id as i32, 2, None)
+        .expect("exact difficulty effect row");
+    assert_eq!(difficulty_effects.len(), 1);
+    assert_eq!(
+        difficulty_effects[0].polarity_metadata,
+        Some(SpellEffectPolarityMetadata::default()),
+        "an actual all-zero DB2 row is known zero metadata"
+    );
+
+    let legacy_effect = SpellEffectInfo {
+        polarity_metadata: None,
+        ..Default::default()
+    };
+    assert_eq!(SpellEffectInfo::default().polarity_metadata, None);
+    assert_eq!(legacy_effect.polarity_metadata, None);
+    assert_ne!(
+        difficulty_effects[0].polarity_metadata,
+        legacy_effect.polarity_metadata
+    );
+}
+
 #[test]
 fn spell_store_db2_loader_keeps_channeled_spell_attr1_like_cpp() {
     let spell_id = 51_588;

@@ -450,6 +450,9 @@ fn total_stat_percentage_non_ability_keeps_current_health_like_cpp() {
     session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(
         spell_id, false,
     )));
+    session.set_chr_races_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([]),
+    ));
     session.set_state(crate::session::SessionState::LoggedIn);
 
     session

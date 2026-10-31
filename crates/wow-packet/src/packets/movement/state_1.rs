@@ -784,7 +784,7 @@ impl MoveTeleportAck {
 /// Sent to the moved player on a same-map teleport.
 ///
 /// Mirrors C++ `WorldPackets::Movement::MoveTeleport::Write` for the
-/// no-transport/no-vehicle case currently represented by Rust near teleports.
+/// no-vehicle case currently represented by Rust near teleports.
 #[derive(Debug, Clone)]
 pub struct MoveTeleport {
     pub mover_guid: ObjectGuid,
@@ -799,7 +799,7 @@ impl ServerPacket for MoveTeleport {
     const OPCODE: ServerOpcodes = ServerOpcodes::MoveTeleport;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_guid(&self.mover_guid);
+        pkt.write_packed_guid(&self.mover_guid);
         pkt.write_uint32(self.sequence_index);
         pkt.write_float(self.position.x);
         pkt.write_float(self.position.y);
@@ -810,7 +810,7 @@ impl ServerPacket for MoveTeleport {
         pkt.write_bit(false); // Vehicle payload not represented yet.
         pkt.flush_bits();
         if let Some(transport_guid) = self.transport_guid {
-            pkt.write_guid(&transport_guid);
+            pkt.write_packed_guid(&transport_guid);
         }
     }
 }

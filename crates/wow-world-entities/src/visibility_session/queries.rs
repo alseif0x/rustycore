@@ -206,100 +206,123 @@ fn gameobject_create_data_from_canonical_like_cpp<H: VisibilitySessionHostLikeCp
 pub fn visible_world_creatures_from_map_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &H,
     map_id: u16,
-    position: &wow_core::Position,
+    _position: &wow_core::Position,
 ) -> Vec<wow_entities::Creature> {
-    if host
-        .core()
-        .current_canonical_player_map_key_like_cpp()
-        .is_some_and(|key| key.map_id != u32::from(map_id))
-    {
-        return Vec::new();
-    }
-
     // These candidates carry the canonical runtime state, including the
-    // live `Unit::movespline` a create block projects.
-    visible_creatures_from_canonical_map_like_cpp(host, map_id, position).unwrap_or_default()
+    // live `Unit::movespline` a create block projects. The caller's position
+    // is retained for API compatibility; spatial ownership comes from the
+    // generation-stamped canonical Player and its actual viewpoint.
+    visible_creatures_from_canonical_map_like_cpp(host, map_id, _position).unwrap_or_default()
 }
 
 pub fn visible_creatures_from_canonical_map_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &H,
     map_id: u16,
-    position: &wow_core::Position,
+    _position: &wow_core::Position,
 ) -> Option<Vec<wow_entities::Creature>> {
     let requested_map_id = u32::from(map_id);
-    let player_map_key = host.core().current_canonical_player_map_key_like_cpp();
-    let player_map_key = player_map_key?;
-    if player_map_key.map_id != requested_map_id {
-        return Some(Vec::new());
+    let handle = host.core().player_handle_like_cpp?;
+    if host.player_guid()? != handle.guid() {
+        return None;
     }
-    let source_combat_reach = host
+    let client_visible = host
         .core()
-        .with_owned_player_like_cpp(|player| player.unit().world().combat_reach())?;
-    let player_phase_shift = host.represented_player_phase_shift_like_cpp()?;
+        .client_visible_guids_like_cpp
+        .snapshot_like_cpp();
     let manager = host.core().canonical_map_manager.as_ref()?;
     let Ok(manager) = manager.lock() else {
         return None;
     };
-    let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
-    let visibility_range = host
-        .hub_ref()
-        .config
-        .player_map_visibility_range_like_cpp(map_id);
-    let nearby = map.map().nearby_cell_guids_like_cpp(
-        position.x,
-        position.y,
-        visibility_range + source_combat_reach,
-    );
-
-    let mut candidates = Vec::new();
-    for guid in nearby
-        .world
-        .creatures
-        .into_iter()
-        .chain(nearby.grid.creatures)
-    {
-        let Some(creature) = map
-            .map()
-            .with_creature_or_pet_like_cpp(guid, |creature, _owner| creature.clone())
-        else {
-            continue;
-        };
-        let world = creature.unit().world();
-        if !world.object().is_in_world()
-            || world.map_id() != requested_map_id
-            // C++ visibility is a horizontal (XY) range test: CanSeeOrDetect ->
-            // IsWithinDist(obj, GetSightRange, is3D=false) (Object.cpp:1587-1609).
-            // #NEXT.R8.ENTITIES.1223 — use 2D so vertically-separated objects (e.g. ICC
-            // layered floors) within horizontal range are not dropped.
-            || !wow_core::visibility_distance_allows_like_cpp(
-                position,
-                source_combat_reach,
-                &world.position(),
-                world.combat_reach(),
-                visibility_range,
-            )
-            || !player_phase_shift.can_see(world.phase_shift())
-        {
-            continue;
-        }
-        candidates.push(creature.clone());
+    let (player_map_key, _residence_revision) =
+        manager.player_active_residence_revision_like_cpp(handle)?;
+    if player_map_key.map_id != requested_map_id {
+        return Some(Vec::new());
     }
+    let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
+    let map = map.map();
+    let selected = manager.with_player_like_cpp(handle, |player| {
+        let player_world = player.unit().world();
+        if !player_world.object().is_in_world()
+            || player_world.map_id() != player_map_key.map_id
+            || player_world.instance_id() != player_map_key.instance_id
+        {
+            return Vec::new();
+        }
+
+        let viewpoint = super::ghost_visibility::canonical_viewpoint(player, map);
+        // Map::WorldObjectEnvironment intentionally uses the map's normal
+        // visibility range. CinematicMgr::IsOnCinematic (which resolves
+        // FlyByCamera rows) is not represented by this map-owned query.
+        // Cell::Visit adds the center object's combat reach itself.
+        let search_radius = player_world.get_sight_range(None, map) + viewpoint.combat_reach();
+        let nearby = map.nearby_cell_guids_like_cpp(
+            viewpoint.position().x,
+            viewpoint.position().y,
+            search_radius,
+        );
+        // Map::corpse_guid_by_player_like_cpp scans the map's entity records.
+        // Resolve the current Player corpse once for this query, then reuse
+        // the borrowed canonical Corpse while checking each candidate.
+        let corpse = {
+            let seer = player.unit();
+            (seer.is_dead() && seer.data().health > 0)
+                .then(|| {
+                    map.corpse_guid_by_player_like_cpp(player.guid())
+                        .and_then(|guid| map.get_typed_corpse(guid))
+                })
+                .flatten()
+        };
+
+        let mut candidates = Vec::new();
+        for guid in nearby
+            .world
+            .creatures
+            .into_iter()
+            .chain(nearby.grid.creatures)
+        {
+            let Some(creature) = map
+                .with_creature_or_pet_like_cpp(guid, |creature, _owner| {
+                    let unit = creature.unit();
+                    let world = unit.world();
+                    if !world.object().is_in_world()
+                        || world.map_id() != player_map_key.map_id
+                        || world.instance_id() != player_map_key.instance_id
+                    {
+                        return None;
+                    }
+
+                    let context =
+                        super::ghost_visibility::unit_context(player, unit, viewpoint, map, corpse);
+                    let vehicle_visible = unit
+                        .subsystems()
+                        .vehicle
+                        .vehicle_guid
+                        .is_none_or(|vehicle| client_visible.contains(&vehicle));
+                    let context = wow_entities::UnitVisibilityContext {
+                        distance_allowed: context.distance_allowed && vehicle_visible,
+                        ..context
+                    };
+                    player
+                        .unit()
+                        .can_see_or_detect_unit_with_context(unit, false, true, false, context)
+                        .then(|| creature.clone())
+                })
+                .flatten()
+            else {
+                continue;
+            };
+            candidates.push(creature);
+        }
+        candidates
+    })?;
     drop(manager);
 
-    host.core().with_owned_player_like_cpp(move |player| {
-        candidates
+    Some(
+        selected
             .into_iter()
-            .filter(|creature| {
-                player
-                    .unit()
-                    .can_see_or_detect_unit_like_cpp(creature.unit(), false, true, false)
-            })
             .map(|creature| {
-                // #1263 F6-8B: the visibility candidate must carry the
-                // canonical runtime state, because the create projection at
-                // the call site reads the live `Unit::movespline` from it.
-                // The caller computes that projection on demand (the
-                // runtime installation changes no field it reads).
+                // #1263 F6-8B: selected candidates carry the canonical runtime
+                // state, including the live MoveSpline used by CREATE.
                 let create_data =
                     wow_world_core::creature_projection::creature_create_data_like_cpp(&creature);
                 wow_world_core::creature_projection::projected_creature_preserving_runtime_like_cpp(
@@ -307,8 +330,8 @@ pub fn visible_creatures_from_canonical_map_like_cpp<H: WorldEntitiesHostLikeCpp
                     &create_data,
                 )
             })
-            .collect()
-    })
+            .collect(),
+    )
 }
 
 pub fn represented_visibility_source_combat_reach_like_cpp<H: VisibilitySessionHostLikeCpp>(

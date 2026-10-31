@@ -42,6 +42,12 @@ impl WorldEntitiesState {
                 .power_type_store
                 .clone()
                 .unwrap_or_else(|| Arc::new(PowerTypeStore::from_entries([]))),
+            localized_names: hub
+                .catalogs
+                .object_mgr_catalogs_like_cpp
+                .as_ref()
+                .map(|catalogs| Arc::clone(&catalogs.creature))
+                .unwrap_or_else(|| Arc::new(wow_data::CreatureQueryCatalogLikeCpp::default())),
         }
     }
 

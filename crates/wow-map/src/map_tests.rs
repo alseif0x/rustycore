@@ -858,6 +858,8 @@ fn test_scene_object_for_update(
     scene_object
 }
 
+#[path = "map_tests/aura_update_visibility.rs"]
+mod aura_update_visibility;
 #[path = "map_tests/combat.rs"]
 mod combat;
 #[path = "map_tests/creature_1.rs"]
@@ -868,6 +870,10 @@ mod creature_2;
 mod creature_3;
 #[path = "map_tests/creature_4.rs"]
 mod creature_4;
+#[path = "map_tests/derived_stats.rs"]
+mod derived_stats;
+#[path = "map_tests/durability_updates.rs"]
+mod durability_updates;
 #[path = "map_tests/gameobject_1.rs"]
 mod gameobject_1;
 #[path = "map_tests/gameobject_2.rs"]
@@ -902,6 +908,8 @@ mod movement_2;
 mod persistence_1;
 #[path = "map_tests/persistence_2.rs"]
 mod persistence_2;
+#[path = "map_tests/pet_combat.rs"]
+mod pet_combat;
 #[path = "map_tests/player_corpses.rs"]
 mod player_corpses;
 #[path = "map_tests/quest.rs"]

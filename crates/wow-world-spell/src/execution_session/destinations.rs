@@ -244,7 +244,8 @@ pub fn represented_db_caster_destination_target_data_like_cpp<H: SpellExecutionH
     let cross_map_allowed = spell_info.effects().iter().any(|candidate| {
         matches!(
             candidate.effect,
-            wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS_OLD
+                | wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS
                 | wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
         )
     });

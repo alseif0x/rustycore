@@ -25,6 +25,7 @@ test-fixtures = [
 ]
 
 [dependencies]
+rand = { workspace = true }
 num-traits = { workspace = true }
 tracing = { workspace = true }
 wow-constants = { workspace = true }
@@ -35,6 +36,7 @@ wow-persistence = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-entities = { workspace = true }
 wow-handler = { workspace = true }
+wow-map = { workspace = true }
 wow-world-character = { workspace = true }
 wow-world-core = { workspace = true }
 wow-world-entities = { workspace = true }

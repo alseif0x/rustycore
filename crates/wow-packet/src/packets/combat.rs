@@ -180,9 +180,6 @@ pub struct AttackerStateUpdate {
     pub victim_state: u8,
     /// School mask for the hit: 1=physical, 2=holy, etc.
     pub school_mask: i32,
-    /// ContentTuning data required by the client.
-    pub target_level: u8,
-    pub expansion: u8,
 }
 
 /// C++ `HitInfo` flags (`UnitDefines.h:440-465` in the 3.4.3 target).
@@ -270,16 +267,16 @@ impl ServerPacket for AttackerStateUpdate {
             info.write_float(0.0f32);
         }
 
-        // ContentTuning.
+        // Default ContentTuning: no level or item-level scaling.
         info.write_uint8(0u8); // tuning type = none
-        info.write_uint8(self.target_level);
-        info.write_uint8(self.expansion);
+        info.write_uint8(0u8); // target_level
+        info.write_uint8(0u8); // expansion
         info.write_int16(0i16); // player_level_delta
         info.write_int8(0i8); // target_scaling_level_delta
         info.write_float(0.0f32); // player_item_level
         info.write_float(0.0f32); // target_item_level
         info.write_uint32(0u32); // scaling_health_item_level_curve_id
-        info.write_uint32(0u32); // flags
+        info.write_uint32(3u32); // NO_LEVEL_SCALING | NO_ITEM_LEVEL_SCALING
         info.write_int32(0i32); // player_content_tuning_id
         info.write_int32(0i32); // target_content_tuning_id
 
@@ -905,8 +902,6 @@ mod tests {
             absorbed: 0,
             victim_state: VICTIM_STATE_HIT,
             school_mask: 1,
-            target_level: 80,
-            expansion: 2,
         }
         .to_bytes();
 
@@ -945,7 +940,7 @@ mod tests {
         assert_eq!(info.read_int32().expect("blocked"), 30);
         assert_eq!(info.read_float().expect("unk"), 0.0);
         assert_eq!(info.read_uint8().expect("content tuning type"), 0);
-        assert_eq!(info.read_uint8().expect("target level"), 80);
+        assert_eq!(info.read_uint8().expect("target level"), 0);
     }
 
     #[test]
@@ -997,8 +992,6 @@ mod tests {
             absorbed: 0,
             victim_state: VICTIM_STATE_HIT,
             school_mask: 1,
-            target_level: 80,
-            expansion: 2,
         }
         .to_bytes();
 
@@ -1033,14 +1026,14 @@ mod tests {
         assert_eq!(info.read_uint32().expect("attacker state"), 0);
         assert_eq!(info.read_uint32().expect("melee spell id"), 0);
         assert_eq!(info.read_uint8().expect("content tuning type"), 0);
-        assert_eq!(info.read_uint8().expect("target level"), 80);
-        assert_eq!(info.read_uint8().expect("expansion"), 2);
+        assert_eq!(info.read_uint8().expect("target level"), 0);
+        assert_eq!(info.read_uint8().expect("expansion"), 0);
         assert_eq!(info.read_int16().expect("player level delta"), 0);
         assert_eq!(info.read_int8().expect("target scaling level delta"), 0);
         assert_eq!(info.read_float().expect("player item level"), 0.0);
         assert_eq!(info.read_float().expect("target item level"), 0.0);
         assert_eq!(info.read_uint32().expect("scaling curve"), 0);
-        assert_eq!(info.read_uint32().expect("content tuning flags"), 0);
+        assert_eq!(info.read_uint32().expect("content tuning flags"), 3);
         assert_eq!(info.read_int32().expect("player content tuning id"), 0);
         assert_eq!(info.read_int32().expect("target content tuning id"), 0);
         assert!(
@@ -1080,8 +1073,6 @@ mod tests {
                 absorbed,
                 victim_state: VICTIM_STATE_HIT,
                 school_mask: 1,
-                target_level: 80,
-                expansion: 2,
             }
             .to_bytes();
 

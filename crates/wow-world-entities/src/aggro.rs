@@ -141,7 +141,12 @@ impl WorldEntitiesState {
         wow_world_core::session::PlayerAuraRemovalAccessLikeCpp::threat_aura_snapshot_from_stores_like_cpp(
             hub.catalogs.spell_store().map(AsRef::as_ref),
             hub.catalogs.difficulty_store().map(AsRef::as_ref),
-            spell_id, difficulty, effect_mask, represented_effect_amounts,
+            spell_id,
+            difficulty,
+            effect_mask,
+            false,
+            false,
+            represented_effect_amounts,
         )
     }
 }

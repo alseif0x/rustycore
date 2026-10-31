@@ -529,17 +529,49 @@ fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
     let (nearby_command_tx, nearby_command_rx) = flume::bounded(1);
 
     session.set_player_guid(Some(guid));
+    let canonical = registry
+        .fixture_canonical_map_manager_like_cpp()
+        .expect("registry and cleanup session share one canonical MapManager");
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     session.set_player_registry(Arc::clone(&registry));
+    session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::ZERO);
+    let self_handle = {
+        let mut manager = canonical.lock().unwrap();
+        manager.create_world_map(0, 0);
+        let mut player = Box::new(wow_entities::Player::new(Some(1), false));
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_name("InstanceOwner");
+        let handle = manager
+            .install_detached_player_like_cpp(player)
+            .expect("cleanup session owns its canonical Player");
+        manager
+            .attach_player_like_cpp(handle, wow_map::MapKey::new(0, 0), Position::ZERO)
+            .expect("cleanup Player enters the native map and cell");
+        handle
+    };
+    session.core.player_handle_like_cpp = Some(self_handle);
+    session.core.player_identity_bootstrap_like_cpp = None;
 
     let (self_tx, _self_rx) = flume::bounded(1);
     // Cleanup unregisters through the owning control channel (#243), so this
     // session's own entry must carry its command sender.
-    registry.register_or_replace(
-        guid,
-        broadcast_info_with_command(guid, self_tx, session.session_command_tx()),
-        Default::default(),
+    let mut self_info = broadcast_info_with_command(guid, self_tx, session.session_command_tx());
+    let identity = self_info.identity;
+    self_info.identity = crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+        identity.player_name,
+        identity.account_id,
+        identity.battlenet_account_id,
+        identity.recruiter_id,
+        identity.race,
+        identity.class,
+        identity.sex,
+        identity.active_expansion,
+        identity.locale,
+        Some(self_handle),
     );
+    registry.register_or_replace(guid, self_info, Default::default());
     registry.register_or_replace(
         nearby_guid,
         broadcast_info_with_command(nearby_guid, nearby_tx, nearby_command_tx),
@@ -577,32 +609,36 @@ fn visible_other_players_skips_out_of_visibility_range_like_cpp() {
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::ZERO);
     add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 571, 0);
-    add_canonical_test_player_on_map(&canonical, nearby_guid, Position::ZERO, 571, 0);
-    add_canonical_test_player_on_map(
-        &canonical,
-        far_guid,
-        Position::new(
-            wow_entities::VISIBILITY_RADIUS_LIKE_CPP + 1.0,
-            0.0,
-            0.0,
-            0.0,
-        ),
-        571,
-        0,
-    );
-
-    let mut nearby_info = broadcast_info(nearby_guid, nearby_tx);
-    nearby_info.placement.map_id = 571;
-    registry.register_or_replace(nearby_guid, nearby_info, Default::default());
-    let mut far_info = broadcast_info(far_guid, far_tx);
-    far_info.placement.map_id = 571;
-    far_info.placement.position = Position::new(
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    let nearby_position = Position::ZERO;
+    let far_position = Position::new(
         wow_entities::VISIBILITY_RADIUS_LIKE_CPP + 1.0,
         0.0,
         0.0,
         0.0,
     );
-    registry.register_or_replace(far_guid, far_info, Default::default());
+    let nearby_handle =
+        install_owned_visibility_player(&canonical, nearby_guid, nearby_position, 571, 0);
+    let far_handle = install_owned_visibility_player(&canonical, far_guid, far_position, 571, 0);
+
+    register_visibility_player(
+        &registry,
+        nearby_guid,
+        nearby_handle,
+        nearby_position,
+        571,
+        0,
+        nearby_tx,
+    );
+    register_visibility_player(
+        &registry,
+        far_guid,
+        far_handle,
+        far_position,
+        571,
+        0,
+        far_tx,
+    );
 
     let visible = session.visible_other_players_from_registry_like_cpp(
         571,
@@ -628,10 +664,18 @@ async fn player_visibility_diff_creates_then_removes_registry_player_like_cpp() 
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::ZERO);
     add_canonical_test_player_on_map(&canonical, viewer_guid, Position::ZERO, 571, 0);
-    add_canonical_test_player_on_map(&canonical, target_guid, Position::ZERO, 571, 0);
-    let mut target_info = broadcast_info(target_guid, target_tx);
-    target_info.placement.map_id = 571;
-    registry.register_or_replace(target_guid, target_info, Default::default());
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    let target_handle =
+        install_owned_visibility_player(&canonical, target_guid, Position::ZERO, 571, 0);
+    register_visibility_player(
+        &registry,
+        target_guid,
+        target_handle,
+        Position::ZERO,
+        571,
+        0,
+        target_tx,
+    );
 
     session.force_update_visibility_like_cpp().await;
     assert!(
@@ -671,6 +715,7 @@ async fn player_visibility_diff_creates_then_removes_registry_player_like_cpp() 
 #[test]
 fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     let guid = ObjectGuid::create_player(1, 51);
+    let summon = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 123, 73);
     let (send_tx, _send_rx) = flume::bounded(1);
     let registry = PlayerRegistry::default();
     let canonical = shared_canonical_map_manager();
@@ -681,6 +726,7 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     assert!(
         with_canonical_player_at_mut_like_cpp(&canonical, guid, 571, 0, |player| {
             player.unit_mut().set_display_id(77, true);
+            player.unit_mut().set_minion_guid_like_cpp(Some(summon));
             crate::canonical_player_access::set_player_visible_item_values_like_cpp(
                 player,
                 0,
@@ -753,6 +799,7 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
         .next()
         .expect("canonical player CREATE candidate");
     assert_eq!(snapshot.display_id, 77);
+    assert_eq!(snapshot.summon, summon);
     assert_eq!(snapshot.visible_items[0], (12_345, 6, 7));
     let update = crate::handlers::character::player_visibility_create_update_from_snapshot_like_cpp(
         &snapshot, 571,
@@ -770,8 +817,13 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     };
 
     assert!(!is_self);
+    assert_eq!(create_data.summon, summon);
     assert_eq!(create_data.health, 1_234);
     assert_eq!(create_data.max_health, 4_567);
+    assert_eq!(
+        create_data.aura_state, 0,
+        "CREATE does not derive state from current health"
+    );
     assert_eq!(create_data.current_power0, 321);
     assert_eq!(create_data.max_mana, 789);
     assert_eq!(create_data.base_mana, 456);
@@ -805,6 +857,7 @@ fn visible_other_players_rejects_registry_only_target_like_cpp() {
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::ZERO);
     add_canonical_test_player_on_map(&canonical, viewer_guid, Position::ZERO, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
     let mut target_info = broadcast_info(target_guid, target_tx);
     target_info.placement.map_id = 571;
@@ -837,7 +890,9 @@ fn visible_other_players_applies_canonical_phase_gate_like_cpp() {
     session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
     session.set_player_position_like_cpp(Position::ZERO);
     add_canonical_test_player_on_map(&canonical, viewer_guid, Position::ZERO, 571, 0);
-    add_canonical_test_player_on_map(&canonical, target_guid, Position::ZERO, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    let target_handle =
+        install_owned_visibility_player(&canonical, target_guid, Position::ZERO, 571, 0);
     *canonical
         .lock()
         .unwrap()
@@ -850,9 +905,15 @@ fn visible_other_players_applies_canonical_phase_gate_like_cpp() {
         .world_mut()
         .phase_shift_mut() = PhaseShift::from_phases([20]);
 
-    let mut target = broadcast_info(target_guid, target_tx);
-    target.placement.map_id = 571;
-    registry.register_or_replace(target_guid, target, Default::default());
+    register_visibility_player(
+        &registry,
+        target_guid,
+        target_handle,
+        Position::ZERO,
+        571,
+        0,
+        target_tx,
+    );
 
     assert!(
         session
@@ -865,6 +926,59 @@ fn visible_other_players_applies_canonical_phase_gate_like_cpp() {
         "C++ VisibleNotifier excludes players outside the viewer's phase"
     );
 }
+
+fn install_owned_visibility_player(
+    canonical: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    position: Position,
+    map_id: u32,
+    instance_id: u32,
+) -> wow_map::PlayerHandle {
+    let mut manager = canonical.lock().expect("canonical manager");
+    manager.create_world_map(map_id, instance_id);
+    let mut player = Box::new(wow_entities::Player::new(Some(1), false));
+    player.unit_mut().world_mut().object_mut().create(guid);
+    player.unit_mut().set_max_health(100);
+    player.unit_mut().set_health(100);
+    let handle = manager
+        .install_detached_player_like_cpp(player)
+        .expect("install owned visibility Player");
+    manager
+        .attach_player_like_cpp(handle, wow_map::MapKey::new(map_id, instance_id), position)
+        .expect("attach indexed visibility Player");
+    handle
+}
+
+fn register_visibility_player(
+    registry: &PlayerRegistry,
+    guid: ObjectGuid,
+    handle: wow_map::PlayerHandle,
+    position: Position,
+    map_id: u32,
+    instance_id: u32,
+    send_tx: flume::Sender<Vec<u8>>,
+) -> crate::session::directory::PlayerRegistration {
+    let mut registration = broadcast_info(guid, send_tx);
+    let identity = registration.identity;
+    registration.identity =
+        crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+            identity.player_name,
+            identity.account_id,
+            identity.battlenet_account_id,
+            identity.recruiter_id,
+            identity.race,
+            identity.class,
+            identity.sex,
+            identity.active_expansion,
+            identity.locale,
+            Some(handle),
+        );
+    registration.placement.map_id = u16::try_from(map_id).expect("test map id");
+    registration.placement.instance_id = instance_id;
+    registration.placement.position = position;
+    registry.register_or_replace(guid, registration, Default::default())
+}
+
 #[test]
 fn init_transport_filter_excludes_own_transport_and_wrong_phase_like_cpp() {
     let (mut session, _, _) = make_session();
@@ -888,3 +1002,6 @@ fn init_transport_filter_excludes_own_transport_and_wrong_phase_like_cpp() {
 }
 #[path = "visibility_live_unit_flags.rs"]
 mod visibility_live_unit_flags;
+
+#[path = "scenarios_visibility_2/group_visibility.rs"]
+mod group_visibility;

@@ -154,15 +154,23 @@ pub fn take_canonical_player_attack_swings_like_cpp(
 
 /// Apply one player's melee swings to a canonical player victim.
 ///
-/// Lifted out of `run_combat_tick` by #28: the body was already one closure over
-/// `&mut Player`, and whoever owns the tick resolves the same transition. The
-/// arithmetic — `max(1)` per swing, saturating health, `-1` unless the swing
-/// overkills — is unchanged.
+/// Source `Unit::Kill` (Unit.cpp:10457,10611) admits a living victim once and
+/// enters JUST_DIED on a lethal hit. This scalar transition does not execute
+/// the remaining Player death participants.
 pub(crate) fn apply_player_melee_to_canonical_player_like_cpp(
     victim: &mut wow_entities::Player,
     swings: &[RepresentedMeleeSwingLikeCpp],
 ) -> Option<(Vec<(u32, i32)>, u8)> {
-    if !victim.unit().is_alive() {
+    apply_player_melee_to_canonical_player_before_native_death(victim, swings, false)
+        .map(|(swings, level, _)| (swings, level))
+}
+
+pub(crate) fn apply_player_melee_to_canonical_player_before_native_death(
+    victim: &mut wow_entities::Player,
+    swings: &[RepresentedMeleeSwingLikeCpp],
+    native_death: bool,
+) -> Option<(Vec<(u32, i32)>, u8, bool)> {
+    if !victim.unit().is_alive() || victim.unit().data().health == 0 {
         return None;
     }
     let target_level = victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
@@ -176,16 +184,36 @@ pub(crate) fn apply_player_melee_to_canonical_player_like_cpp(
         let damage = swing.damage;
         let health_before = victim.unit().data().health;
         let health_after = health_before.saturating_sub(u64::from(damage));
-        victim.unit_mut().set_health(health_after);
+        if health_after == 0 && !native_death {
+            victim
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::JustDied);
+        }
+        if health_after != 0 || !native_death {
+            victim.unit_mut().set_health(health_after);
+        }
         let over_damage = if health_after == 0 {
             u64::from(damage).saturating_sub(health_before) as i32
         } else {
             -1
         };
         sent_swings.push((damage, over_damage));
+        if health_after == 0 {
+            if native_death {
+                return Some((sent_swings, target_level, true));
+            }
+            // Unit::Kill (Unit.cpp:10635): remember the Player attacker for
+            // corpse type and reclaim delay before a release request can run.
+            victim.set_pvp_death_like_cpp(true);
+            break;
+        }
     }
-    Some((sent_swings, target_level))
+    Some((sent_swings, target_level, false))
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/player_melee_death.rs"]
+mod death_tests;
 
 /// What one player's melee pass did to a legacy creature.
 ///

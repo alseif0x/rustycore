@@ -46,9 +46,9 @@ pub use appearance::{
 };
 pub use durability::{
     apply_durability_damage_pct_effect_like_cpp, apply_represented_durability_loss_all_like_cpp,
+    apply_represented_durability_loss_on_death_like_cpp,
     apply_represented_durability_points_loss_all_like_cpp,
-    apply_represented_durability_points_loss_at_slot_like_cpp,
-    publish_creature_melee_death_durability_loss_like_cpp,
+    apply_represented_durability_points_loss_at_slot_like_cpp, apply_spirit_healer_durability_loss,
 };
 pub use equipment_sets::build_equipment_set_use_context_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]

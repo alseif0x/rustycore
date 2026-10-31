@@ -30,12 +30,17 @@ use crate::session::{InventoryItem, WorldSession};
 impl WorldSession {
     pub(crate) async fn handle_logout_request(&mut self, req: LogoutRequest) {
         let generators = self.id_generators_for_test_like_cpp();
-        wow_world_character::handle_logout_request_with_generator_like_cpp(
+        let creature_spawns = self.creature_spawn_catalogs_for_test_like_cpp();
+        wow_world_character::handle_logout_request_with_catalogs(
             self,
-            generators.item.as_ref(),
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creature_spawns,
+                graveyards: None,
+            },
             req,
         )
-        .await;
+        .await
     }
 
     pub(crate) async fn send_initial_packets_after_add_to_map(
@@ -44,7 +49,7 @@ impl WorldSession {
         position: &Position,
         map_id: i32,
         updateobject_trace_enabled: bool,
-    ) {
+    ) -> bool {
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         wow_world_character::send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
             self,
@@ -54,7 +59,7 @@ impl WorldSession {
             map_id,
             updateobject_trace_enabled,
         )
-        .await;
+        .await
     }
 
     pub(crate) fn continue_login_after_grid_load_like_cpp(

@@ -1050,6 +1050,22 @@ async fn run_inner(
         wow_data::character_progression::ChrClassesStore::load(&data_dir, &locale)
             .context("Failed to load ChrClasses.db2")?,
     );
+    let chr_customization_display_info_store = Arc::new(
+        wow_data::character_progression::ChrCustomizationDisplayInfoStore::load(&data_dir, &locale)
+            .context("Failed to load ChrCustomizationDisplayInfo.db2")?,
+    );
+    let shapeshift_display_links_absent =
+        crate::static_data_overlay::shapeshift_display_links_absent(
+            &chr_customization_display_info_store,
+            &static_data_overlay_persistence,
+        )
+        .await
+        .context("Failed to certify effective shapeshift customization display links")?;
+    info!(
+        "Loaded {} ChrCustomizationDisplayInfo DB2 rows; shapeshift fallback link gate: {}",
+        chr_customization_display_info_store.len(),
+        shapeshift_display_links_absent
+    );
     let power_type_store = Arc::new(
         crate::static_data_overlay::load_power_type_store_like_cpp(
             &data_dir,
@@ -1082,18 +1098,24 @@ async fn run_inner(
         "Loaded {} creature family rows from CreatureFamily.db2",
         creature_family_store.len()
     );
-    let spell_levels_store = Arc::new(
-        wow_data::SpellLevelsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellLevels.db2")?,
-    );
-    info!(
-        "Loaded {} spell level rows from SpellLevels.db2",
-        spell_levels_store.len()
-    );
     let spell_core_hotfix_persistence =
         wow_database::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::new(Arc::clone(
             &hotfix_db,
         ));
+    let spell_levels_store = Arc::new(
+        spell::core_db2_hotfix::load_spell_levels_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellLevels store")?,
+    );
+    info!(
+        "Loaded {} effective spell level rows",
+        spell_levels_store.len()
+    );
     let spell_acquisition_startup_persistence =
         wow_database::MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::new(
             Arc::clone(&hotfix_db),
@@ -1212,11 +1234,17 @@ async fn run_inner(
         spell_category_store.len()
     );
     let spell_aura_options_store = Arc::new(
-        wow_data::SpellAuraOptionsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellAuraOptions.db2")?,
+        spell::core_db2_hotfix::load_spell_aura_options_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellAuraOptions store")?,
     );
     info!(
-        "Loaded {} spell aura options rows",
+        "Loaded {} effective spell aura options rows",
         spell_aura_options_store.len()
     );
     let spell_aura_restrictions_store = Arc::new(
@@ -1248,20 +1276,35 @@ async fn run_inner(
         spell_casting_requirements_store.len()
     );
     let spell_class_options_store = Arc::new(
-        wow_data::SpellClassOptionsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellClassOptions.db2")?,
+        spell::core_db2_hotfix::load_spell_class_options_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellClassOptions store")?,
     );
     info!(
-        "Loaded {} spell class options rows",
+        "Loaded {} effective spell class options rows",
         spell_class_options_store.len()
     );
     // C++ `sSpellMgr` label authority, read by `SpellInfo::HasLabel`
     // (`SpellInfo.cpp`) for the damage-taken-from-caster-by-label term.
     let spell_label_store = Arc::new(
-        wow_data::SpellLabelStore::load(&data_dir, &locale)
-            .context("Failed to load SpellLabel.db2")?,
+        spell::core_db2_hotfix::load_spell_label_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellLabel store")?,
     );
-    info!("Loaded {} spell label rows", spell_label_store.len());
+    info!(
+        "Loaded {} effective spell label rows",
+        spell_label_store.len()
+    );
     let spell_equipped_items_store = Arc::new(
         spell::core_db2_hotfix::load_spell_equipped_items_store_like_cpp(
             &data_dir,
@@ -1329,8 +1372,14 @@ async fn run_inner(
         pet_family_spell_store.family_count()
     );
     let spell_procs_per_minute_store = Arc::new(
-        wow_data::SpellProcsPerMinuteStore::load(&data_dir, &locale)
-            .context("Failed to load SpellProcsPerMinute.db2")?,
+        spell::core_db2_hotfix::load_spell_procs_per_minute_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellProcsPerMinute store")?,
     );
     info!(
         "Loaded {} spell procs-per-minute rows",
@@ -2044,6 +2093,17 @@ async fn run_inner(
         wow_data::PlayerConditionStore::load(&data_dir, &locale)
             .context("Failed to load PlayerCondition.db2 — check DataDir and DBC.Locale config")?,
     );
+    let condition_presence_persistence =
+        wow_database::MariaDbConditionPresencePersistenceAdapter::new(Arc::clone(&hotfix_db));
+    let condition_presence_catalog =
+        crate::hotfix::condition_presence::load_condition_presence_catalog(
+            &data_dir,
+            &locale,
+            &condition_presence_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective PlayerCondition/UnitCondition presence")?;
     let adventure_map_poi_store = Arc::new(
         wow_data::AdventureMapPoiStore::load(&data_dir, &locale)
             .context("Failed to load AdventureMapPOI.db2 — check DataDir and DBC.Locale config")?,
@@ -3939,9 +3999,10 @@ async fn run_inner(
     let spell_proc_outcome = crate::spell::world_catalog::load_spell_proc_like_cpp(
         &spell_world_catalog_persistence,
         &spell_store,
+        serverside_spell_store.as_ref(),
         spell_chain_store.as_ref(),
+        difficulty_store.as_ref(),
         spell_aura_options_store.as_ref(),
-        spell_misc_store.as_ref(),
         spell_class_options_store.as_ref(),
         spell_procs_per_minute_store.as_ref(),
     )
@@ -4072,6 +4133,9 @@ async fn run_inner(
         )
         .await
         .context("Failed to audit normal trainer wrapper authority")?;
+    spell_store.install_effective_cast_costs_like_cpp(
+        trainer_spell_static_authority.cast_cost_store.clone(),
+    );
     let spell_acquisition_safe_cast_spell_ids =
         Arc::new(trainer_spell_static_authority.safe_cast_spell_ids);
     let spell_acquisition_valid_craft_spell_ids =
@@ -4632,7 +4696,7 @@ async fn run_inner(
         core: SessionCoreCapabilitiesLikeCpp {
             packet_handlers: Arc::clone(&packet_handler_registry),
             handler_catalogs: Arc::new(wow_world::session::SessionHandlerCatalogsLikeCpp {
-                object_mgr: object_mgr_catalogs,
+                object_mgr: Arc::clone(&object_mgr_catalogs),
                 player_grid_loader,
                 area_triggers: Arc::new(wow_world::session::AreaTriggerCatalogsLikeCpp {
                     db2: Arc::clone(&area_trigger_db2_store),
@@ -4691,6 +4755,7 @@ async fn run_inner(
                     addons: Arc::clone(&creature_addon_store),
                     equipment: Arc::clone(&creature_equipment_store),
                     power_types: Arc::clone(&power_type_store),
+                    localized_names: Arc::clone(&object_mgr_catalogs.creature),
                 }),
                 progression: Arc::new(wow_world::session::ProgressionCatalogsLikeCpp {
                     no_reset_talent_cost: world_config_bool(
@@ -4901,6 +4966,7 @@ async fn run_inner(
         player: SessionPlayerCatalogCapabilitiesLikeCpp {
             condition_store: Arc::clone(&condition_store),
             player_condition_store: Arc::clone(&player_condition_store),
+            condition_presence_catalog: Arc::clone(&condition_presence_catalog),
             content_tuning_store: Arc::clone(&content_tuning_store),
             curve_store: Arc::clone(&curve_store),
             curve_point_store: Arc::clone(&curve_point_store),
@@ -4925,11 +4991,13 @@ async fn run_inner(
             num_talents_at_level_store: Arc::clone(&num_talents_at_level_store),
             chr_races_store: Arc::clone(&chr_races_store),
             chr_classes_store: Arc::clone(&chr_classes_store),
+            shapeshift_display_links_absent,
             power_type_store: Arc::clone(&power_type_store),
         },
         spells: SessionSpellCatalogCapabilitiesLikeCpp {
             spell_chain_store: Arc::clone(&spell_chain_store),
             spell_store: Arc::clone(&spell_store),
+            serverside_spell_store: Arc::clone(&serverside_spell_store),
             spell_acquisition_catalog: Arc::clone(&spell_acquisition_catalog),
             spell_acquisition_safe_cast_spell_ids: Arc::clone(
                 &spell_acquisition_safe_cast_spell_ids,
@@ -4978,6 +5046,7 @@ async fn run_inner(
             map_store: Arc::clone(&map_store),
             dungeon_encounter_store: Arc::clone(&dungeon_encounter_store),
             world_safe_loc_store: Arc::clone(&world_safe_loc_store),
+            graveyards: Arc::clone(&graveyard_store),
             map_difficulty_store: Arc::clone(&map_difficulty_store),
             map_difficulty_x_condition_store: Arc::clone(&map_difficulty_x_condition_store),
             access_requirement_store: Arc::clone(&access_requirement_store),
@@ -5059,6 +5128,10 @@ async fn run_inner(
             repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
             durability_loss_on_death_rate: durability_loss_on_death_rate_like_cpp(&world_configs),
             death_policy: death_policy_like_cpp(&world_configs),
+            group_visibility_mode: world_configs
+                .get_int("CONFIG_GROUP_VISIBILITY")
+                .map(|value| value as i32)
+                .unwrap_or(1),
             stats_limits: stats_limits_like_cpp(&world_configs),
             reset_schedule: reset_schedule_like_cpp(&world_configs),
             offhand_check_at_spell_unlearn: world_config_bool(
@@ -5078,6 +5151,12 @@ async fn run_inner(
                 "CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF",
                 7,
             ),
+            quest_ignore_auto_complete: world_config_bool(
+                &world_configs,
+                "CONFIG_QUEST_IGNORE_AUTO_COMPLETE",
+                false,
+            ),
+            quest_status_keep_abandoned: quest_status_keep_abandoned_like_cpp(&world_configs),
             enable_ae_loot: world_config_bool(&world_configs, "CONFIG_ENABLE_AE_LOOT", false),
             server_expansion: world_config_u8(&world_configs, "CONFIG_EXPANSION", 2),
             instance_ignore_raid: world_config_bool(

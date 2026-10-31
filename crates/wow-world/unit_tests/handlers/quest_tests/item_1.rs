@@ -188,8 +188,14 @@ async fn bank_withdrawal_credits_only_first_matching_bound_item_objective_like_c
         bound_quest(7_401),
         bound_quest(7_402),
     ])));
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot(&mut session, 7_401, 0);
     add_active_quest_in_slot(&mut session, 7_402, 1);
+    {
+        let owner = session.core.quest_objective_access_like_cpp();
+        assert_eq!(owner.set_quest_slot_like_cpp(0, 0), Some(true));
+        assert_eq!(owner.set_quest_slot_like_cpp(4, 7_401), Some(true));
+    }
 
     let planned = session.plan_bank_item_quest_persistence_like_cpp(item_id as u32, 0, false, 1, 1);
     assert_eq!(planned.len(), 1);
@@ -200,10 +206,21 @@ async fn bank_withdrawal_credits_only_first_matching_bound_item_objective_like_c
         .apply_quest_item_added_objective_progress_like_cpp(item_id as u32, 0, 1)
         .await;
     assert_eq!(changed, vec![planned_quest_id]);
+    let rows = session
+        .core
+        .quest_objective_access_like_cpp()
+        .quest_log_values_snapshot_like_cpp()
+        .unwrap();
+    assert_eq!(rows[0].quest_id(), 0);
+    assert_eq!(rows[0].objective_progress()[0], 1);
+    assert_eq!(rows[4].quest_id(), 7_401);
+    assert_eq!(rows[4].objective_progress()[0], 0);
     assert_eq!(
         session
-            .quest_state
-            .fixture_player_quest_status_values_like_cpp()
+            .player_quest_gameplay_snapshot_like_cpp()
+            .expect("canonical quest status owner")
+            .statuses_like_cpp()
+            .values()
             .flat_map(|status| status.objective_counts.iter())
             .copied()
             .sum::<i32>(),

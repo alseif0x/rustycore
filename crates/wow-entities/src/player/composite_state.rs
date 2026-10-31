@@ -35,6 +35,10 @@ impl Player {
         self.gameplay_state_mut().currencies = currencies;
     }
 
+    pub fn set_currencies_loaded_like_cpp(&mut self, loaded: bool) {
+        self.gameplay_state_mut().currencies_loaded_like_cpp = loaded;
+    }
+
     /// Install the represented account-wide collection state.
     ///
     /// Departure kept explicit: C++ owns collections on the session

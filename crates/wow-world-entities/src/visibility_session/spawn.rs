@@ -235,17 +235,19 @@ pub(super) fn materialize_creature_spawn_row_with_catalogs_like_cpp<
     // login and movement refresh cannot drift from each other.
     let spawn_guid = row.spawn_guid;
     let entry = row.entry;
+    let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
     let [pos_x, pos_y, pos_z, orientation] = row.position;
     if !is_within_2d_visibility_range_like_cpp(viewer_position, pos_x, pos_y, visibility_range) {
         return None;
     }
     let spawn_difficulties = &row.spawn_difficulties;
-    if !spawn_difficulties_contains_spawn_mode_like_cpp(
-        spawn_difficulties,
-        host.core().current_map_difficulty_id_like_cpp(),
-    ) {
+    if !spawn_difficulties_contains_spawn_mode_like_cpp(spawn_difficulties, difficulty_id) {
         return None;
     }
+    let type_flags = catalogs
+        .difficulty
+        .get_like_cpp(entry, difficulty_id)
+        .type_flags;
 
     let cur_health = row.current_health;
     let cur_mana = row.current_mana;
@@ -473,6 +475,7 @@ pub(super) fn materialize_creature_spawn_row_with_catalogs_like_cpp<
         phase_group_id,
         terrain_swap_map,
         flags_extra,
+        type_flags,
         ground_movement_type,
         swim_allowed,
         flight_movement_type,
@@ -484,6 +487,25 @@ pub(super) fn materialize_creature_spawn_row_with_catalogs_like_cpp<
         default_movement_type,
         waypoint_path_id,
     })
+}
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn materialize_creature_spawn_row_for_test<H: VisibilitySessionHostLikeCpp>(
+    host: &mut H,
+    catalogs: &CreatureSpawnCatalogsLikeCpp,
+    map_id: u16,
+    row: &wow_persistence::CreatureVisibilityPersistenceRowLikeCpp,
+    viewer_position: &Position,
+    visibility_range: f32,
+) -> Option<MaterializedCreatureSpawnLikeCpp> {
+    materialize_creature_spawn_row_with_catalogs_like_cpp(
+        host,
+        catalogs,
+        map_id,
+        row,
+        viewer_position,
+        visibility_range,
+    )
 }
 
 fn creature_virtual_items_from_row_with_catalogs_like_cpp<H: VisibilitySessionHostLikeCpp>(

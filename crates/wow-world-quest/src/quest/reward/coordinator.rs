@@ -246,6 +246,12 @@ impl QuestRewardCx<'_> {
             );
             return false;
         }
+        if let Some(slot) = rewarded_slot {
+            let _ = self
+                .player
+                .quest_objective_access_like_cpp()
+                .set_quest_slot_like_cpp(slot, 0);
+        }
         let committed_money_change = committed_money
             .as_ref()
             .map(|money| (money.money_before, money.money_after));
@@ -267,9 +273,6 @@ impl QuestRewardCx<'_> {
             #[cfg(any(test, feature = "test-fixtures"))]
             registry_vehicle_and_pet,
         );
-        if let Some(slot) = rewarded_slot {
-            self.send_quest_reward_log_slot_update_like_cpp(slot);
-        }
 
         let money = quest.reward_money_difficulty;
         tracing::info!(

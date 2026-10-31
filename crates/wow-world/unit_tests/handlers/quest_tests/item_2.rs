@@ -192,11 +192,7 @@ async fn quest_confirm_accept_source_item_start_quest_no_grant_adds_local_state_
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
-    assert!(
-        session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
-    );
+    assert!(canonical_player_quest_status_like_cpp(&session, quest_id).is_some());
     assert_eq!(
         session
             .represented_inventory_item_counts_like_cpp()
@@ -265,22 +261,10 @@ async fn quest_confirm_accept_source_item_with_space_stores_and_pushes_item_like
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
-    assert_eq!(
-        session
-            .quest_state
-            .fixture_player_quest_status_like_cpp(quest_id)
-            .expect("source-item quest should still add local quest state")
-            .status,
-        QUEST_STATUS_COMPLETE_LIKE_CPP
-    );
-    assert_eq!(
-        session
-            .quest_state
-            .fixture_player_quest_status_like_cpp(quest_id)
-            .expect("source-item quest should still add local quest state")
-            .objective_counts,
-        vec![2]
-    );
+    let status = canonical_player_quest_status_like_cpp(&session, quest_id)
+        .expect("source-item quest should still add local Player quest state");
+    assert_eq!(status.status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+    assert_eq!(status.objective_counts, vec![2]);
     let stored_source_item_count: u32 = session
         .inventory_items_like_cpp()
         .values()
@@ -476,13 +460,18 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
         Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
     );
 
+    install_native_quest_log_player_like_cpp(&mut session);
+    install_native_quest_log_bag_fixture_like_cpp(
+        &mut session,
+        wow_entities::INVENTORY_SLOT_BAG_START,
+        bag_guid,
+        4,
+        None,
+    );
+
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert!(
-        session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
-    );
+    assert!(canonical_player_quest_status_like_cpp(&session, quest_id).is_some());
     assert!(
         session
             .inventory_items_like_cpp()
@@ -668,6 +657,15 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
         Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
     );
 
+    install_native_quest_log_player_like_cpp(&mut session);
+    install_native_quest_log_bag_fixture_like_cpp(
+        &mut session,
+        wow_entities::INVENTORY_SLOT_BAG_START,
+        bag_guid,
+        4,
+        Some((0, child_guid)),
+    );
+
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     let child = session
@@ -789,10 +787,8 @@ async fn quest_confirm_accept_source_item_bound_objective_updates_quest_without_
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
-    let status = session
-        .quest_state
-        .fixture_player_quest_status_like_cpp(quest_id)
-        .expect("bound source-item quest should still add local quest state");
+    let status = canonical_player_quest_status_like_cpp(&session, quest_id)
+        .expect("bound source-item quest should still add local Player quest state");
     assert_eq!(status.status, QUEST_STATUS_COMPLETE_LIKE_CPP);
     assert_eq!(status.objective_counts, vec![2]);
     let stored_source_item_count: u32 = session
@@ -884,15 +880,16 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
-    );
+    assert!(canonical_player_quest_status_like_cpp(&session, quest_id).is_none());
+    assert!(canonical_player_has_rewarded_quest_like_cpp(
+        &session, quest_id
+    ));
     assert!(
         session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
+            .quest_log_create_entries_like_cpp()
+            .iter()
+            .all(|row| row.0 == 0),
+        "auto reward must clear the Player-owned QuestLog row"
     );
     assert_complete_status_update_like_cpp(&session, quest_id, false);
 

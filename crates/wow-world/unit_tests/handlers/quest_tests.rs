@@ -50,6 +50,8 @@ use wow_persistence::{
 };
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
+#[path = "quest_tests/pet_reagents.rs"]
+mod pet_reagents;
 #[path = "quest_tests/source_items.rs"]
 mod source_items;
 pub(super) use source_items::{
@@ -66,6 +68,13 @@ mod party;
 pub(super) use party::{
     install_confirm_accept_sender_snapshot, install_represented_party,
     set_canonical_party_reputation_like_cpp,
+};
+#[path = "quest_tests/quest_log_fixtures.rs"]
+mod quest_log_fixtures;
+use quest_log_fixtures::{
+    canonical_player_has_rewarded_quest_like_cpp, canonical_player_quest_status_like_cpp,
+    insert_player_quest_status_fixture_like_cpp, install_native_quest_log_bag_fixture_like_cpp,
+    install_native_quest_log_player_like_cpp, publish_quest_log_map_values_like_cpp,
 };
 #[path = "quest_tests/catalog_persistence.rs"]
 mod catalog_persistence;
@@ -328,6 +337,7 @@ fn insert_player_with_reputation(
         .unit_mut()
         .world_mut()
         .relocate(Position::new(10.0, 0.0, 0.0, 0.0));
+    player.unit_mut().world_mut().object_mut().add_to_world();
     player
         .reputation_mut_like_cpp()
         .insert_faction_like_cpp(PlayerFactionStateLikeCpp {
@@ -353,7 +363,25 @@ async fn run_status_query(session: &mut WorldSession, guid: ObjectGuid) {
 }
 
 fn add_active_quest(session: &mut WorldSession, quest_id: u32) {
-    let slot = session.first_free_quest_slot_like_cpp().unwrap_or(0);
+    let owner_handle_absent = session
+        .core
+        .quest_objective_access_like_cpp()
+        .owner_handle_absent_like_cpp();
+    // Allocate slots for the unowned setup fixture only; production occupancy
+    // reads the canonical Player QuestID fields through first_free below.
+    let slot = if owner_handle_absent {
+        let statuses = session
+            .player_quest_gameplay_snapshot_like_cpp()
+            .expect("handle-less quest setup state");
+        (0..MAX_QUEST_LOG_SIZE_LIKE_CPP as u8).find(|slot| {
+            !statuses.statuses_like_cpp().values().any(|status| {
+                status.status != wow_conditions::QUEST_STATUS_NONE_LIKE_CPP && status.slot == *slot
+            })
+        })
+    } else {
+        session.first_free_quest_slot_like_cpp()
+    }
+    .unwrap_or(0);
     add_active_quest_in_slot(session, quest_id, slot);
 }
 
@@ -367,22 +395,28 @@ fn add_active_quest_in_slot_with_status(
     slot: u8,
     status: u8,
 ) {
-    session
-        .mutate_player_quest_gameplay_like_cpp(|quests| {
-            quests.insert_status_like_cpp(
-                quest_id,
-                PlayerQuestStatus {
-                    quest_id,
-                    status,
-                    explored: false,
-                    accept_time_secs: 0,
-                    end_time_secs: 0,
-                    objective_counts: Vec::new(),
-                    slot,
-                },
-            );
-        })
-        .expect("test Player quest owner");
+    let status = PlayerQuestStatus {
+        quest_id,
+        status,
+        explored: false,
+        accept_time_secs: 0,
+        end_time_secs: 0,
+        objective_counts: Vec::new(),
+        slot,
+    };
+    if session
+        .core
+        .quest_objective_access_like_cpp()
+        .owner_handle_absent_like_cpp()
+    {
+        session
+            .mutate_player_quest_gameplay_like_cpp(|quests| {
+                quests.insert_status_like_cpp(quest_id, status);
+            })
+            .expect("handle-less quest status fixture");
+    } else {
+        insert_player_quest_status_fixture_like_cpp(session, quest_id, status);
+    }
 }
 
 fn add_rewarded_quest(session: &mut WorldSession, quest_id: u32) {
@@ -412,6 +446,7 @@ async fn run_request_world_quest_update(session: &mut WorldSession) {
 }
 
 async fn run_quest_confirm_accept(session: &mut WorldSession, quest_id: i32) {
+    install_native_quest_log_player_like_cpp(session);
     let mut pkt = WorldPacket::new_empty();
     pkt.write_int32(quest_id);
     session.handle_quest_confirm_accept(pkt).await;
@@ -911,6 +946,10 @@ fn assert_complete_status_update_like_cpp(
     quest_id: u32,
     tracking_event_auto_reward_unrepresented: bool,
 ) {
+    let quest_slot_state_live_update_unrepresented = session
+        .core
+        .quest_objective_access_like_cpp()
+        .owner_handle_absent_like_cpp();
     assert_eq!(
         session
             .quest_state
@@ -921,7 +960,7 @@ fn assert_complete_status_update_like_cpp(
             new_status: QUEST_STATUS_COMPLETE_LIKE_CPP,
             send_quest_update_called: true,
             quest_slot_state_complete_represented: true,
-            quest_slot_state_live_update_unrepresented: true,
+            quest_slot_state_live_update_unrepresented,
             visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
             spell_area_runtime_unrepresented: true,
             tracking_event_auto_reward_unrepresented,
@@ -958,6 +997,8 @@ mod item_2;
 mod item_3;
 #[path = "quest_tests/item_4.rs"]
 mod item_4;
+#[path = "quest_tests/native_quest_log.rs"]
+mod native_quest_log;
 #[path = "quest_tests/quest_1.rs"]
 mod quest_1;
 #[path = "quest_tests/quest_2.rs"]

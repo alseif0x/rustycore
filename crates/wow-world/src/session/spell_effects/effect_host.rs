@@ -6,6 +6,21 @@ use super::*;
 use std::future::Future;
 
 impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
+    fn set_player_drunk_value_like_cpp(
+        &mut self,
+        target_guid: ObjectGuid,
+        effect_amount: i32,
+        cast_item_guid: Option<ObjectGuid>,
+        cast_item_entry: Option<u32>,
+    ) -> Result<bool, &'static str> {
+        wow_world_application::set_player_drunk_value_like_cpp(
+            self,
+            target_guid,
+            wow_world_application::PlayerDrunkValueInput::EffectDelta(effect_amount),
+            cast_item_guid,
+            cast_item_entry,
+        )
+    }
     fn publish_spell_pull_attack_start_like_cpp(
         &mut self,
         attacker: ObjectGuid,

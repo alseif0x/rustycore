@@ -309,9 +309,13 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         req: misc::LogoutRequest,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            wow_world_character::handle_logout_request_with_generator_like_cpp(
+            wow_world_character::handle_logout_request_with_catalogs(
                 self,
-                catalogs.id_generators.item.as_ref(),
+                wow_world_entities::ResurrectionOperationCatalogs {
+                    item_guid_generator: catalogs.id_generators.item.as_ref(),
+                    creature_spawns: catalogs.creature_spawns.as_ref(),
+                    graveyards: Some(catalogs.graveyards.as_ref()),
+                },
                 req,
             )
             .await

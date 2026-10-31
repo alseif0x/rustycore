@@ -101,9 +101,8 @@ impl crate::InventoryState {
     }
 
     /// Begin hydrating the persisted equipment/inventory source for the active
-    /// Player. The proof remains incomplete on every non-empty, early-return,
-    /// or query-error path; this bounded slice authorizes only a proven-empty
-    /// persisted result.
+    /// Player. Full Item-save authority remains incomplete on non-empty or
+    /// failed loads. The separate carried-position proof also starts false.
     pub fn begin_player_equipment_inventory_authority_load_like_cpp(
         &mut self,
         hub: &mut HubMut<'_>,
@@ -111,6 +110,9 @@ impl crate::InventoryState {
         let _canonical = hub
             .core
             .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .inventory_runtime_mut_like_cpp()
+                    .set_carried_inventory_loaded_like_cpp(false);
                 player
                     .inventory_runtime_mut_like_cpp()
                     .set_equipment_inventory_authority_complete_like_cpp(false);

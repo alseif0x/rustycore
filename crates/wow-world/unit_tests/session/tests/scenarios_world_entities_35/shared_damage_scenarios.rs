@@ -147,7 +147,13 @@ fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
         })
         .unwrap();
 
-    let mut spells = wow_data::SpellStore::new();
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_384, 0),
+        (91_385, 0),
+        (91_386, 0),
+        (91_387, 0),
+        (91_388, 0),
+    ]);
     for spell in [
         damage_aura_spell_like_cpp(
             91_384,
