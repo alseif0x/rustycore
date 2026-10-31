@@ -432,6 +432,11 @@ passed affected acceptance in 429.763 seconds. No apply_stuck entry appears in
 the live log, so the next trace instruments the direct SPELL_EFFECT_STUCK match
 before and after the host call to locate the earlier rejection.
 
+The direct-match candidate at `532341a6620fa0e83da5ee07bb5aaa98fe5c3ee7`
+passed affected acceptance in 545.509 seconds. The direct STUCK match is not
+reached in the live log, so the next trace exposes the existing
+server_normal_pre_go failure variant that publishes CastFailed first.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

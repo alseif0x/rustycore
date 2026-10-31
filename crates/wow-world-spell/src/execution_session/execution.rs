@@ -239,6 +239,14 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 take_server_normal_cast_item_before_effects = plan.take_cast_item_before_effects;
             }
             Err(failure) => {
+                if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                    tracing::info!(
+                        spell_id,
+                        caster_guid = ?caster_guid,
+                        ?failure,
+                        "RUST_STUCK server_normal_pre_go_failure"
+                    );
+                }
                 let (reason, fail_arg1, fail_arg2, unavailable) =
                     server_normal_pre_go_failure_publication_like_cpp(failure);
                 if !matches!(failure, super::ServerNormalPreGoFailureLikeCpp::Power) {
