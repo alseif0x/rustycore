@@ -482,6 +482,16 @@ Effective data has no spell script binding, linked spell or SkillLineAbility row
 for 8690 and rank diagnostics are empty, so the next bounded diagnostic exposes
 every existing runtime-authority condition instead of weakening it blindly.
 
+The diagnostic candidate at `e9e128d5b60e1743a7f50590c5a750b90de0d94a`
+passed affected acceptance in 620.217 seconds, exceeding the ordinary target by
+20.217 seconds. Record: `/tmp/rustycore43-repair-e9e128d5b-3wp1kq4o/record.json`.
+Live epoch one still rejected before GO, but the trace proves `result=true` with
+all six sources present, first rank 8690, no exact/all-rank/legacy/rejected-linked
+membership, no chain diagnostics and no Cast/Hit/Aura/Remove link. The rejection
+therefore comes from the exact effect row or classifier input, not missing hook
+authority. The next diagnostic logs only that rejected row and its call path;
+behavior remains unchanged and stable runtime was restored.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1

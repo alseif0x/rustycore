@@ -279,6 +279,22 @@ pub(crate) fn validate_spell_effect_routes_like_cpp(
             && classify_spell_effect_route_like_cpp(spell_info, primary_effect_type, None, context)
                 == SpellEffectExecutionRouteLikeCpp::Unavailable
         {
+            if spell_info.spell_id == 8690
+                && std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some()
+            {
+                tracing::info!(
+                    spell_id = spell_info.spell_id,
+                    rejection = "empty_effects",
+                    primary_effect_type,
+                    primary_index = ?Option::<u32>::None,
+                    effect_type = primary_effect_type,
+                    effect_index = ?Option::<u32>::None,
+                    effects_len = spell_info.effects().len(),
+                    spell_has_no_unrepresented_runtime_hooks =
+                        context.spell_has_no_unrepresented_runtime_hooks,
+                    "RUST_STUCK unimplemented_effect"
+                );
+            }
             return Err("normal cast contains an unimplemented spell effect");
         }
         return Ok(());
@@ -296,6 +312,22 @@ pub(crate) fn validate_spell_effect_routes_like_cpp(
             context,
         ) == SpellEffectExecutionRouteLikeCpp::Unavailable
         {
+            if spell_info.spell_id == 8690
+                && std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some()
+            {
+                tracing::info!(
+                    spell_id = spell_info.spell_id,
+                    rejection = "row_loop",
+                    primary_effect_type,
+                    primary_index = ?Option::<u32>::None,
+                    effect_type = effect.effect,
+                    effect_index = effect.effect_index,
+                    effects_len = spell_info.effects().len(),
+                    spell_has_no_unrepresented_runtime_hooks =
+                        context.spell_has_no_unrepresented_runtime_hooks,
+                    "RUST_STUCK unimplemented_effect"
+                );
+            }
             return Err("normal cast contains an unimplemented spell effect");
         }
     }
@@ -313,6 +345,22 @@ pub(crate) fn validate_spell_effect_routes_like_cpp(
             context,
         ) == SpellEffectExecutionRouteLikeCpp::Unavailable
         {
+            if spell_info.spell_id == 8690
+                && std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some()
+            {
+                tracing::info!(
+                    spell_id = spell_info.spell_id,
+                    rejection = "primary_fallback",
+                    primary_effect_type,
+                    ?primary_index,
+                    effect_type = primary_effect_type,
+                    effect_index = ?primary_index,
+                    effects_len = spell_info.effects().len(),
+                    spell_has_no_unrepresented_runtime_hooks =
+                        context.spell_has_no_unrepresented_runtime_hooks,
+                    "RUST_STUCK unimplemented_effect"
+                );
+            }
             return Err("normal cast contains an unimplemented primary spell effect");
         }
     }
