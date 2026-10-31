@@ -56,6 +56,7 @@ use spell_stores::*;
 
 mod aura;
 mod cast;
+mod cooldown_completion;
 mod loot_template;
 mod misc;
 mod mount;

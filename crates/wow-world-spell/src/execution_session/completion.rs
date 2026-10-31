@@ -106,6 +106,7 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
             s.record_cast_character_spell_cooldown_like_cpp(
                 &mut h,
                 spell_id,
+                metadata.actual_spell_difficulty_id_like_cpp,
                 spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
             );
 

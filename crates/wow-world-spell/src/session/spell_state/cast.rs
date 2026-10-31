@@ -11,6 +11,7 @@ impl SessionSpellState {
         &mut self,
         hub: &mut HubMut<'_>,
         spell_id: i32,
+        actual_spell_difficulty_id: Option<u8>,
         cooldown_ms: u32,
     ) {
         if !self
@@ -27,13 +28,41 @@ impl SessionSpellState {
         if cooldown_secs == 0 {
             return;
         }
+        let Some(actual_spell_difficulty_id) = actual_spell_difficulty_id else {
+            return;
+        };
+        let Some(spell_store) = hub.catalogs.spell_catalogs.spell_store.as_deref() else {
+            return;
+        };
+        if !spell_store.contains_spell_info_exact_like_cpp(spell_id, actual_spell_difficulty_id) {
+            return;
+        }
+        let difficulty_store = hub.catalogs.difficulty_store().map(AsRef::as_ref);
+        let Ok((_, _, category_cooldown_ms)) = spell_store
+            .cooldown_components_at_difficulty_like_cpp(
+                spell_id as i32,
+                actual_spell_difficulty_id,
+                difficulty_store,
+            )
+        else {
+            return;
+        };
+        let Ok(category_id) = spell_store.category_id_at_difficulty(
+            spell_id,
+            actual_spell_difficulty_id,
+            difficulty_store,
+        ) else {
+            return;
+        };
+        let category_cooldown_secs = i64::from(category_cooldown_ms.saturating_add(999) / 1_000);
+        let now = wow_world_core::session::connection_identity::unix_now();
         self.record_loaded_character_spell_cooldown_like_cpp(
             hub,
             spell_id,
             0,
-            wow_world_core::session::connection_identity::unix_now().saturating_add(cooldown_secs),
-            0,
-            0,
+            now.saturating_add(cooldown_secs),
+            category_id,
+            now.saturating_add(category_cooldown_secs),
         );
     }
 

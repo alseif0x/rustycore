@@ -245,6 +245,16 @@
    "unit_tests_lines": 278348,
    "unit_tests_tests": 4139,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-23",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-31",
+   "reason": "Four client-cooldown completion regressions for native category persistence, legitimate zero and fail-closed metadata: exact +259 lines and +4 identities, preserving all prior identities/classes/destinations/ignored states and no headroom.",
+   "unit_tests_lines": 278607,
+   "unit_tests_tests": 4143,
+   "src_tests": 22
   }
  ]
 }

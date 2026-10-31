@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4161,
+  "tests": 4165,
   "ignored": 1,
-  "session": 3857,
-  "shims": 3677,
+  "session": 3861,
+  "shims": 3681,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3682
+   "W": 3686
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3476
+   "W-world-logic": 3480
   },
   "by_owner": {
    "wow-world": {
@@ -58,7 +58,7 @@
    "wow-world-character": {
     "P": 36,
     "H": 21,
-    "W": 378
+    "W": 382
    },
    "wow-world-core": {
     "P": 14,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3682
+    "W": 3686
    },
    "wow-world-application": {
     "P": 27,
@@ -2135,6 +2135,10 @@
   ["unit_tests/handlers/spell/tests/cast.rs::cast_spell_queues_within_spell_queue_window_and_executes_after_gcd_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_cast_spell", "mutate_cast_execution_like_cpp", "pending_spell_cast_for_test_like_cpp", "set_player_guid"], []],
   ["unit_tests/handlers/spell/tests/cast.rs::cast_spell_rejects_active_cast_outside_spell_queue_window_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_cast_spell", "pending_spell_cast_for_test_like_cpp", "set_active_spell_cast_like_cpp", "set_player_guid"], []],
   ["unit_tests/handlers/spell/tests/cast.rs::cast_spell_queues_near_active_cast_finish_and_executes_after_cast_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_cast_spell", "mutate_cast_execution_like_cpp", "pending_spell_cast_for_test_like_cpp", "set_active_spell_cast_like_cpp"], []],
+  ["unit_tests/handlers/spell/tests/cooldown_completion.rs::client_completion_records_hearthstone_category_from_selected_db2_rows_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "execute_spell_with_visual_and_target_data_with_metadata", "mark_represented_character_spell_cooldowns_loaded_like_cpp"], []],
+  ["unit_tests/handlers/spell/tests/cooldown_completion.rs::client_completion_missing_difficulty_is_fail_closed_and_keeps_cooldown_event_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "execute_spell_with_visual_and_target_data_with_metadata", "mark_represented_character_spell_cooldowns_loaded_like_cpp"], []],
+  ["unit_tests/handlers/spell/tests/cooldown_completion.rs::client_completion_loaded_empty_category_catalog_records_category_zero_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "execute_spell_with_visual_and_target_data_with_metadata", "mark_represented_character_spell_cooldowns_loaded_like_cpp"], []],
+  ["unit_tests/handlers/spell/tests/cooldown_completion.rs::cast_cooldown_record_rejects_missing_key_store_or_unhydrated_catalogs_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "mark_represented_character_spell_cooldowns_loaded_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/spell/tests/loot_template.rs::plain_item_loot_template_validation_matches_cpp_basic_guards", "P", "wow-world-lifecycle", "wow-world-lifecycle", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/spell/tests/loot_template.rs::loot_conditions_else_group_and_negative_match_cpp", "P", "wow-world", "wow-world", "P-library", false, false, false, [], []],
   ["unit_tests/handlers/spell/tests/loot_template.rs::loot_condition_compare_and_quest_state_match_cpp_values", "P", "wow-world-loot-ops", "wow-world-lifecycle", "P-lowest-covering", false, false, false, ["wow-world-loot-ops"], []],

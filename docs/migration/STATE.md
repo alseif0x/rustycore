@@ -542,6 +542,19 @@ bounded diagnostic records the actual cooldown plan and final SpellHistory entry
 in one live epoch, without another full diagnostic campaign. Stuck-home remains
 unrun and no cooldown behavior is changed by that measurement.
 
+The one-epoch diagnostics confirm that the wrong category already exists in the
+fixture, while Hearthstone publishes CooldownEvent without invoking the pre-GO
+plan. The actual client path is `complete_spell_execution_like_cpp` calling
+`record_cast_character_spell_cooldown_like_cpp`, which wrote zero category fields.
+The implemented repair passes the selected difficulty and resolves both category
+and recovery from the existing effective SpellStore, preserving the spell deadline
+and rounding category recovery upward by seconds. Missing difficulty/key/catalogs
+do not write a new entry; a legitimate empty category catalog remains category zero.
+CooldownEvent and the pre-GO route are unchanged. Four new completion tests passed,
+plus 42 other focused spell checks, proving category 1176 and its index, native zero
+and fail-closed cases. This is an UNVALIDATED candidate pending affected and live
+acceptance. The four new World identities add 259 reviewed test lines.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1
