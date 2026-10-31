@@ -413,6 +413,14 @@ timer tests. The 30 ms regression ignores an oversized 360,000-ms early diff,
 then expires and creates the corpse/ghost/repop path. Live six-minute evidence
 is still required.
 
+The monotonic candidate at `d8f6998626c1efeff99bbb6c6a465efd219749e7`
+passed affected acceptance in 441.957 seconds. Its live automatic-release now
+emits PRE_RESURRECT and DEATH_RELEASE_LOC with `clock="monotonic"`, passes
+collection/restoration and matches the native packet bodies and connections.
+Offer and both recovery scenarios also pass. Stuck-death then failed its
+Hearthstone teleport with SPELL_FAILED reason 2; the next trace exposes the
+exact EffectStuck error before any behavior change.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

@@ -286,12 +286,26 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
         caster_guid: ObjectGuid,
     ) -> Pin<Box<dyn Future<Output = Result<(), &'static str>> + Send + 'a>> {
-        Box::pin(wow_world_application::apply_stuck_effect_like_cpp(
-            self,
-            item_guid_generator,
-            creature_spawn_catalogs,
-            caster_guid,
-        ))
+        Box::pin(async move {
+            let result = wow_world_application::apply_stuck_effect_like_cpp(
+                self,
+                item_guid_generator,
+                creature_spawn_catalogs,
+                caster_guid,
+            )
+            .await;
+            if let Err(reason) = result {
+                if std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+                    tracing::info!(
+                        caster_guid = ?caster_guid,
+                        reason,
+                        "RUST_STUCK apply_stuck_effect_like_cpp_error"
+                    );
+                }
+                return Err(reason);
+            }
+            Ok(())
+        })
     }
     fn self_resurrect_player_like_cpp<'a>(
         &'a mut self,
