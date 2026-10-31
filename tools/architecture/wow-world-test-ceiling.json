@@ -335,6 +335,16 @@
    "unit_tests_lines": 278612,
    "unit_tests_tests": 4148,
    "src_tests": 22
+  },
+  {
+   "id": "raise-54-31",
+   "kind": "raise",
+   "issue": 54,
+   "reviewed_at": "2026-10-31",
+   "reason": "Prove disconnect countdown defers before due, finalizes at due/post-due and stays immediate without countdown: exact +105 lines/+3 W tests.",
+   "unit_tests_lines": 278717,
+   "unit_tests_tests": 4151,
+   "src_tests": 22
   }
  ]
 }

@@ -52,7 +52,11 @@ the existing RBAC query feeds SessionAccountState, direct/linked grants and
 revokes compose deny-last with default security, and no SessionCore field was
 added. Seven core RBAC tests and 148 lifecycle tests passed; syntax ownership
 changes only the reviewed create_session fingerprint. These are focused checks,
-not live or final acceptance.
+not live or final acceptance. Residual 3 is implemented: an active countdown
+now defers only disconnect finalization before its deadline, while due/post-due
+returns the existing disconnect work and an ordinary disconnect stays immediate.
+Three production-phase tests and 151 lifecycle tests passed; syntax ownership
+remains green. Live timing, relogin and capture acceptance still remain.
 
 ## #43 closure execution plan — 2026-10-29
 

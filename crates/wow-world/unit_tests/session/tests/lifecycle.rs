@@ -56,6 +56,111 @@ fn logged_in_canonical_session_like_cpp() -> (
     (session, pkt_tx, send_rx)
 }
 
+async fn run_disconnecting_logout_world_pass_like_cpp(
+    session: &mut WorldSession,
+    logout_time: Option<i64>,
+) -> (
+    Option<crate::session::mailbox::PendingWorldPhaseFinalizationLikeCpp>,
+    std::sync::Arc<crate::session::mailbox::SessionPhasePermitLikeCpp>,
+    flume::Receiver<crate::session::mailbox::RunWorldPhasePassResultLikeCpp>,
+) {
+    use crate::session::mailbox::{
+        RunWorldPhasePassLikeCppRequest, SessionPhasePermitLikeCpp, SessionPhaseRequestLikeCpp,
+    };
+
+    if let Some(logout_time) = logout_time {
+        session
+            .lifecycle
+            .set_logout_start_time_like_cpp(logout_time);
+    }
+    session.kick("controlled disconnect");
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    let (response_tx, response_rx) = flume::bounded(1);
+    let pending = session
+        .run_requested_session_phase_like_cpp(
+            SessionPhaseRequestLikeCpp::World(RunWorldPhasePassLikeCppRequest {
+                coordinator_id: 1,
+                tick_epoch: 1,
+                diff_ms: 50,
+                permit: std::sync::Arc::clone(&permit),
+                response_tx,
+            }),
+            &catalogs,
+        )
+        .await;
+    (pending, permit, response_rx)
+}
+
+#[tokio::test]
+async fn active_logout_countdown_defers_disconnect_finalization_until_due() {
+    use crate::session::mailbox::{SessionPhasePassOutcomeLikeCpp, SessionPhasePermitStateLikeCpp};
+
+    let (mut session, _pkt_tx, _send_rx) = logged_in_canonical_session_like_cpp();
+    let now = wow_entities::game_time_secs_like_cpp();
+    let (pending, permit, reply) =
+        run_disconnecting_logout_world_pass_like_cpp(&mut session, Some(now)).await;
+
+    assert!(pending.is_none());
+    assert!(session.finalization_report_like_cpp().is_none());
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Completed
+    );
+    let result = reply.try_recv().unwrap();
+    assert_eq!(result.outcome, SessionPhasePassOutcomeLikeCpp::Ran);
+    assert!(!result.disconnecting);
+}
+
+#[tokio::test]
+async fn due_and_post_due_logout_countdowns_return_disconnect_finalization_without_logout_complete()
+{
+    use crate::session::mailbox::SessionPhasePermitStateLikeCpp;
+
+    for elapsed in [20, 21] {
+        let (mut session, _pkt_tx, send_rx) = logged_in_canonical_session_like_cpp();
+        let now = wow_entities::game_time_secs_like_cpp();
+        let (pending, permit, reply) =
+            run_disconnecting_logout_world_pass_like_cpp(&mut session, Some(now - elapsed)).await;
+
+        let pending = pending.expect("the due timer precedes disconnect finalization");
+        assert!(pending.result.disconnecting);
+        assert_eq!(
+            permit.state_like_cpp(),
+            SessionPhasePermitStateLikeCpp::Running
+        );
+        assert_eq!(reply.try_recv(), Err(flume::TryRecvError::Empty));
+        assert_eq!(
+            session
+                .finalization_report_like_cpp()
+                .map(|report| report.mode),
+            Some(crate::FinalizationMode::TimedLogout)
+        );
+        assert!(
+            !logout_opcodes_like_cpp(&send_rx).iter().any(|(opcode, _)| {
+                *opcode == wow_constants::ServerOpcodes::LogoutComplete as u16
+            })
+        );
+    }
+}
+
+#[tokio::test]
+async fn disconnect_without_logout_countdown_still_returns_finalization_immediately() {
+    use crate::session::mailbox::SessionPhasePermitStateLikeCpp;
+
+    let (mut session, _pkt_tx, _send_rx) = logged_in_canonical_session_like_cpp();
+    let (pending, permit, reply) =
+        run_disconnecting_logout_world_pass_like_cpp(&mut session, None).await;
+
+    assert!(pending.is_some());
+    assert!(session.finalization_report_like_cpp().is_none());
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Running
+    );
+    assert_eq!(reply.try_recv(), Err(flume::TryRecvError::Empty));
+}
+
 fn logout_response_bytes_like_cpp(logout_result: i32, instant: bool) -> Vec<u8> {
     wow_packet::ServerPacket::to_bytes(&wow_packet::packets::misc::LogoutResponse {
         logout_result,
