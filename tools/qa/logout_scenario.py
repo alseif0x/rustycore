@@ -207,46 +207,120 @@ def _stand_states(evidence: dict[str, Any], state: int) -> list[dict[str, Any]]:
                   key=_sequence)
 
 
+_UNIT_ROOT_FIELDS = {0, 32, 64, 96, 116, 167, 174, 190, 212}
+_UNIT_GUID_FIELDS = {*range(11, 21), 107, 108, 112}
+_UNIT_UNSUPPORTED_FIELDS = {1, 2, 3, 4, 22, 168, 169, 170}
+_UNIT_FIELD_WIDTHS = {field: 8 for field in (5, 6, 21)}
+for _field in (7, 8, 9, 10, 23, 29, 30, 31, *range(33, 56), *range(60, 64),
+               *range(65, 73), 75, 76, *range(81, 96), *range(97, 107),
+               *range(109, 112), *range(113, 116), *range(117, 167),
+               *range(171, 174), *range(175, 227)):
+    _UNIT_FIELD_WIDTHS[_field] = 4
+for _field in (73, 74):
+    _UNIT_FIELD_WIDTHS[_field] = 2
+for _field in (*range(24, 29), *range(56, 60), *range(77, 81)):
+    _UNIT_FIELD_WIDTHS[_field] = 1
+
+
+def _value_blocks(body: bytes) -> list[tuple[dict[str, int], bytes]]:
+    if len(body) < 11:
+        raise ValueError("truncated UpdateObject header")
+    count, _map_id = struct.unpack_from("<IH", body)
+    if body[6] & 0x7F:
+        raise ValueError("invalid UpdateObject list flag")
+    offset = 7
+    if body[6] & 0x80:
+        destroyed, removed = struct.unpack_from("<HI", body, offset)
+        offset += 6
+        if destroyed > removed:
+            raise ValueError("invalid UpdateObject removal counts")
+        for _ in range(removed):
+            _, offset = _packed_guid(body, offset, len(body))
+    size = struct.unpack_from("<I", body, offset)[0]
+    offset += 4
+    end = offset + size
+    if end != len(body):
+        raise ValueError("invalid UpdateObject data span")
+    blocks = []
+    while offset < end:
+        update_type = body[offset]
+        if update_type != 0:
+            raise ValueError("non-VALUES block in bounded UnitData decode")
+        guid, cursor = _packed_guid(body, offset + 1, end)
+        value_size = struct.unpack_from("<I", body, cursor)[0]
+        cursor += 4
+        value_end = cursor + value_size
+        if value_end > end:
+            raise ValueError("truncated UpdateObject VALUES block")
+        blocks.append((guid, body[cursor:value_end]))
+        offset = value_end
+    if len(blocks) != count:
+        raise ValueError("UpdateObject block count does not match its header")
+    return blocks
+
+
+def _unit_data_flags(data: bytes) -> int | None:
+    if len(data) < 5:
+        raise ValueError("truncated UnitData values")
+    type_mask = struct.unpack_from("<I", data)[0]
+    if type_mask not in {0x20, 0x21}:
+        return None
+    offset = 4
+    if type_mask & 1:
+        object_groups = data[offset] >> 4
+        offset += 1
+        if object_groups & 1:
+            for bit in (1, 2, 3):
+                if object_groups & (1 << bit):
+                    offset += 4
+    if offset >= len(data):
+        raise ValueError("truncated UnitData group mask")
+    group_mask = data[offset]
+    offset += 1
+    words = []
+    for group in range(8):
+        if group_mask & (1 << group):
+            if offset + 4 > len(data):
+                raise ValueError("truncated UnitData field mask")
+            words.append((group, int.from_bytes(data[offset:offset + 4], "big")))
+            offset += 4
+    fields = [group * 32 + bit for group, word in words
+              for bit in range(32) if word & (1 << bit)]
+    flags = None
+    for field in fields:
+        if field in _UNIT_ROOT_FIELDS:
+            continue
+        if field in _UNIT_UNSUPPORTED_FIELDS:
+            raise ValueError("dynamic UnitData field in bounded logout decode")
+        if field in _UNIT_GUID_FIELDS:
+            _, offset = _packed_guid(data, offset, len(data))
+            continue
+        width = _UNIT_FIELD_WIDTHS.get(field)
+        if width is None or offset + width > len(data):
+            raise ValueError("unknown or truncated UnitData field")
+        if field == 41:
+            flags = int.from_bytes(data[offset:offset + 4], "little")
+        offset += width
+    if offset != len(data):
+        raise ValueError("UnitData values have an invalid final span")
+    return flags
+
+
 def _stun_updates(evidence: dict[str, Any], owner: dict[str, int]) -> list[dict[str, Any]]:
     updates = []
     for event in _events(evidence, UPDATE_OBJECT, "instance"):
         try:
             body = bytes.fromhex(event["body_hex"])
-            if event.get("body_sha256") != hashlib.sha256(body).hexdigest() or len(body) < 11:
+            if event.get("body_sha256") != hashlib.sha256(body).hexdigest():
                 continue
-            offset = 7
-            if body[6] & 0x7F:
-                continue
-            if body[6] & 0x80:
-                destroyed, removed = struct.unpack_from("<HI", body, offset)
-                offset += 6
-                if destroyed > removed:
+            for guid, data in _value_blocks(body):
+                if guid != owner:
                     continue
-                for _ in range(removed):
-                    _, offset = _packed_guid(body, offset, len(body))
-            size = struct.unpack_from("<I", body, offset)[0]
-            offset += 4
-            end = offset + size
-            if end != len(body):
-                continue
-            while offset < end:
-                if body[offset] != 0:
-                    break
-                guid, cursor = _packed_guid(body, offset + 1, end)
-                value_size = struct.unpack_from("<I", body, cursor)[0]
-                cursor += 4
-                value_end = cursor + value_size
-                if value_end > end:
-                    break
-                if guid == owner and value_size == 13 and \
-                        struct.unpack_from("<I", body, cursor)[0] == 1 << 5 and \
-                        body[cursor + 4] == 0x02 and \
-                        struct.unpack_from(">I", body, cursor + 5)[0] == 0x0000_0201:
-                    flags = struct.unpack_from("<I", body, cursor + 9)[0]
+                flags = _unit_data_flags(data)
+                if flags is not None:
                     updates.append({"event_sequence": event.get("sequence"),
                                     "observation_sequence": _sequence(event), "flags": flags,
                                     "stunned": bool(flags & UNIT_FLAG_STUNNED)})
-                offset = value_end
         except (KeyError, TypeError, ValueError, struct.error):
             continue
     return sorted(updates, key=lambda item: item["observation_sequence"])

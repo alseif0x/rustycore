@@ -41,17 +41,23 @@ def response(reason: int, sequence: int) -> dict:
                  reason.to_bytes(4, "little", signed=True) + b"\x00")
 
 
-def stun_event(selected: dict, sequence: int, flags: int) -> dict:
+def stun_event(selected: dict, sequence: int, flags: int, *, unrelated: bool = False) -> dict:
     guid = death_scenario.player_guid(selected, 1)
     packed = death_scenario.packed_guid(guid["low"], guid["high"])
-    values = struct.pack("<I", 1 << 5) + b"\x02" + struct.pack(">I", 0x201) + struct.pack("<I", flags)
+    mask = 0x701 if unrelated else 0x201
+    values = struct.pack("<I", 1 << 5) + b"\x02" + struct.pack(">I", mask)
+    if unrelated:
+        values += struct.pack("<I", 0x11223344)
+    values += struct.pack("<I", flags)
+    if unrelated:
+        values += struct.pack("<I", 0x55667788)
     block = b"\x00" + packed + struct.pack("<I", len(values)) + values
     body = struct.pack("<IH", 1, selected["map"]) + b"\x00" + struct.pack("<I", len(block)) + block
     return event(scenario.UPDATE_OBJECT, sequence, body)
 
 
-def admitted_evidence(name: str) -> dict:
-    selected = actor()
+def admitted_evidence(name: str, *, guid: int = 73) -> dict:
+    selected = actor(guid=guid)
     requests = [sent("logout_request", 10, scenario.CMSG_LOGOUT_REQUEST, b"\x00", 0)]
     responses = [response(0, 11)]
     roots = [event(scenario.MOVE_ROOT, 12)]
@@ -224,6 +230,51 @@ class LogoutEvidenceTests(unittest.TestCase):
                     del bad["events"][index]
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_evidence("logout-cancel", plan, bad, selected, 1)
+
+    def test_captured_unit_data_blocks_parse_exact_logout_stun_values(self) -> None:
+        selected = actor(guid=20)
+        captured_set = bytes.fromhex(
+            "01000000000000170000000001a01404080d00000020000000020000020108000400")
+        captured_clear = bytes.fromhex(
+            "01000000000000170000000001a01404080d00000020000000020000020108000000")
+        evidence = admitted_evidence("logout-cancel", guid=20)
+        indexes = [index for index, item in enumerate(evidence["events"])
+                   if item["opcode"] == scenario.UPDATE_OBJECT]
+        self.assertEqual(len(indexes), 2)
+        evidence["events"][indexes[0]] = event(scenario.UPDATE_OBJECT, 14, captured_set)
+        evidence["events"][indexes[1]] = event(scenario.UPDATE_OBJECT, 54, captured_clear)
+        owner = death_scenario.player_guid(selected, 1)
+        updates = scenario._stun_updates(evidence, owner)
+        self.assertEqual([item["flags"] for item in updates], [0x00040008, 0x00000008])
+        self.assertEqual([item["stunned"] for item in updates], [True, False])
+        facts = scenario.validate_evidence(
+            "logout-cancel", scenario.plan_for("logout-cancel", selected), evidence, selected, 1)
+        self.assertEqual(facts["stun_set"]["flags"], 0x00040008)
+        self.assertEqual(facts["stun_clear"]["flags"], 0x00000008)
+
+    def test_unit_data_skips_unrelated_fields_and_rejects_truncation(self) -> None:
+        selected = actor()
+        evidence = admitted_evidence("logout-cancel")
+        indexes = [index for index, item in enumerate(evidence["events"])
+                   if item["opcode"] == scenario.UPDATE_OBJECT]
+        evidence["events"][indexes[0]] = stun_event(
+            selected, 14, 0x1000 | scenario.UNIT_FLAG_STUNNED, unrelated=True)
+        evidence["events"][indexes[1]] = stun_event(selected, 54, 0x1000, unrelated=True)
+        owner = death_scenario.player_guid(selected, 1)
+        blocks = scenario._value_blocks(bytes.fromhex(evidence["events"][indexes[0]]["body_hex"]))
+        self.assertEqual(len(blocks[0][1]), 21)
+        self.assertEqual([item["flags"] for item in scenario._stun_updates(evidence, owner)],
+                         [0x1000 | scenario.UNIT_FLAG_STUNNED, 0x1000])
+        scenario.validate_evidence(
+            "logout-cancel", scenario.plan_for("logout-cancel", selected), evidence, selected, 1)
+        truncated = copy.deepcopy(evidence)
+        body = bytes.fromhex(truncated["events"][indexes[0]]["body_hex"])
+        truncated["events"][indexes[0]] = event(scenario.UPDATE_OBJECT, 14, body[:-1])
+        self.assertEqual([item["flags"] for item in scenario._stun_updates(truncated, owner)],
+                         [0x1000])
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_evidence(
+                "logout-cancel", scenario.plan_for("logout-cancel", selected), truncated, selected, 1)
 
     def test_repeated_requests_have_one_sit_one_ack_and_restoration(self) -> None:
         selected = actor()
