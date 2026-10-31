@@ -29,6 +29,10 @@ pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
             }
         },
         Action::AttackStop => (CMSG_ATTACK_STOP, Vec::new()),
+        Action::LogoutRequest { idle_logout } => {
+            (CMSG_LOGOUT_REQUEST, vec![u8::from(*idle_logout)])
+        }
+        Action::LogoutCancel {} => (CMSG_LOGOUT_CANCEL, Vec::new()),
         _ => unreachable!("only typed non-cast actions use this builder"),
     }
 }

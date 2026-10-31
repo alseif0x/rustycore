@@ -72,11 +72,13 @@ fn go_after_failure_cannot_pass_an_ordered_failure_expectation() {
     evaluate(&mut evidence);
     assert!(evidence.expected_rules[0].matched);
     assert!(!evidence.passed);
-    assert!(evidence
-        .failure
-        .as_deref()
-        .unwrap()
-        .contains("unexpected plan-bound spell_go"));
+    assert!(
+        evidence
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("unexpected plan-bound spell_go")
+    );
 }
 
 #[test]
@@ -335,10 +337,12 @@ fn parser_decodes_prepare_identity_and_optional_sections() {
         &spell_cast_body(server, None, true),
     );
     assert_eq!(empty_go.full_combat_log, Some(false));
-    assert!(empty_go
-        .target
-        .as_ref()
-        .is_some_and(|target| target.flags == 0));
+    assert!(
+        empty_go
+            .target
+            .as_ref()
+            .is_some_and(|target| target.flags == 0)
+    );
     assert!(evidence.events[0].error.is_none());
 }
 
@@ -814,11 +818,13 @@ fn missing_or_misrouted_logout_complete_fails_the_run() {
     not_written.logout_request_completed = false;
     finalize_finish(&mut not_written);
     assert!(!not_written.passed);
-    assert!(not_written
-        .failure
-        .as_deref()
-        .unwrap()
-        .contains("logout request was not locally written"));
+    assert!(
+        not_written
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("logout request was not locally written")
+    );
 }
 
 fn correlated(events: Vec<ObservedEvent>, expected_rules: Vec<ExpectedFact>) -> Evidence {
@@ -1358,6 +1364,70 @@ fn attack_stop_preserves_native_empty_request_shape() {
 }
 
 #[test]
+fn logout_actions_preserve_native_wire_shapes_and_strict_plan_fields() {
+    let plan: Plan = serde_json::from_str(
+        r#"{
+            "actions":[
+                {"action":"logout_request","idle_logout":false},
+                {"action":"logout_request","idle_logout":true},
+                {"action":"logout_cancel"}
+            ],
+            "expect":[
+                {"event":"packet","connection":"instance","opcode":9859,"body_hex":"0000000000"},
+                {"event":"packet","connection":"instance","opcode":9861,"body_hex":""}
+            ]
+        }"#,
+    )
+    .unwrap();
+    plan::validate_plan(&plan).unwrap();
+
+    assert_eq!(
+        serde_json::to_value(&plan.actions).unwrap(),
+        serde_json::json!([
+            {"action":"logout_request","idle_logout":false},
+            {"action":"logout_request","idle_logout":true},
+            {"action":"logout_cancel"}
+        ])
+    );
+    assert_eq!(action_name(&plan.actions[0]), "logout_request");
+    assert_eq!(action_name(&plan.actions[2]), "logout_cancel");
+    assert_eq!(
+        build_action_packet(&plan.actions[0]),
+        (CMSG_LOGOUT_REQUEST, vec![0])
+    );
+    assert_eq!(
+        build_action_packet(&plan.actions[1]),
+        (CMSG_LOGOUT_REQUEST, vec![1])
+    );
+    assert_eq!(
+        build_action_packet(&plan.actions[2]),
+        (CMSG_LOGOUT_CANCEL, Vec::new())
+    );
+    assert_eq!(CMSG_LOGOUT_REQUEST, 0x34D6);
+    assert_eq!(CMSG_LOGOUT_CANCEL, 0x34D8);
+
+    for (label, action) in [
+        (
+            "logout_request unknown field",
+            r#"{"action":"logout_request","idle_logout":false,"unexpected":1}"#,
+        ),
+        (
+            "logout_cancel unknown field",
+            r#"{"action":"logout_cancel","unexpected":1}"#,
+        ),
+        (
+            "logout_request missing idle_logout",
+            r#"{"action":"logout_request"}"#,
+        ),
+    ] {
+        let json = format!(
+            r#"{{"actions":[{action}],"expect":[{{"event":"packet","connection":"instance","opcode":9859,"body_hex":"0000000000"}}]}}"#
+        );
+        assert!(plan_rejected(&json), "{label} must be rejected");
+    }
+}
+
+#[test]
 fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
     let plan: Plan = serde_json::from_str(
         r#"{
@@ -1495,11 +1565,13 @@ fn exact_packet_expectations_reject_wrong_route_duplicates_and_route_order() {
     evaluate(&mut wrong_route);
     assert!(!wrong_route.passed);
     assert!(!wrong_route.expected_rules[0].matched);
-    assert!(wrong_route
-        .failure
-        .as_deref()
-        .unwrap()
-        .contains("wrong-route"));
+    assert!(
+        wrong_route
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("wrong-route")
+    );
 
     let mut duplicate = Evidence {
         events: vec![

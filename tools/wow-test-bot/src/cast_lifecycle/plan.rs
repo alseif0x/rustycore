@@ -162,6 +162,10 @@ pub(crate) enum Action {
     },
     /// CMSG_ATTACK_STOP carries no target or payload; it stops this player's attack.
     AttackStop,
+    LogoutRequest {
+        idle_logout: bool,
+    },
+    LogoutCancel {},
     /// One finite client movement packet. The opcode comes from the closed
     /// `MovementKind` set; control flags remain owned by the live controller.
     Movement {
@@ -739,7 +743,9 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             | Action::ReleaseSpirit { .. }
             | Action::ReclaimCorpse { .. }
             | Action::ResurrectResponse { .. }
-            | Action::SelfRes { .. } => {}
+            | Action::SelfRes { .. }
+            | Action::LogoutRequest { .. }
+            | Action::LogoutCancel {} => {}
         }
     }
     for rule in &plan.expect {
@@ -848,7 +854,9 @@ pub(super) fn supported_exact_packet_opcode(opcode: u16) -> bool {
             | RAW_SMSG_DEATH_RELEASE_LOC
             | RAW_SMSG_DURABILITY_DAMAGE_DEATH
             | RAW_SMSG_FORCED_DEATH_UPDATE
+            | SMSG_LOGOUT_CANCEL_ACK
             | SMSG_LOGOUT_COMPLETE
+            | SMSG_LOGOUT_RESPONSE
             | RAW_SMSG_PRE_RESSURECT
             | RAW_SMSG_REATTACH_RESURRECT
             | RAW_SMSG_RESURRECT_REQUEST
