@@ -164,7 +164,7 @@ pub(super) async fn execute(
                     .map(|resolved| build_action_packet(&resolved))
                 {
                     Ok((opcode, body)) => {
-                        send_traced_packet(
+                        let result = send_traced_packet(
                             stream,
                             crypt,
                             &mut controller.evidence,
@@ -174,7 +174,11 @@ pub(super) async fn execute(
                             opcode,
                             &body,
                         )
-                        .await
+                        .await;
+                        if result.is_ok() && matches!(action, Action::LogoutRequest { .. }) {
+                            controller.evidence.logout_request_completed = true;
+                        }
+                        result
                     }
                     Err(error) => Err(error),
                 }
