@@ -35,6 +35,7 @@ fn context(
         player_guid,
         target_guid,
         selected_aura_constructor,
+        spell_has_no_unrepresented_runtime_hooks: false,
     }
 }
 
@@ -160,13 +161,13 @@ fn effect_route_preflight_checks_all_rows_and_primary_fallback_before_prepare() 
         effect_types::SPELL_EFFECT_NONE,
     );
     assert_eq!(
-        validate_spell_effect_routes_like_cpp(&inert, inert.effect_type, guid, guid, false),
+        validate_spell_effect_routes_like_cpp(&inert, inert.effect_type, guid, guid, false, false,),
         Ok(())
     );
 
     let create_item = spell_info(vec![effect(24, 0, 0)], 24);
     assert_eq!(
-        validate_spell_effect_routes_like_cpp(&create_item, 24, guid, guid, false),
+        validate_spell_effect_routes_like_cpp(&create_item, 24, guid, guid, false, false),
         Err("normal cast contains an unimplemented spell effect")
     );
 
@@ -181,7 +182,68 @@ fn effect_route_preflight_checks_all_rows_and_primary_fallback_before_prepare() 
             guid,
             guid,
             false,
+            false,
         ),
         Err("normal cast contains an unimplemented primary spell effect")
+    );
+}
+
+#[test]
+fn hearthstone_script_effect_route_requires_exact_hookless_row() {
+    let guid = wow_core::ObjectGuid::EMPTY;
+    let mut hearthstone = spell_info(vec![effect(77, 1, 0)], 77);
+    hearthstone.spell_id = 8690;
+    let hookless = SpellEffectRouteContextLikeCpp {
+        spell_has_no_unrepresented_runtime_hooks: true,
+        ..context(guid, guid, false)
+    };
+    assert_eq!(
+        classify_spell_effect_route_like_cpp(&hearthstone, 77, Some(1), hookless,),
+        SpellEffectExecutionRouteLikeCpp::SourceInert
+    );
+    assert_eq!(
+        validate_spell_effect_routes_like_cpp(
+            &hearthstone,
+            hearthstone.effect_type,
+            guid,
+            guid,
+            false,
+            true,
+        ),
+        Ok(())
+    );
+
+    for (spell_id, effect_index, has_no_hooks) in [
+        (8690, Some(1), false),
+        (8690, Some(0), true),
+        (8691, Some(1), true),
+    ] {
+        let mut candidate = hearthstone.clone();
+        candidate.spell_id = spell_id;
+        let route = classify_spell_effect_route_like_cpp(
+            &candidate,
+            77,
+            effect_index,
+            SpellEffectRouteContextLikeCpp {
+                spell_has_no_unrepresented_runtime_hooks: has_no_hooks,
+                ..context(guid, guid, false)
+            },
+        );
+        assert_eq!(route, SpellEffectExecutionRouteLikeCpp::Unavailable);
+    }
+
+    let mut primary_only = spell_info(Vec::new(), 77);
+    primary_only.spell_id = 8690;
+    assert_eq!(
+        validate_spell_effect_routes_like_cpp(
+            &primary_only,
+            primary_only.effect_type,
+            guid,
+            guid,
+            false,
+            true,
+        ),
+        Err("normal cast contains an unimplemented spell effect"),
+        "the primary fallback has no exact effect index and must not open a general SCRIPT_EFFECT route"
     );
 }

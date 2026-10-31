@@ -230,6 +230,7 @@ impl Runtime for Fixture {
             ObjectGuid::EMPTY,
             target_guid,
             false,
+            false,
         )
     }
     fn check_preconditions(

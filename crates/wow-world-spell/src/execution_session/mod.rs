@@ -138,6 +138,12 @@ pub trait SpellExecutionHostLikeCpp:
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
     ) -> Option<R>;
+    /// Prove the complete absence of C++ script and linked-spell runtime hooks
+    /// for one exact source spell. Hosts without that authority fail closed.
+    fn spell_has_no_unrepresented_runtime_hooks_like_cpp(&self, spell_id: u32) -> bool {
+        let _ = spell_id;
+        false
+    }
     fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool;
     fn represented_battle_pet_like_cpp(
         &self,

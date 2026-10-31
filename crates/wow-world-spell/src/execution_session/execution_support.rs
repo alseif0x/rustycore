@@ -21,6 +21,7 @@ pub(super) struct SpellEffectRouteContextLikeCpp {
     pub player_guid: ObjectGuid,
     pub target_guid: ObjectGuid,
     pub selected_aura_constructor: bool,
+    pub spell_has_no_unrepresented_runtime_hooks: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -186,6 +187,15 @@ pub(super) fn classify_spell_effect_route_like_cpp(
     if super::post_spell_go::is_post_spell_go_effect_type_like_cpp(effect_type) {
         return SpellEffectExecutionRouteLikeCpp::PostGo;
     }
+    // Spell::EffectScriptEffect reaches ScriptsStart for 8690/index 1. It is
+    // inert only when the complete runtime authority proves no hook exists.
+    if spell_info.spell_id == 8690
+        && effect_type == 77
+        && effect_index == Some(1)
+        && context.spell_has_no_unrepresented_runtime_hooks
+    {
+        return SpellEffectExecutionRouteLikeCpp::SourceInert;
+    }
     if effect_type != effect_types::SPELL_EFFECT_APPLY_AURA {
         return SpellEffectExecutionRouteLikeCpp::Unavailable;
     }
@@ -240,11 +250,13 @@ fn route_context(
     player_guid: ObjectGuid,
     target_guid: ObjectGuid,
     selected_aura_constructor: bool,
+    spell_has_no_unrepresented_runtime_hooks: bool,
 ) -> SpellEffectRouteContextLikeCpp {
     SpellEffectRouteContextLikeCpp {
         player_guid,
         target_guid,
         selected_aura_constructor,
+        spell_has_no_unrepresented_runtime_hooks,
     }
 }
 
@@ -254,8 +266,14 @@ pub(crate) fn validate_spell_effect_routes_like_cpp(
     player_guid: ObjectGuid,
     target_guid: ObjectGuid,
     selected_aura_constructor: bool,
+    spell_has_no_unrepresented_runtime_hooks: bool,
 ) -> Result<(), &'static str> {
-    let context = route_context(player_guid, target_guid, selected_aura_constructor);
+    let context = route_context(
+        player_guid,
+        target_guid,
+        selected_aura_constructor,
+        spell_has_no_unrepresented_runtime_hooks,
+    );
     if spell_info.effects().is_empty() {
         if primary_effect_type != 0
             && classify_spell_effect_route_like_cpp(spell_info, primary_effect_type, None, context)
@@ -319,12 +337,15 @@ pub fn validate_server_normal_spell_execution_availability_like_cpp<
         caster_guid,
         metadata,
     );
+    let spell_has_no_unrepresented_runtime_hooks = u32::try_from(spell_info.spell_id)
+        .is_ok_and(|spell_id| host.spell_has_no_unrepresented_runtime_hooks_like_cpp(spell_id));
     validate_spell_effect_routes_like_cpp(
         spell_info,
         spell_info.effect_type,
         player_guid,
         target_guid,
         selected_routes.selected_effects(),
+        spell_has_no_unrepresented_runtime_hooks,
     )
 }
 

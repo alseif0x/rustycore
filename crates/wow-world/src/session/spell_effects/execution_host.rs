@@ -75,6 +75,10 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         wow_world_application::mutate_cast_execution_like_cpp(&mut hub, state, f)
     }
+    fn spell_has_no_unrepresented_runtime_hooks_like_cpp(&self, spell_id: u32) -> bool {
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.spell_has_no_unrepresented_runtime_hooks_like_cpp(hub, spell_id)
+    }
     fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
         wow_world_inventory::has_represented_battle_pet_journal_lock_like_cpp(
             crate::session::hub_ref(self),

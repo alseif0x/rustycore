@@ -105,6 +105,8 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         player_guid,
         target_guid,
         selected_aura_constructor: selected_execution_effects,
+        spell_has_no_unrepresented_runtime_hooks: u32::try_from(spell_id)
+            .is_ok_and(|spell_id| host.spell_has_no_unrepresented_runtime_hooks_like_cpp(spell_id)),
     };
     if selected_execution_effects {
         spell_visual.spell_visual_id = super::selected_cast_visual::resolve(host, spell_id)?;

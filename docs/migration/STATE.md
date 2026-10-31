@@ -437,6 +437,45 @@ passed affected acceptance in 545.509 seconds. The direct STUCK match is not
 reached in the live log, so the next trace exposes the existing
 server_normal_pre_go failure variant that publishes CastFailed first.
 
+The pre-GO candidate at `24208898c91996d485e5b75f5b9af3da81602dd2` passed
+all eight affected commands in 547.159 seconds. Record:
+`/tmp/rustycore43-repair-24208898c-n7wevng7/record.json`. Its live Stuck-death
+attempt failed both epochs and restored the stable runtime. The epoch-one journal
+shows `normal cast contains an unimplemented spell effect` before the pre-GO hook;
+the numeric reason 2 is the driver's generic fallback, not evidence of a full-health
+check. Real enUS `SpellEffect.db2` (SHA-256
+`c786e3f82d69f6a2675cdcc7a0a6c48a2684044fb23344bd488425d982b525f8`) contains
+8690 difficulty-0 rows 686507 (index 0, effect 5, targets 1/9) and 686508
+(index 1, effect 77, targets 1/0). The old Hearthstone test represented only the
+first row. C++ `SpellEffects.cpp:2990–3138` has no hardcoded 8690 case and calls
+`ScriptsStart` for the second row; the effective `world.spell_scripts` lookup for
+8690 and 16785906 returned no rows.
+
+The bounded Hearthstone repair is implemented as an UNVALIDATED local candidate.
+The exact 8690/77/index-1 row is SourceInert only when the existing complete
+runtime-hook authority proves absence; preparation, server-normal validation and
+execution use the same proof. Missing authority, a present hook, another spell or
+index, and primary-only SCRIPT_EFFECT remain rejected. No general script no-op,
+new state, persistence, cost, cooldown or target redesign was added. Worker checks
+passed sequentially: Spell and World checks, four route tests and three real-row
+Hearthstone tests. The positive test covers UNIT|DEST_LOCATION with an empty Unit,
+home teleport and native completion packets; both negative fixtures reject without
+SpellGo or teleport. These are coding results, not affected or live acceptance.
+
+Fresh raw comparisons were recomputed against the successful native references:
+fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
+recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1
+captures are retained under `invalid-native-attempt1-*` names and are not evidence.
+Offer's death and request/response bodies mostly match, but both offers currently
+show cross-session SpellGo/ResurrectRequest delivery-order differences. Native
+accept also has a second MoveTeleport/CancelCombat transition absent from Rust.
+Recovery release/repop ordering differs, native logout emits CancelCombat packets
+not captured from Rust, and one recovery-dead unit update has native Unit blocks
+0x19/Power[0]=50 versus Rust 0x01 without that power block. These remain bounded
+action investigations, not global combat/scheduler work or a clean-stream claim.
+C++ `Unit::CombatStop` sends CancelCombat unconditionally to a Player and logout
+calls it before BuildPlayerRepop; any repair must retain the real publication owner.
+
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in
 `std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and

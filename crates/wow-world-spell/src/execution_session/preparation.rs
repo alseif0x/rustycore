@@ -96,12 +96,15 @@ pub(super) fn prepare_represented_spell_execution_like_cpp<H: SpellExecutionHost
         return Ok(None);
     }
 
+    let spell_has_no_unrepresented_runtime_hooks = u32::try_from(spell_id)
+        .is_ok_and(|spell_id| host.spell_has_no_unrepresented_runtime_hooks_like_cpp(spell_id));
     super::execution_support::validate_spell_effect_routes_like_cpp(
         spell_info,
         spell_info.effect_type,
         player_guid,
         target_guid,
         selected_aura_constructor,
+        spell_has_no_unrepresented_runtime_hooks,
     )?;
 
     if metadata.from_client
