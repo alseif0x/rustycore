@@ -95,14 +95,6 @@ pub(super) fn build(manifest_dir: &Path) {
     let directory = manifest_dir.join("src/forever/spell_random");
     println!("cargo:rerun-if-changed={}", directory.display());
     cc::Build::new()
-        .cargo_metadata(false)
-        .define("SFMT_MEXP", "19937")
-        .define("HAVE_SSE2", None)
-        .flag("-msse2")
-        .include(&output)
-        .file(output.join("SFMT.c"))
-        .compile("rustycore_forever_sfmt");
-    cc::Build::new()
         .cpp(true)
         .std("c++20")
         .define("SFMT_MEXP", "19937")
@@ -110,12 +102,11 @@ pub(super) fn build(manifest_dir: &Path) {
         .flag("-msse2")
         .flag("-ffp-contract=off")
         .include(&output)
+        .file(output.join("SFMT.c"))
         .file(output.join("SFMTRand.cpp"))
         .file(output.join("SourceRandom.cpp"))
         .file(directory.join("bridge.cpp"))
         .compile("rustycore_forever_spell_random");
-    // Static dependency follows its consumer in the GNU linker order.
-    println!("cargo:rustc-link-lib=static=rustycore_forever_sfmt");
     // Source headers/library above retain their notices. The SFMT license must
     // accompany redistributed binaries, not just be left inside Cargo cache.
 }

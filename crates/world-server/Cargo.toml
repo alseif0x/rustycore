@@ -12,6 +12,8 @@ forever-name-regex = ["dep:cc"]
 forever-spell-traversal = ["dep:cc"]
 # Source SFMT/frand startup capability; never the legacy Rust RNG.
 forever-spell-random = ["dep:cc"]
+# Optional verified v56/v57 navigation resource admission, never implicit world activation.
+forever-navigation = ["wow-world/forever-navigation", "dep:forever-casc", "dep:forever-navigation"]
 
 [[bin]]
 name = "world-server"
@@ -20,7 +22,7 @@ path = "src/main.rs"
 [[bin]]
 name = "forever-world-server"
 path = "src/forever/main.rs"
-required-features = ["forever-name-regex", "forever-spell-traversal", "forever-spell-random"]
+required-features = ["forever-name-regex", "forever-spell-traversal", "forever-spell-random", "forever-navigation"]
 
 [dependencies]
 tokio = { workspace = true }
@@ -50,6 +52,10 @@ wow-entities = { workspace = true }
 wow-map = { workspace = true }
 wow-scripts = { workspace = true }
 wow-social = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+forever-casc = { path = "../../../rustycore-extractors/crates/forever-casc", version = "=0.1.0", optional = true, default-features = false }
+forever-navigation = { path = "../../../rustycore-extractors/crates/forever-navigation", version = "=0.1.0", optional = true, default-features = false }
 
 [dev-dependencies]
 wow-world = { workspace = true, features = ["test-fixtures"] }

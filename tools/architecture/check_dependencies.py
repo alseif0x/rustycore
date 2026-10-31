@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from check_shared import *  # noqa: F401,F403
 from check_policy import *  # noqa: F401,F403
+from external_path_policy import admitted_path_source
 
 def classify_edge(
     policy: dict[str, Any], source: str, target: str
@@ -204,6 +205,7 @@ def external_package_source(package: dict[str, Any], package_id: str) -> str:
 
 def production_edges(
     metadata: dict[str, Any],
+    path_allowances: dict | None = None,
 ) -> tuple[
     set[str],
     set[tuple[str, str, str]],
@@ -368,10 +370,16 @@ def production_edges(
                 if target_id in member_ids:
                     workspace_edges.add((source, target, kind))
                 else:
+                    target_source = external_package_source(target_package, target_id)
+                    allowance = (path_allowances or {}).get((source, target, kind))
+                    if allowance is not None:
+                        target_source = admitted_path_source(
+                            allowance, target_package, target_id
+                        )
                     edge = (
                         source,
                         target,
-                        external_package_source(target_package, target_id),
+                        target_source,
                         kind,
                     )
                     external_edges.add(edge)
@@ -401,7 +409,9 @@ def production_edges(
 def check_dependencies(
     policy: dict[str, Any], metadata: dict[str, Any]
 ) -> tuple[int, int, int, int, int]:
-    workspace_packages, workspace_edges, external_edges = production_edges(metadata)
+    workspace_packages, workspace_edges, external_edges = production_edges(
+        metadata, policy["_external_path_allowances"]
+    )
     policy_packages = set(policy["_package_categories"])
     missing = sorted(workspace_packages - policy_packages)
     stale = sorted(policy_packages - workspace_packages)

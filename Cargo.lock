@@ -637,6 +637,47 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "forever-casc"
+version = "0.1.0"
+dependencies = [
+ "forever-db2",
+ "forever-platform",
+ "forever-terrain",
+ "forever-vmap",
+ "miniz_oxide",
+]
+
+[[package]]
+name = "forever-db2"
+version = "0.1.0"
+
+[[package]]
+name = "forever-navigation"
+version = "0.1.0"
+dependencies = [
+ "forever-casc",
+ "forever-db2",
+ "forever-platform",
+ "forever-terrain",
+ "forever-vmap",
+]
+
+[[package]]
+name = "forever-platform"
+version = "0.1.0"
+
+[[package]]
+name = "forever-terrain"
+version = "0.1.0"
+
+[[package]]
+name = "forever-vmap"
+version = "0.1.0"
+dependencies = [
+ "forever-platform",
+]
+
+[[package]]
 name = "form_urlencoded"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3117,6 +3158,8 @@ dependencies = [
  "anyhow",
  "cc",
  "flume",
+ "forever-casc",
+ "forever-navigation",
  "serde",
  "serde_json",
  "tokio",
@@ -3323,6 +3366,8 @@ name = "wow-map"
 version = "0.1.0"
 dependencies = [
  "bumpalo",
+ "forever-terrain",
+ "forever-vmap",
  "parking_lot",
  "rand",
  "smallvec",
@@ -3470,6 +3515,8 @@ version = "0.1.0"
 dependencies = [
  "dashmap",
  "flume",
+ "forever-casc",
+ "forever-navigation",
  "inventory",
  "num-traits",
  "parking_lot",

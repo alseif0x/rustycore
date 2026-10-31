@@ -1,4 +1,5 @@
 use super::*;
+use wow_persistence::forever::creation::{ClassLevelStats, RaceStats, XpOverride};
 
 fn definition(race: u8, class: u8) -> StartDefinition {
     StartDefinition {

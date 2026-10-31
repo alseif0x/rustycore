@@ -33,8 +33,8 @@ pub(super) fn spell_range(id: u32, locale: u8, bytes: &[u8]) -> SpellRangeRecord
         display_name: SpellText::from_locale(locale, bytes.to_vec()).unwrap(),
         display_name_short: SpellText::from_locale(locale, bytes.to_vec()).unwrap(),
         flags: 0,
-        range_min: [0; 2],
-        range_max: [0; 2],
+        range_min: [0.0; 2],
+        range_max: [0.0; 2],
     }
 }
 

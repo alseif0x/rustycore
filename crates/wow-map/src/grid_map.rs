@@ -81,6 +81,19 @@ impl<'a> Reader<'a> {
 }
 
 impl GridMap {
+    /// Actual retained array capacities; stack/allocator overhead is excluded.
+    /// Used by the separately versioned, checked Forever terrain owner.
+    #[cfg(all(feature = "forever-terrain", target_os = "linux"))]
+    pub(crate) fn heap_bytes(&self) -> usize {
+        let heights = match &self.heights {
+            Heights::Flat => 0,
+            Heights::Float { v9, v8 } => (v9.capacity() + v8.capacity()) * size_of::<f32>(),
+            Heights::Int16 { v9, v8, .. } => (v9.capacity() + v8.capacity()) * size_of::<u16>(),
+            Heights::Int8 { v9, v8, .. } => v9.capacity() + v8.capacity(),
+        };
+        heights + self.holes.as_ref().map_or(0, Vec::capacity)
+    }
+
     /// Parse a `.map` tile from its raw bytes, loading only the height chunk.
     ///
     /// Returns `None` if the file magic/version is wrong, the height magic is

@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# Explicit Linux reader integration; no server activation or format fallback.
+forever-terrain = ["dep:forever-vmap", "dep:forever-terrain"]
+
 [dependencies]
 wow-core = { workspace = true }
 wow-entities = { workspace = true }
@@ -13,6 +17,8 @@ smallvec = { workspace = true }
 bumpalo = { workspace = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
+forever-vmap = { version = "=0.1.0", path = "../../../rustycore-extractors/crates/forever-vmap", optional = true }
+forever-terrain = { version = "=0.1.0", path = "../../../rustycore-extractors/crates/forever-terrain", optional = true }
 
 [dev-dependencies]
 wow-constants = { workspace = true }

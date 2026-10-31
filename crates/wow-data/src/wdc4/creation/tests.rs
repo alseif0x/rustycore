@@ -139,7 +139,7 @@ fn class_power_class_comes_from_byte_parent_not_a_fabricated_in_record_column() 
 }
 
 #[test]
-fn specialization_in_record_parent_does_not_invent_a_relationship_lookup() {
+fn specialization_requires_the_acquired_relationship_lookup() {
     let make = || {
         let fields = 13;
         let mut value = reader(
@@ -156,13 +156,13 @@ fn specialization_in_record_parent_does_not_invent_a_relationship_lookup() {
             0,
             0,
         );
-        value.header._parent_lookup_count = 0;
+        value.header._parent_lookup_count = 1;
         value
     };
     let store = CreationDb2::checked(make(), CreationTable::Specialization).unwrap();
     assert_eq!(store.bits(7, 4, 0).unwrap(), 7);
     let mut invalid = make();
-    invalid.header._parent_lookup_count = 1;
+    invalid.header._parent_lookup_count = 0;
     assert!(CreationDb2::checked(invalid, CreationTable::Specialization).is_err());
     // A no-parent schema still forbids relationship data.
     let mut invalid = make();
