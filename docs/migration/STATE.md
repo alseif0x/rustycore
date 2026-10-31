@@ -472,6 +472,16 @@ debug artifacts were not reached, so no live binary was used. The exact ceiling,
 policy and census deltas have been reviewed; architecture, syntax-ownership and
 census checks now pass. A new candidate still requires the complete affected run.
 
+The complete affected campaign at `b50aefd9fb5ba4479bc23a0e7bb71acf416f31f3`
+passed all eight commands in 362.421 seconds. Record:
+`/tmp/rustycore43-repair-b50aefd9f-nj7s85jd/record.json`. Its live Stuck-death
+attempt still emitted SpellStart 8690 and then rejected before SpellGo with the
+same unimplemented-effect error; both epochs failed and stable runtime was
+restored. The accepted local result therefore does not establish the live repair.
+Effective data has no spell script binding, linked spell or SkillLineAbility row
+for 8690 and rank diagnostics are empty, so the next bounded diagnostic exposes
+every existing runtime-authority condition instead of weakening it blindly.
+
 Fresh raw comparisons were recomputed against the successful native references:
 fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
 recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1
@@ -485,6 +495,34 @@ not captured from Rust, and one recovery-dead unit update has native Unit blocks
 action investigations, not global combat/scheduler work or a clean-stream claim.
 C++ `Unit::CombatStop` sends CancelCombat unconditionally to a Player and logout
 calls it before BuildPlayerRepop; any repair must retain the real publication owner.
+
+Capture review resolved the cross-socket SpellGo/ResurrectRequest inversion as a
+non-ordering boundary: C++ sends GO before effects and Rust execution retains that
+order (`Spell.cpp:3842–3868`, `execution.rs:304–373,434–455`). Do not golden the
+merge order across independent sessions. Two native acceptances before the first
+ACK are a real missing operation: C++ retains `_resurrectionData` and repeats only
+TeleportTo/CombatStop, then executes the post-ACK resurrection once. Rust currently
+takes the request and rejects the second acceptance. The bounded repair may restart
+only TeleportInFlight/AwaitingTeleport; later phases and alive Players stay closed.
+The two final native CancelCombat packets are also real: CleanupsBeforeDelete and
+RemovePlayerFromMap each call CombatStop before LogoutComplete
+(`WorldSession.cpp:659–676`, `Unit.cpp:9536–9565`, `Map.cpp:907–930`). Add those
+existing operations at their real owners; do not add an intermediate release cancel
+or publish on Disconnecting sockets. Recovery-dead 0x19/Power[0]=50 is instead a
+pre-death regeneration/timing boundary, not a death packet to copy.
+
+Mob decoding separates correct dodge behavior from two repairs. Rust
+`damage=0/original=4/over=-1/VictimState=2` is a native dodge, not overkill or RNG
+damage drift (`Unit.cpp:1333–1343,1390–1396,5469–5472`). Native AttackerStateUpdate
+uses the Unit/Unit fallback and default ContentTuning tail Type/TargetLevel/
+Expansion=0 and Flags=3; Rust incorrectly serializes real levels/expansion with
+flags zero. Fix that complete 30-byte tail, not C++'s selected-specialization
+behavior. Native creature damage 2 versus Rust 1 also exposed omission of
+`(AttackPower / 14) * BaseVariance` from the float min/max damage calculation before
+its existing truncation (`StatSystem.cpp:1004–1022`, `Unit.cpp:2427–2433`).
+Propagate BaseVariance from the already selected SQL row into that resolver; do not
+change roll_damage, RNG, armor, attack tables or dynamic UnitMods. These remain
+UNVALIDATED repair contracts, alongside the live Stuck diagnosis.
 
 The reversed order of the two independent item durability blocks is a separate
 source-proven ordering boundary: native `Map.h:801` stores pending objects in

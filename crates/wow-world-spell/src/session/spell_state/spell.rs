@@ -98,7 +98,7 @@ impl crate::SessionSpellState {
         hub: wow_world_core::session::HubRef<'_>,
         spell_id: u32,
     ) -> bool {
-        spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp(
+        let result = spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp(
             spell_id,
             self.spell_script_exact_spell_ids_like_cpp.as_deref(),
             self.spell_script_all_rank_root_spell_ids_like_cpp
@@ -108,7 +108,67 @@ impl crate::SessionSpellState {
                 .as_deref(),
             hub.catalogs.spell_catalogs.spell_chain_store.as_deref(),
             hub.catalogs.spell_catalogs.spell_linked_store.as_deref(),
-        )
+        );
+        if spell_id == 8690 && std::env::var_os("RUSTYCORE_DEATH_TIMER_TRACE").is_some() {
+            let exact = self.spell_script_exact_spell_ids_like_cpp.as_deref();
+            let all_rank_root = self
+                .spell_script_all_rank_root_spell_ids_like_cpp
+                .as_deref();
+            let legacy = self.legacy_spell_script_spell_ids_like_cpp.as_deref();
+            let rejected_linked = self
+                .spell_linked_rejected_trigger_spell_ids_like_cpp
+                .as_deref();
+            let chains = hub.catalogs.spell_catalogs.spell_chain_store.as_deref();
+            let linked = hub.catalogs.spell_catalogs.spell_linked_store.as_deref();
+            let first_rank = chains.map(|chains| chains.first_spell_in_chain_like_cpp(spell_id));
+            let chain_diagnostics = chains
+                .and_then(|chains| chains.indeterminate_diagnostics_for_spell_like_cpp(spell_id));
+            tracing::info!(
+                spell_id,
+                result,
+                exact_source_present = exact.is_some(),
+                exact_contains_8690 = exact.is_some_and(|ids| ids.contains(&spell_id)),
+                first_rank,
+                all_rank_root_source_present = all_rank_root.is_some(),
+                all_rank_root_contains_first_rank = all_rank_root.is_some_and(|ids| {
+                    first_rank.is_some_and(|first_rank| ids.contains(&first_rank))
+                }),
+                legacy_source_present = legacy.is_some(),
+                legacy_contains_8690 = legacy.is_some_and(|ids| ids.contains(&spell_id)),
+                rejected_linked_source_present = rejected_linked.is_some(),
+                rejected_linked_contains_8690 =
+                    rejected_linked.is_some_and(|ids| ids.contains(&spell_id)),
+                chain_store_present = chains.is_some(),
+                chain_diagnostics_present = chain_diagnostics.is_some(),
+                chain_diagnostics_len = chain_diagnostics.map(|diagnostics| diagnostics.len()),
+                linked_store_present = linked.is_some(),
+                linked_cast_present = linked.is_some_and(|linked| {
+                    linked
+                        .get_spell_linked_like_cpp(wow_data::SpellLinkedTypeLikeCpp::Cast, spell_id)
+                        .is_some()
+                }),
+                linked_hit_present = linked.is_some_and(|linked| {
+                    linked
+                        .get_spell_linked_like_cpp(wow_data::SpellLinkedTypeLikeCpp::Hit, spell_id)
+                        .is_some()
+                }),
+                linked_aura_present = linked.is_some_and(|linked| {
+                    linked
+                        .get_spell_linked_like_cpp(wow_data::SpellLinkedTypeLikeCpp::Aura, spell_id)
+                        .is_some()
+                }),
+                linked_remove_present = linked.is_some_and(|linked| {
+                    linked
+                        .get_spell_linked_like_cpp(
+                            wow_data::SpellLinkedTypeLikeCpp::Remove,
+                            spell_id,
+                        )
+                        .is_some()
+                }),
+                "RUST_STUCK runtime_hook_authority"
+            );
+        }
+        result
     }
     /// Prove that every effective effect and every world-table hook for one
     /// source spell is inert for the bounded rear physical/melee hit profile.
