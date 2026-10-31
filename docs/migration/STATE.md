@@ -8303,6 +8303,24 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
+## Checked Forever terrain library — 2026-10-11
+
+The unpublished `forever-extractor-static-terrain` branch, based on
+`544721324cf0a47553caae1ea0299a0ff2917ce7`, now composes the actual `GridMap`
+reader and the extractor's rooted static VMap store in production libraries.
+The optional Linux `forever-terrain` feature provides checked height, static
+LOS/object-hit queries and shared physical-tile leases with explicit cleanup.
+It has 23 focused tests, including 1,210 exact C++ height-selector comparisons.
+Full map/world/data/database library suites and workspace all-target compilation
+pass; the general final gate still fails inherited architecture policy and an
+unchanged sibling extractor formatting defect. Source hashes and all failed
+attempts are retained in the [owning runbook](../operations/forever-login.md#checked-forever-terrain-library--2026-10-11).
+
+The server does not instantiate this capability. Complete real geometry,
+topology and runtime acceptance remain pending; creation/world entry stays
+paused. This local library acceptance does not supersede the scope of earlier
+dated login evidence or activate gameplay. No commit, push or deployment occurred.
+
 ## Forever creation paused; source checkpoint publication — 2026-10-03
 
 The operator explicitly paused selection/creation/world-entry work pending the

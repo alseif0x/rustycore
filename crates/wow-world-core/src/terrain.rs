@@ -22,6 +22,11 @@ use wow_recastdetour::{
     CENTER_GRID_ID_LIKE_CPP, MAX_NUMBER_OF_GRIDS_LIKE_CPP, SIZE_OF_GRIDS_LIKE_CPP,
 };
 
+#[cfg(all(feature = "forever-terrain", target_os = "linux"))]
+mod forever;
+#[cfg(all(feature = "forever-terrain", target_os = "linux"))]
+pub use forever::LiveForeverTerrain;
+
 /// TrinityCore `TerrainInfo::GetMinHeight` fallback when no terrain grid is loaded.
 ///
 /// Real grid-backed min-height data belongs to the terrain/map-data port; exposing

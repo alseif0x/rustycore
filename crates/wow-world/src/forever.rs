@@ -16,13 +16,12 @@ pub mod spells;
 #[cfg(test)]
 mod tests;
 
-use crate::session::registry::PacketHandlerEntryFor;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
 use wow_data::forever_hotfix::ForeverHotfixCatalog;
-use wow_handler::PacketProcessing;
+use wow_handler::{PacketHandlerFn, PacketProcessing};
 use wow_persistence::forever::{AccountSnapshot, LoadError, SessionRepository};
 
 pub use catalog::{CharacterCatalog, ClassAvailability, RaceAvailability};
@@ -99,9 +98,17 @@ impl Outgoing {
 }
 
 type HandlerResult = Result<Vec<Outgoing>, SessionError>;
-type Entry =
-    PacketHandlerEntryFor<Session, CharacterCatalog, u32, Request, HandlerResult, Admission>;
-inventory::collect!(Entry);
+
+#[derive(Clone, Copy)]
+struct Entry {
+    opcode: u32,
+    status: Admission,
+    #[allow(dead_code)]
+    processing: PacketProcessing,
+    #[allow(dead_code)]
+    handler_name: &'static str,
+    handler: PacketHandlerFn<Session, CharacterCatalog, Request, HandlerResult>,
+}
 
 pub struct Session {
     identity: Identity,
@@ -129,7 +136,7 @@ impl Session {
         selection_policy: selection::SelectionPolicy,
     ) -> Result<Self, SessionError> {
         let mut registry = HashMap::new();
-        for entry in inventory::iter::<Entry> {
+        for entry in ENTRIES {
             if registry.insert(entry.opcode, entry).is_some() {
                 return Err(SessionError::Registry);
             }
@@ -260,9 +267,49 @@ pub const ENUM_CHARACTERS: u32 = 0x440014;
 pub const HOTFIX_REQUEST: u32 = 0x440011;
 pub const LOG_DISCONNECT: u32 = 0x450007;
 
-inventory::submit! { Entry { opcode: wow_network::forever::PING, status: Admission::ConnectionEarly, processing: PacketProcessing::Inplace, handler_name: "forever_ping", handler: |session, _, request| Box::pin(handlers::ping(session, request)) } }
-inventory::submit! { Entry { opcode: LOG_DISCONNECT, status: Admission::ConnectionEarly, processing: PacketProcessing::Inplace, handler_name: "forever_disconnect", handler: |session, _, request| Box::pin(handlers::disconnect(session, request)) } }
-inventory::submit! { Entry { opcode: ENUM_CHARACTERS, status: Admission::Authenticated, processing: PacketProcessing::ThreadUnsafe, handler_name: "forever_enum", handler: |session, catalog, request| Box::pin(handlers::enumerate(session, catalog, request)) } }
-inventory::submit! { Entry { opcode: HOTFIX_REQUEST, status: Admission::Authenticated, processing: PacketProcessing::ThreadUnsafe, handler_name: "forever_hotfix", handler: |session, _, request| Box::pin(handlers::hotfix(session, request)) } }
-inventory::submit! { Entry { opcode: wow_packet::forever::db_query::CLASSIC_QUERY_OPCODE, status: Admission::Authenticated, processing: PacketProcessing::Inplace, handler_name: "forever_db_query", handler: |session, _, request| Box::pin(handlers::db_query(session, request)) } }
-inventory::submit! { Entry { opcode: wow_packet::forever::name_availability::CHECK_CHARACTER_NAME_AVAILABILITY_OPCODE, status: Admission::Authenticated, processing: PacketProcessing::ThreadUnsafe, handler_name: "forever_check_name", handler: |session, _, request| Box::pin(handlers::check_name(session, request)) } }
+static ENTRIES: &[Entry] = &[
+    Entry {
+        opcode: wow_network::forever::PING,
+        status: Admission::ConnectionEarly,
+        processing: PacketProcessing::Inplace,
+        handler_name: "forever_ping",
+        handler: |session, _, request| Box::pin(handlers::ping(session, request)),
+    },
+    Entry {
+        opcode: LOG_DISCONNECT,
+        status: Admission::ConnectionEarly,
+        processing: PacketProcessing::Inplace,
+        handler_name: "forever_disconnect",
+        handler: |session, _, request| Box::pin(handlers::disconnect(session, request)),
+    },
+    Entry {
+        opcode: ENUM_CHARACTERS,
+        status: Admission::Authenticated,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "forever_enum",
+        handler: |session, catalog, request| {
+            Box::pin(handlers::enumerate(session, catalog, request))
+        },
+    },
+    Entry {
+        opcode: HOTFIX_REQUEST,
+        status: Admission::Authenticated,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "forever_hotfix",
+        handler: |session, _, request| Box::pin(handlers::hotfix(session, request)),
+    },
+    Entry {
+        opcode: wow_packet::forever::db_query::CLASSIC_QUERY_OPCODE,
+        status: Admission::Authenticated,
+        processing: PacketProcessing::Inplace,
+        handler_name: "forever_db_query",
+        handler: |session, _, request| Box::pin(handlers::db_query(session, request)),
+    },
+    Entry {
+        opcode: wow_packet::forever::name_availability::CHECK_CHARACTER_NAME_AVAILABILITY_OPCODE,
+        status: Admission::Authenticated,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "forever_check_name",
+        handler: |session, _, request| Box::pin(handlers::check_name(session, request)),
+    },
+];

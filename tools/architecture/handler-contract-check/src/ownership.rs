@@ -35,11 +35,16 @@ const HANDLER_PACKAGE_NAME: &str = "wow-handler";
 const WOW_PROTO_PACKAGE_NAME: &str = "wow-proto";
 const WOW_PROTO_GENERATED_INCLUDE_SUFFIXES: &[&str] = &[
     "/bgs.protocol.rs",
+    "/bgs.protocol.v2.rs",
     "/bgs.protocol.account.v1.rs",
+    "/bgs.protocol.account.v2.rs",
+    "/bgs.protocol.account.v2.client.rs",
     "/bgs.protocol.authentication.v1.rs",
+    "/bgs.protocol.authentication.v2.client.rs",
     "/bgs.protocol.challenge.v1.rs",
     "/bgs.protocol.connection.v1.rs",
     "/bgs.protocol.game_utilities.v1.rs",
+    "/bgs.protocol.game_utilities.v2.client.rs",
 ];
 const WOW_LOGGING_PACKAGE_NAME: &str = "wow-logging";
 const WOW_LOGGING_EXPORTED_MACROS: &[&str] = &[

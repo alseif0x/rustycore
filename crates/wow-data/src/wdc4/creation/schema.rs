@@ -150,12 +150,13 @@ impl CreationTable {
 
     /// Physical target header, distinct from DB2Meta::ParentIndexField.
     /// DB2FileLoader.cpp:1773-1792 allows an in-record parent without a lookup.
-    /// Fresh 70170 specialization has ParentIndexField=4, ParentLookupCount=0.
-    /// Existing table gates retain their independently captured contracts.
+    /// The acquired 70170 specialization has ParentIndexField=4 and declares one
+    /// relationship lookup; other table gates retain their captured contracts.
     pub(super) fn parent_lookup_count(self) -> u32 {
         match self {
             Self::Spell(table) => table.schema().parent_lookups,
-            Self::Specialization | Self::ItemSpec => 0,
+            Self::Specialization => 1,
+            Self::ItemSpec => 0,
             _ => u32::from(self.schema().parent.is_some()),
         }
     }

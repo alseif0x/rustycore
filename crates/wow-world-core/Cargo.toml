@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [features]
+forever-terrain = ["wow-map/forever-terrain"]
 forever-navigation = ["dep:forever-navigation"]
 # Preserve the World fixture gate and its kernel test-support dependency.
 test-fixtures = ["dep:wow-script", "wow-session/test-support"]

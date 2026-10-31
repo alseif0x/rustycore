@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
+forever-terrain = ["wow-world-core/forever-terrain"]
 forever-navigation = ["wow-world-core/forever-navigation"]
 # Directory fixture helpers for cross-crate tests, and (#1241 F4a-P2) the test-only state and hooks
 # gated `any(test, feature = "test-fixtures")` so code moving to wow-world-core stays visible to
@@ -113,6 +114,9 @@ serde_json = { workspace = true }
 # #1263 C1 capture harness: the injected stale/ABA replay records the production
 # `rustycore::capture::c1` tracing events through a test-local subscriber.
 tracing-subscriber = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+forever-navigation = { path = "../../../rustycore-extractors/crates/forever-navigation", version = "=0.1.0", default-features = false }
 
 [lints]
 workspace = true

@@ -30,6 +30,9 @@ use crate::grid_map::GridMap;
 use crate::map::{MapWorldObjectEnvironment, TerrainGridLoader};
 use crate::vmap::{SharedStaticVMapLineOfSightProvider, VMapLineOfSightQuery};
 
+#[cfg(all(feature = "forever-terrain", target_os = "linux"))]
+pub mod forever;
+
 // C++ Grids/GridDefines.h
 const SIZE_OF_GRIDS: f32 = 533.333_3;
 const CENTER_GRID_ID: i32 = 32;

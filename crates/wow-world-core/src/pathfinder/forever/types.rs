@@ -16,6 +16,8 @@ pub use forever_navigation::package_v23::{
     Context as ForeverNavigationContext, Expected as ForeverNavigationExpected,
     Locale as ForeverNavigationLocale, Summary as ForeverNavigationSummary,
 };
+pub use forever_navigation::package_v56::Expected as ForeverNavigation56Expected;
+pub use forever_navigation::package_v57::Expected as ForeverNavigation57Expected;
 pub use forever_navigation::tilebuilder::Coordinate as ForeverNavigationTile;
 
 pub const MAX_FOREVER_NAVIGATION_TILES: usize = 4096;

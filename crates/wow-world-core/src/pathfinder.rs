@@ -34,13 +34,14 @@ pub use forever::ForeverNavigationTestFailurePlan;
 #[cfg(all(feature = "forever-navigation", target_os = "linux"))]
 #[allow(unused_imports)]
 pub use forever::{
-    FOREVER_NAVIGATION_QUERY_NODE_BUDGET, ForeverNavigationContext, ForeverNavigationCorridor,
-    ForeverNavigationError, ForeverNavigationExpected, ForeverNavigationLimits,
-    ForeverNavigationLocale, ForeverNavigationQueryRequest, ForeverNavigationStats,
-    ForeverNavigationSummary, ForeverNavigationTile, MAX_FOREVER_NAVIGATION_BATCH_BYTES,
-    MAX_FOREVER_NAVIGATION_FILE_BYTES, MAX_FOREVER_NAVIGATION_INSTANCE_QUERIES,
-    MAX_FOREVER_NAVIGATION_LOADED_BYTES, MAX_FOREVER_NAVIGATION_PATH_POLYS,
-    MAX_FOREVER_NAVIGATION_TILES, MAX_FOREVER_NAVIGATION_TILES_PER_BATCH,
+    FOREVER_NAVIGATION_QUERY_NODE_BUDGET, ForeverNavigation56Expected, ForeverNavigation57Expected,
+    ForeverNavigationContext, ForeverNavigationCorridor, ForeverNavigationError,
+    ForeverNavigationExpected, ForeverNavigationLimits, ForeverNavigationLocale,
+    ForeverNavigationQueryRequest, ForeverNavigationStats, ForeverNavigationSummary,
+    ForeverNavigationTile, MAX_FOREVER_NAVIGATION_BATCH_BYTES, MAX_FOREVER_NAVIGATION_FILE_BYTES,
+    MAX_FOREVER_NAVIGATION_INSTANCE_QUERIES, MAX_FOREVER_NAVIGATION_LOADED_BYTES,
+    MAX_FOREVER_NAVIGATION_PATH_POLYS, MAX_FOREVER_NAVIGATION_TILES,
+    MAX_FOREVER_NAVIGATION_TILES_PER_BATCH,
 };
 
 use crate::creature_movement::CreatureMovementQueriesLikeCpp;
@@ -384,6 +385,94 @@ impl WorldMMapPathfinderWorkerLikeCpp {
             .spawn(move || {
                 let mut pathfinder = WorldMMapPathfinderLikeCpp::new(&worker_root);
                 let owner = match forever::ForeverNavigationOwner::open(
+                    &worker_root,
+                    expected,
+                    limits,
+                    &mut pathfinder.mmap_manager,
+                ) {
+                    Ok(owner) => owner,
+                    Err(error) => {
+                        let _ = ready_tx.send(Err(error));
+                        return;
+                    }
+                };
+                pathfinder.forever_navigation = Some(owner);
+                if ready_tx.send(Ok(())).is_err() {
+                    return;
+                }
+                run_pathfinder_worker(pathfinder, request_rx);
+            })
+            .map_err(|error| forever::ForeverNavigationError::WorkerSpawn(error.to_string()))?;
+
+        match ready_rx.recv() {
+            Ok(Ok(())) => Ok(Self {
+                request_tx,
+                forever_navigation_limits: Some(limits),
+            }),
+            Ok(Err(error)) => Err(error),
+            Err(_) => Err(forever::ForeverNavigationError::WorkerStopped),
+        }
+    }
+
+    #[cfg(all(feature = "forever-navigation", target_os = "linux"))]
+    pub fn spawn_forever_navigation56(
+        package_root: impl AsRef<Path>,
+        expected: forever::ForeverNavigation56Expected,
+        limits: forever::ForeverNavigationLimits,
+    ) -> Result<Self, forever::ForeverNavigationError> {
+        let package_root = package_root.as_ref().to_path_buf();
+        let worker_root = package_root.clone();
+        let (request_tx, request_rx) = mpsc::channel::<WorldMMapPathfinderMessageLikeCpp>();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        thread::Builder::new()
+            .name("world-mmap-pathfinder-like-cpp".to_string())
+            .spawn(move || {
+                let mut pathfinder = WorldMMapPathfinderLikeCpp::new(&worker_root);
+                let owner = match forever::ForeverNavigationOwner::open_v56(
+                    &worker_root,
+                    expected,
+                    limits,
+                    &mut pathfinder.mmap_manager,
+                ) {
+                    Ok(owner) => owner,
+                    Err(error) => {
+                        let _ = ready_tx.send(Err(error));
+                        return;
+                    }
+                };
+                pathfinder.forever_navigation = Some(owner);
+                if ready_tx.send(Ok(())).is_err() {
+                    return;
+                }
+                run_pathfinder_worker(pathfinder, request_rx);
+            })
+            .map_err(|error| forever::ForeverNavigationError::WorkerSpawn(error.to_string()))?;
+
+        match ready_rx.recv() {
+            Ok(Ok(())) => Ok(Self {
+                request_tx,
+                forever_navigation_limits: Some(limits),
+            }),
+            Ok(Err(error)) => Err(error),
+            Err(_) => Err(forever::ForeverNavigationError::WorkerStopped),
+        }
+    }
+
+    #[cfg(all(feature = "forever-navigation", target_os = "linux"))]
+    pub fn spawn_forever_navigation57(
+        package_root: impl AsRef<Path>,
+        expected: forever::ForeverNavigation57Expected,
+        limits: forever::ForeverNavigationLimits,
+    ) -> Result<Self, forever::ForeverNavigationError> {
+        let package_root = package_root.as_ref().to_path_buf();
+        let worker_root = package_root.clone();
+        let (request_tx, request_rx) = mpsc::channel::<WorldMMapPathfinderMessageLikeCpp>();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        thread::Builder::new()
+            .name("world-mmap-pathfinder-like-cpp".to_string())
+            .spawn(move || {
+                let mut pathfinder = WorldMMapPathfinderLikeCpp::new(&worker_root);
+                let owner = match forever::ForeverNavigationOwner::open_v57(
                     &worker_root,
                     expected,
                     limits,

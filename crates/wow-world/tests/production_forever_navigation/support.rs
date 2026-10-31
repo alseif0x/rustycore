@@ -10,7 +10,7 @@ use std::{
 
 use forever_casc::{
     Locale, integrity,
-    package::{self, Component, Context, Run},
+    package::{self, Component, Context, Run, Summary},
 };
 use forever_navigation::{
     mmap::{self, Params},
@@ -358,4 +358,289 @@ fn put_u32(bytes: &mut [u8], offset: usize, value: u32) {
 
 fn put_f32(bytes: &mut [u8], offset: usize, value: f32) {
     bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+}
+
+pub struct SyntheticNavigation56Package {
+    root: PathBuf,
+    pub output: PathBuf,
+    pub expected: forever_navigation::package_v56::Expected,
+}
+
+impl SyntheticNavigation56Package {
+    pub fn create() -> Self {
+        use forever_navigation::package_v56::{self, Coverage56, MapFact, Output};
+
+        let params =
+            tilebuilder::global_params(&[WRITTEN_A, WRITTEN_B]).expect("synthetic v56 inventory");
+        let global = mmap::encode_global(SELECTED_MAP, params, &[], mmap::Limits::default())
+            .expect("synthetic v56 global");
+        let written_tiles: Vec<_> = [WRITTEN_A, WRITTEN_C, WRITTEN_B]
+            .into_iter()
+            .map(|coordinate| (coordinate, tile_container(coordinate, params, false, false)))
+            .collect();
+        let output_tiles: Vec<_> = [WRITTEN_A, WRITTEN_C, EMPTY, WRITTEN_B]
+            .into_iter()
+            .map(|coordinate| {
+                if let Some((_, bytes)) = written_tiles.iter().find(|(tile, _)| *tile == coordinate)
+                {
+                    TileOutput {
+                        tile: coordinate,
+                        written: true,
+                        bytes: bytes.len() as u64,
+                        sha256: integrity::digest(bytes),
+                    }
+                } else {
+                    TileOutput {
+                        tile: coordinate,
+                        written: false,
+                        bytes: 0,
+                        sha256: [0; 32],
+                    }
+                }
+            })
+            .collect();
+        let source = Summary {
+            context: Context {
+                build: 70_450,
+                locale: Locale::EnUs,
+                source_sha256: SOURCE_SHA256,
+                plan_sha256: [0x51; 32],
+                producer_sha256: PRODUCER_SHA256,
+                components: 25,
+            },
+            files: 1,
+            bytes: 128,
+            inventory_sha256: [0x53; 32],
+        };
+        let context = Context {
+            build: 70_450,
+            locale: Locale::EnUs,
+            source_sha256: integrity::digest(
+                format!("rustycore-navigation-v56-sealed-v51\n{}\n", source.json()).as_bytes(),
+            ),
+            plan_sha256: PLAN_SHA256,
+            producer_sha256: PRODUCER_SHA256,
+            components: Component::Navigation.bit(),
+        };
+        let coverage = Coverage56 {
+            context,
+            source,
+            maps: vec![
+                MapFact {
+                    id: SELECTED_MAP,
+                    root: SELECTED_MAP,
+                    state: "planned",
+                    tiles: vec![WRITTEN_A, WRITTEN_C, EMPTY, WRITTEN_B],
+                },
+                MapFact {
+                    id: 49,
+                    root: 49,
+                    state: "empty",
+                    tiles: Vec::new(),
+                },
+                MapFact {
+                    id: 50,
+                    root: 50,
+                    state: "root-absent",
+                    tiles: Vec::new(),
+                },
+            ],
+            outputs: vec![
+                Output {
+                    map: SELECTED_MAP,
+                    global: Some(TileOutput {
+                        tile: Coordinate { row: 0, column: 0 },
+                        written: true,
+                        bytes: global.len() as u64,
+                        sha256: integrity::digest(&global),
+                    }),
+                    tiles: output_tiles,
+                    partial_triangulations: 0,
+                    detail_center_fallbacks: 0,
+                    unset_height_samples: 0,
+                },
+                Output {
+                    map: 49,
+                    global: None,
+                    tiles: Vec::new(),
+                    partial_triangulations: 0,
+                    detail_center_fallbacks: 0,
+                    unset_height_samples: 0,
+                },
+                Output {
+                    map: 50,
+                    global: None,
+                    tiles: Vec::new(),
+                    partial_triangulations: 0,
+                    detail_center_fallbacks: 0,
+                    unset_height_samples: 0,
+                },
+            ],
+            builder: 0,
+            save: 0,
+        };
+        let coverage_bytes = coverage.render().expect("valid synthetic v56 coverage");
+        let root = std::env::temp_dir().join(format!(
+            "rustycore-navigation56-{}-{}",
+            std::process::id(),
+            NEXT_PACKAGE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).expect("create synthetic v56 parent");
+        let output = root.join("package");
+        let mut run = Run::create(&output, context, &[], package::Limits::default())
+            .expect("create synthetic v56 run");
+        run.put(
+            Component::Navigation,
+            package_v56::COVERAGE_PATH,
+            &coverage_bytes,
+        )
+        .expect("write synthetic v56 coverage");
+        run.put(
+            Component::Navigation,
+            &mmap::global_path(SELECTED_MAP),
+            &global,
+        )
+        .expect("write synthetic v56 global");
+        for (coordinate, bytes) in written_tiles {
+            run.put(
+                Component::Navigation,
+                &mmap::tile_path(SELECTED_MAP, coordinate.row, coordinate.column).unwrap(),
+                &bytes,
+            )
+            .expect("write synthetic v56 tile");
+        }
+        run.finish_component(Component::Navigation).unwrap();
+        run.finish().unwrap();
+        Self {
+            root,
+            output,
+            expected: package_v56::Expected {
+                selected_map: SELECTED_MAP,
+                locale: Locale::EnUs,
+                plan_sha256: PLAN_SHA256,
+                context: Some(context),
+            },
+        }
+    }
+}
+
+impl Drop for SyntheticNavigation56Package {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.root);
+    }
+}
+
+pub struct SyntheticNavigation57Package {
+    root: PathBuf,
+    pub output: PathBuf,
+    pub expected: forever_navigation::package_v57::Expected,
+}
+
+impl SyntheticNavigation57Package {
+    pub fn create() -> Self {
+        use forever_navigation::package_v57::{self, Coverage57, MapFact, Output};
+
+        let params = tilebuilder::global_params(&[WRITTEN_A]).expect("synthetic v57 inventory");
+        let global = mmap::encode_global(SELECTED_MAP, params, &[], mmap::Limits::default())
+            .expect("synthetic v57 global");
+        let tile = tile_container(WRITTEN_A, params, false, false);
+        let source = Summary {
+            context: Context {
+                build: 70_450,
+                locale: Locale::EnUs,
+                source_sha256: SOURCE_SHA256,
+                plan_sha256: [0x51; 32],
+                producer_sha256: PRODUCER_SHA256,
+                components: 25,
+            },
+            files: 1,
+            bytes: 128,
+            inventory_sha256: [0x53; 32],
+        };
+        let context = Context {
+            build: 70_450,
+            locale: Locale::EnUs,
+            source_sha256: integrity::digest(
+                format!("rustycore-navigation-v57-sealed-v51\n{}\n", source.json()).as_bytes(),
+            ),
+            plan_sha256: PLAN_SHA256,
+            producer_sha256: PRODUCER_SHA256,
+            components: Component::Navigation.bit(),
+        };
+        let coverage = Coverage57 {
+            context,
+            source,
+            maps: vec![MapFact {
+                id: SELECTED_MAP,
+                root: SELECTED_MAP,
+                state: "planned",
+                tiles: vec![WRITTEN_A],
+            }],
+            outputs: vec![Output {
+                map: SELECTED_MAP,
+                global: Some(TileOutput {
+                    tile: Coordinate { row: 0, column: 0 },
+                    written: true,
+                    bytes: global.len() as u64,
+                    sha256: integrity::digest(&global),
+                }),
+                tiles: vec![TileOutput {
+                    tile: WRITTEN_A,
+                    written: true,
+                    bytes: tile.len() as u64,
+                    sha256: integrity::digest(&tile),
+                }],
+                partial_triangulations: 0,
+                detail_center_fallbacks: 0,
+                unset_height_samples: 0,
+            }],
+            builder: 0,
+            save: 0,
+        };
+        let root = std::env::temp_dir().join(format!(
+            "rustycore-navigation57-{}-{}",
+            std::process::id(),
+            NEXT_PACKAGE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).expect("create synthetic v57 parent");
+        let output = root.join("package");
+        let mut run = Run::create(&output, context, &[], package::Limits::default())
+            .expect("create synthetic v57 run");
+        run.put(
+            Component::Navigation,
+            package_v57::COVERAGE_PATH,
+            &coverage.render().unwrap(),
+        )
+        .expect("write synthetic v57 coverage");
+        run.put(
+            Component::Navigation,
+            &mmap::global_path(SELECTED_MAP),
+            &global,
+        )
+        .expect("write synthetic v57 global");
+        run.put(
+            Component::Navigation,
+            &mmap::tile_path(SELECTED_MAP, WRITTEN_A.row, WRITTEN_A.column).unwrap(),
+            &tile,
+        )
+        .expect("write synthetic v57 tile");
+        run.finish_component(Component::Navigation).unwrap();
+        run.finish().unwrap();
+        Self {
+            root,
+            output,
+            expected: package_v57::Expected {
+                selected_map: SELECTED_MAP,
+                locale: Locale::EnUs,
+                plan_sha256: PLAN_SHA256,
+                context: Some(context),
+            },
+        }
+    }
+}
+
+impl Drop for SyntheticNavigation57Package {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.root);
+    }
 }

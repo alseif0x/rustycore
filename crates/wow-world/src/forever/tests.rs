@@ -195,7 +195,7 @@ fn policy() -> InitializationPolicy {
 
 #[test]
 fn linked_registry_has_one_exact_metadata_and_call_set() {
-    let entries: Vec<_> = inventory::iter::<Entry>.into_iter().collect();
+    let entries: Vec<_> = ENTRIES.to_vec();
     let rows: BTreeSet<_> = entries
         .iter()
         .map(|entry| {

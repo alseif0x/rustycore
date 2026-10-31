@@ -15,14 +15,7 @@ pub type PacketHandlerFn<S, C, P = WorldPacket, R = ()> =
     for<'a> fn(&'a mut S, &'a C, P) -> HandlerFuture<'a, R>;
 
 /// A registered packet handler: admission metadata and the call itself.
-pub struct PacketHandlerEntry<
-    S,
-    C,
-    O = ClientOpcodes,
-    P = WorldPacket,
-    R = (),
-    A = SessionStatus,
-> {
+pub struct PacketHandlerEntry<S, C, O = ClientOpcodes, P = WorldPacket, R = (), A = SessionStatus> {
     /// Opcode dispatched to this handler.
     pub opcode: O,
     /// Session status required before invoking the handler.

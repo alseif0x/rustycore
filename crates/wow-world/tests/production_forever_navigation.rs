@@ -7,7 +7,10 @@ mod support;
 
 use std::fs;
 
-use support::{EMPTY, SELECTED_MAP, SyntheticNavigationPackage, WRITTEN_A, WRITTEN_B, WRITTEN_C};
+use support::{
+    EMPTY, SELECTED_MAP, SyntheticNavigation56Package, SyntheticNavigation57Package,
+    SyntheticNavigationPackage, WRITTEN_A, WRITTEN_B, WRITTEN_C,
+};
 use wow_core::Position;
 use wow_entities::PhaseShift;
 use wow_recastdetour::{
@@ -641,4 +644,90 @@ fn limits_preflight_and_failure_rollback_keep_the_native_manager_bounded() {
         worker.unload_forever_navigation_tiles(SELECTED_MAP, [WRITTEN_A]),
         Err(ForeverNavigationError::Poisoned)
     ));
+}
+
+#[test]
+fn public_worker_admits_v56_and_reuses_native_tile_and_query_lifecycle() {
+    let package = SyntheticNavigation56Package::create();
+    let worker = WorldMMapPathfinderWorkerLikeCpp::spawn_forever_navigation56(
+        &package.output,
+        package.expected,
+        ForeverNavigationLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(worker.forever_navigation_stats().unwrap().loaded_tiles, 0);
+
+    worker
+        .prepare_forever_navigation_tiles(SELECTED_MAP, [WRITTEN_A])
+        .unwrap();
+    assert_eq!(worker.forever_navigation_stats().unwrap().loaded_tiles, 1);
+    let corridor = worker
+        .query_forever_navigation_corridor(query(
+            Position::xyz(5.0, 5.0, 0.0),
+            Position::xyz(25.0, 25.0, 0.0),
+        ))
+        .unwrap();
+    assert_ne!(corridor.path.status & DT_SUCCESS_LIKE_CPP, 0);
+    assert_eq!(corridor.path.status & DT_PARTIAL_RESULT_LIKE_CPP, 0);
+    assert!(corridor.path.polys.len() > 1);
+
+    worker
+        .unload_forever_navigation_instance(SELECTED_MAP, SELECTED_MAP, 9)
+        .unwrap();
+    worker
+        .unload_forever_navigation_tiles(SELECTED_MAP, [WRITTEN_A])
+        .unwrap();
+    let final_stats = worker.forever_navigation_stats().unwrap();
+    assert_eq!(final_stats.loaded_tiles, 0);
+    assert_eq!(final_stats.instance_queries, 0);
+}
+
+#[test]
+fn public_worker_admits_v57_and_rejects_v56_identity_projection() {
+    let package = SyntheticNavigation57Package::create();
+    let expected56 = forever_navigation::package_v56::Expected {
+        selected_map: package.expected.selected_map,
+        locale: package.expected.locale,
+        plan_sha256: package.expected.plan_sha256,
+        context: package.expected.context,
+    };
+    assert!(
+        WorldMMapPathfinderWorkerLikeCpp::spawn_forever_navigation56(
+            &package.output,
+            expected56,
+            ForeverNavigationLimits::default(),
+        )
+        .is_err()
+    );
+    let worker = WorldMMapPathfinderWorkerLikeCpp::spawn_forever_navigation57(
+        &package.output,
+        package.expected,
+        ForeverNavigationLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(worker.forever_navigation_stats().unwrap().loaded_tiles, 0);
+
+    worker
+        .prepare_forever_navigation_tiles(SELECTED_MAP, [WRITTEN_A])
+        .unwrap();
+    assert_eq!(worker.forever_navigation_stats().unwrap().loaded_tiles, 1);
+    let corridor = worker
+        .query_forever_navigation_corridor(query(
+            Position::xyz(5.0, 5.0, 0.0),
+            Position::xyz(25.0, 25.0, 0.0),
+        ))
+        .unwrap();
+    assert_ne!(corridor.path.status & DT_SUCCESS_LIKE_CPP, 0);
+    assert_eq!(corridor.path.status & DT_PARTIAL_RESULT_LIKE_CPP, 0);
+    assert!(corridor.path.polys.len() > 1);
+
+    worker
+        .unload_forever_navigation_instance(SELECTED_MAP, SELECTED_MAP, 9)
+        .unwrap();
+    worker
+        .unload_forever_navigation_tiles(SELECTED_MAP, [WRITTEN_A])
+        .unwrap();
+    let final_stats = worker.forever_navigation_stats().unwrap();
+    assert_eq!(final_stats.loaded_tiles, 0);
+    assert_eq!(final_stats.instance_queries, 0);
 }

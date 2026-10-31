@@ -11,6 +11,7 @@ mod item_specs;
 mod items;
 mod name_regex;
 mod names;
+mod navigation;
 mod ruleset;
 mod spell_book_order;
 mod spell_random;
@@ -41,6 +42,12 @@ async fn run() -> Result<()> {
         "Forever build-70170 isolated account-phase server ready on 127.0.0.1:18085; effective birth counts={:?}; no Player skills/spells/items or creation admitted.",
         runtime.birth.counts()
     );
+    if let Some(navigation) = &runtime.navigation {
+        println!(
+            "Forever verified navigation resource admitted: map={}; no gameplay claim.",
+            navigation.selected_map
+        );
+    }
     // One sequential owner, no detached sessions, mirror or background writer.
     loop {
         let (stream, peer) = tokio::select! {

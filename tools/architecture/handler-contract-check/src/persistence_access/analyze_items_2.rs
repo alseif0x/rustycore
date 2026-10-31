@@ -56,11 +56,20 @@ pub(super) fn is_pinned_wow_proto_include(context: &RecordContext<'_>, mac: &syn
     }
     let suffix = match context.module {
         "crate::bgs::protocol" => "/bgs.protocol.rs",
+        "crate::bgs::protocol::v2" => "/bgs.protocol.v2.rs",
         "crate::bgs::protocol::account::v1" => "/bgs.protocol.account.v1.rs",
+        "crate::bgs::protocol::account::v2" => "/bgs.protocol.account.v2.rs",
+        "crate::bgs::protocol::account::v2::client" => "/bgs.protocol.account.v2.client.rs",
         "crate::bgs::protocol::authentication::v1" => "/bgs.protocol.authentication.v1.rs",
+        "crate::bgs::protocol::authentication::v2::client" => {
+            "/bgs.protocol.authentication.v2.client.rs"
+        }
         "crate::bgs::protocol::challenge::v1" => "/bgs.protocol.challenge.v1.rs",
         "crate::bgs::protocol::connection::v1" => "/bgs.protocol.connection.v1.rs",
         "crate::bgs::protocol::game_utilities::v1" => "/bgs.protocol.game_utilities.v1.rs",
+        "crate::bgs::protocol::game_utilities::v2::client" => {
+            "/bgs.protocol.game_utilities.v2.client.rs"
+        }
         _ => return false,
     };
     let expected: syn::ItemMacro = syn::parse_str(&format!(

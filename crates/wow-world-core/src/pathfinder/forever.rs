@@ -10,13 +10,14 @@ pub(super) use owner::ForeverNavigationOwner;
 #[cfg(feature = "test-fixtures")]
 pub use types::ForeverNavigationTestFailurePlan;
 pub use types::{
-    FOREVER_NAVIGATION_QUERY_NODE_BUDGET, ForeverNavigationContext, ForeverNavigationCorridor,
-    ForeverNavigationError, ForeverNavigationExpected, ForeverNavigationLimits,
-    ForeverNavigationLocale, ForeverNavigationQueryRequest, ForeverNavigationStats,
-    ForeverNavigationSummary, ForeverNavigationTile, MAX_FOREVER_NAVIGATION_BATCH_BYTES,
-    MAX_FOREVER_NAVIGATION_FILE_BYTES, MAX_FOREVER_NAVIGATION_INSTANCE_QUERIES,
-    MAX_FOREVER_NAVIGATION_LOADED_BYTES, MAX_FOREVER_NAVIGATION_PATH_POLYS,
-    MAX_FOREVER_NAVIGATION_TILES, MAX_FOREVER_NAVIGATION_TILES_PER_BATCH,
+    FOREVER_NAVIGATION_QUERY_NODE_BUDGET, ForeverNavigation56Expected, ForeverNavigation57Expected,
+    ForeverNavigationContext, ForeverNavigationCorridor, ForeverNavigationError,
+    ForeverNavigationExpected, ForeverNavigationLimits, ForeverNavigationLocale,
+    ForeverNavigationQueryRequest, ForeverNavigationStats, ForeverNavigationSummary,
+    ForeverNavigationTile, MAX_FOREVER_NAVIGATION_BATCH_BYTES, MAX_FOREVER_NAVIGATION_FILE_BYTES,
+    MAX_FOREVER_NAVIGATION_INSTANCE_QUERIES, MAX_FOREVER_NAVIGATION_LOADED_BYTES,
+    MAX_FOREVER_NAVIGATION_PATH_POLYS, MAX_FOREVER_NAVIGATION_TILES,
+    MAX_FOREVER_NAVIGATION_TILES_PER_BATCH,
 };
 pub(super) use types::{ForeverNavigationWorkerAction, ForeverNavigationWorkerResponse};
 

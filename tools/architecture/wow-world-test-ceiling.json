@@ -345,6 +345,16 @@
    "unit_tests_lines": 278717,
    "unit_tests_tests": 4151,
    "src_tests": 22
+  },
+  {
+   "id": "raise-584-32",
+   "kind": "raise",
+   "issue": 584,
+   "reviewed_at": "2026-11-01",
+   "reason": "Forever modular integration: preserve 449 target-specific session-free tests and the derived blocker/destination updates; src placement remains explicit architecture debt, not a completed test migration",
+   "unit_tests_lines": 278717,
+   "unit_tests_tests": 4151,
+   "src_tests": 471
   }
  ]
 }

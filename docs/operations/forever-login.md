@@ -95,6 +95,118 @@ issues normal login/ticket requests. Do not point it at a shared realm, reuse a
 non-empty schema, or put a password, database URL, certificate, private key or
 session ticket in a command line, report or log.
 
+## Checked Forever terrain library — 2026-10-11
+
+This separate extractor-reader delivery is on local branch
+`forever-extractor-static-terrain`, based on unchanged HEAD
+`544721324cf0a47553caae1ea0299a0ff2917ce7`, with uncommitted source hashes in
+external report `forever-terrain-closeout-20261011T064614Z.json` under
+`/home/joe/projects/dream/wow/rustycore-extractor-work/reports/acceptance/`.
+It does not resume the paused character-creation/world-entry objective.
+
+`wow-map::terrain::forever::ForeverTerrain` owns one actual rooted static VMap
+store and the existing actual MAPS `GridMap` reader. The optional Linux feature
+`forever-terrain` is forwarded by `wow-world`; its `LiveForeverTerrain` facade
+uses existing entity query shapes and forwards their resolved endpoints once.
+The `forever-vmap` and `forever-terrain` dependencies are exact-version 0.1.0
+sibling paths. Acceptance pins their source hashes; this is not a reproducible
+release dependency or a published package.
+
+Callers explicitly supply build 70170 or 70205, complete primary/cosmetic map
+topology, phase-resolved map IDs and complete MAPS bytes or declared absence.
+The build is a declaration, not provenance authentication. Strict MAPS verification
+precedes the existing reader. The rooted package has VMOs at its root and tree/
+tile/index files under padded map directories. It never downloads or discovers
+missing inputs. Source mutation and invalid/unprepared queries return errors;
+they cannot become clear LOS or valid ground through an unchecked legacy trait.
+
+Each physical tile loads once for its first consumer. Non-cloneable leases
+decrement ownership on drop; explicit cleanup releases unreferenced tiles.
+Cleanup compacts the terrain registry in one pass; underlying store unload work
+is separate. Preparation/verification performs local I/O outside map/entity/
+session locks. Queries take the geometry read lock, perform no I/O/reparse/heap
+allocation and consume the caller's cumulative query budget. LOS/hit queries
+require the conservative inclusive endpoint tile rectangle, which can include
+more tiles than a diagonal actually crosses. Global disabled LOS still validates
+the map, source state and finite coordinates. Caps only reduce 65,536 tiles,
+one million leases and 512 MiB terrain capacity; old/new registry growth and
+retained MAPS/GridMap capacities are charged. The 512 KiB parser allowance and
+separate store/source budgets do not establish portable RSS or allocator failure
+recovery. The existing GridMap parser uses infallible allocations.
+
+Static height preserves the pinned C++ fuzzy ground gate, validity sentinels and
+nearest/higher VMap selection. Probe z is already final; no second offset is
+added. `tools/qa/forever_height_oracle.py` compiles original selector fragments
+and G3D fuzzy comparison from immutable Forever commit
+`02245dcd245e7433e524577656177723d3e4992e`, retaining notices and source/wrapper/
+binary hashes externally. Missing partial-clone blobs fail with Git lazy fetching
+disabled. It compares 1,210 finite scalar cases exactly. This
+does not run the full native TerrainInfo, phase recursion or native MAPS loader;
+the actual VMap store's independent original-manager comparison is retained in
+the extractor's static-store closeout.
+
+### Executed terrain acceptance
+
+The sequential campaign uses one Cargo job and external build/temp/log paths.
+All reports below are under the neighboring laboratory's `reports/` directory;
+the closeout records commands, logs, source hashes and every failed attempt.
+
+| Check | Current accepted result | Report suffix |
+| --- | --- | --- |
+| MAPS library, including 19 new ordinary terrain tests | 770 passed, 2 ignored | `20261011T063332Z-f72501da` |
+| Native selector, explicitly opting into the ignored test | 1 passed / 1,210 exact cases | `20261011T064834Z-ebf27e17` |
+| Actual production-library facade/filesystem integration | 3 passed | `20261011T063057Z-649a5c55` |
+| World library | 4,490 passed, 1 ignored | `20261011T063801Z-a2c0d6c3` |
+| Data library | 971 passed | `20261011T064549Z-043a7340` |
+| Database library | 392 passed, 2 ignored | `20261011T064549Z-043a7340` |
+| Workspace all targets, default features | Passed | `20261011T064549Z-043a7340` |
+
+Report names are `forever-terrain-acceptance-<suffix>.json`. The 23 focused
+terrain tests count 19 ordinary map tests, one native test and three facade
+tests; they are subsets of this evidence, not extra full-suite tests. The old
+real legacy map test remains ignored. Earlier green terrain evidence is reused
+only for source-identical inputs; later test-only fixture repairs are separately
+validated. These are synthetic/local source tests, not real-client extraction.
+
+Acceptance exposed and repaired pre-existing test fixtures: missing creation/
+SQL imports, an unsigned mask literal, floating-point array literals, seven
+golden bytes that incorrectly cleared bit 7, and a 49-table fixture whose cleanup
+still removed only 41 entries. Cleanup now removes the actual last dependency
+for its failure check and every remaining known table explicitly. Golden bytes
+follow independent fixture fields and pinned FT_BYTE widths. The binary-spell
+matrix retains all 2,888 cases with base points 1,000 and adds 12 threshold cases:
+native expected-stat fallback 1 scales base points by 1/100 before integer
+truncation (`SpellInfo.cpp:663–760`, `SpellMgr.cpp:3180–3242`,
+`DB2Stores.cpp:2527–2534` at the Forever pin). No production spell behavior changed.
+
+Database tests use original `CharacterDatabase.cpp` and `HotfixDatabase.cpp`
+from legacy pin `92796557f9b0ba3d2d1c7c770f535153154cf83e`, explicitly downloaded
+after the local partial clone lacked their blobs. The external source report
+checks Git blob IDs and SHA-256; set `RUSTYCORE_CPP_REFERENCE_ROOT` to
+`rustycore-extractor-work/builds/legacy-sql-reference-92796557` when reproducing.
+The separately downloaded official protoc 28.3 archive is checked against
+`0ad949f04a6a174da83cdcbdb36dee0a4925272a5b6d83f79a6bf9852076d53f`.
+These were displayed, pinned tool/reference downloads, not client acquisition.
+
+General `validation-v2 final --architecture` remains **failed**: existing hotspot
+ratchets, WorldSession signature inventory and bridge fingerprints differ from
+their baseline. Those affected production roots are unchanged from initial HEAD.
+Global formatting also reports the pre-existing sibling extractor
+`forever-vmap/src/placement.rs` module order; that file is unchanged. Physical
+file policy, owned formatting and whitespace pass. No baseline was weakened.
+The campaign began at 06:13:02 UTC and includes cold compilation, repairs and
+rechecks: its checks alone exceed 1,541 seconds, so the 600-second target was
+missed. Final closeout records total wall time and repair/documentation gaps;
+the last 12-second warm continuation does not reset the campaign clock.
+
+The account-phase Forever executable has no spatial owner; canonical managed
+maps still use no-op terrain loading/lifecycle. This capability is not installed
+there or in the legacy executable. Dynamic GameObjects, phase recursion, area/
+liquid queries, navigation, complete real topology and real world acceptance
+remain separate gates. No server, DB, client, commit, push or deployment action
+was performed in this delivery. Earlier dated uncompiled/failed-candidate
+statements below retain their historical scope.
+
 ## Working spell-container build prerequisite
 
 The unpublished creation candidate requires `forever-name-regex`,
@@ -2085,11 +2197,14 @@ duplicate failure publishes no catalog, and independent SQL reads do not claim
 a snapshot. Signed width anchors are `HotfixDatabase.cpp:378-380,452-457,
 1198-1204,1271-1274,1389-1391` and the corresponding base SQL tables.
 The specialization
-reader distinguishes DB2Meta parent field 4 from its observed physical
-ParentLookupCount=0, as permitted by `DB2FileLoader.cpp:1773-1792`; existing
-tables retain their own physical-header gates. Written synthetic regressions
-cover prefix/ordinary-reader isolation, unavailable-ID preservation, drift,
-extent and in-record-parent handling, but have **not** executed yet.
+reader distinguishes DB2Meta parent field 4 from the physical lookup count, as
+permitted by `DB2FileLoader.cpp:1773-1792`; existing tables retain their own
+physical-header gates. A 2026-10-31 re-read of the retained 1,072-byte file
+(SHA-256 `6823889615d261235ba31e6618db8b740c08f0816f6681fd1000456366af977e`)
+established ParentLookupCount=1, correcting the earlier zero reading and its
+unexecuted synthetic expectation. The focused regression now passes; full
+server startup is a separate gate. Written synthetic regressions cover
+prefix/ordinary-reader isolation, unavailable-ID preservation, drift and extent.
 
 The effective indexes contrast `src/server/shared/DataStores/DB2Store.cpp:
 127-134::DB2StorageBase::LoadFromDB`, `DB2Stores.cpp:1165-1178,3489-3494` (class

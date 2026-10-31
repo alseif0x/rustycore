@@ -1,5 +1,6 @@
 //! Target-specific mandatory resources, never the legacy startup catalogs.
 use super::character_capture::CharacterCapture;
+use super::navigation::NavigationRuntime;
 use anyhow::{Context, Result, bail, ensure};
 use std::{env, fs, path::Path, sync::Arc};
 use wow_data::forever_birth::item_records::{
@@ -66,13 +67,14 @@ pub(super) struct Runtime {
     pub permissions: Arc<DefaultAccountPermissions>,
     pub starting_policy: StartingPolicy,
     pub super_district: i32,
+    pub navigation: Option<NavigationRuntime>,
 }
 
 pub(super) async fn load() -> Result<Runtime> {
     let args: Vec<_> = env::args_os().skip(1).collect();
-    if !matches!(args.len(), 4..=10) || args[0] != "--ack-isolated-forever" {
+    if !matches!(args.len(), 4..=13) || args[0] != "--ack-isolated-forever" {
         bail!(
-            "usage: --ack-isolated-forever <bnet-config> <private-build-key-file> <private-target-db2-directory> [--ack-available-initial-map] [--ack-available-birth-abilities] --ack-available-item-tables [--ack-available-spell-info-tables] [--ack-private-character-create-capture|--ack-private-name-availability-capture <new-private-file>]"
+            "usage: --ack-isolated-forever <bnet-config> <private-build-key-file> <private-target-db2-directory> [--ack-available-initial-map] [--ack-available-birth-abilities] --ack-available-item-tables [--ack-available-spell-info-tables] [--ack-available-navigation56|--ack-available-navigation57 <package-root> <plan> <map-id>] [--ack-private-character-create-capture|--ack-private-name-availability-capture <new-private-file>]"
         );
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -117,6 +119,23 @@ pub(super) async fn load() -> Result<Runtime> {
         SpellBaseline::AvailablePrefixes
     } else {
         SpellBaseline::Complete
+    };
+    let navigation = if args.get(optional).is_some_and(|arg| {
+        arg == "--ack-available-navigation56" || arg == "--ack-available-navigation57"
+    }) {
+        ensure!(
+            args.len() >= optional + 3,
+            "navigation package, plan and map are required"
+        );
+        let navigation = super::navigation::load(
+            &args[optional + 1],
+            &args[optional + 2],
+            &args[optional + 3],
+        )?;
+        optional += 3;
+        Some(navigation)
+    } else {
+        None
     };
     let character_capture = if args.len() != optional {
         ensure!(
@@ -646,6 +665,7 @@ pub(super) async fn load() -> Result<Runtime> {
         policy,
         character_idle_timeout,
         character_capture,
+        navigation,
         region_group: wow_config::get_value_default("Network.EnterEncryptedModeRegionGroup", 0_i32),
     })
 }

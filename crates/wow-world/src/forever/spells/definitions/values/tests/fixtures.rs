@@ -93,20 +93,6 @@ pub(super) fn stat(id: u32, expansion_id: i32, health: f32) -> ExpectedStatRecor
         content_set_id: 0,
     }
 }
-fn modifier(id: u32, value: f32) -> ExpectedStatModRecord {
-    ExpectedStatModRecord {
-        id,
-        creature_health_mod: value,
-        player_health_mod: value,
-        creature_auto_attack_dps_mod: value,
-        creature_armor_mod: value,
-        player_mana_mod: value,
-        player_primary_stat_mod: value,
-        player_secondary_stat_mod: value,
-        armor_constant_mod: value,
-        creature_spell_damage_mod: value,
-    }
-}
 pub(super) fn expected_catalog() -> SpellCatalog {
     let tuning = ContentTuningRecord {
         id: 7,
@@ -132,7 +118,32 @@ pub(super) fn expected_catalog() -> SpellCatalog {
     catalog(SpellRecords {
         expected_stats: vec![stat(1, -2, 100.0), stat(2, 3, 200.0)],
         content_tunings: vec![tuning],
-        expected_stat_mods: vec![modifier(8, 3.0), modifier(9, 7.0)],
+        expected_stat_mods: vec![
+            ExpectedStatModRecord {
+                id: 8,
+                creature_health_mod: 3.0,
+                player_health_mod: 3.0,
+                creature_auto_attack_dps_mod: 3.0,
+                creature_armor_mod: 3.0,
+                player_mana_mod: 3.0,
+                player_primary_stat_mod: 3.0,
+                player_secondary_stat_mod: 3.0,
+                armor_constant_mod: 3.0,
+                creature_spell_damage_mod: 3.0,
+            },
+            ExpectedStatModRecord {
+                id: 9,
+                creature_health_mod: 7.0,
+                player_health_mod: 7.0,
+                creature_auto_attack_dps_mod: 7.0,
+                creature_armor_mod: 7.0,
+                player_mana_mod: 7.0,
+                player_primary_stat_mod: 7.0,
+                player_secondary_stat_mod: 7.0,
+                armor_constant_mod: 7.0,
+                creature_spell_damage_mod: 7.0,
+            },
+        ],
         content_tuning_x_expected: vec![
             ContentTuningXExpectedRecord {
                 id: 1,

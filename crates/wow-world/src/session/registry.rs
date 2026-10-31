@@ -18,10 +18,6 @@ pub type PacketHandlerFn =
 pub type PacketHandlerEntry =
     wow_handler::PacketHandlerEntry<WorldSession, SessionHandlerCatalogsLikeCpp>;
 
-/// A registered handler specialized for an explicitly selected protocol.
-pub type PacketHandlerEntryFor<S, C, O, P, R, A> =
-    wow_handler::PacketHandlerEntry<S, C, O, P, R, A>;
-
 /// The immutable registry used by a world session.
 pub type WorldPacketHandlerRegistry =
     wow_handler::PacketHandlerRegistry<WorldSession, SessionHandlerCatalogsLikeCpp>;

@@ -3135,6 +3135,8 @@ dependencies = [
  "anyhow",
  "cc",
  "flume",
+ "forever-casc",
+ "forever-navigation",
  "serde",
  "serde_json",
  "tokio",
@@ -3339,6 +3341,8 @@ dependencies = [
 name = "wow-map"
 version = "0.1.0"
 dependencies = [
+ "forever-terrain",
+ "forever-vmap",
  "rand",
  "wow-constants",
  "wow-core",
@@ -3491,6 +3495,7 @@ dependencies = [
  "dashmap",
  "flume",
  "forever-casc",
+ "forever-navigation",
  "num-traits",
  "rand",
  "serde",

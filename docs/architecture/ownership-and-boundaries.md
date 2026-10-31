@@ -191,8 +191,8 @@ matches Cargo's source-null package ID and manifest path against that exact dire
 rejects symlinked components, and uses a portable reviewed-path identity for the existing
 unused-allowance ratchet. This grants neither a name wildcard nor permission to substitute
 a registry, Git, different-version or different-directory package. The current optional
-Linux navigation edge preserves package admission and the existing native
-manager/worker adapter in `wow-world`; it does not activate a server consumer.
+Linux terrain/navigation edges preserve artifact readers in `wow-map` and the native
+manager/worker adapter in `wow-world-core`; they do not activate a server consumer.
 
 The policy's workspace and external `exceptions` are a **ratchet, not an endorsement of
 unfinished authority**. A coarse package category can also require an exception for a legitimate

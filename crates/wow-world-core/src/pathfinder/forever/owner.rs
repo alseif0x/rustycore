@@ -6,7 +6,8 @@ use std::{collections::HashSet, path::Path};
 
 use forever_navigation::{
     mmap::{self, GlobalView, TileView},
-    package_v23::{self, Coverage, ReadBatch, Summary},
+    package_v23::{self, Summary, TileOutput},
+    package_v56, package_v57,
     tilebuilder::{self, Coordinate},
 };
 use wow_recastdetour::{
@@ -29,13 +30,49 @@ const V23_BUILD: u32 = 70_450;
 const V23_NAVIGATION_COMPONENT: u8 = 1 << 5;
 const TILE_HEADER_BYTES: usize = 20;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SelectedCoverage {
+    global_bytes: u64,
+    tiles: Vec<TileOutput>,
+}
+
+#[derive(Debug)]
+enum PackageBackend {
+    V23 {
+        expected: package_v23::Expected,
+        summary: Summary,
+        coverage: Box<package_v23::Coverage>,
+    },
+    V56 {
+        expected: package_v56::Expected,
+        summary: Summary,
+        coverage: Box<package_v56::Coverage56>,
+        selected: usize,
+    },
+    V57 {
+        expected: package_v57::Expected,
+        summary: Summary,
+        coverage: Box<package_v57::Coverage57>,
+        selected: usize,
+    },
+}
+
+struct VerifiedTile {
+    coordinate: Coordinate,
+    bytes: Option<Vec<u8>>,
+}
+
+struct VerifiedBatch {
+    _global: Vec<u8>,
+    tiles: Vec<VerifiedTile>,
+}
+
 #[derive(Debug)]
 pub(in crate::pathfinder) struct ForeverNavigationOwner {
     root: std::path::PathBuf,
-    expected: package_v23::Expected,
+    package: PackageBackend,
     limits: ForeverNavigationLimits,
-    summary: Summary,
-    coverage: Coverage,
+    coverage: SelectedCoverage,
     params: DetourNavMeshParams,
     poisoned: bool,
     #[cfg(feature = "test-fixtures")]
@@ -64,26 +101,170 @@ impl ForeverNavigationOwner {
             .context
             .ok_or(ForeverNavigationError::InvalidExpected { field: "context" })?;
         let summary = *initial.summary();
-        let coverage = initial.coverage().clone();
+        let full_coverage = initial.coverage().clone();
         if summary.context != context
-            || coverage.context != context
-            || coverage.identity.selected_map != expected.selected_map
-            || coverage.identity.build != V23_BUILD
-            || coverage.identity.locale != expected.locale.name()
-            || coverage.identity.plan_sha256 != expected.plan_sha256
-            || coverage.tiles.is_empty()
+            || full_coverage.context != context
+            || full_coverage.identity.selected_map != expected.selected_map
+            || full_coverage.identity.build != V23_BUILD
+            || full_coverage.identity.locale != expected.locale.name()
+            || full_coverage.identity.plan_sha256 != expected.plan_sha256
+            || full_coverage.tiles.is_empty()
         {
             return Err(ForeverNavigationError::InvalidExpected {
                 field: "verified_package_identity",
             });
         }
+        let coverage = SelectedCoverage {
+            global_bytes: full_coverage.global_bytes,
+            tiles: full_coverage.tiles.clone(),
+        };
         validate_coverage_coordinates(&coverage)?;
+        let package = PackageBackend::V23 {
+            expected,
+            summary,
+            coverage: Box::new(full_coverage),
+        };
+        Self::open_normalized(
+            root,
+            expected.selected_map,
+            initial.global_bytes(),
+            coverage,
+            package,
+            limits,
+            mmap_manager,
+        )
+    }
 
+    pub(crate) fn open_v56(
+        root: impl AsRef<Path>,
+        expected: package_v56::Expected,
+        limits: ForeverNavigationLimits,
+        mmap_manager: &mut MMapManager,
+    ) -> Result<Self, ForeverNavigationError> {
+        validate_expected_v56(expected)?;
+        let root = root.as_ref().to_path_buf();
+        let initial = package_v56::read_batch(&root, expected, &[], read_limits(limits))?;
+        let context = expected
+            .context
+            .ok_or(ForeverNavigationError::InvalidExpected { field: "context" })?;
+        let summary = *initial.summary();
+        let full_coverage = initial.coverage().clone();
+        if summary.context != context
+            || full_coverage.context != context
+            || initial.map().id != expected.selected_map
+            || initial.output().tiles.is_empty()
+        {
+            return Err(ForeverNavigationError::InvalidExpected {
+                field: "verified_package_identity",
+            });
+        }
+        let selected = full_coverage
+            .maps
+            .iter()
+            .position(|map| map.id == expected.selected_map)
+            .ok_or(ForeverNavigationError::InvalidExpected {
+                field: "verified_package_identity",
+            })?;
+        let global = initial
+            .output()
+            .global
+            .ok_or(ForeverNavigationError::InvalidExpected {
+                field: "verified_package_identity",
+            })?;
+        let coverage = SelectedCoverage {
+            global_bytes: global.bytes,
+            tiles: initial.output().tiles.clone(),
+        };
+        validate_coverage_coordinates(&coverage)?;
+        let package = PackageBackend::V56 {
+            expected,
+            summary,
+            coverage: Box::new(full_coverage),
+            selected,
+        };
+        Self::open_normalized(
+            root,
+            expected.selected_map,
+            initial.global_bytes(),
+            coverage,
+            package,
+            limits,
+            mmap_manager,
+        )
+    }
+
+    pub(crate) fn open_v57(
+        root: impl AsRef<Path>,
+        expected: package_v57::Expected,
+        limits: ForeverNavigationLimits,
+        mmap_manager: &mut MMapManager,
+    ) -> Result<Self, ForeverNavigationError> {
+        validate_expected_v57(expected)?;
+        let root = root.as_ref().to_path_buf();
+        let initial = package_v57::read_batch(&root, expected, &[], read_limits(limits))?;
+        let context = expected
+            .context
+            .ok_or(ForeverNavigationError::InvalidExpected { field: "context" })?;
+        let summary = *initial.summary();
+        let full_coverage = initial.coverage().clone();
+        if summary.context != context
+            || full_coverage.context != context
+            || initial.map().id != expected.selected_map
+            || initial.output().tiles.is_empty()
+        {
+            return Err(ForeverNavigationError::InvalidExpected {
+                field: "verified_package_identity",
+            });
+        }
+        let selected = full_coverage
+            .maps
+            .iter()
+            .position(|map| map.id == expected.selected_map)
+            .ok_or(ForeverNavigationError::InvalidExpected {
+                field: "verified_package_identity",
+            })?;
+        let global = initial
+            .output()
+            .global
+            .ok_or(ForeverNavigationError::InvalidExpected {
+                field: "verified_package_identity",
+            })?;
+        let coverage = SelectedCoverage {
+            global_bytes: global.bytes,
+            tiles: initial.output().tiles.clone(),
+        };
+        validate_coverage_coordinates(&coverage)?;
+        let package = PackageBackend::V57 {
+            expected,
+            summary,
+            coverage: Box::new(full_coverage),
+            selected,
+        };
+        Self::open_normalized(
+            root,
+            expected.selected_map,
+            initial.global_bytes(),
+            coverage,
+            package,
+            limits,
+            mmap_manager,
+        )
+    }
+
+    fn open_normalized(
+        root: std::path::PathBuf,
+        selected_map: u32,
+        global_bytes: &[u8],
+        coverage: SelectedCoverage,
+        package: PackageBackend,
+        limits: ForeverNavigationLimits,
+        mmap_manager: &mut MMapManager,
+    ) -> Result<Self, ForeverNavigationError> {
         let mmap_limits = mmap_limits(limits);
-        let global = GlobalView::parse(initial.global_bytes(), expected.selected_map, mmap_limits)?;
-        if initial.global_bytes().len() > limits.max_loaded_bytes() {
+        let global = GlobalView::parse(global_bytes, selected_map, mmap_limits)?;
+        if global_bytes.len() > limits.max_loaded_bytes() {
             return Err(ForeverNavigationError::LoadedByteLimit {
-                actual: initial.global_bytes().len() as u64,
+                actual: global_bytes.len() as u64,
                 maximum: limits.max_loaded_bytes(),
             });
         }
@@ -103,25 +284,30 @@ impl ForeverNavigationOwner {
         )?;
         let checked_params = CheckedDetourNavMeshParams::new(params, checked_limits)?;
 
-        // The selected map is the only map admitted to this worker. No file
-        // fallback or parent-map resolution is enabled for this owner.
         mmap_manager.initialize_thread_unsafe([ThreadUnsafeMapData {
-            map_id: expected.selected_map,
+            map_id: selected_map,
             child_map_ids: Vec::new(),
         }]);
-        mmap_manager.admit_checked_nav_mesh_params(expected.selected_map, checked_params)?;
+        mmap_manager.admit_checked_nav_mesh_params(selected_map, checked_params)?;
 
         Ok(Self {
             root,
-            expected,
+            package,
             limits,
-            summary,
             coverage,
             params,
             poisoned: false,
             #[cfg(feature = "test-fixtures")]
             failure_plan: None,
         })
+    }
+
+    fn selected_map(&self) -> u32 {
+        match &self.package {
+            PackageBackend::V23 { expected, .. } => expected.selected_map,
+            PackageBackend::V56 { expected, .. } => expected.selected_map,
+            PackageBackend::V57 { expected, .. } => expected.selected_map,
+        }
     }
 
     pub(crate) fn handle_action(
@@ -178,10 +364,10 @@ impl ForeverNavigationOwner {
     }
 
     fn require_map(&self, map_id: u32) -> Result<(), ForeverNavigationError> {
-        if map_id != self.expected.selected_map {
+        if map_id != self.selected_map() {
             return Err(ForeverNavigationError::WrongMap {
                 actual: map_id,
-                expected: self.expected.selected_map,
+                expected: self.selected_map(),
             });
         }
         Ok(())
@@ -260,20 +446,79 @@ impl ForeverNavigationOwner {
     fn read_verified_batch(
         &self,
         tiles: &[Coordinate],
-    ) -> Result<ReadBatch, ForeverNavigationError> {
-        let batch =
-            package_v23::read_batch(&self.root, self.expected, tiles, read_limits(self.limits))?;
-        if batch.summary() != &self.summary || batch.coverage() != &self.coverage {
-            return Err(ForeverNavigationError::PackageChanged);
-        }
-        Ok(batch)
+    ) -> Result<VerifiedBatch, ForeverNavigationError> {
+        let (global, tiles) = match &self.package {
+            PackageBackend::V23 {
+                expected,
+                summary,
+                coverage,
+            } => {
+                let batch = package_v23::read_batch(
+                    &self.root,
+                    *expected,
+                    tiles,
+                    read_limits(self.limits),
+                )?;
+                if batch.summary() != summary || batch.coverage() != coverage.as_ref() {
+                    return Err(ForeverNavigationError::PackageChanged);
+                }
+                batch.into_byte_parts()
+            }
+            PackageBackend::V56 {
+                expected,
+                summary,
+                coverage,
+                selected,
+            } => {
+                let batch = package_v56::read_batch(
+                    &self.root,
+                    *expected,
+                    tiles,
+                    read_limits(self.limits),
+                )?;
+                if batch.summary() != summary
+                    || batch.coverage() != coverage.as_ref()
+                    || batch.coverage().outputs[*selected].map != expected.selected_map
+                {
+                    return Err(ForeverNavigationError::PackageChanged);
+                }
+                batch.into_byte_parts()
+            }
+            PackageBackend::V57 {
+                expected,
+                summary,
+                coverage,
+                selected,
+            } => {
+                let batch = package_v57::read_batch(
+                    &self.root,
+                    *expected,
+                    tiles,
+                    read_limits(self.limits),
+                )?;
+                if batch.summary() != summary
+                    || batch.coverage() != coverage.as_ref()
+                    || batch.coverage().outputs[*selected].map != expected.selected_map
+                {
+                    return Err(ForeverNavigationError::PackageChanged);
+                }
+                batch.into_byte_parts()
+            }
+        };
+        Ok(VerifiedBatch {
+            _global: global,
+            tiles: tiles
+                .into_iter()
+                .map(|(coordinate, bytes)| VerifiedTile { coordinate, bytes })
+                .collect(),
+        })
     }
 
     fn parse_checked_tiles<'a>(
         &self,
-        batch: &'a ReadBatch,
+        batch: &'a VerifiedBatch,
     ) -> Result<Vec<CheckedTile<'a>>, ForeverNavigationError> {
-        let mut parsed = Vec::with_capacity(batch.tiles().len());
+        let mut parsed = Vec::with_capacity(batch.tiles.len());
         let mmap_limits = mmap_limits(self.limits);
         let payload_limit = self
             .limits
@@ -289,11 +534,11 @@ impl ForeverNavigationOwner {
             CHECKED_GROUND_MAX_ABS_COORDINATE,
         )?;
 
-        for requested in batch.tiles() {
-            let coordinate = requested.tile();
+        for requested in &batch.tiles {
+            let coordinate = requested.coordinate;
             let coverage = coverage_tile(&self.coverage, coordinate)
                 .ok_or(ForeverNavigationError::TileOutsideCoverage(coordinate))?;
-            let Some(bytes) = requested.bytes() else {
+            let Some(bytes) = requested.bytes.as_deref() else {
                 return Err(ForeverNavigationError::DeclaredEmptyTile(coordinate));
             };
             if !coverage.written || bytes.len() as u64 != coverage.bytes {
@@ -366,7 +611,7 @@ impl ForeverNavigationOwner {
             #[cfg(not(feature = "test-fixtures"))]
             let fail_rollback = false;
             match mmap_manager.admit_checked_ground_tile(
-                self.expected.selected_map,
+                self.selected_map(),
                 tile.manager_grid_x,
                 tile.manager_grid_y,
                 &tile.payload,
@@ -436,7 +681,7 @@ impl ForeverNavigationOwner {
         add_error: ForeverNavigationError,
     ) -> ForeverNavigationError {
         for &(x, y, coordinate) in added.iter().rev() {
-            match mmap_manager.unload_map_tile(self.expected.selected_map, x, y) {
+            match mmap_manager.unload_map_tile(self.selected_map(), x, y) {
                 Ok(true) => {}
                 Ok(false) => {
                     self.poisoned = true;
@@ -485,7 +730,7 @@ impl ForeverNavigationOwner {
             if !existing_keys.contains(&packed_key) {
                 continue;
             }
-            match mmap_manager.unload_map_tile(self.expected.selected_map, row, column) {
+            match mmap_manager.unload_map_tile(self.selected_map(), row, column) {
                 Ok(true) => {}
                 Ok(false) => {
                     self.poisoned = true;
@@ -511,7 +756,7 @@ impl ForeverNavigationOwner {
         instance_id: u32,
     ) -> Result<(), ForeverNavigationError> {
         let data = mmap_manager
-            .get_mmap_data(self.expected.selected_map)
+            .get_mmap_data(self.selected_map())
             .ok_or(ForeverNavigationError::NotConfigured)?;
         let already_loaded = data.has_nav_mesh_query(instance_map_id, instance_id);
         let query_count = data.nav_mesh_query_count();
@@ -522,7 +767,7 @@ impl ForeverNavigationOwner {
             });
         }
         mmap_manager.admit_instance_query(
-            self.expected.selected_map,
+            self.selected_map(),
             instance_map_id,
             instance_id,
             FOREVER_NAVIGATION_QUERY_NODE_BUDGET,
@@ -536,13 +781,10 @@ impl ForeverNavigationOwner {
         instance_map_id: u32,
         instance_id: u32,
     ) -> Result<(), ForeverNavigationError> {
-        if mmap_manager
-            .get_mmap_data(self.expected.selected_map)
-            .is_none()
-        {
+        if mmap_manager.get_mmap_data(self.selected_map()).is_none() {
             return Err(ForeverNavigationError::NotConfigured);
         }
-        mmap_manager.unload_map_instance(self.expected.selected_map, instance_map_id, instance_id);
+        mmap_manager.unload_map_instance(self.selected_map(), instance_map_id, instance_id);
         Ok(())
     }
 
@@ -572,7 +814,7 @@ impl ForeverNavigationOwner {
 
         self.prepare_instance(mmap_manager, request.instance_map_id, request.instance_id)?;
         let data = mmap_manager
-            .get_mmap_data(self.expected.selected_map)
+            .get_mmap_data(self.selected_map())
             .ok_or(ForeverNavigationError::NotConfigured)?;
         let corridor = data.find_detour_corridor_for_instance(
             request.instance_map_id,
@@ -606,9 +848,8 @@ impl ForeverNavigationOwner {
         position: wow_core::Position,
         endpoint: &'static str,
     ) -> Result<(), ForeverNavigationError> {
-        let (row, column) = crate::terrain::terrain_grid_coords_for_wow_position_like_cpp(
-            position.x, position.y,
-        );
+        let (row, column) =
+            crate::terrain::terrain_grid_coords_for_wow_position_like_cpp(position.x, position.y);
         if !(0..64).contains(&column) || !(0..64).contains(&row) {
             return Err(ForeverNavigationError::PositionOutsideMap { endpoint });
         }
@@ -623,7 +864,7 @@ impl ForeverNavigationOwner {
         }
         let packed_key = pack_wow_grid_key(row, column);
         let loaded = mmap_manager
-            .get_mmap_data(self.expected.selected_map)
+            .get_mmap_data(self.selected_map())
             .ok_or(ForeverNavigationError::NotConfigured)?
             .loaded_tile_refs
             .contains_key(&packed_key);
@@ -638,7 +879,7 @@ impl ForeverNavigationOwner {
         mmap_manager: &MMapManager,
     ) -> Result<ForeverNavigationStats, ForeverNavigationError> {
         let data = mmap_manager
-            .get_mmap_data(self.expected.selected_map)
+            .get_mmap_data(self.selected_map())
             .ok_or(ForeverNavigationError::NotConfigured)?;
         let loaded_keys: Vec<u32> = data.loaded_tile_refs.keys().copied().collect();
         let query_count = data.nav_mesh_query_count();
@@ -702,7 +943,7 @@ impl ForeverNavigationOwner {
             });
         }
         Ok(ForeverNavigationStats {
-            map_id: self.expected.selected_map,
+            map_id: self.selected_map(),
             loaded_tiles,
             loaded_tile_artifact_bytes,
             global_artifact_bytes,
@@ -717,7 +958,7 @@ impl ForeverNavigationOwner {
         mmap_manager: &MMapManager,
     ) -> Result<HashSet<u32>, ForeverNavigationError> {
         let data = mmap_manager
-            .get_mmap_data(self.expected.selected_map)
+            .get_mmap_data(self.selected_map())
             .ok_or(ForeverNavigationError::NotConfigured)?;
         Ok(data.loaded_tile_refs.keys().copied().collect())
     }
@@ -754,7 +995,55 @@ fn validate_expected(expected: package_v23::Expected) -> Result<(), ForeverNavig
     Ok(())
 }
 
-fn validate_coverage_coordinates(coverage: &Coverage) -> Result<(), ForeverNavigationError> {
+fn validate_expected_v56(expected: package_v56::Expected) -> Result<(), ForeverNavigationError> {
+    let Some(context) = expected.context else {
+        return Err(ForeverNavigationError::InvalidExpected { field: "context" });
+    };
+    if context.build != V23_BUILD {
+        return Err(ForeverNavigationError::InvalidExpected { field: "build" });
+    }
+    if context.locale != expected.locale {
+        return Err(ForeverNavigationError::InvalidExpected { field: "locale" });
+    }
+    if context.plan_sha256 != expected.plan_sha256 {
+        return Err(ForeverNavigationError::InvalidExpected {
+            field: "plan_sha256",
+        });
+    }
+    if context.components != V23_NAVIGATION_COMPONENT {
+        return Err(ForeverNavigationError::InvalidExpected {
+            field: "components",
+        });
+    }
+    Ok(())
+}
+
+fn validate_expected_v57(expected: package_v57::Expected) -> Result<(), ForeverNavigationError> {
+    let Some(context) = expected.context else {
+        return Err(ForeverNavigationError::InvalidExpected { field: "context" });
+    };
+    if context.build != V23_BUILD {
+        return Err(ForeverNavigationError::InvalidExpected { field: "build" });
+    }
+    if context.locale != expected.locale {
+        return Err(ForeverNavigationError::InvalidExpected { field: "locale" });
+    }
+    if context.plan_sha256 != expected.plan_sha256 {
+        return Err(ForeverNavigationError::InvalidExpected {
+            field: "plan_sha256",
+        });
+    }
+    if context.components != V23_NAVIGATION_COMPONENT {
+        return Err(ForeverNavigationError::InvalidExpected {
+            field: "components",
+        });
+    }
+    Ok(())
+}
+
+fn validate_coverage_coordinates(
+    coverage: &SelectedCoverage,
+) -> Result<(), ForeverNavigationError> {
     let mut seen = HashSet::with_capacity(coverage.tiles.len());
     for tile in &coverage.tiles {
         if tile.tile.row >= 64
@@ -828,7 +1117,10 @@ fn read_header_f32(payload: &[u8], offset: usize) -> Option<f32> {
     Some(f32::from_le_bytes(bytes))
 }
 
-fn coverage_tile(coverage: &Coverage, tile: Coordinate) -> Option<&package_v23::TileOutput> {
+fn coverage_tile(
+    coverage: &SelectedCoverage,
+    tile: Coordinate,
+) -> Option<&package_v23::TileOutput> {
     coverage.tiles.iter().find(|fact| fact.tile == tile)
 }
 
