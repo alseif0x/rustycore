@@ -196,6 +196,7 @@ pub struct SessionAccountState {
     /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
     pub recent_player_guid_low_like_cpp: u64,
     pub mute_time_like_cpp: i64,
+    pub instant_logout_permission: Option<bool>,
 }
 
 /// Cross-thread session flags shared with the services that publish for this

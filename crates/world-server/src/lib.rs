@@ -1145,6 +1145,41 @@ impl AccountLookup for DbAccountLookup {
                 "Account lookup OK: id={account_id}, bnet_id={bnet_id}, os={os}, locale_raw='{locale_raw}', locale='{locale_name}'"
             );
 
+            let mut rbac_stmt = self
+                .login_db
+                .prepare(LoginStatements::SEL_RBAC_ACCOUNT_PERMISSIONS);
+            rbac_stmt.set_u32(0, account_id);
+            rbac_stmt.set_i32(1, i32::from(realm_id));
+            let account_permissions = match self.login_db.query(&rbac_stmt).await {
+                Ok(mut result) => {
+                    let mut permissions = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            let permission_id: u32 = result.read(0);
+                            if matches!(permission_id, 1 | 194) {
+                                let granted: bool = result.read(1);
+                                permissions.push((permission_id, granted));
+                            }
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    permissions
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "DB error loading instant-logout RBAC permissions for account {account_id}, realm {realm_id}: {e}; using default security only"
+                    );
+                    Vec::new()
+                }
+            };
+            let instant_logout_permission =
+                wow_world_core::session::effective_instant_logout_permission_like_cpp(
+                    security,
+                    &account_permissions,
+                );
+
             Some(AccountInfo {
                 id: account_id,
                 session_key_hex,
@@ -1160,6 +1195,7 @@ impl AccountLookup for DbAccountLookup {
                 timezone_offset: i32::from(timezone_offset),
                 battlenet_account_id: bnet_id,
                 security,
+                instant_logout_permission,
                 is_banned_bnet: is_banned_bnet != 0,
                 is_banned_account: is_banned_account != 0,
                 win64_auth_seed: self.win64_auth_seed,

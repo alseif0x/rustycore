@@ -442,6 +442,27 @@ async fn resting_or_gm_logout_is_instant_and_idle_logout_waits_like_cpp() {
     }
 }
 
+#[tokio::test]
+async fn instant_logout_permission_grant_and_revoke_override_security_default_like_cpp() {
+    for (security, permission, instant) in [(0, true, true), (1, false, false)] {
+        let (mut session, _pkt_tx, send_rx) = logged_in_canonical_session_like_cpp();
+        session.core.security = security;
+        session.core.account_state.instant_logout_permission = Some(permission);
+
+        session
+            .handle_logout_request(wow_packet::packets::misc::LogoutRequest { idle_logout: false })
+            .await;
+
+        let sent = logout_opcodes_like_cpp(&send_rx);
+        assert_eq!(sent[0].1, logout_response_bytes_like_cpp(0, instant));
+        assert_eq!(session.finalization_report_like_cpp().is_some(), instant);
+        assert_eq!(
+            session.lifecycle.logout_time_for_test_like_cpp() != 0,
+            !instant
+        );
+    }
+}
+
 /// `ShouldLogOut`: due 20 game-time seconds after the start, never while a
 /// player is loading; the due timer becomes `LogoutPlayer(true)` with the
 /// timed reason, not a disconnect.

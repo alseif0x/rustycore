@@ -45,6 +45,15 @@ the actual contract. Three bounded residuals remain:
 6. Publish and close under the established conditional authorization; no permanent
    deployment and no broad rewrite of already integrated logout behavior.
 
+Residual 1 is implemented at `ba31915ca`: missing/stale canonical Player now
+closes request and cancel before any publication or state mutation; two tests
+and the 147-case lifecycle suite passed. Residual 2 is implemented and reviewed:
+the existing RBAC query feeds SessionAccountState, direct/linked grants and
+revokes compose deny-last with default security, and no SessionCore field was
+added. Seven core RBAC tests and 148 lifecycle tests passed; syntax ownership
+changes only the reviewed create_session fingerprint. These are focused checks,
+not live or final acceptance.
+
 ## #43 closure execution plan — 2026-10-29
 
 The operator resumed implementation after reviewing the two live failures and

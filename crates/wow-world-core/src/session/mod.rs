@@ -182,7 +182,10 @@ mod creature_spell_metadata;
 pub use creature_spell_metadata::creature_ai_spell_difficulty_chain_like_cpp;
 
 mod logout_wait;
-pub use logout_wait::{GM_FREEZE_SPELL_ID_LIKE_CPP, LogoutAdmissionSnapshotLikeCpp};
+pub use logout_wait::{
+    GM_FREEZE_SPELL_ID_LIKE_CPP, LogoutAdmissionSnapshotLikeCpp,
+    effective_instant_logout_permission_like_cpp,
+};
 
 mod stand_state_adapter;
 #[cfg(any(test, feature = "test-fixtures"))]

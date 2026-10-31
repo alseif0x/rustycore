@@ -27,6 +27,27 @@ pub struct LogoutAdmissionSnapshotLikeCpp {
     pub stand_state: UnitStandStateType,
 }
 
+/// C++ RBAC composition for permission 1 and its linked role 194: account
+/// grants override the default, and every applicable account deny wins last.
+pub fn effective_instant_logout_permission_like_cpp(
+    security: u8,
+    account_permissions: &[(u32, bool)],
+) -> bool {
+    let mut account_grant = false;
+    let mut account_deny = false;
+    for &(permission_id, granted) in account_permissions {
+        if !matches!(permission_id, 1 | 194) {
+            continue;
+        }
+        if granted {
+            account_grant = true;
+        } else {
+            account_deny = true;
+        }
+    }
+    !account_deny && (account_grant || security > 0)
+}
+
 impl crate::session::HubRef<'_> {
     /// `None` when the session has no canonical Player.
     pub fn logout_admission_snapshot_like_cpp(&self) -> Option<LogoutAdmissionSnapshotLikeCpp> {
@@ -67,14 +88,19 @@ impl crate::session::HubRef<'_> {
         })
     }
 
-    /// C++ `RBAC_PERM_INSTANT_LOGOUT` (permission 1). The default RBAC data
-    /// links it only through role 194, granted to security level 1 and above
-    /// (`rbac_default_permissions`); per-account RBAC grants are not
-    /// represented, as for every other `security > 0` check.
+    /// C++ `RBAC_PERM_INSTANT_LOGOUT` (permission 1), composed during account
+    /// lookup. Existing isolated fixtures retain the default-security rule.
     pub fn has_instant_logout_permission_like_cpp(&self) -> bool {
-        self.core.security > 0
+        self.core
+            .account_state
+            .instant_logout_permission
+            .unwrap_or(self.core.security > 0)
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/logout_wait.rs"]
+mod tests;
 
 impl crate::session::HubMut<'_> {
     /// C++ `Unit::SetRooted(apply)` (`Unit.cpp:10893-10926`) for the Player
