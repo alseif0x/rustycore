@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -726,6 +727,78 @@ class TimedCaptureTimingTests(unittest.TestCase):
                     self.write_meta(capture, "complete-2", "s2c", scenario.LOGOUT_COMPLETE)
                 with self.assertRaisesRegex(scenario.ScenarioFailure, "exactly one"):
                     scenario._measure_timed_logout(capture)
+
+    def write_bot_log(self, directory: Path, elapsed_ms: float = 20_000, *,
+                      ready_count: int = 1, report_count: int = 1) -> Path:
+        ready = datetime(2026, 11, 1, 2, 46, 28, 668079, tzinfo=timezone.utc)
+        report = ready + timedelta(milliseconds=elapsed_ms)
+        ready_timestamp = ready.isoformat(timespec="microseconds").replace("+00:00", "Z")
+        report_timestamp = report.isoformat(timespec="microseconds").replace("+00:00", "Z")
+        lines = [f"{ready_timestamp}  INFO wow_test_bot::cast_lifecycle: CAST_LIFECYCLE_READY"
+                 ] * ready_count
+        lines.extend([f"{report_timestamp}  INFO wow_test_bot::run_report: Report written: "
+                      f"{directory / 'logout-timed-001.bot-report.json'}"] * report_count)
+        lines.append("Error: process status is outside the timing parser")
+        path = directory / "logout-timed-001.bot.log"
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return path
+
+    def test_cpp_bot_log_measurement_uses_z_timestamps(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            capture = Path(raw)
+            bot_log = self.write_bot_log(capture, 19_371.146)
+            facts = scenario._measure_timed_logout_cpp(capture)
+        self.assertAlmostEqual(facts["elapsed_ms"], 19_371.146)
+        self.assertEqual(facts["timing_source"], "bot-log")
+        self.assertEqual(facts["bot_log_path"], str(bot_log))
+
+    def test_cpp_bot_log_measurement_enforces_inclusive_timing_window(self) -> None:
+        for elapsed_ms, valid in ((19_000, True), (25_000, True),
+                                  (18_999, False), (25_001, False)):
+            with self.subTest(elapsed_ms=elapsed_ms), tempfile.TemporaryDirectory() as raw:
+                capture = Path(raw)
+                self.write_bot_log(capture, elapsed_ms)
+                if valid:
+                    self.assertEqual(scenario._measure_timed_logout_cpp(capture)["elapsed_ms"],
+                                     elapsed_ms)
+                else:
+                    with self.assertRaisesRegex(scenario.ScenarioFailure, "19-to-25-second"):
+                        scenario._measure_timed_logout_cpp(capture)
+
+    def test_cpp_bot_log_measurement_requires_one_valid_marker_of_each_kind(self) -> None:
+        for defect, counts in (("missing_ready", (0, 1)), ("missing_report", (1, 0)),
+                               ("duplicate_ready", (2, 1)), ("duplicate_report", (1, 2))):
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as raw:
+                capture = Path(raw)
+                self.write_bot_log(capture, ready_count=counts[0], report_count=counts[1])
+                with self.assertRaisesRegex(scenario.ScenarioFailure, "exactly one"):
+                    scenario._measure_timed_logout_cpp(capture)
+        with tempfile.TemporaryDirectory() as raw:
+            capture = Path(raw)
+            (capture / "logout-timed-001.bot.log").write_text(
+                "not-a-time INFO wow_test_bot::cast_lifecycle: CAST_LIFECYCLE_READY\n"
+                "2026-11-01T02:46:48.668079Z INFO wow_test_bot::run_report: Report written: x\n",
+                encoding="utf-8")
+            with self.assertRaisesRegex(scenario.ScenarioFailure, "invalid ISO timestamps"):
+                scenario._measure_timed_logout_cpp(capture)
+
+    def test_run_case_selects_timing_measurement_by_backend(self) -> None:
+        for backend in ("rust", "cpp"):
+            capture = Path("/capture")
+            identity = {"scenario": "logout-timed", "capture": capture, "backend": backend}
+            with self.subTest(backend=backend), \
+                    patch.object(scenario, "_run_case_body", return_value={"observations": [{}]}), \
+                    patch.object(scenario, "_measure_timed_logout",
+                                 return_value={"timing_source": "rust-meta"}) as rust_measure, \
+                    patch.object(scenario, "_measure_timed_logout_cpp",
+                                 return_value={"timing_source": "bot-log"}) as cpp_measure:
+                report = scenario._run_case(identity, {}, 1, Mock())
+            selected = rust_measure if backend == "rust" else cpp_measure
+            other = cpp_measure if backend == "rust" else rust_measure
+            selected.assert_called_once_with(capture)
+            other.assert_not_called()
+            self.assertEqual(report["observations"][0]["timing_source"],
+                             "rust-meta" if backend == "rust" else "bot-log")
 
     def test_run_case_adds_real_capture_measurement_to_observations(self) -> None:
         selected = actor()

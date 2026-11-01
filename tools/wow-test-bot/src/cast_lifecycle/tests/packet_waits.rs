@@ -266,6 +266,65 @@ async fn logout_eof_never_substitutes_for_ack_and_frame_errors_remain_fatal() {
 }
 
 #[tokio::test]
+async fn wait_for_logout_complete_allows_instance_eof_after_completed_request() {
+    let mut controller = logout_controller();
+    controller.evidence.logout_request_completed = true;
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, mut realm_peer) = tcp_pair().await;
+    let key = [0x6d; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+    instance_peer.shutdown().await.unwrap();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+    let mut waiting = Box::pin(wait_for_packet(
+        deadline,
+        Connection::Realm,
+        SMSG_LOGOUT_COMPLETE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    ));
+    assert!(
+        tokio::time::timeout(Duration::from_millis(40), &mut waiting)
+            .await
+            .is_err()
+    );
+    let mut realm_server = WorldCrypt::new_with_counters(&key, 0, 0);
+    realm_peer
+        .write_all(&encrypted_server_packet(
+            &mut realm_server,
+            SMSG_LOGOUT_COMPLETE,
+            &[],
+        ))
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(1), &mut waiting)
+        .await
+        .expect("realm Complete arrives after instance EOF")
+        .unwrap();
+    drop(waiting);
+
+    assert!(controller.evidence.logout_confirmed);
+    assert_eq!(controller.evidence.logout_route.as_deref(), Some("realm"));
+    assert_eq!(
+        controller
+            .evidence
+            .events
+            .iter()
+            .map(|event| (event.connection, event.opcode))
+            .collect::<Vec<_>>(),
+        [(Connection::Realm, SMSG_LOGOUT_COMPLETE)]
+    );
+}
+
+#[tokio::test]
 async fn instance_eof_is_fatal_during_actions_even_with_a_previous_logout_marker() {
     for previously_requested in [false, true] {
         let mut controller = logout_controller();

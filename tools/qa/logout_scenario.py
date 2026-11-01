@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import hashlib
 import math
 import os
@@ -654,6 +655,31 @@ def _measure_timed_logout(capture: Path) -> dict[str, Any]:
             "elapsed_ms": elapsed_ms}
 
 
+def _measure_timed_logout_cpp(capture: Path) -> dict[str, Any]:
+    bot_log = capture / "logout-timed-001.bot.log"
+    try:
+        lines = bot_log.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        raise ScenarioFailure("unable to read timed logout bot log") from None
+    markers = {"CAST_LIFECYCLE_READY": [], "Report written": []}
+    for line in lines:
+        match = re.match(r"^(\S+).*\b(CAST_LIFECYCLE_READY|Report written)\b", line)
+        if match:
+            markers[match.group(2)].append(match.group(1))
+    if any(len(timestamps) != 1 for timestamps in markers.values()):
+        raise ScenarioFailure("timed logout bot log requires exactly one ready and report marker")
+    try:
+        ready = datetime.fromisoformat(markers["CAST_LIFECYCLE_READY"][0].replace("Z", "+00:00"))
+        report = datetime.fromisoformat(markers["Report written"][0].replace("Z", "+00:00"))
+        elapsed_ms = (report - ready).total_seconds() * 1_000
+    except (TypeError, ValueError):
+        raise ScenarioFailure("timed logout bot log has invalid ISO timestamps") from None
+    if not 19_000 <= elapsed_ms <= 25_000:
+        raise ScenarioFailure("timed logout completion is outside the 19-to-25-second window")
+    return {"elapsed_ms": elapsed_ms, "timing_source": "bot-log",
+            "bot_log_path": str(bot_log)}
+
+
 def _actor_online(db: death_fixture.MariaDB, journal: dict[str, Any],
                   actor: dict[str, Any]) -> bool:
     rows = db.character_identities(journal)
@@ -738,8 +764,6 @@ def _run_case_body(identity: dict[str, Any], journal: dict[str, Any], realm_id: 
     pass_ = death_scenario.BotPass(actor, plan, f"{scenario}-001")
     evidence = _run_single(pass_, identity)
     facts = validate_evidence(scenario, plan, evidence, actor, realm_id)
-    if scenario == "logout-timed":
-        facts.update(_measure_timed_logout(identity["capture"]))
     if scenario == "logout-disconnect":
         disconnected_at = time.monotonic()
         facts.update(prove_disconnect_timing(db, journal, actor, disconnected_at))
@@ -768,7 +792,17 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
               db: death_fixture.MariaDB) -> dict[str, Any]:
     scenario = identity["scenario"]
     if scenario not in VARIANT_SCENARIOS:
-        return _run_case_body(identity, journal, realm_id, db)
+        report = _run_case_body(identity, journal, realm_id, db)
+        if scenario == "logout-timed":
+            backend = identity.get("backend", "rust")
+            if backend == "rust":
+                timing = _measure_timed_logout(identity["capture"])
+            elif backend == "cpp":
+                timing = _measure_timed_logout_cpp(identity["capture"])
+            else:
+                raise ScenarioFailure("capture backend is invalid")
+            report["observations"][0].update(timing)
+        return report
     actor = next(item for item in journal["actors"] if item["name"] == SCENARIOS[scenario])
     state = _prepare_variant(scenario, db, actor)
     try:
@@ -819,7 +853,7 @@ def _runtime_identity() -> dict[str, Any]:
             "journal_path": Path(os.environ["RUSTYCORE_DEATH_JOURNAL"]),
             "bot_config": Path(os.environ["RUSTYCORE_DEATH_BOT_CONFIG"]),
             "world_config": Path(os.environ["RUSTYCORE_DEATH_WORLD_CONFIG"]),
-            "bot_exec": bot_exec}
+            "bot_exec": bot_exec, "backend": os.environ["RUSTYCORE_CAPTURE_BACKEND"]}
 
 
 def _failure_report(exc: BaseException, scenario: str | None) -> dict[str, Any]:

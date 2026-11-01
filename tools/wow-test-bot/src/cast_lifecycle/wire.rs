@@ -410,6 +410,9 @@ pub(super) async fn wait_for_packet(
     realm: &mut Option<EncryptedWorldConnection>,
     controller: &mut Controller,
 ) -> Result<()> {
+    let finishing_logout = connection == Connection::Realm
+        && opcode == SMSG_LOGOUT_COMPLETE
+        && controller.evidence.logout_request_completed;
     if collect_until_inner(
         deadline,
         stream,
@@ -418,7 +421,7 @@ pub(super) async fn wait_for_packet(
         realm,
         controller,
         Some((connection, opcode)),
-        false,
+        finishing_logout,
     )
     .await?
     {
