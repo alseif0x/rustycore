@@ -32,6 +32,10 @@ const CMSG_SELF_RES: u16 = 0x3531;
 const CMSG_ATTACK_SWING: u16 = 0x3255;
 const CMSG_ATTACK_STOP: u16 = 0x3256;
 const CMSG_LOGOUT_CANCEL: u16 = 0x34D8;
+const CMSG_RESET_INSTANCES: u16 = 0x366A;
+const CMSG_SET_DIFFICULTY_ID: u16 = 0x3222;
+const CMSG_PARTY_INVITE: u16 = 0x3604;
+const CMSG_PARTY_INVITE_RESPONSE: u16 = 0x3606;
 const SMSG_LOGOUT_RESPONSE: u16 = 0x2683;
 const SMSG_LOGOUT_CANCEL_ACK: u16 = 0x2685;
 const SMSG_SPELL_PREPARE: u16 = 0x2C35;
@@ -150,6 +154,41 @@ pub(super) async fn execute(
                     &body,
                 )
                 .await
+            }
+            Action::ResetInstances {} | Action::SetDifficultyId { .. } => {
+                let (opcode, body) = build_action_packet(action);
+                send_traced_packet(
+                    stream,
+                    crypt,
+                    &mut controller.evidence,
+                    Connection::Instance,
+                    Some(action_index),
+                    action_name,
+                    opcode,
+                    &body,
+                )
+                .await
+            }
+            Action::PartyInvite { .. } | Action::PartyInviteResponse { .. } => {
+                match party_realm_connection(realm, action_name) {
+                    Ok(realm) => match build_party_action_packet(action) {
+                        Ok((opcode, body)) => {
+                            send_traced_packet(
+                                &mut realm.stream,
+                                &mut realm.crypt,
+                                &mut controller.evidence,
+                                Connection::Realm,
+                                Some(action_index),
+                                action_name,
+                                opcode,
+                                &body,
+                            )
+                            .await
+                        }
+                        Err(error) => Err(error),
+                    },
+                    Err(error) => Err(error),
+                }
             }
             Action::ReleaseSpirit { .. }
             | Action::ReclaimCorpse { .. }
@@ -498,6 +537,15 @@ pub(super) async fn finish(
     }
 }
 
+fn party_realm_connection<'a>(
+    realm: &'a mut Option<EncryptedWorldConnection>,
+    action: &str,
+) -> Result<&'a mut EncryptedWorldConnection> {
+    realm
+        .as_mut()
+        .ok_or_else(|| anyhow!("{action} requires a realm connection"))
+}
+
 fn action_name(action: &Action) -> &'static str {
     match action {
         Action::Cast { .. } => "cast",
@@ -518,6 +566,10 @@ fn action_name(action: &Action) -> &'static str {
         Action::AttackStop => "attack_stop",
         Action::LogoutRequest { .. } => "logout_request",
         Action::LogoutCancel {} => "logout_cancel",
+        Action::ResetInstances {} => "reset_instances",
+        Action::SetDifficultyId { .. } => "set_difficulty_id",
+        Action::PartyInvite { .. } => "party_invite",
+        Action::PartyInviteResponse { .. } => "party_invite_response",
         Action::Movement { kind, .. } => match kind {
             MovementKind::Heartbeat => "movement_heartbeat",
             MovementKind::StartForward => "movement_start_forward",

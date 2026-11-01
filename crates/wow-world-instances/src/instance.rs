@@ -169,6 +169,28 @@ impl InstanceState {
             .expect("test Player recent-instance owner must resolve")
     }
 
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn represented_recent_instances_snapshot_for_handler_like_cpp(
+        &self,
+    ) -> Vec<(u32, u32)> {
+        self.instance_test_fixture_like_cpp
+            .represented_player_recent_instances_like_cpp
+            .iter()
+            .map(|(map_id, instance_id)| (*map_id, *instance_id))
+            .collect()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn forget_represented_recent_instance_for_handler_like_cpp(
+        &mut self,
+        map_id: u32,
+    ) -> bool {
+        self.instance_test_fixture_like_cpp
+            .represented_player_recent_instances_like_cpp
+            .remove(&map_id)
+            .is_some()
+    }
+
     /// C++ `Player::SetRecentInstance`.
     pub fn set_represented_player_recent_instance_like_cpp(
         &mut self,

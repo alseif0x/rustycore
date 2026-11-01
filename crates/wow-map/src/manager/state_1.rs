@@ -206,6 +206,7 @@ pub struct ManagedMap {
     pub(super) instance_encounter_in_progress: bool,
     pub(super) instance_lock_token: Option<u64>,
     pub(super) instance_lock_context: Option<CreateMapInstanceLockContext>,
+    pub(super) owning_group_guid: Option<u64>,
     pub(super) update_calls: Vec<u32>,
     pub(super) delayed_update_calls: Vec<u32>,
     pub(super) last_dynamic_tree_update_summary_like_cpp: DynamicMapTreeUpdateSummaryLikeCpp,
@@ -260,6 +261,7 @@ impl ManagedMap {
             instance_encounter_in_progress: false,
             instance_lock_token: None,
             instance_lock_context: None,
+            owning_group_guid: None,
             update_calls: Vec::new(),
             delayed_update_calls: Vec::new(),
             last_dynamic_tree_update_summary_like_cpp: DynamicMapTreeUpdateSummaryLikeCpp::default(
@@ -352,6 +354,19 @@ impl ManagedMap {
     pub fn set_instance_lock_context(&mut self, context: Option<CreateMapInstanceLockContext>) {
         self.instance_lock_token = context.map(|context| context.token);
         self.instance_lock_context = context;
+    }
+
+    pub const fn owning_group_guid_like_cpp(&self) -> Option<u64> {
+        self.owning_group_guid
+    }
+
+    /// C++ `InstanceMap::TrySetOwningGroup`: the first linked group wins.
+    pub fn try_set_owning_group_like_cpp(&mut self, group_guid: u64) -> bool {
+        if self.owning_group_guid.is_some() {
+            return false;
+        }
+        self.owning_group_guid = Some(group_guid);
+        true
     }
 
     pub fn update_calls(&self) -> &[u32] {

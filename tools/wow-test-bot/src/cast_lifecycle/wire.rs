@@ -33,7 +33,26 @@ pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
             (CMSG_LOGOUT_REQUEST, vec![u8::from(*idle_logout)])
         }
         Action::LogoutCancel {} => (CMSG_LOGOUT_CANCEL, Vec::new()),
+        Action::ResetInstances {} => (CMSG_RESET_INSTANCES, Vec::new()),
+        Action::SetDifficultyId { difficulty_id } => (
+            CMSG_SET_DIFFICULTY_ID,
+            difficulty_id.to_le_bytes().to_vec(),
+        ),
         _ => unreachable!("only typed non-cast actions use this builder"),
+    }
+}
+
+pub(super) fn build_party_action_packet(action: &Action) -> Result<(u16, Vec<u8>)> {
+    match action {
+        Action::PartyInvite { name, target } => Ok((
+            CMSG_PARTY_INVITE,
+            crate::loot_race::build_party_invite(name, target.low, target.high)?,
+        )),
+        Action::PartyInviteResponse { accept } => Ok((
+            CMSG_PARTY_INVITE_RESPONSE,
+            vec![if *accept { 0x40 } else { 0x00 }],
+        )),
+        _ => unreachable!("only party actions use this builder"),
     }
 }
 

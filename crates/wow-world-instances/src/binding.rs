@@ -24,6 +24,21 @@ pub fn create_map_instance_lock_token_like_cpp(
     hash
 }
 
+pub(crate) fn player_instance_reset_forgets_recent_like_cpp(
+    result: GroupInstanceResetResultLikeCpp,
+    method: GroupInstanceResetMethodLikeCpp,
+) -> bool {
+    match result {
+        GroupInstanceResetResultLikeCpp::Success => true,
+        GroupInstanceResetResultLikeCpp::NotEmpty => {
+            method == GroupInstanceResetMethodLikeCpp::OnChangeDifficulty
+        }
+        GroupInstanceResetResultLikeCpp::CannotReset | GroupInstanceResetResultLikeCpp::Other => {
+            false
+        }
+    }
+}
+
 impl InstanceState {
     /// C++ `Player::IsLockedToDungeonEncounter(uint32)`.
     ///
@@ -168,18 +183,10 @@ impl InstanceState {
         result: GroupInstanceResetResultLikeCpp,
         method: GroupInstanceResetMethodLikeCpp,
     ) -> bool {
-        match result {
-            GroupInstanceResetResultLikeCpp::Success => {
-                self.forget_represented_player_recent_instance_like_cpp(hub, map_id)
-            }
-            GroupInstanceResetResultLikeCpp::NotEmpty
-                if method == GroupInstanceResetMethodLikeCpp::OnChangeDifficulty =>
-            {
-                self.forget_represented_player_recent_instance_like_cpp(hub, map_id)
-            }
-            GroupInstanceResetResultLikeCpp::NotEmpty
-            | GroupInstanceResetResultLikeCpp::CannotReset
-            | GroupInstanceResetResultLikeCpp::Other => false,
+        if player_instance_reset_forgets_recent_like_cpp(result, method) {
+            self.forget_represented_player_recent_instance_like_cpp(hub, map_id)
+        } else {
+            false
         }
     }
 }

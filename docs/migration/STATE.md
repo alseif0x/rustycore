@@ -1,5 +1,41 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #45 closure execution plan — 2026-11-01
+
+Branch `45-m55-instance-enterleave-basics-+-reconnectlogout-integrity`;
+baseline `a680ab4328fab903bff5cd17cabd750d3ff716b3` after merged #54.
+Target C++ remains `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`.
+Documentation and explanatory comments remain in English.
+
+### Audited contract and implementation
+
+The older pending item suggesting player expulsion was incorrect. C++
+`InstanceMap::Reset` (`Map.cpp:3002-3062`) returns `NotEmpty` for an occupied
+map, notifies occupants only for manual reset, and never expels them. Empty
+success arms the existing next-update unload. Non-new attached locks return
+`CannotReset` before occupancy handling. Normal reset and difficulty changes
+never call the GM-only persistent force-expiry operation.
+
+The working candidate now implements:
+
+- Map-owned reset outcomes with incarnation-checked exact lock resolution and
+  empty-payload `SMSG_RESET_FAILED_NOTIFY` delivery to current occupants.
+- Solo recent-instance and group owned-instance reset rules, including their
+  different `CannotReset` behavior and difficulty continuation after failure.
+- First-group map ownership, exact persistent/temporary lock `is_in_use`
+  transitions, and world-server cleanup from destroyed-map tick evidence.
+- The focused handler matrix (25 tests), map/lock lifecycle tests, world-server
+  cleanup tests and 59 cast-lifecycle bot tests. These are focused coding
+  results, not final acceptance.
+- A hermetically tested `instance-solo-reset` native QA runner: enter map 33,
+  relogin in the same nonzero instance, leave and reset from outside.
+
+No live instance scenario, paired capture comparison, exhaustive persistence
+check or final campaign has run for this candidate. Next: commit a clean debug
+candidate, run the bounded solo scenario against Rust and pinned C++, then add
+and exercise the occupied group/difficulty and restart/persistence scenarios.
+Do not claim issue completion from the current focused suites.
+
 ## #54 closure execution plan — 2026-10-31
 
 Branch `54-c-character2-complete-logout-admission-countdown-and-cancellation`;

@@ -5416,6 +5416,10 @@ async fn run_inner(
         Arc::clone(&area_trigger_template_store),
         game_event_scheduler,
         Arc::clone(&player_registry),
+        CanonicalMapLifecycleOwnersLikeCpp::new(
+            Arc::clone(&instance_lock_mgr),
+            Arc::clone(&group_registry),
+        ),
         Arc::clone(&active_session_registry),
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),

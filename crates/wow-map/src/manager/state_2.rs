@@ -4,6 +4,21 @@
 
 use super::*;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstanceResetResultLikeCpp {
+    Success,
+    NotEmpty { occupant_guids: Vec<ObjectGuid> },
+    CannotReset,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstanceResetMapSnapshotLikeCpp {
+    pub incarnation: u64,
+    pub difficulty_id: Difficulty,
+    pub instance_lock_context: Option<CreateMapInstanceLockContext>,
+}
+
 impl MapManager {
     pub fn new(grid_cleanup_delay_ms: u32, map_update_interval_ms: u32) -> Self {
         let mut manager = Self {
@@ -378,6 +393,64 @@ impl MapManager {
         self.maps.get_mut(&MapKey::new(map_id, instance_id))
     }
 
+    pub fn instance_reset_snapshot_like_cpp(
+        &self,
+        map_id: u32,
+        instance_id: u32,
+    ) -> Option<InstanceResetMapSnapshotLikeCpp> {
+        let key = MapKey::new(map_id, instance_id);
+        let map = self.maps.get(&key)?;
+        if !map.kind().is_dungeon() {
+            return None;
+        }
+        Some(InstanceResetMapSnapshotLikeCpp {
+            incarnation: self.map_incarnation_like_cpp(key)?,
+            difficulty_id: map.difficulty(),
+            instance_lock_context: map.instance_lock_context(),
+        })
+    }
+
+    pub fn reset_instance_at_incarnation_like_cpp(
+        &mut self,
+        map_id: u32,
+        instance_id: u32,
+        expected_incarnation: u64,
+        lock_is_new: Option<bool>,
+    ) -> InstanceResetResultLikeCpp {
+        let key = MapKey::new(map_id, instance_id);
+        if self.map_incarnation_like_cpp(key) != Some(expected_incarnation) {
+            return InstanceResetResultLikeCpp::Other;
+        }
+        self.reset_instance_like_cpp(map_id, instance_id, lock_is_new)
+    }
+
+    /// C++ non-expiry `InstanceMap::Reset` decision (`Maps/Map.cpp:3002-3062`).
+    /// Occupant notification and persistent lock/group changes remain with the caller.
+    pub fn reset_instance_like_cpp(
+        &mut self,
+        map_id: u32,
+        instance_id: u32,
+        lock_is_new: Option<bool>,
+    ) -> InstanceResetResultLikeCpp {
+        let Some(map) = self.find_map_mut(map_id, instance_id) else {
+            return InstanceResetResultLikeCpp::Other;
+        };
+        if !map.kind().is_dungeon() {
+            return InstanceResetResultLikeCpp::Other;
+        }
+        if lock_is_new == Some(false) {
+            return InstanceResetResultLikeCpp::CannotReset;
+        }
+        if map.have_players() {
+            return InstanceResetResultLikeCpp::NotEmpty {
+                occupant_guids: map.map().map_reference_order_like_cpp().to_vec(),
+            };
+        }
+
+        map.set_can_unload(true);
+        InstanceResetResultLikeCpp::Success
+    }
+
     /// Execute one synchronous gameplay command inside the single writer for
     /// this exact map instance and return only owned evidence.
     ///
@@ -611,7 +684,12 @@ impl MapManager {
 
             if map.can_unload(diff_ms) {
                 if Self::destroy_map_inner(map, &mut self.instance_ids) {
-                    destroyed.push(MapTickParticipantLikeCpp { key, incarnation });
+                    destroyed.push(MapTickDestroyedMapLikeCpp {
+                        key,
+                        incarnation,
+                        instance_lock_context: map.instance_lock_context(),
+                        owning_group_guid: map.owning_group_guid_like_cpp(),
+                    });
                 }
                 continue;
             }
@@ -972,7 +1050,7 @@ pub struct MapTickPlanLikeCpp {
     epoch: u64,
     effective_diff_ms: u32,
     updated: Vec<MapTickParticipantLikeCpp>,
-    destroyed: Vec<MapTickParticipantLikeCpp>,
+    destroyed: Vec<MapTickDestroyedMapLikeCpp>,
 }
 
 /// One session a map's tick drives, with the identity frozen at admission.
@@ -993,6 +1071,15 @@ pub struct MapSessionPassParticipantLikeCpp {
 pub struct MapTickParticipantLikeCpp {
     pub key: MapKey,
     pub incarnation: u64,
+}
+
+/// Destruction identity and the ownership/lock evidence needed after the tick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MapTickDestroyedMapLikeCpp {
+    pub key: MapKey,
+    pub incarnation: u64,
+    pub instance_lock_context: Option<CreateMapInstanceLockContext>,
+    pub owning_group_guid: Option<u64>,
 }
 
 /// What [`MapManager::begin_tick_like_cpp`] decided for this diff.
@@ -1077,7 +1164,7 @@ impl MapTickPlanLikeCpp {
     /// The maps C++ destroys before updating (`MapManager.cpp:296-305`); they
     /// are removed when the tick resumes.
     #[must_use]
-    pub fn destroyed_maps_like_cpp(&self) -> &[MapTickParticipantLikeCpp] {
+    pub fn destroyed_maps_like_cpp(&self) -> &[MapTickDestroyedMapLikeCpp] {
         &self.destroyed
     }
 }

@@ -30,6 +30,81 @@ use super::{
     represented_game_event_world_conditions_met_like_cpp, warn_about_sync_queries_scope_like_cpp,
 };
 
+pub(crate) struct CanonicalMapLifecycleOwnersLikeCpp {
+    pub instance_lock_mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
+    pub group_registry: Arc<wow_social::group::GroupRegistry>,
+}
+
+impl CanonicalMapLifecycleOwnersLikeCpp {
+    pub(crate) fn new(
+        instance_lock_mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
+        group_registry: Arc<wow_social::group::GroupRegistry>,
+    ) -> Self {
+        Self {
+            instance_lock_mgr,
+            group_registry,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct DestroyedMapCleanupSummaryLikeCpp {
+    pub locks_cleared: u32,
+    pub lock_cleanup_failures: u32,
+    pub group_links_removed: u32,
+}
+
+pub(crate) fn consume_destroyed_map_cleanup_like_cpp(
+    destroyed_maps: &[wow_map::MapTickDestroyedMapLikeCpp],
+    owners: &CanonicalMapLifecycleOwnersLikeCpp,
+) -> DestroyedMapCleanupSummaryLikeCpp {
+    let mut summary = DestroyedMapCleanupSummaryLikeCpp::default();
+    for destroyed in destroyed_maps {
+        if let Some(context) = destroyed.instance_lock_context {
+            let cleared = i64::try_from(context.owner_guid_counter)
+                .ok()
+                .and_then(|counter| {
+                    owners.instance_lock_mgr.write().ok().map(|mut manager| {
+                        manager.set_instance_lock_in_use_like_cpp(
+                            wow_core::ObjectGuid::create_player(1, counter),
+                            destroyed.key.map_id,
+                            context.difficulty_id,
+                            context.instance_id,
+                            false,
+                        )
+                    })
+                })
+                .unwrap_or(false);
+            if cleared {
+                summary.locks_cleared += 1;
+            } else {
+                summary.lock_cleanup_failures += 1;
+                tracing::error!(
+                    map_id = destroyed.key.map_id,
+                    instance_id = context.instance_id,
+                    difficulty_id = context.difficulty_id,
+                    owner_guid_counter = context.owner_guid_counter,
+                    "failed to clear destroyed map's exact instance lock in-use state"
+                );
+            }
+        }
+
+        if let Some(group_guid) = destroyed.owning_group_guid
+            && let Ok(outcome) = owners
+                .group_registry
+                .unlink_owned_instance_transition_like_cpp(
+                    group_guid,
+                    destroyed.key.map_id,
+                    destroyed.key.instance_id,
+                )
+            && outcome.facts
+        {
+            summary.group_links_removed += 1;
+        }
+    }
+    summary
+}
+
 pub(crate) fn spawn_canonical_map_update_loop(
     map_manager: SharedCanonicalMapManager,
     tick_interval_ms: u32,
@@ -45,6 +120,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
     area_trigger_template_store: Arc<wow_data::AreaTriggerTemplateStore>,
     mut game_event_scheduler: CanonicalGameEventSchedulerLikeCpp,
     player_registry: Arc<PlayerRegistry>,
+    lifecycle_owners: CanonicalMapLifecycleOwnersLikeCpp,
     active_session_registry: Arc<crate::ActiveWorldSessionRegistryLikeCpp>,
     battlemaster_list_store: Arc<wow_data::BattlemasterListStore>,
     world_state_mgr: SharedWorldStateMgrLikeCpp,
@@ -225,6 +301,13 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 drop(manager);
                 (area_trigger_sweep_summary, session_plan)
             };
+
+            if let Some(plan) = session_plan.as_ref() {
+                let _ = consume_destroyed_map_cleanup_like_cpp(
+                    plan.plan.destroyed_maps_like_cpp(),
+                    &lifecycle_owners,
+                );
+            }
 
             // #787: every synchronous guard of the split is released above,
             // including the respawn mutation-order gate, before any session

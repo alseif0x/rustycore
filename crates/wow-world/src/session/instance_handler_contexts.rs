@@ -61,6 +61,8 @@ impl WorldSession {
             map_store,
             map_difficulty_store,
             difficulty_store,
+            self.core.canonical_map_manager.as_ref(),
+            self.core.player_registry.as_ref(),
             cfg!(test),
             #[cfg(any(test, feature = "test-fixtures"))]
             game_master_fixture,
@@ -94,6 +96,8 @@ impl WorldSession {
             map_store,
             map_difficulty_store,
             difficulty_store,
+            self.core.canonical_map_manager.as_ref(),
+            self.core.player_registry.as_ref(),
             cfg!(test),
         )
     }

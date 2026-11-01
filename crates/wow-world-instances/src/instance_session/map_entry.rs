@@ -259,6 +259,9 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
             create_map_active_instance_lock_context_like_cpp(host, map_id, requested_difficulty)
         })
         .flatten();
+    let owning_group_guid = is_dungeon
+        .then(|| host.authoritative_group_membership_like_cpp())
+        .flatten();
 
     let manager = Arc::clone(host.core().canonical_map_manager.as_ref()?);
     let mut manager = manager.lock().ok()?;
@@ -291,6 +294,11 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
         | wow_map::CreateMapDecision::Create { key, .. } => Some(*key),
         wow_map::CreateMapDecision::Reject { .. } => None,
     };
+    if let (Some(key), Some(group_guid)) = (key, owning_group_guid)
+        && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
+    {
+        let _ = map.try_set_owning_group_like_cpp(group_guid);
+    }
     let existing_instance_lock_context = match &decision {
         wow_map::CreateMapDecision::Existing { key, .. } if is_dungeon => manager
             .find_map(key.map_id, key.instance_id)
@@ -310,6 +318,49 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
         _ => None,
     };
     drop(manager);
+
+    // C++ `InstanceMap::InstanceMap` marks an already attached lock in use at
+    // construction, before any later admission check can reject the entry.
+    if is_dungeon
+        && matches!(&decision, wow_map::CreateMapDecision::Create { .. })
+        && let Some(lock) = active_instance_lock
+        && !set_final_map_lock_in_use_like_cpp(host, map_id, lock)
+    {
+        warn!(
+            account = host.core().account_id,
+            map_id,
+            instance_id = lock.instance_id,
+            difficulty_id = lock.difficulty_id,
+            "failed to mark a new canonical map's initial instance lock in use"
+        );
+    }
+
+    if let (Some(key), Some(group_guid)) = (key, owning_group_guid) {
+        let linked = host
+            .core()
+            .directory
+            .group_registry
+            .as_ref()
+            .and_then(|registry| {
+                registry
+                    .link_owned_instance_transition_like_cpp(
+                        group_guid,
+                        key.map_id,
+                        key.instance_id,
+                    )
+                    .ok()
+            })
+            .is_some();
+        if !linked {
+            warn!(
+                account = host.core().account_id,
+                group_guid,
+                map_id = key.map_id,
+                instance_id = key.instance_id,
+                "failed to link canonical instance map to its owning group"
+            );
+        }
+    }
 
     // C++ `MapManager::CreateMap` receives the live `Player*` before it
     // performs admission checks and instance-entry accounting. Materialize
@@ -420,16 +471,67 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
     if is_dungeon
         && let Some(key) = key
         && let Some(difficulty_id) = create_map_decision_difficulty_id_like_cpp(&decision)
-        && let Some(lock) =
-            create_map_active_instance_lock_context_like_cpp(host, map_id, difficulty_id)
     {
-        let manager = Arc::clone(host.core().canonical_map_manager.as_ref()?);
-        if let Ok(mut manager) = manager.lock()
-            && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
+        let has_reset_schedule = {
+            let (state, hub) = host.split_instances_ref();
+            state
+                .create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)
+                .is_some_and(|entries| entries.has_reset_schedule())
+        };
+        if let Some(lock) =
+            create_map_active_instance_lock_context_like_cpp(host, map_id, difficulty_id)
         {
-            map.set_instance_lock_context(Some(lock));
+            let manager = Arc::clone(host.core().canonical_map_manager.as_ref()?);
+            if let Ok(mut manager) = manager.lock()
+                && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
+            {
+                map.set_instance_lock_context(Some(lock));
+            }
+            drop(manager);
+
+            if !set_final_map_lock_in_use_like_cpp(host, map_id, lock) {
+                warn!(
+                    account = host.core().account_id,
+                    map_id,
+                    instance_id = lock.instance_id,
+                    difficulty_id = lock.difficulty_id,
+                    "failed to mark the canonical map's exact instance lock in use"
+                );
+            }
+        } else if has_reset_schedule {
+            warn!(
+                account = host.core().account_id,
+                map_id,
+                instance_id = key.instance_id,
+                difficulty_id,
+                "failed to resolve the canonical map's final active instance lock"
+            );
         }
     }
 
     Some(decision)
+}
+
+fn set_final_map_lock_in_use_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &H,
+    map_id: u32,
+    context: wow_map::CreateMapInstanceLockContext,
+) -> bool {
+    let Ok(owner_guid_counter) = i64::try_from(context.owner_guid_counter) else {
+        return false;
+    };
+    let owner_guid = wow_core::ObjectGuid::create_player(1, owner_guid_counter);
+    host.core()
+        .instance_lock_mgr
+        .as_ref()
+        .and_then(|manager| manager.write().ok())
+        .is_some_and(|mut manager| {
+            manager.set_instance_lock_in_use_like_cpp(
+                owner_guid,
+                map_id,
+                context.difficulty_id,
+                context.instance_id,
+                true,
+            )
+        })
 }

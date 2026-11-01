@@ -5,6 +5,16 @@ use super::*;
 use crate::session::mailbox::SendPlayerAuraUpdateCommand;
 
 impl PlayerRegistry {
+    /// Resolve the current session incarnation for a map-owned occupant GUID.
+    #[must_use]
+    pub fn current_registration_like_cpp(&self, guid: ObjectGuid) -> Option<PlayerRegistration> {
+        let entry = self.entries.get(&guid)?;
+        Some(PlayerRegistration {
+            guid,
+            generation: entry.generation,
+        })
+    }
+
     /// Every current registration whose player is in the world: the session
     /// set C++ `World::SendWorldText` addresses (`World.cpp:2989-2994`, each
     /// session with `GetPlayer()->IsInWorld()`).

@@ -200,6 +200,58 @@ fn canonical_instance_count_blocks_new_distinct_instance_like_cpp() {
     );
 }
 #[test]
+fn canonical_instance_count_rejection_marks_new_map_existing_lock_in_use_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 92);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "RejectedInstanceCap".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        631,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .instances
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
+    session.set_max_instances_per_hour_like_cpp(5);
+    install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+    install_active_instance_lock_mgr_like_cpp(&mut session, player_guid, 631, 3, 9001);
+    for instance_id in 100..105 {
+        session
+            .instances
+            .insert_represented_instance_reset_time_for_test_like_cpp(instance_id, u64::MAX);
+    }
+
+    assert_eq!(
+        session.ensure_canonical_world_map_for_current_player_like_cpp(),
+        Some(wow_map::CreateMapDecision::Reject {
+            side_effects: Vec::new()
+        })
+    );
+
+    let entries = session.create_map_db2_entries_like_cpp(631, 3).unwrap();
+    let now = u64::try_from(unix_now()).unwrap_or(0);
+    let locks = session
+        .core
+        .instance_lock_mgr
+        .as_ref()
+        .unwrap()
+        .read()
+        .unwrap();
+    assert!(
+        locks
+            .find_active_instance_lock_at(player_guid, &entries, now)
+            .unwrap()
+            .is_in_use
+    );
+}
+#[test]
 fn canonical_instance_count_allows_dead_player_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -405,9 +457,74 @@ fn canonical_player_dungeon_create_map_creates_temporary_lock_like_cpp() {
     let map = manager.find_map(631, 1).unwrap();
     assert_eq!(map.instance_lock_token(), Some(lock_context.token));
     assert_eq!(map.instance_lock_context(), Some(lock_context));
+    assert_eq!(map.owning_group_guid_like_cpp(), None);
     assert!(
         map.map().get_typed_player(owner).is_some(),
         "player snapshot should be synchronized into the created dungeon map"
+    );
+    drop(manager);
+
+    let entries = session.create_map_db2_entries_like_cpp(631, 3).unwrap();
+    let now = u64::try_from(unix_now()).unwrap_or(0);
+    let locks = session
+        .core
+        .instance_lock_mgr
+        .as_ref()
+        .unwrap()
+        .read()
+        .unwrap();
+    assert!(
+        locks
+            .find_active_instance_lock_at(owner, &entries, now)
+            .unwrap()
+            .is_in_use
+    );
+}
+#[test]
+fn canonical_player_dungeon_create_map_missing_lock_manager_does_not_invent_lock_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let owner = ObjectGuid::create_player(1, 72);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        owner,
+        "DungeonMissingLocks".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        631,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .instances
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
+    install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+    session.core.instance_lock_mgr = None;
+
+    let decision = session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .unwrap();
+
+    assert!(matches!(
+        decision,
+        wow_map::CreateMapDecision::Create { key, .. }
+            if key == wow_map::MapKey::new(631, 1)
+    ));
+    assert!(session.core.instance_lock_mgr.is_none());
+    assert!(
+        wow_world_instances::create_map_active_instance_lock_context_like_cpp(&session, 631, 3)
+            .is_none()
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(631, 1)
+            .unwrap()
+            .instance_lock_context(),
+        None
     );
 }
 #[test]
@@ -433,6 +550,29 @@ fn canonical_player_dungeon_create_map_reuses_active_lock_like_cpp() {
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let expected_token =
         install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);
+    let entries = session.create_map_db2_entries_like_cpp(631, 3).unwrap();
+    let now = u64::try_from(unix_now()).unwrap_or(0);
+    session
+        .core
+        .instance_lock_mgr
+        .as_ref()
+        .unwrap()
+        .write()
+        .unwrap()
+        .update_instance_lock_for_player_at(
+            owner,
+            &entries,
+            wow_instances::InstanceLockUpdateEvent {
+                instance_id: 9001,
+                new_data: String::new(),
+                instance_completed_encounters_mask: 0,
+                completed_encounter_bit: None,
+                entrance_world_safe_loc_id: None,
+            },
+            wow_instances::ResetSchedule::default(),
+            now,
+        )
+        .unwrap();
 
     let decision = session
         .ensure_canonical_world_map_for_current_player_like_cpp()
@@ -453,8 +593,9 @@ fn canonical_player_dungeon_create_map_reuses_active_lock_like_cpp() {
     );
 
     let manager = canonical.lock().unwrap();
+    let map = manager.find_map(631, 9001).unwrap();
     assert_eq!(
-        manager.find_map(631, 9001).unwrap().instance_lock_context(),
+        map.instance_lock_context(),
         Some(wow_map::CreateMapInstanceLockContext {
             instance_id: 9001,
             difficulty_id: 3,
@@ -462,6 +603,185 @@ fn canonical_player_dungeon_create_map_reuses_active_lock_like_cpp() {
             owner_guid_counter: owner.counter() as u64,
         })
     );
+    assert_eq!(map.owning_group_guid_like_cpp(), None);
+    drop(manager);
+
+    let locks = session
+        .core
+        .instance_lock_mgr
+        .as_ref()
+        .unwrap()
+        .read()
+        .unwrap();
+    assert!(
+        locks
+            .get_instance_locks_for_player(owner)
+            .iter()
+            .find(|lock| lock.instance_id == 9001)
+            .unwrap()
+            .is_in_use
+    );
+}
+#[test]
+fn canonical_player_group_create_and_adopt_link_owned_instance_once_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let leader = ObjectGuid::create_player(1, 70);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        leader,
+        "DungeonGroup".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        631,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .instances
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
+    install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+    session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(
+        wow_instances::InstanceLockMgr::default(),
+    )));
+    let group_registry = Arc::new(GroupRegistry::default());
+    let group = GroupInfo::new(leader);
+    let group_guid = group.group_guid;
+    group_registry.register_group_like_cpp(group_guid, group);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
+    session.set_group_registry(
+        Arc::clone(&group_registry),
+        Arc::new(PendingInvites::default()),
+    );
+
+    let created = session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .unwrap();
+    let wow_map::CreateMapDecision::Create { key, .. } = created else {
+        panic!("group must create its first canonical instance map");
+    };
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(key.map_id, key.instance_id)
+            .unwrap()
+            .owning_group_guid_like_cpp(),
+        Some(group_guid)
+    );
+    assert_eq!(
+        group_registry
+            .get(&group_guid)
+            .unwrap()
+            .owned_instances_like_cpp()
+            .count(),
+        1
+    );
+
+    let adopted = session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .unwrap();
+    assert!(matches!(
+        adopted,
+        wow_map::CreateMapDecision::Existing { key: adopted_key, .. } if adopted_key == key
+    ));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(key.map_id, key.instance_id)
+            .unwrap()
+            .owning_group_guid_like_cpp(),
+        Some(group_guid)
+    );
+    assert_eq!(
+        group_registry
+            .get(&group_guid)
+            .unwrap()
+            .owned_instances_like_cpp()
+            .count(),
+        1
+    );
+}
+#[test]
+fn canonical_player_group_adopts_existing_unowned_instance_map_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let leader = ObjectGuid::create_player(1, 71);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        leader,
+        "DungeonAdopt".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        631,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .instances
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
+    install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+    let token = install_active_instance_lock_mgr_like_cpp(&mut session, leader, 631, 3, 1);
+    canonical
+        .lock()
+        .unwrap()
+        .create_map_entry(
+            631,
+            1,
+            3,
+            wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: true,
+            },
+        )
+        .set_instance_lock_context(Some(wow_map::CreateMapInstanceLockContext {
+            instance_id: 1,
+            difficulty_id: 3,
+            token,
+            owner_guid_counter: leader.counter() as u64,
+        }));
+    let group_registry = Arc::new(GroupRegistry::default());
+    let group = GroupInfo::new(leader);
+    let group_guid = group.group_guid;
+    group_registry.register_group_like_cpp(group_guid, group);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
+    session.set_group_registry(
+        Arc::clone(&group_registry),
+        Arc::new(PendingInvites::default()),
+    );
+
+    for _ in 0..2 {
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Existing { key, .. })
+                if key == wow_map::MapKey::new(631, 1)
+        ));
+        assert_eq!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(631, 1)
+                .unwrap()
+                .owning_group_guid_like_cpp(),
+            Some(group_guid)
+        );
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .owned_instances_like_cpp()
+                .count(),
+            1
+        );
+    }
 }
 #[test]
 fn canonical_player_existing_instance_map_rejects_incompatible_player_lock_like_cpp() {

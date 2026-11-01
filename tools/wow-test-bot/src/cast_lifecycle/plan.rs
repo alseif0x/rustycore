@@ -166,6 +166,10 @@ pub(crate) enum Action {
         idle_logout: bool,
     },
     LogoutCancel {},
+    ResetInstances {},
+    SetDifficultyId { difficulty_id: u32 },
+    PartyInvite { name: String, target: Guid },
+    PartyInviteResponse { accept: bool },
     /// One finite client movement packet. The opcode comes from the closed
     /// `MovementKind` set; control flags remain owned by the live controller.
     Movement {
@@ -708,6 +712,14 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
                 validate_creature_target(target, "attack_swing.target")?;
             }
             Action::AttackStop => {}
+            Action::PartyInvite { name, target } => {
+                if name.len() > 0x1FF {
+                    bail!("party invite name is too long");
+                }
+                if target.empty() {
+                    bail!("party invite target must be non-empty");
+                }
+            }
             Action::Movement {
                 kind,
                 x,
@@ -745,7 +757,10 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             | Action::ResurrectResponse { .. }
             | Action::SelfRes { .. }
             | Action::LogoutRequest { .. }
-            | Action::LogoutCancel {} => {}
+            | Action::LogoutCancel {}
+            | Action::ResetInstances {}
+            | Action::SetDifficultyId { .. }
+            | Action::PartyInviteResponse { .. } => {}
         }
     }
     for rule in &plan.expect {

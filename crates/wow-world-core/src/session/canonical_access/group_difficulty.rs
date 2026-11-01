@@ -10,6 +10,7 @@ use crate::session::{
 use wow_core::ObjectGuid;
 use wow_social::group::{
     GroupAuthorityErrorLikeCpp, GroupDifficultyKindLikeCpp, GroupInfo,
+    GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp,
     GroupTransitionOutcomeLikeCpp,
 };
 
@@ -46,6 +47,22 @@ impl GroupDifficultyAccessLikeCpp<'_> {
                 .as_ref()?
                 .set_difficulty_transition_like_cpp(group_guid, actor_guid, difficulty_id, kind),
         )
+    }
+
+    pub fn apply_instance_reset_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        map_id: u32,
+        result: GroupInstanceResetResultLikeCpp,
+        method: GroupInstanceResetMethodLikeCpp,
+    ) -> Option<bool> {
+        self.core
+            .directory
+            .group_registry
+            .as_ref()?
+            .apply_instance_reset_transition_like_cpp(group_guid, map_id, result, method)
+            .ok()
+            .map(|outcome| outcome.facts)
     }
 
     pub fn apply_member_transition_like_cpp(

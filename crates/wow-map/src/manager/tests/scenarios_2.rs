@@ -822,6 +822,201 @@ fn map_manager_update_queues_scene_object_removal_then_delayed_update_drains_lik
 }
 
 #[test]
+fn instance_reset_empty_success_unloads_on_next_tick_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_map_entry(
+        1,
+        0,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: false,
+        },
+    );
+
+    assert_eq!(
+        manager.reset_instance_like_cpp(1, 0, None),
+        InstanceResetResultLikeCpp::Success
+    );
+    assert!(manager.find_map(1, 0).is_some());
+
+    assert_eq!(manager.update(1), Some(1));
+    assert!(manager.find_map(1, 0).is_none());
+}
+
+#[test]
+fn instance_reset_occupied_returns_map_reference_order_without_unload_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_map_entry(
+        1,
+        0,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: false,
+        },
+    );
+    let first =
+        insert_player_for_relocation_notify(&mut manager, 4643001, Position::xyz(10.0, 20.0, 30.0));
+    let second =
+        insert_player_for_relocation_notify(&mut manager, 4643002, Position::xyz(11.0, 21.0, 31.0));
+
+    assert_eq!(
+        manager.reset_instance_like_cpp(1, 0, None),
+        InstanceResetResultLikeCpp::NotEmpty {
+            occupant_guids: vec![second, first],
+        }
+    );
+    assert_eq!(manager.find_map(1, 0).unwrap().player_count(), 2);
+
+    assert_eq!(manager.update(1), Some(1));
+    let map = manager.find_map(1, 0).unwrap();
+    assert_eq!(map.player_count(), 2);
+    assert!(map.map().get_typed_player(first).is_some());
+    assert!(map.map().get_typed_player(second).is_some());
+}
+
+#[test]
+fn instance_reset_non_new_lock_precedes_occupancy_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_map_entry(
+        1,
+        0,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: true,
+        },
+    );
+    insert_player_for_relocation_notify(&mut manager, 4643101, Position::xyz(10.0, 20.0, 30.0));
+
+    assert_eq!(
+        manager.reset_instance_like_cpp(1, 0, Some(false)),
+        InstanceResetResultLikeCpp::CannotReset
+    );
+    assert_eq!(manager.update(1), Some(1));
+    assert_eq!(manager.find_map(1, 0).unwrap().player_count(), 1);
+}
+
+#[test]
+fn instance_reset_new_lock_succeeds_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_map_entry(
+        1,
+        0,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: true,
+        },
+    );
+
+    assert_eq!(
+        manager.reset_instance_like_cpp(1, 0, Some(true)),
+        InstanceResetResultLikeCpp::Success
+    );
+    assert!(manager.find_map(1, 0).is_some());
+    assert_eq!(manager.update(1), Some(1));
+    assert!(manager.find_map(1, 0).is_none());
+}
+
+#[test]
+fn instance_reset_rejects_stale_recreated_incarnation_without_unload_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_map_entry(
+        1,
+        0,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: true,
+        },
+    );
+    let snapshot = manager.instance_reset_snapshot_like_cpp(1, 0).unwrap();
+    manager.find_map_mut(1, 0).unwrap().set_can_unload(true);
+    assert_eq!(manager.update(1), Some(1));
+    manager.create_map_entry(
+        1,
+        0,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: true,
+        },
+    );
+
+    assert_eq!(
+        manager.reset_instance_at_incarnation_like_cpp(1, 0, snapshot.incarnation, None),
+        InstanceResetResultLikeCpp::Other
+    );
+    assert_eq!(manager.update(1), Some(1));
+    assert!(manager.find_map(1, 0).is_some());
+}
+
+#[test]
+fn instance_reset_missing_world_and_battleground_maps_return_other_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_world_map(1, 0);
+    manager.create_map_entry(2, 0, 0, ManagedMapKind::Battleground);
+
+    for (map_id, instance_id) in [(1, 0), (2, 0), (3, 0)] {
+        assert_eq!(
+            manager.reset_instance_like_cpp(map_id, instance_id, None),
+            InstanceResetResultLikeCpp::Other
+        );
+    }
+}
+
+#[test]
+fn destroyed_tick_evidence_retains_exact_lock_context_and_first_group_owner_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    let key = MapKey::new(33, 7);
+    let context = CreateMapInstanceLockContext {
+        instance_id: 7,
+        difficulty_id: 1,
+        token: 0x1234,
+        owner_guid_counter: 42,
+    };
+    let map = manager.create_map_entry(
+        key.map_id,
+        key.instance_id,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: true,
+        },
+    );
+    map.set_instance_lock_context(Some(context));
+    assert!(map.try_set_owning_group_like_cpp(11));
+    assert!(!map.try_set_owning_group_like_cpp(22));
+    map.set_can_unload(true);
+    let incarnation = manager.map_incarnation_like_cpp(key).unwrap();
+
+    let plan = manager
+        .begin_tick_like_cpp(1)
+        .into_started()
+        .expect("timer passed");
+
+    assert_eq!(
+        plan.destroyed_maps_like_cpp(),
+        &[MapTickDestroyedMapLikeCpp {
+            key,
+            incarnation,
+            instance_lock_context: Some(context),
+            owning_group_guid: Some(11),
+        }]
+    );
+    assert_eq!(
+        manager.resume_tick_like_cpp(
+            plan,
+            None,
+            None::<
+                &mut fn(
+                    &mut Map,
+                    SpawnObjectType,
+                    SpawnId,
+                ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+            >,
+        ),
+        MapTickResumeLikeCpp::Resumed
+    );
+    assert!(manager.find_map(key.map_id, key.instance_id).is_none());
+}
+
+#[test]
 fn update_destroys_unloadable_maps_before_delayed_update() {
     let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
     manager.create_map_entry(

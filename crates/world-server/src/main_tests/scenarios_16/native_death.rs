@@ -289,6 +289,12 @@ fn spawn_canonical_loop_with_spell_store(
         Arc::new(wow_data::AreaTriggerTemplateStore::default()),
         CanonicalGameEventSchedulerLikeCpp::start_system(3_600_000),
         Arc::clone(&world.registry),
+        crate::CanonicalMapLifecycleOwnersLikeCpp::new(
+            Arc::new(std::sync::RwLock::new(
+                wow_instances::InstanceLockMgr::default(),
+            )),
+            Arc::new(wow_social::group::GroupRegistry::default()),
+        ),
         Arc::new(ActiveWorldSessionRegistryLikeCpp::new()),
         Arc::new(wow_data::BattlemasterListStore::from_entries([])),
         Arc::clone(&guards.world_state_mgr),

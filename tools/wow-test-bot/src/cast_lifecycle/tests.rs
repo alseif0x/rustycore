@@ -1422,6 +1422,69 @@ fn logout_actions_preserve_native_wire_shapes_and_strict_plan_fields() {
 }
 
 #[test]
+fn instance_and_party_action_builders_match_native_shapes_and_strict_fields() {
+    let target = Guid {
+        low: 0x11,
+        high: 0x22,
+    };
+    let plan: Plan = serde_json::from_str(
+        r#"{
+            "actions":[
+                {"action":"reset_instances"},
+                {"action":"set_difficulty_id","difficulty_id":2},
+                {"action":"party_invite","name":"Peer","target":{"low":17,"high":34}},
+                {"action":"party_invite_response","accept":true},
+                {"action":"party_invite_response","accept":false}
+            ],
+            "expect":[{"event":"packet","connection":"instance","opcode":9859,"body_hex":"0000000000"}]
+        }"#,
+    )
+    .unwrap();
+    plan::validate_plan(&plan).unwrap();
+
+    assert_eq!(action_name(&plan.actions[0]), "reset_instances");
+    assert_eq!(action_name(&plan.actions[1]), "set_difficulty_id");
+    assert_eq!(action_name(&plan.actions[2]), "party_invite");
+    assert_eq!(action_name(&plan.actions[3]), "party_invite_response");
+    assert_eq!(
+        build_action_packet(&plan.actions[0]),
+        (CMSG_RESET_INSTANCES, Vec::new())
+    );
+    assert_eq!(
+        build_action_packet(&plan.actions[1]),
+        (CMSG_SET_DIFFICULTY_ID, 2u32.to_le_bytes().to_vec())
+    );
+    assert_eq!(CMSG_RESET_INSTANCES, 0x366A);
+    assert_eq!(CMSG_SET_DIFFICULTY_ID, 0x3222);
+    assert_eq!(
+        build_party_action_packet(&plan.actions[2]).unwrap(),
+        (
+            CMSG_PARTY_INVITE,
+            crate::loot_race::build_party_invite("Peer", target.low, target.high).unwrap(),
+        )
+    );
+    assert_eq!(
+        build_party_action_packet(&plan.actions[3]).unwrap(),
+        (CMSG_PARTY_INVITE_RESPONSE, vec![0x40])
+    );
+    assert_eq!(
+        build_party_action_packet(&plan.actions[4]).unwrap(),
+        (CMSG_PARTY_INVITE_RESPONSE, vec![0x00])
+    );
+    assert_eq!(CMSG_PARTY_INVITE, 0x3604);
+    assert_eq!(CMSG_PARTY_INVITE_RESPONSE, 0x3606);
+
+    for action in [
+        r#"{"action":"reset_instances","unexpected":1}"#,
+        r#"{"action":"set_difficulty_id","difficulty_id":2,"unexpected":1}"#,
+        r#"{"action":"party_invite","name":"Peer","target":{"low":17,"high":34},"unexpected":1}"#,
+        r#"{"action":"party_invite_response","accept":true,"unexpected":1}"#,
+    ] {
+        assert!(serde_json::from_str::<Action>(action).is_err(), "{action}");
+    }
+}
+
+#[test]
 fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
     let plan: Plan = serde_json::from_str(
         r#"{

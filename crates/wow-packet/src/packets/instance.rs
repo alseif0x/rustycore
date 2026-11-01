@@ -82,6 +82,16 @@ impl ServerPacket for InstanceResetFailed {
     }
 }
 
+/// C++ `WorldPackets::Instance::ResetFailedNotify` / `SMSG_RESET_FAILED_NOTIFY`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ResetFailedNotify;
+
+impl ServerPacket for ResetFailedNotify {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ResetFailedNotify;
+
+    fn write(&self, _pkt: &mut WorldPacket) {}
+}
+
 /// C++ `RaidInstanceResetWarningType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -363,6 +373,17 @@ mod tests {
         .write(&mut pkt);
 
         assert_eq!(&pkt.data()[2..], &[0x77, 0x02, 0x00, 0x00, 0x40]);
+    }
+
+    #[test]
+    fn reset_failed_notify_serialization_matches_cpp_opcode_and_empty_body() {
+        let bytes = ResetFailedNotify.to_bytes();
+
+        assert_eq!(ResetFailedNotify::OPCODE, ServerOpcodes::ResetFailedNotify);
+        assert_eq!(
+            bytes,
+            (ServerOpcodes::ResetFailedNotify as u16).to_le_bytes()
+        );
     }
 
     #[test]

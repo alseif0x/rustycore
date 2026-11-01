@@ -35,13 +35,14 @@ pub use grid_unload::{
 pub use manager::{
     CreateMapDecision, CreateMapDifficultyContext, CreateMapEntryContext, CreateMapEntryKind,
     CreateMapGroupContext, CreateMapInstanceLockContext, CreateMapPlayerContext,
-    CreateMapSideEffect, ExistingInstanceMapContext, InstanceIdAllocator, MIN_GRID_DELAY_MS,
+    CreateMapSideEffect, ExistingInstanceMapContext, InstanceIdAllocator,
+    InstanceResetMapSnapshotLikeCpp, InstanceResetResultLikeCpp, MIN_GRID_DELAY_MS,
     MIN_MAP_UPDATE_DELAY_MS, ManagedMap, ManagedMapInnerLikeCpp, ManagedMapKind,
     MapCreatureUpdateOwnerLikeCpp, MapManager, MapObjectUpdateSelectionLikeCpp,
     MapSessionPassParticipantLikeCpp, MapTickBeginLikeCpp, MapTickCoordinationStateLikeCpp,
-    MapTickParticipantLikeCpp, MapTickPlanLikeCpp, MapTickResumeLikeCpp, MapUnloadBlockedLikeCpp,
-    MapUpdater, PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp,
-    PlayerVisibilityRefreshIntentLikeCpp,
+    MapTickDestroyedMapLikeCpp, MapTickParticipantLikeCpp, MapTickPlanLikeCpp,
+    MapTickResumeLikeCpp, MapUnloadBlockedLikeCpp, MapUpdater, PlayerHandle, PlayerOwnerError,
+    PlayerResidenceLikeCpp, PlayerVisibilityRefreshIntentLikeCpp,
 };
 mod player_corpse_types;
 pub use map::{

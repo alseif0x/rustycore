@@ -2,22 +2,29 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use crate::{InstanceState, RepresentedPendingBind};
+use std::sync::Arc;
+
+use crate::binding::player_instance_reset_forgets_recent_like_cpp;
+use crate::{InstanceState, RepresentedPendingBind, create_map_instance_lock_token_like_cpp};
 use tracing::{info, warn};
 use wow_core::ObjectGuid;
 use wow_data::{MapDifficultyStore, MapStore};
-use wow_packet::ClientPacket;
+use wow_map::InstanceResetResultLikeCpp;
 use wow_packet::packets::instance::{
     InstanceLockResponse, InstanceReset, InstanceResetFailed, InstanceSaveCreated,
+    ResetFailedNotify,
 };
 use wow_packet::packets::misc::{
     CalendarRaidLockoutAdded, CalendarRaidLockoutUpdated, SetSavedInstanceExtend,
 };
+use wow_packet::{ClientPacket, ServerPacket};
 use wow_persistence::InstanceLockPersistenceOutcomeLikeCpp;
+use wow_social::group::{GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp};
+use wow_world_core::session::directory::PlayerRegistry;
 use wow_world_core::session::{
-    InstanceLockManagerAccessLikeCpp, InstancePlayerAccessLikeCpp, PacketPublicationAccessLikeCpp,
+    GroupDifficultyAccessLikeCpp, InstanceLockManagerAccessLikeCpp, InstancePlayerAccessLikeCpp,
+    PacketPublicationAccessLikeCpp, SharedCanonicalMapManager,
 };
-use wow_world_lifecycle::SessionLifecycleState;
 
 use crate::handlers::InstanceLockOperationsHandlerCxLikeCpp;
 
@@ -69,85 +76,231 @@ pub async fn handle_reset_instances_like_cpp(
         player_guid
     };
 
-    let _ = reset_locks_with_access_like_cpp(
-        &cx.locks,
-        cx.lifecycle,
-        &cx.packets,
-        cx.map_store,
-        cx.map_difficulty_store,
-        &cx.player,
+    let _ = reset_represented_instances_like_cpp(
+        cx,
         reset_owner_guid,
         InstanceResetMethodLikeCpp::Manual,
-    )
-    .await;
+    );
 }
 
-pub async fn reset_represented_instances_like_cpp(
+pub fn reset_represented_instances_like_cpp(
     cx: &mut InstanceLockOperationsHandlerCxLikeCpp<'_>,
     reset_owner_guid: ObjectGuid,
     method: InstanceResetMethodLikeCpp,
 ) -> bool {
-    reset_locks_with_access_like_cpp(
+    let group_guid = cx
+        .social
+        .resolved_group_guid_with_access_like_cpp(&cx.group_owner, cx.consumer_test);
+    reset_maps_with_access_like_cpp(
+        cx.instances,
         &cx.locks,
-        cx.lifecycle,
+        &cx.player,
+        &cx.groups,
         &cx.packets,
         cx.map_store,
         cx.map_difficulty_store,
-        &cx.player,
+        cx.canonical_map_manager,
+        cx.player_registry,
+        group_guid,
         reset_owner_guid,
         method,
     )
-    .await
 }
 
-pub(super) async fn reset_locks_with_access_like_cpp(
+#[allow(clippy::too_many_arguments)]
+pub(super) fn reset_maps_with_access_like_cpp(
+    instances: &mut InstanceState,
     locks: &InstanceLockManagerAccessLikeCpp<'_>,
-    lifecycle: &SessionLifecycleState,
+    player: &InstancePlayerAccessLikeCpp<'_>,
+    groups: &GroupDifficultyAccessLikeCpp<'_>,
     packets: &PacketPublicationAccessLikeCpp<'_>,
     map_store: Option<&MapStore>,
     map_difficulty_store: Option<&MapDifficultyStore>,
-    player: &InstancePlayerAccessLikeCpp<'_>,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    player_registry: Option<&Arc<PlayerRegistry>>,
+    group_guid: Option<u64>,
     reset_owner_guid: ObjectGuid,
     method: InstanceResetMethodLikeCpp,
 ) -> bool {
-    let Some((reset_result, persistence_plan)) = locks.reset_locks_with_persistence_like_cpp(
-        reset_owner_guid,
-        map_store,
-        map_difficulty_store,
-    ) else {
-        return false;
+    let keys = if let Some(group_guid) = group_guid {
+        let Some(group) = groups.group_snapshot_like_cpp(group_guid) else {
+            return false;
+        };
+        if group.leader_guid != reset_owner_guid {
+            return false;
+        }
+        group
+            .owned_instances_like_cpp()
+            .map(|owned| (owned.map_id, owned.instance_id))
+            .collect::<Vec<_>>()
+    } else {
+        if player.player_guid_like_cpp() != Some(reset_owner_guid) {
+            return false;
+        }
+        let Some(keys) = recent_instances_snapshot_like_cpp(instances, player) else {
+            return false;
+        };
+        keys
+    };
+    let group_method = match method {
+        InstanceResetMethodLikeCpp::Manual => GroupInstanceResetMethodLikeCpp::Manual,
+        InstanceResetMethodLikeCpp::OnChangeDifficulty => {
+            GroupInstanceResetMethodLikeCpp::OnChangeDifficulty
+        }
     };
 
-    if !persistence_plan.is_empty()
-        && let Some(port) = lifecycle.instance_lock_persistence_port_like_cpp()
-        && let InstanceLockPersistenceOutcomeLikeCpp::Failed { reason } =
-            port.commit_plan_like_cpp(persistence_plan).await
-    {
-        warn!(
-            account = player.account_id_like_cpp(),
-            player_guid = ?reset_owner_guid,
-            error = %reason,
-            "failed to commit represented instance lock reset transaction"
+    for (map_id, instance_id) in keys {
+        let result = reset_live_map_instance_like_cpp(
+            locks,
+            canonical_map_manager,
+            map_store,
+            map_difficulty_store,
+            map_id,
+            instance_id,
         );
-        return false;
-    }
+        let group_result = match &result {
+            InstanceResetResultLikeCpp::Success => GroupInstanceResetResultLikeCpp::Success,
+            InstanceResetResultLikeCpp::NotEmpty { .. } => {
+                GroupInstanceResetResultLikeCpp::NotEmpty
+            }
+            InstanceResetResultLikeCpp::CannotReset => GroupInstanceResetResultLikeCpp::CannotReset,
+            InstanceResetResultLikeCpp::Other => GroupInstanceResetResultLikeCpp::Other,
+        };
 
-    for lock in reset_result.reset {
-        packets.send_packet(&InstanceReset {
-            map_id: lock.map_id,
-        });
-    }
+        match result {
+            InstanceResetResultLikeCpp::Success => {
+                packets.send_packet(&InstanceReset { map_id });
+            }
+            InstanceResetResultLikeCpp::NotEmpty { occupant_guids }
+                if method == InstanceResetMethodLikeCpp::Manual =>
+            {
+                notify_reset_failed_occupants_like_cpp(player_registry, &occupant_guids);
+                packets.send_packet(&InstanceResetFailed {
+                    map_id,
+                    reset_failed_reason: 0,
+                });
+            }
+            InstanceResetResultLikeCpp::NotEmpty { .. }
+            | InstanceResetResultLikeCpp::CannotReset
+            | InstanceResetResultLikeCpp::Other => {}
+        }
 
-    if method == InstanceResetMethodLikeCpp::Manual {
-        for lock in reset_result.failed_to_reset {
-            packets.send_packet(&InstanceResetFailed {
-                map_id: lock.map_id,
-                reset_failed_reason: 0,
-            });
+        if let Some(group_guid) = group_guid {
+            let _ = groups.apply_instance_reset_transition_like_cpp(
+                group_guid,
+                map_id,
+                group_result,
+                group_method,
+            );
+        } else if player_instance_reset_forgets_recent_like_cpp(group_result, group_method) {
+            let _ = forget_recent_instance_like_cpp(instances, player, map_id);
         }
     }
 
     true
+}
+
+fn reset_live_map_instance_like_cpp(
+    locks: &InstanceLockManagerAccessLikeCpp<'_>,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    map_store: Option<&MapStore>,
+    map_difficulty_store: Option<&MapDifficultyStore>,
+    map_id: u32,
+    instance_id: u32,
+) -> InstanceResetResultLikeCpp {
+    let Some(canonical_map_manager) = canonical_map_manager else {
+        return InstanceResetResultLikeCpp::Other;
+    };
+    let snapshot = {
+        let Ok(manager) = canonical_map_manager.lock() else {
+            return InstanceResetResultLikeCpp::Other;
+        };
+        manager.instance_reset_snapshot_like_cpp(map_id, instance_id)
+    };
+    let Some(snapshot) = snapshot else {
+        return InstanceResetResultLikeCpp::Other;
+    };
+
+    let lock_is_new = match snapshot.instance_lock_context {
+        None => None,
+        Some(context) => {
+            let Some((lock, entries)) = locks.active_lock_for_map_reset_like_cpp(
+                context,
+                map_id,
+                instance_id,
+                snapshot.difficulty_id,
+                map_store,
+                map_difficulty_store,
+            ) else {
+                return InstanceResetResultLikeCpp::Other;
+            };
+            let Ok(owner_guid_counter) = i64::try_from(context.owner_guid_counter) else {
+                return InstanceResetResultLikeCpp::Other;
+            };
+            let owner_guid = ObjectGuid::create_player(1, owner_guid_counter);
+            if create_map_instance_lock_token_like_cpp(owner_guid, &entries, &lock) != context.token
+            {
+                return InstanceResetResultLikeCpp::Other;
+            }
+            Some(lock.is_new)
+        }
+    };
+
+    let Ok(mut manager) = canonical_map_manager.lock() else {
+        return InstanceResetResultLikeCpp::Other;
+    };
+    manager.reset_instance_at_incarnation_like_cpp(
+        map_id,
+        instance_id,
+        snapshot.incarnation,
+        lock_is_new,
+    )
+}
+
+fn notify_reset_failed_occupants_like_cpp(
+    player_registry: Option<&Arc<PlayerRegistry>>,
+    occupant_guids: &[ObjectGuid],
+) {
+    let Some(player_registry) = player_registry else {
+        return;
+    };
+    let packet = ResetFailedNotify.to_bytes();
+    for occupant_guid in occupant_guids {
+        let Some(registration) = player_registry.current_registration_like_cpp(*occupant_guid)
+        else {
+            continue;
+        };
+        let _ = player_registry.send_current_packet(registration, packet.clone());
+    }
+}
+
+fn recent_instances_snapshot_like_cpp(
+    instances: &InstanceState,
+    player: &InstancePlayerAccessLikeCpp<'_>,
+) -> Option<Vec<(u32, u32)>> {
+    if let Some(snapshot) = player.recent_instances_snapshot_like_cpp() {
+        return Some(snapshot);
+    }
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if player.owner_handle_absent_like_cpp() {
+        return Some(instances.represented_recent_instances_snapshot_for_handler_like_cpp());
+    }
+    None
+}
+
+fn forget_recent_instance_like_cpp(
+    instances: &mut InstanceState,
+    player: &InstancePlayerAccessLikeCpp<'_>,
+    map_id: u32,
+) -> bool {
+    if let Some(forgot) = player.forget_recent_instance_like_cpp(map_id) {
+        return forgot;
+    }
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if player.owner_handle_absent_like_cpp() {
+        return instances.forget_represented_recent_instance_for_handler_like_cpp(map_id);
+    }
+    false
 }
 
 pub async fn handle_instance_lock_response_like_cpp(

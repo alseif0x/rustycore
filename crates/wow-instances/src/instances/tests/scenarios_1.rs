@@ -195,6 +195,217 @@ fn create_instance_lock_for_new_instance_stores_temporary_new_lock_like_cpp() {
 }
 
 #[test]
+fn find_instance_lock_exact_ignores_expiry_and_rejects_ambiguous_matches_like_cpp() {
+    let entries = raid_entries();
+    let mut mgr = InstanceLockMgr::default();
+    mgr.create_instance_lock_for_new_instance_at(
+        player(1),
+        &entries,
+        100,
+        ResetSchedule::default(),
+        100,
+    );
+    assert!(
+        mgr.find_instance_lock_exact_like_cpp(
+            player(1),
+            entries.map_id,
+            entries.difficulty_id,
+            100
+        )
+        .is_some()
+    );
+
+    mgr.update_instance_lock_for_player_at(
+        player(1),
+        &entries,
+        update_event(100, None),
+        ResetSchedule::default(),
+        100,
+    );
+    mgr.instance_locks_by_player
+        .get_mut(&player(1))
+        .unwrap()
+        .get_mut(&entries.key())
+        .unwrap()
+        .expiry_time = 10;
+    assert!(
+        mgr.find_instance_lock_exact_like_cpp(
+            player(1),
+            entries.map_id,
+            entries.difficulty_id,
+            100
+        )
+        .is_some()
+    );
+    assert!(
+        mgr.find_active_instance_lock_at(player(1), &entries, 100)
+            .is_none()
+    );
+
+    mgr.create_instance_lock_for_new_instance_at(
+        player(1),
+        &entries,
+        100,
+        ResetSchedule::default(),
+        100,
+    );
+    assert!(
+        mgr.find_instance_lock_exact_like_cpp(
+            player(1),
+            entries.map_id,
+            entries.difficulty_id,
+            100
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn set_instance_lock_in_use_updates_exact_persistent_lock_and_allows_expired_like_cpp() {
+    let entries = raid_entries();
+    let unrelated_entries = MapDb2Entries {
+        lock_id: 8,
+        ..flex_entries()
+    };
+    let mut mgr = InstanceLockMgr::default();
+    mgr.update_instance_lock_for_player_at(
+        player(1),
+        &entries,
+        update_event(100, None),
+        ResetSchedule::default(),
+        100,
+    );
+    mgr.update_instance_lock_for_player_at(
+        player(1),
+        &unrelated_entries,
+        update_event(200, None),
+        ResetSchedule::default(),
+        100,
+    );
+
+    assert!(mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id,
+        100,
+        true
+    ));
+    assert!(mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id,
+        100,
+        true
+    ));
+    let locks = mgr.get_instance_locks_for_player(player(1));
+    let target = locks.iter().find(|lock| lock.instance_id == 100).unwrap();
+    let unrelated = locks.iter().find(|lock| lock.instance_id == 200).unwrap();
+    assert!(target.is_in_use);
+    assert!(!unrelated.is_in_use);
+    assert!(!mgr.set_instance_lock_in_use_like_cpp(
+        player(2),
+        entries.map_id,
+        entries.difficulty_id,
+        100,
+        true
+    ));
+    assert!(!mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id,
+        999,
+        true
+    ));
+    assert!(!mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id.wrapping_add(1),
+        100,
+        true
+    ));
+
+    mgr.instance_locks_by_player
+        .get_mut(&player(1))
+        .unwrap()
+        .get_mut(&entries.key())
+        .unwrap()
+        .expiry_time = 10;
+    assert!(mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id,
+        100,
+        false
+    ));
+    assert!(mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id,
+        100,
+        false
+    ));
+    assert!(
+        !mgr.get_instance_locks_for_player(player(1))
+            .iter()
+            .find(|lock| lock.instance_id == 100)
+            .unwrap()
+            .is_in_use
+    );
+}
+
+#[test]
+fn set_instance_lock_in_use_updates_temporary_lock_idempotently_like_cpp() {
+    let entries = raid_entries();
+    let mut mgr = InstanceLockMgr::default();
+    mgr.create_instance_lock_for_new_instance_at(
+        player(1),
+        &entries,
+        100,
+        ResetSchedule::default(),
+        100,
+    );
+
+    assert!(mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id,
+        100,
+        true
+    ));
+    assert!(mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id,
+        100,
+        true
+    ));
+    assert!(
+        mgr.find_active_instance_lock_at(player(1), &entries, 100)
+            .unwrap()
+            .is_in_use
+    );
+    assert!(mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id,
+        100,
+        false
+    ));
+    assert!(mgr.set_instance_lock_in_use_like_cpp(
+        player(1),
+        entries.map_id,
+        entries.difficulty_id,
+        100,
+        false
+    ));
+    assert!(
+        !mgr.find_active_instance_lock_at(player(1), &entries, 100)
+            .unwrap()
+            .is_in_use
+    );
+}
+
+#[test]
 fn find_active_instance_lock_honors_extended_expired_and_temporary_like_cpp() {
     let entries = raid_entries();
     let mut mgr = InstanceLockMgr::default();

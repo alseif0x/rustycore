@@ -58,6 +58,22 @@ impl InstancePlayerAccessLikeCpp<'_> {
             .is_some()
     }
 
+    pub fn recent_instances_snapshot_like_cpp(&self) -> Option<Vec<(u32, u32)>> {
+        self.core.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .recent_instances
+                .iter()
+                .map(|(map_id, instance_id)| (*map_id, *instance_id))
+                .collect()
+        })
+    }
+
+    pub fn forget_recent_instance_like_cpp(&self, map_id: u32) -> Option<bool> {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| player.forget_recent_instance_like_cpp(map_id))
+    }
+
     pub fn game_master_with_fixture_like_cpp(&self, fixture_value: &bool) -> Option<bool> {
         self.core
             .player_is_game_master_with_fixture_like_cpp(fixture_value)

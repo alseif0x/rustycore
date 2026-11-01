@@ -147,6 +147,66 @@ impl InstanceLockMgr {
     ) -> Option<&InstanceLock> {
         self.find_active_instance_lock_inner(player_guid, entries, now, false, true)
     }
+    /// Read the one exact attached lock without applying active/expiry admission rules.
+    pub fn find_instance_lock_exact_like_cpp(
+        &self,
+        owner_guid: ObjectGuid,
+        map_id: u32,
+        difficulty_id: u8,
+        instance_id: u32,
+    ) -> Option<&InstanceLock> {
+        let mut matches = self
+            .instance_locks_by_player
+            .get(&owner_guid)
+            .into_iter()
+            .chain(self.temporary_instance_locks_by_player.get(&owner_guid))
+            .flat_map(|locks| locks.values())
+            .filter(|lock| {
+                lock.map_id == map_id
+                    && lock.difficulty_id == difficulty_id
+                    && lock.instance_id == instance_id
+            });
+        let lock = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(lock)
+    }
+
+    /// Mark the one exact live-map lock without requiring DB2 lock identity or
+    /// filtering expired locks that can still be attached to a live map.
+    pub fn set_instance_lock_in_use_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        map_id: u32,
+        difficulty_id: u8,
+        instance_id: u32,
+        in_use: bool,
+    ) -> bool {
+        if self
+            .find_instance_lock_exact_like_cpp(owner_guid, map_id, difficulty_id, instance_id)
+            .is_none()
+        {
+            return false;
+        }
+
+        for lock in self
+            .instance_locks_by_player
+            .get_mut(&owner_guid)
+            .into_iter()
+            .chain(self.temporary_instance_locks_by_player.get_mut(&owner_guid))
+            .flat_map(|locks| locks.values_mut())
+            .filter(|lock| {
+                lock.map_id == map_id
+                    && lock.difficulty_id == difficulty_id
+                    && lock.instance_id == instance_id
+            })
+        {
+            lock.is_in_use = in_use;
+        }
+        true
+    }
+
     pub fn set_active_instance_lock_instance_id_at(
         &mut self,
         player_guid: ObjectGuid,

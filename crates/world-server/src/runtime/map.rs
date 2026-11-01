@@ -1234,7 +1234,7 @@ pub(crate) fn spawn_group_ready_check_tick_loop(
 }
 
 mod update_loop;
-pub(crate) use update_loop::spawn_canonical_map_update_loop;
+pub(crate) use update_loop::{CanonicalMapLifecycleOwnersLikeCpp, spawn_canonical_map_update_loop};
 
 #[cfg(test)]
 mod represented_group_startup_tests {
