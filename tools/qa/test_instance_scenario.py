@@ -88,6 +88,10 @@ class InstancePlanTests(unittest.TestCase):
             self.assertEqual(plan["character_guid"], selected["guid"])
             self.assertEqual(plan["finish_policy"], "logout")
         self.assertTrue(scenario.observer_plan(selected)["observe_only"])
+        disconnect = scenario.disconnect_observer_plan(selected)
+        self.assertTrue(disconnect["observe_only"])
+        self.assertEqual(disconnect["finish_policy"], "disconnect")
+        self.assertEqual(disconnect["actions"], [])
         plan = scenario.reset_plan(selected)
         self.assertFalse(plan.get("observe_only", False))
         self.assertEqual(plan["actions"], [
@@ -165,11 +169,11 @@ class OfflineSqlTests(unittest.TestCase):
 
 
 class InstanceStateTests(unittest.TestCase):
-    def test_reconnect_requires_same_nonzero_instance_and_native_position(self) -> None:
+    def test_socket_reconnect_requires_same_instance_but_full_relogin_allows_fresh_instance(self) -> None:
         selected = actor()
         initial = inside_state(selected, 41)
         reconnect = inside_state(selected, 41)
-        self.assertEqual(scenario.validate_reconnect_state(initial, reconnect), 41)
+        self.assertEqual(scenario.validate_socket_reconnect_state(initial, reconnect), 41)
         for defect in ("zero", "different", "map", "position", "orientation"):
             bad = copy.deepcopy(reconnect)
             if defect == "zero":
@@ -183,7 +187,16 @@ class InstanceStateTests(unittest.TestCase):
             else:
                 bad["orientation"] = 70.0
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
-                scenario.validate_reconnect_state(initial, bad)
+                scenario.validate_socket_reconnect_state(initial, bad)
+
+        for current_id in (41, 42):
+            with self.subTest(full_relogin_id=current_id):
+                self.assertEqual(
+                    scenario.validate_full_relogin_state(initial, inside_state(selected, current_id)),
+                    current_id,
+                )
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_full_relogin_state(initial, inside_state(selected, 0))
 
     def test_final_position_must_be_outside_journal_home(self) -> None:
         selected = actor()
@@ -231,28 +244,33 @@ class RunCaseTests(unittest.TestCase):
         journal = {"actors": [selected]}
         entry = inside_state(selected, 41)
         reconnect = inside_state(selected, 41)
+        full_relogin = inside_state(selected, 42)
         final = outside_state(selected)
         reset_evidence = {"sent_packets": [sent_reset()], "events": [reset_event()]}
         with tempfile.TemporaryDirectory() as raw:
             paths = []
-            for label in ("entry", "relogin", "reset"):
+            for label in ("entry", "reconnect", "relogin", "reset"):
                 path = Path(raw) / f"{label}.json"
                 path.write_text("{}\n", encoding="utf-8")
                 paths.append(path)
             with patch.object(scenario, "relocate_inside"), \
                     patch.object(scenario, "restore_outside") as restore, \
                     patch.object(scenario.logout_scenario, "_run_single",
-                                 side_effect=[{"lifecycle": "entry"}, {"lifecycle": "relogin"},
+                                 side_effect=[{"lifecycle": "entry"}, {"lifecycle": "disconnect"},
+                                              {"lifecycle": "reconnect"}, {"lifecycle": "relogin"},
                                               reset_evidence]), \
                     patch.object(scenario, "_save_position_snapshot",
                                  side_effect=[({}, entry, paths[0]), ({}, reconnect, paths[1]),
-                                              ({}, final, paths[2])]):
+                                              ({}, full_relogin, paths[2]), ({}, final, paths[3])]):
                 report = scenario._run_case(identity, journal, 1, Mock())
         self.assertEqual(report["scenario"], "instance-solo-reset")
-        self.assertEqual(len(report["observations"]), 3)
+        self.assertEqual(len(report["observations"]), 5)
         self.assertEqual(report["observations"][0]["instance_id"], 41)
-        self.assertTrue(report["observations"][1]["relogin_same_instance"])
-        self.assertEqual(report["observations"][2]["map_id"], 33)
+        self.assertTrue(report["observations"][1]["disconnect_reconnect"])
+        self.assertNotIn("snapshot_sha256", report["observations"][1])
+        self.assertEqual(report["observations"][2]["reconnect_same_instance"], 41)
+        self.assertEqual(report["observations"][3]["full_relogin_instance_id"], 42)
+        self.assertEqual(report["observations"][4]["map_id"], 33)
         self.assertEqual(report["final_state"], final)
         self.assertTrue(report["position_restoration"]["outside_home"])
         self.assertFalse(report["position_restoration"]["group_or_lock_rows_mutated"])
