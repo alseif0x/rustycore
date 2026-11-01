@@ -511,6 +511,7 @@ mod tests {
             timezone_offset: 120,
             battlenet_account_id: 314,
             security: 3,
+            instant_logout_permission: true,
             is_banned_bnet: false,
             is_banned_account: true,
             win64_auth_seed: [0xA5; 16],
@@ -545,6 +546,10 @@ mod tests {
         assert_eq!(actual.timezone_offset, expected.timezone_offset);
         assert_eq!(actual.battlenet_account_id, expected.battlenet_account_id);
         assert_eq!(actual.security, expected.security);
+        assert_eq!(
+            actual.instant_logout_permission,
+            expected.instant_logout_permission
+        );
         assert_eq!(actual.is_banned_bnet, expected.is_banned_bnet);
         assert_eq!(actual.is_banned_account, expected.is_banned_account);
         assert_eq!(actual.win64_auth_seed, expected.win64_auth_seed);

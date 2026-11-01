@@ -347,6 +347,9 @@ pub(super) async fn create_session(
         send_tx,
         Arc::clone(&resources.core.packet_handlers),
     );
+    wow_world_core::session::SessionHubHostLikeCpp::core_mut(&mut session)
+        .account_state
+        .instant_logout_permission = Some(account.instant_logout_permission);
     session.set_send_write_fence_like_cpp(send_write_fence_like_cpp);
     let Some((active_session_id, session_cancellation, ready_for_phases_like_cpp)) =
         active_session_registry.try_register(

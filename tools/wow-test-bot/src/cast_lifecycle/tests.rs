@@ -1358,6 +1358,70 @@ fn attack_stop_preserves_native_empty_request_shape() {
 }
 
 #[test]
+fn logout_actions_preserve_native_wire_shapes_and_strict_plan_fields() {
+    let plan: Plan = serde_json::from_str(
+        r#"{
+            "actions":[
+                {"action":"logout_request","idle_logout":false},
+                {"action":"logout_request","idle_logout":true},
+                {"action":"logout_cancel"}
+            ],
+            "expect":[
+                {"event":"packet","connection":"instance","opcode":9859,"body_hex":"0000000000"},
+                {"event":"packet","connection":"instance","opcode":9861,"body_hex":""}
+            ]
+        }"#,
+    )
+    .unwrap();
+    plan::validate_plan(&plan).unwrap();
+
+    assert_eq!(
+        serde_json::to_value(&plan.actions).unwrap(),
+        serde_json::json!([
+            {"action":"logout_request","idle_logout":false},
+            {"action":"logout_request","idle_logout":true},
+            {"action":"logout_cancel"}
+        ])
+    );
+    assert_eq!(action_name(&plan.actions[0]), "logout_request");
+    assert_eq!(action_name(&plan.actions[2]), "logout_cancel");
+    assert_eq!(
+        build_action_packet(&plan.actions[0]),
+        (CMSG_LOGOUT_REQUEST, vec![0])
+    );
+    assert_eq!(
+        build_action_packet(&plan.actions[1]),
+        (CMSG_LOGOUT_REQUEST, vec![1])
+    );
+    assert_eq!(
+        build_action_packet(&plan.actions[2]),
+        (CMSG_LOGOUT_CANCEL, Vec::new())
+    );
+    assert_eq!(CMSG_LOGOUT_REQUEST, 0x34D6);
+    assert_eq!(CMSG_LOGOUT_CANCEL, 0x34D8);
+
+    for (label, action) in [
+        (
+            "logout_request unknown field",
+            r#"{"action":"logout_request","idle_logout":false,"unexpected":1}"#,
+        ),
+        (
+            "logout_cancel unknown field",
+            r#"{"action":"logout_cancel","unexpected":1}"#,
+        ),
+        (
+            "logout_request missing idle_logout",
+            r#"{"action":"logout_request"}"#,
+        ),
+    ] {
+        let json = format!(
+            r#"{{"actions":[{action}],"expect":[{{"event":"packet","connection":"instance","opcode":9859,"body_hex":"0000000000"}}]}}"#
+        );
+        assert!(plan_rejected(&json), "{label} must be rejected");
+    }
+}
+
+#[test]
 fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
     let plan: Plan = serde_json::from_str(
         r#"{

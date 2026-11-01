@@ -56,6 +56,111 @@ fn logged_in_canonical_session_like_cpp() -> (
     (session, pkt_tx, send_rx)
 }
 
+async fn run_disconnecting_logout_world_pass_like_cpp(
+    session: &mut WorldSession,
+    logout_time: Option<i64>,
+) -> (
+    Option<crate::session::mailbox::PendingWorldPhaseFinalizationLikeCpp>,
+    std::sync::Arc<crate::session::mailbox::SessionPhasePermitLikeCpp>,
+    flume::Receiver<crate::session::mailbox::RunWorldPhasePassResultLikeCpp>,
+) {
+    use crate::session::mailbox::{
+        RunWorldPhasePassLikeCppRequest, SessionPhasePermitLikeCpp, SessionPhaseRequestLikeCpp,
+    };
+
+    if let Some(logout_time) = logout_time {
+        session
+            .lifecycle
+            .set_logout_start_time_like_cpp(logout_time);
+    }
+    session.kick("controlled disconnect");
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    let (response_tx, response_rx) = flume::bounded(1);
+    let pending = session
+        .run_requested_session_phase_like_cpp(
+            SessionPhaseRequestLikeCpp::World(RunWorldPhasePassLikeCppRequest {
+                coordinator_id: 1,
+                tick_epoch: 1,
+                diff_ms: 50,
+                permit: std::sync::Arc::clone(&permit),
+                response_tx,
+            }),
+            &catalogs,
+        )
+        .await;
+    (pending, permit, response_rx)
+}
+
+#[tokio::test]
+async fn active_logout_countdown_defers_disconnect_finalization_until_due() {
+    use crate::session::mailbox::{SessionPhasePassOutcomeLikeCpp, SessionPhasePermitStateLikeCpp};
+
+    let (mut session, _pkt_tx, _send_rx) = logged_in_canonical_session_like_cpp();
+    let now = wow_entities::game_time_secs_like_cpp();
+    let (pending, permit, reply) =
+        run_disconnecting_logout_world_pass_like_cpp(&mut session, Some(now)).await;
+
+    assert!(pending.is_none());
+    assert!(session.finalization_report_like_cpp().is_none());
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Completed
+    );
+    let result = reply.try_recv().unwrap();
+    assert_eq!(result.outcome, SessionPhasePassOutcomeLikeCpp::Ran);
+    assert!(!result.disconnecting);
+}
+
+#[tokio::test]
+async fn due_and_post_due_logout_countdowns_return_disconnect_finalization_without_logout_complete()
+{
+    use crate::session::mailbox::SessionPhasePermitStateLikeCpp;
+
+    for elapsed in [20, 21] {
+        let (mut session, _pkt_tx, send_rx) = logged_in_canonical_session_like_cpp();
+        let now = wow_entities::game_time_secs_like_cpp();
+        let (pending, permit, reply) =
+            run_disconnecting_logout_world_pass_like_cpp(&mut session, Some(now - elapsed)).await;
+
+        let pending = pending.expect("the due timer precedes disconnect finalization");
+        assert!(pending.result.disconnecting);
+        assert_eq!(
+            permit.state_like_cpp(),
+            SessionPhasePermitStateLikeCpp::Running
+        );
+        assert_eq!(reply.try_recv(), Err(flume::TryRecvError::Empty));
+        assert_eq!(
+            session
+                .finalization_report_like_cpp()
+                .map(|report| report.mode),
+            Some(crate::FinalizationMode::TimedLogout)
+        );
+        assert!(
+            !logout_opcodes_like_cpp(&send_rx).iter().any(|(opcode, _)| {
+                *opcode == wow_constants::ServerOpcodes::LogoutComplete as u16
+            })
+        );
+    }
+}
+
+#[tokio::test]
+async fn disconnect_without_logout_countdown_still_returns_finalization_immediately() {
+    use crate::session::mailbox::SessionPhasePermitStateLikeCpp;
+
+    let (mut session, _pkt_tx, _send_rx) = logged_in_canonical_session_like_cpp();
+    let (pending, permit, reply) =
+        run_disconnecting_logout_world_pass_like_cpp(&mut session, None).await;
+
+    assert!(pending.is_some());
+    assert!(session.finalization_report_like_cpp().is_none());
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Running
+    );
+    assert_eq!(reply.try_recv(), Err(flume::TryRecvError::Empty));
+}
+
 fn logout_response_bytes_like_cpp(logout_result: i32, instant: bool) -> Vec<u8> {
     wow_packet::ServerPacket::to_bytes(&wow_packet::packets::misc::LogoutResponse {
         logout_result,
@@ -251,6 +356,89 @@ async fn logout_cancel_acks_and_restores_movement_like_cpp() {
     assert!(detached_rx.try_recv().is_err());
 }
 
+#[tokio::test]
+async fn logout_request_without_canonical_player_fails_closed_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    session.set_state(SessionState::LoggedIn);
+    let loot_guid = ObjectGuid::create_player(1, 0x5100_0100);
+    session.loot.set_active_loot_guid(loot_guid);
+    let logout_time = wow_entities::game_time_secs_like_cpp();
+    session
+        .lifecycle
+        .set_logout_start_time_like_cpp(logout_time);
+    session.core.mark_player_logging_out_like_cpp(true);
+
+    session
+        .handle_logout_request(wow_packet::packets::misc::LogoutRequest { idle_logout: false })
+        .await;
+
+    assert!(
+        send_rx.is_empty(),
+        "missing Player publishes neither LootReleaseAll nor LogoutResponse"
+    );
+    assert_eq!(session.loot.active_loot_guid_like_cpp(), loot_guid);
+    assert_eq!(
+        session.lifecycle.logout_time_for_test_like_cpp(),
+        logout_time
+    );
+    assert!(session.lifecycle.is_logging_out_like_cpp());
+    assert!(session.finalization_report_like_cpp().is_none());
+    assert_eq!(session.state(), SessionState::LoggedIn);
+    assert_eq!(session.player_guid(), None);
+}
+
+#[tokio::test]
+async fn logout_cancel_with_stale_player_guid_fails_closed_like_cpp() {
+    use wow_world_lifecycle::AccountDataHandlerHostLikeCpp;
+
+    let (mut session, _pkt_tx, send_rx) = logged_in_canonical_session_like_cpp();
+    session
+        .handle_logout_request(wow_packet::packets::misc::LogoutRequest { idle_logout: false })
+        .await;
+    let _ = logout_opcodes_like_cpp(&send_rx);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let logout_time = session.lifecycle.logout_time_for_test_like_cpp();
+    session.core.player_handle_like_cpp = None;
+    assert!(session.player_guid().is_some(), "the GUID is stale");
+
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    let cancelled = session
+        .account_data_handler_cx_like_cpp(&catalogs)
+        .handle_logout_cancel()
+        .await;
+    if cancelled {
+        session.restore_logout_wait_movement_like_cpp();
+    }
+
+    assert!(!cancelled);
+    assert!(send_rx.is_empty(), "stale GUID sends no LogoutCancelAck");
+    assert_eq!(
+        session.lifecycle.logout_time_for_test_like_cpp(),
+        logout_time
+    );
+    assert!(session.lifecycle.is_logging_out_like_cpp());
+    assert!(session.finalization_report_like_cpp().is_none());
+    assert_eq!(session.state(), SessionState::LoggedIn);
+    let (stand, flags, unit_flags) = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(handle, |player| {
+            (
+                player.unit().stand_state_like_cpp(),
+                player.unit().movement_flags_like_cpp(),
+                player.unit().unit_flags_like_cpp(),
+            )
+        })
+        .unwrap();
+    assert_eq!(stand, wow_constants::UnitStandStateType::Sit);
+    assert!(flags.contains(wow_constants::MovementFlag::ROOT));
+    assert!(unit_flags.contains(wow_constants::UnitFlags::STUNNED));
+}
+
 /// Denied in combat: `LogoutResponse(1, false)`, no countdown, no root.
 #[tokio::test]
 async fn logout_request_in_combat_is_denied_like_cpp() {
@@ -356,6 +544,27 @@ async fn resting_or_gm_logout_is_instant_and_idle_logout_waits_like_cpp() {
             assert!(session.finalization_report_like_cpp().is_none());
             assert_ne!(session.lifecycle.logout_time_for_test_like_cpp(), 0);
         }
+    }
+}
+
+#[tokio::test]
+async fn instant_logout_permission_grant_and_revoke_override_security_default_like_cpp() {
+    for (security, permission, instant) in [(0, true, true), (1, false, false)] {
+        let (mut session, _pkt_tx, send_rx) = logged_in_canonical_session_like_cpp();
+        session.core.security = security;
+        session.core.account_state.instant_logout_permission = Some(permission);
+
+        session
+            .handle_logout_request(wow_packet::packets::misc::LogoutRequest { idle_logout: false })
+            .await;
+
+        let sent = logout_opcodes_like_cpp(&send_rx);
+        assert_eq!(sent[0].1, logout_response_bytes_like_cpp(0, instant));
+        assert_eq!(session.finalization_report_like_cpp().is_some(), instant);
+        assert_eq!(
+            session.lifecycle.logout_time_for_test_like_cpp() != 0,
+            !instant
+        );
     }
 }
 

@@ -31,6 +31,9 @@ const CMSG_RESURRECT_RESPONSE: u16 = 0x3685;
 const CMSG_SELF_RES: u16 = 0x3531;
 const CMSG_ATTACK_SWING: u16 = 0x3255;
 const CMSG_ATTACK_STOP: u16 = 0x3256;
+const CMSG_LOGOUT_CANCEL: u16 = 0x34D8;
+const SMSG_LOGOUT_RESPONSE: u16 = 0x2683;
+const SMSG_LOGOUT_CANCEL_ACK: u16 = 0x2685;
 const SMSG_SPELL_PREPARE: u16 = 0x2C35;
 const SMSG_SPELL_GO: u16 = 0x2C36;
 const SMSG_SPELL_START: u16 = 0x2C37;
@@ -44,7 +47,7 @@ const REDACTED_SMSG_ENTER_ENCRYPTED_MODE: u16 = 0x3049;
 const REDACTED_SMSG_CONNECT_TO: u16 = 0x304D;
 
 // Exact packet expectations are restricted to this 3.4.3 death/combat output
-// set plus the existing spell and LogoutComplete packets (Opcodes.h/Opcodes.cpp).
+// set plus the existing spell and logout packets (Opcodes.h/Opcodes.cpp).
 const RAW_SMSG_AREA_SPIRIT_HEALER_TIME: u16 = 0x2740;
 const RAW_SMSG_ATTACKER_STATE_UPDATE: u16 = 0x2952;
 const RAW_SMSG_ATTACK_START: u16 = 0x293D;
@@ -154,12 +157,14 @@ pub(super) async fn execute(
             | Action::ResurrectResponse { .. }
             | Action::SelfRes { .. }
             | Action::AttackSwing { .. }
-            | Action::AttackStop => {
+            | Action::AttackStop
+            | Action::LogoutRequest { .. }
+            | Action::LogoutCancel {} => {
                 match resolve_action_targets(&mut controller.evidence, action_index, action)
                     .map(|resolved| build_action_packet(&resolved))
                 {
                     Ok((opcode, body)) => {
-                        send_traced_packet(
+                        let result = send_traced_packet(
                             stream,
                             crypt,
                             &mut controller.evidence,
@@ -169,7 +174,11 @@ pub(super) async fn execute(
                             opcode,
                             &body,
                         )
-                        .await
+                        .await;
+                        if result.is_ok() && matches!(action, Action::LogoutRequest { .. }) {
+                            controller.evidence.logout_request_completed = true;
+                        }
+                        result
                     }
                     Err(error) => Err(error),
                 }
@@ -237,7 +246,7 @@ pub(super) async fn execute(
         );
     }
 
-    if controller.evidence.failure.is_none() {
+    if controller.evidence.failure.is_none() && !controller.evidence.logout_confirmed {
         if let Err(error) =
             collect_until(deadline, stream, crypt, inflater, realm, controller).await
         {
@@ -507,6 +516,8 @@ fn action_name(action: &Action) -> &'static str {
         Action::SelfRes { .. } => "self_res",
         Action::AttackSwing { .. } => "attack_swing",
         Action::AttackStop => "attack_stop",
+        Action::LogoutRequest { .. } => "logout_request",
+        Action::LogoutCancel {} => "logout_cancel",
         Action::Movement { kind, .. } => match kind {
             MovementKind::Heartbeat => "movement_heartbeat",
             MovementKind::StartForward => "movement_start_forward",

@@ -164,6 +164,52 @@ async fn finish_logout_waits_for_delayed_realm_ack_after_instance_eof() {
 }
 
 #[tokio::test]
+async fn typed_logout_request_marks_completion_only_after_successful_write() {
+    for write_succeeds in [true, false] {
+        let mut controller = packet_controller(packet_plan(
+            Action::LogoutRequest { idle_logout: true },
+            raw_packet_expectation(Connection::Instance, SMSG_LOGOUT_RESPONSE, &[0; 5]),
+            20,
+        ));
+        let (mut stream, _peer) = tcp_pair().await;
+        if !write_succeeds {
+            stream.shutdown().await.unwrap();
+        }
+        let key = [0x6c; 16];
+        let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+        let mut inflater = ServerPacketInflater::default();
+        let mut realm = None;
+        execute(
+            &mut controller,
+            &mut stream,
+            &mut crypt,
+            &mut inflater,
+            &mut realm,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            controller.evidence.logout_request_completed, write_succeeds,
+            "write_succeeds={write_succeeds}"
+        );
+        assert_eq!(controller.evidence.sent_packets.len(), 1);
+        assert_eq!(
+            controller.evidence.sent_packets[0].write_completed,
+            write_succeeds
+        );
+        let boundary = if write_succeeds {
+            TraceKind::ActionCompleted
+        } else {
+            TraceKind::ActionFailed
+        };
+        assert!(controller.evidence.trace.iter().any(|entry| {
+            entry.action.as_deref() == Some("logout_request") && entry.kind == boundary
+        }));
+    }
+}
+
+#[tokio::test]
 async fn logout_eof_never_substitutes_for_ack_and_frame_errors_remain_fatal() {
     for case in [
         "missing_ack",
@@ -220,6 +266,251 @@ async fn logout_eof_never_substitutes_for_ack_and_frame_errors_remain_fatal() {
 }
 
 #[tokio::test]
+async fn wait_for_logout_complete_allows_instance_eof_after_completed_request() {
+    let mut controller = logout_controller();
+    controller.evidence.logout_request_completed = true;
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, mut realm_peer) = tcp_pair().await;
+    let key = [0x6d; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+    instance_peer.shutdown().await.unwrap();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+    let mut waiting = Box::pin(wait_for_packet(
+        deadline,
+        Connection::Realm,
+        SMSG_LOGOUT_COMPLETE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    ));
+    assert!(
+        tokio::time::timeout(Duration::from_millis(40), &mut waiting)
+            .await
+            .is_err()
+    );
+    let mut realm_server = WorldCrypt::new_with_counters(&key, 0, 0);
+    realm_peer
+        .write_all(&encrypted_server_packet(
+            &mut realm_server,
+            SMSG_LOGOUT_COMPLETE,
+            &[],
+        ))
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(1), &mut waiting)
+        .await
+        .expect("realm Complete arrives after instance EOF")
+        .unwrap();
+    drop(waiting);
+
+    assert!(controller.evidence.logout_confirmed);
+    assert_eq!(controller.evidence.logout_route.as_deref(), Some("realm"));
+    assert_eq!(
+        controller
+            .evidence
+            .events
+            .iter()
+            .map(|event| (event.connection, event.opcode))
+            .collect::<Vec<_>>(),
+        [(Connection::Realm, SMSG_LOGOUT_COMPLETE)]
+    );
+}
+
+#[tokio::test]
+async fn realm_complete_before_instance_response_is_reused_by_later_complete_wait() {
+    const RESPONSE_BODY: [u8; 5] = [0x12, 0x34, 0x56, 0x78, 0x9A];
+
+    let mut controller = logout_controller();
+    controller.evidence.logout_request_completed = true;
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, mut realm_peer) = tcp_pair().await;
+    let key = [0x6f; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+    let mut realm_server = WorldCrypt::new_with_counters(&key, 0, 0);
+    realm_peer
+        .write_all(&encrypted_server_packet(
+            &mut realm_server,
+            SMSG_LOGOUT_COMPLETE,
+            &[],
+        ))
+        .await
+        .unwrap();
+    let mut instance_server = WorldCrypt::new_with_counters(&key, 0, 0);
+    instance_peer
+        .write_all(&encrypted_server_packet(
+            &mut instance_server,
+            SMSG_LOGOUT_RESPONSE,
+            &RESPONSE_BODY,
+        ))
+        .await
+        .unwrap();
+    instance_peer.shutdown().await.unwrap();
+
+    wait_for_packet(
+        tokio::time::Instant::now() + Duration::from_secs(1),
+        Connection::Instance,
+        SMSG_LOGOUT_RESPONSE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    )
+    .await
+    .expect("instance Response is decoded before its queued EOF");
+
+    wait_for_packet(
+        tokio::time::Instant::now(),
+        Connection::Realm,
+        SMSG_LOGOUT_COMPLETE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    )
+    .await
+    .expect("the observed realm Complete is reused immediately");
+
+    assert!(controller.evidence.logout_confirmed);
+    assert_eq!(controller.evidence.logout_route.as_deref(), Some("realm"));
+    assert_eq!(controller.evidence.events.len(), 2);
+    assert_eq!(controller.evidence.events[0].connection, Connection::Realm);
+    assert_eq!(controller.evidence.events[0].opcode, SMSG_LOGOUT_COMPLETE);
+    assert_eq!(
+        controller.evidence.events[1].connection,
+        Connection::Instance
+    );
+    assert_eq!(controller.evidence.events[1].opcode, SMSG_LOGOUT_RESPONSE);
+    assert_eq!(
+        controller.evidence.events[1].body_hex,
+        hex::encode(RESPONSE_BODY)
+    );
+    assert_eq!(
+        controller
+            .evidence
+            .events
+            .iter()
+            .filter(|event| event.opcode == SMSG_LOGOUT_COMPLETE)
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn realm_complete_without_instance_response_times_out_after_instance_eof() {
+    let mut controller = logout_controller();
+    controller.evidence.logout_request_completed = true;
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, mut realm_peer) = tcp_pair().await;
+    let key = [0x70; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+    let mut realm_server = WorldCrypt::new_with_counters(&key, 0, 0);
+    realm_peer
+        .write_all(&encrypted_server_packet(
+            &mut realm_server,
+            SMSG_LOGOUT_COMPLETE,
+            &[],
+        ))
+        .await
+        .unwrap();
+    instance_peer.shutdown().await.unwrap();
+
+    let error = wait_for_packet(
+        tokio::time::Instant::now() + Duration::from_millis(50),
+        Connection::Instance,
+        SMSG_LOGOUT_RESPONSE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    )
+    .await
+    .expect_err("realm Complete must not substitute for instance Response")
+    .to_string();
+
+    assert!(
+        error.contains("timed out waiting for Instance packet"),
+        "{error}"
+    );
+    assert!(controller.evidence.logout_confirmed);
+    assert_eq!(controller.evidence.events.len(), 1);
+    assert_eq!(controller.evidence.events[0].connection, Connection::Realm);
+    assert_eq!(controller.evidence.events[0].opcode, SMSG_LOGOUT_COMPLETE);
+}
+
+#[tokio::test]
+async fn execute_skips_observer_after_realm_logout_complete() {
+    let mut controller = logout_controller();
+    controller.options.plan.actions.clear();
+    controller.evidence.events.push(decode_event(
+        0,
+        Connection::Realm,
+        SMSG_LOGOUT_COMPLETE,
+        &[],
+    ));
+    controller.evidence.logout_request_completed = true;
+    controller.evidence.logout_confirmed = true;
+    controller.evidence.logout_route = Some("realm".to_string());
+    controller.evidence.finish_completed = true;
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, mut realm_peer) = tcp_pair().await;
+    instance_peer.shutdown().await.unwrap();
+    realm_peer.shutdown().await.unwrap();
+    let key = [0x6e; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+
+    execute(
+        &mut controller,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        controller.evidence.failure.is_none(),
+        "{:?}",
+        controller.evidence.failure
+    );
+    assert!(controller.evidence.passed);
+    assert!(controller.evidence.expected_rules[0].matched);
+    assert!(controller.evidence.logout_request_completed);
+    assert!(controller.evidence.logout_confirmed);
+    assert_eq!(controller.evidence.logout_route.as_deref(), Some("realm"));
+    assert!(controller.evidence.finish_completed);
+}
+
+#[tokio::test]
 async fn instance_eof_is_fatal_during_actions_even_with_a_previous_logout_marker() {
     for previously_requested in [false, true] {
         let mut controller = logout_controller();
@@ -258,6 +549,76 @@ async fn instance_eof_is_fatal_during_actions_even_with_a_previous_logout_marker
                 && entry.kind == TraceKind::ActionFailed));
         assert!(!controller.evidence.logout_confirmed);
     }
+}
+
+#[tokio::test]
+async fn idle_realm_polling_drains_instance_burst_before_packet_wait_deadline() {
+    const AMBIENT_PACKETS: usize = 20;
+    const TARGET_BODY: [u8; 5] = [0; 5];
+
+    let mut controller = packet_controller(packet_plan(
+        Action::WaitForPacket {
+            connection: Connection::Instance,
+            opcode: SMSG_LOGOUT_RESPONSE,
+            timeout_ms: 100,
+        },
+        raw_packet_expectation(Connection::Instance, SMSG_LOGOUT_RESPONSE, &TARGET_BODY),
+        200,
+    ));
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, _realm_peer) = tcp_pair().await;
+    let key = [0x6d; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+    let mut server_crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut burst = Vec::new();
+    for sequence in 0..AMBIENT_PACKETS {
+        burst.extend(encrypted_server_packet(
+            &mut server_crypt,
+            SMSG_ON_MONSTER_MOVE,
+            &[sequence as u8],
+        ));
+    }
+    burst.extend(encrypted_server_packet(
+        &mut server_crypt,
+        SMSG_LOGOUT_RESPONSE,
+        &TARGET_BODY,
+    ));
+    instance_peer.write_all(&burst).await.unwrap();
+
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(100);
+    wait_for_packet(
+        deadline,
+        Connection::Instance,
+        SMSG_LOGOUT_RESPONSE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    )
+    .await
+    .expect("1ms realm polling drains the queued instance burst");
+
+    assert!(tokio::time::Instant::now() < deadline);
+    assert_eq!(controller.evidence.events.len(), AMBIENT_PACKETS + 1);
+    for (sequence, event) in controller.evidence.events[..AMBIENT_PACKETS]
+        .iter()
+        .enumerate()
+    {
+        assert_eq!(event.connection, Connection::Instance);
+        assert_eq!(event.opcode, SMSG_ON_MONSTER_MOVE);
+        assert_eq!(event.body_hex, hex::encode([sequence as u8]));
+    }
+    let target = controller.evidence.events.last().unwrap();
+    assert_eq!(target.connection, Connection::Instance);
+    assert_eq!(target.opcode, SMSG_LOGOUT_RESPONSE);
+    assert_eq!(target.body_hex, hex::encode(TARGET_BODY));
 }
 
 #[test]

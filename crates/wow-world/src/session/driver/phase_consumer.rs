@@ -372,7 +372,10 @@ impl WorldSession {
             tick_epoch: request.tick_epoch,
             outcome: SessionPhasePassOutcomeLikeCpp::Ran,
             dispatched,
-            disconnecting: self.is_disconnecting(),
+            disconnecting: self.is_disconnecting()
+                && !self
+                    .lifecycle
+                    .is_logout_countdown_pending_like_cpp(wow_entities::game_time_secs_like_cpp()),
         }
     }
 }

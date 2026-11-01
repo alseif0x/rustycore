@@ -29,6 +29,10 @@ pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
             }
         },
         Action::AttackStop => (CMSG_ATTACK_STOP, Vec::new()),
+        Action::LogoutRequest { idle_logout } => {
+            (CMSG_LOGOUT_REQUEST, vec![u8::from(*idle_logout)])
+        }
+        Action::LogoutCancel {} => (CMSG_LOGOUT_CANCEL, Vec::new()),
         _ => unreachable!("only typed non-cast actions use this builder"),
     }
 }
@@ -406,6 +410,16 @@ pub(super) async fn wait_for_packet(
     realm: &mut Option<EncryptedWorldConnection>,
     controller: &mut Controller,
 ) -> Result<()> {
+    if connection == Connection::Realm
+        && opcode == SMSG_LOGOUT_COMPLETE
+        && controller.evidence.logout_confirmed
+        && controller.evidence.logout_route.as_deref() == Some("realm")
+    {
+        return Ok(());
+    }
+    let finishing_logout = connection == Connection::Realm
+        && opcode == SMSG_LOGOUT_COMPLETE
+        && controller.evidence.logout_request_completed;
     if collect_until_inner(
         deadline,
         stream,
@@ -414,7 +428,7 @@ pub(super) async fn wait_for_packet(
         realm,
         controller,
         Some((connection, opcode)),
-        false,
+        finishing_logout,
     )
     .await?
     {
@@ -438,13 +452,16 @@ async fn collect_until_inner(
 ) -> Result<bool> {
     let mut instance_closed = false;
     while tokio::time::Instant::now() < deadline {
+        let tolerate_instance_eof = finishing_logout
+            || (match_packet == Some((Connection::Instance, SMSG_LOGOUT_RESPONSE))
+                && controller.evidence.logout_confirmed);
         let Some((connection, opcode, payload)) = next_packet(
             deadline,
             stream,
             crypt,
             inflater,
             realm,
-            finishing_logout.then_some(&mut instance_closed),
+            tolerate_instance_eof.then_some(&mut instance_closed),
         )
         .await?
         else {
@@ -485,12 +502,17 @@ async fn collect_until_inner(
                 return Ok(true);
             }
             if let Some((wait_connection, wait_opcode)) = match_packet {
-                bail!(
-                    "LogoutComplete arrived before wait_for_packet for {wait_connection:?} packet 0x{wait_opcode:04X}"
-                );
+                if match_packet != Some((Connection::Instance, SMSG_LOGOUT_RESPONSE)) {
+                    bail!(
+                        "LogoutComplete arrived before wait_for_packet for {wait_connection:?} packet 0x{wait_opcode:04X}"
+                    );
+                }
             }
             if finishing_logout {
                 return Ok(true);
+            }
+            if match_packet.is_some() {
+                continue;
             }
             break;
         }
@@ -560,6 +582,8 @@ async fn next_packet(
     realm: &mut Option<EncryptedWorldConnection>,
     mut instance_closed: Option<&mut bool>,
 ) -> Result<Option<(Connection, u16, Vec<u8>)>> {
+    const PACKET_POLL_INTERVAL: Duration = Duration::from_millis(1);
+
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
@@ -570,7 +594,7 @@ async fn next_packet(
                 &mut realm.stream,
                 &mut realm.crypt,
                 &mut realm.inflater,
-                remaining.min(Duration::from_millis(10)),
+                remaining.min(PACKET_POLL_INTERVAL),
                 remaining,
                 "cast lifecycle realm packet",
             )
@@ -587,14 +611,11 @@ async fn next_packet(
             if *closed {
                 continue;
             }
-            // Only finish_logout supplies this flag. Accept frame-boundary EOF;
-            // malformed or truncated encrypted frames still fail below.
+            // Tolerated logout waits accept frame-boundary EOF; malformed or
+            // truncated encrypted frames still fail below.
             let mut byte = [0u8; 1];
-            match tokio::time::timeout(
-                remaining.min(Duration::from_millis(10)),
-                stream.peek(&mut byte),
-            )
-            .await
+            match tokio::time::timeout(remaining.min(PACKET_POLL_INTERVAL), stream.peek(&mut byte))
+                .await
             {
                 Err(_) => continue,
                 Ok(Ok(0)) => {
@@ -609,7 +630,7 @@ async fn next_packet(
             stream,
             crypt,
             inflater,
-            remaining.min(Duration::from_millis(10)),
+            remaining.min(PACKET_POLL_INTERVAL),
             remaining,
             "cast lifecycle instance packet",
         )

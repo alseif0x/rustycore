@@ -47551,7 +47551,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , live_terrain : Arc < wow_world :: terrain :: LiveTerrainHeights > , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , creature_aggro_config : wow_world :: session :: CreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:809aefb3c47c8618215d6562716b9beb:len=4502",
+      "body_fingerprint": "fnv1a64x2:4a3fb6c8f73e7e87cf6d42994b26a23a:len=4672",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",

@@ -18,6 +18,10 @@ impl SessionLifecycleState {
         self.logout_time != 0 || self.player_logout_like_cpp
     }
 
+    pub fn is_logout_countdown_pending_like_cpp(&self, current_time: i64) -> bool {
+        self.logout_time > 0 && current_time < self.logout_time + LOGOUT_DELAY_SECS_LIKE_CPP
+    }
+
     /// C++ `WorldSession::ShouldLogOut` (`WorldSession.h:1010`): the timed
     /// logout is due 20 game-time seconds after it started.
     pub fn should_log_out_like_cpp(&self, current_time: i64) -> bool {

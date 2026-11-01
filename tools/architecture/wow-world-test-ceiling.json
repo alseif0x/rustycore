@@ -315,6 +315,36 @@
    "unit_tests_lines": 278508,
    "unit_tests_tests": 4145,
    "src_tests": 22
+  },
+  {
+   "id": "raise-54-29",
+   "kind": "raise",
+   "issue": 54,
+   "reviewed_at": "2026-10-31",
+   "reason": "Prove missing/stale canonical Player logout request and cancel fail closed: exact +85 lines/+2 W tests, no destination/ignored change.",
+   "unit_tests_lines": 278591,
+   "unit_tests_tests": 4147,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-54-30",
+   "kind": "raise",
+   "issue": 54,
+   "reviewed_at": "2026-10-31",
+   "reason": "Prove account-specific instant-logout grant and staff revoke: exact +21 lines/+1 W test, no destination/ignored change.",
+   "unit_tests_lines": 278612,
+   "unit_tests_tests": 4148,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-54-31",
+   "kind": "raise",
+   "issue": 54,
+   "reviewed_at": "2026-10-31",
+   "reason": "Prove disconnect countdown defers before due, finalizes at due/post-due and stays immediate without countdown: exact +105 lines/+3 W tests.",
+   "unit_tests_lines": 278717,
+   "unit_tests_tests": 4151,
+   "src_tests": 22
   }
  ]
 }

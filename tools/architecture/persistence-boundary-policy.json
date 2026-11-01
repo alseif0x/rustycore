@@ -1697,38 +1697,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account in crates/world-server/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::module",
       "source_class": "production",
       "packages": [
@@ -1764,17 +1732,81 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::struct DbAccountLookup",
+      "id": "workflow:world-server:crate::account_lookup:crates/world-server/src/account_lookup.rs::impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account",
       "source_class": "production",
       "packages": [
         "world-server"
       ],
       "sources": [
-        "crates/world-server/src/lib.rs"
+        "crates/world-server/src/account_lookup.rs"
       ],
       "source_prefixes": [],
       "modules": [
-        "crate"
+        "crate::account_lookup"
+      ],
+      "enclosings": [
+        "impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account in crates/world-server/src/account_lookup.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:world-server:crate::account_lookup:crates/world-server/src/account_lookup.rs::module",
+      "source_class": "production",
+      "packages": [
+        "world-server"
+      ],
+      "sources": [
+        "crates/world-server/src/account_lookup.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::account_lookup"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow module in crates/world-server/src/account_lookup.rs.",
+      "connection_affinity": "This is a shared dependency/type surface for login; it does not itself imply a runtime transaction.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:world-server:crate::account_lookup:crates/world-server/src/account_lookup.rs::struct DbAccountLookup",
+      "source_class": "production",
+      "packages": [
+        "world-server"
+      ],
+      "sources": [
+        "crates/world-server/src/account_lookup.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::account_lookup"
       ],
       "enclosings": [
         "struct DbAccountLookup"
@@ -1785,7 +1817,7 @@
       "logical_databases": [
         "login"
       ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow struct DbAccountLookup in crates/world-server/src/lib.rs.",
+      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow struct DbAccountLookup in crates/world-server/src/account_lookup.rs.",
       "connection_affinity": "This is a shared dependency/type surface for login; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",

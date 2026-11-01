@@ -1,5 +1,112 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #54 closure execution plan — 2026-10-31
+
+Branch `54-c-character2-complete-logout-admission-countdown-and-cancellation`;
+baseline `a97b4da29e701e97bb3bc5915f7daf21a2cd28df` after merged #43.
+The operator selected #54. This section supersedes the issue's stale pending list,
+not its acceptance requirements. Documentation and new explanatory comments remain
+in English.
+
+### Audited starting point
+
+Admission denial order, instant/taxi/resting/default-GM behavior, the 20-second
+timer, sit/root/stun, cancel restoration, loot prelude, packet registration and
+durable finalization are already production-integrated. Do not reimplement them.
+Target `Handlers/MiscHandler.cpp:238-311` and the current Rust owners were reviewed;
+no `InstantLogout` configuration key exists in the target, so RBAC permission 1 is
+the actual contract. Three bounded residuals remain:
+
+1. Missing/unresolvable canonical Player currently grants instant logout, and a
+   stale GUID can receive LogoutCancelAck. C++ only dispatches these LoggedIn
+   operations with a real Player; make both paths fail closed without response,
+   countdown, finalization, ACK or movement mutation.
+2. `security > 0` approximates `RBAC_PERM_INSTANT_LOGOUT`. Load account-specific
+   grants and denials through the existing RBAC query and compose them with the
+   default role permissions in C++ order, preserving default staff behavior while
+   honoring explicit player grant and staff revoke.
+3. Socket loss during an active countdown finalizes immediately. C++ evaluates
+   the 20-second deadline before the 60-second lost-socket cleanup; preserve that
+   timing without weakening the existing disconnect/save/finalization fences.
+
+### Ordered work and exit conditions
+
+1. Close the no-Player fail-open paths with focused stale/missing-owner tests.
+2. Implement account-specific RBAC at the actual login/session owner, with grant,
+   revoke, default and query-failure tests. No second permission mirror.
+3. Repair countdown/disconnect timing and prove before-due, due and post-due
+   behavior, including no LogoutComplete on disconnect and correct relogin timing.
+4. Complete the live matrix: combat/fall/duel denials, delayed movement, instant
+   resting/taxi/staff, cancel restoration, successful timed completion, repeated
+   requests and disconnect timing. Assert packets, state and real persistence;
+   compare action-specific C++/Rust captures without claiming ambient-stream parity.
+5. Run affected acceptance, production integration, exhaustive persistence and
+   origin publication final. Record exact SHAs, durations and remaining boundaries.
+6. Publish and close under the established conditional authorization; no permanent
+   deployment and no broad rewrite of already integrated logout behavior.
+
+Residual 1 is implemented at `ba31915ca`: missing/stale canonical Player now
+closes request and cancel before any publication or state mutation; two tests
+and the 147-case lifecycle suite passed. Residual 2 is implemented and reviewed:
+the existing RBAC query feeds SessionAccountState, direct/linked grants and
+revokes compose deny-last with default security, and no SessionCore field was
+added. Seven core RBAC tests and 148 lifecycle tests passed; syntax ownership
+changes only the reviewed create_session fingerprint. These are focused checks,
+not live or final acceptance. Residual 3 is implemented: an active countdown
+now defers only disconnect finalization before its deadline, while due/post-due
+returns the existing disconnect work and an ordinary disconnect stays immediate.
+Three production-phase tests and 151 lifecycle tests passed; syntax ownership
+remains green.
+
+### Live and paired-capture evidence at `508acacda` — 2026-11-01
+
+All ten Rust scenarios passed with native captures, real DB persistence and fixture/runtime
+restoration: combat/fall/freeze denial, cancel, timed, disconnect/relogin, repeated,
+RBAC grant/revoke and resting. Timed completed in 19,437.337 ms. Disconnect remained
+online at 2.000 s, went offline at 20.009 s and relogged successfully. Grant/resting
+completed instantly; revoke retained the countdown and cancellation restored movement.
+No RBAC fixture rows remained and the stable server executable was restored as
+`290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`.
+
+The same ten scenarios also passed against the pinned derived C++ R6 executable
+`80f143841b5a7b443022480500760ce336dc83052f05ddd7e3b7be6a6605b02a`, source
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. C++ timed completed in 19,605.807 ms
+and disconnect/relogin, persistence and cleanup passed. Resting's native PKT contains
+the exact instant LogoutResponse even though the client did not receive it before the
+instance EOF; this is recorded as `native-cpp-pkt`, without inventing cross-socket order.
+The action comparison is CLEAN for all 51 strict packet checks and all eight stun
+comparisons, with independent deadline checks on each backend:
+`/tmp/rustycore54-capture-comparison-508acacda/record.json`. Ambient streams are not
+claimed equal.
+
+The QA harness now drains instance bursts at 1 ms, handles only the demonstrated
+logout EOF/cross-socket races and skips the observer after confirmed completion.
+Twelve packet-wait tests and 34 hermetic logout-runner tests passed. These harness
+fixes do not change server gameplay behavior.
+
+### Completed-delivery acceptance at `b454197f7` — 2026-11-01
+
+Candidate `b454197f7a1f00802e5abb66570714e96b677c3c` passed
+`final --architecture --timings --logs` and exact manifest verification in 219.982
+seconds on aarch64 with a clean tree. The ordinary campaign additionally passed 260
+bot tests, 34 runner tests, 643 world-server tests and 42 production-login tests.
+The complete ordinary campaign at `59cb66403` took 744.683 seconds, exceeding the
+600-second performance target; final alone took 232.913 seconds on that earlier
+code-equivalent candidate. R5 remains 1,238 production methods and one thunk;
+`world-server/src/lib.rs` is now 1,995 lines and `account_lookup.rs` 173.
+
+The exhaustive persistence check passed 8,196 production and 2,681 test-fixture rows
+with 1,094 semantic groups (`/tmp/rustycore54-persistence-b454197f7.log`). Its delta
+was reviewed as exactly 15 moved account-lookup rows and 10 RBAC rows; annotations
+and generated policy preserve the root workflows and add the new module only.
+Exhaustive checking took 1,070.417 seconds, separately from the ordinary target.
+
+Final live smoke with debug world-server SHA-256
+`4ca0f2c967241346ac1963aa1bb305b8ad7f39e65195b58d2905931f5a6edd95`
+passed timed in 19,325.465 ms and RBAC revoke with `variant_fixture_restored=true`.
+No RBAC rows remained and the stable runtime was restored. Local acceptance is
+complete; publication, merge and issue closure remain the only outstanding steps.
+
 ## #43 closure execution plan — 2026-10-29
 
 The operator resumed implementation after reviewing the two live failures and
