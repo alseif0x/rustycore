@@ -907,6 +907,7 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
             member_login, member_login_evidence, member_login_state, member_login_path,
             {"restart_login": True, "instance_id": current_instance}))
 
+        relocate_inside(db, journal, leader)
         leader_login = death_scenario.BotPass(
             leader, observer_plan(leader), "instance-difficulty-leader-restart-001")
         leader_login_evidence = logout_scenario._run_single(leader_login, identity, observer=True)

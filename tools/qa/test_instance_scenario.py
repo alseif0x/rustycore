@@ -656,6 +656,15 @@ class DifficultyRestartTests(unittest.TestCase):
             "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
         }
         leave = {"sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")]}
+        order = []
+
+        def run_single(bot_pass, _identity, observer=False):
+            order.append(bot_pass.label)
+            return leave if bot_pass.label == "instance-difficulty-leave-001" else login
+
+        def relocate(_db, _journal, selected):
+            order.append(f"relocate:{selected['name']}")
+
         with tempfile.TemporaryDirectory() as raw:
             paths = []
             for label in ("member", "leader", "leave", "final"):
@@ -666,7 +675,8 @@ class DifficultyRestartTests(unittest.TestCase):
                               return_value={"difficulty": 2}), \
                     patch.object(scenario, "_require_offline"), \
                     patch.object(scenario.logout_scenario, "_run_single",
-                                 side_effect=[login, login, leave]), \
+                                 side_effect=run_single), \
+                    patch.object(scenario, "relocate_inside", side_effect=relocate), \
                     patch.object(scenario, "_difficulty_snapshot",
                                  side_effect=[
                                      ({}, inside_state(member, 42), paths[0]),
@@ -683,6 +693,10 @@ class DifficultyRestartTests(unittest.TestCase):
         self.assertEqual(report["restart_persistence"]["current_shared_instance"], 42)
         self.assertTrue(report["restart_persistence"]["old_instance_id_not_required"])
         self.assertTrue(report["group_cleanup"]["scenario_group_rows_removed"])
+        self.assertEqual(order[:3], [
+            "instance-difficulty-member-restart-001", f"relocate:{leader['name']}",
+            "instance-difficulty-leader-restart-001",
+        ])
         self.assertEqual(restore.call_count, 2)
         cleanup.assert_called_once()
 
