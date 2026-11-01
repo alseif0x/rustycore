@@ -388,10 +388,12 @@ def _validate_admitted(scenario: str, evidence: dict[str, Any], actor: dict[str,
     for index, root in enumerate(roots):
         if _sequence(root) < _sequence(responses[index]) or _sequence(root) > cancel_boundary:
             raise ScenarioFailure("logout root was outside its accepted request phase")
+    ack = _events(evidence, LOGOUT_CANCEL_ACK, "instance", b"") if cancel else []
+    ack_boundary = _sequence(ack[0]) if len(ack) == 1 else math.inf
     owner = death_scenario.player_guid(actor, realm_id)
     stun = _stun_updates(evidence, owner)
     stunned = [item for item in stun if item["stunned"]
-               and request_sequences[0] < item["observation_sequence"] < cancel_boundary]
+               and request_sequences[0] < item["observation_sequence"] < ack_boundary]
     if not stunned or stunned[0]["observation_sequence"] < _sequence(roots[0]):
         raise ScenarioFailure("timed logout lacks its UNIT_FLAG_STUNNED set evidence")
     first_set = stunned[0]
@@ -400,7 +402,6 @@ def _validate_admitted(scenario: str, evidence: dict[str, Any], actor: dict[str,
     facts: dict[str, Any] = {"roots": [event.get("sequence") for event in roots],
                              "sit_count": len(sits), "stun_set": first_set}
     if cancel:
-        ack = _events(evidence, LOGOUT_CANCEL_ACK, "instance", b"")
         unroots = [event for event in _events(evidence, MOVE_UNROOT, "instance")
                    if _sequence(event) > cancel_boundary]
         stands = [event for event in _stand_states(evidence, 0)

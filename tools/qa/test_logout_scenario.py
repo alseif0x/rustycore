@@ -265,6 +265,36 @@ class LogoutEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(scenario.ScenarioFailure, "conflicting flags"):
             scenario.validate_evidence("logout-cancel", plan, conflicting_clear, selected, 1)
 
+    def test_stun_set_may_follow_typed_cancel_but_must_precede_ack(self) -> None:
+        selected = actor()
+        plan = scenario.plan_for("logout-cancel", selected)
+        evidence = admitted_evidence("logout-cancel")
+        cancel = next(item for item in evidence["sent_packets"]
+                      if item["action"] == "logout_cancel")
+        cancel["observation_sequence"] = 72
+        updates = [item for item in evidence["events"] if item["opcode"] == scenario.UPDATE_OBJECT]
+        for item, sequence in zip(updates, (74, 77), strict=True):
+            item["sequence"] = item["observation_sequence"] = sequence
+        for opcode, sequence in ((scenario.LOGOUT_CANCEL_ACK, 75),
+                                 (scenario.MOVE_UNROOT, 76),
+                                 (scenario.STAND_STATE_UPDATE, 76)):
+            item = next(item for item in evidence["events"] if item["opcode"] == opcode
+                        and item["observation_sequence"] > 50)
+            item["sequence"] = item["observation_sequence"] = sequence
+        facts = scenario.validate_evidence("logout-cancel", plan, evidence, selected, 1)
+        self.assertEqual(facts["stun_set"]["observation_sequence"], 74)
+        self.assertEqual(facts["stun_clear"]["observation_sequence"], 77)
+        self.assertEqual(facts["unroot"], 76)
+        self.assertEqual(facts["stand"], 76)
+
+        after_ack = copy.deepcopy(evidence)
+        late_set = next(item for item in after_ack["events"]
+                        if item["opcode"] == scenario.UPDATE_OBJECT
+                        and item["observation_sequence"] == 74)
+        late_set["sequence"] = late_set["observation_sequence"] = 76
+        with self.assertRaisesRegex(scenario.ScenarioFailure, "lacks its UNIT_FLAG_STUNNED set"):
+            scenario.validate_evidence("logout-cancel", plan, after_ack, selected, 1)
+
     def test_captured_unit_data_blocks_parse_exact_logout_stun_values(self) -> None:
         selected = actor(guid=20)
         captured_set = bytes.fromhex(
