@@ -392,10 +392,13 @@ def _validate_admitted(scenario: str, evidence: dict[str, Any], actor: dict[str,
     stun = _stun_updates(evidence, owner)
     stunned = [item for item in stun if item["stunned"]
                and request_sequences[0] < item["observation_sequence"] < cancel_boundary]
-    if len(stunned) != 1 or stunned[0]["observation_sequence"] < _sequence(roots[0]):
+    if not stunned or stunned[0]["observation_sequence"] < _sequence(roots[0]):
         raise ScenarioFailure("timed logout lacks its UNIT_FLAG_STUNNED set evidence")
+    first_set = stunned[0]
+    if any(item["flags"] != first_set["flags"] for item in stunned[1:]):
+        raise ScenarioFailure("duplicate logout stun-set updates have conflicting flags")
     facts: dict[str, Any] = {"roots": [event.get("sequence") for event in roots],
-                             "sit_count": len(sits), "stun_set": stunned[0]}
+                             "sit_count": len(sits), "stun_set": first_set}
     if cancel:
         ack = _events(evidence, LOGOUT_CANCEL_ACK, "instance", b"")
         unroots = [event for event in _events(evidence, MOVE_UNROOT, "instance")
@@ -404,15 +407,18 @@ def _validate_admitted(scenario: str, evidence: dict[str, Any], actor: dict[str,
                   if _sequence(event) > cancel_boundary]
         cleared = [item for item in stun if not item["stunned"]
                    and item["observation_sequence"] > cancel_boundary]
-        if len(ack) != 1 or len(unroots) != 1 or len(stands) != 1 or len(cleared) != 1:
+        if len(ack) != 1 or len(unroots) != 1 or len(stands) != 1 or not cleared:
             raise ScenarioFailure("cancel lacks one ACK, unroot, stand, or stun-clear transition")
+        last_clear = cleared[-1]
+        if any(item["flags"] != last_clear["flags"] for item in cleared[:-1]):
+            raise ScenarioFailure("duplicate logout stun-clear updates have conflicting flags")
         if not (cancel_boundary < _sequence(ack[0]) < _sequence(unroots[0])
-                < cleared[0]["observation_sequence"]):
+                < last_clear["observation_sequence"]):
             raise ScenarioFailure("cancel ACK, unroot, and stun-clear order is invalid")
-        if stunned[0]["flags"] ^ cleared[0]["flags"] != UNIT_FLAG_STUNNED:
+        if first_set["flags"] ^ last_clear["flags"] != UNIT_FLAG_STUNNED:
             raise ScenarioFailure("cancel did not clear exactly the logout stun flag")
         facts.update({"ack_count": 1, "unroot": unroots[0].get("sequence"),
-                      "stand": stands[0].get("sequence"), "stun_clear": cleared[0]})
+                      "stand": stands[0].get("sequence"), "stun_clear": last_clear})
     if scenario != "logout-timed" and (
             _events(evidence, LOGOUT_COMPLETE) or evidence.get("logout_confirmed") is True):
         raise ScenarioFailure("cancel, repeated, or disconnect case emitted LogoutComplete")

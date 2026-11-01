@@ -231,6 +231,40 @@ class LogoutEvidenceTests(unittest.TestCase):
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_evidence("logout-cancel", plan, bad, selected, 1)
 
+    def test_identical_duplicate_stun_updates_pass_but_conflicts_fail(self) -> None:
+        selected = actor()
+        plan = scenario.plan_for("logout-cancel", selected)
+        evidence = admitted_evidence("logout-cancel")
+        evidence["events"].extend([
+            stun_event(selected, 15, 0x1000 | scenario.UNIT_FLAG_STUNNED),
+            stun_event(selected, 55, 0x1000),
+        ])
+        facts = scenario.validate_evidence("logout-cancel", plan, evidence, selected, 1)
+        self.assertEqual(facts["stun_set"]["observation_sequence"], 14)
+        self.assertEqual(facts["stun_clear"]["observation_sequence"], 55)
+        self.assertEqual(facts["ack_count"], 1)
+        self.assertEqual(facts["unroot"], 52)
+        self.assertEqual(facts["stand"], 53)
+        owner = death_scenario.player_guid(selected, 1)
+        self.assertEqual(len(scenario._stun_updates(evidence, owner)), 4)
+
+        conflicting_set = admitted_evidence("logout-cancel")
+        conflicting_set["events"].extend([
+            stun_event(selected, 15, 0x2000 | scenario.UNIT_FLAG_STUNNED),
+            stun_event(selected, 16, 0x1000 | scenario.UNIT_FLAG_STUNNED),
+            stun_event(selected, 55, 0x1000),
+        ])
+        with self.assertRaisesRegex(scenario.ScenarioFailure, "conflicting flags"):
+            scenario.validate_evidence("logout-cancel", plan, conflicting_set, selected, 1)
+        conflicting_clear = admitted_evidence("logout-cancel")
+        conflicting_clear["events"].extend([
+            stun_event(selected, 15, 0x1000 | scenario.UNIT_FLAG_STUNNED),
+            stun_event(selected, 55, 0x1001),
+            stun_event(selected, 56, 0x1000),
+        ])
+        with self.assertRaisesRegex(scenario.ScenarioFailure, "conflicting flags"):
+            scenario.validate_evidence("logout-cancel", plan, conflicting_clear, selected, 1)
+
     def test_captured_unit_data_blocks_parse_exact_logout_stun_values(self) -> None:
         selected = actor(guid=20)
         captured_set = bytes.fromhex(
