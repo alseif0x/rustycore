@@ -1473,6 +1473,14 @@ fn instance_and_party_action_builders_match_native_shapes_and_strict_fields() {
     );
     assert_eq!(CMSG_PARTY_INVITE, 0x3604);
     assert_eq!(CMSG_PARTY_INVITE_RESPONSE, 0x3606);
+    let leave = Action::LeaveGroup {};
+    assert_eq!(action_name(&leave), "leave_group");
+    assert_eq!(
+        build_party_action_packet(&leave).unwrap(),
+        (CMSG_LEAVE_GROUP, Vec::new())
+    );
+    assert_eq!(CMSG_LEAVE_GROUP, 0x364C);
+    assert!(serde_json::from_str::<Action>(r#"{"action":"leave_group","unexpected":1}"#).is_err());
 
     for action in [
         r#"{"action":"reset_instances","unexpected":1}"#,

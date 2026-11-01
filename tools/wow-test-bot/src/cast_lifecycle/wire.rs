@@ -52,6 +52,7 @@ pub(super) fn build_party_action_packet(action: &Action) -> Result<(u16, Vec<u8>
             CMSG_PARTY_INVITE_RESPONSE,
             vec![if *accept { 0x40 } else { 0x00 }],
         )),
+        Action::LeaveGroup {} => Ok((CMSG_LEAVE_GROUP, Vec::new())),
         _ => unreachable!("only party actions use this builder"),
     }
 }

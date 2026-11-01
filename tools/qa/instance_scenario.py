@@ -15,12 +15,19 @@ import logout_scenario
 
 
 SCENARIO = "instance-solo-reset"
+GROUP_SCENARIO = "instance-group-reset"
 ACTOR_NAME = "Qadeathcast"
-SCENARIOS = {SCENARIO: ACTOR_NAME}
+MEMBER_NAME = "Qadeathfall"
+SCENARIOS = {SCENARIO: ACTOR_NAME, GROUP_SCENARIO: ACTOR_NAME}
 INSTANCE_MAP = 33
 INSTANCE_POSITION = (-228.191, 2111.41, 76.8904)
 CMSG_RESET_INSTANCES = 0x366A
+CMSG_LEAVE_GROUP = 0x364C
 SMSG_INSTANCE_RESET = 0x2686
+SMSG_INSTANCE_RESET_FAILED = 0x2687
+SMSG_RESET_FAILED_NOTIFY = 0x26B7
+SMSG_PARTY_INVITE = 0x25BD
+SMSG_PARTY_UPDATE = 0x25F4
 LOGOUT_COMPLETE = 0x2684
 POSITION_TOLERANCE = 0.02
 ScenarioFailure = death_scenario.ScenarioFailure
@@ -140,13 +147,15 @@ def _snapshot_position(snapshot: dict[str, Any], actor: dict[str, Any]) -> dict[
 
 def _save_position_snapshot(db: death_fixture.MariaDB, journal: dict[str, Any],
                             actor: dict[str, Any], output: Path,
-                            label: str) -> tuple[dict[str, Any], dict[str, Any], Path]:
-    death_scenario._poll_actor_offline(db, journal, actor)
+                            label: str, *, scenario_name: str = SCENARIO,
+                            require_offline: bool = True) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    if require_offline:
+        death_scenario._poll_actor_offline(db, journal, actor)
     snapshot = db.snapshot(journal)
-    path = death_scenario._snapshot_path(output, SCENARIO, 1, actor, label)
+    path = death_scenario._snapshot_path(output, scenario_name, 1, actor, label)
     death_scenario._write_private(path, snapshot)
     state = _snapshot_position(snapshot, actor)
-    if state["online"] != 0:
+    if require_offline and state["online"] != 0:
         raise ScenarioFailure("instance scenario snapshot retained an online character")
     return snapshot, state, path
 
@@ -214,6 +223,8 @@ def validate_reset_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
 
 def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
               db: death_fixture.MariaDB) -> dict[str, Any]:
+    if identity.get("scenario", SCENARIO) == GROUP_SCENARIO:
+        return _run_group_case(identity, journal, realm_id, db)
     del realm_id
     actor = next(item for item in journal["actors"] if item["name"] == ACTOR_NAME)
     relocated = False
@@ -269,6 +280,315 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
         if relocated and not restored:
             death_scenario._poll_actor_offline(db, journal, actor)
             restore_outside(db, journal, actor)
+        raise
+
+
+def member_invite_plan(member: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "character_guid": int(member["guid"]), "timeout_ms": 15_000,
+        "actions": [
+            death_scenario._wait("realm", SMSG_PARTY_INVITE, 10_000),
+            {"action": "party_invite_response", "accept": True},
+            death_scenario._wait("realm", SMSG_PARTY_UPDATE, 10_000),
+        ],
+        "expect": [
+            death_scenario._packet("realm", SMSG_PARTY_UPDATE),
+            death_scenario._packet("realm", LOGOUT_COMPLETE),
+        ],
+        "finish_policy": "logout",
+    }
+
+
+def leader_invite_plan(leader: dict[str, Any], member: dict[str, Any],
+                       realm_id: int) -> dict[str, Any]:
+    return {
+        "character_guid": int(leader["guid"]), "timeout_ms": 15_000,
+        "actions": [
+            {"action": "party_invite", "name": member["name"],
+             "target": death_scenario.player_guid(member, realm_id)},
+            death_scenario._wait("realm", SMSG_PARTY_UPDATE, 10_000),
+        ],
+        "expect": [
+            death_scenario._packet("realm", SMSG_PARTY_UPDATE),
+            death_scenario._packet("realm", LOGOUT_COMPLETE),
+        ],
+        "finish_policy": "logout",
+    }
+
+
+def member_occupied_plan(member: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "character_guid": int(member["guid"]), "timeout_ms": 95_000,
+        "actions": [{"action": "wait", "milliseconds": 90_000}],
+        "expect": [death_scenario._packet("instance", SMSG_RESET_FAILED_NOTIFY)],
+        "finish_policy": "disconnect",
+    }
+
+
+def reset_failed_plan(actor: dict[str, Any]) -> dict[str, Any]:
+    body = INSTANCE_MAP.to_bytes(4, "little") + b"\x00"
+    return {
+        "character_guid": int(actor["guid"]), "timeout_ms": 10_000,
+        "actions": [
+            {"action": "reset_instances"},
+            death_scenario._wait("instance", SMSG_INSTANCE_RESET_FAILED, 5_000),
+        ],
+        "expect": [
+            death_scenario._packet("instance", SMSG_INSTANCE_RESET_FAILED, body),
+            death_scenario._packet("realm", LOGOUT_COMPLETE),
+        ],
+        "finish_policy": "logout",
+    }
+
+
+def leave_group_plan(actor: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "character_guid": int(actor["guid"]), "timeout_ms": 10_000,
+        "actions": [{"action": "leave_group"}],
+        "expect": [death_scenario._packet("realm", LOGOUT_COMPLETE)],
+        "finish_policy": "logout",
+    }
+
+
+def _typed_packets(evidence: dict[str, Any], action: str, connection: str,
+                   opcode: int, body_hex: str) -> list[dict[str, Any]]:
+    return [packet for packet in evidence.get("sent_packets", [])
+            if isinstance(packet, dict) and packet.get("action") == action
+            and packet.get("connection") == connection and packet.get("opcode") == opcode
+            and packet.get("body_hex") == body_hex and packet.get("action_index") is not None
+            and packet.get("write_attempted") is True and packet.get("write_completed") is True
+            and packet.get("write_error") is None]
+
+
+def _opcode_events(evidence: dict[str, Any], connection: str, opcode: int,
+                   body_hex: str) -> list[dict[str, Any]]:
+    return [event for event in evidence.get("events", [])
+            if isinstance(event, dict) and event.get("connection") == connection
+            and event.get("opcode") == opcode and event.get("body_hex") == body_hex]
+
+
+def validate_group_formation_evidence(leader: dict[str, Any], member: dict[str, Any]) -> None:
+    invites = [packet for packet in leader.get("sent_packets", [])
+               if isinstance(packet, dict) and packet.get("action") == "party_invite"
+               and packet.get("connection") == "realm" and packet.get("opcode") == 0x3604
+               and packet.get("action_index") is not None
+               and packet.get("write_attempted") is True
+               and packet.get("write_completed") is True and packet.get("write_error") is None]
+    if len(invites) != 1:
+        raise ScenarioFailure("leader did not send exactly one reviewed party invite")
+    if len(_typed_packets(member, "party_invite_response", "realm", 0x3606, "40")) != 1:
+        raise ScenarioFailure("member did not accept exactly one reviewed party invite")
+    if len(_opcode_events(leader, "realm", SMSG_PARTY_UPDATE, "")) != 1:
+        raise ScenarioFailure("leader did not observe exactly one party update")
+    if len(_opcode_events(member, "realm", SMSG_PARTY_UPDATE, "")) != 1:
+        raise ScenarioFailure("member did not observe exactly one party update")
+
+
+def validate_reset_failed_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    requests = _typed_packets(evidence, "reset_instances", "instance", CMSG_RESET_INSTANCES, "")
+    if len(requests) != 1:
+        raise ScenarioFailure("occupied group reset requires exactly one typed reset request")
+    body = (INSTANCE_MAP.to_bytes(4, "little") + b"\x00").hex()
+    responses = _opcode_events(evidence, "instance", SMSG_INSTANCE_RESET_FAILED, body)
+    all_responses = [event for event in evidence.get("events", [])
+                     if isinstance(event, dict) and event.get("opcode") == SMSG_INSTANCE_RESET_FAILED]
+    if len(responses) != 1 or len(all_responses) != 1 \
+            or _sequence(responses[0]) <= _sequence(requests[0]):
+        raise ScenarioFailure("occupied group reset requires one map-33 reason-zero failure")
+    return {"request_sequence": requests[0].get("sequence"),
+            "response_sequence": responses[0].get("sequence"), "reason": 0}
+
+
+def validate_reset_failed_notify_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    notifications = _opcode_events(evidence, "instance", SMSG_RESET_FAILED_NOTIFY, "")
+    all_notifications = [event for event in evidence.get("events", [])
+                         if isinstance(event, dict) and event.get("opcode") == SMSG_RESET_FAILED_NOTIFY]
+    if len(notifications) != 1 or len(all_notifications) != 1:
+        raise ScenarioFailure("occupied member requires exactly one empty ResetFailedNotify")
+    return {"notify_sequence": notifications[0].get("sequence"), "body_bytes": 0}
+
+
+def validate_leave_group_evidence(evidence: dict[str, Any]) -> None:
+    if len(_typed_packets(evidence, "leave_group", "realm", CMSG_LEAVE_GROUP, "")) != 1:
+        raise ScenarioFailure("leader must send exactly one empty realm LeaveGroup")
+
+
+def _group_rows_absent(db: death_fixture.MariaDB,
+                       actors: tuple[dict[str, Any], dict[str, Any]]) -> bool:
+    ids = ",".join(str(actor["guid"]) for actor in actors)
+    leaders = db.execute(f"SELECT leaderGuid FROM groups WHERE leaderGuid IN ({ids})")
+    members = db.execute(f"SELECT memberGuid FROM group_member WHERE memberGuid IN ({ids})")
+    return not leaders and not members
+
+
+def preflight_group(db: death_fixture.MariaDB, journal: dict[str, Any],
+                    actors: tuple[dict[str, Any], dict[str, Any]]) -> dict[str, Any]:
+    for actor in actors:
+        _require_offline(db, journal, actor)
+    if not _group_rows_absent(db, actors):
+        raise ScenarioFailure("instance group scenario requires no preexisting reviewed group rows")
+    return {"cleanup_allowed": True}
+
+
+def cleanup_group(db: death_fixture.MariaDB,
+                  actors: tuple[dict[str, Any], dict[str, Any]],
+                  preflight: dict[str, Any]) -> None:
+    if preflight.get("cleanup_allowed") is not True:
+        raise ScenarioFailure("group cleanup requires a proven empty preflight")
+    ids = ",".join(str(actor["guid"]) for actor in actors)
+    db.transaction([
+        f"DELETE FROM group_member WHERE memberGuid IN ({ids})",
+        f"DELETE FROM groups WHERE leaderGuid IN ({ids})",
+    ])
+    if not _group_rows_absent(db, actors):
+        raise ScenarioFailure("scenario-owned group rows were not removed")
+
+
+def _group_snapshot(db: death_fixture.MariaDB, journal: dict[str, Any],
+                    actor: dict[str, Any], capture: Path, label: str,
+                    require_offline: bool) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    return _save_position_snapshot(
+        db, journal, actor, capture, label,
+        scenario_name=GROUP_SCENARIO, require_offline=require_offline)
+
+
+def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
+                    db: death_fixture.MariaDB) -> dict[str, Any]:
+    leader = next(item for item in journal["actors"] if item["name"] == ACTOR_NAME)
+    member = next(item for item in journal["actors"] if item["name"] == MEMBER_NAME)
+    actors = (leader, member)
+    preflight = preflight_group(db, journal, actors)
+    relocated = False
+    observations = []
+    try:
+        member_invite = death_scenario.BotPass(
+            member, member_invite_plan(member), "instance-group-member-invite-001")
+        death_scenario.start_bot(
+            member_invite, bot_exec=identity["bot_exec"],
+            bot_config=identity["bot_config"], output=identity["capture"])
+        leader_invite = death_scenario.BotPass(
+            leader, leader_invite_plan(leader, member, realm_id),
+            "instance-group-leader-invite-001")
+        leader_evidence = logout_scenario._run_single(leader_invite, identity)
+        member_evidence = death_scenario.finish_bot(
+            member_invite, timeout_seconds=75, actor=member)
+        validate_group_formation_evidence(leader_evidence, member_evidence)
+        _, leader_form_state, leader_form_path = _group_snapshot(
+            db, journal, leader, identity["capture"], leader_invite.label, True)
+        _, member_form_state, member_form_path = _group_snapshot(
+            db, journal, member, identity["capture"], member_invite.label, True)
+        observations.extend([
+            logout_scenario._observation(
+                leader_invite, leader_evidence, leader_form_state, leader_form_path,
+                {"group_formed": True}),
+            logout_scenario._observation(
+                member_invite, member_evidence, member_form_state, member_form_path,
+                {"group_formed": True}),
+        ])
+        for actor in actors:
+            relocate_inside(db, journal, actor)
+        relocated = True
+
+        member_pass = death_scenario.BotPass(
+            member, member_occupied_plan(member), "instance-group-member-occupied-001")
+        death_scenario.start_bot(
+            member_pass, bot_exec=identity["bot_exec"],
+            bot_config=identity["bot_config"], output=identity["capture"])
+        if not member_pass.ready.wait(180):
+            raise ScenarioFailure("occupied member did not become ready inside the group instance")
+        leader_entry = death_scenario.BotPass(
+            leader, observer_plan(leader), "instance-group-leader-entry-001")
+        leader_entry_evidence = logout_scenario._run_single(leader_entry, identity, observer=True)
+        _, leader_entry_state, leader_entry_path = _group_snapshot(
+            db, journal, leader, identity["capture"], leader_entry.label, True)
+        instance_id = validate_inside_state(leader_entry_state)
+        _, member_inside_state, member_inside_path = _group_snapshot(
+            db, journal, member, identity["capture"], "instance-group-member-inside-001", False)
+        validate_inside_state(member_inside_state, instance_id)
+        observations.append(logout_scenario._observation(
+            leader_entry, leader_entry_evidence, leader_entry_state, leader_entry_path,
+            {"instance_id": instance_id, "member_instance_id": instance_id,
+             "member_snapshot_sha256": death_scenario._sha256(member_inside_path)}))
+
+        restore_outside(db, journal, leader)
+        failed_pass = death_scenario.BotPass(
+            leader, reset_failed_plan(leader), "instance-group-reset-occupied-001")
+        failed_evidence = logout_scenario._run_single(failed_pass, identity)
+        failed_facts = validate_reset_failed_evidence(failed_evidence)
+        _, failed_state, failed_path = _group_snapshot(
+            db, journal, leader, identity["capture"], failed_pass.label, True)
+        _, member_occupied_state, member_occupied_path = _group_snapshot(
+            db, journal, member, identity["capture"], "instance-group-member-still-inside-001", False)
+        validate_inside_state(member_occupied_state, instance_id)
+        observations.append(logout_scenario._observation(
+            failed_pass, failed_evidence, failed_state, failed_path,
+            {**failed_facts, "member_still_inside": True,
+             "member_snapshot_sha256": death_scenario._sha256(member_occupied_path)}))
+
+        member_evidence = death_scenario.finish_bot(
+            member_pass, timeout_seconds=150, actor=member)
+        notify_facts = validate_reset_failed_notify_evidence(member_evidence)
+        _, member_offline_state, member_offline_path = _group_snapshot(
+            db, journal, member, identity["capture"], member_pass.label, True)
+        validate_inside_state(member_offline_state, instance_id)
+        observations.append(logout_scenario._observation(
+            member_pass, member_evidence, member_offline_state, member_offline_path,
+            {**notify_facts, "not_expelled": True, "instance_id": instance_id}))
+
+        success_pass = death_scenario.BotPass(
+            leader, reset_plan(leader), "instance-group-reset-empty-001")
+        success_evidence = logout_scenario._run_single(success_pass, identity)
+        success_facts = validate_reset_evidence(success_evidence)
+        _, success_state, success_path = _group_snapshot(
+            db, journal, leader, identity["capture"], success_pass.label, True)
+        validate_outside_state(leader, success_state)
+        observations.append(logout_scenario._observation(
+            success_pass, success_evidence, success_state, success_path,
+            {**success_facts, "empty_after_member_offline": True}))
+
+        restore_outside(db, journal, member)
+        leave_pass = death_scenario.BotPass(
+            leader, leave_group_plan(leader), "instance-group-leave-001")
+        leave_evidence = logout_scenario._run_single(leave_pass, identity)
+        validate_leave_group_evidence(leave_evidence)
+        _, leave_state, leave_path = _group_snapshot(
+            db, journal, leader, identity["capture"], leave_pass.label, True)
+        validate_outside_state(leader, leave_state)
+        observations.append(logout_scenario._observation(
+            leave_pass, leave_evidence, leave_state, leave_path,
+            {"leave_group_sent": True}))
+        cleanup_group(db, actors, preflight)
+        _, final_member_state, final_member_path = _group_snapshot(
+            db, journal, member, identity["capture"], "instance-group-member-outside-001", True)
+        validate_outside_state(member, final_member_state)
+        return {
+            "scenario": GROUP_SCENARIO, "epoch": 1, "scenario_observation": "passed",
+            "observations": observations,
+            "final_state": {"leader": leave_state, "member": final_member_state},
+            "group_cleanup": {
+                "preflight_absence_proven": True,
+                "scenario_group_rows_removed": True,
+                "other_groups_untouched": True,
+                "lock_rows_mutated": False,
+                "member_snapshot_sha256": death_scenario._sha256(final_member_path),
+            },
+            "position_restoration": {"leader_outside": True, "member_outside": True},
+            "parity_assessed": False,
+        }
+    except BaseException:
+        for pass_ in list(death_scenario.ACTIVE_BOTS):
+            death_scenario._stop_owned(pass_)
+        if relocated:
+            for actor in actors:
+                try:
+                    death_scenario._poll_actor_offline(db, journal, actor)
+                    restore_outside(db, journal, actor)
+                except Exception:
+                    pass
+        try:
+            cleanup_group(db, actors, preflight)
+        except Exception:
+            pass
         raise
 
 

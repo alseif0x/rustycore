@@ -27,13 +27,15 @@ The working candidate now implements:
 - The focused handler matrix (25 tests), map/lock lifecycle tests, world-server
   cleanup tests and 59 cast-lifecycle bot tests. These are focused coding
   results, not final acceptance.
-- A hermetically tested `instance-solo-reset` native QA runner: enter map 33,
-  relogin in the same nonzero instance, leave and reset from outside.
+- Hermetically tested native QA runners: `instance-solo-reset` enters map 33,
+  relogs in the same nonzero instance, leaves and resets from outside;
+  `instance-group-reset` forms a real party, proves occupied notification and
+  non-expulsion, then resets empty and disbands. All 15 runner tests pass.
 
 No live instance scenario, paired capture comparison, exhaustive persistence
 check or final campaign has run for this candidate. Next: commit a clean debug
-candidate, run the bounded solo scenario against Rust and pinned C++, then add
-and exercise the occupied group/difficulty and restart/persistence scenarios.
+candidate, run the bounded solo/group scenarios against Rust and pinned C++,
+then exercise difficulty and restart/persistence scenarios.
 Do not claim issue completion from the current focused suites.
 
 ## #54 closure execution plan — 2026-10-31

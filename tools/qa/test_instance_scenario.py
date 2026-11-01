@@ -24,6 +24,13 @@ def actor() -> dict:
     return selected
 
 
+def member_actor() -> dict:
+    selected = copy.deepcopy(next(item for item in death_fixture.ACTORS
+                                    if item["name"] == scenario.MEMBER_NAME))
+    selected["guid"] = 74
+    return selected
+
+
 def identity_row(selected: dict, online: str = "0") -> list[str]:
     return [str(selected["guid"]), str(selected["account_id"]), selected["name"], online]
 
@@ -271,6 +278,170 @@ class RunCaseTests(unittest.TestCase):
         self.assertEqual(report["schema"], "rustycore-instance-scenario-v1")
         self.assertFalse(report["parity_assessed"])
         self.assertNotIn("secret-password", json.dumps(report))
+
+
+def typed(action: str, connection: str, opcode: int, body: str, sequence: int = 10) -> dict:
+    return {
+        "sequence": 1, "observation_sequence": sequence, "action_index": 0,
+        "action": action, "connection": connection, "opcode": opcode, "body_hex": body,
+        "write_attempted": True, "write_completed": True, "write_error": None,
+    }
+
+
+def group_event(connection: str, opcode: int, body: str = "", sequence: int = 11) -> dict:
+    return {"sequence": 2, "observation_sequence": sequence,
+            "connection": connection, "opcode": opcode, "body_hex": body}
+
+
+class GroupPlanTests(unittest.TestCase):
+    def test_invite_occupied_failure_and_leave_plans_use_native_routes(self) -> None:
+        leader = actor()
+        member = member_actor()
+        member_plan = scenario.member_invite_plan(member)
+        self.assertEqual(member_plan["finish_policy"], "logout")
+        self.assertEqual(member_plan["actions"][0]["connection"], "realm")
+        self.assertEqual(member_plan["actions"][0]["opcode"], scenario.SMSG_PARTY_INVITE)
+        self.assertEqual(member_plan["actions"][1],
+                         {"action": "party_invite_response", "accept": True})
+        self.assertEqual(member_plan["actions"][2]["opcode"], scenario.SMSG_PARTY_UPDATE)
+
+        leader_plan = scenario.leader_invite_plan(leader, member, 1)
+        self.assertEqual(leader_plan["actions"][0], {
+            "action": "party_invite", "name": member["name"],
+            "target": death_scenario.player_guid(member, 1),
+        })
+        self.assertEqual(leader_plan["actions"][1]["connection"], "realm")
+
+        occupied = scenario.member_occupied_plan(member)
+        self.assertEqual(occupied["actions"], [{"action": "wait", "milliseconds": 90_000}])
+        self.assertEqual(occupied["expect"], [
+            {"event": "packet", "connection": "instance",
+             "opcode": scenario.SMSG_RESET_FAILED_NOTIFY, "body_hex": ""},
+        ])
+        self.assertEqual(occupied["finish_policy"], "disconnect")
+
+        failed = scenario.reset_failed_plan(leader)
+        self.assertEqual(failed["expect"][0]["body_hex"], "2100000000")
+        self.assertEqual(failed["expect"][0]["opcode"], 0x2687)
+        leave = scenario.leave_group_plan(leader)
+        self.assertEqual(leave["actions"], [{"action": "leave_group"}])
+        self.assertEqual(leave["finish_policy"], "logout")
+
+
+class GroupOwnershipTests(unittest.TestCase):
+    def test_preflight_requires_absent_rows_and_cleanup_stays_actor_scoped(self) -> None:
+        leader = actor()
+        member = member_actor()
+        actors = (leader, member)
+        journal = {"actors": list(actors)}
+        db = Mock()
+        db.character_identities.side_effect = lambda _journal: [identity_row(leader), identity_row(member)]
+        db.execute.side_effect = ["", ""]
+        preflight = scenario.preflight_group(db, journal, actors)
+        self.assertTrue(preflight["cleanup_allowed"])
+
+        db.execute.side_effect = ["", ""]
+        scenario.cleanup_group(db, actors, preflight)
+        statements = db.transaction.call_args.args[0]
+        self.assertEqual(statements, [
+            f"DELETE FROM group_member WHERE memberGuid IN ({leader['guid']},{member['guid']})",
+            f"DELETE FROM groups WHERE leaderGuid IN ({leader['guid']},{member['guid']})",
+        ])
+        self.assertFalse(any("lock" in statement.lower() for statement in statements))
+
+        db.execute.reset_mock(side_effect=True)
+        db.execute.side_effect = [str(leader["guid"]), ""]
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.preflight_group(db, journal, actors)
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.cleanup_group(db, actors, {})
+
+
+class GroupResetEvidenceTests(unittest.TestCase):
+    def test_occupied_failure_notify_non_expulsion_and_empty_success(self) -> None:
+        leader = actor()
+        member = member_actor()
+        failed = {
+            "sent_packets": [typed("reset_instances", "instance", scenario.CMSG_RESET_INSTANCES, "")],
+            "events": [group_event("instance", scenario.SMSG_INSTANCE_RESET_FAILED, "2100000000")],
+        }
+        facts = scenario.validate_reset_failed_evidence(failed)
+        self.assertEqual(facts["reason"], 0)
+        notify = {"events": [group_event("instance", scenario.SMSG_RESET_FAILED_NOTIFY)]}
+        self.assertEqual(scenario.validate_reset_failed_notify_evidence(notify)["body_bytes"], 0)
+        scenario.validate_inside_state(inside_state(member, 41), 41)
+
+        success = {"sent_packets": [sent_reset()], "events": [reset_event()]}
+        self.assertEqual(scenario.validate_reset_evidence(success)["map_id"], 33)
+        leave = {"sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")]}
+        scenario.validate_leave_group_evidence(leave)
+
+        bad = copy.deepcopy(failed)
+        bad["events"].append(group_event("instance", scenario.SMSG_INSTANCE_RESET_FAILED, "2100000000", 12))
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_reset_failed_evidence(bad)
+        bad_notify = copy.deepcopy(notify)
+        bad_notify["events"].append(group_event("instance", scenario.SMSG_RESET_FAILED_NOTIFY, "", 12))
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_reset_failed_notify_evidence(bad_notify)
+
+    def test_formation_requires_invite_accept_and_party_update_on_both(self) -> None:
+        leader = actor()
+        member = member_actor()
+        leader_evidence = {
+            "sent_packets": [typed("party_invite", "realm", 0x3604, "builder")],
+            "events": [group_event("realm", scenario.SMSG_PARTY_UPDATE)],
+        }
+        member_evidence = {
+            "sent_packets": [typed("party_invite_response", "realm", 0x3606, "40")],
+            "events": [group_event("realm", scenario.SMSG_PARTY_UPDATE)],
+        }
+        scenario.validate_group_formation_evidence(leader_evidence, member_evidence)
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_group_formation_evidence(leader_evidence, {"sent_packets": [], "events": []})
+
+
+class GroupFailureRestorationTests(unittest.TestCase):
+    def test_failure_after_relocation_restores_both_positions_and_only_created_group(self) -> None:
+        leader = actor()
+        member = member_actor()
+        actors = (leader, member)
+        journal = {"actors": list(actors)}
+        leader_evidence = {
+            "sent_packets": [typed("party_invite", "realm", 0x3604, "builder")],
+            "events": [group_event("realm", scenario.SMSG_PARTY_UPDATE)],
+        }
+        member_evidence = {
+            "sent_packets": [typed("party_invite_response", "realm", 0x3606, "40")],
+            "events": [group_event("realm", scenario.SMSG_PARTY_UPDATE)],
+        }
+        with tempfile.TemporaryDirectory() as raw:
+            snapshot = Path(raw) / "snapshot.json"
+            snapshot.write_text("{}\n", encoding="utf-8")
+            with patch.object(scenario, "preflight_group", return_value={"cleanup_allowed": True}), \
+                    patch.object(scenario, "cleanup_group") as cleanup, \
+                    patch.object(scenario, "relocate_inside"), \
+                    patch.object(scenario, "restore_outside") as restore, \
+                    patch.object(scenario, "_group_snapshot",
+                                 side_effect=[({}, outside_state(leader), snapshot),
+                                              ({}, outside_state(member), snapshot)]), \
+                    patch.object(scenario.death_scenario, "start_bot",
+                                 side_effect=[None, RuntimeError("member start failed")]), \
+                    patch.object(scenario.logout_scenario, "_run_single",
+                                 return_value=leader_evidence), \
+                    patch.object(scenario.death_scenario, "finish_bot",
+                                 return_value=member_evidence), \
+                    patch.object(scenario.death_scenario, "ACTIVE_BOTS", [object()]), \
+                    patch.object(scenario.death_scenario, "_stop_owned") as stop, \
+                    patch.object(scenario.death_scenario, "_poll_actor_offline"):
+                with self.assertRaisesRegex(RuntimeError, "member start failed"):
+                    scenario._run_group_case(
+                        {"capture": Path(raw), "bot_exec": Path("/bot"),
+                         "bot_config": Path(raw) / "config.json"},
+                        journal, 1, Mock())
+        self.assertEqual(restore.call_count, 2)
+        cleanup.assert_called_once()
+        stop.assert_called_once()
 
 
 if __name__ == "__main__":

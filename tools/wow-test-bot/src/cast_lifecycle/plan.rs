@@ -170,6 +170,7 @@ pub(crate) enum Action {
     SetDifficultyId { difficulty_id: u32 },
     PartyInvite { name: String, target: Guid },
     PartyInviteResponse { accept: bool },
+    LeaveGroup {},
     /// One finite client movement packet. The opcode comes from the closed
     /// `MovementKind` set; control flags remain owned by the live controller.
     Movement {
@@ -760,7 +761,8 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             | Action::LogoutCancel {}
             | Action::ResetInstances {}
             | Action::SetDifficultyId { .. }
-            | Action::PartyInviteResponse { .. } => {}
+            | Action::PartyInviteResponse { .. }
+            | Action::LeaveGroup {} => {}
         }
     }
     for rule in &plan.expect {

@@ -36,6 +36,7 @@ const CMSG_RESET_INSTANCES: u16 = 0x366A;
 const CMSG_SET_DIFFICULTY_ID: u16 = 0x3222;
 const CMSG_PARTY_INVITE: u16 = 0x3604;
 const CMSG_PARTY_INVITE_RESPONSE: u16 = 0x3606;
+const CMSG_LEAVE_GROUP: u16 = 0x364C;
 const SMSG_LOGOUT_RESPONSE: u16 = 0x2683;
 const SMSG_LOGOUT_CANCEL_ACK: u16 = 0x2685;
 const SMSG_SPELL_PREPARE: u16 = 0x2C35;
@@ -169,7 +170,7 @@ pub(super) async fn execute(
                 )
                 .await
             }
-            Action::PartyInvite { .. } | Action::PartyInviteResponse { .. } => {
+            Action::PartyInvite { .. } | Action::PartyInviteResponse { .. } | Action::LeaveGroup {} => {
                 match party_realm_connection(realm, action_name) {
                     Ok(realm) => match build_party_action_packet(action) {
                         Ok((opcode, body)) => {
@@ -570,6 +571,7 @@ fn action_name(action: &Action) -> &'static str {
         Action::SetDifficultyId { .. } => "set_difficulty_id",
         Action::PartyInvite { .. } => "party_invite",
         Action::PartyInviteResponse { .. } => "party_invite_response",
+        Action::LeaveGroup {} => "leave_group",
         Action::Movement { kind, .. } => match kind {
             MovementKind::Heartbeat => "movement_heartbeat",
             MovementKind::StartForward => "movement_start_forward",

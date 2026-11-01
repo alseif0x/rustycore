@@ -228,6 +228,7 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
             target,
         },
         Action::PartyInviteResponse { accept: true },
+        Action::LeaveGroup {},
     ];
     let mut controller = packet_controller(plan);
     let (mut stream, _instance_peer) = tcp_pair().await;
@@ -252,7 +253,7 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
     .unwrap();
 
     let sent = &controller.evidence.sent_packets;
-    assert_eq!(sent.len(), 4);
+    assert_eq!(sent.len(), 5);
     assert_eq!(sent[0].connection, Connection::Instance);
     assert_eq!(sent[0].opcode, CMSG_RESET_INSTANCES);
     assert_eq!(sent[0].body_hex, "");
@@ -268,6 +269,9 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
     assert_eq!(sent[3].connection, Connection::Realm);
     assert_eq!(sent[3].opcode, CMSG_PARTY_INVITE_RESPONSE);
     assert_eq!(sent[3].body_hex, "40");
+    assert_eq!(sent[4].connection, Connection::Realm);
+    assert_eq!(sent[4].opcode, CMSG_LEAVE_GROUP);
+    assert_eq!(sent[4].body_hex, "");
     assert!(sent.iter().all(|packet| packet.write_completed));
 }
 
