@@ -63,6 +63,7 @@ def reset_plan(actor: dict[str, Any], realm_id: int) -> dict[str, Any]:
              "cast_id": {"low": 8_690_001, "high": 0},
              "target": death_scenario.player_guid(actor, realm_id)},
             death_scenario._wait("realm", SMSG_NEW_WORLD, 30_000),
+            {"action": "wait", "milliseconds": 2_000},
             {"action": "reset_instances"},
             death_scenario._wait("instance", SMSG_INSTANCE_RESET, 5_000),
         ],

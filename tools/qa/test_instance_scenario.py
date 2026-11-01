@@ -101,6 +101,7 @@ class InstancePlanTests(unittest.TestCase):
              "target": death_scenario.player_guid(selected, 1)},
             {"action": "wait_for_packet", "connection": "realm",
              "opcode": scenario.SMSG_NEW_WORLD, "timeout_ms": 30_000},
+            {"action": "wait", "milliseconds": 2_000},
             {"action": "reset_instances"},
             {"action": "wait_for_packet", "connection": "instance",
              "opcode": scenario.SMSG_INSTANCE_RESET, "timeout_ms": 5_000},
