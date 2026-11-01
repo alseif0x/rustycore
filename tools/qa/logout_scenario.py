@@ -432,13 +432,18 @@ def _validate_timed(plan: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
         raise ScenarioFailure("timed logout requires exactly one empty realm LogoutComplete")
     waits = [index for index, action in enumerate(plan["actions"])
              if action.get("action") == "wait" and action.get("milliseconds") == LOGOUT_DELAY_MS]
+    started = [item for item in evidence.get("trace", [])
+               if item.get("kind") == "action_started" and item.get("action") == "wait"
+               and item.get("action_index") in waits and type(item.get("sequence")) is int]
     completed = [item for item in evidence.get("trace", [])
                  if item.get("kind") == "action_completed" and item.get("action") == "wait"
                  and item.get("action_index") in waits and type(item.get("sequence")) is int]
-    if len(waits) != 1 or len(completed) != 1 or \
-            _sequence(complete[0]) <= completed[0]["sequence"]:
-        raise ScenarioFailure("LogoutComplete arrived before the 20-second observation deadline")
+    if len(waits) != 1 or len(started) != 1 or len(completed) != 1 or \
+            completed[0]["sequence"] < started[0]["sequence"] or \
+            _sequence(complete[0]) <= started[0]["sequence"]:
+        raise ScenarioFailure("LogoutComplete arrived before the 20-second wait started")
     return {"complete_event_sequence": complete[0].get("sequence"),
+            "deadline_wait_started_trace_sequence": started[0]["sequence"],
             "deadline_wait_completed_trace_sequence": completed[0]["sequence"],
             "minimum_wait_ms": LOGOUT_DELAY_MS}
 

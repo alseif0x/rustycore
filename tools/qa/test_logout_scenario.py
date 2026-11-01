@@ -366,15 +366,17 @@ class LogoutEvidenceTests(unittest.TestCase):
         selected = actor()
         plan = scenario.plan_for("logout-timed", selected)
         evidence = admitted_evidence("logout-timed")
-        evidence["trace"] = [{"kind": "action_completed", "action": "wait",
-                              "action_index": 3, "sequence": 30}]
+        evidence["trace"] = [
+            {"kind": "action_started", "action": "wait", "action_index": 3, "sequence": 20},
+            {"kind": "action_completed", "action": "wait", "action_index": 3, "sequence": 30},
+        ]
         evidence["events"].append(event(scenario.LOGOUT_COMPLETE, 31, b"", "realm"))
         facts = scenario.validate_evidence("logout-timed", plan, evidence, selected, 1)
         self.assertEqual(facts["minimum_wait_ms"], 20_000)
         for defect in ("early", "missing", "duplicate", "second_finish"):
             bad = copy.deepcopy(evidence)
             if defect == "early":
-                bad["events"][-1]["observation_sequence"] = 29
+                bad["events"][-1]["observation_sequence"] = 19
             elif defect == "missing":
                 del bad["events"][-1]
             elif defect == "duplicate":
@@ -384,6 +386,24 @@ class LogoutEvidenceTests(unittest.TestCase):
                     scenario.CMSG_LOGOUT_REQUEST, b"\x00", None))
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_evidence("logout-timed", plan, bad, selected, 1)
+
+    def test_timed_complete_may_precede_wait_action_completed_but_not_started(self) -> None:
+        selected = actor()
+        plan = scenario.plan_for("logout-timed", selected)
+        evidence = admitted_evidence("logout-timed")
+        evidence["trace"] = [
+            {"kind": "action_started", "action": "wait", "action_index": 3, "sequence": 20},
+            {"kind": "action_completed", "action": "wait", "action_index": 3, "sequence": 30},
+        ]
+        evidence["events"].append(event(scenario.LOGOUT_COMPLETE, 25, b"", "realm"))
+        facts = scenario.validate_evidence("logout-timed", plan, evidence, selected, 1)
+        self.assertEqual(facts["deadline_wait_started_trace_sequence"], 20)
+        self.assertEqual(facts["deadline_wait_completed_trace_sequence"], 30)
+        self.assertEqual(facts["complete_event_sequence"], 25)
+        before_start = copy.deepcopy(evidence)
+        before_start["events"][-1]["observation_sequence"] = 19
+        with self.assertRaisesRegex(scenario.ScenarioFailure, "before the 20-second wait started"):
+            scenario.validate_evidence("logout-timed", plan, before_start, selected, 1)
 
     def test_disconnect_evidence_and_owned_stun_parser_reject_bad_shapes(self) -> None:
         selected = actor()
