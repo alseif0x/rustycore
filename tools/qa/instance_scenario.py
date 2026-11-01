@@ -188,9 +188,9 @@ def validate_inside_state(state: dict[str, Any], expected_instance_id: int | Non
     return instance_id
 
 
-def validate_socket_reconnect_state(initial: dict[str, Any], reconnect: dict[str, Any]) -> int:
-    initial_instance = validate_inside_state(initial)
-    return validate_inside_state(reconnect, initial_instance)
+def validate_reconnect_state(initial: dict[str, Any], reconnect: dict[str, Any]) -> int:
+    validate_inside_state(initial)
+    return validate_inside_state(reconnect)
 
 
 def validate_full_relogin_state(initial: dict[str, Any], relogin: dict[str, Any]) -> int:
@@ -279,10 +279,11 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
         reconnect_evidence = logout_scenario._run_single(reconnect_pass, identity, observer=True)
         _, reconnect_state, reconnect_path = _save_position_snapshot(
             db, journal, actor, identity["capture"], reconnect_pass.label)
-        validate_socket_reconnect_state(entry_state, reconnect_state)
+        reconnect_instance = validate_reconnect_state(entry_state, reconnect_state)
         observations.append(logout_scenario._observation(
             reconnect_pass, reconnect_evidence, reconnect_state, reconnect_path,
-            {"reconnect_same_instance": instance_id, "instance_id": instance_id}))
+            {"reconnect_instance_id": reconnect_instance,
+             "instance_id": reconnect_instance}))
 
         relogin_pass = death_scenario.BotPass(actor, observer_plan(actor), "instance-relogin-001")
         relogin_evidence = logout_scenario._run_single(relogin_pass, identity, observer=True)

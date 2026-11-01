@@ -169,17 +169,25 @@ class OfflineSqlTests(unittest.TestCase):
 
 
 class InstanceStateTests(unittest.TestCase):
-    def test_socket_reconnect_requires_same_instance_but_full_relogin_allows_fresh_instance(self) -> None:
+    def test_reconnect_and_full_relogin_allow_any_valid_current_instance(self) -> None:
         selected = actor()
         initial = inside_state(selected, 41)
-        reconnect = inside_state(selected, 41)
-        self.assertEqual(scenario.validate_socket_reconnect_state(initial, reconnect), 41)
-        for defect in ("zero", "different", "map", "position", "orientation"):
-            bad = copy.deepcopy(reconnect)
+        for current_id in (41, 42):
+            with self.subTest(reconnect_id=current_id):
+                self.assertEqual(
+                    scenario.validate_reconnect_state(initial, inside_state(selected, current_id)),
+                    current_id,
+                )
+            with self.subTest(full_relogin_id=current_id):
+                self.assertEqual(
+                    scenario.validate_full_relogin_state(initial, inside_state(selected, current_id)),
+                    current_id,
+                )
+
+        for defect in ("zero", "map", "position", "orientation"):
+            bad = inside_state(selected, 42)
             if defect == "zero":
                 bad["instance_id"] = 0
-            elif defect == "different":
-                bad["instance_id"] = 42
             elif defect == "map":
                 bad["map"] = 0
             elif defect == "position":
@@ -187,14 +195,7 @@ class InstanceStateTests(unittest.TestCase):
             else:
                 bad["orientation"] = 70.0
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
-                scenario.validate_socket_reconnect_state(initial, bad)
-
-        for current_id in (41, 42):
-            with self.subTest(full_relogin_id=current_id):
-                self.assertEqual(
-                    scenario.validate_full_relogin_state(initial, inside_state(selected, current_id)),
-                    current_id,
-                )
+                scenario.validate_reconnect_state(initial, bad)
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_full_relogin_state(initial, inside_state(selected, 0))
 
@@ -268,7 +269,8 @@ class RunCaseTests(unittest.TestCase):
         self.assertEqual(report["observations"][0]["instance_id"], 41)
         self.assertTrue(report["observations"][1]["disconnect_reconnect"])
         self.assertNotIn("snapshot_sha256", report["observations"][1])
-        self.assertEqual(report["observations"][2]["reconnect_same_instance"], 41)
+        self.assertEqual(report["observations"][2]["reconnect_instance_id"], 41)
+        self.assertNotIn("reconnect_same_instance", report["observations"][2])
         self.assertEqual(report["observations"][3]["full_relogin_instance_id"], 42)
         self.assertEqual(report["observations"][4]["map_id"], 33)
         self.assertEqual(report["final_state"], final)
