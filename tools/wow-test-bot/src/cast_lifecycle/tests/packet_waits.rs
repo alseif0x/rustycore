@@ -391,9 +391,15 @@ async fn realm_complete_before_instance_response_is_reused_by_later_complete_wai
     assert_eq!(controller.evidence.events.len(), 2);
     assert_eq!(controller.evidence.events[0].connection, Connection::Realm);
     assert_eq!(controller.evidence.events[0].opcode, SMSG_LOGOUT_COMPLETE);
-    assert_eq!(controller.evidence.events[1].connection, Connection::Instance);
+    assert_eq!(
+        controller.evidence.events[1].connection,
+        Connection::Instance
+    );
     assert_eq!(controller.evidence.events[1].opcode, SMSG_LOGOUT_RESPONSE);
-    assert_eq!(controller.evidence.events[1].body_hex, hex::encode(RESPONSE_BODY));
+    assert_eq!(
+        controller.evidence.events[1].body_hex,
+        hex::encode(RESPONSE_BODY)
+    );
     assert_eq!(
         controller
             .evidence
@@ -444,7 +450,10 @@ async fn realm_complete_without_instance_response_times_out_after_instance_eof()
     .expect_err("realm Complete must not substitute for instance Response")
     .to_string();
 
-    assert!(error.contains("timed out waiting for Instance packet"), "{error}");
+    assert!(
+        error.contains("timed out waiting for Instance packet"),
+        "{error}"
+    );
     assert!(controller.evidence.logout_confirmed);
     assert_eq!(controller.evidence.events.len(), 1);
     assert_eq!(controller.evidence.events[0].connection, Connection::Realm);
@@ -526,22 +535,18 @@ async fn instance_eof_is_fatal_during_actions_even_with_a_previous_logout_marker
         )
         .await
         .unwrap();
-        assert!(
-            controller
-                .evidence
-                .failure
-                .as_deref()
-                .unwrap()
-                .contains("cast lifecycle instance packet: connection closed")
-        );
-        assert!(
-            controller
-                .evidence
-                .trace
-                .iter()
-                .any(|entry| entry.action.as_deref() == Some("wait")
-                    && entry.kind == TraceKind::ActionFailed)
-        );
+        assert!(controller
+            .evidence
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("cast lifecycle instance packet: connection closed"));
+        assert!(controller
+            .evidence
+            .trace
+            .iter()
+            .any(|entry| entry.action.as_deref() == Some("wait")
+                && entry.kind == TraceKind::ActionFailed));
         assert!(!controller.evidence.logout_confirmed);
     }
 }
@@ -557,11 +562,7 @@ async fn idle_realm_polling_drains_instance_burst_before_packet_wait_deadline() 
             opcode: SMSG_LOGOUT_RESPONSE,
             timeout_ms: 100,
         },
-        raw_packet_expectation(
-            Connection::Instance,
-            SMSG_LOGOUT_RESPONSE,
-            &TARGET_BODY,
-        ),
+        raw_packet_expectation(Connection::Instance, SMSG_LOGOUT_RESPONSE, &TARGET_BODY),
         200,
     ));
     let (mut stream, mut instance_peer) = tcp_pair().await;
@@ -799,14 +800,12 @@ async fn packet_wait_times_out_despite_historical_match_and_fails_on_early_logou
     .await
     .unwrap();
     assert!(timed_out.evidence.expected_rules[0].matched);
-    assert!(
-        timed_out
-            .evidence
-            .failure
-            .as_deref()
-            .unwrap()
-            .contains("timed out waiting for Instance packet 0x276B")
-    );
+    assert!(timed_out
+        .evidence
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("timed out waiting for Instance packet 0x276B"));
     assert!(timed_out.evidence.trace.iter().any(|entry| {
         entry.action.as_deref() == Some("wait_for_packet") && entry.kind == TraceKind::ActionFailed
     }));
@@ -851,14 +850,12 @@ async fn packet_wait_times_out_despite_historical_match_and_fails_on_early_logou
     .await
     .unwrap();
     send_logout.await.unwrap().unwrap();
-    assert!(
-        logged_out
-            .evidence
-            .failure
-            .as_deref()
-            .unwrap()
-            .contains("LogoutComplete arrived before wait_for_packet")
-    );
+    assert!(logged_out
+        .evidence
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("LogoutComplete arrived before wait_for_packet"));
     assert!(logged_out.evidence.trace.iter().any(|entry| {
         entry.action.as_deref() == Some("wait_for_packet") && entry.kind == TraceKind::ActionFailed
     }));

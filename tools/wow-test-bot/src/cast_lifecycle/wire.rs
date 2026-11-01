@@ -614,11 +614,8 @@ async fn next_packet(
             // Tolerated logout waits accept frame-boundary EOF; malformed or
             // truncated encrypted frames still fail below.
             let mut byte = [0u8; 1];
-            match tokio::time::timeout(
-                remaining.min(PACKET_POLL_INTERVAL),
-                stream.peek(&mut byte),
-            )
-            .await
+            match tokio::time::timeout(remaining.min(PACKET_POLL_INTERVAL), stream.peek(&mut byte))
+                .await
             {
                 Err(_) => continue,
                 Ok(Ok(0)) => {
