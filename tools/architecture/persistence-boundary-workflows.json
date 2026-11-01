@@ -1559,8 +1559,8 @@
     },
     {
       "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/lib.rs",
+      "module": "crate::account_lookup",
+      "source": "crates/world-server/src/account_lookup.rs",
       "enclosing": "impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account",
       "logical_databases": [
         "login"
@@ -1596,9 +1596,26 @@
     },
     {
       "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/lib.rs",
+      "module": "crate::account_lookup",
+      "source": "crates/world-server/src/account_lookup.rs",
       "enclosing": "struct DbAccountLookup",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This is a shared dependency/type surface for login; it does not itself imply a runtime transaction.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "world-server",
+      "module": "crate::account_lookup",
+      "source": "crates/world-server/src/account_lookup.rs",
+      "enclosing": "module",
       "logical_databases": [
         "login"
       ],
