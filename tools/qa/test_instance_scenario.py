@@ -99,7 +99,7 @@ class InstancePlanTests(unittest.TestCase):
             {"action": "cast", "spell_id": 8690,
              "cast_id": {"low": 8_690_001, "high": 0},
              "target": death_scenario.player_guid(selected, 1)},
-            {"action": "wait_for_packet", "connection": "instance",
+            {"action": "wait_for_packet", "connection": "realm",
              "opcode": scenario.SMSG_NEW_WORLD, "timeout_ms": 30_000},
             {"action": "reset_instances"},
             {"action": "wait_for_packet", "connection": "instance",
@@ -252,7 +252,7 @@ class NativeResetEvidenceTests(unittest.TestCase):
                 sent_reset(20),
             ],
             "events": [
-                group_event("instance", scenario.SMSG_NEW_WORLD, "", 15),
+                group_event("realm", scenario.SMSG_NEW_WORLD, "", 15),
                 reset_event(21),
             ],
         }
@@ -268,7 +268,7 @@ class NativeResetEvidenceTests(unittest.TestCase):
             elif defect == "missing_teleport":
                 bad["events"] = bad["events"][1:]
             else:
-                bad["events"][0] = group_event("instance", scenario.SMSG_NEW_WORLD, "", 25)
+                bad["events"][0] = group_event("realm", scenario.SMSG_NEW_WORLD, "", 25)
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_solo_reset_evidence(bad)
 
@@ -289,7 +289,7 @@ class RunCaseTests(unittest.TestCase):
                 sent_reset(20),
             ],
             "events": [
-                group_event("instance", scenario.SMSG_NEW_WORLD, "", 15),
+                group_event("realm", scenario.SMSG_NEW_WORLD, "", 15),
                 reset_event(21),
             ],
         }

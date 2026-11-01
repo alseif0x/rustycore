@@ -62,7 +62,7 @@ def reset_plan(actor: dict[str, Any], realm_id: int) -> dict[str, Any]:
             {"action": "cast", "spell_id": HEARTHSTONE_SPELL_ID,
              "cast_id": {"low": 8_690_001, "high": 0},
              "target": death_scenario.player_guid(actor, realm_id)},
-            death_scenario._wait("instance", SMSG_NEW_WORLD, 30_000),
+            death_scenario._wait("realm", SMSG_NEW_WORLD, 30_000),
             {"action": "reset_instances"},
             death_scenario._wait("instance", SMSG_INSTANCE_RESET, 5_000),
         ],
@@ -277,7 +277,7 @@ def validate_solo_reset_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
     if len(casts) != 1:
         raise ScenarioFailure("solo reset requires one native Hearthstone cast before reset")
     teleports = [event for event in evidence.get("events", [])
-                 if isinstance(event, dict) and event.get("connection") == "instance"
+                 if isinstance(event, dict) and event.get("connection") == "realm"
                  and event.get("opcode") == SMSG_NEW_WORLD]
     if len(teleports) != 1:
         raise ScenarioFailure("solo reset requires one native Hearthstone worldport")
