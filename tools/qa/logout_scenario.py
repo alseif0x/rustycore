@@ -89,8 +89,8 @@ def plan_for(scenario: str, actor: dict[str, Any]) -> dict[str, Any]:
         actions = [
             {"action": "attack_swing", "target": {"entry": 6, "map_id": 0,
              "near_xyz": [-8783.05, -161.565, 82.0352], "radius": 40.0}},
-            _wait("instance", ATTACKER_STATE_UPDATE, 10_000),
             _request(), _wait("instance", LOGOUT_RESPONSE),
+            _wait("instance", ATTACKER_STATE_UPDATE, 10_000),
         ]
         expected = [_response(1)]
         timeout_ms = 15_000
@@ -492,10 +492,14 @@ def _validate_denial(scenario: str, evidence: dict[str, Any],
     if _events(evidence, LOGOUT_COMPLETE) or evidence.get("logout_confirmed") is True:
         raise ScenarioFailure("denied logout finalized or emitted LogoutComplete")
     if scenario == "logout-combat-denial":
+        attacks = [packet for packet in _sends(evidence, "attack_swing")
+                   if 0 <= _sequence(packet) < boundary]
+        if not attacks:
+            raise ScenarioFailure("combat denial lacks a written attack swing before the request")
         combat = [event for event in _events(evidence, ATTACKER_STATE_UPDATE, "instance")
-                  if event.get("body_bytes", 0) > 0 and 0 <= _sequence(event) < boundary]
+                  if event.get("body_bytes", 0) > 0]
         if not combat:
-            raise ScenarioFailure("combat denial lacks an attack update before the request")
+            raise ScenarioFailure("combat denial lacks a non-empty attack update")
     if scenario == "logout-fall-denial" and not any(
             0 <= _sequence(packet) < boundary for packet in _sends(evidence, "movement_heartbeat")):
         raise ScenarioFailure("fall denial lacks a real falling movement action")

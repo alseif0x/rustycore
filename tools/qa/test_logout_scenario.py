@@ -146,7 +146,9 @@ class LogoutPlanTests(unittest.TestCase):
     def test_setup_actions_and_deadlines_use_typed_logout_and_real_fall(self) -> None:
         combat = scenario.plan_for("logout-combat-denial", actor("Qadeathmob"))
         self.assertEqual([action["action"] for action in combat["actions"]],
-                         ["attack_swing", "wait_for_packet", "logout_request", "wait_for_packet"])
+                         ["attack_swing", "logout_request", "wait_for_packet", "wait_for_packet"])
+        self.assertEqual([action["opcode"] for action in combat["actions"][2:]],
+                         [scenario.LOGOUT_RESPONSE, scenario.ATTACKER_STATE_UPDATE])
         self.assertEqual(combat["actions"][0]["target"]["entry"], 6)
         fall = scenario.plan_for("logout-fall-denial", actor())
         self.assertEqual(fall["actions"][0]["kind"], "heartbeat")
@@ -226,13 +228,14 @@ class LogoutEvidenceTests(unittest.TestCase):
                         scenario.CMSG_LOGOUT_REQUEST, b"\x00")],
                         "events": [response(reason, 11)], "logout_confirmed": False}
             if name == "logout-combat-denial":
-                evidence["events"].insert(0, event(scenario.ATTACKER_STATE_UPDATE, 5, b"\x01"))
+                evidence["sent_packets"].insert(0, sent("attack_swing", 5, 0, b""))
+                evidence["events"].insert(0, event(scenario.ATTACKER_STATE_UPDATE, 12, b"\x01"))
             if name == "logout-fall-denial":
                 evidence["sent_packets"].insert(0, sent("movement_heartbeat", 5, 0, b"fall"))
             with self.subTest(name=name):
                 self.assertIn("denial_observation", scenario.validate_evidence(
                     name, scenario.plan_for(name, selected), evidence, selected, 1))
-            for defect in ("root", "sit", "complete", "reason", "setup"):
+            for defect in ("root", "sit", "complete", "reason", "setup", "update"):
                 bad = copy.deepcopy(evidence)
                 if defect == "root":
                     bad["events"].append(event(scenario.MOVE_ROOT, 12))
@@ -244,9 +247,11 @@ class LogoutEvidenceTests(unittest.TestCase):
                     bad["logout_confirmed"] = True
                 elif defect == "reason":
                     bad["events"][-1] = response((reason + 1) % 4, 11)
-                elif name == "logout-combat-denial":
+                elif defect == "setup" and name == "logout-combat-denial":
+                    bad["sent_packets"] = bad["sent_packets"][1:]
+                elif defect == "update" and name == "logout-combat-denial":
                     bad["events"] = bad["events"][1:]
-                elif name == "logout-fall-denial":
+                elif defect == "setup" and name == "logout-fall-denial":
                     bad["sent_packets"] = bad["sent_packets"][1:]
                 else:
                     continue
