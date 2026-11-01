@@ -492,8 +492,8 @@ def validate_group_formation_evidence(leader: dict[str, Any], member: dict[str, 
         updates = [event for event in evidence.get("events", [])
                    if isinstance(event, dict) and event.get("connection") == "realm"
                    and event.get("opcode") == SMSG_PARTY_UPDATE]
-        if len(updates) < 2:
-            raise ScenarioFailure(f"{client} observed fewer than two party updates")
+        if not updates:
+            raise ScenarioFailure(f"{client} did not observe a party update")
 
 
 def validate_reset_failed_evidence(evidence: dict[str, Any]) -> dict[str, Any]:

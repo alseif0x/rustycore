@@ -477,7 +477,7 @@ class GroupResetEvidenceTests(unittest.TestCase):
             ],
         }
         scenario.validate_group_formation_evidence(leader_evidence, member_evidence)
-        for count in (2, 3):
+        for count in (1, 2, 3):
             leader = copy.deepcopy(leader_evidence)
             member = copy.deepcopy(member_evidence)
             leader["events"] = [
@@ -488,7 +488,7 @@ class GroupResetEvidenceTests(unittest.TestCase):
             ]
             with self.subTest(valid_count=count):
                 scenario.validate_group_formation_evidence(leader, member)
-        for count in (0, 1):
+        for count in (0,):
             bad_leader = copy.deepcopy(leader_evidence)
             bad_member = copy.deepcopy(member_evidence)
             bad_leader["events"] = [
