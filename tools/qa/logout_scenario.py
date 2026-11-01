@@ -106,10 +106,10 @@ def plan_for(scenario: str, actor: dict[str, Any]) -> dict[str, Any]:
         expected = [_response(2)]
         timeout_ms = 30_000
     elif scenario in INSTANT_SCENARIOS:
-        actions = [_request(), _wait("instance", LOGOUT_RESPONSE),
+        actions = [_request(), _wait("instance", LOGOUT_RESPONSE, 15_000),
                    _wait("realm", LOGOUT_COMPLETE)]
         expected = [_response(0, True), _packet("realm", LOGOUT_COMPLETE)]
-        timeout_ms = 10_000
+        timeout_ms = 20_000
     elif scenario in {"logout-cancel", "logout-rbac-revoke"}:
         actions = [_request(), _wait("instance", LOGOUT_RESPONSE),
                    _wait("instance", MOVE_ROOT), {"action": "logout_cancel"},

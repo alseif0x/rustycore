@@ -108,8 +108,8 @@ class LogoutPlanTests(unittest.TestCase):
         timeouts = {"logout-combat-denial": 15_000, "logout-fall-denial": 30_000,
                     "logout-freeze-denial": 30_000, "logout-cancel": 15_000,
                     "logout-timed": 35_000, "logout-disconnect": 10_000,
-                    "logout-repeated": 35_000, "logout-rbac-grant": 10_000,
-                    "logout-rbac-revoke": 15_000, "logout-resting": 10_000}
+                    "logout-repeated": 35_000, "logout-rbac-grant": 20_000,
+                    "logout-rbac-revoke": 15_000, "logout-resting": 20_000}
         self.assertEqual(set(scenario.SCENARIOS), set(expected))
         for name, reason in expected.items():
             with self.subTest(name=name):
@@ -177,6 +177,9 @@ class LogoutPlanTests(unittest.TestCase):
             instant = scenario.plan_for(name, actor(scenario.SCENARIOS[name]))
             self.assertEqual([action["action"] for action in instant["actions"]],
                              ["logout_request", "wait_for_packet", "wait_for_packet"])
+            self.assertEqual(instant["actions"][1],
+                             {"action": "wait_for_packet", "connection": "instance",
+                              "opcode": scenario.LOGOUT_RESPONSE, "timeout_ms": 15_000})
             self.assertEqual(instant["actions"][-1],
                              {"action": "wait_for_packet", "connection": "realm",
                               "opcode": scenario.LOGOUT_COMPLETE, "timeout_ms": 5_000})
