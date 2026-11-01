@@ -30,7 +30,7 @@ CMSG_RESET_INSTANCES = 0x366A
 CMSG_LEAVE_GROUP = 0x364C
 CMSG_CAST_SPELL = 0x329C
 HEARTHSTONE_SPELL_ID = 8690
-SMSG_MOVE_TELEPORT = 0x2E04
+SMSG_NEW_WORLD = 0x2594
 SMSG_INSTANCE_RESET = 0x2686
 SMSG_INSTANCE_RESET_FAILED = 0x2687
 SMSG_RESET_FAILED_NOTIFY = 0x26B7
@@ -62,7 +62,7 @@ def reset_plan(actor: dict[str, Any], realm_id: int) -> dict[str, Any]:
             {"action": "cast", "spell_id": HEARTHSTONE_SPELL_ID,
              "cast_id": {"low": 8_690_001, "high": 0},
              "target": death_scenario.player_guid(actor, realm_id)},
-            death_scenario._wait("instance", SMSG_MOVE_TELEPORT, 30_000),
+            death_scenario._wait("instance", SMSG_NEW_WORLD, 30_000),
             {"action": "reset_instances"},
             death_scenario._wait("instance", SMSG_INSTANCE_RESET, 5_000),
         ],
@@ -278,7 +278,7 @@ def validate_solo_reset_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
         raise ScenarioFailure("solo reset requires one native Hearthstone cast before reset")
     teleports = [event for event in evidence.get("events", [])
                  if isinstance(event, dict) and event.get("connection") == "instance"
-                 and event.get("opcode") == SMSG_MOVE_TELEPORT]
+                 and event.get("opcode") == SMSG_NEW_WORLD]
     if len(teleports) != 1:
         raise ScenarioFailure("solo reset requires one native Hearthstone worldport")
     reset_request = next(packet for packet in evidence["sent_packets"]
