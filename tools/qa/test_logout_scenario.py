@@ -1,13 +1,15 @@
-"""Hermetic #54 logout plan, packet-evidence, and disconnect-timing checks."""
+"""Hermetic #54 logout plan, packet-evidence, and timing checks."""
 
 from __future__ import annotations
 
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import sys
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -97,7 +99,7 @@ class LogoutPlanTests(unittest.TestCase):
                 plan = scenario.plan_for(name, selected)
                 self.assertEqual(plan["character_guid"], selected["guid"])
                 self.assertEqual(plan["finish_policy"], "disconnect")
-                self.assertEqual(plan["timeout_ms"], 45_000 if name == "logout-timed" else
+                self.assertEqual(plan["timeout_ms"], 35_000 if name == "logout-timed" else
                                  {"logout-combat-denial": 15_000, "logout-fall-denial": 30_000,
                                   "logout-freeze-denial": 30_000, "logout-cancel": 15_000,
                                   "logout-disconnect": 10_000, "logout-repeated": 35_000}.get(name))
@@ -135,11 +137,15 @@ class LogoutPlanTests(unittest.TestCase):
         self.assertIn({"action": "wait", "milliseconds": scenario.DENIAL_OBSERVE_MS}, freeze["actions"])
 
         timed = scenario.plan_for("logout-timed", actor())
-        self.assertEqual(timed["timeout_ms"], 45_000)
-        self.assertIn({"action": "wait", "milliseconds": 20_000}, timed["actions"])
+        self.assertEqual(timed["timeout_ms"], 35_000)
+        self.assertEqual([action["action"] for action in timed["actions"]],
+                         ["logout_request", "wait_for_packet", "wait_for_packet", "wait_for_packet"])
+        self.assertEqual([action["opcode"] for action in timed["actions"][1:]],
+                         [scenario.LOGOUT_RESPONSE, scenario.MOVE_ROOT, scenario.LOGOUT_COMPLETE])
+        self.assertFalse(any(action["action"] == "wait" for action in timed["actions"]))
         self.assertEqual(timed["actions"][-1],
                          {"action": "wait_for_packet", "connection": "realm",
-                          "opcode": scenario.LOGOUT_COMPLETE, "timeout_ms": 15_000})
+                          "opcode": scenario.LOGOUT_COMPLETE, "timeout_ms": 30_000})
         self.assertIn({"event": "packet", "connection": "realm",
                        "opcode": scenario.LOGOUT_COMPLETE, "body_hex": ""}, timed["expect"])
         repeated = scenario.plan_for("logout-repeated", actor())
@@ -366,18 +372,21 @@ class LogoutEvidenceTests(unittest.TestCase):
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_evidence("logout-repeated", plan, second_cancel, selected, 1)
 
-    def test_timed_completion_must_follow_full_deadline_and_have_no_second_finish(self) -> None:
+    def test_timed_completion_follows_packet_wait_and_has_no_second_finish(self) -> None:
         selected = actor()
         plan = scenario.plan_for("logout-timed", selected)
         evidence = admitted_evidence("logout-timed")
         evidence["trace"] = [
-            {"kind": "action_started", "action": "wait", "action_index": 3, "sequence": 20},
-            {"kind": "action_completed", "action": "wait", "action_index": 3, "sequence": 30},
+            {"kind": "action_started", "action": "wait_for_packet", "action_index": 3,
+             "sequence": 20},
         ]
-        evidence["events"].append(event(scenario.LOGOUT_COMPLETE, 31, b"", "realm"))
+        evidence["events"].append(event(scenario.LOGOUT_COMPLETE, 25, b"", "realm"))
         facts = scenario.validate_evidence("logout-timed", plan, evidence, selected, 1)
-        self.assertEqual(facts["minimum_wait_ms"], 20_000)
-        for defect in ("early", "missing", "duplicate", "second_finish"):
+        self.assertEqual(facts["complete_wait_started_trace_sequence"], 20)
+        self.assertEqual(facts["complete_event_sequence"], 25)
+        self.assertNotIn("minimum_wait_ms", facts)
+        for defect in ("early", "missing", "duplicate", "second_finish", "missing_start",
+                       "duplicate_start", "wait_before_root"):
             bad = copy.deepcopy(evidence)
             if defect == "early":
                 bad["events"][-1]["observation_sequence"] = 19
@@ -385,29 +394,18 @@ class LogoutEvidenceTests(unittest.TestCase):
                 del bad["events"][-1]
             elif defect == "duplicate":
                 bad["events"].append(event(scenario.LOGOUT_COMPLETE, 32, b"", "realm"))
-            else:
+            elif defect == "second_finish":
                 bad["sent_packets"].append(sent("finish_logout", 32,
                     scenario.CMSG_LOGOUT_REQUEST, b"\x00", None))
+            elif defect == "missing_start":
+                bad["trace"] = []
+            elif defect == "duplicate_start":
+                bad["trace"].append({"kind": "action_started", "action": "wait_for_packet",
+                                     "action_index": 3, "sequence": 21})
+            else:
+                bad["trace"][0]["sequence"] = 11
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_evidence("logout-timed", plan, bad, selected, 1)
-
-    def test_timed_complete_may_precede_wait_action_completed_but_not_started(self) -> None:
-        selected = actor()
-        plan = scenario.plan_for("logout-timed", selected)
-        evidence = admitted_evidence("logout-timed")
-        evidence["trace"] = [
-            {"kind": "action_started", "action": "wait", "action_index": 3, "sequence": 20},
-            {"kind": "action_completed", "action": "wait", "action_index": 3, "sequence": 30},
-        ]
-        evidence["events"].append(event(scenario.LOGOUT_COMPLETE, 25, b"", "realm"))
-        facts = scenario.validate_evidence("logout-timed", plan, evidence, selected, 1)
-        self.assertEqual(facts["deadline_wait_started_trace_sequence"], 20)
-        self.assertEqual(facts["deadline_wait_completed_trace_sequence"], 30)
-        self.assertEqual(facts["complete_event_sequence"], 25)
-        before_start = copy.deepcopy(evidence)
-        before_start["events"][-1]["observation_sequence"] = 19
-        with self.assertRaisesRegex(scenario.ScenarioFailure, "before the 20-second wait started"):
-            scenario.validate_evidence("logout-timed", plan, before_start, selected, 1)
 
     def test_disconnect_evidence_and_owned_stun_parser_reject_bad_shapes(self) -> None:
         selected = actor()
@@ -427,6 +425,89 @@ class LogoutEvidenceTests(unittest.TestCase):
         completed["events"].append(event(scenario.LOGOUT_COMPLETE, 20, b"", "realm"))
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_evidence("logout-disconnect", plan, completed, selected, 1)
+
+
+class TimedCaptureTimingTests(unittest.TestCase):
+    def write_meta(self, directory: Path, stem: str, direction: str, opcode: int) -> Path:
+        path = directory / f"{stem}.meta"
+        path.write_text(f"direction={direction}\nconnection_id=0\naddr=127.0.0.1:0\n"
+                        f"seq=0\ncounter=0\nopcode=0x{opcode:04X}\nname={stem}\nlen=2\n",
+                        encoding="utf-8")
+        return path
+
+    def capture_pair(self, directory: Path, elapsed_ms: int) -> tuple[Path, Path]:
+        request = self.write_meta(directory, "request", "c2s", scenario.CMSG_LOGOUT_REQUEST)
+        complete = self.write_meta(directory, "complete", "s2c", scenario.LOGOUT_COMPLETE)
+        request_ns = 1_700_000_000_000_000_000
+        complete_ns = request_ns + elapsed_ms * 1_000_000
+        os.utime(request, ns=(request_ns, request_ns))
+        os.utime(complete, ns=(complete_ns, complete_ns))
+        return request, complete
+
+    def test_capture_measurement_selects_exact_direction_and_opcode(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            capture = Path(raw)
+            request, complete = self.capture_pair(capture, 19_750)
+            self.write_meta(capture, "wrong-complete-direction", "c2s", scenario.LOGOUT_COMPLETE)
+            self.write_meta(capture, "wrong-request-direction", "s2c", scenario.CMSG_LOGOUT_REQUEST)
+            self.write_meta(capture, "other-opcode", "c2s", scenario.CMSG_LOGOUT_CANCEL)
+            facts = scenario._measure_timed_logout(capture)
+        self.assertEqual(facts["request_path"], str(request))
+        self.assertEqual(facts["complete_path"], str(complete))
+        self.assertEqual(facts["elapsed_ms"], 19_750)
+
+    def test_capture_measurement_enforces_inclusive_timing_window(self) -> None:
+        for elapsed_ms, valid in ((19_000, True), (25_000, True),
+                                  (18_999, False), (25_001, False)):
+            with self.subTest(elapsed_ms=elapsed_ms), tempfile.TemporaryDirectory() as raw:
+                self.capture_pair(Path(raw), elapsed_ms)
+                if valid:
+                    self.assertEqual(scenario._measure_timed_logout(Path(raw))["elapsed_ms"],
+                                     elapsed_ms)
+                else:
+                    with self.assertRaisesRegex(scenario.ScenarioFailure, "19-to-25-second"):
+                        scenario._measure_timed_logout(Path(raw))
+
+    def test_capture_measurement_rejects_missing_or_duplicate_packets(self) -> None:
+        for defect in ("missing_request", "missing_complete", "duplicate_request",
+                       "duplicate_complete"):
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as raw:
+                capture = Path(raw)
+                request, complete = self.capture_pair(capture, 20_000)
+                if defect == "missing_request":
+                    request.unlink()
+                elif defect == "missing_complete":
+                    complete.unlink()
+                elif defect == "duplicate_request":
+                    self.write_meta(capture, "request-2", "c2s", scenario.CMSG_LOGOUT_REQUEST)
+                else:
+                    self.write_meta(capture, "complete-2", "s2c", scenario.LOGOUT_COMPLETE)
+                with self.assertRaisesRegex(scenario.ScenarioFailure, "exactly one"):
+                    scenario._measure_timed_logout(capture)
+
+    def test_run_case_adds_real_capture_measurement_to_observations(self) -> None:
+        selected = actor()
+        evidence = admitted_evidence("logout-timed")
+        evidence["trace"] = [
+            {"kind": "action_started", "action": "wait_for_packet", "action_index": 3,
+             "sequence": 20},
+        ]
+        evidence["events"].append(event(scenario.LOGOUT_COMPLETE, 25, b"", "realm"))
+        with tempfile.TemporaryDirectory() as raw:
+            capture = Path(raw)
+            request, complete = self.capture_pair(capture, 20_000)
+            snapshot_path = capture / "snapshot.json"
+            snapshot_path.write_text("{}\n", encoding="utf-8")
+            identity = {"scenario": "logout-timed", "capture": capture}
+            with patch.object(scenario, "_run_single", return_value=evidence), \
+                    patch.object(scenario, "_save_snapshot",
+                                 return_value=({}, {"logout_time": 1}, snapshot_path)):
+                report = scenario._run_case(identity, {"actors": [selected]}, 1, Mock())
+            observation = report["observations"][0]
+        self.assertEqual(observation["request_path"], str(request))
+        self.assertEqual(observation["complete_path"], str(complete))
+        self.assertEqual(observation["elapsed_ms"], 20_000)
+        self.assertEqual(observation["complete_event_sequence"], 25)
 
 
 class DisconnectTimingTests(unittest.TestCase):

@@ -102,11 +102,9 @@ def plan_for(scenario: str, actor: dict[str, Any]) -> dict[str, Any]:
         timeout_ms = 15_000
     elif scenario == "logout-timed":
         actions = [_request(), _wait("instance", LOGOUT_RESPONSE),
-                   _wait("instance", MOVE_ROOT),
-                   {"action": "wait", "milliseconds": LOGOUT_DELAY_MS},
-                   _wait("realm", LOGOUT_COMPLETE, 15_000)]
+                   _wait("instance", MOVE_ROOT), _wait("realm", LOGOUT_COMPLETE, 30_000)]
         expected = [_response(0), _packet("realm", LOGOUT_COMPLETE)]
-        timeout_ms = 45_000
+        timeout_ms = 35_000
     elif scenario == "logout-disconnect":
         actions = [_request(), _wait("instance", LOGOUT_RESPONSE),
                    _wait("instance", MOVE_ROOT)]
@@ -431,21 +429,23 @@ def _validate_timed(plan: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
     if len(complete) != 1 or len(_events(evidence, LOGOUT_COMPLETE)) != 1:
         raise ScenarioFailure("timed logout requires exactly one empty realm LogoutComplete")
     waits = [index for index, action in enumerate(plan["actions"])
-             if action.get("action") == "wait" and action.get("milliseconds") == LOGOUT_DELAY_MS]
+             if action.get("action") == "wait_for_packet"
+             and action.get("connection") == "realm"
+             and action.get("opcode") == LOGOUT_COMPLETE]
     started = [item for item in evidence.get("trace", [])
-               if item.get("kind") == "action_started" and item.get("action") == "wait"
+               if item.get("kind") == "action_started"
+               and item.get("action") == "wait_for_packet"
                and item.get("action_index") in waits and type(item.get("sequence")) is int]
-    completed = [item for item in evidence.get("trace", [])
-                 if item.get("kind") == "action_completed" and item.get("action") == "wait"
-                 and item.get("action_index") in waits and type(item.get("sequence")) is int]
-    if len(waits) != 1 or len(started) != 1 or len(completed) != 1 or \
-            completed[0]["sequence"] < started[0]["sequence"] or \
+    requests = _typed_requests(evidence)
+    roots = [event for event in _events(evidence, MOVE_ROOT, "instance")
+             if _sequence(event) > _sequence(requests[0])]
+    if len(waits) != 1 or len(started) != 1 or len(roots) != 1:
+        raise ScenarioFailure("timed logout requires one Complete wait started after its root")
+    if started[0]["sequence"] < _sequence(roots[0]) or \
             _sequence(complete[0]) <= started[0]["sequence"]:
-        raise ScenarioFailure("LogoutComplete arrived before the 20-second wait started")
+        raise ScenarioFailure("request, response, root, Complete wait, and Complete order is invalid")
     return {"complete_event_sequence": complete[0].get("sequence"),
-            "deadline_wait_started_trace_sequence": started[0]["sequence"],
-            "deadline_wait_completed_trace_sequence": completed[0]["sequence"],
-            "minimum_wait_ms": LOGOUT_DELAY_MS}
+            "complete_wait_started_trace_sequence": started[0]["sequence"]}
 
 
 def validate_evidence(scenario: str, plan: dict[str, Any], evidence: dict[str, Any],
@@ -457,6 +457,35 @@ def validate_evidence(scenario: str, plan: dict[str, Any], evidence: dict[str, A
     if scenario == "logout-timed":
         facts.update(_validate_timed(plan, evidence))
     return facts
+
+
+def _capture_packet_path(capture: Path, direction: str, opcode: int) -> Path:
+    matches = []
+    for path in capture.glob("*.meta"):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeError):
+            raise ScenarioFailure("unable to read logout packet capture metadata") from None
+        values = dict(line.split("=", 1) for line in lines if "=" in line)
+        try:
+            packet_opcode = int(values["opcode"], 16)
+        except (KeyError, ValueError):
+            continue
+        if values.get("direction") == direction and packet_opcode == opcode:
+            matches.append(path)
+    if len(matches) != 1:
+        raise ScenarioFailure("timed logout capture requires exactly one request and Complete packet")
+    return matches[0]
+
+
+def _measure_timed_logout(capture: Path) -> dict[str, Any]:
+    request = _capture_packet_path(capture, "c2s", CMSG_LOGOUT_REQUEST)
+    complete = _capture_packet_path(capture, "s2c", LOGOUT_COMPLETE)
+    elapsed_ms = (complete.stat().st_mtime_ns - request.stat().st_mtime_ns) / 1_000_000
+    if not 19_000 <= elapsed_ms <= 25_000:
+        raise ScenarioFailure("timed logout completion is outside the 19-to-25-second window")
+    return {"request_path": str(request), "complete_path": str(complete),
+            "elapsed_ms": elapsed_ms}
 
 
 def _actor_online(db: death_fixture.MariaDB, journal: dict[str, Any],
@@ -543,6 +572,8 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
     pass_ = death_scenario.BotPass(actor, plan, f"{scenario}-001")
     evidence = _run_single(pass_, identity)
     facts = validate_evidence(scenario, plan, evidence, actor, realm_id)
+    if scenario == "logout-timed":
+        facts.update(_measure_timed_logout(identity["capture"]))
     if scenario == "logout-disconnect":
         disconnected_at = time.monotonic()
         facts.update(prove_disconnect_timing(db, journal, actor, disconnected_at))
