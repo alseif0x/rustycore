@@ -325,6 +325,56 @@ async fn wait_for_logout_complete_allows_instance_eof_after_completed_request() 
 }
 
 #[tokio::test]
+async fn execute_skips_observer_after_realm_logout_complete() {
+    let mut controller = logout_controller();
+    controller.options.plan.actions.clear();
+    controller.evidence.events.push(decode_event(
+        0,
+        Connection::Realm,
+        SMSG_LOGOUT_COMPLETE,
+        &[],
+    ));
+    controller.evidence.logout_request_completed = true;
+    controller.evidence.logout_confirmed = true;
+    controller.evidence.logout_route = Some("realm".to_string());
+    controller.evidence.finish_completed = true;
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, mut realm_peer) = tcp_pair().await;
+    instance_peer.shutdown().await.unwrap();
+    realm_peer.shutdown().await.unwrap();
+    let key = [0x6e; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+
+    execute(
+        &mut controller,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        controller.evidence.failure.is_none(),
+        "{:?}",
+        controller.evidence.failure
+    );
+    assert!(controller.evidence.passed);
+    assert!(controller.evidence.expected_rules[0].matched);
+    assert!(controller.evidence.logout_request_completed);
+    assert!(controller.evidence.logout_confirmed);
+    assert_eq!(controller.evidence.logout_route.as_deref(), Some("realm"));
+    assert!(controller.evidence.finish_completed);
+}
+
+#[tokio::test]
 async fn instance_eof_is_fatal_during_actions_even_with_a_previous_logout_marker() {
     for previously_requested in [false, true] {
         let mut controller = logout_controller();

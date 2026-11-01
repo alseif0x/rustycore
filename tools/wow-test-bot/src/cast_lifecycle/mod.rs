@@ -246,7 +246,7 @@ pub(super) async fn execute(
         );
     }
 
-    if controller.evidence.failure.is_none() {
+    if controller.evidence.failure.is_none() && !controller.evidence.logout_confirmed {
         if let Err(error) =
             collect_until(deadline, stream, crypt, inflater, realm, controller).await
         {
