@@ -11,7 +11,7 @@ import struct
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -38,9 +38,9 @@ def event(opcode: int, sequence: int, body: bytes = b"", connection: str = "inst
             "body_sha256": hashlib.sha256(body).hexdigest()}
 
 
-def response(reason: int, sequence: int) -> dict:
-    return event(scenario.LOGOUT_RESPONSE, sequence,
-                 reason.to_bytes(4, "little", signed=True) + b"\x00")
+def response(reason: int, sequence: int, instant: bool = False) -> dict:
+    return event(scenario.LOGOUT_RESPONSE, sequence, reason.to_bytes(4, "little", signed=True)
+                 + (b"\x01" if instant else b"\x00"))
 
 
 def stun_event(selected: dict, sequence: int, flags: int, *, unrelated: bool = False) -> dict:
@@ -58,8 +58,8 @@ def stun_event(selected: dict, sequence: int, flags: int, *, unrelated: bool = F
     return event(scenario.UPDATE_OBJECT, sequence, body)
 
 
-def admitted_evidence(name: str, *, guid: int = 73) -> dict:
-    selected = actor(guid=guid)
+def admitted_evidence(name: str, *, guid: int = 73, actor_name: str = "Qadeathfall") -> dict:
+    selected = actor(actor_name, guid)
     requests = [sent("logout_request", 10, scenario.CMSG_LOGOUT_REQUEST, b"\x00", 0)]
     responses = [response(0, 11)]
     roots = [event(scenario.MOVE_ROOT, 12)]
@@ -75,7 +75,7 @@ def admitted_evidence(name: str, *, guid: int = 73) -> dict:
         ],
         "trace": [], "logout_confirmed": False,
     }
-    if name in {"logout-cancel", "logout-repeated"}:
+    if name in {"logout-cancel", "logout-repeated", "logout-rbac-revoke"}:
         evidence["sent_packets"].append(
             sent("logout_cancel", 50, scenario.CMSG_LOGOUT_CANCEL, b"", 6))
         evidence["events"].extend([
@@ -87,11 +87,28 @@ def admitted_evidence(name: str, *, guid: int = 73) -> dict:
     return evidence
 
 
+def instant_evidence(name: str) -> tuple[dict, dict]:
+    selected = actor(scenario.SCENARIOS[name])
+    evidence = {
+        "sent_packets": [sent("logout_request", 10, scenario.CMSG_LOGOUT_REQUEST, b"\x00")],
+        "events": [response(0, 11, True),
+                   event(scenario.LOGOUT_COMPLETE, 12, b"", "realm")],
+        "trace": [], "logout_confirmed": True,
+    }
+    return selected, evidence
+
+
 class LogoutPlanTests(unittest.TestCase):
     def test_exact_response_reason_bodies_and_bounded_actor_set(self) -> None:
         expected = {"logout-combat-denial": 1, "logout-fall-denial": 3,
                     "logout-freeze-denial": 2, "logout-cancel": 0,
-                    "logout-timed": 0, "logout-disconnect": 0, "logout-repeated": 0}
+                    "logout-timed": 0, "logout-disconnect": 0, "logout-repeated": 0,
+                    "logout-rbac-grant": 0, "logout-rbac-revoke": 0, "logout-resting": 0}
+        timeouts = {"logout-combat-denial": 15_000, "logout-fall-denial": 30_000,
+                    "logout-freeze-denial": 30_000, "logout-cancel": 15_000,
+                    "logout-timed": 35_000, "logout-disconnect": 10_000,
+                    "logout-repeated": 35_000, "logout-rbac-grant": 10_000,
+                    "logout-rbac-revoke": 15_000, "logout-resting": 10_000}
         self.assertEqual(set(scenario.SCENARIOS), set(expected))
         for name, reason in expected.items():
             with self.subTest(name=name):
@@ -99,18 +116,17 @@ class LogoutPlanTests(unittest.TestCase):
                 plan = scenario.plan_for(name, selected)
                 self.assertEqual(plan["character_guid"], selected["guid"])
                 self.assertEqual(plan["finish_policy"], "disconnect")
-                self.assertEqual(plan["timeout_ms"], 35_000 if name == "logout-timed" else
-                                 {"logout-combat-denial": 15_000, "logout-fall-denial": 30_000,
-                                  "logout-freeze-denial": 30_000, "logout-cancel": 15_000,
-                                  "logout-disconnect": 10_000, "logout-repeated": 35_000}.get(name))
+                self.assertEqual(plan["timeout_ms"], timeouts[name])
                 responses = [rule for rule in plan["expect"]
                              if rule.get("opcode") == scenario.LOGOUT_RESPONSE]
                 self.assertEqual(len(responses), 2 if name == "logout-repeated" else 1)
+                instant = name in scenario.INSTANT_SCENARIOS
                 for rule in responses:
                     self.assertEqual(rule, {"event": "packet", "connection": "instance",
                         "opcode": scenario.LOGOUT_RESPONSE,
-                        "body_hex": (reason.to_bytes(4, "little", signed=True) + b"\x00").hex()})
-                    self.assertEqual(bytes.fromhex(rule["body_hex"])[4], 0)
+                        "body_hex": (reason.to_bytes(4, "little", signed=True)
+                                     + (b"\x01" if instant else b"\x00")).hex()})
+                    self.assertEqual(bytes.fromhex(rule["body_hex"])[4], int(instant))
                 self.assertTrue(all(rule["event"] == "packet" for rule in plan["expect"]))
                 requests = [action for action in plan["actions"]
                             if action["action"] == "logout_request"]
@@ -148,6 +164,19 @@ class LogoutPlanTests(unittest.TestCase):
                           "opcode": scenario.LOGOUT_COMPLETE, "timeout_ms": 30_000})
         self.assertIn({"event": "packet", "connection": "realm",
                        "opcode": scenario.LOGOUT_COMPLETE, "body_hex": ""}, timed["expect"])
+        for name in sorted(scenario.INSTANT_SCENARIOS):
+            instant = scenario.plan_for(name, actor(scenario.SCENARIOS[name]))
+            self.assertEqual([action["action"] for action in instant["actions"]],
+                             ["logout_request", "wait_for_packet", "wait_for_packet"])
+            self.assertEqual(instant["actions"][-1],
+                             {"action": "wait_for_packet", "connection": "realm",
+                              "opcode": scenario.LOGOUT_COMPLETE, "timeout_ms": 5_000})
+            self.assertFalse(any(action.get("opcode") == scenario.MOVE_ROOT
+                                 for action in instant["actions"]))
+        revoke = scenario.plan_for("logout-rbac-revoke", actor("Qadeathreinc"))
+        cancel = scenario.plan_for("logout-cancel", actor())
+        self.assertEqual(revoke["actions"], cancel["actions"])
+        self.assertEqual(revoke["expect"], cancel["expect"])
         repeated = scenario.plan_for("logout-repeated", actor())
         waits = [action["milliseconds"] for action in repeated["actions"] if action["action"] == "wait"]
         self.assertEqual(waits, [12_000, 10_000])
@@ -240,6 +269,65 @@ class LogoutEvidenceTests(unittest.TestCase):
                     del bad["events"][index]
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_evidence("logout-cancel", plan, bad, selected, 1)
+
+    def test_instant_completion_is_exact_and_has_no_countdown_transitions(self) -> None:
+        for name in sorted(scenario.INSTANT_SCENARIOS):
+            selected, evidence = instant_evidence(name)
+            plan = scenario.plan_for(name, selected)
+            with self.subTest(name=name):
+                facts = scenario.validate_evidence(name, plan, evidence, selected, 1)
+                self.assertEqual(facts["complete_event_sequence"], 12)
+            for defect in ("missing", "duplicate", "early", "wrong_connection", "root",
+                           "sit", "stun", "non_instant", "cancel", "finish"):
+                bad = copy.deepcopy(evidence)
+                if defect == "missing":
+                    del bad["events"][-1]
+                elif defect == "duplicate":
+                    bad["events"].append(event(scenario.LOGOUT_COMPLETE, 13, b"", "realm"))
+                elif defect == "early":
+                    bad["events"][-1]["observation_sequence"] = 11
+                elif defect == "wrong_connection":
+                    bad["events"][-1]["connection"] = "instance"
+                elif defect == "root":
+                    bad["events"].append(event(scenario.MOVE_ROOT, 13))
+                elif defect == "sit":
+                    bad["events"].append(event(scenario.STAND_STATE_UPDATE, 13,
+                                               b"\x00" * 4 + b"\x01", "realm"))
+                elif defect == "stun":
+                    bad["events"].append(stun_event(
+                        selected, 13, 0x1000 | scenario.UNIT_FLAG_STUNNED))
+                elif defect == "non_instant":
+                    bad["events"][0] = response(0, 11)
+                elif defect == "cancel":
+                    bad["sent_packets"].append(
+                        sent("logout_cancel", 13, scenario.CMSG_LOGOUT_CANCEL, b""))
+                else:
+                    bad["sent_packets"].append(sent(
+                        "finish_logout", 13, scenario.CMSG_LOGOUT_REQUEST, b"\x00", None))
+                with self.subTest(name=name, defect=defect), \
+                        self.assertRaises(scenario.ScenarioFailure):
+                    scenario.validate_evidence(name, plan, bad, selected, 1)
+
+    def test_rbac_revoke_uses_cancel_validation_and_rejects_instant_complete(self) -> None:
+        selected = actor("Qadeathreinc")
+        plan = scenario.plan_for("logout-rbac-revoke", selected)
+        evidence = admitted_evidence("logout-rbac-revoke", actor_name="Qadeathreinc")
+        facts = scenario.validate_evidence("logout-rbac-revoke", plan, evidence, selected, 1)
+        self.assertEqual(facts["ack_count"], 1)
+        self.assertEqual(facts["sit_count"], 1)
+        self.assertFalse(facts["stun_clear"]["stunned"])
+        for defect in ("complete", "instant", "missing_cancel"):
+            bad = copy.deepcopy(evidence)
+            if defect == "complete":
+                bad["events"].append(event(scenario.LOGOUT_COMPLETE, 60, b"", "realm"))
+                bad["logout_confirmed"] = True
+            elif defect == "instant":
+                bad["events"][0] = response(0, 11, True)
+            else:
+                bad["sent_packets"] = [packet for packet in bad["sent_packets"]
+                                       if packet["action"] != "logout_cancel"]
+            with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
+                scenario.validate_evidence("logout-rbac-revoke", plan, bad, selected, 1)
 
     def test_identical_duplicate_stun_updates_pass_but_conflicts_fail(self) -> None:
         selected = actor()
@@ -425,6 +513,105 @@ class LogoutEvidenceTests(unittest.TestCase):
         completed["events"].append(event(scenario.LOGOUT_COMPLETE, 20, b"", "realm"))
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_evidence("logout-disconnect", plan, completed, selected, 1)
+
+
+class LogoutVariantFixtureTests(unittest.TestCase):
+    def test_rbac_setup_and_cleanup_use_only_owned_keys(self) -> None:
+        for name, actor_name in (("logout-rbac-grant", "Qadeathcast"),
+                                 ("logout-rbac-revoke", "Qadeathreinc")):
+            selected = actor(actor_name)
+            account = selected["account_id"]
+            db = Mock()
+            db.execute.return_value = ""
+            with self.subTest(name=name, phase="setup"):
+                state = scenario._prepare_variant(name, db, selected)
+                self.assertEqual(state, {"account_id": account})
+                statements = db.transaction.call_args.args[0]
+                permissions = [1] if name == "logout-rbac-grant" else [1, 194]
+                inserts = [statement for statement in statements
+                           if statement.startswith("INSERT INTO auth.rbac_account_permissions")]
+                self.assertEqual(len(inserts), len(permissions))
+                for statement, permission in zip(inserts, permissions, strict=True):
+                    granted = 1 if name == "logout-rbac-grant" else 0
+                    self.assertTrue(statement.endswith(
+                        f"VALUES ({account},{permission},{granted},-1)"))
+                self.assertEqual(any("INSERT INTO auth.account_access" in statement
+                                     for statement in statements), name == "logout-rbac-revoke")
+                self.assertEqual(db.execute.call_count,
+                                 len(permissions) + (name == "logout-rbac-revoke"))
+            db.reset_mock()
+            with self.subTest(name=name, phase="cleanup"):
+                scenario._restore_variant(name, db, selected, state)
+                statements = db.transaction.call_args.args[0]
+                deletes = [statement for statement in statements
+                           if statement.startswith("DELETE FROM auth.rbac_account_permissions")]
+                self.assertEqual(len(deletes), len(permissions))
+                for statement, permission in zip(deletes, permissions, strict=True):
+                    granted = 1 if name == "logout-rbac-grant" else 0
+                    self.assertTrue(statement.endswith(
+                        f"WHERE accountId={account} AND permissionId={permission} "
+                        f"AND granted={granted} AND realmId=-1"))
+                access_deletes = [statement for statement in statements
+                                  if statement.startswith("DELETE FROM auth.account_access")]
+                self.assertEqual(len(access_deletes), int(name == "logout-rbac-revoke"))
+                if access_deletes:
+                    self.assertTrue(access_deletes[0].endswith(
+                        f"WHERE AccountID={account} AND SecurityLevel=1 AND RealmID=-1"))
+                self.assertEqual(db.execute.call_count,
+                                 len(permissions) + (name == "logout-rbac-revoke"))
+
+    def test_resting_setup_restores_exact_flags_and_checks_identity(self) -> None:
+        selected = actor()
+        db = Mock()
+        db.execute.return_value = f"{selected['guid']}\t{selected['account_id']}\t65"
+        state = scenario._prepare_variant("logout-resting", db, selected)
+        self.assertEqual(state, {"original_player_flags": 65})
+        self.assertEqual(db.transaction.call_args.args[0], [
+            f"UPDATE characters SET playerFlags=playerFlags|{scenario.PLAYER_FLAGS_RESTING} "
+            f"WHERE guid={selected['guid']} AND account={selected['account_id']}"])
+        scenario._restore_variant("logout-resting", db, selected, state)
+        self.assertEqual(db.transaction.call_args_list[-1].args[0], [
+            "UPDATE characters SET playerFlags=65 "
+            f"WHERE guid={selected['guid']} AND account={selected['account_id']}"])
+
+        wrong_identity = Mock()
+        wrong_identity.execute.return_value = f"{selected['guid']}\t999\t0"
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario._prepare_variant("logout-resting", wrong_identity, selected)
+        wrong_identity.transaction.assert_not_called()
+
+    def test_preexisting_auth_rows_abort_before_transaction(self) -> None:
+        for name, actor_name, rows in (
+                ("logout-rbac-grant", "Qadeathcast", ["9\t1\t1\t-1"]),
+                ("logout-rbac-revoke", "Qadeathreinc", ["", "12\t194\t0\t-1"]),
+                ("logout-rbac-revoke", "Qadeathreinc", ["", "", "12\t1\t-1"])):
+            db = Mock()
+            db.execute.side_effect = rows
+            with self.subTest(name=name, rows=rows), self.assertRaises(scenario.ScenarioFailure):
+                scenario._prepare_variant(name, db, actor(actor_name))
+            db.transaction.assert_not_called()
+
+    def test_cleanup_runs_on_exception_and_gates_success_report(self) -> None:
+        selected = actor("Qadeathcast")
+        identity = {"scenario": "logout-rbac-grant"}
+        journal = {"actors": [selected]}
+        state = {"account_id": 9}
+        with patch.object(scenario, "_prepare_variant", return_value=state), \
+                patch.object(scenario, "_run_case_body", side_effect=RuntimeError("failed")), \
+                patch.object(scenario, "_restore_variant") as restore:
+            with self.assertRaisesRegex(RuntimeError, "failed"):
+                scenario._run_case(identity, journal, 1, Mock())
+            restore.assert_called_once_with("logout-rbac-grant", ANY, selected, state)
+
+        with patch.object(scenario, "_prepare_variant", return_value=state), \
+                patch.object(scenario, "_run_case_body", return_value={"scenario": identity["scenario"]}), \
+                patch.object(scenario, "_restore_variant") as restore:
+            report = scenario._run_case(identity, journal, 1, Mock())
+            self.assertTrue(report["variant_fixture_restored"])
+            restore.assert_called_once()
+            restore.side_effect = scenario.ScenarioFailure("cleanup failed")
+            with self.assertRaisesRegex(scenario.ScenarioFailure, "cleanup failed"):
+                scenario._run_case(identity, journal, 1, Mock())
 
 
 class TimedCaptureTimingTests(unittest.TestCase):

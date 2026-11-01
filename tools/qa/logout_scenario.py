@@ -25,6 +25,9 @@ SCENARIOS = {
     "logout-timed": "Qadeathfall",
     "logout-disconnect": "Qadeathfall",
     "logout-repeated": "Qadeathfall",
+    "logout-rbac-grant": "Qadeathcast",
+    "logout-rbac-revoke": "Qadeathreinc",
+    "logout-resting": "Qadeathfall",
 }
 CMSG_LOGOUT_REQUEST = 0x34D6
 CMSG_LOGOUT_CANCEL = 0x34D8
@@ -37,11 +40,18 @@ MOVE_UNROOT = 0x2DFA
 STAND_STATE_UPDATE = 0x271C
 UPDATE_OBJECT = 0x27CB
 UNIT_FLAG_STUNNED = 0x0004_0000
+PLAYER_FLAGS_RESTING = 0x20
 FREEZE_SPELL = 9454
 LOGOUT_DELAY_MS = 20_000
 DENIAL_OBSERVE_MS = 20_500
 DISCONNECT_ONLINE_CHECK_SECONDS = 2
 DISCONNECT_OFFLINE_GRACE_SECONDS = 5
+INSTANT_SCENARIOS = {"logout-rbac-grant", "logout-resting"}
+VARIANT_SCENARIOS = {*INSTANT_SCENARIOS, "logout-rbac-revoke"}
+RBAC_FIXTURES = {
+    "logout-rbac-grant": (9, [(1, 1)]),
+    "logout-rbac-revoke": (12, [(1, 0), (194, 0)]),
+}
 ScenarioFailure = death_scenario.ScenarioFailure
 
 
@@ -57,9 +67,9 @@ def _request() -> dict[str, Any]:
     return {"action": "logout_request", "idle_logout": False}
 
 
-def _response(reason: int) -> dict[str, Any]:
-    return _packet("instance", LOGOUT_RESPONSE,
-                   reason.to_bytes(4, "little", signed=True) + b"\x00")
+def _response(reason: int, instant: bool = False) -> dict[str, Any]:
+    return _packet("instance", LOGOUT_RESPONSE, reason.to_bytes(4, "little", signed=True)
+                   + (b"\x01" if instant else b"\x00"))
 
 
 def _fall_start(actor: dict[str, Any]) -> dict[str, Any]:
@@ -94,7 +104,12 @@ def plan_for(scenario: str, actor: dict[str, Any]) -> dict[str, Any]:
                    {"action": "wait", "milliseconds": DENIAL_OBSERVE_MS}]
         expected = [_response(2)]
         timeout_ms = 30_000
-    elif scenario == "logout-cancel":
+    elif scenario in INSTANT_SCENARIOS:
+        actions = [_request(), _wait("instance", LOGOUT_RESPONSE),
+                   _wait("realm", LOGOUT_COMPLETE)]
+        expected = [_response(0, True), _packet("realm", LOGOUT_COMPLETE)]
+        timeout_ms = 10_000
+    elif scenario in {"logout-cancel", "logout-rbac-revoke"}:
         actions = [_request(), _wait("instance", LOGOUT_RESPONSE),
                    _wait("instance", MOVE_ROOT), {"action": "logout_cancel"},
                    _wait("instance", LOGOUT_CANCEL_ACK), _wait("instance", MOVE_UNROOT)]
@@ -155,6 +170,98 @@ def _seed_freeze(scenario: str, db: death_fixture.MariaDB,
     if scenario != "logout-freeze-denial":
         raise ScenarioFailure("fixture mutation is restricted to the freeze denial case")
     db.transaction(freeze_statements(actor, realm_id))
+
+
+def _rbac_identity(scenario: str, actor: dict[str, Any]) -> tuple[int, list[tuple[int, int]]]:
+    expected_account, permissions = RBAC_FIXTURES[scenario]
+    account = int(actor["account_id"])
+    if account != expected_account:
+        raise ScenarioFailure("RBAC logout fixture actor account is outside its bounded identity")
+    return account, permissions
+
+
+def _rbac_select(account: int, permission: int) -> str:
+    return ("SELECT accountId,permissionId,granted,realmId FROM auth.rbac_account_permissions "
+            f"WHERE accountId={account} AND permissionId={permission} AND realmId=-1")
+
+
+def _access_select(account: int) -> str:
+    return ("SELECT AccountID,SecurityLevel,RealmID FROM auth.account_access "
+            f"WHERE AccountID={account} AND RealmID=-1")
+
+
+def _resting_identity(db: death_fixture.MariaDB, actor: dict[str, Any]) -> int:
+    guid = int(actor["guid"])
+    rows = death_fixture.MariaDB._rows(db.execute(
+        f"SELECT guid,account,playerFlags FROM characters WHERE guid={guid}"), 3)
+    if len(rows) != 1 or rows[0][0] != str(guid) \
+            or rows[0][1] != str(actor["account_id"]):
+        raise ScenarioFailure("resting logout fixture character identity is missing or ambiguous")
+    try:
+        return int(rows[0][2])
+    except ValueError:
+        raise ScenarioFailure("resting logout fixture playerFlags is invalid") from None
+
+
+def _require_absent(db: death_fixture.MariaDB, query: str) -> None:
+    if db.execute(query):
+        raise ScenarioFailure("logout variant fixture row already exists; refusing mutation")
+
+
+def _prepare_variant(scenario: str, db: death_fixture.MariaDB,
+                     actor: dict[str, Any]) -> dict[str, Any]:
+    if scenario in RBAC_FIXTURES:
+        account, permissions = _rbac_identity(scenario, actor)
+        for permission, _granted in permissions:
+            _require_absent(db, _rbac_select(account, permission))
+        if scenario == "logout-rbac-revoke":
+            _require_absent(db, _access_select(account))
+        statements = [
+            "INSERT INTO auth.rbac_account_permissions "
+            "(accountId,permissionId,granted,realmId) "
+            f"VALUES ({account},{permission},{granted},-1)"
+            for permission, granted in permissions
+        ]
+        if scenario == "logout-rbac-revoke":
+            statements.insert(0, "INSERT INTO auth.account_access (AccountID,SecurityLevel,RealmID) "
+                                 f"VALUES ({account},1,-1)")
+        db.transaction(statements)
+        return {"account_id": account}
+    if scenario == "logout-resting":
+        original = _resting_identity(db, actor)
+        db.transaction([f"UPDATE characters SET playerFlags=playerFlags|{PLAYER_FLAGS_RESTING} "
+                        f"WHERE guid={int(actor['guid'])} AND account={int(actor['account_id'])}"])
+        return {"original_player_flags": original}
+    raise ScenarioFailure("fixture mutation is restricted to the bounded logout variants")
+
+
+def _restore_variant(scenario: str, db: death_fixture.MariaDB,
+                     actor: dict[str, Any], state: dict[str, Any]) -> None:
+    if scenario in RBAC_FIXTURES:
+        account, permissions = _rbac_identity(scenario, actor)
+        statements = [
+            "DELETE FROM auth.rbac_account_permissions "
+            f"WHERE accountId={account} AND permissionId={permission} "
+            f"AND granted={granted} AND realmId=-1"
+            for permission, granted in permissions
+        ]
+        if scenario == "logout-rbac-revoke":
+            statements.append("DELETE FROM auth.account_access "
+                              f"WHERE AccountID={account} AND SecurityLevel=1 AND RealmID=-1")
+        db.transaction(statements)
+        for permission, _granted in permissions:
+            _require_absent(db, _rbac_select(account, permission))
+        if scenario == "logout-rbac-revoke":
+            _require_absent(db, _access_select(account))
+        return
+    if scenario == "logout-resting":
+        original = int(state["original_player_flags"])
+        db.transaction([f"UPDATE characters SET playerFlags={original} "
+                        f"WHERE guid={int(actor['guid'])} AND account={int(actor['account_id'])}"])
+        if _resting_identity(db, actor) != original:
+            raise ScenarioFailure("resting logout fixture playerFlags restoration failed")
+        return
+    raise ScenarioFailure("fixture restoration is restricted to the bounded logout variants")
 
 
 def _events(evidence: dict[str, Any], opcode: int, connection: str | None = None,
@@ -329,17 +436,19 @@ def _require_common(scenario: str, evidence: dict[str, Any]) -> tuple[list[dict[
     expected_count = 2 if scenario == "logout-repeated" else 1
     if len(requests) != expected_count or _sends(evidence, "finish_logout"):
         raise ScenarioFailure("typed logout request count or disconnect boundary is invalid")
-    if scenario in {"logout-cancel", "logout-repeated"} and len(_typed_cancels(evidence)) != 1:
+    cancel_scenarios = {"logout-cancel", "logout-repeated", "logout-rbac-revoke"}
+    if scenario in cancel_scenarios and len(_typed_cancels(evidence)) != 1:
         raise ScenarioFailure("cancel scenario requires exactly one typed cancel")
     reason = {"logout-combat-denial": 1, "logout-fall-denial": 3,
               "logout-freeze-denial": 2}.get(scenario, 0)
+    instant = b"\x01" if scenario in INSTANT_SCENARIOS else b"\x00"
     responses = _events(evidence, LOGOUT_RESPONSE, "instance",
-                        reason.to_bytes(4, "little", signed=True) + b"\x00")
+                        reason.to_bytes(4, "little", signed=True) + instant)
     if len(responses) != expected_count:
         raise ScenarioFailure("logout response reason, body, route, or count is incorrect")
     if len(_events(evidence, LOGOUT_RESPONSE)) != expected_count:
         raise ScenarioFailure("unexpected additional logout response was observed")
-    if _sends(evidence, "logout_cancel") and scenario not in {"logout-cancel", "logout-repeated"}:
+    if _sends(evidence, "logout_cancel") and scenario not in cancel_scenarios:
         raise ScenarioFailure("non-cancel scenario sent a logout cancel")
     return requests, reason
 
@@ -362,6 +471,28 @@ def _validate_denial(scenario: str, evidence: dict[str, Any],
             0 <= _sequence(packet) < boundary for packet in _sends(evidence, "movement_heartbeat")):
         raise ScenarioFailure("fall denial lacks a real falling movement action")
     return {"denial_observation": "no root, sit, countdown completion, or finalization"}
+
+
+def _validate_instant(evidence: dict[str, Any], actor: dict[str, Any], realm_id: int,
+                      requests: list[dict[str, Any]]) -> dict[str, Any]:
+    request_boundary = _sequence(requests[0])
+    responses = _events(evidence, LOGOUT_RESPONSE, "instance")
+    complete = _events(evidence, LOGOUT_COMPLETE, "realm", b"")
+    if _sequence(responses[0]) <= request_boundary:
+        raise ScenarioFailure("instant logout response was not observed after its typed request")
+    if len(complete) != 1 or len(_events(evidence, LOGOUT_COMPLETE)) != 1 \
+            or _sequence(complete[0]) <= _sequence(responses[0]):
+        raise ScenarioFailure("instant logout requires one empty realm Complete after its response")
+    if any(_sequence(event) > request_boundary
+           for event in _events(evidence, MOVE_ROOT, "instance")):
+        raise ScenarioFailure("instant logout emitted a movement root")
+    if any(_sequence(event) > request_boundary for event in _stand_states(evidence, 1)):
+        raise ScenarioFailure("instant logout emitted a sit transition")
+    owner = death_scenario.player_guid(actor, realm_id)
+    if any(item["observation_sequence"] > request_boundary
+           for item in _stun_updates(evidence, owner)):
+        raise ScenarioFailure("instant logout emitted a stun transition")
+    return {"complete_event_sequence": complete[0].get("sequence")}
 
 
 def _validate_admitted(scenario: str, evidence: dict[str, Any], actor: dict[str, Any],
@@ -453,6 +584,8 @@ def validate_evidence(scenario: str, plan: dict[str, Any], evidence: dict[str, A
     requests, _ = _require_common(scenario, evidence)
     if scenario.endswith("-denial"):
         return _validate_denial(scenario, evidence, requests)
+    if scenario in INSTANT_SCENARIOS:
+        return _validate_instant(evidence, actor, realm_id, requests)
     facts = _validate_admitted(scenario, evidence, actor, realm_id, requests)
     if scenario == "logout-timed":
         facts.update(_validate_timed(plan, evidence))
@@ -562,8 +695,8 @@ def _observation(pass_: death_scenario.BotPass, evidence: dict[str, Any],
             "snapshot_sha256": death_scenario._sha256(snapshot_path), **facts}
 
 
-def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
-              db: death_fixture.MariaDB) -> dict[str, Any]:
+def _run_case_body(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
+                   db: death_fixture.MariaDB) -> dict[str, Any]:
     scenario = identity["scenario"]
     actor = next(item for item in journal["actors"] if item["name"] == SCENARIOS[scenario])
     plan = plan_for(scenario, actor)
@@ -579,8 +712,8 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
         facts.update(prove_disconnect_timing(db, journal, actor, disconnected_at))
     snapshot, state, snapshot_path = _save_snapshot(db, journal, actor, scenario,
                                                     identity["capture"], pass_.label)
-    if scenario == "logout-timed" and state["logout_time"] <= 0:
-        raise ScenarioFailure("timed logout did not persist a logout timestamp")
+    if scenario in {"logout-timed", *INSTANT_SCENARIOS} and state["logout_time"] <= 0:
+        raise ScenarioFailure("completed logout did not persist a logout timestamp")
     if scenario == "logout-freeze-denial":
         auras = death_scenario._snapshot_facts(snapshot, actor)["auras"]
         if not any(row.get("spell") == FREEZE_SPELL for row in auras):
@@ -596,6 +729,21 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
                                          relogin_path, {"relogin_observed": True}))
     return {"scenario": scenario, "epoch": 1, "scenario_observation": "passed",
             "observations": observations, "parity_assessed": False}
+
+
+def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
+              db: death_fixture.MariaDB) -> dict[str, Any]:
+    scenario = identity["scenario"]
+    if scenario not in VARIANT_SCENARIOS:
+        return _run_case_body(identity, journal, realm_id, db)
+    actor = next(item for item in journal["actors"] if item["name"] == SCENARIOS[scenario])
+    state = _prepare_variant(scenario, db, actor)
+    try:
+        report = _run_case_body(identity, journal, realm_id, db)
+    finally:
+        _restore_variant(scenario, db, actor, state)
+    report["variant_fixture_restored"] = True
+    return report
 
 
 def _runtime_identity() -> dict[str, Any]:
