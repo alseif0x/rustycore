@@ -1545,6 +1545,38 @@ fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
 }
 
 #[test]
+fn instance_and_party_packets_are_supported_for_waits_and_exact_expectations() {
+    for (opcode, body_hex) in [
+        (SMSG_INSTANCE_RESET, "21000000"),
+        (SMSG_INSTANCE_RESET_FAILED, "2100000000"),
+        (SMSG_RESET_FAILED_NOTIFY, ""),
+        (SMSG_SET_DUNGEON_DIFFICULTY, "02000000"),
+        (SMSG_PARTY_INVITE, ""),
+        (SMSG_PARTY_UPDATE, ""),
+    ] {
+        assert!(plan::supported_exact_packet_opcode(opcode));
+        assert!(plan::supported_wait_packet_opcode(opcode));
+        let json = format!(
+            r#"{{"actions":[{{"action":"wait_for_packet","connection":"instance","opcode":{opcode},"timeout_ms":100}}],"expect":[{{"event":"packet","connection":"instance","opcode":{opcode},"body_hex":"{body_hex}"}}]}}"#
+        );
+        let plan: Plan = serde_json::from_str(&json).unwrap();
+        plan::validate_plan(&plan).unwrap();
+    }
+
+    for opcode in [
+        REDACTED_SMSG_AUTH_CHALLENGE,
+        REDACTED_SMSG_AUTH_FAILED,
+        REDACTED_SMSG_AUTH_RESPONSE,
+        REDACTED_SMSG_ENTER_ENCRYPTED_MODE,
+        REDACTED_SMSG_CONNECT_TO,
+        0xFFFF,
+    ] {
+        assert!(!plan::supported_exact_packet_opcode(opcode));
+        assert!(!plan::supported_wait_packet_opcode(opcode));
+    }
+}
+
+#[test]
 fn exact_packet_plan_hex_is_bounded_and_auth_control_opcodes_are_forbidden() {
     let valid = r#"{"actions":[],"expect":[{"event":"packet","connection":"realm","opcode":9860,"body_hex":""}]}"#;
     let parsed: Plan = serde_json::from_str(valid).unwrap();

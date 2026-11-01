@@ -883,6 +883,12 @@ pub(super) fn supported_exact_packet_opcode(opcode: u16) -> bool {
             | SMSG_SPELL_PREPARE
             | SMSG_SPELL_START
             | RAW_SMSG_UPDATE_OBJECT
+            | SMSG_INSTANCE_RESET
+            | SMSG_INSTANCE_RESET_FAILED
+            | SMSG_RESET_FAILED_NOTIFY
+            | SMSG_SET_DUNGEON_DIFFICULTY
+            | SMSG_PARTY_INVITE
+            | SMSG_PARTY_UPDATE
     )
 }
 
