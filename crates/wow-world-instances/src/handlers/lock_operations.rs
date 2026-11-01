@@ -169,13 +169,13 @@ pub(super) fn reset_maps_with_access_like_cpp(
 
         match result {
             InstanceResetResultLikeCpp::Success => {
-                packets.send_packet(&InstanceReset { map_id });
+                packets.send_packet_realm(&InstanceReset { map_id });
             }
             InstanceResetResultLikeCpp::NotEmpty { occupant_guids }
                 if method == InstanceResetMethodLikeCpp::Manual =>
             {
                 notify_reset_failed_occupants_like_cpp(player_registry, &occupant_guids);
-                packets.send_packet(&InstanceResetFailed {
+                packets.send_packet_realm(&InstanceResetFailed {
                     map_id,
                     reset_failed_reason: 0,
                 });
@@ -270,7 +270,7 @@ fn notify_reset_failed_occupants_like_cpp(
         else {
             continue;
         };
-        let _ = player_registry.send_current_packet(registration, packet.clone());
+        let _ = player_registry.send_current_realm_packet(registration, packet.clone());
     }
 }
 

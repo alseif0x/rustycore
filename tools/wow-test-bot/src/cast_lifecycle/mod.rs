@@ -34,6 +34,7 @@ const CMSG_ATTACK_STOP: u16 = 0x3256;
 const CMSG_LOGOUT_CANCEL: u16 = 0x34D8;
 const CMSG_RESET_INSTANCES: u16 = 0x366A;
 const CMSG_SET_DIFFICULTY_ID: u16 = 0x3222;
+const CMSG_SET_DUNGEON_DIFFICULTY: u16 = 0x3684;
 const CMSG_PARTY_INVITE: u16 = 0x3604;
 const CMSG_PARTY_INVITE_RESPONSE: u16 = 0x3606;
 const CMSG_LEAVE_GROUP: u16 = 0x364C;
@@ -162,7 +163,7 @@ pub(super) async fn execute(
                 )
                 .await
             }
-            Action::ResetInstances {} | Action::SetDifficultyId { .. } => {
+            Action::ResetInstances {} | Action::SetDifficultyId { .. } | Action::SetDungeonDifficulty { .. } => {
                 let (opcode, body) = build_action_packet(action);
                 send_traced_packet(
                     stream,
@@ -575,6 +576,7 @@ fn action_name(action: &Action) -> &'static str {
         Action::LogoutCancel {} => "logout_cancel",
         Action::ResetInstances {} => "reset_instances",
         Action::SetDifficultyId { .. } => "set_difficulty_id",
+        Action::SetDungeonDifficulty { .. } => "set_dungeon_difficulty",
         Action::PartyInvite { .. } => "party_invite",
         Action::PartyInviteResponse { .. } => "party_invite_response",
         Action::LeaveGroup {} => "leave_group",

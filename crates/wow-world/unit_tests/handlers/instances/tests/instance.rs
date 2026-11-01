@@ -297,7 +297,7 @@ fn assert_reset_lock_expiry_unchanged_like_cpp(
 
 #[tokio::test]
 async fn set_difficulty_id_resets_live_map_without_expiring_lock_or_persisting_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
@@ -313,6 +313,8 @@ async fn set_difficulty_id_resets_live_map_without_expiring_lock_or_persisting_l
     session
         .handle_set_difficulty_id(set_difficulty_request(2))
         .await;
+
+    assert!(instance_rx.try_recv().is_err());
 
     let reset = send_rx.try_recv().expect("instance reset packet");
     assert_eq!(
@@ -390,7 +392,7 @@ async fn stand_state_update_uses_cpp_realm_connection_and_values_use_instance() 
 
 #[tokio::test]
 async fn reset_instances_handler_resets_live_map_without_expiring_lock_or_persisting_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
     let port = Arc::new(InstanceLockPersistenceFixtureLikeCpp::new(
@@ -401,6 +403,8 @@ async fn reset_instances_handler_resets_live_map_without_expiring_lock_or_persis
     session
         .handle_reset_instances(WorldPacket::from_bytes(&[]))
         .await;
+
+    assert!(instance_rx.try_recv().is_err());
 
     let sent = send_rx.try_recv().unwrap();
     assert_eq!(
@@ -452,7 +456,7 @@ async fn reset_instances_non_new_lock_retains_recent_without_packets_or_persiste
 
 #[tokio::test]
 async fn reset_instances_not_empty_notifies_current_occupant_and_retains_recent_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let occupant_guid = ObjectGuid::create_player(1, 43);
     let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
@@ -462,6 +466,8 @@ async fn reset_instances_not_empty_notifies_current_occupant_and_retains_recent_
     session
         .handle_reset_instances(WorldPacket::from_bytes(&[]))
         .await;
+
+    assert!(instance_rx.try_recv().is_err());
 
     let notify = occupant_rx.try_recv().expect("occupant reset notification");
     assert_eq!(
@@ -484,7 +490,7 @@ async fn reset_instances_not_empty_notifies_current_occupant_and_retains_recent_
 
 #[tokio::test]
 async fn reset_instances_group_uses_owned_map_and_forgets_group_recent_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let _fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
     let (group_registry, group_guid) = install_reset_group_like_cpp(&mut session, player_guid);
@@ -492,6 +498,8 @@ async fn reset_instances_group_uses_owned_map_and_forgets_group_recent_like_cpp(
     session
         .handle_reset_instances(WorldPacket::from_bytes(&[]))
         .await;
+
+    assert!(instance_rx.try_recv().is_err());
 
     let sent = send_rx.try_recv().expect("group instance reset packet");
     assert_eq!(
@@ -510,7 +518,7 @@ async fn reset_instances_group_uses_owned_map_and_forgets_group_recent_like_cpp(
 
 #[tokio::test]
 async fn set_difficulty_id_solo_occupied_forgets_recent_without_reset_failures_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let occupant_guid = ObjectGuid::create_player(1, 43);
     let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
@@ -521,6 +529,8 @@ async fn set_difficulty_id_solo_occupied_forgets_recent_without_reset_failures_l
     session
         .handle_set_difficulty_id(set_difficulty_request(2))
         .await;
+
+    assert!(instance_rx.try_recv().is_err());
 
     let difficulty = send_rx.try_recv().expect("difficulty packet");
     assert_eq!(
@@ -539,7 +549,7 @@ async fn set_difficulty_id_solo_occupied_forgets_recent_without_reset_failures_l
 
 #[tokio::test]
 async fn set_difficulty_id_group_occupied_forgets_recent_without_reset_failures_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let occupant_guid = ObjectGuid::create_player(1, 43);
     let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
@@ -556,6 +566,8 @@ async fn set_difficulty_id_group_occupied_forgets_recent_without_reset_failures_
     session
         .handle_set_difficulty_id(set_difficulty_request(2))
         .await;
+
+    assert!(instance_rx.try_recv().is_err());
 
     let difficulty = send_rx.try_recv().expect("difficulty packet");
     assert_eq!(
@@ -575,7 +587,7 @@ async fn set_difficulty_id_group_occupied_forgets_recent_without_reset_failures_
 
 #[tokio::test]
 async fn reset_instances_group_occupied_manual_retains_recent_and_sends_failures_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let occupant_guid = ObjectGuid::create_player(1, 43);
     let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
@@ -586,6 +598,8 @@ async fn reset_instances_group_occupied_manual_retains_recent_and_sends_failures
     session
         .handle_reset_instances(WorldPacket::from_bytes(&[]))
         .await;
+
+    assert!(instance_rx.try_recv().is_err());
 
     let notify = occupant_rx.try_recv().expect("occupant notification");
     assert_eq!(
@@ -640,7 +654,7 @@ async fn reset_instances_group_non_new_manual_forgets_recent_without_packets_lik
 
 #[tokio::test]
 async fn set_difficulty_id_group_non_new_forgets_recent_and_applies_difficulty_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, false);
     let (group_registry, group_guid) = install_reset_group_like_cpp(&mut session, player_guid);
@@ -654,6 +668,8 @@ async fn set_difficulty_id_group_non_new_forgets_recent_and_applies_difficulty_l
     session
         .handle_set_difficulty_id(set_difficulty_request(2))
         .await;
+
+    assert!(instance_rx.try_recv().is_err());
 
     let difficulty = send_rx.try_recv().expect("difficulty packet");
     assert_eq!(
@@ -673,7 +689,7 @@ async fn set_difficulty_id_group_non_new_forgets_recent_and_applies_difficulty_l
 #[tokio::test]
 async fn set_difficulty_id_missing_and_non_instance_maps_preserve_solo_recent_like_cpp() {
     for non_instance in [false, true] {
-        let (mut session, send_rx) = make_session();
+        let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
         let player_guid = ObjectGuid::create_player(1, 42);
         let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
         {
@@ -688,6 +704,8 @@ async fn set_difficulty_id_missing_and_non_instance_maps_preserve_solo_recent_li
         session
             .handle_set_difficulty_id(set_difficulty_request(2))
             .await;
+
+        assert!(instance_rx.try_recv().is_err());
 
         let difficulty = send_rx.try_recv().expect("difficulty packet");
         assert_eq!(
@@ -707,7 +725,7 @@ async fn set_difficulty_id_missing_and_non_instance_maps_preserve_solo_recent_li
 #[tokio::test]
 async fn set_difficulty_id_missing_and_non_instance_maps_preserve_group_recent_like_cpp() {
     for non_instance in [false, true] {
-        let (mut session, send_rx) = make_session();
+        let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
         let player_guid = ObjectGuid::create_player(1, 42);
         let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
         {
@@ -727,6 +745,8 @@ async fn set_difficulty_id_missing_and_non_instance_maps_preserve_group_recent_l
         session
             .handle_set_difficulty_id(set_difficulty_request(2))
             .await;
+
+        assert!(instance_rx.try_recv().is_err());
 
         let difficulty = send_rx.try_recv().expect("difficulty packet");
         assert_eq!(
@@ -796,7 +816,7 @@ async fn reset_instances_inside_instance_is_silent_and_retains_recent_like_cpp()
 
 #[tokio::test]
 async fn set_difficulty_id_group_persistence_failure_does_not_roll_back_reset_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
     let (group_registry, group_guid) = install_reset_group_like_cpp(&mut session, player_guid);
@@ -812,6 +832,8 @@ async fn set_difficulty_id_group_persistence_failure_does_not_roll_back_reset_li
     session
         .handle_set_difficulty_id(set_difficulty_request(2))
         .await;
+
+    assert!(instance_rx.try_recv().is_err());
 
     let reset = send_rx.try_recv().expect("map reset precedes persistence");
     assert_eq!(

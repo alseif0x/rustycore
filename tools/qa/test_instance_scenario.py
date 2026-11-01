@@ -72,7 +72,7 @@ def sent_reset(sequence: int = 10) -> dict:
 
 
 def reset_event(sequence: int = 11, body: bytes | None = None,
-                connection: str = "instance") -> dict:
+                connection: str = "realm") -> dict:
     if body is None:
         body = scenario.INSTANCE_MAP.to_bytes(4, "little")
     return {
@@ -103,11 +103,11 @@ class InstancePlanTests(unittest.TestCase):
              "opcode": scenario.SMSG_NEW_WORLD, "timeout_ms": 30_000},
             {"action": "wait", "milliseconds": 2_000},
             {"action": "reset_instances"},
-            {"action": "wait_for_packet", "connection": "instance",
+            {"action": "wait_for_packet", "connection": "realm",
              "opcode": scenario.SMSG_INSTANCE_RESET, "timeout_ms": 5_000},
         ])
         self.assertEqual(plan["expect"][0], {
-            "event": "packet", "connection": "instance",
+            "event": "packet", "connection": "realm",
             "opcode": 0x2686, "body_hex": "21000000",
         })
         self.assertEqual(plan["expect"][1]["connection"], "realm")
@@ -238,7 +238,7 @@ class ResetEvidenceTests(unittest.TestCase):
             elif defect == "wrong_body":
                 bad["events"] = [reset_event(body=33 .to_bytes(4, "big"))]
             elif defect == "wrong_connection":
-                bad["events"] = [reset_event(connection="realm")]
+                bad["events"] = [reset_event(connection="instance")]
             else:
                 bad["events"] = [reset_event(sequence=9)]
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
@@ -384,7 +384,7 @@ class GroupPlanTests(unittest.TestCase):
         occupied = scenario.member_occupied_plan(member)
         self.assertEqual(occupied["actions"], [{"action": "wait", "milliseconds": 90_000}])
         self.assertEqual(occupied["expect"], [
-            {"event": "packet", "connection": "instance",
+            {"event": "packet", "connection": "realm",
              "opcode": scenario.SMSG_RESET_FAILED_NOTIFY, "body_hex": ""},
         ])
         self.assertEqual(occupied["finish_policy"], "disconnect")
@@ -432,11 +432,11 @@ class GroupResetEvidenceTests(unittest.TestCase):
         member = member_actor()
         failed = {
             "sent_packets": [typed("reset_instances", "instance", scenario.CMSG_RESET_INSTANCES, "")],
-            "events": [group_event("instance", scenario.SMSG_INSTANCE_RESET_FAILED, "2100000000")],
+            "events": [group_event("realm", scenario.SMSG_INSTANCE_RESET_FAILED, "2100000000")],
         }
         facts = scenario.validate_reset_failed_evidence(failed)
         self.assertEqual(facts["reason"], 0)
-        notify = {"events": [group_event("instance", scenario.SMSG_RESET_FAILED_NOTIFY)]}
+        notify = {"events": [group_event("realm", scenario.SMSG_RESET_FAILED_NOTIFY)]}
         self.assertEqual(scenario.validate_reset_failed_notify_evidence(notify)["body_bytes"], 0)
         scenario.validate_inside_state(inside_state(member, 41), 41)
 
@@ -446,11 +446,11 @@ class GroupResetEvidenceTests(unittest.TestCase):
         scenario.validate_leave_group_evidence(leave)
 
         bad = copy.deepcopy(failed)
-        bad["events"].append(group_event("instance", scenario.SMSG_INSTANCE_RESET_FAILED, "2100000000", 12))
+        bad["events"].append(group_event("realm", scenario.SMSG_INSTANCE_RESET_FAILED, "2100000000", 12))
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_reset_failed_evidence(bad)
         bad_notify = copy.deepcopy(notify)
-        bad_notify["events"].append(group_event("instance", scenario.SMSG_RESET_FAILED_NOTIFY, "", 12))
+        bad_notify["events"].append(group_event("realm", scenario.SMSG_RESET_FAILED_NOTIFY, "", 12))
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_reset_failed_notify_evidence(bad_notify)
 
@@ -518,8 +518,8 @@ class DifficultyPlanTests(unittest.TestCase):
         leader = actor()
         plan = scenario.difficulty_plan(leader)
         self.assertEqual(plan["actions"][0],
-                         {"action": "set_difficulty_id", "difficulty_id": 2})
-        self.assertEqual(plan["actions"][1]["connection"], "instance")
+                         {"action": "set_dungeon_difficulty", "difficulty_id": 2})
+        self.assertEqual(plan["actions"][1]["connection"], "realm")
         self.assertEqual(plan["expect"][0]["body_hex"], "02000000")
         self.assertEqual(plan["finish_policy"], "logout")
         member_plan = scenario.member_difficulty_plan(member_actor())
@@ -528,8 +528,8 @@ class DifficultyPlanTests(unittest.TestCase):
         self.assertEqual(member_plan["finish_policy"], "disconnect")
 
         evidence = {
-            "sent_packets": [typed("set_difficulty_id", "instance", 0x3222, "02000000")],
-            "events": [group_event("instance", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")],
+            "sent_packets": [typed("set_dungeon_difficulty", "instance", 0x3684, "02000000")],
+            "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")],
         }
         self.assertEqual(scenario.validate_difficulty_evidence(evidence)["difficulty_id"], 2)
         scenario.validate_no_reset_events(evidence)
@@ -537,7 +537,7 @@ class DifficultyPlanTests(unittest.TestCase):
             "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
         })
         bad = copy.deepcopy(evidence)
-        bad["events"].append(group_event("instance", scenario.SMSG_INSTANCE_RESET, "21000000", 12))
+        bad["events"].append(group_event("realm", scenario.SMSG_INSTANCE_RESET, "21000000", 12))
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_no_reset_events(bad)
 

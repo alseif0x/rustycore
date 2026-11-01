@@ -223,6 +223,7 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
     plan.actions = vec![
         Action::ResetInstances {},
         Action::SetDifficultyId { difficulty_id: 2 },
+        Action::SetDungeonDifficulty { difficulty_id: 2 },
         Action::PartyInvite {
             name: "Peer".to_string(),
             target,
@@ -253,25 +254,28 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
     .unwrap();
 
     let sent = &controller.evidence.sent_packets;
-    assert_eq!(sent.len(), 5);
+    assert_eq!(sent.len(), 6);
     assert_eq!(sent[0].connection, Connection::Instance);
     assert_eq!(sent[0].opcode, CMSG_RESET_INSTANCES);
     assert_eq!(sent[0].body_hex, "");
     assert_eq!(sent[1].connection, Connection::Instance);
     assert_eq!(sent[1].opcode, CMSG_SET_DIFFICULTY_ID);
     assert_eq!(sent[1].body_hex, hex::encode(2u32.to_le_bytes()));
-    assert_eq!(sent[2].connection, Connection::Realm);
-    assert_eq!(sent[2].opcode, CMSG_PARTY_INVITE);
+    assert_eq!(sent[2].connection, Connection::Instance);
+    assert_eq!(sent[2].opcode, CMSG_SET_DUNGEON_DIFFICULTY);
+    assert_eq!(sent[2].body_hex, hex::encode(2u32.to_le_bytes()));
+    assert_eq!(sent[3].connection, Connection::Realm);
+    assert_eq!(sent[3].opcode, CMSG_PARTY_INVITE);
     assert_eq!(
-        sent[2].body_hex,
+        sent[3].body_hex,
         hex::encode(crate::loot_race::build_party_invite("Peer", target.low, target.high).unwrap())
     );
-    assert_eq!(sent[3].connection, Connection::Realm);
-    assert_eq!(sent[3].opcode, CMSG_PARTY_INVITE_RESPONSE);
-    assert_eq!(sent[3].body_hex, "40");
     assert_eq!(sent[4].connection, Connection::Realm);
-    assert_eq!(sent[4].opcode, CMSG_LEAVE_GROUP);
-    assert_eq!(sent[4].body_hex, "");
+    assert_eq!(sent[4].opcode, CMSG_PARTY_INVITE_RESPONSE);
+    assert_eq!(sent[4].body_hex, "40");
+    assert_eq!(sent[5].connection, Connection::Realm);
+    assert_eq!(sent[5].opcode, CMSG_LEAVE_GROUP);
+    assert_eq!(sent[5].body_hex, "");
     assert!(sent.iter().all(|packet| packet.write_completed));
 }
 

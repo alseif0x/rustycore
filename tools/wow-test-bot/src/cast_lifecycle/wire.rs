@@ -38,6 +38,10 @@ pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
             CMSG_SET_DIFFICULTY_ID,
             difficulty_id.to_le_bytes().to_vec(),
         ),
+        Action::SetDungeonDifficulty { difficulty_id } => (
+            CMSG_SET_DUNGEON_DIFFICULTY,
+            difficulty_id.to_le_bytes().to_vec(),
+        ),
         _ => unreachable!("only typed non-cast actions use this builder"),
     }
 }

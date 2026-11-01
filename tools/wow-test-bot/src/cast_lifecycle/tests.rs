@@ -1493,6 +1493,31 @@ fn instance_and_party_action_builders_match_native_shapes_and_strict_fields() {
 }
 
 #[test]
+fn set_dungeon_difficulty_action_preserves_instance_wire_shape_and_strict_fields() {
+    let action = Action::SetDungeonDifficulty { difficulty_id: 2 };
+    assert_eq!(action_name(&action), "set_dungeon_difficulty");
+    assert_eq!(
+        build_action_packet(&action),
+        (CMSG_SET_DUNGEON_DIFFICULTY, 2u32.to_le_bytes().to_vec())
+    );
+    assert_eq!(CMSG_SET_DUNGEON_DIFFICULTY, 0x3684);
+
+    let plan: Plan = serde_json::from_str(
+        r#"{"actions":[{"action":"set_dungeon_difficulty","difficulty_id":2}],"expect":[{"event":"packet","connection":"realm","opcode":9892,"body_hex":"02000000"}]}"#,
+    )
+    .unwrap();
+    plan::validate_plan(&plan).unwrap();
+    assert!(matches!(
+        plan.actions.as_slice(),
+        [Action::SetDungeonDifficulty { difficulty_id: 2 }]
+    ));
+    assert!(serde_json::from_str::<Action>(
+        r#"{"action":"set_dungeon_difficulty","difficulty_id":2,"unexpected":1}"#
+    )
+    .is_err());
+}
+
+#[test]
 fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
     let plan: Plan = serde_json::from_str(
         r#"{

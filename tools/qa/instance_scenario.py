@@ -65,11 +65,11 @@ def reset_plan(actor: dict[str, Any], realm_id: int) -> dict[str, Any]:
             death_scenario._wait("realm", SMSG_NEW_WORLD, 30_000),
             {"action": "wait", "milliseconds": 2_000},
             {"action": "reset_instances"},
-            death_scenario._wait("instance", SMSG_INSTANCE_RESET, 5_000),
+            death_scenario._wait("realm", SMSG_INSTANCE_RESET, 5_000),
         ],
         "expect": [
             death_scenario._packet(
-                "instance", SMSG_INSTANCE_RESET, INSTANCE_MAP.to_bytes(4, "little")
+                "realm", SMSG_INSTANCE_RESET, INSTANCE_MAP.to_bytes(4, "little")
             ),
             death_scenario._packet("realm", LOGOUT_COMPLETE),
         ],
@@ -83,11 +83,11 @@ def group_reset_plan(actor: dict[str, Any]) -> dict[str, Any]:
         "timeout_ms": 10_000,
         "actions": [
             {"action": "reset_instances"},
-            death_scenario._wait("instance", SMSG_INSTANCE_RESET, 5_000),
+            death_scenario._wait("realm", SMSG_INSTANCE_RESET, 5_000),
         ],
         "expect": [
             death_scenario._packet(
-                "instance", SMSG_INSTANCE_RESET, INSTANCE_MAP.to_bytes(4, "little")
+                "realm", SMSG_INSTANCE_RESET, INSTANCE_MAP.to_bytes(4, "little")
             ),
             death_scenario._packet("realm", LOGOUT_COMPLETE),
         ],
@@ -252,7 +252,7 @@ def validate_reset_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
     expected_body = INSTANCE_MAP.to_bytes(4, "little").hex()
     responses = [event for event in evidence.get("events", [])
                  if isinstance(event, dict) and event.get("opcode") == SMSG_INSTANCE_RESET
-                 and event.get("connection") == "instance"
+                 and event.get("connection") == "realm"
                  and event.get("body_hex") == expected_body]
     all_responses = [event for event in evidence.get("events", [])
                      if isinstance(event, dict) and event.get("opcode") == SMSG_INSTANCE_RESET]
@@ -422,7 +422,7 @@ def member_occupied_plan(member: dict[str, Any]) -> dict[str, Any]:
     return {
         "character_guid": int(member["guid"]), "timeout_ms": 95_000,
         "actions": [{"action": "wait", "milliseconds": 90_000}],
-        "expect": [death_scenario._packet("instance", SMSG_RESET_FAILED_NOTIFY)],
+        "expect": [death_scenario._packet("realm", SMSG_RESET_FAILED_NOTIFY)],
         "finish_policy": "disconnect",
     }
 
@@ -433,10 +433,10 @@ def reset_failed_plan(actor: dict[str, Any]) -> dict[str, Any]:
         "character_guid": int(actor["guid"]), "timeout_ms": 10_000,
         "actions": [
             {"action": "reset_instances"},
-            death_scenario._wait("instance", SMSG_INSTANCE_RESET_FAILED, 5_000),
+            death_scenario._wait("realm", SMSG_INSTANCE_RESET_FAILED, 5_000),
         ],
         "expect": [
-            death_scenario._packet("instance", SMSG_INSTANCE_RESET_FAILED, body),
+            death_scenario._packet("realm", SMSG_INSTANCE_RESET_FAILED, body),
             death_scenario._packet("realm", LOGOUT_COMPLETE),
         ],
         "finish_policy": "logout",
@@ -491,7 +491,7 @@ def validate_reset_failed_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
     if len(requests) != 1:
         raise ScenarioFailure("occupied group reset requires exactly one typed reset request")
     body = (INSTANCE_MAP.to_bytes(4, "little") + b"\x00").hex()
-    responses = _opcode_events(evidence, "instance", SMSG_INSTANCE_RESET_FAILED, body)
+    responses = _opcode_events(evidence, "realm", SMSG_INSTANCE_RESET_FAILED, body)
     all_responses = [event for event in evidence.get("events", [])
                      if isinstance(event, dict) and event.get("opcode") == SMSG_INSTANCE_RESET_FAILED]
     if len(responses) != 1 or len(all_responses) != 1 \
@@ -502,7 +502,7 @@ def validate_reset_failed_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_reset_failed_notify_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
-    notifications = _opcode_events(evidence, "instance", SMSG_RESET_FAILED_NOTIFY, "")
+    notifications = _opcode_events(evidence, "realm", SMSG_RESET_FAILED_NOTIFY, "")
     all_notifications = [event for event in evidence.get("events", [])
                          if isinstance(event, dict) and event.get("opcode") == SMSG_RESET_FAILED_NOTIFY]
     if len(notifications) != 1 or len(all_notifications) != 1:
@@ -700,11 +700,11 @@ def difficulty_plan(actor: dict[str, Any]) -> dict[str, Any]:
     return {
         "character_guid": int(actor["guid"]), "timeout_ms": 10_000,
         "actions": [
-            {"action": "set_difficulty_id", "difficulty_id": 2},
-            death_scenario._wait("instance", SMSG_SET_DUNGEON_DIFFICULTY, 5_000),
+            {"action": "set_dungeon_difficulty", "difficulty_id": 2},
+            death_scenario._wait("realm", SMSG_SET_DUNGEON_DIFFICULTY, 5_000),
         ],
         "expect": [
-            death_scenario._packet("instance", SMSG_SET_DUNGEON_DIFFICULTY, body),
+            death_scenario._packet("realm", SMSG_SET_DUNGEON_DIFFICULTY, body),
             death_scenario._packet("realm", LOGOUT_COMPLETE),
         ],
         "finish_policy": "logout",
@@ -723,10 +723,10 @@ def member_difficulty_plan(member: dict[str, Any]) -> dict[str, Any]:
 
 def validate_difficulty_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
     body = (2).to_bytes(4, "little", signed=True).hex()
-    requests = _typed_packets(evidence, "set_difficulty_id", "instance", 0x3222, body)
+    requests = _typed_packets(evidence, "set_dungeon_difficulty", "instance", 0x3684, body)
     if len(requests) != 1:
-        raise ScenarioFailure("difficulty change requires exactly one typed SetDifficultyId")
-    responses = _opcode_events(evidence, "instance", SMSG_SET_DUNGEON_DIFFICULTY, body)
+        raise ScenarioFailure("difficulty change requires exactly one typed SetDungeonDifficulty")
+    responses = _opcode_events(evidence, "realm", SMSG_SET_DUNGEON_DIFFICULTY, body)
     if len(responses) != 1 or _sequence(responses[0]) <= _sequence(requests[0]):
         raise ScenarioFailure("difficulty change requires exactly one body-2 response")
     return {"request_sequence": requests[0].get("sequence"),
@@ -745,6 +745,7 @@ def validate_login_difficulty(evidence: dict[str, Any]) -> None:
     body = (2).to_bytes(4, "little", signed=True).hex()
     responses = [event for event in evidence.get("events", [])
                  if isinstance(event, dict) and event.get("opcode") == SMSG_SET_DUNGEON_DIFFICULTY
+                 and event.get("connection") == "realm"
                  and event.get("body_hex") == body]
     if len(responses) != 1:
         raise ScenarioFailure("fresh login requires one persisted body-2 dungeon difficulty")

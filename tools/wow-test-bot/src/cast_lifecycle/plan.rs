@@ -168,6 +168,7 @@ pub(crate) enum Action {
     LogoutCancel {},
     ResetInstances {},
     SetDifficultyId { difficulty_id: u32 },
+    SetDungeonDifficulty { difficulty_id: u32 },
     PartyInvite { name: String, target: Guid },
     PartyInviteResponse { accept: bool },
     LeaveGroup {},
@@ -761,6 +762,7 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             | Action::LogoutCancel {}
             | Action::ResetInstances {}
             | Action::SetDifficultyId { .. }
+            | Action::SetDungeonDifficulty { .. }
             | Action::PartyInviteResponse { .. }
             | Action::LeaveGroup {} => {}
         }
