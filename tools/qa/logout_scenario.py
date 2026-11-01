@@ -81,9 +81,11 @@ def _fall_start(actor: dict[str, Any]) -> dict[str, Any]:
                      "cos_angle": 1.0, "xy_speed": 0.0}}
 
 
-def plan_for(scenario: str, actor: dict[str, Any]) -> dict[str, Any]:
+def plan_for(scenario: str, actor: dict[str, Any], *, backend: str = "rust") -> dict[str, Any]:
     if scenario not in SCENARIOS or actor.get("name") != SCENARIOS[scenario]:
         raise ScenarioFailure("logout scenario actor is outside the bounded case set")
+    if backend not in {"rust", "cpp"}:
+        raise ScenarioFailure("capture backend is invalid")
     actions: list[dict[str, Any]]
     expected: list[dict[str, Any]]
     if scenario == "logout-combat-denial":
@@ -106,9 +108,13 @@ def plan_for(scenario: str, actor: dict[str, Any]) -> dict[str, Any]:
         expected = [_response(2)]
         timeout_ms = 30_000
     elif scenario in INSTANT_SCENARIOS:
-        actions = [_request(), _wait("instance", LOGOUT_RESPONSE, 15_000),
-                   _wait("realm", LOGOUT_COMPLETE)]
-        expected = [_response(0, True), _packet("realm", LOGOUT_COMPLETE)]
+        if backend == "cpp":
+            actions = [_request(), _wait("realm", LOGOUT_COMPLETE)]
+            expected = [_packet("realm", LOGOUT_COMPLETE)]
+        else:
+            actions = [_request(), _wait("instance", LOGOUT_RESPONSE, 15_000),
+                       _wait("realm", LOGOUT_COMPLETE)]
+            expected = [_response(0, True), _packet("realm", LOGOUT_COMPLETE)]
         timeout_ms = 20_000
     elif scenario in {"logout-cancel", "logout-rbac-revoke"}:
         actions = [_request(), _wait("instance", LOGOUT_RESPONSE),
@@ -294,6 +300,57 @@ def _restore_variant(scenario: str, db: death_fixture.MariaDB,
     raise ScenarioFailure("fixture restoration is restricted to the bounded logout variants")
 
 
+def _pkt31_packets(data: bytes) -> list[dict[str, Any]]:
+    def take(offset: int, size: int) -> tuple[bytes, int]:
+        end = offset + size
+        if end > len(data):
+            raise ScenarioFailure("truncated PKT 3.1 capture")
+        return data[offset:end], end
+
+    header, offset = take(0, 66)
+    if header[:3] != b"PKT" or struct.unpack_from("<H", header, 3)[0] != 0x0301:
+        raise ScenarioFailure("invalid PKT 3.1 signature or format version")
+    if struct.unpack_from("<I", header, 62)[0] != 0:
+        raise ScenarioFailure("PKT 3.1 file header must be exactly 66 bytes")
+    packets = []
+    while offset < len(data):
+        raw, offset = take(offset, 20)
+        direction, connection_id, arrival_ticks, optional_size, length = \
+            struct.unpack("<IIIII", raw)
+        if direction not in {0x47534D43, 0x47534D53}:
+            raise ScenarioFailure("invalid PKT 3.1 packet direction")
+        if length < 4:
+            raise ScenarioFailure("invalid PKT 3.1 packet length")
+        _, offset = take(offset, optional_size)
+        raw_opcode, offset = take(offset, 4)
+        opcode = struct.unpack("<I", raw_opcode)[0]
+        if opcode > 0xFFFF:
+            raise ScenarioFailure("PKT 3.1 opcode exceeds the 16-bit world opcode space")
+        body, offset = take(offset, length - 4)
+        packets.append({"direction": direction, "connection_id": connection_id,
+                        "arrival_ticks": arrival_ticks, "opcode": opcode, "body": body})
+    return packets
+
+
+def _cpp_logout_response(capture: Path) -> bytes:
+    try:
+        data = (capture / "cpp.pkt").read_bytes()
+    except OSError:
+        raise ScenarioFailure("unable to read native C++ PKT capture") from None
+    responses = [packet for packet in _pkt31_packets(data)
+                 if packet["direction"] == 0x47534D53
+                 and packet["opcode"] == LOGOUT_RESPONSE]
+    if len(responses) != 1:
+        raise ScenarioFailure("native C++ capture requires exactly one SMSG LogoutResponse")
+    response = responses[0]
+    if response["connection_id"] != 1:
+        raise ScenarioFailure("native C++ LogoutResponse is not on connection 1")
+    expected = b"\x00" * 4 + b"\x80"
+    if response["body"] != expected:
+        raise ScenarioFailure("native C++ LogoutResponse body is not reason zero and instant")
+    return response["body"]
+
+
 def _events(evidence: dict[str, Any], opcode: int, connection: str | None = None,
             body: bytes | None = None) -> list[dict[str, Any]]:
     result = []
@@ -461,7 +518,8 @@ def _stun_updates(evidence: dict[str, Any], owner: dict[str, int]) -> list[dict[
     return sorted(updates, key=lambda item: item["observation_sequence"])
 
 
-def _require_common(scenario: str, evidence: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+def _require_common(scenario: str, evidence: dict[str, Any], *,
+                    native_response: bytes | None = None) -> tuple[list[dict[str, Any]], int]:
     requests = _typed_requests(evidence)
     expected_count = 2 if scenario == "logout-repeated" else 1
     if len(requests) != expected_count or _sends(evidence, "finish_logout"):
@@ -472,12 +530,19 @@ def _require_common(scenario: str, evidence: dict[str, Any]) -> tuple[list[dict[
     reason = {"logout-combat-denial": 1, "logout-fall-denial": 3,
               "logout-freeze-denial": 2}.get(scenario, 0)
     instant = b"\x80" if scenario in INSTANT_SCENARIOS else b"\x00"
-    responses = _events(evidence, LOGOUT_RESPONSE, "instance",
-                        reason.to_bytes(4, "little", signed=True) + instant)
-    if len(responses) != expected_count:
-        raise ScenarioFailure("logout response reason, body, route, or count is incorrect")
-    if len(_events(evidence, LOGOUT_RESPONSE)) != expected_count:
-        raise ScenarioFailure("unexpected additional logout response was observed")
+    expected_body = reason.to_bytes(4, "little", signed=True) + instant
+    responses = _events(evidence, LOGOUT_RESPONSE, "instance", expected_body)
+    all_responses = _events(evidence, LOGOUT_RESPONSE)
+    if native_response is not None:
+        if scenario not in INSTANT_SCENARIOS or native_response != b"\x00" * 4 + b"\x80":
+            raise ScenarioFailure("native C++ logout response evidence is invalid for this scenario")
+        if len(responses) > 1 or len(all_responses) != len(responses):
+            raise ScenarioFailure("observed instant logout response body, route, or count is incorrect")
+    else:
+        if len(responses) != expected_count:
+            raise ScenarioFailure("logout response reason, body, route, or count is incorrect")
+        if len(all_responses) != expected_count:
+            raise ScenarioFailure("unexpected additional logout response was observed")
     if _sends(evidence, "logout_cancel") and scenario not in cancel_scenarios:
         raise ScenarioFailure("non-cancel scenario sent a logout cancel")
     return requests, reason
@@ -508,15 +573,21 @@ def _validate_denial(scenario: str, evidence: dict[str, Any],
 
 
 def _validate_instant(evidence: dict[str, Any], actor: dict[str, Any], realm_id: int,
-                      requests: list[dict[str, Any]]) -> dict[str, Any]:
+                      requests: list[dict[str, Any]], *,
+                      native_response: bytes | None = None) -> dict[str, Any]:
     request_boundary = _sequence(requests[0])
     responses = _events(evidence, LOGOUT_RESPONSE, "instance")
     complete = _events(evidence, LOGOUT_COMPLETE, "realm", b"")
-    if _sequence(responses[0]) <= request_boundary:
-        raise ScenarioFailure("instant logout response was not observed after its typed request")
     if len(complete) != 1 or len(_events(evidence, LOGOUT_COMPLETE)) != 1 \
-            or _sequence(complete[0]) <= _sequence(responses[0]):
-        raise ScenarioFailure("instant logout requires one empty realm Complete after its response")
+            or _sequence(complete[0]) <= request_boundary:
+        raise ScenarioFailure("instant logout requires one empty realm Complete after its request")
+    if native_response is None:
+        if _sequence(responses[0]) <= request_boundary:
+            raise ScenarioFailure("instant logout response was not observed after its typed request")
+        if _sequence(complete[0]) <= _sequence(responses[0]):
+            raise ScenarioFailure("instant logout Complete was not observed after its response")
+    if evidence.get("logout_confirmed") is not True:
+        raise ScenarioFailure("instant logout did not confirm completion")
     if any(_sequence(event) > request_boundary
            for event in _events(evidence, MOVE_ROOT, "instance")):
         raise ScenarioFailure("instant logout emitted a movement root")
@@ -526,7 +597,10 @@ def _validate_instant(evidence: dict[str, Any], actor: dict[str, Any], realm_id:
     if any(item["observation_sequence"] > request_boundary
            for item in _stun_updates(evidence, owner)):
         raise ScenarioFailure("instant logout emitted a stun transition")
-    return {"complete_event_sequence": complete[0].get("sequence")}
+    facts = {"complete_event_sequence": complete[0].get("sequence")}
+    if native_response is not None:
+        facts["response_evidence"] = "native-cpp-pkt"
+    return facts
 
 
 def _validate_admitted(scenario: str, evidence: dict[str, Any], actor: dict[str, Any],
@@ -614,12 +688,14 @@ def _validate_timed(plan: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
 
 
 def validate_evidence(scenario: str, plan: dict[str, Any], evidence: dict[str, Any],
-                      actor: dict[str, Any], realm_id: int) -> dict[str, Any]:
-    requests, _ = _require_common(scenario, evidence)
+                      actor: dict[str, Any], realm_id: int, *,
+                      native_response: bytes | None = None) -> dict[str, Any]:
+    requests, _ = _require_common(scenario, evidence, native_response=native_response)
     if scenario.endswith("-denial"):
         return _validate_denial(scenario, evidence, requests)
     if scenario in INSTANT_SCENARIOS:
-        return _validate_instant(evidence, actor, realm_id, requests)
+        return _validate_instant(evidence, actor, realm_id, requests,
+                                 native_response=native_response)
     facts = _validate_admitted(scenario, evidence, actor, realm_id, requests)
     if scenario == "logout-timed":
         facts.update(_validate_timed(plan, evidence))
@@ -757,13 +833,17 @@ def _observation(pass_: death_scenario.BotPass, evidence: dict[str, Any],
 def _run_case_body(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
                    db: death_fixture.MariaDB) -> dict[str, Any]:
     scenario = identity["scenario"]
+    backend = identity.get("backend", "rust")
     actor = next(item for item in journal["actors"] if item["name"] == SCENARIOS[scenario])
-    plan = plan_for(scenario, actor)
+    plan = plan_for(scenario, actor, backend=backend)
     if scenario == "logout-freeze-denial":
         _seed_freeze(scenario, db, actor, realm_id)
     pass_ = death_scenario.BotPass(actor, plan, f"{scenario}-001")
     evidence = _run_single(pass_, identity)
-    facts = validate_evidence(scenario, plan, evidence, actor, realm_id)
+    native_response = _cpp_logout_response(identity["capture"]) \
+        if backend == "cpp" and scenario in INSTANT_SCENARIOS else None
+    facts = validate_evidence(scenario, plan, evidence, actor, realm_id,
+                              native_response=native_response)
     if scenario == "logout-disconnect":
         disconnected_at = time.monotonic()
         facts.update(prove_disconnect_timing(db, journal, actor, disconnected_at))

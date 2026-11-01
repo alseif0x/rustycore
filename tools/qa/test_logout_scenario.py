@@ -99,6 +99,104 @@ def instant_evidence(name: str) -> tuple[dict, dict]:
     return selected, evidence
 
 
+def pkt31(*records: tuple[int, int, int, bytes]) -> bytes:
+    data = b"PKT" + struct.pack("<H", 0x0301) + b"T" + struct.pack("<I", 49_741) \
+        + b"enUS" + b"\x00" * 40 + struct.pack("<III", 0, 0, 0)
+    for direction, connection_id, opcode, body in records:
+        data += struct.pack("<IIIII", direction, connection_id, 0, 20, len(body) + 4)
+        data += b"\x00" * 20 + struct.pack("<I", opcode) + body
+    return data
+
+
+class NativeCppLogoutTests(unittest.TestCase):
+    def test_cpp_instant_plan_skips_bot_response_but_rust_does_not(self) -> None:
+        for name in sorted(scenario.INSTANT_SCENARIOS):
+            selected = actor(scenario.SCENARIOS[name])
+            rust = scenario.plan_for(name, selected)
+            cpp = scenario.plan_for(name, selected, backend="cpp")
+            with self.subTest(name=name):
+                self.assertEqual(cpp["actions"], [
+                    {"action": "logout_request", "idle_logout": False},
+                    {"action": "wait_for_packet", "connection": "realm",
+                     "opcode": scenario.LOGOUT_COMPLETE, "timeout_ms": 5_000},
+                ])
+                self.assertEqual(cpp["expect"], [
+                    {"event": "packet", "connection": "realm",
+                     "opcode": scenario.LOGOUT_COMPLETE, "body_hex": ""},
+                ])
+                self.assertEqual(cpp["timeout_ms"], 20_000)
+                self.assertEqual(rust["actions"][1], {
+                    "action": "wait_for_packet", "connection": "instance",
+                    "opcode": scenario.LOGOUT_RESPONSE, "timeout_ms": 15_000})
+                self.assertEqual(len(rust["expect"]), 2)
+
+    def test_native_pkt31_requires_one_exact_connection_one_response(self) -> None:
+        body = b"\x00" * 4 + b"\x80"
+        record = (0x47534D53, 1, scenario.LOGOUT_RESPONSE, body)
+        valid = pkt31(record)
+        with tempfile.TemporaryDirectory() as raw:
+            capture = Path(raw)
+            (capture / "cpp.pkt").write_bytes(valid)
+            self.assertEqual(scenario._cpp_logout_response(capture), body)
+
+        defects = {
+            "missing": pkt31(),
+            "duplicate": pkt31(record, record),
+            "wrong_connection": pkt31((0x47534D53, 2, scenario.LOGOUT_RESPONSE, body)),
+            "wrong_body": pkt31((0x47534D53, 1, scenario.LOGOUT_RESPONSE, b"\x00" * 5)),
+            "truncated": valid[:-1],
+            "wide_opcode": pkt31((0x47534D53, 1, 0x10000, body)),
+            "bad_signature": b"BAD" + valid[3:],
+        }
+        for defect, data in defects.items():
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as raw:
+                capture = Path(raw)
+                (capture / "cpp.pkt").write_bytes(data)
+                with self.assertRaises(scenario.ScenarioFailure):
+                    scenario._cpp_logout_response(capture)
+
+    def test_cpp_native_response_replaces_only_the_bot_response_requirement(self) -> None:
+        selected, evidence = instant_evidence("logout-resting")
+        evidence["events"] = [event(scenario.LOGOUT_COMPLETE, 12, b"", "realm")]
+        plan = scenario.plan_for("logout-resting", selected, backend="cpp")
+        native = b"\x00" * 4 + b"\x80"
+        facts = scenario.validate_evidence("logout-resting", plan, evidence, selected, 1,
+                                           native_response=native)
+        self.assertEqual(facts["response_evidence"], "native-cpp-pkt")
+        self.assertEqual(facts["complete_event_sequence"], 12)
+
+        with_bot_response = copy.deepcopy(evidence)
+        with_bot_response["events"].insert(0, response(0, 11, True))
+        scenario.validate_evidence("logout-resting", plan, with_bot_response, selected, 1,
+                                   native_response=native)
+        wrong_bot_response = copy.deepcopy(with_bot_response)
+        wrong_bot_response["events"][0] = response(0, 11)
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_evidence("logout-resting", plan, wrong_bot_response, selected, 1,
+                                       native_response=native)
+
+        for defect in ("premature", "duplicate", "root", "stun", "unconfirmed"):
+            bad = copy.deepcopy(evidence)
+            if defect == "premature":
+                bad["events"][0]["observation_sequence"] = 10
+            elif defect == "duplicate":
+                bad["events"].append(event(scenario.LOGOUT_COMPLETE, 13, b"", "realm"))
+            elif defect == "root":
+                bad["events"].append(event(scenario.MOVE_ROOT, 13))
+            elif defect == "stun":
+                bad["events"].append(stun_event(
+                    selected, 13, 0x1000 | scenario.UNIT_FLAG_STUNNED))
+            else:
+                bad["logout_confirmed"] = False
+            with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
+                scenario.validate_evidence("logout-resting", plan, bad, selected, 1,
+                                           native_response=native)
+
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_evidence("logout-resting", scenario.plan_for(
+                "logout-resting", selected), evidence, selected, 1)
+
+
 class LogoutPlanTests(unittest.TestCase):
     def test_exact_response_reason_bodies_and_bounded_actor_set(self) -> None:
         expected = {"logout-combat-denial": 1, "logout-fall-denial": 3,
