@@ -325,6 +325,86 @@ async fn wait_for_logout_complete_allows_instance_eof_after_completed_request() 
 }
 
 #[tokio::test]
+async fn realm_complete_before_instance_response_is_reused_by_later_complete_wait() {
+    const RESPONSE_BODY: [u8; 5] = [0x12, 0x34, 0x56, 0x78, 0x9A];
+
+    let mut controller = logout_controller();
+    controller.evidence.logout_request_completed = true;
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, mut realm_peer) = tcp_pair().await;
+    let key = [0x6f; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+    let mut realm_server = WorldCrypt::new_with_counters(&key, 0, 0);
+    realm_peer
+        .write_all(&encrypted_server_packet(
+            &mut realm_server,
+            SMSG_LOGOUT_COMPLETE,
+            &[],
+        ))
+        .await
+        .unwrap();
+    let mut instance_server = WorldCrypt::new_with_counters(&key, 0, 0);
+    instance_peer
+        .write_all(&encrypted_server_packet(
+            &mut instance_server,
+            SMSG_LOGOUT_RESPONSE,
+            &RESPONSE_BODY,
+        ))
+        .await
+        .unwrap();
+
+    wait_for_packet(
+        tokio::time::Instant::now() + Duration::from_secs(1),
+        Connection::Instance,
+        SMSG_LOGOUT_RESPONSE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    )
+    .await
+    .expect("realm Complete does not abort the instance Response wait");
+
+    wait_for_packet(
+        tokio::time::Instant::now(),
+        Connection::Realm,
+        SMSG_LOGOUT_COMPLETE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    )
+    .await
+    .expect("the observed realm Complete is reused immediately");
+
+    assert!(controller.evidence.logout_confirmed);
+    assert_eq!(controller.evidence.logout_route.as_deref(), Some("realm"));
+    assert_eq!(controller.evidence.events.len(), 2);
+    assert_eq!(controller.evidence.events[0].connection, Connection::Realm);
+    assert_eq!(controller.evidence.events[0].opcode, SMSG_LOGOUT_COMPLETE);
+    assert_eq!(controller.evidence.events[1].connection, Connection::Instance);
+    assert_eq!(controller.evidence.events[1].opcode, SMSG_LOGOUT_RESPONSE);
+    assert_eq!(controller.evidence.events[1].body_hex, hex::encode(RESPONSE_BODY));
+    assert_eq!(
+        controller
+            .evidence
+            .events
+            .iter()
+            .filter(|event| event.opcode == SMSG_LOGOUT_COMPLETE)
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
 async fn execute_skips_observer_after_realm_logout_complete() {
     let mut controller = logout_controller();
     controller.options.plan.actions.clear();

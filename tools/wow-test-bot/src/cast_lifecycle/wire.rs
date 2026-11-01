@@ -410,6 +410,13 @@ pub(super) async fn wait_for_packet(
     realm: &mut Option<EncryptedWorldConnection>,
     controller: &mut Controller,
 ) -> Result<()> {
+    if connection == Connection::Realm
+        && opcode == SMSG_LOGOUT_COMPLETE
+        && controller.evidence.logout_confirmed
+        && controller.evidence.logout_route.as_deref() == Some("realm")
+    {
+        return Ok(());
+    }
     let finishing_logout = connection == Connection::Realm
         && opcode == SMSG_LOGOUT_COMPLETE
         && controller.evidence.logout_request_completed;
@@ -492,12 +499,17 @@ async fn collect_until_inner(
                 return Ok(true);
             }
             if let Some((wait_connection, wait_opcode)) = match_packet {
-                bail!(
-                    "LogoutComplete arrived before wait_for_packet for {wait_connection:?} packet 0x{wait_opcode:04X}"
-                );
+                if match_packet != Some((Connection::Instance, SMSG_LOGOUT_RESPONSE)) {
+                    bail!(
+                        "LogoutComplete arrived before wait_for_packet for {wait_connection:?} packet 0x{wait_opcode:04X}"
+                    );
+                }
             }
             if finishing_logout {
                 return Ok(true);
+            }
+            if match_packet.is_some() {
+                continue;
             }
             break;
         }
