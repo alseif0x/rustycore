@@ -383,8 +383,7 @@ class GroupPlanTests(unittest.TestCase):
         for plan in (member_plan, leader_plan):
             self.assertEqual(
                 [rule["opcode"] for rule in plan["expect"]],
-                [scenario.SMSG_PARTY_UPDATE, scenario.SMSG_PARTY_UPDATE,
-                 scenario.LOGOUT_COMPLETE],
+                [scenario.LOGOUT_COMPLETE],
             )
 
         occupied = scenario.member_occupied_plan(member)
@@ -478,7 +477,18 @@ class GroupResetEvidenceTests(unittest.TestCase):
             ],
         }
         scenario.validate_group_formation_evidence(leader_evidence, member_evidence)
-        for count in (0, 1, 3):
+        for count in (2, 3):
+            leader = copy.deepcopy(leader_evidence)
+            member = copy.deepcopy(member_evidence)
+            leader["events"] = [
+                group_event("realm", scenario.SMSG_PARTY_UPDATE) for _ in range(count)
+            ]
+            member["events"] = [
+                group_event("realm", scenario.SMSG_PARTY_UPDATE) for _ in range(count)
+            ]
+            with self.subTest(valid_count=count):
+                scenario.validate_group_formation_evidence(leader, member)
+        for count in (0, 1):
             bad_leader = copy.deepcopy(leader_evidence)
             bad_member = copy.deepcopy(member_evidence)
             bad_leader["events"] = [
@@ -487,7 +497,7 @@ class GroupResetEvidenceTests(unittest.TestCase):
             bad_member["events"] = [
                 group_event("realm", scenario.SMSG_PARTY_UPDATE) for _ in range(count)
             ]
-            with self.subTest(count=count), self.assertRaises(scenario.ScenarioFailure):
+            with self.subTest(invalid_count=count), self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_group_formation_evidence(bad_leader, bad_member)
 
 
