@@ -206,6 +206,36 @@ class InstanceStateTests(unittest.TestCase):
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_full_relogin_state(initial, inside_state(selected, 0))
 
+    def test_online_unsaved_zero_is_allowed_but_offline_zero_and_wrong_id_fail(self) -> None:
+        selected = member_actor()
+        unsaved = inside_state(selected, 0)
+        unsaved["online"] = 1
+        self.assertEqual(
+            scenario.validate_inside_state(unsaved, 41, allow_unsaved_online=True),
+            41,
+        )
+        scenario.validate_lock_inside_state(
+            lock_inside_state(selected, 0) | {"online": 1}, 42,
+            allow_unsaved_online=True,
+        )
+
+        offline_zero = inside_state(selected, 0)
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_inside_state(offline_zero, 41, allow_unsaved_online=True)
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_inside_state(
+                lock_inside_state(selected, 0), 42,
+                allow_unsaved_online=True,
+            )
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_inside_state(unsaved | {"instance_id": 42}, 41,
+                                           allow_unsaved_online=True)
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_inside_state(
+                lock_inside_state(selected, 99) | {"online": 1}, 42,
+                allow_unsaved_online=True,
+            )
+
     def test_final_position_must_be_outside_journal_home(self) -> None:
         selected = actor()
         scenario.validate_outside_state(selected, outside_state(selected))

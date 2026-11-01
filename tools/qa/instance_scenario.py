@@ -209,10 +209,15 @@ def _save_position_snapshot(db: death_fixture.MariaDB, journal: dict[str, Any],
     return snapshot, state, path
 
 
-def validate_inside_state(state: dict[str, Any], expected_instance_id: int | None = None) -> int:
+def validate_inside_state(state: dict[str, Any], expected_instance_id: int | None = None,
+                          allow_unsaved_online: bool = False) -> int:
     if state.get("map") != INSTANCE_MAP or not _near(state, INSTANCE_POSITION):
         raise ScenarioFailure("instance entry did not persist map 33 at the native location")
     instance_id = state.get("instance_id")
+    if instance_id == 0 and allow_unsaved_online and state.get("online") == 1:
+        if not math.isclose(state["orientation"], 0.0, abs_tol=1e-6):
+            raise ScenarioFailure("instance entry orientation was not zero")
+        return expected_instance_id if expected_instance_id is not None else 0
     if type(instance_id) is not int or instance_id <= 0:
         raise ScenarioFailure("instance entry did not allocate a nonzero instance ID")
     if expected_instance_id is not None and instance_id != expected_instance_id:
@@ -617,7 +622,7 @@ def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id:
         instance_id = validate_inside_state(leader_entry_state)
         _, member_inside_state, member_inside_path = _group_snapshot(
             db, journal, member, identity["capture"], "instance-group-member-inside-001", False)
-        validate_inside_state(member_inside_state, instance_id)
+        validate_inside_state(member_inside_state, instance_id, allow_unsaved_online=True)
         observations.append(logout_scenario._observation(
             leader_entry, leader_entry_evidence, leader_entry_state, leader_entry_path,
             {"instance_id": instance_id, "member_instance_id": instance_id,
@@ -632,7 +637,7 @@ def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id:
             db, journal, leader, identity["capture"], failed_pass.label, True)
         _, member_occupied_state, member_occupied_path = _group_snapshot(
             db, journal, member, identity["capture"], "instance-group-member-still-inside-001", False)
-        validate_inside_state(member_occupied_state, instance_id)
+        validate_inside_state(member_occupied_state, instance_id, allow_unsaved_online=True)
         observations.append(logout_scenario._observation(
             failed_pass, failed_evidence, failed_state, failed_path,
             {**failed_facts, "member_still_inside": True,
@@ -850,7 +855,7 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
             _, member_inside_state, member_inside_path = _difficulty_snapshot(
                 db, journal, member, identity["capture"], "instance-difficulty-member-inside-001",
                 False, epoch)
-            validate_inside_state(member_inside_state, instance_id)
+            validate_inside_state(member_inside_state, instance_id, allow_unsaved_online=True)
             observations.append(logout_scenario._observation(
                 leader_entry, leader_entry_evidence, leader_entry_state, leader_entry_path,
                 {"instance_id": instance_id, "member_instance_id": instance_id,
@@ -866,7 +871,7 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
             _, member_occupied_state, member_occupied_path = _difficulty_snapshot(
                 db, journal, member, identity["capture"], "instance-difficulty-member-still-inside-001",
                 False, epoch)
-            validate_inside_state(member_occupied_state, instance_id)
+            validate_inside_state(member_occupied_state, instance_id, allow_unsaved_online=True)
             observations.append(logout_scenario._observation(
                 difficulty_pass, difficulty_evidence, difficulty_state, difficulty_path,
                 {**difficulty_facts, "member_still_inside": True,
@@ -991,11 +996,17 @@ def lock_reset_plan(actor: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def validate_lock_inside_state(state: dict[str, Any], instance_id: int) -> None:
-    if state.get("map") != LOCK_MAP or state.get("instance_id") != instance_id \
-            or not _near(state, LOCK_POSITION) or not math.isclose(
-                state["orientation"], 0.0, abs_tol=1e-6):
+def validate_lock_inside_state(state: dict[str, Any], instance_id: int,
+                               allow_unsaved_online: bool = False) -> None:
+    if state.get("map") != LOCK_MAP or not _near(state, LOCK_POSITION) or not math.isclose(
+            state["orientation"], 0.0, abs_tol=1e-6):
         raise ScenarioFailure("ICC entry did not retain map 631, the chosen instance, and native position")
+    if state.get("instance_id") == 0:
+        if allow_unsaved_online and state.get("online") == 1:
+            return
+        raise ScenarioFailure("offline ICC snapshot has no allocated instance ID")
+    if state["instance_id"] != instance_id:
+        raise ScenarioFailure("ICC snapshot changed the chosen instance ID")
 
 
 def validate_lock_reset_evidence(leader: dict[str, Any], member: dict[str, Any]) -> None:
@@ -1238,7 +1249,7 @@ def _run_lock_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: 
         _, member_inside_state, member_inside_path = _lock_snapshot(
             db, journal, member, identity["capture"], "instance-lock-member-inside-001",
             False, epoch)
-        validate_lock_inside_state(member_inside_state, instance_id)
+        validate_lock_inside_state(member_inside_state, instance_id, allow_unsaved_online=True)
         observations.append(logout_scenario._observation(
             leader_entry, leader_entry_evidence, leader_entry_state, leader_entry_path,
             {"instance_id": instance_id, "member_instance_id": instance_id,
@@ -1253,7 +1264,7 @@ def _run_lock_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: 
         _, member_occupied_state, member_occupied_path = _lock_snapshot(
             db, journal, member, identity["capture"], "instance-lock-member-still-inside-001",
             False, epoch)
-        validate_lock_inside_state(member_occupied_state, instance_id)
+        validate_lock_inside_state(member_occupied_state, instance_id, allow_unsaved_online=True)
         member_evidence = death_scenario.finish_bot(
             member_pass, timeout_seconds=150, actor=member)
         validate_lock_reset_evidence(reset_evidence, member_evidence)
