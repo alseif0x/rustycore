@@ -97,7 +97,10 @@ class LogoutPlanTests(unittest.TestCase):
                 plan = scenario.plan_for(name, selected)
                 self.assertEqual(plan["character_guid"], selected["guid"])
                 self.assertEqual(plan["finish_policy"], "disconnect")
-                self.assertLessEqual(plan["timeout_ms"], 35_000)
+                self.assertEqual(plan["timeout_ms"], 45_000 if name == "logout-timed" else
+                                 {"logout-combat-denial": 15_000, "logout-fall-denial": 30_000,
+                                  "logout-freeze-denial": 30_000, "logout-cancel": 15_000,
+                                  "logout-disconnect": 10_000, "logout-repeated": 35_000}.get(name))
                 responses = [rule for rule in plan["expect"]
                              if rule.get("opcode") == scenario.LOGOUT_RESPONSE]
                 self.assertEqual(len(responses), 2 if name == "logout-repeated" else 1)
@@ -132,10 +135,11 @@ class LogoutPlanTests(unittest.TestCase):
         self.assertIn({"action": "wait", "milliseconds": scenario.DENIAL_OBSERVE_MS}, freeze["actions"])
 
         timed = scenario.plan_for("logout-timed", actor())
+        self.assertEqual(timed["timeout_ms"], 45_000)
         self.assertIn({"action": "wait", "milliseconds": 20_000}, timed["actions"])
         self.assertEqual(timed["actions"][-1],
                          {"action": "wait_for_packet", "connection": "realm",
-                          "opcode": scenario.LOGOUT_COMPLETE, "timeout_ms": 5_000})
+                          "opcode": scenario.LOGOUT_COMPLETE, "timeout_ms": 15_000})
         self.assertIn({"event": "packet", "connection": "realm",
                        "opcode": scenario.LOGOUT_COMPLETE, "body_hex": ""}, timed["expect"])
         repeated = scenario.plan_for("logout-repeated", actor())

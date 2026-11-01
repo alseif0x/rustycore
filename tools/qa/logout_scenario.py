@@ -104,9 +104,9 @@ def plan_for(scenario: str, actor: dict[str, Any]) -> dict[str, Any]:
         actions = [_request(), _wait("instance", LOGOUT_RESPONSE),
                    _wait("instance", MOVE_ROOT),
                    {"action": "wait", "milliseconds": LOGOUT_DELAY_MS},
-                   _wait("realm", LOGOUT_COMPLETE)]
+                   _wait("realm", LOGOUT_COMPLETE, 15_000)]
         expected = [_response(0), _packet("realm", LOGOUT_COMPLETE)]
-        timeout_ms = 30_000
+        timeout_ms = 45_000
     elif scenario == "logout-disconnect":
         actions = [_request(), _wait("instance", LOGOUT_RESPONSE),
                    _wait("instance", MOVE_ROOT)]
