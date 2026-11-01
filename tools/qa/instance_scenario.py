@@ -16,9 +16,14 @@ import logout_scenario
 
 SCENARIO = "instance-solo-reset"
 GROUP_SCENARIO = "instance-group-reset"
+DIFFICULTY_SCENARIO = "instance-difficulty-restart"
 ACTOR_NAME = "Qadeathcast"
 MEMBER_NAME = "Qadeathfall"
-SCENARIOS = {SCENARIO: ACTOR_NAME, GROUP_SCENARIO: ACTOR_NAME}
+SCENARIOS = {
+    SCENARIO: ACTOR_NAME,
+    GROUP_SCENARIO: ACTOR_NAME,
+    DIFFICULTY_SCENARIO: ACTOR_NAME,
+}
 INSTANCE_MAP = 33
 INSTANCE_POSITION = (-228.191, 2111.41, 76.8904)
 CMSG_RESET_INSTANCES = 0x366A
@@ -28,6 +33,7 @@ SMSG_INSTANCE_RESET_FAILED = 0x2687
 SMSG_RESET_FAILED_NOTIFY = 0x26B7
 SMSG_PARTY_INVITE = 0x25BD
 SMSG_PARTY_UPDATE = 0x25F4
+SMSG_SET_DUNGEON_DIFFICULTY = 0x26A4
 LOGOUT_COMPLETE = 0x2684
 POSITION_TOLERANCE = 0.02
 ScenarioFailure = death_scenario.ScenarioFailure
@@ -148,11 +154,12 @@ def _snapshot_position(snapshot: dict[str, Any], actor: dict[str, Any]) -> dict[
 def _save_position_snapshot(db: death_fixture.MariaDB, journal: dict[str, Any],
                             actor: dict[str, Any], output: Path,
                             label: str, *, scenario_name: str = SCENARIO,
-                            require_offline: bool = True) -> tuple[dict[str, Any], dict[str, Any], Path]:
+                            require_offline: bool = True,
+                            epoch: int = 1) -> tuple[dict[str, Any], dict[str, Any], Path]:
     if require_offline:
         death_scenario._poll_actor_offline(db, journal, actor)
     snapshot = db.snapshot(journal)
-    path = death_scenario._snapshot_path(output, scenario_name, 1, actor, label)
+    path = death_scenario._snapshot_path(output, scenario_name, epoch, actor, label)
     death_scenario._write_private(path, snapshot)
     state = _snapshot_position(snapshot, actor)
     if require_offline and state["online"] != 0:
@@ -225,6 +232,8 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
               db: death_fixture.MariaDB) -> dict[str, Any]:
     if identity.get("scenario", SCENARIO) == GROUP_SCENARIO:
         return _run_group_case(identity, journal, realm_id, db)
+    if identity.get("scenario") == DIFFICULTY_SCENARIO:
+        return _run_difficulty_case(identity, journal, realm_id, db)
     del realm_id
     actor = next(item for item in journal["actors"] if item["name"] == ACTOR_NAME)
     relocated = False
@@ -446,10 +455,11 @@ def cleanup_group(db: death_fixture.MariaDB,
 
 def _group_snapshot(db: death_fixture.MariaDB, journal: dict[str, Any],
                     actor: dict[str, Any], capture: Path, label: str,
-                    require_offline: bool) -> tuple[dict[str, Any], dict[str, Any], Path]:
+                    require_offline: bool, *, scenario_name: str = GROUP_SCENARIO,
+                    epoch: int = 1) -> tuple[dict[str, Any], dict[str, Any], Path]:
     return _save_position_snapshot(
         db, journal, actor, capture, label,
-        scenario_name=GROUP_SCENARIO, require_offline=require_offline)
+        scenario_name=scenario_name, require_offline=require_offline, epoch=epoch)
 
 
 def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
@@ -592,6 +602,270 @@ def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id:
         raise
 
 
+def difficulty_plan(actor: dict[str, Any]) -> dict[str, Any]:
+    body = (2).to_bytes(4, "little", signed=True)
+    return {
+        "character_guid": int(actor["guid"]), "timeout_ms": 10_000,
+        "actions": [
+            {"action": "set_difficulty_id", "difficulty_id": 2},
+            death_scenario._wait("instance", SMSG_SET_DUNGEON_DIFFICULTY, 5_000),
+        ],
+        "expect": [
+            death_scenario._packet("instance", SMSG_SET_DUNGEON_DIFFICULTY, body),
+            death_scenario._packet("realm", LOGOUT_COMPLETE),
+        ],
+        "finish_policy": "logout",
+    }
+
+
+def member_difficulty_plan(member: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "character_guid": int(member["guid"]), "timeout_ms": 95_000,
+        "actions": [{"action": "wait", "milliseconds": 90_000}],
+        "expect": [death_scenario._packet(
+            "realm", SMSG_SET_DUNGEON_DIFFICULTY, (2).to_bytes(4, "little", signed=True))],
+        "finish_policy": "disconnect",
+    }
+
+
+def validate_difficulty_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    body = (2).to_bytes(4, "little", signed=True).hex()
+    requests = _typed_packets(evidence, "set_difficulty_id", "instance", 0x3222, body)
+    if len(requests) != 1:
+        raise ScenarioFailure("difficulty change requires exactly one typed SetDifficultyId")
+    responses = _opcode_events(evidence, "instance", SMSG_SET_DUNGEON_DIFFICULTY, body)
+    if len(responses) != 1 or _sequence(responses[0]) <= _sequence(requests[0]):
+        raise ScenarioFailure("difficulty change requires exactly one body-2 response")
+    return {"request_sequence": requests[0].get("sequence"),
+            "response_sequence": responses[0].get("sequence"), "difficulty_id": 2}
+
+
+def validate_no_reset_events(*evidences: dict[str, Any]) -> None:
+    reset_opcodes = {SMSG_INSTANCE_RESET, SMSG_INSTANCE_RESET_FAILED, SMSG_RESET_FAILED_NOTIFY}
+    for evidence in evidences:
+        if any(isinstance(event, dict) and event.get("opcode") in reset_opcodes
+               for event in evidence.get("events", [])):
+            raise ScenarioFailure("occupied difficulty change emitted a reset packet")
+
+
+def validate_login_difficulty(evidence: dict[str, Any]) -> None:
+    body = (2).to_bytes(4, "little", signed=True).hex()
+    responses = [event for event in evidence.get("events", [])
+                 if isinstance(event, dict) and event.get("opcode") == SMSG_SET_DUNGEON_DIFFICULTY
+                 and event.get("body_hex") == body]
+    if len(responses) != 1:
+        raise ScenarioFailure("fresh login requires one persisted body-2 dungeon difficulty")
+
+
+def require_group_difficulty(db: death_fixture.MariaDB,
+                             actors: tuple[dict[str, Any], dict[str, Any]]) -> dict[str, Any]:
+    leader, member = actors
+    rows = death_fixture.MariaDB._rows(db.execute(
+        "SELECT guid,leaderGuid,difficulty FROM groups "
+        f"WHERE leaderGuid={int(leader['guid'])}"), 3)
+    if len(rows) != 1 or rows[0][1] != str(leader["guid"]) or rows[0][2] != "2":
+        raise ScenarioFailure("scenario group did not persist difficulty 2 under its exact leader")
+    group_guid = rows[0][0]
+    member_rows = death_fixture.MariaDB._rows(db.execute(
+        f"SELECT memberGuid FROM group_member WHERE guid={group_guid} ORDER BY memberGuid"), 1)
+    expected = sorted([str(leader["guid"]), str(member["guid"])])
+    if [row[0] for row in member_rows] != expected:
+        raise ScenarioFailure("scenario group member rows are not exactly leader and member")
+    return {"group_guid": int(group_guid), "leader_guid": leader["guid"],
+            "member_guid": member["guid"], "difficulty": 2,
+            "members": [int(value) for value in expected]}
+
+
+def _difficulty_snapshot(db: death_fixture.MariaDB, journal: dict[str, Any],
+                         actor: dict[str, Any], capture: Path, label: str,
+                         require_offline: bool, epoch: int) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    return _group_snapshot(
+        db, journal, actor, capture, label, require_offline,
+        scenario_name=DIFFICULTY_SCENARIO, epoch=epoch)
+
+
+def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
+                         db: death_fixture.MariaDB) -> dict[str, Any]:
+    epoch = identity["epoch"]
+    leader = next(item for item in journal["actors"] if item["name"] == ACTOR_NAME)
+    member = next(item for item in journal["actors"] if item["name"] == MEMBER_NAME)
+    actors = (leader, member)
+    preflight = preflight_group(db, journal, actors) if epoch == 1 else {"cleanup_allowed": True}
+    relocated = False
+    observations = []
+    try:
+        if epoch == 2:
+            require_group_difficulty(db, actors)
+            for actor in actors:
+                _require_offline(db, journal, actor)
+        if epoch == 1:
+            member_invite = death_scenario.BotPass(
+                member, member_invite_plan(member), "instance-difficulty-member-invite-001")
+            death_scenario.start_bot(
+                member_invite, bot_exec=identity["bot_exec"],
+                bot_config=identity["bot_config"], output=identity["capture"])
+            leader_invite = death_scenario.BotPass(
+                leader, leader_invite_plan(leader, member, realm_id),
+                "instance-difficulty-leader-invite-001")
+            leader_evidence = logout_scenario._run_single(leader_invite, identity)
+            member_evidence = death_scenario.finish_bot(
+                member_invite, timeout_seconds=75, actor=member)
+            validate_group_formation_evidence(leader_evidence, member_evidence)
+            _, leader_form_state, leader_form_path = _difficulty_snapshot(
+                db, journal, leader, identity["capture"], leader_invite.label, True, epoch)
+            _, member_form_state, member_form_path = _difficulty_snapshot(
+                db, journal, member, identity["capture"], member_invite.label, True, epoch)
+            observations.extend([
+                logout_scenario._observation(
+                    leader_invite, leader_evidence, leader_form_state, leader_form_path,
+                    {"group_formed": True}),
+                logout_scenario._observation(
+                    member_invite, member_evidence, member_form_state, member_form_path,
+                    {"group_formed": True}),
+            ])
+            for actor in actors:
+                relocate_inside(db, journal, actor)
+            relocated = True
+            member_pass = death_scenario.BotPass(
+                member, member_difficulty_plan(member), "instance-difficulty-member-occupied-001")
+        else:
+            member_pass = None
+
+        if epoch == 1:
+            death_scenario.start_bot(
+                member_pass, bot_exec=identity["bot_exec"],
+                bot_config=identity["bot_config"], output=identity["capture"])
+            if not member_pass.ready.wait(180):
+                raise ScenarioFailure("difficulty member did not become ready inside the instance")
+            leader_entry = death_scenario.BotPass(
+                leader, observer_plan(leader), "instance-difficulty-leader-entry-001")
+            leader_entry_evidence = logout_scenario._run_single(leader_entry, identity, observer=True)
+            _, leader_entry_state, leader_entry_path = _difficulty_snapshot(
+                db, journal, leader, identity["capture"], leader_entry.label, True, epoch)
+            instance_id = validate_inside_state(leader_entry_state)
+            _, member_inside_state, member_inside_path = _difficulty_snapshot(
+                db, journal, member, identity["capture"], "instance-difficulty-member-inside-001",
+                False, epoch)
+            validate_inside_state(member_inside_state, instance_id)
+            observations.append(logout_scenario._observation(
+                leader_entry, leader_entry_evidence, leader_entry_state, leader_entry_path,
+                {"instance_id": instance_id, "member_instance_id": instance_id,
+                 "member_snapshot_sha256": death_scenario._sha256(member_inside_path)}))
+
+            restore_outside(db, journal, leader)
+            difficulty_pass = death_scenario.BotPass(
+                leader, difficulty_plan(leader), "instance-difficulty-change-001")
+            difficulty_evidence = logout_scenario._run_single(difficulty_pass, identity)
+            difficulty_facts = validate_difficulty_evidence(difficulty_evidence)
+            _, difficulty_state, difficulty_path = _difficulty_snapshot(
+                db, journal, leader, identity["capture"], difficulty_pass.label, True, epoch)
+            _, member_occupied_state, member_occupied_path = _difficulty_snapshot(
+                db, journal, member, identity["capture"], "instance-difficulty-member-still-inside-001",
+                False, epoch)
+            validate_inside_state(member_occupied_state, instance_id)
+            observations.append(logout_scenario._observation(
+                difficulty_pass, difficulty_evidence, difficulty_state, difficulty_path,
+                {**difficulty_facts, "member_still_inside": True,
+                 "member_snapshot_sha256": death_scenario._sha256(member_occupied_path)}))
+            member_evidence = death_scenario.finish_bot(
+                member_pass, timeout_seconds=150, actor=member)
+            validate_no_reset_events(difficulty_evidence, member_evidence)
+            _, member_offline_state, member_offline_path = _difficulty_snapshot(
+                db, journal, member, identity["capture"], member_pass.label, True, epoch)
+            validate_inside_state(member_offline_state, instance_id)
+            observations.append(logout_scenario._observation(
+                member_pass, member_evidence, member_offline_state, member_offline_path,
+                {"not_expelled": True, "instance_id": instance_id}))
+            group_state = require_group_difficulty(db, actors)
+            return {
+                "scenario": DIFFICULTY_SCENARIO, "epoch": 1, "scenario_observation": "passed",
+                "observations": observations,
+                "final_state": {
+                    "leader": difficulty_state, "member": member_offline_state,
+                    "group": group_state,
+                },
+                "restart_persistence": {
+                    "positions_retained_for_epoch_2": True,
+                    "group_retained_for_epoch_2": True,
+                    "difficulty_id": 2,
+                },
+                "parity_assessed": False,
+            }
+
+        member_login = death_scenario.BotPass(
+            member, observer_plan(member), "instance-difficulty-member-restart-001")
+        member_login_evidence = logout_scenario._run_single(member_login, identity, observer=True)
+        validate_login_difficulty(member_login_evidence)
+        _, member_login_state, member_login_path = _difficulty_snapshot(
+            db, journal, member, identity["capture"], member_login.label, True, epoch)
+        current_instance = validate_inside_state(member_login_state)
+        observations.append(logout_scenario._observation(
+            member_login, member_login_evidence, member_login_state, member_login_path,
+            {"restart_login": True, "instance_id": current_instance}))
+
+        leader_login = death_scenario.BotPass(
+            leader, observer_plan(leader), "instance-difficulty-leader-restart-001")
+        leader_login_evidence = logout_scenario._run_single(leader_login, identity, observer=True)
+        validate_login_difficulty(leader_login_evidence)
+        _, leader_login_state, leader_login_path = _difficulty_snapshot(
+            db, journal, leader, identity["capture"], leader_login.label, True, epoch)
+        validate_inside_state(leader_login_state, current_instance)
+        observations.append(logout_scenario._observation(
+            leader_login, leader_login_evidence, leader_login_state, leader_login_path,
+            {"restart_login": True, "current_shared_instance": True,
+             "instance_id": current_instance}))
+
+        for actor in actors:
+            restore_outside(db, journal, actor)
+        leave_pass = death_scenario.BotPass(
+            leader, leave_group_plan(leader), "instance-difficulty-leave-001")
+        leave_evidence = logout_scenario._run_single(leave_pass, identity)
+        validate_leave_group_evidence(leave_evidence)
+        _, leave_state, leave_path = _difficulty_snapshot(
+            db, journal, leader, identity["capture"], leave_pass.label, True, epoch)
+        validate_outside_state(leader, leave_state)
+        observations.append(logout_scenario._observation(
+            leave_pass, leave_evidence, leave_state, leave_path, {"leave_group_sent": True}))
+        cleanup_group(db, actors, preflight)
+        _, final_member_state, final_member_path = _difficulty_snapshot(
+            db, journal, member, identity["capture"], "instance-difficulty-member-outside-001",
+            True, epoch)
+        validate_outside_state(member, final_member_state)
+        return {
+            "scenario": DIFFICULTY_SCENARIO, "epoch": 2, "scenario_observation": "passed",
+            "observations": observations,
+            "final_state": {"leader": leave_state, "member": final_member_state},
+            "restart_persistence": {
+                "difficulty_preserved_across_restart": True,
+                "current_shared_instance": current_instance,
+                "old_instance_id_not_required": True,
+            },
+            "group_cleanup": {
+                "scenario_group_rows_removed": True,
+                "other_groups_untouched": True,
+                "lock_rows_mutated": False,
+                "member_snapshot_sha256": death_scenario._sha256(final_member_path),
+            },
+            "position_restoration": {"leader_outside": True, "member_outside": True},
+            "parity_assessed": False,
+        }
+    except BaseException:
+        for pass_ in list(death_scenario.ACTIVE_BOTS):
+            death_scenario._stop_owned(pass_)
+        if relocated or epoch == 2:
+            for actor in actors:
+                try:
+                    death_scenario._poll_actor_offline(db, journal, actor)
+                    restore_outside(db, journal, actor)
+                except Exception:
+                    pass
+        try:
+            cleanup_group(db, actors, preflight)
+        except Exception:
+            pass
+        raise
+
+
 def _runtime_identity() -> dict[str, Any]:
     required = ("RUSTYCORE_DEATH_JOURNAL", "RUSTYCORE_DEATH_EPOCH",
                 "RUSTYCORE_DEATH_EPOCH_INDEX", "RUSTYCORE_DEATH_BOT_CONFIG",
@@ -601,8 +875,13 @@ def _runtime_identity() -> dict[str, Any]:
     if any(not os.environ.get(key) for key in required):
         raise ScenarioFailure("required guarded scenario environment is incomplete")
     scenario = os.environ["RUSTYCORE_DEATH_SCENARIO"]
-    if scenario not in SCENARIOS or os.environ["RUSTYCORE_DEATH_EPOCH_INDEX"] != "1" \
-            or os.environ["RUSTYCORE_DEATH_EPOCH"] != "epoch-001":
+    try:
+        epoch = int(os.environ["RUSTYCORE_DEATH_EPOCH_INDEX"])
+    except ValueError:
+        raise ScenarioFailure("instance scenario epoch index is invalid") from None
+    allowed_epochs = {1, 2} if scenario == DIFFICULTY_SCENARIO else {1}
+    if scenario not in SCENARIOS or epoch not in allowed_epochs \
+            or os.environ["RUSTYCORE_DEATH_EPOCH"] != f"epoch-{epoch:03d}":
         raise ScenarioFailure("instance scenario or epoch is outside the bounded case set")
     capture = Path(os.environ["RUSTYCORE_CAPTURE_DIR"])
     if (not capture.is_absolute() or capture.is_symlink() or not capture.is_dir()
@@ -628,15 +907,16 @@ def _runtime_identity() -> dict[str, Any]:
         raise ScenarioFailure("candidate executable hash pin is invalid")
     if os.environ["RUSTYCORE_CAPTURE_BACKEND"] not in {"rust", "cpp"}:
         raise ScenarioFailure("capture backend is invalid")
-    return {"scenario": scenario, "epoch": 1, "capture": capture, "report_path": report,
+    return {"scenario": scenario, "epoch": epoch, "capture": capture, "report_path": report,
             "journal_path": Path(os.environ["RUSTYCORE_DEATH_JOURNAL"]),
             "bot_config": Path(os.environ["RUSTYCORE_DEATH_BOT_CONFIG"]),
             "world_config": Path(os.environ["RUSTYCORE_DEATH_WORLD_CONFIG"]),
             "bot_exec": bot_exec, "backend": os.environ["RUSTYCORE_CAPTURE_BACKEND"]}
 
 
-def _failure_report(exc: BaseException, scenario: str | None) -> dict[str, Any]:
-    report = death_scenario._failure_report(exc, scenario, 1)
+def _failure_report(exc: BaseException, scenario: str | None,
+                    epoch: int = 1) -> dict[str, Any]:
+    report = death_scenario._failure_report(exc, scenario, epoch)
     report["schema"] = "rustycore-instance-scenario-v1"
     return report
 
@@ -680,7 +960,8 @@ def run() -> int:
             try:
                 death_scenario._write_private(report_path, _failure_report(
                     exc, identity.get("scenario") if identity else
-                    os.environ.get("RUSTYCORE_DEATH_SCENARIO")))
+                    os.environ.get("RUSTYCORE_DEATH_SCENARIO"),
+                    identity.get("epoch", 1) if identity else 1))
             except Exception:
                 pass
         return 70

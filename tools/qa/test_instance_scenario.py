@@ -444,5 +444,124 @@ class GroupFailureRestorationTests(unittest.TestCase):
         stop.assert_called_once()
 
 
+class DifficultyPlanTests(unittest.TestCase):
+    def test_difficulty_plan_body_and_reset_packet_exclusion(self) -> None:
+        leader = actor()
+        plan = scenario.difficulty_plan(leader)
+        self.assertEqual(plan["actions"][0],
+                         {"action": "set_difficulty_id", "difficulty_id": 2})
+        self.assertEqual(plan["actions"][1]["connection"], "instance")
+        self.assertEqual(plan["expect"][0]["body_hex"], "02000000")
+        self.assertEqual(plan["finish_policy"], "logout")
+        member_plan = scenario.member_difficulty_plan(member_actor())
+        self.assertEqual(member_plan["expect"][0]["connection"], "realm")
+        self.assertEqual(member_plan["expect"][0]["body_hex"], "02000000")
+        self.assertEqual(member_plan["finish_policy"], "disconnect")
+
+        evidence = {
+            "sent_packets": [typed("set_difficulty_id", "instance", 0x3222, "02000000")],
+            "events": [group_event("instance", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")],
+        }
+        self.assertEqual(scenario.validate_difficulty_evidence(evidence)["difficulty_id"], 2)
+        scenario.validate_no_reset_events(evidence)
+        scenario.validate_login_difficulty({
+            "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
+        })
+        bad = copy.deepcopy(evidence)
+        bad["events"].append(group_event("instance", scenario.SMSG_INSTANCE_RESET, "21000000", 12))
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_no_reset_events(bad)
+
+
+class DifficultyPersistenceTests(unittest.TestCase):
+    def test_group_difficulty_requires_exact_group_and_members(self) -> None:
+        leader = actor()
+        member = member_actor()
+        db = Mock()
+        db.execute.side_effect = ["7\t73\t2", "73\n74"]
+        facts = scenario.require_group_difficulty(db, (leader, member))
+        self.assertEqual(facts["difficulty"], 2)
+        self.assertEqual(facts["members"], [73, 74])
+        db.execute.side_effect = ["7\t73\t1", "73\n74"]
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.require_group_difficulty(db, (leader, member))
+        db.execute.side_effect = ["7\t73\t2", "73"]
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.require_group_difficulty(db, (leader, member))
+
+    def test_epoch_dispatch_and_current_sharing_do_not_require_old_instance_id(self) -> None:
+        leader = actor()
+        member = member_actor()
+        identity = {"scenario": scenario.DIFFICULTY_SCENARIO, "epoch": 2}
+        with patch.object(scenario, "_run_difficulty_case", return_value={"epoch": 2}) as run:
+            report = scenario._run_case(identity, {"actors": [leader, member]}, 1, Mock())
+        self.assertEqual(report["epoch"], 2)
+        run.assert_called_once()
+        current = inside_state(member, 42)
+        self.assertEqual(scenario.validate_inside_state(current, 42), 42)
+        scenario.validate_inside_state(inside_state(leader, 42), 42)
+
+
+class DifficultyRestartTests(unittest.TestCase):
+    def test_epoch_two_success_cleans_group_and_restores_positions(self) -> None:
+        leader = actor()
+        member = member_actor()
+        journal = {"actors": [leader, member]}
+        login = {
+            "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
+        }
+        leave = {"sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")]}
+        with tempfile.TemporaryDirectory() as raw:
+            paths = []
+            for label in ("member", "leader", "leave", "final"):
+                path = Path(raw) / f"{label}.json"
+                path.write_text("{}\n", encoding="utf-8")
+                paths.append(path)
+            with patch.object(scenario, "require_group_difficulty",
+                              return_value={"difficulty": 2}), \
+                    patch.object(scenario, "_require_offline"), \
+                    patch.object(scenario.logout_scenario, "_run_single",
+                                 side_effect=[login, login, leave]), \
+                    patch.object(scenario, "_difficulty_snapshot",
+                                 side_effect=[
+                                     ({}, inside_state(member, 42), paths[0]),
+                                     ({}, inside_state(leader, 42), paths[1]),
+                                     ({}, outside_state(leader), paths[2]),
+                                     ({}, outside_state(member), paths[3]),
+                                 ]), \
+                    patch.object(scenario, "restore_outside") as restore, \
+                    patch.object(scenario, "cleanup_group") as cleanup:
+                report = scenario._run_difficulty_case(
+                    {"scenario": scenario.DIFFICULTY_SCENARIO, "epoch": 2,
+                     "capture": Path(raw)}, journal, 1, Mock())
+        self.assertEqual(report["epoch"], 2)
+        self.assertEqual(report["restart_persistence"]["current_shared_instance"], 42)
+        self.assertTrue(report["restart_persistence"]["old_instance_id_not_required"])
+        self.assertTrue(report["group_cleanup"]["scenario_group_rows_removed"])
+        self.assertEqual(restore.call_count, 2)
+        cleanup.assert_called_once()
+
+    def test_epoch_two_failure_stops_bots_and_cleans_group(self) -> None:
+        leader = actor()
+        member = member_actor()
+        with patch.object(scenario, "require_group_difficulty",
+                          return_value={"difficulty": 2}), \
+                patch.object(scenario, "_require_offline"), \
+                patch.object(scenario.logout_scenario, "_run_single",
+                             side_effect=RuntimeError("restart failed")), \
+                patch.object(scenario, "restore_outside") as restore, \
+                patch.object(scenario, "cleanup_group") as cleanup, \
+                patch.object(scenario.death_scenario, "ACTIVE_BOTS", [object()]), \
+                patch.object(scenario.death_scenario, "_stop_owned") as stop, \
+                patch.object(scenario.death_scenario, "_poll_actor_offline"):
+            with self.assertRaisesRegex(RuntimeError, "restart failed"):
+                scenario._run_difficulty_case(
+                    {"scenario": scenario.DIFFICULTY_SCENARIO, "epoch": 2,
+                     "capture": Path("/capture")}, {"actors": [leader, member]}, 1, Mock())
+        self.assertEqual(restore.call_count, 2)
+        cleanup.assert_called_once()
+        stop.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
