@@ -56,7 +56,35 @@ not live or final acceptance. Residual 3 is implemented: an active countdown
 now defers only disconnect finalization before its deadline, while due/post-due
 returns the existing disconnect work and an ordinary disconnect stays immediate.
 Three production-phase tests and 151 lifecycle tests passed; syntax ownership
-remains green. Live timing, relogin and capture acceptance still remain.
+remains green.
+
+### Live and paired-capture evidence at `508acacda` — 2026-11-01
+
+All ten Rust scenarios passed with native captures, real DB persistence and fixture/runtime
+restoration: combat/fall/freeze denial, cancel, timed, disconnect/relogin, repeated,
+RBAC grant/revoke and resting. Timed completed in 19,437.337 ms. Disconnect remained
+online at 2.000 s, went offline at 20.009 s and relogged successfully. Grant/resting
+completed instantly; revoke retained the countdown and cancellation restored movement.
+No RBAC fixture rows remained and the stable server executable was restored as
+`290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`.
+
+The same ten scenarios also passed against the pinned derived C++ R6 executable
+`80f143841b5a7b443022480500760ce336dc83052f05ddd7e3b7be6a6605b02a`, source
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. C++ timed completed in 19,605.807 ms
+and disconnect/relogin, persistence and cleanup passed. Resting's native PKT contains
+the exact instant LogoutResponse even though the client did not receive it before the
+instance EOF; this is recorded as `native-cpp-pkt`, without inventing cross-socket order.
+The action comparison is CLEAN for all 51 strict packet checks and all eight stun
+comparisons, with independent deadline checks on each backend:
+`/tmp/rustycore54-capture-comparison-508acacda/record.json`. Ambient streams are not
+claimed equal.
+
+The QA harness now drains instance bursts at 1 ms, handles only the demonstrated
+logout EOF/cross-socket races and skips the observer after confirmed completion.
+Twelve packet-wait tests and 34 hermetic logout-runner tests passed. These harness
+fixes do not change server gameplay behavior. Candidate
+`508acacda51215887542532d1a57922783365eaf` still requires its final campaign,
+production integration, exhaustive persistence and publication evidence.
 
 ## #43 closure execution plan — 2026-10-29
 
