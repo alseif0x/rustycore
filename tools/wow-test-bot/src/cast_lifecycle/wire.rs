@@ -452,13 +452,16 @@ async fn collect_until_inner(
 ) -> Result<bool> {
     let mut instance_closed = false;
     while tokio::time::Instant::now() < deadline {
+        let tolerate_instance_eof = finishing_logout
+            || (match_packet == Some((Connection::Instance, SMSG_LOGOUT_RESPONSE))
+                && controller.evidence.logout_confirmed);
         let Some((connection, opcode, payload)) = next_packet(
             deadline,
             stream,
             crypt,
             inflater,
             realm,
-            finishing_logout.then_some(&mut instance_closed),
+            tolerate_instance_eof.then_some(&mut instance_closed),
         )
         .await?
         else {
@@ -608,8 +611,8 @@ async fn next_packet(
             if *closed {
                 continue;
             }
-            // Only finish_logout supplies this flag. Accept frame-boundary EOF;
-            // malformed or truncated encrypted frames still fail below.
+            // Tolerated logout waits accept frame-boundary EOF; malformed or
+            // truncated encrypted frames still fail below.
             let mut byte = [0u8; 1];
             match tokio::time::timeout(
                 remaining.min(PACKET_POLL_INTERVAL),

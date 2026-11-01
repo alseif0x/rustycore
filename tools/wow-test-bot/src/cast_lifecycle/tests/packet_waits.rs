@@ -358,6 +358,7 @@ async fn realm_complete_before_instance_response_is_reused_by_later_complete_wai
         ))
         .await
         .unwrap();
+    instance_peer.shutdown().await.unwrap();
 
     wait_for_packet(
         tokio::time::Instant::now() + Duration::from_secs(1),
@@ -370,7 +371,7 @@ async fn realm_complete_before_instance_response_is_reused_by_later_complete_wai
         &mut controller,
     )
     .await
-    .expect("realm Complete does not abort the instance Response wait");
+    .expect("instance Response is decoded before its queued EOF");
 
     wait_for_packet(
         tokio::time::Instant::now(),
@@ -402,6 +403,52 @@ async fn realm_complete_before_instance_response_is_reused_by_later_complete_wai
             .count(),
         1
     );
+}
+
+#[tokio::test]
+async fn realm_complete_without_instance_response_times_out_after_instance_eof() {
+    let mut controller = logout_controller();
+    controller.evidence.logout_request_completed = true;
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, mut realm_peer) = tcp_pair().await;
+    let key = [0x70; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+    let mut realm_server = WorldCrypt::new_with_counters(&key, 0, 0);
+    realm_peer
+        .write_all(&encrypted_server_packet(
+            &mut realm_server,
+            SMSG_LOGOUT_COMPLETE,
+            &[],
+        ))
+        .await
+        .unwrap();
+    instance_peer.shutdown().await.unwrap();
+
+    let error = wait_for_packet(
+        tokio::time::Instant::now() + Duration::from_millis(50),
+        Connection::Instance,
+        SMSG_LOGOUT_RESPONSE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    )
+    .await
+    .expect_err("realm Complete must not substitute for instance Response")
+    .to_string();
+
+    assert!(error.contains("timed out waiting for Instance packet"), "{error}");
+    assert!(controller.evidence.logout_confirmed);
+    assert_eq!(controller.evidence.events.len(), 1);
+    assert_eq!(controller.evidence.events[0].connection, Connection::Realm);
+    assert_eq!(controller.evidence.events[0].opcode, SMSG_LOGOUT_COMPLETE);
 }
 
 #[tokio::test]
