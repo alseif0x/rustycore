@@ -403,6 +403,8 @@ class GroupPlanTests(unittest.TestCase):
         self.assertEqual(member_plan["actions"][1],
                          {"action": "party_invite_response", "accept": True})
         self.assertEqual(member_plan["actions"][2]["opcode"], scenario.SMSG_PARTY_UPDATE)
+        self.assertEqual([member_plan["actions"][index]["timeout_ms"] for index in (0, 2)],
+                         [30_000, 30_000])
 
         leader_plan = scenario.leader_invite_plan(leader, member, 1)
         self.assertEqual(leader_plan["actions"][0], {
@@ -410,7 +412,9 @@ class GroupPlanTests(unittest.TestCase):
             "target": death_scenario.player_guid(member, 1),
         })
         self.assertEqual(leader_plan["actions"][1]["connection"], "realm")
+        self.assertEqual(leader_plan["actions"][1]["timeout_ms"], 30_000)
         for plan in (member_plan, leader_plan):
+            self.assertEqual(plan["timeout_ms"], 45_000)
             self.assertEqual(
                 [rule["opcode"] for rule in plan["expect"]],
                 [scenario.LOGOUT_COMPLETE],

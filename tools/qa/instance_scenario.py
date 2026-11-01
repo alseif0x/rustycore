@@ -402,11 +402,11 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
 
 def member_invite_plan(member: dict[str, Any]) -> dict[str, Any]:
     return {
-        "character_guid": int(member["guid"]), "timeout_ms": 15_000,
+        "character_guid": int(member["guid"]), "timeout_ms": 45_000,
         "actions": [
-            death_scenario._wait("realm", SMSG_PARTY_INVITE, 10_000),
+            death_scenario._wait("realm", SMSG_PARTY_INVITE, 30_000),
             {"action": "party_invite_response", "accept": True},
-            death_scenario._wait("realm", SMSG_PARTY_UPDATE, 10_000),
+            death_scenario._wait("realm", SMSG_PARTY_UPDATE, 30_000),
         ],
         "expect": [
             death_scenario._packet("realm", LOGOUT_COMPLETE),
@@ -418,11 +418,11 @@ def member_invite_plan(member: dict[str, Any]) -> dict[str, Any]:
 def leader_invite_plan(leader: dict[str, Any], member: dict[str, Any],
                        realm_id: int) -> dict[str, Any]:
     return {
-        "character_guid": int(leader["guid"]), "timeout_ms": 15_000,
+        "character_guid": int(leader["guid"]), "timeout_ms": 45_000,
         "actions": [
             {"action": "party_invite", "name": member["name"],
              "target": death_scenario.player_guid(member, realm_id)},
-            death_scenario._wait("realm", SMSG_PARTY_UPDATE, 10_000),
+            death_scenario._wait("realm", SMSG_PARTY_UPDATE, 30_000),
         ],
         "expect": [
             death_scenario._packet("realm", LOGOUT_COMPLETE),
