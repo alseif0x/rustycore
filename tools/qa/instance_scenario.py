@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import re
+import time
 from typing import Any
 
 import death_fixture
@@ -17,12 +18,14 @@ import logout_scenario
 SCENARIO = "instance-solo-reset"
 GROUP_SCENARIO = "instance-group-reset"
 DIFFICULTY_SCENARIO = "instance-difficulty-restart"
+LOCK_SCENARIO = "instance-lock-reset"
 ACTOR_NAME = "Qadeathcast"
 MEMBER_NAME = "Qadeathfall"
 SCENARIOS = {
     SCENARIO: ACTOR_NAME,
     GROUP_SCENARIO: ACTOR_NAME,
     DIFFICULTY_SCENARIO: ACTOR_NAME,
+    LOCK_SCENARIO: ACTOR_NAME,
 }
 INSTANCE_MAP = 33
 INSTANCE_POSITION = (-228.191, 2111.41, 76.8904)
@@ -37,6 +40,11 @@ SMSG_RESET_FAILED_NOTIFY = 0x26B7
 SMSG_PARTY_INVITE = 0x25BD
 SMSG_PARTY_UPDATE = 0x25F4
 SMSG_SET_DUNGEON_DIFFICULTY = 0x26A4
+SMSG_LOGIN_VERIFY_WORLD = 0x2597
+LOCK_MAP = 631
+LOCK_ID = 12
+LOCK_DIFFICULTY = 4
+LOCK_POSITION = (73.0174, 2211.49, 30.1157)
 LOGOUT_COMPLETE = 0x2684
 POSITION_TOLERANCE = 0.02
 ScenarioFailure = death_scenario.ScenarioFailure
@@ -301,6 +309,8 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
         return _run_group_case(identity, journal, realm_id, db)
     if identity.get("scenario") == DIFFICULTY_SCENARIO:
         return _run_difficulty_case(identity, journal, realm_id, db)
+    if identity.get("scenario") == LOCK_SCENARIO:
+        return _run_lock_case(identity, journal, realm_id, db)
     actor = next(item for item in journal["actors"] if item["name"] == ACTOR_NAME)
     relocated = False
     restored = False
@@ -960,6 +970,359 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
         raise
 
 
+def member_lock_plan(member: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "character_guid": int(member["guid"]), "timeout_ms": 95_000,
+        "actions": [{"action": "wait", "milliseconds": 90_000}],
+        "expect": [death_scenario._packet("instance", SMSG_LOGIN_VERIFY_WORLD)],
+        "finish_policy": "disconnect",
+    }
+
+
+def lock_reset_plan(actor: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "character_guid": int(actor["guid"]), "timeout_ms": 10_000,
+        "actions": [
+            {"action": "reset_instances"},
+            {"action": "wait", "milliseconds": 2_000},
+        ],
+        "expect": [death_scenario._packet("realm", LOGOUT_COMPLETE)],
+        "finish_policy": "logout",
+    }
+
+
+def validate_lock_inside_state(state: dict[str, Any], instance_id: int) -> None:
+    if state.get("map") != LOCK_MAP or state.get("instance_id") != instance_id \
+            or not _near(state, LOCK_POSITION) or not math.isclose(
+                state["orientation"], 0.0, abs_tol=1e-6):
+        raise ScenarioFailure("ICC entry did not retain map 631, the chosen instance, and native position")
+
+
+def validate_lock_reset_evidence(leader: dict[str, Any], member: dict[str, Any]) -> None:
+    requests = _typed_packets(leader, "reset_instances", "instance", CMSG_RESET_INSTANCES, "")
+    if len(requests) != 1:
+        raise ScenarioFailure("non-new ICC lock requires exactly one completed reset request")
+    validate_no_reset_events(leader, member)
+
+
+def choose_lock_instance_id(db: death_fixture.MariaDB) -> int:
+    maxima = []
+    for query in (
+        "SELECT COALESCE(MAX(instance_id),0) FROM characters",
+        "SELECT COALESCE(MAX(instanceId),0) FROM character_instance_lock",
+        "SELECT COALESCE(MAX(instanceId),0) FROM instance",
+    ):
+        value = db.execute(query) or "0"
+        try:
+            maxima.append(int(value))
+        except ValueError:
+            raise ScenarioFailure("instance ID allocator returned an invalid maximum") from None
+    instance_id = max(maxima) + 1
+    if instance_id <= 0:
+        raise ScenarioFailure("instance ID allocator did not produce a positive ID")
+    collision = db.execute(
+        "SELECT (SELECT COUNT(*) FROM characters WHERE instance_id="
+        f"{instance_id})+(SELECT COUNT(*) FROM character_instance_lock WHERE instanceId={instance_id})"
+        f"+(SELECT COUNT(*) FROM instance WHERE instanceId={instance_id})"
+    )
+    if collision != "0":
+        raise ScenarioFailure("chosen instance ID collides with an existing character, lock, or instance")
+    return instance_id
+
+
+def require_no_leader_lock(db: death_fixture.MariaDB, leader: dict[str, Any]) -> None:
+    if db.execute(
+        f"SELECT guid FROM character_instance_lock WHERE guid={int(leader['guid'])} "
+        f"AND mapId={LOCK_MAP} AND lockId={LOCK_ID}"
+    ):
+        raise ScenarioFailure("ICC scenario requires no preexisting leader lock")
+
+
+def relocate_lock_inside(db: death_fixture.MariaDB, journal: dict[str, Any],
+                         actor: dict[str, Any], instance_id: int) -> dict[str, Any]:
+    _require_offline(db, journal, actor)
+    db.transaction([_position_update(actor, LOCK_MAP, instance_id, LOCK_POSITION)])
+    return _require_database_position(db, actor, LOCK_MAP, instance_id, LOCK_POSITION)
+
+
+def seed_lock_fixture(db: death_fixture.MariaDB, journal: dict[str, Any],
+                      actors: tuple[dict[str, Any], dict[str, Any]], instance_id: int,
+                      expiry_time: int) -> dict[str, Any]:
+    leader, member = actors
+    for actor in actors:
+        _require_offline(db, journal, actor)
+    db.transaction([
+        "INSERT INTO character_instance_lock "
+        "(guid,mapId,lockId,instanceId,difficulty,data,completedEncountersMask,"
+        "entranceWorldSafeLocId,expiryTime,extended) VALUES "
+        f"({int(leader['guid'])},{LOCK_MAP},{LOCK_ID},{instance_id},{LOCK_DIFFICULTY},'',1,0,{expiry_time},0)",
+        f"UPDATE groups SET groupType=2,raidDifficulty={LOCK_DIFFICULTY},legacyRaidDifficulty=3 "
+        f"WHERE leaderGuid={int(leader['guid'])}",
+        _position_update(leader, LOCK_MAP, instance_id, LOCK_POSITION),
+        _position_update(member, LOCK_MAP, instance_id, LOCK_POSITION),
+    ])
+    for actor in actors:
+        _require_database_position(db, actor, LOCK_MAP, instance_id, LOCK_POSITION)
+    return require_lock_fixture(db, actors, instance_id, expiry_time)
+
+
+def require_lock_group(db: death_fixture.MariaDB,
+                       actors: tuple[dict[str, Any], dict[str, Any]]) -> dict[str, Any]:
+    leader, member = actors
+    rows = death_fixture.MariaDB._rows(db.execute(
+        "SELECT guid,groupType,raidDifficulty,legacyRaidDifficulty FROM groups "
+        f"WHERE leaderGuid={int(leader['guid'])}"), 4)
+    if len(rows) != 1 or rows[0][1:] != ["2", "4", "3"]:
+        raise ScenarioFailure("ICC scenario group is not raid difficulty 4 with legacy difficulty 3")
+    group_guid = rows[0][0]
+    member_rows = death_fixture.MariaDB._rows(db.execute(
+        f"SELECT memberGuid FROM group_member WHERE guid={group_guid} ORDER BY memberGuid"), 1)
+    expected = sorted([str(leader["guid"]), str(member["guid"])])
+    if [row[0] for row in member_rows] != expected:
+        raise ScenarioFailure("ICC scenario group members are not exactly leader and member")
+    return {"group_guid": int(group_guid), "group_type": 2,
+            "raid_difficulty": 4, "legacy_raid_difficulty": 3,
+            "members": [int(value) for value in expected]}
+
+
+def require_lock_fixture(db: death_fixture.MariaDB,
+                         actors: tuple[dict[str, Any], dict[str, Any]], instance_id: int,
+                         expiry_time: int) -> dict[str, Any]:
+    leader, _ = actors
+    rows = death_fixture.MariaDB._rows(db.execute(
+        "SELECT guid,mapId,lockId,instanceId,difficulty,data,completedEncountersMask,"
+        "entranceWorldSafeLocId,expiryTime,extended FROM character_instance_lock "
+        f"WHERE guid={int(leader['guid'])} AND mapId={LOCK_MAP} AND lockId={LOCK_ID}"), 10)
+    expected = [str(leader["guid"]), str(LOCK_MAP), str(LOCK_ID), str(instance_id),
+                str(LOCK_DIFFICULTY), "", "1", "0", str(expiry_time), "0"]
+    if len(rows) != 1 or rows[0] != expected:
+        raise ScenarioFailure("ICC lock fixture is missing, ambiguous, or changed")
+    return {
+        "instance_id": instance_id,
+        "map_id": LOCK_MAP,
+        "lock_id": LOCK_ID,
+        "difficulty_id": LOCK_DIFFICULTY,
+        "expiry_time": expiry_time,
+        "completed_encounters_mask": 1,
+        "extended": False,
+        "group": require_lock_group(db, actors),
+    }
+
+
+def load_lock_identity(db: death_fixture.MariaDB, leader: dict[str, Any]) -> tuple[int, int]:
+    rows = death_fixture.MariaDB._rows(db.execute(
+        "SELECT instanceId,expiryTime FROM character_instance_lock "
+        f"WHERE guid={int(leader['guid'])} AND mapId={LOCK_MAP} AND lockId={LOCK_ID}"), 2)
+    if len(rows) != 1:
+        raise ScenarioFailure("epoch-2 ICC lock identity is missing or ambiguous")
+    try:
+        instance_id = int(rows[0][0])
+        expiry_time = int(rows[0][1])
+    except ValueError:
+        raise ScenarioFailure("epoch-2 ICC lock identity contains invalid numbers") from None
+    if instance_id <= 0 or expiry_time <= 0:
+        raise ScenarioFailure("epoch-2 ICC lock identity is not positive")
+    return instance_id, expiry_time
+
+
+def cleanup_seed_lock(db: death_fixture.MariaDB, leader: dict[str, Any], instance_id: int) -> None:
+    db.transaction([
+        "DELETE FROM character_instance_lock "
+        f"WHERE guid={int(leader['guid'])} AND mapId={LOCK_MAP} AND lockId={LOCK_ID} "
+        f"AND instanceId={instance_id}"
+    ])
+    if db.execute(
+        f"SELECT guid FROM character_instance_lock WHERE guid={int(leader['guid'])} "
+        f"AND mapId={LOCK_MAP} AND lockId={LOCK_ID} AND instanceId={instance_id}"
+    ):
+        raise ScenarioFailure("scenario-seeded ICC lock was not removed")
+
+
+def _lock_snapshot(db: death_fixture.MariaDB, journal: dict[str, Any],
+                   actor: dict[str, Any], capture: Path, label: str,
+                   require_offline: bool, epoch: int) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    return _group_snapshot(
+        db, journal, actor, capture, label, require_offline,
+        scenario_name=LOCK_SCENARIO, epoch=epoch)
+
+
+def _run_lock_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
+                   db: death_fixture.MariaDB) -> dict[str, Any]:
+    epoch = identity["epoch"]
+    leader = next(item for item in journal["actors"] if item["name"] == ACTOR_NAME)
+    member = next(item for item in journal["actors"] if item["name"] == MEMBER_NAME)
+    actors = (leader, member)
+    preflight = preflight_group(db, journal, actors) if epoch == 1 else {"cleanup_allowed": True}
+    if epoch == 1:
+        require_no_leader_lock(db, leader)
+        instance_id = choose_lock_instance_id(db)
+        expiry_time = int(time.time()) + 604_800
+    else:
+        instance_id, expiry_time = load_lock_identity(db, leader)
+    relocated = False
+    observations = []
+    try:
+        if epoch == 2:
+            require_lock_fixture(db, actors, instance_id, expiry_time)
+            for actor in actors:
+                _require_offline(db, journal, actor)
+        if epoch == 1:
+            member_invite = death_scenario.BotPass(
+                member, member_invite_plan(member), "instance-lock-member-invite-001")
+            death_scenario.start_bot(
+                member_invite, bot_exec=identity["bot_exec"],
+                bot_config=identity["bot_config"], output=identity["capture"])
+            leader_invite = death_scenario.BotPass(
+                leader, leader_invite_plan(leader, member, realm_id),
+                "instance-lock-leader-invite-001")
+            leader_evidence = logout_scenario._run_single(leader_invite, identity)
+            member_evidence = death_scenario.finish_bot(
+                member_invite, timeout_seconds=75, actor=member)
+            validate_group_formation_evidence(leader_evidence, member_evidence)
+            _, leader_form_state, leader_form_path = _lock_snapshot(
+                db, journal, leader, identity["capture"], leader_invite.label, True, epoch)
+            _, member_form_state, member_form_path = _lock_snapshot(
+                db, journal, member, identity["capture"], member_invite.label, True, epoch)
+            observations.extend([
+                logout_scenario._observation(
+                    leader_invite, leader_evidence, leader_form_state, leader_form_path,
+                    {"group_formed": True}),
+                logout_scenario._observation(
+                    member_invite, member_evidence, member_form_state, member_form_path,
+                    {"group_formed": True}),
+            ])
+            seed_facts = seed_lock_fixture(db, journal, actors, instance_id, expiry_time)
+            relocated = True
+            _, leader_seed_state, leader_seed_path = _lock_snapshot(
+                db, journal, leader, identity["capture"], "instance-lock-leader-seed-001",
+                True, epoch)
+            _, member_seed_state, member_seed_path = _lock_snapshot(
+                db, journal, member, identity["capture"], "instance-lock-member-seed-001",
+                True, epoch)
+            validate_lock_inside_state(leader_seed_state, instance_id)
+            validate_lock_inside_state(member_seed_state, instance_id)
+            observations.extend([
+                {"pass": "instance-lock-leader-seed", "actor": leader["name"],
+                 "state": leader_seed_state,
+                 "snapshot_sha256": death_scenario._sha256(leader_seed_path)},
+                {"pass": "instance-lock-member-seed", "actor": member["name"],
+                 "state": member_seed_state,
+                 "snapshot_sha256": death_scenario._sha256(member_seed_path)},
+            ])
+            return {
+                "scenario": LOCK_SCENARIO, "epoch": 1, "scenario_observation": "passed",
+                "observations": observations,
+                "seed_facts": seed_facts,
+                "final_state": {"leader": leader_seed_state, "member": member_seed_state},
+                "restart_persistence": {
+                    "positions_retained_for_epoch_2": True,
+                    "group_retained_for_epoch_2": True,
+                    "lock_retained_for_epoch_2": True,
+                },
+                "parity_assessed": False,
+            }
+
+        member_pass = death_scenario.BotPass(
+            member, member_lock_plan(member), "instance-lock-member-occupied-001")
+        death_scenario.start_bot(
+            member_pass, bot_exec=identity["bot_exec"],
+            bot_config=identity["bot_config"], output=identity["capture"])
+        if not member_pass.ready.wait(180):
+            raise ScenarioFailure("ICC member did not become ready inside the instance")
+        leader_entry = death_scenario.BotPass(
+            leader, observer_plan(leader), "instance-lock-leader-entry-001")
+        leader_entry_evidence = logout_scenario._run_single(leader_entry, identity, observer=True)
+        _, leader_entry_state, leader_entry_path = _lock_snapshot(
+            db, journal, leader, identity["capture"], leader_entry.label, True, epoch)
+        validate_lock_inside_state(leader_entry_state, instance_id)
+        _, member_inside_state, member_inside_path = _lock_snapshot(
+            db, journal, member, identity["capture"], "instance-lock-member-inside-001",
+            False, epoch)
+        validate_lock_inside_state(member_inside_state, instance_id)
+        observations.append(logout_scenario._observation(
+            leader_entry, leader_entry_evidence, leader_entry_state, leader_entry_path,
+            {"instance_id": instance_id, "member_instance_id": instance_id,
+             "member_snapshot_sha256": death_scenario._sha256(member_inside_path)}))
+
+        restore_outside(db, journal, leader)
+        reset_pass = death_scenario.BotPass(
+            leader, lock_reset_plan(leader), "instance-lock-reset-001")
+        reset_evidence = logout_scenario._run_single(reset_pass, identity)
+        _, reset_state, reset_path = _lock_snapshot(
+            db, journal, leader, identity["capture"], reset_pass.label, True, epoch)
+        _, member_occupied_state, member_occupied_path = _lock_snapshot(
+            db, journal, member, identity["capture"], "instance-lock-member-still-inside-001",
+            False, epoch)
+        validate_lock_inside_state(member_occupied_state, instance_id)
+        member_evidence = death_scenario.finish_bot(
+            member_pass, timeout_seconds=150, actor=member)
+        validate_lock_reset_evidence(reset_evidence, member_evidence)
+        validate_outside_state(leader, reset_state)
+        _, member_offline_state, member_offline_path = _lock_snapshot(
+            db, journal, member, identity["capture"], member_pass.label, True, epoch)
+        validate_lock_inside_state(member_offline_state, instance_id)
+        retained = require_lock_fixture(db, actors, instance_id, expiry_time)
+        observations.append(logout_scenario._observation(
+            reset_pass, reset_evidence, reset_state, reset_path,
+            {"cannot_reset": True, "member_not_expelled": True,
+             "lock_expiry_unchanged": True,
+             "member_snapshot_sha256": death_scenario._sha256(member_occupied_path)}))
+        observations.append(logout_scenario._observation(
+            member_pass, member_evidence, member_offline_state, member_offline_path,
+            {"offline_inside_same_instance": True, "instance_id": instance_id}))
+
+        cleanup_seed_lock(db, leader, instance_id)
+        for actor in actors:
+            restore_outside(db, journal, actor)
+        leave_pass = death_scenario.BotPass(
+            leader, leave_group_plan(leader), "instance-lock-leave-001")
+        leave_evidence = logout_scenario._run_single(leave_pass, identity)
+        validate_leave_group_evidence(leave_evidence)
+        _, leave_state, leave_path = _lock_snapshot(
+            db, journal, leader, identity["capture"], leave_pass.label, True, epoch)
+        validate_outside_state(leader, leave_state)
+        observations.append(logout_scenario._observation(
+            leave_pass, leave_evidence, leave_state, leave_path, {"leave_group_sent": True}))
+        cleanup_group(db, actors, preflight)
+        _, final_member_state, final_member_path = _lock_snapshot(
+            db, journal, member, identity["capture"], "instance-lock-member-outside-001",
+            True, epoch)
+        validate_outside_state(member, final_member_state)
+        return {
+            "scenario": LOCK_SCENARIO, "epoch": 2, "scenario_observation": "passed",
+            "observations": observations,
+            "seed_facts": retained,
+            "final_state": {"leader": leave_state, "member": final_member_state},
+            "lock_cleanup": {
+                "seeded_lock_removed": True,
+                "other_lock_and_instance_rows_untouched": True,
+                "scenario_group_rows_removed": True,
+                "member_snapshot_sha256": death_scenario._sha256(final_member_path),
+            },
+            "position_restoration": {"leader_outside": True, "member_outside": True},
+            "parity_assessed": False,
+        }
+    except BaseException:
+        for pass_ in list(death_scenario.ACTIVE_BOTS):
+            death_scenario._stop_owned(pass_)
+        if relocated or epoch == 2:
+            for actor in actors:
+                try:
+                    death_scenario._poll_actor_offline(db, journal, actor)
+                    restore_outside(db, journal, actor)
+                except Exception:
+                    pass
+        try:
+            cleanup_seed_lock(db, leader, instance_id)
+        except Exception:
+            pass
+        try:
+            cleanup_group(db, actors, preflight)
+        except Exception:
+            pass
+        raise
+
+
 def _runtime_identity() -> dict[str, Any]:
     required = ("RUSTYCORE_DEATH_JOURNAL", "RUSTYCORE_DEATH_EPOCH",
                 "RUSTYCORE_DEATH_EPOCH_INDEX", "RUSTYCORE_DEATH_BOT_CONFIG",
@@ -973,7 +1336,7 @@ def _runtime_identity() -> dict[str, Any]:
         epoch = int(os.environ["RUSTYCORE_DEATH_EPOCH_INDEX"])
     except ValueError:
         raise ScenarioFailure("instance scenario epoch index is invalid") from None
-    allowed_epochs = {1, 2} if scenario == DIFFICULTY_SCENARIO else {1}
+    allowed_epochs = {1, 2} if scenario in {DIFFICULTY_SCENARIO, LOCK_SCENARIO} else {1}
     if scenario not in SCENARIOS or epoch not in allowed_epochs \
             or os.environ["RUSTYCORE_DEATH_EPOCH"] != f"epoch-{epoch:03d}":
         raise ScenarioFailure("instance scenario or epoch is outside the bounded case set")

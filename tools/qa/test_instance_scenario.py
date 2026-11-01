@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -629,6 +629,126 @@ class DifficultyRestartTests(unittest.TestCase):
                      "capture": Path("/capture")}, {"actors": [leader, member]}, 1, Mock())
         self.assertEqual(restore.call_count, 2)
         cleanup.assert_called_once()
+        stop.assert_called_once()
+
+
+def lock_inside_state(selected: dict, instance_id: int = 42) -> dict:
+    x, y, z = scenario.LOCK_POSITION
+    return {
+        "guid": selected["guid"], "online": 0, "logout_time": 1,
+        "map": scenario.LOCK_MAP, "instance_id": instance_id,
+        "position_x": x, "position_y": y, "position_z": z, "orientation": 0.0,
+    }
+
+
+def lock_row(selected: dict, instance_id: int = 42, expiry: int = 1_700_604_800) -> str:
+    return "\t".join([
+        str(selected["guid"]), str(scenario.LOCK_MAP), str(scenario.LOCK_ID),
+        str(instance_id), str(scenario.LOCK_DIFFICULTY), "", "1", "0", str(expiry), "0",
+    ])
+
+
+class LockFixtureTests(unittest.TestCase):
+    def test_seed_uses_lock_id_12_difficulty_4_and_no_instance_row(self) -> None:
+        leader = actor()
+        member = member_actor()
+        db = Mock()
+        db.character_identities.side_effect = lambda _journal: [identity_row(leader), identity_row(member)]
+        db.execute.side_effect = [
+            position_row(leader, scenario.LOCK_MAP, 42, scenario.LOCK_POSITION),
+            position_row(member, scenario.LOCK_MAP, 42, scenario.LOCK_POSITION),
+            lock_row(leader), "7\t2\t4\t3", "73\n74",
+        ]
+        facts = scenario.seed_lock_fixture(db, {}, (leader, member), 42, 1_700_604_800)
+        self.assertEqual(facts["instance_id"], 42)
+        self.assertEqual(facts["expiry_time"], 1_700_604_800)
+        statements = db.transaction.call_args.args[0]
+        self.assertIn("mapId,lockId,instanceId,difficulty", statements[0])
+        self.assertIn("631,12,42,4", statements[0])
+        self.assertIn("completedEncountersMask", statements[0])
+        self.assertIn("groupType=2,raidDifficulty=4,legacyRaidDifficulty=3", statements[1])
+        self.assertFalse(any(statement.startswith("INSERT INTO instance ") for statement in statements))
+
+    def test_collision_guard_chooses_above_all_three_maxima(self) -> None:
+        db = Mock()
+        db.execute.side_effect = ["4", "7", "2", "0"]
+        self.assertEqual(scenario.choose_lock_instance_id(db), 8)
+        db.execute.side_effect = ["4", "7", "2", "1"]
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.choose_lock_instance_id(db)
+
+    def test_exact_lock_reload_and_expiry_remain_unchanged(self) -> None:
+        leader = actor()
+        member = member_actor()
+        db = Mock()
+        db.execute.side_effect = [lock_row(leader), "7\t2\t4\t3", "73\n74"]
+        facts = scenario.require_lock_fixture(db, (leader, member), 42, 1_700_604_800)
+        self.assertEqual(facts["expiry_time"], 1_700_604_800)
+        self.assertEqual(facts["completed_encounters_mask"], 1)
+        self.assertEqual(facts["group"]["raid_difficulty"], 4)
+        db.execute.side_effect = [lock_row(leader, expiry=1_700_604_801), "7\t2\t4\t3", "73\n74"]
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.require_lock_fixture(db, (leader, member), 42, 1_700_604_800)
+
+
+class LockResetEvidenceTests(unittest.TestCase):
+    def test_cannot_reset_has_one_request_zero_responses_and_no_expulsion(self) -> None:
+        leader = actor()
+        member = member_actor()
+        reset = {"sent_packets": [typed("reset_instances", "instance", scenario.CMSG_RESET_INSTANCES, "")]}
+        member_evidence = {"events": []}
+        scenario.validate_lock_reset_evidence(reset, member_evidence)
+        scenario.validate_lock_inside_state(lock_inside_state(member), 42)
+        bad = copy.deepcopy(reset)
+        bad["events"] = [group_event("realm", scenario.SMSG_INSTANCE_RESET_FAILED, "2100000000")]
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_reset_evidence(bad, member_evidence)
+
+    def test_cleanup_deletes_only_seeded_lock_and_scenario_group(self) -> None:
+        leader = actor()
+        member = member_actor()
+        db = Mock()
+        db.execute.return_value = ""
+        scenario.cleanup_seed_lock(db, leader, 42)
+        statement = db.transaction.call_args.args[0][0]
+        self.assertIn("DELETE FROM character_instance_lock", statement)
+        self.assertIn(f"guid={leader['guid']}", statement)
+        self.assertIn("mapId=631 AND lockId=12 AND instanceId=42", statement)
+        self.assertNotIn("DELETE FROM instance ", statement)
+
+
+class LockFailureCleanupTests(unittest.TestCase):
+    def test_epoch_two_failure_restores_positions_and_deletes_owned_rows(self) -> None:
+        leader = actor()
+        member = member_actor()
+        bot_pass_type = death_scenario.BotPass
+
+        def ready_bot(actor, plan, label):
+            pass_ = bot_pass_type(actor, plan, label)
+            pass_.ready.set()
+            return pass_
+
+        with patch.object(scenario, "load_lock_identity", return_value=(42, 1_700_604_800)), \
+                patch.object(scenario.death_scenario, "BotPass", side_effect=ready_bot), \
+                patch.object(scenario, "require_lock_fixture"), \
+                patch.object(scenario, "_require_offline"), \
+                patch.object(scenario.death_scenario, "start_bot"), \
+                patch.object(scenario.logout_scenario, "_run_single",
+                             side_effect=RuntimeError("restart failed")), \
+                patch.object(scenario, "restore_outside") as restore, \
+                patch.object(scenario, "cleanup_seed_lock") as lock_cleanup, \
+                patch.object(scenario, "cleanup_group") as group_cleanup, \
+                patch.object(scenario.death_scenario, "ACTIVE_BOTS", [object()]), \
+                patch.object(scenario.death_scenario, "_stop_owned") as stop, \
+                patch.object(scenario.death_scenario, "_poll_actor_offline"):
+            with self.assertRaisesRegex(RuntimeError, "restart failed"):
+                scenario._run_lock_case(
+                    {"scenario": scenario.LOCK_SCENARIO, "epoch": 2,
+                     "capture": Path("/capture"), "bot_exec": Path("/bot"),
+                     "bot_config": Path("/config.json")}, {"actors": [leader, member]}, 1, Mock())
+        self.assertEqual(restore.call_count, 2)
+        lock_cleanup.assert_called_once_with(ANY, leader, 42)
+        group_cleanup.assert_called_once()
         stop.assert_called_once()
 
 
