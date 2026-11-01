@@ -591,9 +591,10 @@ class DifficultyPlanTests(unittest.TestCase):
                          [scenario.LOGOUT_COMPLETE])
         self.assertEqual(plan["finish_policy"], "logout")
         member_plan = scenario.member_difficulty_plan(member_actor())
-        self.assertEqual(member_plan["expect"][0]["connection"], "realm")
-        self.assertEqual(member_plan["expect"][0]["body_hex"], "02000000")
-        self.assertEqual(member_plan["finish_policy"], "disconnect")
+        self.assertEqual(member_plan["actions"], [{"action": "wait", "milliseconds": 90_000}])
+        self.assertEqual([packet["opcode"] for packet in member_plan["expect"]],
+                         [scenario.LOGOUT_COMPLETE])
+        self.assertEqual(member_plan["finish_policy"], "logout")
 
         response = group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")
         evidence = {

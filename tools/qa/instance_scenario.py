@@ -726,9 +726,8 @@ def member_difficulty_plan(member: dict[str, Any]) -> dict[str, Any]:
     return {
         "character_guid": int(member["guid"]), "timeout_ms": 95_000,
         "actions": [{"action": "wait", "milliseconds": 90_000}],
-        "expect": [death_scenario._packet(
-            "realm", SMSG_SET_DUNGEON_DIFFICULTY, (2).to_bytes(4, "little", signed=True))],
-        "finish_policy": "disconnect",
+        "expect": [death_scenario._packet("realm", LOGOUT_COMPLETE)],
+        "finish_policy": "logout",
     }
 
 
