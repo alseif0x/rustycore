@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+# Local OpenCode helper for this checkout (excluded from Git).
+"""Switch the DeepSeek agents between OpenCode Go and the direct DeepSeek API.
+
+OpenCode V2 has no automatic provider fallback. Use `api` when the Go quota is
+exhausted and `go` to return. The builder (GPT-6 Luna) is not touched.
+"""
+import pathlib
+import re
+import subprocess
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+FILES = [ROOT / "opencode.json", *sorted((ROOT / ".opencode" / "agents").glob("*.md"))]
+# Go model reference -> direct API model reference (variants differ per provider).
+GO_TO_API = {
+    "opencode-go/deepseek-v4.1-flash#high": "deepseek/deepseek-flash#profundo",
+    "opencode-go/deepseek-v4-pro#high": "deepseek/deepseek-v4-pro#profundo",
+    "opencode-go/deepseek-v4.1-flash": "deepseek/deepseek-flash",
+    "opencode-go/deepseek-v4-pro": "deepseek/deepseek-v4-pro",
+}
+API_TO_GO = {v: k for k, v in GO_TO_API.items()}
+MODEL_LINE = re.compile(r'^(model: |\s*"model": )"([^"]+)"', re.M)
+
+
+def route(text, mapping):
+    return MODEL_LINE.sub(lambda m: f'{m.group(1)}"{mapping.get(m.group(2), m.group(2))}"', text)
+
+
+def status():
+    for path in FILES:
+        for match in MODEL_LINE.finditer(path.read_text()):
+            print(f"{path.relative_to(ROOT)}: {match.group(2)}")
+
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in {"go", "api", "status"}:
+        print("Uso: .opencode/model-route {go|api|status}", file=sys.stderr)
+        return 2
+    if sys.argv[1] == "status":
+        status()
+        return 0
+    mapping = GO_TO_API if sys.argv[1] == "api" else API_TO_GO
+    for path in FILES:
+        text = path.read_text()
+        updated = route(text, mapping)
+        if updated != text:
+            path.write_text(updated)
+    status()
+    # Reload the shared background server; a --standalone instance needs a restart.
+    subprocess.run(["opencode", "reload"], cwd=ROOT, check=False)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

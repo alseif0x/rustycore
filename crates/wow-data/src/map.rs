@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use tracing::info;
+use tracing::{info, warn};
 use wow_constants::shared::DifficultyFlags;
 
 use crate::{DifficultyStore, PlayerConditionEntry, PlayerConditionStore, wdc4::Wdc4Reader};
@@ -109,8 +109,22 @@ impl MapStore {
     /// - `DB2Stores.cpp::sMapStore`
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         let path = Path::new(data_dir).join("dbc").join(locale).join("Map.db2");
-        let reader = Wdc4Reader::open(&path)
-            .with_context(|| format!("failed to open {}", path.display()))?;
+        let reader = match Wdc4Reader::open(&path) {
+            Ok(reader) => reader,
+            Err(strict_error) => match Wdc4Reader::open_available_forever_map(&path) {
+                Ok(reader) => {
+                    warn!(
+                        path = %path.display(),
+                        "Loaded available Map.db2 prefix; skipped TACT-encrypted sections"
+                    );
+                    reader
+                }
+                Err(_) => {
+                    return Err(strict_error)
+                        .with_context(|| format!("failed to open {}", path.display()));
+                }
+            },
+        };
 
         let mut entries = HashMap::with_capacity(reader.total_count());
         let mut area_table_ids_like_cpp = HashMap::with_capacity(reader.total_count());
