@@ -40,7 +40,7 @@ def event(opcode: int, sequence: int, body: bytes = b"", connection: str = "inst
 
 def response(reason: int, sequence: int, instant: bool = False) -> dict:
     return event(scenario.LOGOUT_RESPONSE, sequence, reason.to_bytes(4, "little", signed=True)
-                 + (b"\x01" if instant else b"\x00"))
+                 + (b"\x80" if instant else b"\x00"))
 
 
 def stun_event(selected: dict, sequence: int, flags: int, *, unrelated: bool = False) -> dict:
@@ -125,8 +125,9 @@ class LogoutPlanTests(unittest.TestCase):
                     self.assertEqual(rule, {"event": "packet", "connection": "instance",
                         "opcode": scenario.LOGOUT_RESPONSE,
                         "body_hex": (reason.to_bytes(4, "little", signed=True)
-                                     + (b"\x01" if instant else b"\x00")).hex()})
-                    self.assertEqual(bytes.fromhex(rule["body_hex"])[4], int(instant))
+                                     + (b"\x80" if instant else b"\x00")).hex()})
+                    self.assertEqual(bytes.fromhex(rule["body_hex"])[4],
+                                     0x80 if instant else 0x00)
                 self.assertTrue(all(rule["event"] == "packet" for rule in plan["expect"]))
                 requests = [action for action in plan["actions"]
                             if action["action"] == "logout_request"]
@@ -137,6 +138,10 @@ class LogoutPlanTests(unittest.TestCase):
             scenario.plan_for("logout-timed", actor("Qadeathmob"))
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.plan_for("logout-unknown", actor())
+
+    def test_instant_response_uses_observed_bit_packed_bool_byte(self) -> None:
+        self.assertEqual(scenario._response(0, instant=True)["body_hex"], "0000000080")
+        self.assertEqual(scenario._response(0)["body_hex"], "0000000000")
 
     def test_setup_actions_and_deadlines_use_typed_logout_and_real_fall(self) -> None:
         combat = scenario.plan_for("logout-combat-denial", actor("Qadeathmob"))
@@ -525,7 +530,10 @@ class LogoutVariantFixtureTests(unittest.TestCase):
             db.execute.return_value = ""
             with self.subTest(name=name, phase="setup"):
                 state = scenario._prepare_variant(name, db, selected)
-                self.assertEqual(state, {"account_id": account})
+                expected_state = {"account_id": account}
+                if name == "logout-rbac-revoke":
+                    expected_state["original_access_security"] = None
+                self.assertEqual(state, expected_state)
                 statements = db.transaction.call_args.args[0]
                 permissions = [1] if name == "logout-rbac-grant" else [1, 194]
                 inserts = [statement for statement in statements
@@ -535,8 +543,13 @@ class LogoutVariantFixtureTests(unittest.TestCase):
                     granted = 1 if name == "logout-rbac-grant" else 0
                     self.assertTrue(statement.endswith(
                         f"VALUES ({account},{permission},{granted},-1)"))
-                self.assertEqual(any("INSERT INTO auth.account_access" in statement
-                                     for statement in statements), name == "logout-rbac-revoke")
+                access_inserts = [statement for statement in statements
+                                  if statement.startswith("INSERT INTO auth.account_access")]
+                self.assertEqual(len(access_inserts), int(name == "logout-rbac-revoke"))
+                if access_inserts:
+                    self.assertEqual(access_inserts[0],
+                        "INSERT INTO auth.account_access (AccountID,SecurityLevel,RealmID) "
+                        f"VALUES ({account},1,-1)")
                 self.assertEqual(db.execute.call_count,
                                  len(permissions) + (name == "logout-rbac-revoke"))
             db.reset_mock()
@@ -555,10 +568,33 @@ class LogoutVariantFixtureTests(unittest.TestCase):
                                   if statement.startswith("DELETE FROM auth.account_access")]
                 self.assertEqual(len(access_deletes), int(name == "logout-rbac-revoke"))
                 if access_deletes:
-                    self.assertTrue(access_deletes[0].endswith(
-                        f"WHERE AccountID={account} AND SecurityLevel=1 AND RealmID=-1"))
+                    self.assertEqual(access_deletes[0],
+                        "DELETE FROM auth.account_access "
+                        f"WHERE AccountID={account} AND RealmID=-1")
                 self.assertEqual(db.execute.call_count,
                                  len(permissions) + (name == "logout-rbac-revoke"))
+
+    def test_revoke_existing_zero_access_is_updated_and_restored(self) -> None:
+        selected = actor("Qadeathreinc")
+        db = Mock()
+        db.execute.side_effect = ["", "", "12\t0\t-1"]
+        state = scenario._prepare_variant("logout-rbac-revoke", db, selected)
+        self.assertEqual(state, {"account_id": 12, "original_access_security": 0})
+        statements = db.transaction.call_args.args[0]
+        self.assertEqual(statements[0],
+            "UPDATE auth.account_access SET SecurityLevel=1 WHERE AccountID=12 AND RealmID=-1")
+        self.assertFalse(any(statement.startswith("INSERT INTO auth.account_access")
+                             for statement in statements))
+
+        db.reset_mock()
+        db.execute.side_effect = ["", "", "12\t0\t-1"]
+        scenario._restore_variant("logout-rbac-revoke", db, selected, state)
+        statements = db.transaction.call_args.args[0]
+        self.assertEqual(statements[-1],
+            "UPDATE auth.account_access SET SecurityLevel=0 WHERE AccountID=12 AND RealmID=-1")
+        self.assertFalse(any(statement.startswith("DELETE FROM auth.account_access")
+                             for statement in statements))
+        self.assertEqual(db.execute.call_count, 3)
 
     def test_resting_setup_restores_exact_flags_and_checks_identity(self) -> None:
         selected = actor()
@@ -584,7 +620,9 @@ class LogoutVariantFixtureTests(unittest.TestCase):
         for name, actor_name, rows in (
                 ("logout-rbac-grant", "Qadeathcast", ["9\t1\t1\t-1"]),
                 ("logout-rbac-revoke", "Qadeathreinc", ["", "12\t194\t0\t-1"]),
-                ("logout-rbac-revoke", "Qadeathreinc", ["", "", "12\t1\t-1"])):
+                ("logout-rbac-revoke", "Qadeathreinc", ["", "", "12\t1\t-1"]),
+                ("logout-rbac-revoke", "Qadeathreinc",
+                 ["", "", "12\t0\t-1\n12\t0\t-1"])):
             db = Mock()
             db.execute.side_effect = rows
             with self.subTest(name=name, rows=rows), self.assertRaises(scenario.ScenarioFailure):
@@ -592,17 +630,26 @@ class LogoutVariantFixtureTests(unittest.TestCase):
             db.transaction.assert_not_called()
 
     def test_cleanup_runs_on_exception_and_gates_success_report(self) -> None:
+        for name, actor_name, account in (("logout-rbac-grant", "Qadeathcast", 9),
+                                          ("logout-rbac-revoke", "Qadeathreinc", 12)):
+            selected = actor(actor_name)
+            identity = {"scenario": name}
+            journal = {"actors": [selected]}
+            state = {"account_id": account}
+            if name == "logout-rbac-revoke":
+                state["original_access_security"] = 0
+            with self.subTest(name=name), \
+                    patch.object(scenario, "_prepare_variant", return_value=state), \
+                    patch.object(scenario, "_run_case_body", side_effect=RuntimeError("failed")), \
+                    patch.object(scenario, "_restore_variant") as restore:
+                with self.assertRaisesRegex(RuntimeError, "failed"):
+                    scenario._run_case(identity, journal, 1, Mock())
+                restore.assert_called_once_with(name, ANY, selected, state)
+
         selected = actor("Qadeathcast")
         identity = {"scenario": "logout-rbac-grant"}
         journal = {"actors": [selected]}
         state = {"account_id": 9}
-        with patch.object(scenario, "_prepare_variant", return_value=state), \
-                patch.object(scenario, "_run_case_body", side_effect=RuntimeError("failed")), \
-                patch.object(scenario, "_restore_variant") as restore:
-            with self.assertRaisesRegex(RuntimeError, "failed"):
-                scenario._run_case(identity, journal, 1, Mock())
-            restore.assert_called_once_with("logout-rbac-grant", ANY, selected, state)
-
         with patch.object(scenario, "_prepare_variant", return_value=state), \
                 patch.object(scenario, "_run_case_body", return_value={"scenario": identity["scenario"]}), \
                 patch.object(scenario, "_restore_variant") as restore:

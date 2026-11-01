@@ -69,7 +69,7 @@ def _request() -> dict[str, Any]:
 
 def _response(reason: int, instant: bool = False) -> dict[str, Any]:
     return _packet("instance", LOGOUT_RESPONSE, reason.to_bytes(4, "little", signed=True)
-                   + (b"\x01" if instant else b"\x00"))
+                   + (b"\x80" if instant else b"\x00"))
 
 
 def _fall_start(actor: dict[str, Any]) -> dict[str, Any]:
@@ -208,14 +208,29 @@ def _require_absent(db: death_fixture.MariaDB, query: str) -> None:
         raise ScenarioFailure("logout variant fixture row already exists; refusing mutation")
 
 
+def _access_security(db: death_fixture.MariaDB, account: int) -> int | None:
+    rows = death_fixture.MariaDB._rows(db.execute(_access_select(account)), 3)
+    if not rows:
+        return None
+    if len(rows) != 1 or rows[0][0] != str(account) or rows[0][2] != "-1":
+        raise ScenarioFailure("revoke logout account access identity is missing or ambiguous")
+    try:
+        security = int(rows[0][1])
+    except ValueError:
+        raise ScenarioFailure("revoke logout account access security is invalid") from None
+    if security != 0:
+        raise ScenarioFailure("revoke logout account access security must be zero")
+    return security
+
+
 def _prepare_variant(scenario: str, db: death_fixture.MariaDB,
                      actor: dict[str, Any]) -> dict[str, Any]:
     if scenario in RBAC_FIXTURES:
         account, permissions = _rbac_identity(scenario, actor)
         for permission, _granted in permissions:
             _require_absent(db, _rbac_select(account, permission))
-        if scenario == "logout-rbac-revoke":
-            _require_absent(db, _access_select(account))
+        original_access = _access_security(db, account) \
+            if scenario == "logout-rbac-revoke" else None
         statements = [
             "INSERT INTO auth.rbac_account_permissions "
             "(accountId,permissionId,granted,realmId) "
@@ -223,10 +238,18 @@ def _prepare_variant(scenario: str, db: death_fixture.MariaDB,
             for permission, granted in permissions
         ]
         if scenario == "logout-rbac-revoke":
-            statements.insert(0, "INSERT INTO auth.account_access (AccountID,SecurityLevel,RealmID) "
-                                 f"VALUES ({account},1,-1)")
+            if original_access is None:
+                statements.insert(0, "INSERT INTO auth.account_access "
+                                     "(AccountID,SecurityLevel,RealmID) "
+                                     f"VALUES ({account},1,-1)")
+            else:
+                statements.insert(0, "UPDATE auth.account_access SET SecurityLevel=1 "
+                                     f"WHERE AccountID={account} AND RealmID=-1")
         db.transaction(statements)
-        return {"account_id": account}
+        state = {"account_id": account}
+        if scenario == "logout-rbac-revoke":
+            state["original_access_security"] = original_access
+        return state
     if scenario == "logout-resting":
         original = _resting_identity(db, actor)
         db.transaction([f"UPDATE characters SET playerFlags=playerFlags|{PLAYER_FLAGS_RESTING} "
@@ -246,13 +269,19 @@ def _restore_variant(scenario: str, db: death_fixture.MariaDB,
             for permission, granted in permissions
         ]
         if scenario == "logout-rbac-revoke":
-            statements.append("DELETE FROM auth.account_access "
-                              f"WHERE AccountID={account} AND SecurityLevel=1 AND RealmID=-1")
+            original_access = state["original_access_security"]
+            if original_access is None:
+                statements.append("DELETE FROM auth.account_access "
+                                  f"WHERE AccountID={account} AND RealmID=-1")
+            else:
+                statements.append(f"UPDATE auth.account_access SET SecurityLevel={original_access} "
+                                  f"WHERE AccountID={account} AND RealmID=-1")
         db.transaction(statements)
         for permission, _granted in permissions:
             _require_absent(db, _rbac_select(account, permission))
-        if scenario == "logout-rbac-revoke":
-            _require_absent(db, _access_select(account))
+        if scenario == "logout-rbac-revoke" \
+                and _access_security(db, account) != state["original_access_security"]:
+            raise ScenarioFailure("revoke logout account access restoration failed")
         return
     if scenario == "logout-resting":
         original = int(state["original_player_flags"])
@@ -441,7 +470,7 @@ def _require_common(scenario: str, evidence: dict[str, Any]) -> tuple[list[dict[
         raise ScenarioFailure("cancel scenario requires exactly one typed cancel")
     reason = {"logout-combat-denial": 1, "logout-fall-denial": 3,
               "logout-freeze-denial": 2}.get(scenario, 0)
-    instant = b"\x01" if scenario in INSTANT_SCENARIOS else b"\x00"
+    instant = b"\x80" if scenario in INSTANT_SCENARIOS else b"\x00"
     responses = _events(evidence, LOGOUT_RESPONSE, "instance",
                         reason.to_bytes(4, "little", signed=True) + instant)
     if len(responses) != expected_count:
