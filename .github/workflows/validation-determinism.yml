@@ -1,26 +1,13 @@
 name: Validation determinism
 
-# Twenty isolated runs of one profile on twenty independent hosts, compared
+# Twenty isolated hermetic self-tests on twenty independent hosts, compared
 # through the runner's own normalised manifest form. Manual only: this is
 # evidence for #302, not a gate.
 on:
   workflow_dispatch:
-    inputs:
-      profile:
-        description: Profile repeated in every job
-        required: true
-        default: self-test
-        type: choice
-        options:
-          - self-test
-          - quick
-          - final
 
 permissions:
   contents: read
-
-env:
-  CARGO_TERM_COLOR: always
 
 jobs:
   repeat:
@@ -65,14 +52,12 @@ jobs:
           cache: false
           rustflags: ""
 
-      - name: Run the profile and normalise its manifest
+      - name: Run hermetic self-test and normalise its manifest
         env:
-          PROFILE: ${{ inputs.profile }}
           VALIDATION_V2_MANIFEST: ${{ runner.temp }}/manifest.json
         run: |
           set -euo pipefail
-          base="$(git rev-parse HEAD~1)"
-          ./tools/validation-v2 "$PROFILE" --base "$base"
+          ./tools/validation-v2 self-test
           ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST"
           ./tools/validation-v2 normalize --manifest "$VALIDATION_V2_MANIFEST" \
             > "${RUNNER_TEMP}/normalised.json"

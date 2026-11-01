@@ -16,18 +16,69 @@ use syn::{Attribute, Expr, Item, ItemMacro, Lit, Meta, UseTree};
 use crate::module_policy::CapabilityOwner;
 use crate::ownership::WorkspaceSourceMount;
 
+mod composer;
+mod direct_builder;
+mod legacy_registry;
 mod local_inventory;
+pub(crate) use composer::{
+    validate_composition_mounts, validate_composition_mounts_with_contracts,
+};
+pub(crate) use direct_builder::{
+    ACCOUNT_DATA_REGISTRAR, APPLICATION_GROUP_REGISTRAR, ARENA_TEAM_REGISTRAR, BANK_REGISTRAR,
+    BATTLE_PET_REGISTRAR, BATTLEGROUND_REGISTRAR, BATTLENET_REGISTRAR, CALENDAR_REGISTRAR,
+    CHARACTER_ACCOUNT_REGISTRAR, CHARACTER_QUERY_REGISTRAR, CHARACTER_REGISTRAR, CHAT_REGISTRAR,
+    CLIENT_STATE_REGISTRAR, COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR, CORPSE_REGISTRAR,
+    DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS, DUNGEON_FINDING_REGISTRAR,
+    DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, GAMEOBJECT_REGISTRAR,
+    GUILD_BANK_REGISTRAR, GUILD_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR,
+    LOOT_REGISTRAR, MOVEMENT_REGISTRAR, MOVEMENT_TAIL_OWNER_MODULE, MOVEMENT_TAIL_REGISTRAR,
+    MOVEMENT_TAIL_REGISTRAR_NAME, NPC_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR,
+    QUEST_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract, RegistrarReport,
+    SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR,
+    SUPPORT_REGISTRAR, TALENT_REGISTRAR, TRADE_REGISTRAR, TRAINER_REGISTRAR, TRAVEL_REGISTRAR,
+    VEHICLE_REGISTRAR, VOID_STORAGE_REGISTRAR, analyze_contract_source, analyze_owner_source,
+    analyze_owner_source_with_contracts, unowned_entry_literal_violation,
+};
 pub(crate) use local_inventory::{
     data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,
+    registration_alias_violations_with_context,
 };
 
+/// Registration macros the repository is expected to expand.
+///
+/// #1263 F5 moved the inert movement-ack family (`Move*Ack`,
+/// `MoveRemoveMovementForces`, `MoveSeamlessTransferComplete`,
+/// `MoveSetAdvFly*`) out of `wow-world`'s local
+/// `register_unhandled_threadsafe_null_handler!` and into the explicit
+/// `register_client_state_handlers_like_cpp` registrar of
+/// `wow-world-application`; the expansion shape is now a direct
+/// `builder.register` per opcode, so the macro is no longer part of the
+/// grammar. Review this list again before adding another registry macro.
+///
+/// #1263 F5 also moved the chat family to
+/// `wow-world-social::register_chat_handlers_like_cpp`. The channel-command
+/// registrations that `wow-world` previously expanded through
+/// `register_chat_channel_command_handler!` /
+/// `register_chat_channel_player_command_handler!` are now direct
+/// `builder.register` entries in `crates/wow-world-social/src/chat_handlers.rs`
+/// (audited by the `SocialChat` direct-registrar contract), so those two
+/// macros are retired from the grammar.
+///
+/// The #1263 F5 tail relocated the three remaining statement macros into the
+/// `wow-world-application` movement tail registrar (in `wow-world-entities` since
+/// #1363 slice A1) and changed their expansion
+/// from the legacy `inventory::submit!` wrapper to exactly one
+/// `$builder.register(PacketHandlerEntry { .. })?`. They are discovered
+/// *structurally* (one unconditional arm with the matcher
+/// `($builder:ident, $opcode:ident)` and that single expansion), the discovered
+/// set must equal this closed declaration set, their definitions must live in
+/// `crate::movement_handlers::tail_registrations`, and their invocations are
+/// permitted only inside `register_movement_tail_handlers_like_cpp`. No other
+/// builder registration macro may exist anywhere in the scanned sources.
 pub(crate) const EXPECTED_REGISTRATION_MACROS: &[&str] = &[
-    "register_chat_channel_command_handler",
-    "register_chat_channel_player_command_handler",
     "register_move",
     "register_movement_ack_message",
     "register_movement_speed_ack",
-    "register_unhandled_threadsafe_null_handler",
 ];
 
 #[derive(Clone, Debug)]
@@ -52,6 +103,9 @@ struct MacroDefinitionSite {
     rule_arm_count: usize,
     conditional_context: Option<String>,
     location: String,
+    module_path: String,
+    /// The structurally validated builder registration macro shape, if any.
+    builder_registration: Result<BuilderRegistrationMacro, String>,
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +116,9 @@ struct MacroInvocationSite {
     conditional_context: Option<String>,
     item_level: bool,
     location: String,
+    module_path: String,
+    /// The function this invocation appears in, when it is inside one.
+    enclosing_function: Option<String>,
 }
 
 #[derive(Default)]
@@ -74,13 +131,19 @@ struct SourceCollection {
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct RegistrationSourceReport {
     pub(crate) direct_submissions: usize,
+    pub(crate) builder_entries: usize,
+    /// How many of the finite direct-owner registrars this scan recognized.
+    ///
+    /// Only the repository scan can require the complete contract set: a
+    /// synthetic or single-owner mount legitimately contains none of them.
+    pub(crate) builder_registrars: usize,
     pub(crate) registration_macro_invocations: usize,
     pub(crate) registration_macro_names: BTreeSet<String>,
 }
 
 impl RegistrationSourceReport {
     pub(crate) fn represented_entries(&self) -> usize {
-        self.direct_submissions + self.registration_macro_invocations
+        self.direct_submissions + self.builder_entries + self.registration_macro_invocations
     }
 }
 
@@ -416,38 +479,24 @@ fn use_tree_can_alias_inventory_submit(tree: &UseTree) -> bool {
 fn use_tree_can_alias_expected_registration_macro(tree: &UseTree) -> bool {
     match tree {
         UseTree::Path(path) => use_tree_can_alias_expected_registration_macro(&path.tree),
-        UseTree::Name(name) => EXPECTED_REGISTRATION_MACROS
-            .iter()
-            .any(|expected| ident_is(&name.ident, expected)),
-        UseTree::Rename(rename) => EXPECTED_REGISTRATION_MACROS.iter().any(|expected| {
-            ident_is(&rename.ident, expected) || ident_is(&rename.rename, expected)
-        }),
+        UseTree::Name(name) => {
+            EXPECTED_REGISTRATION_MACROS
+                .iter()
+                .any(|expected| ident_is(&name.ident, expected))
+                || legacy_registry::is_wrapper_macro_name(&name.ident)
+        }
+        UseTree::Rename(rename) => {
+            EXPECTED_REGISTRATION_MACROS.iter().any(|expected| {
+                ident_is(&rename.ident, expected) || ident_is(&rename.rename, expected)
+            }) || legacy_registry::is_wrapper_macro_name(&rename.ident)
+                || legacy_registry::is_wrapper_macro_name(&rename.rename)
+        }
         UseTree::Group(group) => group
             .items
             .iter()
             .any(use_tree_can_alias_expected_registration_macro),
         UseTree::Glob(_) => false,
     }
-}
-
-fn is_exact_packet_handler_collector(path: &[String], body: &TokenStream) -> bool {
-    if path != ["inventory", "collect"] {
-        return false;
-    }
-    let Ok(handler_type) = syn::parse2::<syn::Path>(body.clone()) else {
-        return false;
-    };
-    handler_type.leading_colon.is_none()
-        && handler_type.segments.len() == 1
-        && handler_type.segments.first().is_some_and(|segment| {
-            ident_is(&segment.ident, "PacketHandlerEntry")
-                && matches!(segment.arguments, syn::PathArguments::None)
-        })
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct OutsideRegistrationReport {
-    pub(crate) exact_packet_handler_collectors: usize,
 }
 
 pub(crate) fn handler_capable_macro_definitions(
@@ -582,72 +631,31 @@ pub(crate) fn include_macro_bodies(
 pub(crate) fn analyze_registration_syntax_outside_handlers(
     source_path: &Path,
     source: &str,
-    allow_exact_packet_handler_collector: bool,
-) -> Result<OutsideRegistrationReport, String> {
+    allow_local_data_module: bool,
+) -> Result<(), String> {
     // Tokenize the complete source without evaluating cfg predicates. This is
     // intentionally independent of rustc's active target/profile so an
     // otherwise invisible #[cfg(...)] registration is still audited.
     let tokens: TokenStream = source
         .parse()
         .map_err(|error| format!("cannot tokenize {}: {error}", source_path.display()))?;
-    let mut violations = registration_alias_violations(source)?
-        .into_iter()
-        .map(|violation| format!("{} {violation}", source_path.display()))
-        .collect::<Vec<_>>();
+    let mut violations =
+        registration_alias_violations_with_context(source, allow_local_data_module)?
+            .into_iter()
+            .map(|violation| format!("{} {violation}", source_path.display()))
+            .collect::<Vec<_>>();
+    if token_stream_mentions_ident(&tokens, "PacketHandlerEntry") {
+        if let Some(violation) = direct_builder::unowned_entry_literal_violation(source)? {
+            violations.push(format!("{} {violation}", source_path.display()));
+        }
+    }
     let syntax = syn::parse_file(source)
         .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
-    let top_level_exact_collectors: Vec<_> = syntax
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            Item::Macro(item)
-                if is_exact_packet_handler_collector(
-                    &path_segments(&item.mac.path),
-                    &item.mac.tokens,
-                ) =>
-            {
-                Some(item)
-            }
-            _ => None,
-        })
-        .collect();
-    let exact_collector_calls = token_macro_calls(&tokens)
-        .iter()
-        .filter(|call| is_exact_packet_handler_collector(&call.path, &call.body))
-        .count();
-    if allow_exact_packet_handler_collector {
-        if exact_collector_calls != top_level_exact_collectors.len() {
-            violations.push(format!(
-                "{} contains an exact inventory::collect!(PacketHandlerEntry) outside module item \
-                 level; the collector is allowed only as a top-level item",
-                source_path.display()
-            ));
-        }
-        if conditional_attribute_name(&syntax.attrs).is_some() {
-            violations.push(format!(
-                "{} guards the PacketHandlerEntry collector source with cfg/cfg_attr",
-                source_path.display()
-            ));
-        }
-        for collector in &top_level_exact_collectors {
-            if conditional_attribute_name(&collector.attrs).is_some() {
-                violations.push(format!(
-                    "{} conditionally compiles inventory::collect!(PacketHandlerEntry)",
-                    source_path.display()
-                ));
-            }
-        }
-    }
-    for definition in token_macro_definitions(&tokens)
-        .into_iter()
-        .filter(macro_definition_may_generate_handler)
-    {
-        violations.push(format!(
-            "{} defines handler-capable macro_rules! {} outside the declared handler-registration owner",
-            source_path.display(),
-            definition.name
-        ));
-    }
+    violations.extend(legacy_registry::retired_bridge_violations(
+        source_path,
+        &tokens,
+        &syntax,
+    ));
     for call in token_macro_calls(&tokens) {
         if call.path.last().is_some_and(|name| name == "include") {
             violations.push(format!(
@@ -655,10 +663,6 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
                  registration",
                 source_path.display()
             ));
-        } else if allow_exact_packet_handler_collector
-            && is_exact_packet_handler_collector(&call.path, &call.body)
-        {
-            continue;
         } else if call
             .path
             .last()
@@ -701,9 +705,7 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
     violations.dedup();
 
     if violations.is_empty() {
-        Ok(OutsideRegistrationReport {
-            exact_packet_handler_collectors: top_level_exact_collectors.len(),
-        })
+        Ok(())
     } else {
         Err(violations.join("\n"))
     }
@@ -714,7 +716,7 @@ pub(crate) fn reject_registration_syntax_outside_handlers(
     source_path: &Path,
     source: &str,
 ) -> Result<(), String> {
-    analyze_registration_syntax_outside_handlers(source_path, source, false).map(|_| ())
+    analyze_registration_syntax_outside_handlers(source_path, source, false)
 }
 
 fn path_segments(path: &syn::Path) -> Vec<String> {
@@ -724,8 +726,10 @@ fn path_segments(path: &syn::Path) -> Vec<String> {
         .collect()
 }
 
-fn is_direct_handler_submission(path: &[String], _body: &TokenStream) -> bool {
+fn is_direct_handler_submission(path: &[String], body: &TokenStream) -> bool {
     is_inventory_submit(path)
+        || (legacy_registry::is_wrapper_macro_path(path)
+            && legacy_registry::is_wrapper_entry_expression(body))
 }
 
 fn is_inventory_submit(path: &[String]) -> bool {
@@ -737,11 +741,12 @@ fn macro_call_mentions_handler_entry(body: &TokenStream) -> bool {
 }
 
 fn is_registration_macro_invocation(path: &[String]) -> bool {
-    path.last().is_some_and(|name| {
-        EXPECTED_REGISTRATION_MACROS
-            .iter()
-            .any(|expected| name == expected)
-    })
+    legacy_registry::is_wrapper_macro_name_path(path)
+        || path.last().is_some_and(|name| {
+            EXPECTED_REGISTRATION_MACROS
+                .iter()
+                .any(|expected| name == expected)
+        })
 }
 
 fn token_stream_contains_macro_repetition(tokens: &TokenStream) -> bool {
@@ -780,6 +785,319 @@ fn token_stream_contains_metavariable_macro_invocation(tokens: &TokenStream) -> 
     })
 }
 
+fn token_is_punct(token: Option<&TokenTree>, expected: char) -> bool {
+    matches!(token, Some(TokenTree::Punct(punctuation)) if punctuation.as_char() == expected)
+}
+
+/// Split a `macro_rules!` body into its `matcher => expansion` arms.
+fn macro_rule_arms(tokens: &TokenStream) -> Result<Vec<(TokenStream, TokenStream)>, String> {
+    let trees: Vec<TokenTree> = tokens.clone().into_iter().collect();
+    let mut arms = Vec::new();
+    let mut index = 0usize;
+    while index < trees.len() {
+        let Some(TokenTree::Group(matcher)) = trees.get(index) else {
+            return Err(format!(
+                "unexpected token {:?} where a macro rule matcher was expected",
+                trees[index]
+            ));
+        };
+        index += 1;
+        if !token_is_punct(trees.get(index), '=') || !token_is_punct(trees.get(index + 1), '>') {
+            return Err("macro rule arm is missing its `=>`".to_owned());
+        }
+        index += 2;
+        let Some(TokenTree::Group(expansion)) = trees.get(index) else {
+            return Err("macro rule arm is missing its expansion block".to_owned());
+        };
+        index += 1;
+        if token_is_punct(trees.get(index), ';') || token_is_punct(trees.get(index), ',') {
+            index += 1;
+        }
+        arms.push((matcher.stream(), expansion.stream()));
+    }
+    Ok(arms)
+}
+
+/// The exact matcher `($builder:ident, $opcode:ident)`.
+fn builder_registration_macro_matcher(matcher: &TokenStream) -> Result<(String, String), String> {
+    let trees: Vec<TokenTree> = matcher.clone().into_iter().collect();
+    let expected = "the matcher must be exactly `($builder:ident, $opcode:ident)`";
+    let [
+        dollar,
+        builder,
+        colon,
+        builder_fragment,
+        comma,
+        dollar2,
+        opcode,
+        colon2,
+        opcode_fragment,
+    ] = trees.as_slice()
+    else {
+        return Err(expected.to_owned());
+    };
+    let (TokenTree::Punct(dollar), TokenTree::Ident(builder), TokenTree::Punct(colon)) =
+        (dollar, builder, colon)
+    else {
+        return Err(expected.to_owned());
+    };
+    let (TokenTree::Ident(builder_fragment), TokenTree::Punct(comma)) = (builder_fragment, comma)
+    else {
+        return Err(expected.to_owned());
+    };
+    let (TokenTree::Punct(dollar2), TokenTree::Ident(opcode), TokenTree::Punct(colon2)) =
+        (dollar2, opcode, colon2)
+    else {
+        return Err(expected.to_owned());
+    };
+    let TokenTree::Ident(opcode_fragment) = opcode_fragment else {
+        return Err(expected.to_owned());
+    };
+    if dollar.as_char() != '$'
+        || dollar2.as_char() != '$'
+        || colon.as_char() != ':'
+        || colon2.as_char() != ':'
+        || comma.as_char() != ','
+        || !ident_is(builder_fragment, "ident")
+        || !ident_is(opcode_fragment, "ident")
+    {
+        return Err(expected.to_owned());
+    }
+    Ok((normalized_ident(builder), normalized_ident(opcode)))
+}
+
+const OPCODE_PLACEHOLDER: &str = "__macro_opcode_metavariable__";
+
+fn substitute_macro_metavariable(
+    tokens: &TokenStream,
+    name: &str,
+    replacement: &str,
+) -> TokenStream {
+    let mut substituted = TokenStream::new();
+    let trees: Vec<TokenTree> = tokens.clone().into_iter().collect();
+    let mut index = 0usize;
+    while index < trees.len() {
+        if token_is_punct(trees.get(index), '$')
+            && matches!(trees.get(index + 1), Some(TokenTree::Ident(ident)) if ident_is(ident, name))
+        {
+            substituted.extend([TokenTree::Ident(proc_macro2::Ident::new(
+                replacement,
+                proc_macro2::Span::call_site(),
+            ))]);
+            index += 2;
+            continue;
+        }
+        match &trees[index] {
+            TokenTree::Group(group) => {
+                let mut nested = proc_macro2::Group::new(
+                    group.delimiter(),
+                    substitute_macro_metavariable(&group.stream(), name, replacement),
+                );
+                nested.set_span(group.span());
+                substituted.extend([TokenTree::Group(nested)]);
+            }
+            token => substituted.extend([token.clone()]),
+        }
+        index += 1;
+    }
+    substituted
+}
+
+fn macro_metavariables(tokens: &TokenStream) -> BTreeSet<String> {
+    let trees: Vec<TokenTree> = tokens.clone().into_iter().collect();
+    let mut names = BTreeSet::new();
+    for index in 0..trees.len() {
+        if token_is_punct(trees.get(index), '$')
+            && let Some(TokenTree::Ident(ident)) = trees.get(index + 1)
+        {
+            names.insert(normalized_ident(ident));
+        }
+        if let TokenTree::Group(group) = &trees[index] {
+            names.extend(macro_metavariables(&group.stream()));
+        }
+    }
+    names
+}
+
+fn count_macro_metavariable(tokens: &TokenStream, name: &str) -> usize {
+    let trees: Vec<TokenTree> = tokens.clone().into_iter().collect();
+    let mut count = 0usize;
+    for index in 0..trees.len() {
+        if token_is_punct(trees.get(index), '$')
+            && matches!(trees.get(index + 1), Some(TokenTree::Ident(ident)) if ident_is(ident, name))
+        {
+            count += 1;
+        }
+        if let TokenTree::Group(group) = &trees[index] {
+            count += count_macro_metavariable(&group.stream(), name);
+        }
+    }
+    count
+}
+
+/// The exact expansion `$builder.register(PacketHandlerEntry { .. })?`.
+fn builder_registration_macro_expansion(
+    expansion: &TokenStream,
+    builder_metavariable: &str,
+    opcode_metavariable: &str,
+) -> Result<(), String> {
+    let mut trees: Vec<TokenTree> = expansion.clone().into_iter().collect();
+    if token_is_punct(trees.last(), ';') {
+        trees.pop();
+    }
+    let expected = "the expansion must be exactly one `$builder.register(PacketHandlerEntry { .. })?` statement";
+    let [dollar, builder, dot, register, arguments, question] = trees.as_slice() else {
+        return Err(expected.to_owned());
+    };
+    let (TokenTree::Punct(dollar), TokenTree::Ident(builder), TokenTree::Punct(dot)) =
+        (dollar, builder, dot)
+    else {
+        return Err(expected.to_owned());
+    };
+    let (TokenTree::Ident(register), TokenTree::Group(arguments), TokenTree::Punct(question)) =
+        (register, arguments, question)
+    else {
+        return Err(expected.to_owned());
+    };
+    if dollar.as_char() != '$'
+        || dot.as_char() != '.'
+        || question.as_char() != '?'
+        || !ident_is(builder, builder_metavariable)
+        || !ident_is(register, "register")
+    {
+        return Err(expected.to_owned());
+    }
+    if count_macro_metavariable(expansion, builder_metavariable) != 1 {
+        return Err(format!(
+            "the expansion must use ${builder_metavariable} exactly once, as the register receiver"
+        ));
+    }
+    let mut expected_metavariables = BTreeSet::new();
+    expected_metavariables.insert(builder_metavariable.to_owned());
+    expected_metavariables.insert(opcode_metavariable.to_owned());
+    let metavariables = macro_metavariables(expansion);
+    if metavariables != expected_metavariables {
+        return Err(format!(
+            "the expansion may reference only ${builder_metavariable} and ${opcode_metavariable}; \
+             found {metavariables:?}"
+        ));
+    }
+    let substituted =
+        substitute_macro_metavariable(&arguments.stream(), opcode_metavariable, OPCODE_PLACEHOLDER);
+    let expression: Expr = syn::parse2(substituted).map_err(|error| {
+        format!("the register argument must be one PacketHandlerEntry literal: {error}")
+    })?;
+    let Expr::Struct(entry) = expression else {
+        return Err("the register argument must be a PacketHandlerEntry struct literal".to_owned());
+    };
+    if entry.qself.is_some()
+        || entry.path.leading_colon.is_some()
+        || entry.path.segments.len() != 1
+        || !entry
+            .path
+            .segments
+            .first()
+            .is_some_and(|segment| ident_is(&segment.ident, "PacketHandlerEntry"))
+        || entry.rest.is_some()
+    {
+        return Err(
+            "the register argument must be a plain PacketHandlerEntry struct literal".to_owned(),
+        );
+    }
+    let fields = ["opcode", "status", "processing", "handler_name", "handler"];
+    if entry.fields.len() != fields.len()
+        || !entry.fields.iter().zip(fields).all(|(field, expected)| {
+            matches!(&field.member, syn::Member::Named(name) if ident_is(name, expected))
+        })
+    {
+        return Err(format!(
+            "the PacketHandlerEntry literal must declare exactly {fields:?} in order"
+        ));
+    }
+    let opcode_field = entry.fields.iter().find(
+        |field| matches!(&field.member, syn::Member::Named(name) if ident_is(name, "opcode")),
+    );
+    let Some(Expr::Path(opcode_path)) = opcode_field.map(|field| &field.expr) else {
+        return Err("the entry opcode must be a ClientOpcodes path".to_owned());
+    };
+    if opcode_path.qself.is_some()
+        || opcode_path.path.leading_colon.is_some()
+        || opcode_path.path.segments.len() != 2
+        || !ident_is(&opcode_path.path.segments[0].ident, "ClientOpcodes")
+        || !ident_is(&opcode_path.path.segments[1].ident, OPCODE_PLACEHOLDER)
+    {
+        return Err(format!(
+            "the entry opcode must be exactly `ClientOpcodes::${opcode_metavariable}`"
+        ));
+    }
+    Ok(())
+}
+
+/// A structurally valid statement macro that expands to exactly one
+/// `$builder.register(PacketHandlerEntry { .. })?`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct BuilderRegistrationMacro {
+    /// Declared macro name.
+    pub(crate) name: String,
+    /// The matcher's builder metavariable.
+    pub(crate) builder_metavariable: String,
+    /// The matcher's opcode metavariable.
+    pub(crate) opcode_metavariable: String,
+}
+
+/// Validate one `macro_rules!` definition against the closed builder registration
+/// macro grammar: one unconditional arm, the exact matcher and exactly one
+/// `$builder.register(PacketHandlerEntry { .. })?` expansion.
+pub(crate) fn builder_registration_macro_shape(
+    name: &str,
+    tokens: &TokenStream,
+) -> Result<BuilderRegistrationMacro, String> {
+    if token_stream_contains_macro_repetition(tokens) {
+        return Err(format!(
+            "registration macro {name} contains a macro repetition"
+        ));
+    }
+    if token_stream_contains_metavariable_macro_invocation(tokens) {
+        return Err(format!(
+            "registration macro {name} forwards a metavariable macro invocation"
+        ));
+    }
+    let arms = macro_rule_arms(tokens)?;
+    let [arm] = arms.as_slice() else {
+        return Err(format!(
+            "registration macro {name} must have exactly one rule arm"
+        ));
+    };
+    let (builder_metavariable, opcode_metavariable) = builder_registration_macro_matcher(&arm.0)
+        .map_err(|error| format!("registration macro {name}: {error}"))?;
+    builder_registration_macro_expansion(&arm.1, &builder_metavariable, &opcode_metavariable)
+        .map_err(|error| format!("registration macro {name}: {error}"))?;
+    Ok(BuilderRegistrationMacro {
+        name: name.to_owned(),
+        builder_metavariable,
+        opcode_metavariable,
+    })
+}
+
+/// Recover the effective opcode of one `macro!(builder, OpcodeVariant)` statement.
+pub(crate) fn builder_registration_macro_invocation_opcode(
+    body: &TokenStream,
+) -> Result<String, String> {
+    let trees: Vec<TokenTree> = body.clone().into_iter().collect();
+    let [
+        TokenTree::Ident(builder),
+        TokenTree::Punct(comma),
+        TokenTree::Ident(opcode),
+    ] = trees.as_slice()
+    else {
+        return Err("must be invoked as `macro!(builder, OpcodeVariant)`".to_owned());
+    };
+    if !ident_is(builder, "builder") || comma.as_char() != ',' {
+        return Err("must be invoked as `macro!(builder, OpcodeVariant)`".to_owned());
+    }
+    Ok(format!("ClientOpcodes :: {}", normalized_ident(opcode)))
+}
+
 fn top_level_fat_arrow_count(tokens: &TokenStream) -> usize {
     let trees: Vec<_> = tokens.clone().into_iter().collect();
     trees
@@ -792,7 +1110,11 @@ fn definition_direct_submission_count(definition: &MacroDefinitionSite) -> usize
     definition
         .calls
         .iter()
-        .filter(|call| is_direct_handler_submission(&call.path, &call.body))
+        .filter(|call| {
+            is_direct_handler_submission(&call.path, &call.body)
+                || (legacy_registry::is_wrapper_macro_path(&call.path)
+                    && legacy_registry::is_wrapper_template_entry_expression(&call.body))
+        })
         .count()
 }
 
@@ -861,7 +1183,7 @@ fn collect_macro_item(
                 ));
             }
             collection.definitions.push(MacroDefinitionSite {
-                name: normalized_name,
+                name: normalized_name.clone(),
                 handler_capable,
                 calls,
                 contains_conditional_tokens,
@@ -869,6 +1191,11 @@ fn collect_macro_item(
                 rule_arm_count: top_level_fat_arrow_count(&item_macro.mac.tokens),
                 conditional_context,
                 location,
+                module_path: module_path.to_owned(),
+                builder_registration: builder_registration_macro_shape(
+                    &normalized_name,
+                    &item_macro.mac.tokens,
+                ),
             });
         }
         return;
@@ -881,6 +1208,8 @@ fn collect_macro_item(
         conditional_context,
         item_level: true,
         location,
+        module_path: module_path.to_owned(),
+        enclosing_function: None,
     });
 }
 
@@ -913,6 +1242,11 @@ fn collect_nested_item_macros(
             conditional_context: inherited_condition.clone(),
             item_level: false,
             location: location.clone(),
+            module_path: module_path.to_owned(),
+            enclosing_function: match item {
+                Item::Fn(function) => Some(normalized_ident(&function.sig.ident)),
+                _ => None,
+            },
         });
     }
 }
@@ -1133,27 +1467,16 @@ fn discover_registration_macros(
         }
     }
 
-    let mut registration_names: BTreeSet<_> = definitions
+    // Structural discovery only: a registration macro is a definition whose
+    // single unconditional arm expands to exactly one
+    // `$builder.register(PacketHandlerEntry { .. })?`. Name allowlists are never
+    // used to discover a macro; the discovered set is validated against the
+    // closed declaration set afterwards.
+    Ok(definitions
         .iter()
-        .filter(|definition| definition_direct_submission_count(definition) > 0)
+        .filter(|definition| definition.builder_registration.is_ok())
         .map(|definition| definition.name.clone())
-        .collect();
-    loop {
-        let before = registration_names.len();
-        for definition in definitions {
-            if definition.calls.iter().any(|call| {
-                call.path
-                    .last()
-                    .is_some_and(|name| registration_names.contains(name))
-            }) {
-                registration_names.insert(definition.name.clone());
-            }
-        }
-        if registration_names.len() == before {
-            break;
-        }
-    }
-    Ok(registration_names)
+        .collect())
 }
 
 fn classify_registration_sources(
@@ -1162,21 +1485,40 @@ fn classify_registration_sources(
     let registration_names = discover_registration_macros(&collection.definitions)?;
     let mut errors = collection.unsupported_registration_generators.clone();
 
+    // The discovered structural set is validated against the closed declaration
+    // set by the repository scan (`check_repository` compares
+    // `registration_macro_names` with `EXPECTED_REGISTRATION_MACROS`); a
+    // synthetic single-mount source legitimately declares none of them.
+    for definition in &collection.definitions {
+        if definition_direct_submission_count(definition) > 0 {
+            errors.push(format!(
+                "registration macro {} in {} still expands through the legacy inventory \
+                 submission grammar; a registration macro must expand to exactly one \
+                 `builder.register(PacketHandlerEntry {{ .. }})?`",
+                definition.name, definition.location
+            ));
+        }
+    }
+
     for definition in collection.definitions.iter().filter(|definition| {
         definition.handler_capable && !registration_names.contains(&definition.name)
     }) {
+        let repetition = if definition.contains_repetition {
+            "; it contains a macro repetition, so one PacketHandlerEntry per invocation cannot be proven"
+        } else {
+            ""
+        };
         errors.push(format!(
             "handler-capable macro {} in {} is outside the exact audited registration-macro \
-             grammar",
+             grammar{repetition}",
             definition.name, definition.location
         ));
     }
 
-    for definition in collection
-        .definitions
-        .iter()
-        .filter(|definition| registration_names.contains(&definition.name))
-    {
+    for definition in collection.definitions.iter().filter(|definition| {
+        registration_names.contains(&definition.name)
+            || EXPECTED_REGISTRATION_MACROS.contains(&definition.name.as_str())
+    }) {
         if let Some(context) = &definition.conditional_context {
             errors.push(format!(
                 "registration macro {} is conditionally compiled: {context}",
@@ -1204,22 +1546,22 @@ fn classify_registration_sources(
             ));
         }
 
-        let registration_calls = definition_direct_submission_count(definition)
-            + definition
-                .calls
-                .iter()
-                .filter(|call| {
-                    call.path
-                        .last()
-                        .is_some_and(|name| registration_names.contains(name))
-                })
-                .count();
-        if registration_calls != 1 {
-            errors.push(format!(
-                "registration macro {} contains {registration_calls} registration expansions in \
-                 {}; the guard requires exactly one PacketHandlerEntry per invocation",
+        match &definition.builder_registration {
+            Ok(_) => {
+                if definition.module_path != MOVEMENT_TAIL_OWNER_MODULE {
+                    errors.push(format!(
+                        "builder registration macro {} is defined in {} instead of the movement \
+                         tail owner {}; statement registration macros are permitted only in the \
+                         tail registrar",
+                        definition.name, definition.module_path, MOVEMENT_TAIL_OWNER_MODULE
+                    ));
+                }
+            }
+            Err(shape_error) => errors.push(format!(
+                "registration macro {} in {} is outside the closed builder registration macro \
+                 grammar: {shape_error}",
                 definition.name, definition.location
-            ));
+            )),
         }
     }
 
@@ -1227,19 +1569,76 @@ fn classify_registration_sources(
     let mut registration_macro_invocations = 0usize;
     for invocation in &collection.invocations {
         let direct = is_direct_handler_submission(&invocation.path, &invocation.body);
-        let via_registration_macro = invocation
-            .path
-            .last()
-            .is_some_and(|name| registration_names.contains(name));
+        let via_registration_macro = invocation.path.last().is_some_and(|name| {
+            registration_names.contains(name)
+                || EXPECTED_REGISTRATION_MACROS.contains(&name.as_str())
+        });
+        if via_registration_macro {
+            if invocation.item_level {
+                errors.push(format!(
+                    "registration macro {}! must be invoked inside the movement tail registrar \
+                     {}::{}, not at module item level in {}",
+                    invocation.path.join("::"),
+                    MOVEMENT_TAIL_OWNER_MODULE,
+                    MOVEMENT_TAIL_REGISTRAR_NAME,
+                    invocation.location
+                ));
+                continue;
+            }
+            let inside_tail_registrar = invocation.module_path == MOVEMENT_TAIL_OWNER_MODULE
+                && invocation.enclosing_function.as_deref() == Some(MOVEMENT_TAIL_REGISTRAR_NAME);
+            if !inside_tail_registrar {
+                errors.push(format!(
+                    "registration macro {}! may be invoked only inside the movement tail \
+                     registrar {}::{}; found in {}",
+                    invocation.path.join("::"),
+                    MOVEMENT_TAIL_OWNER_MODULE,
+                    MOVEMENT_TAIL_REGISTRAR_NAME,
+                    invocation.location
+                ));
+                continue;
+            }
+            if invocation.path.len() != 1 {
+                errors.push(format!(
+                    "registration macro invocation {} must use its unqualified audited name in {}",
+                    invocation.path.join("::"),
+                    invocation.location
+                ));
+            }
+            if let Err(argument_error) =
+                builder_registration_macro_invocation_opcode(&invocation.body)
+            {
+                errors.push(format!(
+                    "registration macro {}! {argument_error} in {}",
+                    invocation.path.join("::"),
+                    invocation.location
+                ));
+            }
+            if let Some(context) = &invocation.conditional_context {
+                errors.push(format!(
+                    "handler registration {}! is conditionally compiled: {context}",
+                    invocation.path.join("::")
+                ));
+            }
+            if invocation.contains_conditional_tokens {
+                errors.push(format!(
+                    "handler registration {}! contains cfg/cfg_attr tokens in {}",
+                    invocation.path.join("::"),
+                    invocation.location
+                ));
+            }
+            registration_macro_invocations += 1;
+            continue;
+        }
         if !invocation.item_level
             && (invocation
                 .path
                 .last()
                 .is_some_and(|name| is_inventory_registration_macro_name(name))
                 || invocation.path.last().is_some_and(|name| name == "include")
+                || legacy_registry::is_wrapper_macro_path(&invocation.path)
                 || token_stream_mentions_inventory_registration_path(&invocation.body)
-                || macro_call_mentions_handler_entry(&invocation.body)
-                || via_registration_macro)
+                || macro_call_mentions_handler_entry(&invocation.body))
         {
             errors.push(format!(
                 "handler-capable macro {}! appears inside a block/item body in {}; registration \
@@ -1249,7 +1648,7 @@ fn classify_registration_sources(
             ));
             continue;
         }
-        if invocation.item_level && !direct && !via_registration_macro {
+        if invocation.item_level && !direct {
             errors.push(format!(
                 "unsupported item-level macro {}! in {}; it could generate unaudited handler \
                  source",
@@ -1257,22 +1656,11 @@ fn classify_registration_sources(
                 invocation.location
             ));
         }
-        if !direct && !via_registration_macro {
+        if !direct {
             continue;
         }
 
-        if direct {
-            direct_submissions += 1;
-        } else {
-            registration_macro_invocations += 1;
-            if invocation.path.len() != 1 {
-                errors.push(format!(
-                    "registration macro invocation {} must use its unqualified audited name in {}",
-                    invocation.path.join("::"),
-                    invocation.location
-                ));
-            }
-        }
+        direct_submissions += 1;
         let display_name = invocation
             .path
             .last()
@@ -1294,6 +1682,8 @@ fn classify_registration_sources(
     if errors.is_empty() {
         Ok(RegistrationSourceReport {
             direct_submissions,
+            builder_entries: 0,
+            builder_registrars: 0,
             registration_macro_invocations,
             registration_macro_names: registration_names,
         })
@@ -1304,14 +1694,23 @@ fn classify_registration_sources(
 
 pub(crate) fn analyze_handler_mounts(
     mounts: &[WorkspaceSourceMount],
-    owner: &CapabilityOwner,
+    owners: &[CapabilityOwner],
 ) -> Result<RegistrationSourceReport, String> {
     let mut collection = SourceCollection::default();
-    for mount in mounts.iter().filter(|mount| mount.package == owner.package) {
+    let mut builder_entries = 0;
+    let mut builder_registrars = 0;
+    for mount in mounts
+        .iter()
+        .filter(|mount| owners.iter().any(|owner| owner.package == mount.package))
+    {
         let owner_contexts: Vec<_> = mount
             .contexts
             .iter()
-            .filter(|context| owner.owns_module(&mount.package, &context.logical_module_path))
+            .filter(|context| {
+                owners
+                    .iter()
+                    .any(|owner| owner.owns_module(&mount.package, &context.logical_module_path))
+            })
             .collect();
         if owner_contexts.is_empty() {
             continue;
@@ -1328,6 +1727,29 @@ pub(crate) fn analyze_handler_mounts(
             ));
         }
         let context = owner_contexts[0];
+        if !context.production_possible {
+            // A cfg(test)-only mount cannot register a production handler. Its
+            // PacketHandlerEntry constructions are fixture data, not ownership,
+            // so the production grammar and the snapshot counters skip them.
+            continue;
+        }
+        let registrar = analyze_owner_source_with_contracts(
+            &mount.package,
+            &context.logical_module_path,
+            &mount.source_path,
+            &mount.source,
+            DIRECT_REGISTRAR_CONTRACTS,
+        )?;
+        if registrar.registrar_count != 0
+            && (!context.production_possible || !context.test_possible || !context.cfg.is_empty())
+        {
+            return Err(format!(
+                "direct registrar in {} must be mounted unconditionally for production and tests",
+                mount.source_path.display()
+            ));
+        }
+        builder_entries += registrar.entries;
+        builder_registrars += registrar.registrar_count;
         let alias_violations = registration_alias_violations(&mount.source)?;
         if !alias_violations.is_empty() {
             return Err(format!(
@@ -1367,11 +1789,24 @@ pub(crate) fn analyze_handler_mounts(
             &mut Vec::new(),
         )?;
     }
-    classify_registration_sources(collection)
+    let mut report = classify_registration_sources(collection)?;
+    report.builder_entries = builder_entries;
+    report.builder_registrars = builder_registrars;
+    Ok(report)
 }
 
 #[cfg(test)]
 pub(crate) fn analyze_inline_source(source: &str) -> Result<RegistrationSourceReport, String> {
+    analyze_inline_source_at_module(source, "crate")
+}
+
+/// Same as [`analyze_inline_source`] with an explicit logical module, so a
+/// synthetic source can exercise the movement tail owner grammar.
+#[cfg(test)]
+pub(crate) fn analyze_inline_source_at_module(
+    source: &str,
+    module_path: &str,
+) -> Result<RegistrationSourceReport, String> {
     let alias_violations = registration_alias_violations(source)?;
     if !alias_violations.is_empty() {
         return Err(alias_violations.join("; "));
@@ -1385,7 +1820,7 @@ pub(crate) fn analyze_inline_source(source: &str) -> Result<RegistrationSourceRe
         &syntax.items,
         source_path,
         Path::new("."),
-        "crate",
+        module_path,
         false,
         true,
         file_condition,
@@ -1393,4 +1828,25 @@ pub(crate) fn analyze_inline_source(source: &str) -> Result<RegistrationSourceRe
         &mut Vec::new(),
     )?;
     classify_registration_sources(collection)
+}
+
+/// The closed declaration set the repository scan enforces on the structurally
+/// discovered builder registration macros.
+#[cfg(test)]
+pub(crate) fn validate_registration_macro_declaration_set(
+    names: &BTreeSet<String>,
+) -> Result<(), String> {
+    let expected: BTreeSet<String> = EXPECTED_REGISTRATION_MACROS
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect();
+    if names != &expected {
+        return Err(format!(
+            "builder registration macro grammar changed: expected {expected:?}, actual {names:?}; \
+             registration macros are discovered structurally from their single \
+             `$builder.register(PacketHandlerEntry {{ .. }})?` expansion, so audit the expansion \
+             shape before updating the guard"
+        ));
+    }
+    Ok(())
 }

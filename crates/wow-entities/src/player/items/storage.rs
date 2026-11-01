@@ -1542,7 +1542,7 @@ impl Player {
             return Err(PlayerStorageError::InvalidBagItemSlot(bag_size));
         }
 
-        self.inventory.bags[bag_slot as usize] = Some(PlayerBagStorage::new(bag_guid, bag_size));
+        self.inventory.bags[bag_slot as usize] = Some(PlayerBagStorage::boxed(bag_guid, bag_size));
         Ok(())
     }
 
@@ -2839,7 +2839,7 @@ impl Player {
 
     pub fn get_bag_by_pos(&self, bag: u8) -> Option<ObjectGuid> {
         if is_bag_storage_slot(bag) {
-            self.inventory.bags[bag as usize].map(|bag| bag.bag_guid)
+            self.inventory.bag_at(bag).map(|b| b.bag_guid)
         } else {
             None
         }
@@ -3285,7 +3285,7 @@ impl Player {
         bag_slot: u8,
         callback: &mut impl FnMut(ObjectGuid) -> ItemSearchCallbackResult,
     ) -> bool {
-        let Some(bag) = self.inventory.bags[bag_slot as usize] else {
+        let Some(bag) = self.inventory.bags[bag_slot as usize].as_ref() else {
             return false;
         };
 

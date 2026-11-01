@@ -1,0 +1,40 @@
+{
+ "slice": "#1363 slice 12b1b (player-item storage, bank and equip planning -> wow-world-application, over QuestSessionHostLikeCpp::player_condition_projection_cx_like_cpp)",
+ "base": "e5c8195b0",
+ "moved": [
+  "plan_store_new_direct_inventory_item",
+  "plan_store_new_direct_inventory_item_at",
+  "plan_store_new_direct_inventory_item_with_overlays_like_cpp",
+  "plan_store_existing_inventory_item_at_like_cpp",
+  "plan_store_direct_inventory_item_like_cpp",
+  "plan_equip_existing_inventory_item_like_cpp",
+  "plan_bank_existing_inventory_item_at_like_cpp",
+  "validate_inventory_swap_target_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn {name}\\(\\s*&self,",
+   "pub fn {name}<H: QuestSessionHostLikeCpp>(host: &H,"
+  ],
+  [
+   "(?<![\\w(])fn plan_store_direct_inventory_item_like_cpp\\(\\s*&self,",
+   "fn plan_store_direct_inventory_item_like_cpp<H: QuestSessionHostLikeCpp>(host: &H,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*{name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "\\bself\\s*\\.\\s*player_condition_projection_cx_like_cpp\\(\\)",
+   "host.player_condition_projection_cx_like_cpp()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "wow_world_application::",
+   "crate::"
+  ]
+ ]
+}

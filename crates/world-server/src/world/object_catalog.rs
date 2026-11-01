@@ -33,7 +33,7 @@ pub(crate) async fn load_creature_templates_like_cpp(
                     name: r.name,
                     ai_name: r.ai_name,
                     script_name: r.script_name,
-                    required_expansion: r.required_expansion,
+                    required_expansion: r.required_expansion as u8, // C++ narrows at the entity
                     faction: r.faction,
                     npc_flags: r.npc_flags,
                     speed_walk: r.speed_walk,
@@ -60,6 +60,7 @@ pub(crate) async fn load_creature_templates_like_cpp(
                     flags_extra: r.flags_extra,
                     string_id: r.string_id,
                     regen_health: r.regen_health,
+                    base_variance: r.base_variance,
                     spells: [0; wow_data::MAX_CREATURE_SPELLS_LIKE_CPP],
                     models: Vec::new(),
                 }),
@@ -119,7 +120,7 @@ pub(crate) async fn load_gameobject_templates_like_cpp(
                     faction: r.faction,
                     flags: r.flags,
                     world_effect_id: r.world_effect_id,
-                    anim_kit_id: r.anim_kit_id,
+                    anim_kit_id: r.anim_kit_id as u16, // C++ SetAIAnimKitId(uint16)
                 }
             }),
         ),

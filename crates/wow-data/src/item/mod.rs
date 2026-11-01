@@ -13,6 +13,9 @@ use tracing::info;
 
 use crate::wdc4::Wdc4Reader;
 
+mod durability;
+pub use durability::fill_max_durability_like_cpp;
+
 /// A minimal item record from Item.db2.
 ///
 /// Only fields currently needed by the server are extracted.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Local OpenCode helper for this checkout (excluded from Git).
+# OpenCode helper for this checkout (versioned; adapted from forever b8330b1b5).
 """Switch the DeepSeek agents between OpenCode Go and the direct DeepSeek API.
 
 OpenCode V2 has no automatic provider fallback. Use `api` when the Go quota is
@@ -7,6 +7,7 @@ exhausted and `go` to return. The builder (GPT-6 Luna) is not touched.
 """
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 
@@ -40,6 +41,11 @@ def main():
     if sys.argv[1] == "status":
         status()
         return 0
+    missing = [path for path in FILES if not path.is_file()]
+    if missing:
+        for path in missing:
+            print(f"No existe: {path.relative_to(ROOT)}", file=sys.stderr)
+        return 1
     mapping = GO_TO_API if sys.argv[1] == "api" else API_TO_GO
     for path in FILES:
         text = path.read_text()
@@ -47,8 +53,17 @@ def main():
         if updated != text:
             path.write_text(updated)
     status()
+    if sys.argv[1] == "api":
+        print(
+            "Aviso: `api` deja opencode.json (y .opencode/agents/*.md) modificados en el checkout; "
+            "no commitees ese cambio. Vuelve con `.opencode/model-route go` antes de commitear.",
+            file=sys.stderr,
+        )
     # Reload the shared background server; a --standalone instance needs a restart.
-    subprocess.run(["opencode", "reload"], cwd=ROOT, check=False)
+    if shutil.which("opencode") is None:
+        print("opencode no está instalado: se omite `opencode reload`.", file=sys.stderr)
+    else:
+        subprocess.run(["opencode", "reload"], cwd=ROOT, check=False)
     return 0
 
 

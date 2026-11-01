@@ -247,6 +247,53 @@ pub struct SpellXSpellVisualHotfixRowLikeCpp {
     pub spell_id: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellAuraOptionsHotfixRow {
+    pub id: u32,
+    pub difficulty_id: u8,
+    pub cumulative_aura: u32,
+    pub proc_category_recovery: i32,
+    pub proc_chance: u8,
+    pub proc_charges: i32,
+    pub spell_procs_per_minute_id: u16,
+    pub proc_type_mask: [i32; 2],
+    pub spell_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellClassOptionsHotfixRow {
+    pub id: u32,
+    pub spell_id: i32,
+    pub modal_next_spell: u32,
+    pub spell_class_set: u8,
+    pub spell_class_mask: [i32; 4],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLabelHotfixRow {
+    pub id: u32,
+    pub label_id: u32,
+    pub spell_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLevelsHotfixRow {
+    pub id: u32,
+    pub difficulty_id: u8,
+    pub base_level: i16,
+    pub max_level: i16,
+    pub spell_level: i16,
+    pub max_passive_aura_level: u8,
+    pub spell_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellProcsPerMinuteHotfixRow {
+    pub id: u32,
+    pub base_proc_rate: f32,
+    pub flags: u8,
+}
+
 /// Hotfix DB capability for the core DB2 contributors used to build the
 /// represented `SpellInfo` authority. Every method returns official rows
 /// followed by custom rows, matching C++ `DB2StorageBase::LoadFromDB`.
@@ -376,5 +423,31 @@ pub trait SpellCoreDb2HotfixPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<
         '_,
         SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellXSpellVisualHotfixRowLikeCpp>,
+    >;
+
+    fn load_spell_aura_options_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellAuraOptionsHotfixRow>>;
+
+    fn load_spell_class_options_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellClassOptionsHotfixRow>,
+    >;
+
+    fn load_spell_label_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellLabelHotfixRow>>;
+
+    fn load_spell_levels_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellLevelsHotfixRow>>;
+
+    fn load_spell_procs_per_minute_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellProcsPerMinuteHotfixRow>,
     >;
 }

@@ -19,7 +19,10 @@ pub use net::{
     scan_local_ip_networks_like_cpp, scan_local_ipv4_networks_like_cpp,
     select_ip_address_for_client_like_cpp, select_ipv4_address_for_client_like_cpp,
 };
-pub use position::Position;
+pub use position::{
+    Position, position_is_in_dist_strict_2d_like_cpp, position_is_in_dist_strict_3d_like_cpp,
+    visibility_distance_allows_like_cpp,
+};
 pub use random::{
     frand_like_cpp, frand_with_rng_like_cpp, irand_like_cpp, irand_with_rng_like_cpp,
     rand_chance_like_cpp, rand_chance_with_rng_like_cpp, rand_norm_like_cpp,

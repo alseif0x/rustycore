@@ -218,6 +218,7 @@ pub(crate) async fn run_bank_smoke_phase(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
     options: &BankSmokeOptions,
     result: &mut BotRunResult,
 ) -> Result<()> {
@@ -244,16 +245,23 @@ pub(crate) async fn run_bank_smoke_phase(
         result.bank_relogin_after_deposit = true;
     }
 
-    send_encrypted_packet(
+    let mut banker = options.banker.clone();
+    discover_resolved_creature_target(
         stream,
         crypt,
-        CMSG_BANKER_ACTIVATE,
-        &options.banker.packed_guid,
+        server_inflater,
+        &mut banker,
+        options.target_match_radius,
+        "bank banker discovery",
+        result,
     )
     .await?;
+    result.bank_banker_guid_counter = Some(banker.guid_counter);
+
+    send_encrypted_packet(stream, crypt, CMSG_BANKER_ACTIVATE, &banker.packed_guid).await?;
     info!(
-        "[Bot {}] ✅ CMSG_BANKER_ACTIVATE sent to entry={} spawn={}",
-        bot_index, options.banker.entry, options.banker.spawn_guid
+        "[Bot {}] ✅ CMSG_BANKER_ACTIVATE sent to entry={} spawn={} counter={}",
+        bot_index, banker.entry, banker.spawn_guid, banker.guid_counter
     );
 
     wait_for_bank_open(
@@ -300,7 +308,20 @@ pub(crate) async fn run_bank_smoke_phase(
         options.timeout_secs,
     )
     .await?;
-    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+    // C++ Opcodes.cpp routes SMSG_LOGOUT_COMPLETE on CONNECTION_TYPE_REALM.
+    let logout_complete_seen = loot_race::logout_and_wait_routed_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection.as_mut(),
+        bot.character_guid,
+        result,
+    )
+    .await?;
+    if !logout_complete_seen {
+        bail!("SMSG_LOGOUT_COMPLETE was not observed on either connection");
+    }
 
     let bot_for_after = bot.clone();
     let item_guid = options.item_guid;

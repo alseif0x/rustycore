@@ -1,0 +1,25 @@
+{
+ "slice": "#1363 slice 12b7 (the session init packets -> wow-world-character over wow_world_entities::VisibilitySessionHostLikeCpp; the World method stays as the world-server forward)",
+ "base": "8d5cb55a0",
+ "moved": [
+  "send_session_init_packets_with_policy_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub fn send_session_init_packets_with_policy_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn send_session_init_packets_with_policy_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*lifecycle\\s*\\.",
+   "host.lifecycle()."
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

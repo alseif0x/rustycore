@@ -17,6 +17,9 @@
 
 use crate::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 use crate::session::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
+// The `LootMoney` command receivers are default methods of the application loot
+// owner's host trait (#1263 F5); the arms below keep their original call text.
+use wow_world_loot_ops::LootHandlerHostLikeCpp;
 
 impl WorldSession {
     /// Apply one committed command, in the order the mailbox presented it.
@@ -38,19 +41,27 @@ impl WorldSession {
                     });
             }
             SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => {
-                self.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
+                wow_world_entities::handle_apply_creature_melee_damage_like_cpp_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::ApplyPlayerMeleeResultLikeCpp(command) => {
-                self.handle_apply_player_melee_result_like_cpp_command_like_cpp(command);
+                wow_world_entities::handle_apply_player_melee_result_like_cpp_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::CreatureAttackStartLikeCpp(command) => {
-                self.handle_creature_attack_start_like_cpp_command_like_cpp(command);
+                wow_world_entities::handle_creature_attack_start_like_cpp_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::CreatureAttackStopLikeCpp(command) => {
-                self.handle_creature_attack_stop_like_cpp_command_like_cpp(command);
+                wow_world_entities::handle_creature_attack_stop_like_cpp_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::ReconcilePvpCombatExpiryLikeCpp(command) => {
-                self.handle_reconcile_pvp_combat_expiry_like_cpp(command);
+                wow_world_entities::handle_reconcile_pvp_combat_expiry_like_cpp(self, command);
             }
             SessionCommand::ApplyLootMoneyLikeCpp(command) => {
                 self.handle_apply_loot_money_with_generator_like_cpp_command(
@@ -63,21 +74,24 @@ impl WorldSession {
                 self.handle_notify_loot_money_removed_like_cpp_command(command);
             }
             SessionCommand::MasterLootGive(command) => {
-                self.handle_represented_master_loot_give_command_with_generator_like_cpp(
+                wow_world_loot_ops::handle_represented_master_loot_give_command_with_generator_like_cpp(
+                    self,
                     catalogs.id_generators.item.as_ref(),
                     command,
                 )
                 .await;
             }
             SessionCommand::LootRollStoreWinner(command) => {
-                self.handle_represented_loot_roll_store_winner_command_with_generator_like_cpp(
+                wow_world_loot_ops::handle_represented_loot_roll_store_winner_command_with_generator_like_cpp(
+                    self,
                     catalogs.id_generators.item.as_ref(),
                     command,
                 )
                 .await;
             }
             SessionCommand::LootRollVote(command) => {
-                self.handle_represented_loot_roll_vote_command_with_generator_like_cpp(
+                wow_world_loot_ops::handle_represented_loot_roll_vote_command_with_generator_like_cpp(
+                    self,
                     catalogs.id_generators.item.as_ref(),
                     catalogs.item_valuation.as_ref(),
                     command,
@@ -85,7 +99,8 @@ impl WorldSession {
                 .await;
             }
             SessionCommand::ResetSeasonalQuestStatus(command) => {
-                let _ = self.reset_seasonal_quest_status_like_cpp(
+                let _ = wow_world_quest::reset_seasonal_quest_status_like_cpp(
+                    self,
                     command.event_id,
                     command.event_start_time,
                 );
@@ -101,72 +116,87 @@ impl WorldSession {
                 .await;
             }
             SessionCommand::DestroyVisibleObjectLikeCpp(command) => {
-                self.handle_destroy_visible_object_like_cpp_command_like_cpp(command);
+                wow_world_entities::handle_destroy_visible_object_like_cpp_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::RefreshDeferredPlayerVisibilityLikeCpp(intent) => {
-                self.apply_deferred_player_visibility_refresh_like_cpp(
+                wow_world_entities::apply_deferred_player_visibility_refresh_like_cpp(
+                    self,
                     catalogs.creature_spawns.as_ref(),
                     intent,
                 )
                 .await;
             }
             SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(command) => {
-                self.handle_send_creature_loot_release_values_update_command_like_cpp(command);
+                wow_world_loot_ops::handle_send_creature_loot_release_values_update_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp => {
                 let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
             }
             SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(command) => {
-                self.handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(command);
+                wow_world_loot_ops::handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command) => {
-                self.handle_sync_chest_gameobject_state_and_refresh_like_cpp(command);
+                wow_world_loot_ops::handle_sync_chest_gameobject_state_and_refresh_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command) => {
-                self.handle_sync_goober_gameobject_state_and_refresh_like_cpp(command);
+                wow_world_loot_ops::handle_sync_goober_gameobject_state_and_refresh_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
-                self.handle_set_quest_sharing_info_and_send_details_command_like_cpp(command);
+                wow_world_quest::handle_set_quest_sharing_info_and_send_details_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SendRepeatableTurnInRequestItemsLikeCpp(command) => {
-                self.handle_send_repeatable_turn_in_request_items_command_like_cpp(command);
+                wow_world_quest::handle_send_repeatable_turn_in_request_items_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SendRealmPacketLikeCpp(command) => {
                 if self.state() == SessionState::LoggedIn
                     && self.player_guid() == Some(command.recipient)
                 {
-                    self.send_raw_packet_realm(&command.packet_bytes);
+                    self.core.send_raw_packet_realm(&command.packet_bytes);
                 }
             }
             SessionCommand::SendPartyUpdateLikeCpp(command) => {
-                self.handle_send_party_update_command_like_cpp(command);
+                wow_world_instances::handle_send_party_update_command_like_cpp(self, command);
             }
             SessionCommand::ApplyGroupRemovalLikeCpp(command) => {
-                self.handle_apply_group_removal_command_like_cpp(command);
+                wow_world_instances::handle_apply_group_removal_command_like_cpp(self, command);
             }
             SessionCommand::ApplyGroupJoinLikeCpp(command) => {
-                self.handle_apply_group_join_command_like_cpp(command);
+                wow_world_instances::handle_apply_group_join_command_like_cpp(self, command);
             }
             SessionCommand::ApplyGroupDifficultyLikeCpp(command) => {
-                self.handle_apply_group_difficulty_command_like_cpp(command);
+                wow_world_instances::handle_apply_group_difficulty_command_like_cpp(self, command);
             }
             SessionCommand::ApplyGroupSubgroupLikeCpp(command) => {
-                self.handle_apply_group_subgroup_command_like_cpp(command);
+                wow_world_instances::handle_apply_group_subgroup_command_like_cpp(self, command);
             }
             SessionCommand::SendIfVisibleLikeCpp(command) => {
-                self.handle_send_if_visible_like_cpp_command_like_cpp(command, false, false);
+                self.handle_send_if_visible_like_cpp_command_like_cpp(command, false);
             }
             SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(command) => {
                 self.handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(command);
             }
             SessionCommand::SendPlayerSpellIfVisibleLikeCpp(command) => {
-                self.handle_player_cast_publication_like_cpp(command);
+                wow_world_spell::handle_player_cast_publication_like_cpp(self, command);
+            }
+            SessionCommand::SendPlayerAuraUpdate(command) => {
+                wow_world_spell::handle_player_aura_update(self, command);
             }
             SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
-                self.handle_send_if_visible_like_cpp_command_like_cpp(command, true, false);
-            }
-            SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command) => {
-                self.handle_send_if_visible_like_cpp_command_like_cpp(command, true, true);
+                self.handle_send_if_visible_like_cpp_command_like_cpp(command, true);
             }
             SessionCommand::SendAddonIfRegisteredLikeCpp(command) => {
                 self.handle_send_addon_if_registered_like_cpp_command_like_cpp(command);
@@ -180,11 +210,22 @@ impl WorldSession {
             SessionCommand::UnacceptRepresentedTradeLikeCpp(command) => {
                 self.handle_unaccept_represented_trade_command_like_cpp(command);
             }
+            SessionCommand::TradeCommitLikeCpp(request) => {
+                wow_world_social::park_for_trade_commit_like_cpp(
+                    self,
+                    request,
+                    std::sync::Arc::clone(&catalogs.id_generators.item),
+                )
+                .await;
+            }
             SessionCommand::SendRepresentedDuelCountdownLikeCpp(command) => {
-                self.handle_send_represented_duel_countdown_command_like_cpp(command);
+                self.send_raw_packet(&command.packet_bytes);
             }
             SessionCommand::SendRepresentedDuelRequestedLikeCpp(command) => {
-                self.handle_send_represented_duel_requested_command_like_cpp(command);
+                {
+                    let (s, mut h) = crate::session::split_social_mut(self);
+                    s.handle_send_represented_duel_requested_command_like_cpp(&mut h, command)
+                };
             }
         }
     }

@@ -304,7 +304,7 @@ pub(super) async fn create_session(
     socket_timeouts: SocketTimeoutsLikeCpp,
     resources: Arc<SessionResources>,
     session_mgr: Arc<SessionManager>,
-    shared_map: SharedMapManager,
+    live_terrain: Arc<wow_world::terrain::LiveTerrainHeights>,
     canonical_map_manager: SharedCanonicalMapManager,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
     instance_port: u16,
@@ -312,7 +312,7 @@ pub(super) async fn create_session(
     mmap_runtime_config: MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
     active_session_registry: Arc<ActiveWorldSessionRegistryLikeCpp>,
-    legacy_creature_aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+    creature_aggro_config: wow_world::session::CreatureAggroConfigLikeCpp,
     world_runtime_state: Arc<WorldRuntimeStateLikeCpp>,
     battle_pet_account_registry: Arc<BattlePetAccountRegistryLikeCpp>,
 ) {
@@ -345,7 +345,11 @@ pub(super) async fn create_session(
         account.locale.clone(),
         pkt_rx,
         send_tx,
+        Arc::clone(&resources.core.packet_handlers),
     );
+    wow_world_core::session::SessionHubHostLikeCpp::core_mut(&mut session)
+        .account_state
+        .instant_logout_permission = Some(account.instant_logout_permission);
     session.set_send_write_fence_like_cpp(send_write_fence_like_cpp);
     let Some((active_session_id, session_cancellation, ready_for_phases_like_cpp)) =
         active_session_registry.try_register(
@@ -383,7 +387,7 @@ pub(super) async fn create_session(
     resources
         .runtime
         .install_into_session_like_cpp(&mut session, socket_timeouts);
-    session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config.clone());
+    session.set_creature_aggro_config_like_cpp(creature_aggro_config.clone());
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config.clone());
     if let Some(ref pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(Arc::clone(pathfinder));
@@ -411,8 +415,11 @@ pub(super) async fn create_session(
             return;
         }
     }
-    session.set_map_manager(Arc::clone(&shared_map));
+    session.set_live_terrain_like_cpp(live_terrain);
     session.set_canonical_map_manager(Arc::clone(&canonical_map_manager));
+    // #1445: the hook ports dispatch to the compositor's immutable module
+    // registry, the same `Arc` the dispatch catalogs carry.
+    session.install_module_hooks_like_cpp(Arc::clone(&resources.core.handler_catalogs.modules));
 
     // Select the correct realm IP for ConnectTo based on client address.
     // C++ delegates to Trinity::Net::SelectAddressForClient after scanning
@@ -438,13 +445,18 @@ pub(super) async fn create_session(
         ready_for_phases_like_cpp.as_ref(),
     )
     .await;
-    finalization::finalize_owned_world_session_like_cpp(
+    finalization::finalize_owned_world_session_with_resurrection_catalogs(
         session,
         outcome,
         account_id,
         active_session_registration,
         world_runtime_state.as_ref(),
         resources.core.handler_catalogs.id_generators.item.as_ref(),
+        wow_world_application::ResurrectionOperationCatalogs {
+            item_guid_generator: resources.core.handler_catalogs.id_generators.item.as_ref(),
+            creature_spawns: resources.core.handler_catalogs.creature_spawns.as_ref(),
+            graveyards: Some(resources.core.handler_catalogs.graveyards.as_ref()),
+        },
         WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
     )
     .await;

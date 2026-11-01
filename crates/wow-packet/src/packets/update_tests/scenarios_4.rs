@@ -167,15 +167,29 @@ fn power_type_mapping() {
 
 #[test]
 fn player_unit_data_health_aura_state_matches_cpp_modify_aura_state() {
-    // #NEXT.R8.ENTITIES.1212 — C++ Unit::Update/ModifyAuraState seeds health-based aura
-    // states on EVERY alive unit incl. the player (Unit.cpp:469-476). Full HP => 0x00D00000.
-    assert_eq!(health_aura_state_like_cpp(100, 100, true), 0x00D0_0000);
-    assert_eq!(health_aura_state_like_cpp(0, 100, false), 0); // dead
-    assert_eq!(health_aura_state_like_cpp(50, 0, true), 0); // no max
-    // Low HP (<=20%): WOUND_HEALTH_20_80 (0x100000) set, HEALTHY_75 clear.
-    let low = health_aura_state_like_cpp(10, 100, true);
-    assert_ne!(low & 0x0010_0000, 0);
-    assert_eq!(low & 0x0040_0000, 0);
+    // A native initial CREATE precedes Unit::Update (reference PKT73 AuraState=0).
+    // The serializer must also retain nonzero native state while dead.
+    for owner in [false, true] {
+        for health in [0, 10, 100] {
+            let mut data = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+            data.health = health;
+            let flags = u8::from(owner);
+            let offset = if owner { 369 } else { 287 };
+            let mut initial = WorldPacket::new_empty();
+            data.write_unit_data(&mut initial, flags);
+            initial.flush_bits();
+            assert_eq!(&initial.data()[offset..offset + 4], &[0; 4]);
+            for native in [0x0090_1022_u32, 0x00D0_0000, 1 << 15] {
+                data.aura_state = native;
+                let mut current = WorldPacket::new_empty();
+                data.write_unit_data(&mut current, flags);
+                current.flush_bits();
+                let mut expected = initial.data().to_vec();
+                expected[offset..offset + 4].copy_from_slice(&native.to_le_bytes());
+                assert_eq!(current.data(), expected, "only canonical AuraState changes");
+            }
+        }
+    }
 }
 
 #[test]
@@ -286,6 +300,28 @@ fn creature_create_serializes() {
             .any(|window| window == expected_vehicle_payload),
         "vehicle create block must include the C++ VehicleRecID/orientation payload"
     );
+}
+
+#[test]
+fn player_create_flags2_serializes_native_flags_without_restoring_removed_regeneration() {
+    for owner in [false, true] {
+        let mut data = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        let flags = u8::from(owner);
+        let offset = if owner { 361 } else { 279 };
+        let mut baseline = WorldPacket::new_empty();
+        data.write_unit_data(&mut baseline, flags);
+        baseline.flush_bits();
+        assert_eq!(&baseline.data()[offset..offset + 4], &[0; 4]);
+        for native in [0x8000_0800_u32, 0x8000_0000, 0] {
+            data.unit_flags2 = native;
+            let mut wire = WorldPacket::new_empty();
+            data.write_unit_data(&mut wire, flags);
+            wire.flush_bits();
+            let mut expected = baseline.data().to_vec();
+            expected[offset..offset + 4].copy_from_slice(&native.to_le_bytes());
+            assert_eq!(wire.data(), expected, "Flags2 is the only changed field");
+        }
+    }
 }
 
 #[test]

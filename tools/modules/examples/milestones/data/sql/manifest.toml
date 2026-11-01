@@ -1,0 +1,15 @@
+# Module SQL of example.milestones (#1444 H6). See docs/architecture/modules.md,
+# "Module SQL". Applied only by `rustycore-db module apply example.milestones`.
+format = 1
+# The newest core characters migration this schema was written against.
+min_core_schema = "2026.08.03.00"
+
+[[migrations]]
+database = "characters"
+version = "2026.10.21.00"
+description = "per-character milestone counts"
+file = "characters/2026_10_21_00_counts.sql"
+
+[[purge]]
+database = "characters"
+file = "purge/characters.sql"

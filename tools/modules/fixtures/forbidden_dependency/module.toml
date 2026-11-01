@@ -1,0 +1,15 @@
+# Dependency-rule fixture (#1445 S0): the crate depends on a server crate
+# other than wow-module-api, so composition must refuse it before anything is
+# compiled or activated. See docs/architecture/modules.md.
+[module]
+id = "fixture.forbidden_dependency"
+version = "1.0.0"
+display_name = "Forbidden Dependency Fixture"
+
+[build]
+package = "fixture-forbidden-dependency"
+crate_path = "."
+registrar = "fixture_forbidden_dependency::register"
+
+[compatibility]
+source_api = "2"

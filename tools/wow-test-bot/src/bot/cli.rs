@@ -45,6 +45,10 @@ pub(crate) struct CliOptions {
     pub(crate) vendor_currency_cost: u32,
     pub(crate) vendor_currency_quantity: u32,
     pub(crate) vendor_timeout_secs: u64,
+    pub(crate) vendor_sell_smoke: bool,
+    pub(crate) vendor_sell_item_entry: u32,
+    pub(crate) vendor_sell_expected_money: Option<u64>,
+    pub(crate) movement_smoke: bool,
     pub(crate) equipment_set_race_smoke: bool,
     pub(crate) equipment_set_account_a: String,
     pub(crate) equipment_set_account_b: String,
@@ -106,6 +110,7 @@ pub(crate) struct CliOptions {
     pub(crate) expect_trainer_id: Option<i32>,
     pub(crate) quest_timeout_secs: u64,
     pub(crate) report_path: Option<String>,
+    pub(crate) trade: TradeSmokeCli,
 }
 pub(crate) fn parse_cli() -> Result<CliOptions> {
     let stand_state = std::env::var("WOW_BOT_STAND_STATE")
@@ -271,6 +276,22 @@ pub(crate) fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?
             .unwrap_or(8),
+        vendor_sell_smoke: std::env::var("WOW_BOT_VENDOR_SELL_SMOKE")
+            .ok()
+            .is_some_and(|value| is_truthy(&value)),
+        vendor_sell_item_entry: std::env::var("WOW_BOT_VENDOR_SELL_ITEM_ENTRY")
+            .ok()
+            .map(|value| value.parse::<u32>())
+            .transpose()?
+            .unwrap_or(DEFAULT_VENDOR_SELL_ITEM_ENTRY),
+        vendor_sell_expected_money: std::env::var("WOW_BOT_VENDOR_SELL_EXPECTED_MONEY")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| value.parse::<u64>())
+            .transpose()?,
+        movement_smoke: std::env::var("WOW_BOT_MOVEMENT_SMOKE")
+            .ok()
+            .is_some_and(|value| is_truthy(&value)),
         equipment_set_race_smoke: std::env::var("WOW_BOT_EQUIPMENT_SET_RACE_SMOKE")
             .ok()
             .is_some_and(|value| is_truthy(&value)),
@@ -483,6 +504,7 @@ pub(crate) fn parse_cli() -> Result<CliOptions> {
             .and_then(|s| s.parse().ok())
             .unwrap_or(5),
         report_path: std::env::var("WOW_BOT_REPORT").ok(),
+        trade: TradeSmokeCli::from_env()?,
     };
 
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
@@ -595,6 +617,16 @@ pub(crate) fn parse_cli() -> Result<CliOptions> {
             "--vendor-timeout" => {
                 opts.vendor_timeout_secs = next_arg(&mut args, "--vendor-timeout")?.parse()?;
             }
+            "--vendor-sell-smoke" => opts.vendor_sell_smoke = true,
+            "--vendor-sell-item-entry" => {
+                opts.vendor_sell_item_entry =
+                    next_arg(&mut args, "--vendor-sell-item-entry")?.parse()?;
+            }
+            "--vendor-sell-expected-money" => {
+                opts.vendor_sell_expected_money =
+                    Some(next_arg(&mut args, "--vendor-sell-expected-money")?.parse()?);
+            }
+            "--movement-smoke" => opts.movement_smoke = true,
             "--equipment-set-race-smoke" => opts.equipment_set_race_smoke = true,
             "--equipment-set-account-a" => {
                 opts.equipment_set_account_a = next_arg(&mut args, "--equipment-set-account-a")?;
@@ -771,6 +803,7 @@ pub(crate) fn parse_cli() -> Result<CliOptions> {
                 opts.quest_timeout_secs = next_arg(&mut args, "--quest-timeout")?.parse()?;
             }
             "--report" => opts.report_path = Some(next_arg(&mut args, "--report")?),
+            arg if opts.trade.parse_arg(arg, &mut args)? => {}
             "--help" | "-h" => {
                 print_help();
                 std::process::exit(0);
@@ -790,4 +823,51 @@ pub(crate) fn parse_cli() -> Result<CliOptions> {
         opts.loot_race_item_entry = loot_race::DEFAULT_CAPTURE_ITEM_ENTRY;
     }
     Ok(opts)
+}
+
+/// Human-readable run mode for the startup log line.
+pub(crate) fn run_mode_label(cli: &CliOptions) -> &'static str {
+    if cli.stand_state_smoke {
+        "stand-state-smoke"
+    } else if cli.bank_smoke {
+        "bank-smoke"
+    } else if cli.void_storage_smoke {
+        "void-storage-smoke"
+    } else if cli.void_storage_query_capture {
+        "void-storage-query-capture"
+    } else if cli.homebind_smoke {
+        "homebind-smoke"
+    } else if cli.inventory_swap_smoke {
+        "inventory-swap-smoke"
+    } else if cli.vendor_smoke {
+        "vendor-smoke"
+    } else if cli.vendor_sell_smoke {
+        "vendor-sell-smoke"
+    } else if cli.movement_smoke {
+        "movement-smoke"
+    } else if cli.trade.smoke {
+        "trade-smoke"
+    } else if cli.equipment_set_race_smoke {
+        "equipment-set-race-smoke"
+    } else if cli.rested_xp_smoke {
+        "rested-xp-smoke"
+    } else if cli.detour_chase_capture {
+        "detour-chase-capture"
+    } else if cli.creature_spell_capture {
+        "creature-spell-capture"
+    } else if cli.cast_lifecycle {
+        "cast-lifecycle"
+    } else if cli.loot_race_smoke {
+        "loot-race-smoke"
+    } else if cli.loot_item_capture {
+        "loot-item-capture"
+    } else if cli.group_capacity_race_smoke {
+        "group-capacity-race-smoke"
+    } else if cli.quest_smoke {
+        "quest-smoke"
+    } else if cli.login_only {
+        "login-only"
+    } else {
+        "lfg"
+    }
 }

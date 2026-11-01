@@ -80,6 +80,52 @@ pub(crate) fn delete_quest_status_statements_like_cpp(
     vec![status, objectives]
 }
 
+/// C++ `Player::_SaveQuestStatus` row fragment. Unlike the immediate reward
+/// adapter above, a full-save Default always persists the active row as given;
+/// rewarded-set maintenance belongs to its separate Source operation.
+pub(crate) fn full_save_quest_status_statements_like_cpp(
+    request: &wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp,
+) -> Vec<PreparedStatement> {
+    use wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp as Request;
+
+    match request {
+        Request::Delete {
+            owner_guid,
+            quest_id,
+        } => delete_quest_status_statements_like_cpp(*owner_guid, *quest_id),
+        Request::Save { owner_guid, status } => {
+            let mut statements = Vec::with_capacity(2 + status.objectives.len());
+            let mut save = PreparedStatement::for_statement(CharStatements::INS_CHAR_QUEST_STATUS);
+            save.set_u64(0, *owner_guid);
+            save.set_u32(1, status.quest_id);
+            save.set_u8(2, status.status);
+            save.set_u8(3, u8::from(status.explored));
+            save.set_i64(4, status.accept_time_secs);
+            save.set_i64(5, status.end_time_secs);
+            statements.push(save);
+
+            let mut delete_objectives = PreparedStatement::for_statement(
+                CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST,
+            );
+            delete_objectives.set_u64(0, *owner_guid);
+            delete_objectives.set_u32(1, status.quest_id);
+            statements.push(delete_objectives);
+
+            for objective in status.objectives.iter().filter(|row| row.count != 0) {
+                let mut replace = PreparedStatement::for_statement(
+                    CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES,
+                );
+                replace.set_u64(0, *owner_guid);
+                replace.set_u32(1, status.quest_id);
+                replace.set_u8(2, objective.objective_index);
+                replace.set_i32(3, objective.count);
+                statements.push(replace);
+            }
+            statements
+        }
+    }
+}
+
 pub(crate) fn quest_lockout_statements_like_cpp(
     request: &PlayerQuestLockoutPersistenceRequestLikeCpp,
 ) -> Vec<PreparedStatement> {

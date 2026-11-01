@@ -1,0 +1,84 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Test-only entry points for the character query handlers moved to
+//! `wow-world-character` (#1263 F5, #1363 A5).
+//!
+//! Mounted only for the test build. Moved here from
+//! `handlers/character/query/test_shims.rs`, outside the character hotspot
+//! tree, and marked `#![cfg(test)]` so the classifier counts it as test code
+//! (#1363 slice 8b; #1386 follow-up 4).
+
+#![cfg(test)]
+
+use wow_packet::packets::query::{
+    QueryCorpseLocationFromClient, QueryCorpseTransport, QueryCreature, QueryGameObject,
+    QueryPageText, QueryPetName, QueryPlayerNames,
+};
+use wow_world_character::CharacterQueryHandlerCxLikeCpp;
+
+use crate::session::WorldSession;
+
+impl WorldSession {
+    fn character_query_test_cx_like_cpp(&mut self) -> CharacterQueryHandlerCxLikeCpp<'_> {
+        let catalogs = self
+            .world_query_catalogs_like_cpp()
+            .cloned()
+            .unwrap_or_default();
+        let (lifecycle, hub) = crate::session::split_lifecycle_mut(self);
+        CharacterQueryHandlerCxLikeCpp::new(hub, std::sync::Arc::new(catalogs), lifecycle)
+    }
+
+    pub(crate) async fn handle_query_creature(&mut self, query: QueryCreature) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_creature(query)
+            .await;
+    }
+
+    pub(crate) async fn handle_query_game_object(&mut self, query: QueryGameObject) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_game_object(query)
+            .await;
+    }
+
+    pub(crate) async fn handle_query_page_text(&mut self, query: QueryPageText) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_page_text(query)
+            .await;
+    }
+
+    pub(crate) async fn handle_query_pet_name(&mut self, query: QueryPetName) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_pet_name(query)
+            .await;
+    }
+
+    pub(crate) async fn handle_query_player_names(&mut self, query: QueryPlayerNames) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_player_names(query)
+            .await;
+    }
+
+    pub(crate) async fn handle_query_corpse_location(
+        &mut self,
+        query: QueryCorpseLocationFromClient,
+    ) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_corpse_location(query)
+            .await;
+    }
+
+    pub(crate) async fn handle_query_corpse_transport(&mut self, query: QueryCorpseTransport) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_corpse_transport(query)
+            .await;
+    }
+
+    pub(crate) fn realm_query_response_like_cpp(
+        &self,
+        virtual_realm_address: u32,
+    ) -> wow_packet::packets::query::RealmQueryResponse {
+        wow_world_character::realm_query_response_like_cpp(&self.core, virtual_realm_address)
+    }
+}

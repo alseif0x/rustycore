@@ -28,7 +28,7 @@ pub(crate) struct CanonicalObjectVisibilityDestroyLikeCpp {
     pub(crate) recipient_guids: Vec<wow_core::ObjectGuid>,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     pub(crate) player_visibility_refresh_intents:
         Vec<wow_map::PlayerVisibilityRefreshIntentLikeCpp>,
@@ -40,7 +40,6 @@ pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     pub(crate) applied_set_inactive: usize,
     pub(crate) planned_spawn: usize,
     pub(crate) condition_spawn_executed_loaded_grid_spawns: usize,
-    pub(crate) condition_spawn_legacy_creature_mirrors: usize,
     pub(crate) condition_spawn_blocked_loaded_grid_spawn_loads: usize,
     pub(crate) condition_spawn_blocked_loaded_grid_creature_loads: usize,
     pub(crate) condition_spawn_blocked_loaded_grid_gameobject_loads: usize,
@@ -66,7 +65,6 @@ pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     pub(crate) respawn_processed_pool_timers: usize,
     pub(crate) respawn_processed_unloaded_grid_respawns: usize,
     pub(crate) respawn_executed_loaded_grid_respawns: usize,
-    pub(crate) respawn_legacy_creature_mirrors: usize,
     pub(crate) respawn_blocked_loaded_grid_respawn_loads: usize,
     pub(crate) respawn_blocked_loaded_grid_respawn_add_to_map: usize,
     pub(crate) respawn_pool_update_plans: usize,

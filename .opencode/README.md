@@ -1,7 +1,7 @@
 # OpenCode local — RustyCore
 
-Configuración de este PC, autorizada el 2026-10-17 y versionada en `forever`
-el mismo día a petición del operador. No contiene credenciales: la autenticación
+Configuración de OpenCode del proyecto, tomada de `forever` b8330b1b5 (2026-10-17)
+y adaptada a `3.4.3` (servidor `/home/server`, usuario `ubuntu`). No contiene credenciales: la autenticación
 de los proveedores sigue en la configuración de OpenCode del usuario.
 
 ## Uso
@@ -16,10 +16,9 @@ conservan su agente y modelo hasta que el usuario los seleccione.
   GPT-6 Luna `#max` con la cuenta OpenAI/Codex. GLM-5.3 se retiró (límite Go de
   15 USD/mes); el revisor queda en una familia distinta del constructor.
 - `builder` implementa; `general`, `explore` y `scout` son de solo lectura.
-- No hay perfiles Sol. El análisis y la revisión quedan en OpenCode. Esta configuración
-  no cambia el modelo de una conversación Codex abierta. El default del proyecto
-  `.codex/config.toml` y el rol `luna-worker.toml` se ajustaron a Luna para
-  desarrollo; no hay sustitución por Sol ni asignación de análisis a Luna.
+- No hay perfiles Sol en OpenCode. El análisis y la revisión quedan en OpenCode. Esta
+  configuración no cambia una conversación Codex ni Claude Code: Codex sigue
+  `.codex/` y `routes/codex.md`; Claude Code sigue solo Opus (`routes/claude.md`).
 - Los perfiles integrados `build` y `plan` siguen disponibles para sesiones previas.
 - Pasos máximos: `scout` 40, `general` 60, `explore` 80, `builder` 200; el
   coordinador no tiene límite. Goal conserva su ventana de 25 continuaciones;
@@ -41,7 +40,6 @@ conservan su agente y modelo hasta que el usuario los seleccione.
   muestra la ruta. Recarga el servicio compartido; una instancia `--standalone`
   debe reiniciarse. Luna no cambia.
 - `CARGO_BUILD_JOBS` sigue en 1 por la política de validación de `AGENTS.md`.
-- Respaldo previo: `~/.local/share/rustycore-opencode-work/config-backups/`.
 - Consumo: `opencode stats --project . --models --cost`.
 
 ## Entorno
@@ -50,21 +48,25 @@ conservan su agente y modelo hasta que el usuario los seleccione.
 
 - Cargo: `<checkout>/target`, un job; el runner usa ese mismo target y un job.
 - Temporales y caché Python: `~/.local/share/rustycore-opencode-work`.
-- PROTOC: versión de `.protoc-version` desde el laboratorio vecino; actualmente 28.3.
-- `RUSTYCORE_CPP_REFERENCE_ROOT`: referencia SQL parcial de 3.4.3 ya documentada
-  en `docs/operations/forever-login.md`, no una referencia completa de Forever.
+- PROTOC: `3.4.3` no tiene `.protoc-version`; se usa `~/.local/protoc/bin/protoc`
+  (si existiera un pin, `~/.local/share/rustycore-opencode-work/protoc-<pin>/bin/protoc`).
+- `RUSTYCORE_CPP_REFERENCE_ROOT`: `/home/server/woltk-trinity-legacy`, la referencia
+  C++ 3.4.3 completa de AGENTS.md (solo si existe).
 - OpenSSL opcional del bot: headers locales 3.5.5 y enlaces a las bibliotecas
   3.5.5 instaladas; no implica compilación ni aceptación del bot.
 
-Los valores explícitos del caller se conservan. Los permisos cubren los repos
-vecinos necesarios, el laboratorio, los artefactos de extracción y REA. No se
+Los valores explícitos del caller se conservan. Los permisos cubren las referencias
+C++ de AGENTS.md (`/home/server/woltk-trinity-legacy` y `/home/server/azerothcore-wotlk-reference`,
+esta última en lugar de la copia AzerothCore de `forever`), el directorio de trabajo de OpenCode, el registro de Cargo y los toolchains.
+Retirados frente a `forever` (no existen en este servidor): el laboratorio
+`rustycore-extractor-work`, `rustycore-extractors`, `forever-product-runs`, REA/Ghidra
+(servidor MCP `rea` y su skill). No se
 concede acceso general a todo el directorio personal. Las reglas de permisos
 no son un sandbox contra comandos shell; AGENTS.md sigue gobernando el trabajo.
 
 ## Servicios y autoridad
 
-REA reutiliza la instalación existente de Ghidra/JDK y su skill descubierta en
-`~/.agents/skills`. La autenticación de gh y del proveedor de modelos sigue
+El servidor MCP REA de `forever` no se incluye: no está instalado aquí. La autenticación de gh y del proveedor de modelos sigue
 siendo la del usuario; no se copian claves a este proyecto.
 
 Lee `AGENTS.md` y el checkpoint activo antes de continuar. Respeta la rama,
@@ -73,10 +75,6 @@ Esta preparación no inicia desarrollo, objetivos, servidores ni bases de datos,
 ni acredita el build completo del código actual. Un push, merge, despliegue o
 prueba live conserva su autoridad y sus gates propios.
 
-Verificación 2026-10-17: `opencode debug agents` resuelve los cinco perfiles con
-su modelo, variante y pasos; el API de modelos confirma los límites de contexto;
-`model-route api`→`go` deja `opencode.json` idéntico (md5). Prueba de humo de
-solo lectura: el coordinador delegó en `scout` (DeepSeek Flash) y `builder`
-(Luna max), que confirmaron `rust-toolchain.toml` → `1.98.0` sin cambios en el
-checkout. Un primer intento se colgó antes de crear sesión y fue cortado a los
-15 minutos; el reintento con logs no lo reprodujo.
+Verificación: la del 2026-10-17 (`opencode debug agents`, prueba de humo) se hizo en
+la máquina de `forever`; en este servidor OpenCode aún no está instalado y la
+configuración adaptada no se ha ejecutado.

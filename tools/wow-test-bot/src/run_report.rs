@@ -21,7 +21,7 @@ pub(super) fn log_bot_summary(
         }
         if result.quest_smoke {
             info!(
-                "✅ Bot {}: SUCCESS quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} failure={:?}",
+                "✅ Bot {}: SUCCESS quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} restored={:?} restore_failure={:?} failure={:?}",
                 result.account,
                 result.quest_target_entry,
                 result.quest_target_spawn_guid,
@@ -34,6 +34,8 @@ pub(super) fn log_bot_summary(
                 result.quest_objective_db_verified,
                 result.quest_objective_db_before,
                 result.quest_objective_db_after,
+                result.quest_character_restored,
+                result.quest_restore_failure,
                 result.quest_failure
             );
             return;
@@ -137,6 +139,10 @@ pub(super) fn log_bot_summary(
                 result.vendor_relogin_verified,
                 result.vendor_failure,
             );
+            return;
+        }
+        if let Some(summary) = post_login_smoke_summary(result) {
+            info!("✅ Bot {}: SUCCESS {}", result.account, summary);
             return;
         }
         if result.equipment_set_smoke {
@@ -291,7 +297,7 @@ pub(super) fn log_bot_summary(
         }
         if result.quest_smoke {
             error!(
-                "❌ Bot {}: FAILED quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} failure={:?}",
+                "❌ Bot {}: FAILED quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} restored={:?} restore_failure={:?} failure={:?}",
                 result.account,
                 result.quest_target_entry,
                 result.quest_target_spawn_guid,
@@ -304,6 +310,8 @@ pub(super) fn log_bot_summary(
                 result.quest_objective_db_verified,
                 result.quest_objective_db_before,
                 result.quest_objective_db_after,
+                result.quest_character_restored,
+                result.quest_restore_failure,
                 result.quest_failure
             );
             return;
@@ -407,6 +415,10 @@ pub(super) fn log_bot_summary(
                 result.vendor_relogin_verified,
                 result.vendor_failure,
             );
+            return;
+        }
+        if let Some(summary) = post_login_smoke_summary(result) {
+            error!("❌ Bot {}: FAILED {}", result.account, summary);
             return;
         }
         if result.equipment_set_smoke {
@@ -600,6 +612,9 @@ pub(super) fn write_report_if_requested(
         homebind_smoke,
         inventory_swap_smoke,
         vendor_smoke,
+        vendor_sell_smoke: cli.vendor_sell_smoke,
+        movement_smoke: cli.movement_smoke,
+        trade_smoke: cli.trade.smoke,
         equipment_set_race_smoke,
         rested_xp_smoke,
         detour_chase_capture,

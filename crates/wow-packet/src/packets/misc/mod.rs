@@ -10,6 +10,7 @@
 
 mod character;
 mod combat;
+mod death;
 mod durability;
 mod lfg_client;
 mod movement;
@@ -20,6 +21,7 @@ mod world_state;
 
 pub use character::*;
 pub use combat::*;
+pub use death::*;
 pub use durability::*;
 pub use lfg_client::*;
 pub use movement::*;
@@ -797,6 +799,9 @@ impl ClientPacket for DfGetJoinStatus {
 /// C++ `TRADE_STATUS_PLAYER_BUSY`.
 pub const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 
+/// C++ `TRADE_STATUS_PROPOSED`.
+pub const TRADE_STATUS_PROPOSED_LIKE_CPP: u8 = 1;
+
 /// C++ `TRADE_STATUS_INITIATED`.
 pub const TRADE_STATUS_INITIATED_LIKE_CPP: u8 = 2;
 
@@ -806,17 +811,62 @@ pub const TRADE_STATUS_CANCELLED_LIKE_CPP: u8 = 3;
 /// C++ `TRADE_STATUS_ACCEPTED`.
 pub const TRADE_STATUS_ACCEPTED_LIKE_CPP: u8 = 4;
 
+/// C++ `TRADE_STATUS_NO_TARGET`.
+pub const TRADE_STATUS_NO_TARGET_LIKE_CPP: u8 = 6;
+
 /// C++ `TRADE_STATUS_UNACCEPTED`.
 pub const TRADE_STATUS_UNACCEPTED_LIKE_CPP: u8 = 7;
 
+/// C++ `TRADE_STATUS_COMPLETE`.
+pub const TRADE_STATUS_COMPLETE_LIKE_CPP: u8 = 8;
+
 /// C++ `TRADE_STATUS_STATE_CHANGED`.
 pub const TRADE_STATUS_STATE_CHANGED_LIKE_CPP: u8 = 9;
+
+/// C++ `TRADE_STATUS_TOO_FAR_AWAY`.
+pub const TRADE_STATUS_TOO_FAR_AWAY_LIKE_CPP: u8 = 10;
+
+/// C++ `TRADE_STATUS_WRONG_FACTION`.
+pub const TRADE_STATUS_WRONG_FACTION_LIKE_CPP: u8 = 11;
 
 /// C++ `TRADE_STATUS_FAILED`.
 pub const TRADE_STATUS_FAILED_LIKE_CPP: u8 = 12;
 
 /// C++ `TRADE_STATUS_PLAYER_IGNORED`.
 pub const TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP: u8 = 14;
+
+/// C++ `TRADE_STATUS_STUNNED`.
+pub const TRADE_STATUS_STUNNED_LIKE_CPP: u8 = 15;
+
+/// C++ `TRADE_STATUS_TARGET_STUNNED`.
+pub const TRADE_STATUS_TARGET_STUNNED_LIKE_CPP: u8 = 16;
+
+/// C++ `TRADE_STATUS_DEAD`.
+pub const TRADE_STATUS_DEAD_LIKE_CPP: u8 = 17;
+
+/// C++ `TRADE_STATUS_TARGET_DEAD`.
+pub const TRADE_STATUS_TARGET_DEAD_LIKE_CPP: u8 = 18;
+
+/// C++ `TRADE_STATUS_LOGGING_OUT`.
+pub const TRADE_STATUS_LOGGING_OUT_LIKE_CPP: u8 = 19;
+
+/// C++ `TRADE_STATUS_TARGET_LOGGING_OUT`.
+pub const TRADE_STATUS_TARGET_LOGGING_OUT_LIKE_CPP: u8 = 20;
+
+/// C++ `TRADE_STATUS_WRONG_REALM`.
+pub const TRADE_STATUS_WRONG_REALM_LIKE_CPP: u8 = 22;
+
+/// C++ `TRADE_STATUS_NOT_ON_TAPLIST`.
+pub const TRADE_STATUS_NOT_ON_TAPLIST_LIKE_CPP: u8 = 23;
+
+/// C++ `TRADE_STATUS_CURRENCY_NOT_TRADABLE`.
+pub const TRADE_STATUS_CURRENCY_NOT_TRADABLE_LIKE_CPP: u8 = 24;
+
+/// C++ `TRADE_STATUS_NOT_ENOUGH_CURRENCY`.
+pub const TRADE_STATUS_NOT_ENOUGH_CURRENCY_LIKE_CPP: u8 = 25;
+
+/// C++ `TRADE_DISTANCE` (`ObjectDefines.h:27`).
+pub const TRADE_DISTANCE_LIKE_CPP: f32 = 11.11;
 
 /// C++ `TRADE_SLOT_COUNT`.
 pub const TRADE_SLOT_COUNT_LIKE_CPP: u8 = 7;

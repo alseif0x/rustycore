@@ -3,7 +3,10 @@ use super::super::save_steps::player_character_save_statement_like_cpp;
 use super::equipment_row;
 use crate::statements::CharStatements;
 use crate::statements::StatementDef;
-use wow_persistence::{PlayerCufProfileSaveLikeCpp, PlayerVoidStorageSaveLikeCpp};
+use wow_persistence::{
+    PlayerCufProfileSaveLikeCpp, PlayerLifecycleAuraEffectSave, PlayerLifecycleAuraSave,
+    PlayerVoidStorageSaveLikeCpp,
+};
 
 #[test]
 fn every_private_character_save_operation_maps_to_the_existing_mariadb_statement_like_cpp() {
@@ -230,6 +233,74 @@ fn every_private_character_save_operation_maps_to_the_existing_mariadb_statement
             CharStatements::INS_CHAR_ACTION,
         ),
         (
+            Step::DeleteLifecycleAuraEffects {
+                guid: 1,
+                caster_guid_binary: [2; 16],
+                item_guid_binary: [3; 16],
+                spell_id: 3,
+            },
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY,
+        ),
+        (
+            Step::DeleteLifecycleAuraFamily {
+                guid: 1,
+                caster_guid_binary: [2; 16],
+                item_guid_binary: [3; 16],
+                spell_id: 3,
+            },
+            CharStatements::DEL_CHAR_AURA_BY_KEY,
+        ),
+        (
+            Step::DeleteLifecycleAuraEffectsBySpell {
+                guid: 1,
+                spell_id: 3,
+            },
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL,
+        ),
+        (
+            Step::DeleteLifecycleAuraFamilyBySpell {
+                guid: 1,
+                spell_id: 3,
+            },
+            CharStatements::DEL_CHAR_AURA_BY_SPELL,
+        ),
+        (
+            Step::InsertLifecycleAura {
+                guid: 1,
+                caster_guid_binary: [2; 16],
+                item_guid_binary: [3; 16],
+                spell_id: 3,
+                effect_mask: 1,
+                row: PlayerLifecycleAuraSave {
+                    difficulty: 4,
+                    stack_count: 5,
+                    max_duration: 6,
+                    remaining_duration: 7,
+                    charges: 8,
+                    recalculate_mask: 9,
+                    cast_item_id: 10,
+                    cast_item_level: 11,
+                    effects: Vec::new(),
+                },
+            },
+            CharStatements::INS_AURA,
+        ),
+        (
+            Step::InsertLifecycleAuraEffect {
+                guid: 1,
+                caster_guid_binary: [2; 16],
+                item_guid_binary: [3; 16],
+                spell_id: 3,
+                effect_mask: 1,
+                row: PlayerLifecycleAuraEffectSave {
+                    index: 0,
+                    amount: 12,
+                    base_amount: 13,
+                },
+            },
+            CharStatements::INS_AURA_EFFECT,
+        ),
+        (
             Step::InsertEquipmentSet {
                 player_guid: 1,
                 row: equipment_row(),
@@ -354,4 +425,180 @@ fn every_private_character_save_operation_maps_to_the_existing_mariadb_statement
             "{step:?} must retain its MariaDB statement",
         );
     }
+}
+
+#[test]
+fn full_save_death_metadata_and_item_durability_use_exact_owner_scoped_binds() {
+    use PlayerCharacterSaveStepLikeCpp as Step;
+
+    let metadata = player_character_save_statement_like_cpp(&Step::CharacterDeathMetadata {
+        at_login_flags: 0x104,
+        death_expire_time: 1_700_000_123,
+        guid: 77,
+    });
+    assert_eq!(
+        metadata.sql(),
+        "UPDATE characters SET at_login = ?, death_expire_time = ? WHERE guid = ?"
+    );
+    assert_eq!(
+        metadata.params(),
+        &[
+            crate::SqlParam::U16(0x104),
+            crate::SqlParam::I64(1_700_000_123),
+            crate::SqlParam::U64(77),
+        ]
+    );
+
+    let durability = player_character_save_statement_like_cpp(&Step::ItemDurability {
+        player_guid: 77,
+        item_guid: 88,
+        durability: 33,
+    });
+    assert_eq!(
+        durability.sql(),
+        "UPDATE item_instance INNER JOIN character_inventory ON character_inventory.item = item_instance.guid SET item_instance.durability = ? WHERE item_instance.guid = ? AND item_instance.owner_guid = ? AND character_inventory.guid = ?"
+    );
+    assert_eq!(
+        durability.params(),
+        &[
+            crate::SqlParam::U32(33),
+            crate::SqlParam::U64(88),
+            crate::SqlParam::U64(77),
+            crate::SqlParam::U64(77),
+        ]
+    );
+}
+
+#[test]
+fn lifecycle_aura_family_uses_scoped_aura_keys_and_insert_bind_order() {
+    use PlayerCharacterSaveStepLikeCpp as Step;
+
+    let caster = [0xA5; 16];
+    let item = [0xB6; 16];
+    let effect_delete =
+        player_character_save_statement_like_cpp(&Step::DeleteLifecycleAuraEffects {
+            guid: 77,
+            caster_guid_binary: caster,
+            item_guid_binary: item,
+            spell_id: 15007,
+        });
+    assert_eq!(
+        effect_delete.sql(),
+        "DELETE FROM character_aura_effect WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?"
+    );
+    assert_eq!(
+        effect_delete.params(),
+        &[
+            crate::SqlParam::U64(77),
+            crate::SqlParam::Bytes(caster.to_vec()),
+            crate::SqlParam::Bytes(item.to_vec()),
+            crate::SqlParam::U32(15007),
+        ]
+    );
+
+    let aura_delete = player_character_save_statement_like_cpp(&Step::DeleteLifecycleAuraFamily {
+        guid: 77,
+        caster_guid_binary: caster,
+        item_guid_binary: item,
+        spell_id: 15007,
+    });
+    assert_eq!(
+        aura_delete.sql(),
+        "DELETE FROM character_aura WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?"
+    );
+    assert_eq!(aura_delete.params(), effect_delete.params());
+
+    let effect_delete_by_spell =
+        player_character_save_statement_like_cpp(&Step::DeleteLifecycleAuraEffectsBySpell {
+            guid: 77,
+            spell_id: 8_326,
+        });
+    assert_eq!(
+        effect_delete_by_spell.sql(),
+        "DELETE FROM character_aura_effect WHERE guid = ? AND spell = ?"
+    );
+    assert_eq!(
+        effect_delete_by_spell.params(),
+        &[crate::SqlParam::U64(77), crate::SqlParam::U32(8_326)]
+    );
+
+    let aura_delete_by_spell =
+        player_character_save_statement_like_cpp(&Step::DeleteLifecycleAuraFamilyBySpell {
+            guid: 77,
+            spell_id: 20_584,
+        });
+    assert_eq!(
+        aura_delete_by_spell.sql(),
+        "DELETE FROM character_aura WHERE guid = ? AND spell = ?"
+    );
+    assert_eq!(
+        aura_delete_by_spell.params(),
+        &[crate::SqlParam::U64(77), crate::SqlParam::U32(20_584)]
+    );
+
+    let aura_insert = player_character_save_statement_like_cpp(&Step::InsertLifecycleAura {
+        guid: 77,
+        caster_guid_binary: caster,
+        item_guid_binary: item,
+        spell_id: 15007,
+        effect_mask: 5,
+        row: PlayerLifecycleAuraSave {
+            difficulty: 2,
+            stack_count: 3,
+            max_duration: 60_000,
+            remaining_duration: 45_000,
+            charges: 4,
+            recalculate_mask: 1,
+            cast_item_id: 8,
+            cast_item_level: -1,
+            effects: Vec::new(),
+        },
+    });
+    assert_eq!(aura_insert.sql(), CharStatements::INS_AURA.sql());
+    assert_eq!(
+        aura_insert.params(),
+        &[
+            crate::SqlParam::U64(77),
+            crate::SqlParam::Bytes(caster.to_vec()),
+            crate::SqlParam::Bytes(item.to_vec()),
+            crate::SqlParam::U32(15007),
+            crate::SqlParam::U32(5),
+            crate::SqlParam::U32(1),
+            crate::SqlParam::U8(2),
+            crate::SqlParam::U8(3),
+            crate::SqlParam::I32(60_000),
+            crate::SqlParam::I32(45_000),
+            crate::SqlParam::U8(4),
+            crate::SqlParam::U32(8),
+            crate::SqlParam::I32(-1),
+        ]
+    );
+
+    let effect_insert =
+        player_character_save_statement_like_cpp(&Step::InsertLifecycleAuraEffect {
+            guid: 77,
+            caster_guid_binary: caster,
+            item_guid_binary: item,
+            spell_id: 15007,
+            effect_mask: 5,
+            row: PlayerLifecycleAuraEffectSave {
+                index: 2,
+                amount: -6,
+                base_amount: -9,
+            },
+        });
+    assert_eq!(effect_insert.sql(), CharStatements::INS_AURA_EFFECT.sql());
+    assert_eq!(
+        effect_insert.params(),
+        &[
+            crate::SqlParam::U64(77),
+            crate::SqlParam::Bytes(caster.to_vec()),
+            crate::SqlParam::Bytes(item.to_vec()),
+            crate::SqlParam::U32(15007),
+            crate::SqlParam::U32(5),
+            crate::SqlParam::U8(2),
+            crate::SqlParam::I32(-6),
+            crate::SqlParam::I32(-9),
+        ]
+    );
 }

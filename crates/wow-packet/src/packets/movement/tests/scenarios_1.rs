@@ -224,13 +224,27 @@ fn move_teleport_writes_cpp_no_transport_field_order() {
     };
 
     let bytes = packet.to_bytes();
+    // MovementPackets.cpp:705 and ObjectGuid.cpp:758 use packed GUIDs.
+    // The fixed GUID regression produced a 38-byte body instead of 27.
+    assert_eq!(bytes.len() - 2, 27);
+    assert_eq!(
+        bytes.as_slice(),
+        &[
+            0x04, 0x2E, 0x01, 0xA0, 0x2A, 0x04, 0x08, // opcode and packed Player GUID
+            0x4D, 0x00, 0x00, 0x00, // sequence 77
+            0x00, 0x00, 0xA0, 0x3F, // x = 1.25
+            0x00, 0x00, 0x20, 0x40, // y = 2.5
+            0x00, 0x00, 0x70, 0x40, // z = 3.75
+            0x00, 0x00, 0x80, 0x40, // facing = 4
+            0x00, 0x00, // preload, absent transport/vehicle and zero padding
+        ]
+    );
     let mut pkt = WorldPacket::from_bytes(&bytes);
     assert_eq!(
         pkt.read_uint16().unwrap(),
         ServerOpcodes::MoveTeleport as u16
     );
-    assert_eq!(pkt.read_int64().unwrap(), guid.low_value());
-    assert_eq!(pkt.read_int64().unwrap(), guid.high_value());
+    assert_eq!(pkt.read_packed_guid().unwrap(), guid);
     assert_eq!(pkt.read_uint32().unwrap(), 77);
     assert_eq!(pkt.read_float().unwrap(), 1.25);
     assert_eq!(pkt.read_float().unwrap(), 2.5);
@@ -239,6 +253,33 @@ fn move_teleport_writes_cpp_no_transport_field_order() {
     assert_eq!(pkt.read_uint8().unwrap(), 0);
     assert!(!pkt.read_bit().unwrap());
     assert!(!pkt.read_bit().unwrap());
+}
+
+#[test]
+fn move_teleport_writes_cpp_empty_and_sparse_optional_transport_guids() {
+    let sparse_transport = ObjectGuid::new(0x6600_0000_0000_0055, 0x1100_0000_0000_0077);
+    for (transport_guid, packed_transport) in [
+        (ObjectGuid::EMPTY, vec![0x00, 0x00]),
+        (sparse_transport, vec![0x81, 0x81, 0x77, 0x11, 0x55, 0x66]),
+    ] {
+        let packet = MoveTeleport {
+            mover_guid: ObjectGuid::create_player(1, 42),
+            position: Position::new(1.25, 2.5, 3.75, 4.0),
+            facing: 4.0,
+            sequence_index: 77,
+            preload_world: 0,
+            transport_guid: Some(transport_guid),
+        };
+        // Unit::SendTeleportPacket assigns TransportGUID even when it is empty.
+        // Sparse transport bytes exercise mask bits 0 and 7 in both GUID words.
+        let mut expected = vec![
+            0x04, 0x2E, 0x01, 0xA0, 0x2A, 0x04, 0x08, 0x4D, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA0,
+            0x3F, 0x00, 0x00, 0x20, 0x40, 0x00, 0x00, 0x70, 0x40, 0x00, 0x00, 0x80, 0x40, 0x00,
+            0x80,
+        ];
+        expected.extend(packed_transport);
+        assert_eq!(packet.to_bytes(), expected);
+    }
 }
 
 #[test]

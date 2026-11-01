@@ -1,0 +1,52 @@
+[package]
+name = "wow-world-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+forever-terrain = ["wow-map/forever-terrain"]
+forever-navigation = ["dep:forever-navigation"]
+# Preserve the World fixture gate and its kernel test-support dependency.
+test-fixtures = ["dep:wow-script", "wow-session/test-support"]
+
+[dependencies]
+dashmap = { workspace = true }
+flume = { workspace = true }
+num-traits = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+wow-ai = { workspace = true }
+wow-conditions = { workspace = true }
+wow-config = { workspace = true }
+wow-constants = { workspace = true }
+wow-core = { workspace = true }
+wow-data = { workspace = true }
+wow-packet = { workspace = true }
+wow-entities = { workspace = true }
+wow-handler = { workspace = true }
+wow-instances = { workspace = true }
+wow-loot = { workspace = true }
+wow-map = { workspace = true }
+wow-movement = { workspace = true }
+wow-network = { workspace = true }
+wow-persistence = { workspace = true }
+wow-progression = { workspace = true }
+wow-social = { workspace = true }
+wow-recastdetour = { workspace = true }
+wow-session = { workspace = true }
+wow-script = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+forever-navigation = { path = "../../../rustycore-extractors/crates/forever-navigation", version = "=0.1.0", optional = true, default-features = false }
+
+[dev-dependencies]
+wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
+wow-session = { workspace = true, features = ["test-support"] }
+wow-script = { workspace = true }
+
+[lints]
+workspace = true

@@ -3,56 +3,41 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+//! Talent handlers.
+//!
+//! `#1263 F5 deferred families`: the two registrations moved unchanged to
+//! `wow_world_application::register_talent_handlers_like_cpp`; `talent/host.rs`
+//! lends that registrar these operations. The CMSG_LEARN_TALENT body moved to
+//! `wow_world_spell` (#1363 slice 9b); the respec wipe with the talent-reset
+//! commit and publication it awaits to `wow_world_application` (slice 13b).
+
+#[cfg(test)]
 use tracing::warn;
 
+#[cfg(test)]
 use wow_constants::ClientOpcodes;
+#[cfg(test)]
 use wow_constants::unit::NPCFlags1;
+#[cfg(test)]
 use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
-use wow_packet::packets::talent::{
-    ConfirmRespecWipe, LearnTalent, LearnTalents, SPEC_RESET_TALENTS_LIKE_CPP,
-};
-use wow_packet::{ClientPacket, WorldPacket};
+#[cfg(test)]
+use wow_packet::WorldPacket;
+#[cfg(test)]
+use wow_packet::packets::talent::LearnTalents;
+#[cfg(test)]
+use wow_packet::packets::talent::SPEC_RESET_TALENTS_LIKE_CPP;
 
 #[cfg(test)]
 use crate::session::RepresentedTalentRespecVisualSpellCastLikeCpp;
+#[cfg(test)]
 use crate::session::{RepresentedConfirmRespecWipeLikeCpp, WorldSession};
 
+mod host;
 mod state;
 #[allow(unused_imports)]
 pub use state::*;
 
 #[cfg(test)]
-#[path = "talent/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/talent/tests/mod.rs"]
 mod tests;
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ConfirmRespecWipe,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_confirm_respec_wipe",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_confirm_respec_wipe_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        catalogs.progression.no_reset_talent_cost,
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::LearnTalent,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_learn_talent",
-        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_learn_talent(catalogs.player_bootstrap.talent_tabs.as_ref(), pkt).await }),
-    }
-}

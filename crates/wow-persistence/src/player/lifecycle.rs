@@ -15,9 +15,9 @@ use crate::{
     PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
     PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
     PlayerMoneyWriteRequestLikeCpp, PlayerOnlineMarkRequestLikeCpp,
-    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
-    PlayerUncageItemStateLoadOutcomeLikeCpp, PlayerUncageItemStateRequestLikeCpp,
-    PlayerXpPersistenceRequestLikeCpp,
+    PlayerPetSaveTransactionLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    PlayerTalentResetPersistenceRequestLikeCpp, PlayerUncageItemStateLoadOutcomeLikeCpp,
+    PlayerUncageItemStateRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
 /// Which offline state the lifecycle is publishing.
@@ -232,6 +232,22 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         &'a self,
         request: PlayerLoginItemRepairRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    /// Persist one independently submitted pet-save transaction in the
+    /// Characters database. The application owns the ordering and failure
+    /// fences between aura/spell/history persistence and the stable pet row.
+    /// Ports without this capability fail explicitly instead of treating a
+    /// missing implementation as a successful save.
+    fn persist_pet_save_transaction_like_cpp<'a>(
+        &'a self,
+        _request: PlayerPetSaveTransactionLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "pet save transaction is unsupported by this lifecycle port".to_owned(),
+            }
+        })
+    }
 
     /// Execute the two independent C++ pet-talent reset writes in order.
     fn reset_login_pet_talents_like_cpp<'a>(

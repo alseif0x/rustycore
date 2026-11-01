@@ -1,0 +1,31 @@
+# Trusted linked module manifest. See docs/architecture/modules.md.
+[module]
+id = "example.milestones"
+version = "1.0.0"
+display_name = "Example Milestones"
+
+[build]
+package = "example-milestones"
+crate_path = "."
+registrar = "example_milestones::register"
+
+[compatibility]
+# Uses the player.login, player.*, chat.*, world.* and creature.* families of
+# source API 2.
+source_api = "2"
+
+[config]
+# Package defaults. Operators override these in
+# conf/modules/example.milestones.toml, outside this repository.
+enabled = true
+# Congratulate a player on every kill count that is a multiple of this.
+kill_milestone = 100
+# Deny any chat message containing one of these words (comma-separated,
+# whole words, case-insensitive). Empty: the module does not ask for chat.
+blocked_words = ""
+# Sent on every level that is a multiple of `level_step`; `{level}` is
+# replaced with the new level.
+level_message = "Milestone reached: level {level}!"
+level_step = 1
+# Announce a level milestone to every player in the world as well.
+announce_levels = false

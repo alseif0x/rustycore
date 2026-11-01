@@ -20,6 +20,10 @@
     1
   ],
   [
+    "UPDATE characters SET at_login = ?, death_expire_time = ? WHERE guid = ?",
+    1
+  ],
+  [
     "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?",
     1
   ],
@@ -29,6 +33,18 @@
   ],
   [
     "UPDATE characters SET exploredZones = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "UPDATE item_instance INNER JOIN character_inventory ON character_inventory.item = item_instance.guid SET item_instance.durability = ? WHERE item_instance.guid = ? AND item_instance.owner_guid = ? AND character_inventory.guid = ?",
+    2
+  ],
+  [
+    "REPLACE INTO character_void_storage (itemId, playerGuid, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    1
+  ],
+  [
+    "DELETE FROM character_void_storage WHERE slot = ? AND playerGuid = ?",
     1
   ],
   [
@@ -121,14 +137,6 @@
   ],
   [
     "DELETE FROM character_transmog_outfits WHERE setguid=?",
-    1
-  ],
-  [
-    "REPLACE INTO character_void_storage (itemId, playerGuid, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    1
-  ],
-  [
-    "DELETE FROM character_void_storage WHERE slot = ? AND playerGuid = ?",
     1
   ],
   [

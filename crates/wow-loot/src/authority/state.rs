@@ -197,17 +197,22 @@ pub enum OwnedLootScope {
 
 /// Observable lifetime state of one object-owned loot authority.
 ///
-/// Keeping this classification behind one mutex acquisition matters during
-/// mirror reconciliation: a retired authority from an older object lifetime
-/// must not be treated like a newly constructed authority merely because both
-/// currently expose no loot pools.
+/// Keeping this classification behind one mutex acquisition matters: a retired
+/// authority from an older object lifetime must not be treated like a newly
+/// constructed authority merely because both currently expose no loot pools.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OwnedLootAuthorityLifecycle {
     Pristine,
     Active,
     Retired,
-    /// Conflicting live mirrors were observed for one C++ object. This
-    /// attached tombstone is terminal until the object is destroyed.
+    /// An indeterminate durable COMMIT was observed for this object's loot.
+    ///
+    /// This attached tombstone is terminal until the object is destroyed and it
+    /// is fail-closed: no claim can be reserved or reinitialized against the
+    /// authority while it holds this state. The unknown-COMMIT path sets it
+    /// independently of any mirror state. F6-7 R3 retired the dual-store
+    /// reconciliation together with its mirror-conflict tombstone producer, so
+    /// a conflicting live mirror no longer produces this state.
     Quarantined,
     /// This allocation was displaced from its owning entity mirror. It may
     /// still be held by an async task, but can never own loot again.

@@ -9,6 +9,9 @@ const TRANSLATE: &str = r#"
     }
 "#;
 
+const CORE_MAP_DEFINITIONS: &str =
+    "pub struct MapManager; pub struct WorldCreature; pub struct SharedMapManager;";
+
 fn mounted<'a>(module: &'a str, path: &'a str, text: &'a str) -> BridgeSource<'a> {
     BridgeSource {
         package: "fixture",
@@ -17,6 +20,88 @@ fn mounted<'a>(module: &'a str, path: &'a str, text: &'a str) -> BridgeSource<'a
         inherited_cfg: &[],
         source: text,
     }
+}
+
+fn package_mount<'a>(
+    package: &'a str,
+    module: &'a str,
+    path: &'a str,
+    text: &'a str,
+) -> BridgeSource<'a> {
+    BridgeSource {
+        package,
+        module,
+        source_path: path,
+        inherited_cfg: &[],
+        source: text,
+    }
+}
+
+fn core_package<'a>(module: &'a str, path: &'a str, source: &'a str) -> BridgeSource<'a> {
+    package_mount("wow-world-core", module, path, source)
+}
+
+fn core_root() -> BridgeSource<'static> {
+    core_package(
+        "crate",
+        "crates/wow-world-core/src/lib.rs",
+        "pub mod map_manager;",
+    )
+}
+
+fn core_module<'a>(path: &'a str, source: &'a str) -> BridgeSource<'a> {
+    core_package("crate::map_manager", path, source)
+}
+
+fn core_map_file<'a>(source: &'a str) -> BridgeSource<'a> {
+    core_module("crates/wow-world-core/src/map_manager.rs", source)
+}
+
+fn server_bridge(source: &str) -> BridgeSource<'_> {
+    package_mount(
+        "world-server",
+        "crate::bridge",
+        "crates/world-server/src/bridge.rs",
+        source,
+    )
+}
+
+fn server_root(source: &str) -> BridgeSource<'_> {
+    package_mount(
+        "world-server",
+        "crate",
+        "crates/world-server/src/lib.rs",
+        source,
+    )
+}
+
+fn world_root(source: &str) -> BridgeSource<'_> {
+    package_mount("wow-world", "crate", "crates/wow-world/src/lib.rs", source)
+}
+
+fn core_mounts<'a>(map_source: &'a str) -> [BridgeSource<'a>; 2] {
+    [
+        core_root(),
+        core_module("crates/wow-world-core/src/map_manager.rs", map_source),
+    ]
+}
+
+fn evidence_labels(
+    baseline: &BridgeAccessBaseline,
+) -> BTreeSet<(BridgeSide, BridgeEvidenceKind, String, usize)> {
+    baseline
+        .bridges
+        .iter()
+        .flat_map(|record| record.evidence.iter())
+        .map(|evidence| {
+            (
+                evidence.side,
+                evidence.kind,
+                evidence.symbol.clone(),
+                evidence.multiplicity,
+            )
+        })
+        .collect()
 }
 
 fn pair(parent: &str, child: &str) -> Result<BridgeAccessBaseline, String> {
@@ -360,6 +445,296 @@ fn same_named_modules_in_other_packages_cannot_supply_provenance() {
 }
 
 #[test]
+fn core_map_manager_definitions_resolve_as_exact_legacy_symbols() {
+    let mut sources = core_mounts(CORE_MAP_DEFINITIONS).to_vec();
+    sources.push(server_bridge(
+        r#"
+            fn translate(new: &wow_entities::Creature,
+                map: &wow_world_core::map_manager::MapManager,
+                creature: &wow_world_core::map_manager::WorldCreature,
+                shared: &wow_world_core::map_manager::SharedMapManager) {}
+        "#,
+    ));
+
+    let baseline = inventory_bridge_accesses(&sources)
+        .expect("supplied Core map-manager definitions resolve by their exact package");
+    assert_eq!(baseline.bridges.len(), 1);
+    let labels = evidence_labels(&baseline);
+    for symbol in ["MapManager", "WorldCreature", "SharedMapManager"] {
+        assert!(
+            labels.contains(&(
+                BridgeSide::Legacy,
+                BridgeEvidenceKind::TypeReference,
+                symbol.to_owned(),
+                1,
+            )),
+            "Core {symbol} was not recorded as legacy evidence: {labels:#?}"
+        );
+    }
+    assert!(labels.contains(&(
+        BridgeSide::Canonical,
+        BridgeEvidenceKind::TypeReference,
+        "Creature".to_owned(),
+        1,
+    )));
+
+    let reversed = sources.iter().rev().copied().collect::<Vec<_>>();
+    let reordered = inventory_bridge_accesses(&reversed)
+        .expect("Core provenance does not depend on source input order");
+    compare_bridge_access_baseline(&baseline, &reordered)
+        .expect("Core source ordering preserves exact bridge evidence");
+}
+
+#[test]
+fn core_map_manager_type_aliases_keep_exact_legacy_provenance() {
+    let mut sources = core_mounts(CORE_MAP_DEFINITIONS).to_vec();
+    sources.push(server_bridge(
+        r#"
+            use wow_world_core::map_manager::{
+                MapManager as CoreMap, WorldCreature as CoreCreature, SharedMapManager as CoreShared,
+            };
+            fn translate(
+                old: &wow_world::SharedMapManager,
+                new: &wow_entities::Creature,
+                map: &CoreMap, creature: &CoreCreature, shared: &CoreShared) {}
+        "#,
+    ));
+
+    let baseline = inventory_bridge_accesses(&sources)
+        .expect("explicit aliases resolve to the supplied Core definitions");
+    assert_eq!(baseline.bridges.len(), 1);
+    let labels = evidence_labels(&baseline);
+    assert!(
+        labels
+            .iter()
+            .any(|(side, _, _, _)| *side == BridgeSide::Legacy)
+    );
+    assert!(
+        labels
+            .iter()
+            .any(|(side, _, _, _)| *side == BridgeSide::Canonical)
+    );
+    assert!(
+        labels
+            .iter()
+            .filter(|(side, _, _, _)| *side == BridgeSide::Legacy)
+            .map(|(_, _, _, multiplicity)| *multiplicity)
+            .sum::<usize>()
+            >= 4,
+        "the old authority plus all three aliased Core types must be recorded: {labels:#?}"
+    );
+}
+
+#[test]
+fn exact_world_facade_reexport_uses_the_same_core_authority_evidence() {
+    let core = core_mounts("pub struct WorldCreature;");
+    let direct = world_root(
+        r#"
+            fn bridge(
+                old: &wow_world::SharedMapManager,
+                new: &wow_entities::Creature,
+                moved: &wow_world_core::map_manager::WorldCreature,
+            ) {}
+        "#,
+    );
+    let facade = world_root(
+        r#"
+            pub use wow_world_core::map_manager;
+            fn bridge(
+                old: &wow_world::SharedMapManager,
+                new: &wow_entities::Creature,
+                moved: &crate::map_manager::WorldCreature,
+            ) {}
+        "#,
+    );
+    let direct_sources = [core[0], core[1], direct];
+    let facade_sources = [core[0], core[1], facade];
+    let direct_baseline =
+        inventory_bridge_accesses(&direct_sources).expect("direct Core authority resolves");
+    let facade_baseline = inventory_bridge_accesses(&facade_sources)
+        .expect("the exact public world facade resolves to supplied Core");
+    assert_eq!(direct_baseline.bridges.len(), 1);
+    assert_eq!(facade_baseline.bridges.len(), 1);
+    assert_eq!(
+        evidence_labels(&direct_baseline),
+        evidence_labels(&facade_baseline),
+        "the facade must retain the same canonical and Core authority evidence"
+    );
+}
+
+#[test]
+fn pure_core_catalog_module_import_is_not_bridge_authority() {
+    let sources = [
+        package_mount(
+            "wow-world-core",
+            "crate",
+            "crates/wow-world-core/src/lib.rs",
+            "pub mod catalogs;",
+        ),
+        core_package(
+            "crate::catalogs",
+            "crates/wow-world-core/src/catalogs.rs",
+            "pub struct Catalog;",
+        ),
+        world_root(
+            "pub(crate) use wow_world_core::catalogs; fn inspect(value: &catalogs::Catalog) {}",
+        ),
+    ];
+    let baseline = inventory_bridge_accesses(&sources)
+        .expect("the existing Core catalogs reexport resolves as an ordinary module");
+    assert!(baseline.bridges.is_empty());
+}
+
+#[test]
+fn core_authority_requires_its_exact_supplied_root_and_module() {
+    let consumer =
+        server_bridge("fn inspect(moved: &wow_world_core::map_manager::WorldCreature) {}");
+    let core_root = core_root();
+    let unknown_consumer =
+        server_bridge("fn inspect(moved: &wow_world_core::map_manager::UnknownAuthority) {}");
+    let cases = [
+        (
+            "the known Core root cannot be silently missing",
+            vec![consumer],
+        ),
+        (
+            "the Core map-manager source mount is required at use",
+            vec![core_root, consumer],
+        ),
+        (
+            "an unresolved Core authority name cannot be treated as non-authority",
+            vec![
+                core_root,
+                core_map_file("pub struct WorldCreature;"),
+                unknown_consumer,
+            ],
+        ),
+        (
+            "an unrelated Core definition cannot stand in for WorldCreature",
+            vec![core_root, core_map_file("pub struct Unrelated;"), consumer],
+        ),
+        (
+            "a foreign package with equal module names cannot supply Core provenance",
+            vec![
+                package_mount(
+                    "foreign-core",
+                    "crate",
+                    "foreign/src/lib.rs",
+                    "pub mod map_manager;",
+                ),
+                package_mount(
+                    "foreign-core",
+                    "crate::map_manager",
+                    "foreign/src/map_manager.rs",
+                    "pub struct WorldCreature;",
+                ),
+                consumer,
+            ],
+        ),
+    ];
+    for (reason, sources) in cases {
+        inventory_bridge_accesses(&sources).expect_err(reason);
+    }
+}
+
+#[test]
+fn local_core_named_module_shadows_the_external_core_package() {
+    let mut sources = core_mounts("pub struct WorldCreature;").to_vec();
+    sources.push(server_root(
+        r#"
+            mod wow_world_core {
+                pub mod map_manager { pub struct WorldCreature; }
+            }
+            fn inspect(
+                canonical: &wow_entities::Creature,
+                shadowed: &wow_world_core::map_manager::WorldCreature,
+            ) {}
+        "#,
+    ));
+    let baseline = inventory_bridge_accesses(&sources)
+        .expect("the local module wins over the external crate root");
+    assert!(baseline.bridges.is_empty());
+}
+
+#[test]
+fn overlapping_core_module_providers_fail_only_when_authority_is_used() {
+    let core_root = core_root();
+    let first = core_module(
+        "crates/wow-world-core/src/map_manager_a.rs",
+        "pub struct WorldCreature;",
+    );
+    let second = core_module(
+        "crates/wow-world-core/src/map_manager_b.rs",
+        "pub struct WorldCreature;",
+    );
+    let consumer = server_bridge(
+        "fn bridge(old: &wow_world::SharedMapManager, new: &wow_entities::Creature, moved: &wow_world_core::map_manager::WorldCreature) {}",
+    );
+    let error = inventory_bridge_accesses(&[core_root, first, second, consumer])
+        .expect_err("overlapping Core source mounts are ambiguous at a use site");
+    assert!(
+        error.contains("ambiguous supplied source providers"),
+        "{error}"
+    );
+}
+
+#[test]
+fn disjoint_core_module_cfg_providers_remain_available_alternatives() {
+    let core_root = core_root();
+    let enabled_cfg = ["cfg(feature = \"core-alt\")".to_owned()];
+    let disabled_cfg = ["cfg(not(feature = \"core-alt\"))".to_owned()];
+    let providers = [
+        (
+            "crates/wow-world-core/src/map_manager_enabled.rs",
+            &enabled_cfg,
+        ),
+        (
+            "crates/wow-world-core/src/map_manager_disabled.rs",
+            &disabled_cfg,
+        ),
+    ]
+    .map(|(source_path, inherited_cfg)| BridgeSource {
+        package: "wow-world-core",
+        module: "crate::map_manager",
+        source_path,
+        inherited_cfg,
+        source: "pub struct WorldCreature;",
+    });
+    let consumer = server_bridge(
+        "fn bridge(old: &wow_world::SharedMapManager, new: &wow_entities::Creature, moved: &wow_world_core::map_manager::WorldCreature) {}",
+    );
+    let result = inventory_bridge_accesses(&[core_root, providers[0], providers[1], consumer])
+        .expect("mutually exclusive Core source providers are cfg alternatives");
+    assert!(result.bridges.iter().any(|record| {
+        record
+            .evidence
+            .iter()
+            .any(|evidence| evidence.side == BridgeSide::Legacy)
+    }));
+}
+
+#[test]
+fn core_namespace_aliases_and_globs_fail_closed() {
+    let core = core_mounts("pub struct WorldCreature;");
+    for import in [
+        "use wow_world_core as core;",
+        "pub use wow_world_core as core;",
+        "use wow_world_core::map_manager as maps;",
+        "pub use wow_world_core::map_manager as maps;",
+        "use wow_world_core::*;",
+        "use wow_world_core::map_manager::*;",
+    ] {
+        let consumer = server_root(import);
+        let error = inventory_bridge_accesses(&[core[0], core[1], consumer])
+            .expect_err("hidden Core namespaces must be rejected");
+        assert!(
+            error.contains("bridge-capable") || error.contains("hides exact"),
+            "{import} -> {error}"
+        );
+    }
+}
+
+#[test]
 fn unresolved_external_authority_glob_remains_rejected_after_parent_import() {
     pair(
         "use wow_entities::*; mod child;",
@@ -369,27 +744,232 @@ fn unresolved_external_authority_glob_remains_rejected_after_parent_import() {
 }
 
 #[test]
-fn moved_pending_respawn_bridge_matches_its_exact_reviewed_record() {
+fn retired_pending_respawn_bridge_is_absent_from_the_inventory() {
+    // #1263 F6-8D3a-3 moved the rebuild body into
+    // `creature_from_pending_respawn_like_cpp`; F6-8E-2 deleted the legacy
+    // `map_manager` module and its `WorldCreature` wrapper, so the body touches
+    // only the canonical authority and is no longer a bridge: neither the live
+    // scan nor the reviewed inventory may record it.
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
     let baseline = crate::session_ownership::repository_syntax_for_tests()
         .expect("the moved function retains complete parent import provenance");
-    let actual = baseline
-        .bridge_accesses
-        .bridges
-        .iter()
-        .filter(|record| record.enclosing == "fn::world_creature_from_pending_respawn_like_cpp")
-        .collect::<Vec<_>>();
-    assert_eq!(actual.len(), 1);
+    assert!(
+        baseline
+            .bridge_accesses
+            .bridges
+            .iter()
+            .all(|record| record.enclosing != "fn::creature_from_pending_respawn_like_cpp")
+    );
     let policy: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(repository.join("tools/architecture/session-ownership-policy.json"))
             .unwrap(),
     )
     .unwrap();
-    let expected = policy["syntax_baseline"]["bridge_accesses"]["bridges"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|record| record["enclosing"] == "fn::world_creature_from_pending_respawn_like_cpp")
-        .expect("reviewed bridge remains in the exact inventory");
-    assert_eq!(&serde_json::to_value(actual[0]).unwrap(), expected);
+    assert!(
+        policy["syntax_baseline"]["bridge_accesses"]["bridges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|record| record["enclosing"] != "fn::creature_from_pending_respawn_like_cpp")
+    );
+}
+
+fn nominal_identity(
+    sources: &[BridgeSource<'_>],
+    package: &str,
+    module: &str,
+    type_path: &str,
+    cfg: &[String],
+) -> Result<Vec<SuppliedTypeIdentity>, TypeIdentityError> {
+    let ty = syn::parse_str::<syn::Type>(type_path).expect("fixture type parses");
+    crate::bridge_access::provenance::resolve_supplied_type_identity(
+        sources, package, module, &ty, cfg,
+    )
+}
+
+#[test]
+fn nominal_identity_follows_exact_alias_rename_and_glob_reexports() {
+    let sources = [
+        core_package("crate", "core/lib.rs", "pub mod model; pub mod facade;"),
+        core_package("crate::model", "core/model.rs", "pub struct SessionCore;"),
+        core_package(
+            "crate::facade",
+            "core/facade.rs",
+            "pub use crate::model::SessionCore as CoreFacade;",
+        ),
+        world_root("pub mod facade; pub mod consumer;"),
+        package_mount(
+            "wow-world",
+            "crate::facade",
+            "world/facade.rs",
+            "pub use wow_world_core::{self, facade::CoreFacade as RenamedCore};",
+        ),
+        package_mount(
+            "wow-world",
+            "crate::consumer",
+            "world/consumer.rs",
+            "use crate::facade::*; pub type ExactAlias = RenamedCore;",
+        ),
+    ];
+    let alias = syn::parse_str::<syn::Type>("ExactAlias").unwrap();
+    let direct = syn::parse_str::<syn::Type>("wow_world_core::model::SessionCore").unwrap();
+    let cfg = Vec::new();
+    let batch = resolve_supplied_type_identities(
+        &sources,
+        &[
+            TypeIdentityQuery {
+                package: "wow-world",
+                module: "crate::consumer",
+                ty: &alias,
+                cfg: &cfg,
+            },
+            TypeIdentityQuery {
+                package: "wow-world",
+                module: "crate::consumer",
+                ty: &direct,
+                cfg: &cfg,
+            },
+        ],
+    )
+    .expect("one batch builds the supplied graph and resolver");
+    let found = batch[0]
+        .as_ref()
+        .expect("the nominal owner follows the supplied Core reexports");
+    let direct = batch[1]
+        .as_ref()
+        .expect("the exact Core root resolves in the same batch");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].package, "wow-world-core");
+    assert_eq!(found[0].module, "crate::model");
+    assert_eq!(found[0].symbol, "SessionCore");
+    assert_eq!(found[0].kind, TypeIdentityKind::Struct);
+    assert_eq!(found[0].source_path, "core/model.rs");
+    assert_eq!(direct[0].package, found[0].package);
+    assert_eq!(direct[0].module, found[0].module);
+}
+
+#[test]
+fn nominal_identity_uses_local_type_before_glob_candidate() {
+    let sources = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub mod source { pub struct Payload; } pub mod consumer { use crate::source::*; pub struct Payload; }",
+    )];
+    let found = nominal_identity(&sources, "fixture", "crate::consumer", "Payload", &[])
+        .expect("the local nominal declaration shadows its glob candidate");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].module, "crate::consumer");
+}
+
+#[test]
+fn nominal_identity_reports_missing_source_and_missing_alias_target() {
+    assert!(matches!(
+        nominal_identity(&[], "fixture", "crate::consumer", "Payload", &[]),
+        Err(TypeIdentityError::Missing(_))
+    ));
+    let sources = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub struct Other; pub type Payload = NotSupplied;",
+    )];
+    assert!(matches!(
+        nominal_identity(&sources, "fixture", "crate::consumer", "Payload", &[]),
+        Err(TypeIdentityError::Missing(_))
+    ));
+    assert!(matches!(
+        nominal_identity(&sources, "fixture", "crate", "Payload", &[]),
+        Err(TypeIdentityError::Missing(_))
+    ));
+}
+
+#[test]
+fn non_nominal_binding_does_not_prove_type_identity() {
+    let sources = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub const SessionCore: u8 = 0;",
+    )];
+    assert!(matches!(
+        nominal_identity(&sources, "fixture", "crate", "SessionCore", &[]),
+        Err(TypeIdentityError::NotNominal(_))
+    ));
+}
+
+#[test]
+fn nominal_identity_rejects_compatible_glob_providers_but_keeps_cfg_alternatives() {
+    let ambiguous = [
+        mounted(
+            "crate",
+            "src/lib.rs",
+            "pub mod left; pub mod right; pub mod consumer;",
+        ),
+        mounted("crate::left", "src/left.rs", "pub struct Payload;"),
+        mounted("crate::right", "src/right.rs", "pub enum Payload {}"),
+        mounted(
+            "crate::consumer",
+            "src/consumer.rs",
+            "use crate::left::*; use crate::right::*;",
+        ),
+    ];
+    assert!(matches!(
+        nominal_identity(&ambiguous, "fixture", "crate::consumer", "Payload", &[]),
+        Err(TypeIdentityError::Ambiguous(_))
+    ));
+
+    let alternatives = [mounted(
+        "crate",
+        "src/lib.rs",
+        "#[cfg(feature = \"identity-alt\")] pub struct Payload; #[cfg(not(feature = \"identity-alt\"))] pub enum Payload {}",
+    )];
+    let found = nominal_identity(&alternatives, "fixture", "crate", "Payload", &[])
+        .expect("mutually exclusive cfg definitions remain separate alternatives");
+    assert_eq!(found.len(), 2);
+    assert_ne!(found[0].kind, found[1].kind);
+    assert!(found.iter().all(|identity| !identity.guards.is_empty()));
+}
+
+#[test]
+fn nominal_identity_does_not_borrow_a_foreign_same_named_module() {
+    let sources = [
+        package_mount(
+            "foreign-package",
+            "crate::model",
+            "foreign/model.rs",
+            "pub struct SessionCore;",
+        ),
+        package_mount("wow-world", "crate::consumer", "world/consumer.rs", ""),
+    ];
+    assert!(matches!(
+        nominal_identity(
+            &sources,
+            "wow-world",
+            "crate::consumer",
+            "wow_world_core::model::SessionCore",
+            &[],
+        ),
+        Err(TypeIdentityError::Missing(_))
+    ));
+}
+
+#[test]
+fn nominal_identity_rejects_wrapper_aliases_and_reports_alias_cycles() {
+    let wrapper = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub struct Payload; pub type Wrapped = std::sync::Arc<Payload>;",
+    )];
+    assert!(matches!(
+        nominal_identity(&wrapper, "fixture", "crate", "Wrapped", &[]),
+        Err(TypeIdentityError::Unsupported(_))
+    ));
+
+    let cycle = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub type First = Second; pub type Second = First;",
+    )];
+    assert!(matches!(
+        nominal_identity(&cycle, "fixture", "crate", "First", &[]),
+        Err(TypeIdentityError::Cycle(_))
+    ));
 }

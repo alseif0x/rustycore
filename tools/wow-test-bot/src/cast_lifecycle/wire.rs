@@ -1,15 +1,302 @@
-//! Exact 3.4.3 cast request builder, packet observer and decoder.
+//! Exact request builders and logical packet trace for the scripted runner.
 
 use super::*;
 
-pub(super) fn record_sent(evidence: &mut Evidence, action: &str, opcode: u16, body: &[u8]) {
+pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
+    match action {
+        Action::ReleaseSpirit { check_instance } => {
+            let mut body = [0u8; 1];
+            write_msb_bits(&mut body, 0, 1, u32::from(*check_instance));
+            (CMSG_RELEASE_SPIRIT, body.to_vec())
+        }
+        Action::ReclaimCorpse { corpse } => (CMSG_RECLAIM_CORPSE, corpse.packed()),
+        Action::SpiritHealerActivate { healer } => match healer {
+            CreatureTarget::Guid(healer) => (CMSG_SPIRIT_HEALER_ACTIVATE, healer.packed()),
+            CreatureTarget::Observed(_) => {
+                unreachable!("observed creature targets must resolve before packet building")
+            }
+        },
+        Action::ResurrectResponse { offerer, response } => {
+            let mut body = offerer.packed();
+            body.extend(response.to_le_bytes());
+            (CMSG_RESURRECT_RESPONSE, body)
+        }
+        Action::SelfRes { spell_id } => (CMSG_SELF_RES, spell_id.to_le_bytes().to_vec()),
+        Action::AttackSwing { target } => match target {
+            CreatureTarget::Guid(target) => (CMSG_ATTACK_SWING, target.packed()),
+            CreatureTarget::Observed(_) => {
+                unreachable!("observed creature targets must resolve before packet building")
+            }
+        },
+        Action::AttackStop => (CMSG_ATTACK_STOP, Vec::new()),
+        Action::LogoutRequest { idle_logout } => {
+            (CMSG_LOGOUT_REQUEST, vec![u8::from(*idle_logout)])
+        }
+        Action::LogoutCancel {} => (CMSG_LOGOUT_CANCEL, Vec::new()),
+        _ => unreachable!("only typed non-cast actions use this builder"),
+    }
+}
+
+pub(super) async fn send_traced_packet(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    evidence: &mut Evidence,
+    connection: Connection,
+    action_index: Option<usize>,
+    action: &str,
+    opcode: u16,
+    body: &[u8],
+) -> Result<()> {
+    let sent_sequence =
+        record_send_attempt(evidence, connection, action_index, action, opcode, body);
+    match send_encrypted_packet(stream, crypt, opcode, body).await {
+        Ok(()) => {
+            record_write_completed(evidence, sent_sequence);
+            Ok(())
+        }
+        Err(error) => {
+            record_write_failed(evidence, sent_sequence, &error.to_string());
+            Err(error)
+        }
+    }
+}
+
+pub(super) fn record_send_attempt(
+    evidence: &mut Evidence,
+    connection: Connection,
+    action_index: Option<usize>,
+    action: &str,
+    opcode: u16,
+    body: &[u8],
+) -> usize {
+    let sent_sequence = evidence.sent_packets.len();
+    let connection_sequence = take_connection_sequence(evidence, connection);
+    let observation_sequence = evidence.trace.len();
     evidence.sent_packets.push(SentPacket {
-        sequence: evidence.sent_packets.len(),
+        sequence: sent_sequence,
+        observation_sequence,
+        action_index,
+        connection,
+        connection_sequence,
         action: action.to_string(),
         opcode,
         bytes: body.len(),
+        body_hex: hex::encode(body),
         body_sha256: format!("{:x}", Sha256::digest(body)),
+        write_attempted: true,
+        write_completed: false,
+        write_error: None,
     });
+    push_trace(
+        evidence,
+        TraceKind::SendAttempted,
+        action_index,
+        Some(action.to_string()),
+        Some(connection),
+        Some(connection_sequence),
+        Some(opcode),
+        Some(sent_sequence),
+        None,
+        Some(body.len()),
+        false,
+        None,
+    );
+    sent_sequence
+}
+
+pub(super) fn record_write_completed(evidence: &mut Evidence, sent_sequence: usize) {
+    let sent = &mut evidence.sent_packets[sent_sequence];
+    sent.write_completed = true;
+    let (action_index, action, connection, connection_sequence, opcode, body_bytes) = (
+        sent.action_index,
+        sent.action.clone(),
+        sent.connection,
+        sent.connection_sequence,
+        sent.opcode,
+        sent.bytes,
+    );
+    push_trace(
+        evidence,
+        TraceKind::LocalWriteCompleted,
+        action_index,
+        Some(action),
+        Some(connection),
+        Some(connection_sequence),
+        Some(opcode),
+        Some(sent_sequence),
+        None,
+        Some(body_bytes),
+        false,
+        None,
+    );
+}
+
+pub(super) fn record_write_failed(evidence: &mut Evidence, sent_sequence: usize, error: &str) {
+    let sent = &mut evidence.sent_packets[sent_sequence];
+    sent.write_error = Some(error.to_string());
+    let (action_index, action, connection, connection_sequence, opcode, body_bytes) = (
+        sent.action_index,
+        sent.action.clone(),
+        sent.connection,
+        sent.connection_sequence,
+        sent.opcode,
+        sent.bytes,
+    );
+    push_trace(
+        evidence,
+        TraceKind::LocalWriteFailed,
+        action_index,
+        Some(action),
+        Some(connection),
+        Some(connection_sequence),
+        Some(opcode),
+        Some(sent_sequence),
+        None,
+        Some(body_bytes),
+        false,
+        Some(error.to_string()),
+    );
+}
+
+pub(super) fn record_action_boundary(
+    evidence: &mut Evidence,
+    action_index: Option<usize>,
+    action: &str,
+    kind: TraceKind,
+    detail: Option<String>,
+) {
+    push_trace(
+        evidence,
+        kind,
+        action_index,
+        Some(action.to_string()),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        false,
+        detail,
+    );
+}
+
+pub(super) fn record_socket_close(
+    evidence: &mut Evidence,
+    connection: Connection,
+    error: Option<&std::io::Error>,
+) {
+    push_trace(
+        evidence,
+        TraceKind::LocalSocketClosed,
+        None,
+        Some("finish".to_string()),
+        Some(connection),
+        None,
+        None,
+        None,
+        None,
+        None,
+        false,
+        error.map(|error| error.to_string()),
+    );
+}
+
+fn push_trace(
+    evidence: &mut Evidence,
+    kind: TraceKind,
+    action_index: Option<usize>,
+    action: Option<String>,
+    connection: Option<Connection>,
+    connection_sequence: Option<usize>,
+    opcode: Option<u16>,
+    sent_packet_sequence: Option<usize>,
+    event_sequence: Option<usize>,
+    body_bytes: Option<usize>,
+    body_redacted: bool,
+    detail: Option<String>,
+) {
+    let sequence = evidence.trace.len();
+    evidence.trace.push(TraceEntry {
+        sequence,
+        kind,
+        action_index,
+        action,
+        connection,
+        connection_sequence,
+        opcode,
+        sent_packet_sequence,
+        event_sequence,
+        body_bytes,
+        body_redacted,
+        detail,
+    });
+}
+
+fn take_connection_sequence(evidence: &mut Evidence, connection: Connection) -> usize {
+    let counter = match connection {
+        Connection::Instance => &mut evidence.connection_sequences.instance,
+        Connection::Realm => &mut evidence.connection_sequences.realm,
+    };
+    let sequence = *counter;
+    *counter += 1;
+    sequence
+}
+
+pub(super) fn record_observed_packet(
+    evidence: &mut Evidence,
+    connection: Connection,
+    opcode: u16,
+    payload: &[u8],
+) -> Option<usize> {
+    let connection_sequence = take_connection_sequence(evidence, connection);
+    if matches!(
+        opcode,
+        REDACTED_SMSG_AUTH_CHALLENGE
+            | REDACTED_SMSG_AUTH_FAILED
+            | REDACTED_SMSG_AUTH_RESPONSE
+            | REDACTED_SMSG_ENTER_ENCRYPTED_MODE
+            | REDACTED_SMSG_CONNECT_TO
+    ) {
+        push_trace(
+            evidence,
+            TraceKind::PacketRedacted,
+            None,
+            Some("authentication_or_transfer_control".to_string()),
+            Some(connection),
+            Some(connection_sequence),
+            Some(opcode),
+            None,
+            None,
+            Some(payload.len()),
+            true,
+            Some("key-bearing control body omitted".to_string()),
+        );
+        return None;
+    }
+
+    let event_sequence = evidence.events.len();
+    let observation_sequence = evidence.trace.len();
+    let mut event = decode_event(event_sequence, connection, opcode, payload);
+    event.connection_sequence = connection_sequence;
+    event.observation_sequence = observation_sequence;
+    push_trace(
+        evidence,
+        TraceKind::PacketObserved,
+        None,
+        None,
+        Some(connection),
+        Some(connection_sequence),
+        Some(opcode),
+        None,
+        Some(event_sequence),
+        Some(payload.len()),
+        false,
+        None,
+    );
+    correlate_event(evidence, &mut event);
+    evidence.events.push(event);
+    Some(event_sequence)
 }
 
 pub(super) fn build_cast_spell_payload(
@@ -31,11 +318,13 @@ pub(super) fn build_cast_spell_payload(
     body.extend([0u8; 2]); // SendCastFlags, movement, weights, crafting order
 
     // SpellTargetData: 28-bit flags, four option bits, 7-bit name length.
-    // TARGET_FLAG_UNIT is 0x2. C++ always follows this bit section with the
-    // unit and item packed GUIDs, even for an empty target.
+    // Corpse targets use TARGET_FLAG_CORPSE_ALLY (0x8000), ordinary targets
+    // TARGET_FLAG_UNIT (0x2). SpellCastTargets::Write (Spell.cpp:178) puts
+    // either GUID in Unit; both packed GUID fields exist even for no target.
     let mut target_header = [0u8; 5];
-    if target.is_some() {
-        write_msb_bits(&mut target_header, 0, 28, 0x2);
+    if let Some(target) = target {
+        let flags = if target.high >> 58 == 14 { 0x8000 } else { 0x2 };
+        write_msb_bits(&mut target_header, 0, 28, flags);
     }
     body.extend(target_header);
     body.extend(target.unwrap_or(Guid { low: 0, high: 0 }).packed());
@@ -78,36 +367,211 @@ pub(super) async fn collect_until(
     crypt: &mut WorldCrypt,
     inflater: &mut ServerPacketInflater,
     realm: &mut Option<EncryptedWorldConnection>,
-    evidence: &mut Evidence,
+    controller: &mut Controller,
 ) -> Result<()> {
+    collect_until_inner(
+        deadline, stream, crypt, inflater, realm, controller, None, false,
+    )
+    .await
+    .map(|_| ())
+}
+
+/// WorldSession.cpp:676 sends realm LogoutComplete before :687 closes the
+/// instance socket; their independent transports can deliver the EOF first.
+pub(super) async fn collect_logout_until(
+    deadline: tokio::time::Instant,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    controller: &mut Controller,
+) -> Result<()> {
+    if !controller.evidence.logout_request_completed || realm.is_none() {
+        bail!("logout observation requires a completed request and a realm connection");
+    }
+    if collect_until_inner(
+        deadline, stream, crypt, inflater, realm, controller, None, true,
+    )
+    .await?
+    {
+        Ok(())
+    } else {
+        bail!("timed out waiting for realm LogoutComplete");
+    }
+}
+
+pub(super) async fn wait_for_packet(
+    deadline: tokio::time::Instant,
+    connection: Connection,
+    opcode: u16,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    controller: &mut Controller,
+) -> Result<()> {
+    if connection == Connection::Realm
+        && opcode == SMSG_LOGOUT_COMPLETE
+        && controller.evidence.logout_confirmed
+        && controller.evidence.logout_route.as_deref() == Some("realm")
+    {
+        return Ok(());
+    }
+    let finishing_logout = connection == Connection::Realm
+        && opcode == SMSG_LOGOUT_COMPLETE
+        && controller.evidence.logout_request_completed;
+    if collect_until_inner(
+        deadline,
+        stream,
+        crypt,
+        inflater,
+        realm,
+        controller,
+        Some((connection, opcode)),
+        finishing_logout,
+    )
+    .await?
+    {
+        Ok(())
+    } else {
+        bail!(
+            "timed out waiting for {connection:?} packet 0x{opcode:04X} before the action or plan deadline"
+        );
+    }
+}
+
+async fn collect_until_inner(
+    deadline: tokio::time::Instant,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    controller: &mut Controller,
+    match_packet: Option<(Connection, u16)>,
+    finishing_logout: bool,
+) -> Result<bool> {
+    let mut instance_closed = false;
     while tokio::time::Instant::now() < deadline {
-        let Some((connection, opcode, payload)) =
-            next_packet(deadline, stream, crypt, inflater, realm).await?
+        let tolerate_instance_eof = finishing_logout
+            || (match_packet == Some((Connection::Instance, SMSG_LOGOUT_RESPONSE))
+                && controller.evidence.logout_confirmed);
+        let Some((connection, opcode, payload)) = next_packet(
+            deadline,
+            stream,
+            crypt,
+            inflater,
+            realm,
+            tolerate_instance_eof.then_some(&mut instance_closed),
+        )
+        .await?
         else {
             break;
         };
-        let sequence = evidence.events.len();
-        let mut event = decode_event(sequence, connection, opcode, &payload);
-        correlate_event(evidence, &mut event);
+        controller
+            .observe_packet(
+                connection == Connection::Instance,
+                opcode,
+                &payload,
+                stream,
+                crypt,
+                realm,
+            )
+            .await?;
         if opcode == SMSG_LOGOUT_COMPLETE {
+            if !controller.evidence.logout_request_completed {
+                if let Some(event) = controller.evidence.events.last_mut() {
+                    event.error = Some(
+                        "LogoutComplete arrived before the scripted logout request".to_string(),
+                    );
+                }
+                bail!("LogoutComplete arrived before the scripted logout request");
+            }
             match logout_complete_route(connection, &payload) {
                 Ok(route) => {
-                    evidence.logout_confirmed = true;
-                    evidence.logout_route = Some(route.to_string());
+                    controller.evidence.logout_confirmed = true;
+                    controller.evidence.logout_route = Some(route.to_string());
                 }
                 Err(error) => {
-                    event.error.get_or_insert_with(|| error.to_string());
-                    evidence.events.push(event);
+                    if let Some(event) = controller.evidence.events.last_mut() {
+                        event.error.get_or_insert_with(|| error.to_string());
+                    }
                     return Err(error);
                 }
             }
-        }
-        evidence.events.push(event);
-        if opcode == SMSG_LOGOUT_COMPLETE {
+            if match_packet == Some((connection, opcode)) {
+                return Ok(true);
+            }
+            if let Some((wait_connection, wait_opcode)) = match_packet {
+                if match_packet != Some((Connection::Instance, SMSG_LOGOUT_RESPONSE)) {
+                    bail!(
+                        "LogoutComplete arrived before wait_for_packet for {wait_connection:?} packet 0x{wait_opcode:04X}"
+                    );
+                }
+            }
+            if finishing_logout {
+                return Ok(true);
+            }
+            if match_packet.is_some() {
+                continue;
+            }
             break;
         }
+        if match_packet == Some((connection, opcode)) {
+            return Ok(true);
+        }
     }
-    Ok(())
+    Ok(false)
+}
+
+pub(super) async fn drain_login_streams_with_controller(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    result: &mut BotRunResult,
+    controller: &mut Controller,
+) -> Result<()> {
+    if realm.is_none() {
+        bail!("cast lifecycle login drain requires both sockets");
+    }
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let mut quiet_deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+    loop {
+        let read_deadline = quiet_deadline.min(deadline);
+        let Some((connection, opcode, payload)) =
+            next_packet(read_deadline, stream, crypt, inflater, realm, None).await?
+        else {
+            if result.login_instance_object_update_seen {
+                result.login_stream_drained = true;
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                bail!("login streams did not publish an instance object update");
+            }
+            quiet_deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+            continue;
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        if connection == Connection::Instance && opcode == SMSG_UPDATE_OBJECT {
+            result.login_instance_object_update_seen = true;
+        }
+        if opcode == crate::chat_say::SMSG_CHAT {
+            crate::chat_say::record(0, &payload, result);
+        }
+        controller
+            .observe_packet(
+                connection == Connection::Instance,
+                opcode,
+                &payload,
+                stream,
+                crypt,
+                realm,
+            )
+            .await?;
+        if opcode != SMSG_ON_MONSTER_MOVE {
+            quiet_deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+        }
+    }
 }
 
 async fn next_packet(
@@ -116,7 +580,10 @@ async fn next_packet(
     crypt: &mut WorldCrypt,
     inflater: &mut ServerPacketInflater,
     realm: &mut Option<EncryptedWorldConnection>,
+    mut instance_closed: Option<&mut bool>,
 ) -> Result<Option<(Connection, u16, Vec<u8>)>> {
+    const PACKET_POLL_INTERVAL: Duration = Duration::from_millis(1);
+
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
@@ -127,23 +594,12 @@ async fn next_packet(
                 &mut realm.stream,
                 &mut realm.crypt,
                 &mut realm.inflater,
-                remaining.min(Duration::from_millis(10)),
+                remaining.min(PACKET_POLL_INTERVAL),
                 remaining,
                 "cast lifecycle realm packet",
             )
             .await?
             {
-                if opcode == SMSG_TIME_SYNC_REQUEST {
-                    let sequence = parse_time_sync_request_sequence(&payload)?;
-                    let response = build_time_sync_response_payload(sequence, 0);
-                    send_encrypted_packet(
-                        &mut realm.stream,
-                        &mut realm.crypt,
-                        CMSG_TIME_SYNC_RESPONSE,
-                        &response,
-                    )
-                    .await?;
-                }
                 return Ok(Some((Connection::Realm, opcode, payload)));
             }
         }
@@ -151,21 +607,35 @@ async fn next_packet(
         if remaining.is_zero() {
             return Ok(None);
         }
+        if let Some(closed) = instance_closed.as_deref_mut() {
+            if *closed {
+                continue;
+            }
+            // Tolerated logout waits accept frame-boundary EOF; malformed or
+            // truncated encrypted frames still fail below.
+            let mut byte = [0u8; 1];
+            match tokio::time::timeout(remaining.min(PACKET_POLL_INTERVAL), stream.peek(&mut byte))
+                .await
+            {
+                Err(_) => continue,
+                Ok(Ok(0)) => {
+                    *closed = true;
+                    continue;
+                }
+                Ok(Ok(_)) => {}
+                Ok(Err(error)) => bail!("cast lifecycle instance packet: peek failed: {error}"),
+            }
+        }
         if let Some((opcode, payload)) = read_encrypted_packet_if_ready(
             stream,
             crypt,
             inflater,
-            remaining.min(Duration::from_millis(10)),
+            remaining.min(PACKET_POLL_INTERVAL),
             remaining,
             "cast lifecycle instance packet",
         )
         .await?
         {
-            if opcode == SMSG_TIME_SYNC_REQUEST {
-                let sequence = parse_time_sync_request_sequence(&payload)?;
-                let response = build_time_sync_response_payload(sequence, 0);
-                send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response).await?;
-            }
             return Ok(Some((Connection::Instance, opcode, payload)));
         }
     }
@@ -179,10 +649,13 @@ pub(super) fn decode_event(
 ) -> ObservedEvent {
     let mut event = ObservedEvent {
         sequence,
+        observation_sequence: 0,
         connection,
+        connection_sequence: 0,
         opcode,
         kind: event_kind(opcode).to_string(),
         body_bytes: payload.len(),
+        body_hex: hex::encode(payload),
         body_sha256: format!("{:x}", Sha256::digest(payload)),
         client_cast_id: None,
         server_cast_id: None,
@@ -229,6 +702,18 @@ pub(super) fn decode_event(
 
 fn event_kind(opcode: u16) -> &'static str {
     match opcode {
+        SMSG_LOGIN_VERIFY_WORLD => "login_verify_world",
+        SMSG_NEW_WORLD => "new_world",
+        SMSG_TRANSFER_PENDING => "transfer_pending",
+        SMSG_RESUME_TOKEN => "resume_token",
+        SMSG_SUSPEND_TOKEN => "suspend_token",
+        SMSG_MOVE_ROOT => "move_root",
+        SMSG_MOVE_UNROOT => "move_unroot",
+        SMSG_MOVE_SET_WATER_WALK => "move_water_walk",
+        SMSG_MOVE_SET_LAND_WALK => "move_land_walk",
+        SMSG_MOVE_SET_RUN_SPEED => "move_run_speed",
+        SMSG_MOVE_SET_SWIM_SPEED => "move_swim_speed",
+        SMSG_MOVE_TELEPORT => "move_teleport",
         SMSG_SPELL_PREPARE => "spell_prepare",
         SMSG_SPELL_START => "spell_start",
         SMSG_SPELL_GO => "spell_go",
@@ -429,21 +914,21 @@ fn parse_target_point(cursor: &mut Cursor<'_>) -> Result<TargetPointFact> {
     })
 }
 
-struct Cursor<'a> {
+pub(super) struct Cursor<'a> {
     data: &'a [u8],
     position: usize,
 }
 
 impl<'a> Cursor<'a> {
-    fn new(data: &'a [u8]) -> Self {
+    pub(super) fn new(data: &'a [u8]) -> Self {
         Self { data, position: 0 }
     }
 
-    fn remaining(&self) -> usize {
+    pub(super) fn remaining(&self) -> usize {
         self.data.len().saturating_sub(self.position)
     }
 
-    fn bytes(&mut self, length: usize) -> Result<&'a [u8]> {
+    pub(super) fn bytes(&mut self, length: usize) -> Result<&'a [u8]> {
         let end = self
             .position
             .checked_add(length)
@@ -456,7 +941,7 @@ impl<'a> Cursor<'a> {
         Ok(bytes)
     }
 
-    fn guid(&mut self) -> Result<Guid> {
+    pub(super) fn guid(&mut self) -> Result<Guid> {
         let (consumed, low, high) = parse_packed_guid(&self.data[self.position..])
             .context("truncated packed ObjectGuid")?;
         self.position = self
@@ -466,7 +951,7 @@ impl<'a> Cursor<'a> {
         Ok(Guid { low, high })
     }
 
-    fn u8(&mut self) -> Result<u8> {
+    pub(super) fn u8(&mut self) -> Result<u8> {
         Ok(*self.bytes(1)?.first().unwrap())
     }
 
@@ -478,11 +963,11 @@ impl<'a> Cursor<'a> {
         Ok(u16::from_le_bytes(self.bytes(2)?.try_into().unwrap()))
     }
 
-    fn i32(&mut self) -> Result<i32> {
+    pub(super) fn i32(&mut self) -> Result<i32> {
         Ok(i32::from_le_bytes(self.bytes(4)?.try_into().unwrap()))
     }
 
-    fn u32(&mut self) -> Result<u32> {
+    pub(super) fn u32(&mut self) -> Result<u32> {
         Ok(u32::from_le_bytes(self.bytes(4)?.try_into().unwrap()))
     }
 
@@ -490,11 +975,11 @@ impl<'a> Cursor<'a> {
         Ok(i64::from_le_bytes(self.bytes(8)?.try_into().unwrap()))
     }
 
-    fn f32(&mut self) -> Result<f32> {
+    pub(super) fn f32(&mut self) -> Result<f32> {
         Ok(f32::from_le_bytes(self.bytes(4)?.try_into().unwrap()))
     }
 
-    fn finish(&self, packet: &str) -> Result<()> {
+    pub(super) fn finish(&self, packet: &str) -> Result<()> {
         if self.position != self.data.len() {
             bail!(
                 "{packet} has {} trailing byte(s)",

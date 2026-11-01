@@ -1,0 +1,9 @@
+# base_path name head_path (#1363 slice 12b1b plan, base e5c8195b0)
+crates/wow-world/src/handlers/character/items/host.rs	validate_inventory_swap_target_like_cpp	crates/wow-world-application/src/player_items_session/planning.rs
+crates/wow-world/src/session/player_items/equipment.rs	plan_equip_existing_inventory_item_like_cpp	crates/wow-world-application/src/player_items_session/planning.rs
+crates/wow-world/src/session/player_items/bank.rs	plan_bank_existing_inventory_item_at_like_cpp	crates/wow-world-application/src/player_items_session/planning.rs
+crates/wow-world/src/session/player_items/persistence.rs	plan_store_existing_inventory_item_at_like_cpp	crates/wow-world-application/src/player_items_session/planning.rs
+crates/wow-world/src/session/player_items/persistence.rs	plan_store_new_direct_inventory_item	crates/wow-world-application/src/player_items_session/planning.rs
+crates/wow-world/src/session/player_items/persistence.rs	plan_store_new_direct_inventory_item_at	crates/wow-world-application/src/player_items_session/planning.rs
+crates/wow-world/src/session/player_items/persistence.rs	plan_store_new_direct_inventory_item_with_overlays_like_cpp	crates/wow-world-application/src/player_items_session/planning.rs
+crates/wow-world/src/session/player_items/persistence.rs	plan_store_direct_inventory_item_like_cpp	crates/wow-world-application/src/player_items_session/planning.rs

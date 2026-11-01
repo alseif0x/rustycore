@@ -22,7 +22,6 @@ fn game_event_seasonal_consume_records_evidence_without_player_or_db_mutation_li
 
     let mut summary = consume_game_event_live_update_side_effects_like_cpp(
         &mut manager,
-        None,
         &mut metadata,
         &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         None,
@@ -96,7 +95,6 @@ fn game_event_seasonal_db_delete_preserves_zero_event_start_time_like_cpp() {
 
     let mut summary = consume_game_event_live_update_side_effects_like_cpp(
         &mut manager,
-        None,
         &mut metadata,
         &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         None,
@@ -169,16 +167,18 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
     registry.register_or_replace(
         player_guid,
         PlayerSessionRegistrationLikeCpp {
-            identity: PlayerDirectoryIdentityLikeCpp {
-                player_name: "SeasonalTester".to_string(),
-                account_id: 1,
-                battlenet_account_id: 0,
-                recruiter_id: 0,
-                race: 1,
-                class: 1,
-                sex: 0,
-                active_expansion: 2,
-            },
+            identity: PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+                "SeasonalTester",
+                1,
+                0,
+                0,
+                1,
+                1,
+                0,
+                2,
+                "enUS",
+                None,
+            ),
             placement: PlayerDirectoryPlacementLikeCpp {
                 map_id: 0,
                 instance_id: 0,
@@ -203,7 +203,6 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
 
     let mut summary = consume_game_event_live_update_side_effects_like_cpp(
         &mut manager,
-        None,
         &mut metadata,
         &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         None,
@@ -485,7 +484,6 @@ fn spawn_group_condition_update_tick_uses_effective_map_update_diff_only() {
 
     let early = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         9,
         &mut scheduler,
         &metadata,
@@ -505,7 +503,6 @@ fn spawn_group_condition_update_tick_uses_effective_map_update_diff_only() {
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata,
@@ -551,7 +548,6 @@ fn spawn_group_condition_update_tick_applies_set_inactive_only_when_scheduler_fi
 
     let early = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         99,
         &mut scheduler,
         &metadata,
@@ -570,7 +566,6 @@ fn spawn_group_condition_update_tick_applies_set_inactive_only_when_scheduler_fi
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata,

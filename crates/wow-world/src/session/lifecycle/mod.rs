@@ -9,17 +9,15 @@
 //! ordering each part must preserve is documented beside the code that owns
 //! it rather than in a separate note that can drift.
 
-mod account;
 mod cleanup;
 mod finalization;
+mod lifecycle_host;
 mod login;
 mod logout;
-mod map_entry;
 mod persistence;
 pub use persistence::PlayerSaveOutcomeLikeCpp;
 mod pet_load;
 mod transfer_completion;
-mod transfer_destination;
-mod transfer_recovery;
+mod worldport_host;
 
 pub(super) use pet_load::PetLoadQueryHolderRowsLikeCpp;

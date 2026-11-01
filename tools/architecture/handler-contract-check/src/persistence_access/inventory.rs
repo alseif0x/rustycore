@@ -48,6 +48,7 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
     let mut accumulator = AccessAccumulator::default();
     let mut errors = Vec::new();
     let dependency_aliases = dependency_alias_cache(dependencies);
+    let associated_type_names = std::sync::Arc::new(workspace_associated_type_names(sources));
     let mut named_type_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
     for _ in 0..=ordered.len() {
@@ -838,6 +839,7 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 continue;
             }
             let mut package_symbols = ModuleSymbols::for_package(source.package);
+            package_symbols.workspace_associated_type_names = associated_type_names.clone();
             package_symbols.named_type_info = named_type_package_cache
                 .get(&(source.package.to_owned(), source_class))
                 .cloned()
@@ -946,4 +948,30 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         errors.dedup();
         Err(errors.join("\n"))
     }
+}
+
+/// Every associated-type name declared by a trait or impl in `sources`
+/// (#1437), whatever its cfg: a superset only makes the generic guard stricter.
+fn workspace_associated_type_names(
+    sources: &[ClassifiedPersistenceSource<'_>],
+) -> BTreeSet<String> {
+    #[derive(Default)]
+    struct AssociatedTypes(BTreeSet<String>);
+    impl<'ast> Visit<'ast> for AssociatedTypes {
+        fn visit_trait_item_type(&mut self, item: &'ast syn::TraitItemType) {
+            self.0.insert(normalized_ident(&item.ident));
+            visit::visit_trait_item_type(self, item);
+        }
+        fn visit_impl_item_type(&mut self, item: &'ast syn::ImplItemType) {
+            self.0.insert(normalized_ident(&item.ident));
+            visit::visit_impl_item_type(self, item);
+        }
+    }
+    let mut names = AssociatedTypes::default();
+    for source in sources {
+        if let Ok(syntax) = syn::parse_file(source.source) {
+            names.visit_file(&syntax);
+        }
+    }
+    names.0
 }

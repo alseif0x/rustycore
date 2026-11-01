@@ -126,6 +126,105 @@ pub(crate) fn prepare_vendor_smoke_fixture(
         bail!("No empty default backpack slot for vendor smoke");
     }
 
+    let (mut world, vendor, target_match_radius) =
+        resolve_vendor_sql_spawn(vendor_entry, vendor_spawn_guid, runtime_counter)?;
+    let (vendor_map, vendor_x, vendor_y, vendor_z, vendor_o) = (
+        vendor.map_id,
+        vendor.x,
+        vendor.y,
+        vendor.z,
+        vendor.orientation,
+    );
+    let guid_counter = vendor.guid_counter;
+    let vendor_row_count: u64 = world
+        .exec_first(
+            "SELECT COUNT(*) FROM npc_vendor \
+             WHERE entry = ? AND item = ? AND ExtendedCost = ? AND type = 1",
+            (vendor_entry, item_entry, extended_cost),
+        )
+        .map_err(|error| anyhow!("Validate exact npc_vendor row: {error}"))?
+        .unwrap_or(0);
+    if vendor_row_count != 1 {
+        bail!(
+            "expected one npc_vendor row for vendor/item/extended-cost {vendor_entry}/{item_entry}/{extended_cost}, found {vendor_row_count}"
+        );
+    }
+    let mut transaction = characters
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|error| anyhow!("Start vendor fixture transaction: {error}"))?;
+    transaction
+        .exec_drop(
+            "INSERT INTO character_currency \
+             (CharacterGuid, Currency, Quantity, WeeklyQuantity, TrackedQuantity, IncreasedCapQuantity, EarnedQuantity, Flags) \
+             VALUES (?, ?, ?, 0, 0, 0, 0, 0) \
+             ON DUPLICATE KEY UPDATE Quantity = VALUES(Quantity), WeeklyQuantity = 0, \
+                 TrackedQuantity = 0, IncreasedCapQuantity = 0, EarnedQuantity = 0, Flags = 0",
+            (bot.character_guid, currency_id, currency_quantity),
+        )
+        .map_err(|error| anyhow!("Seed vendor currency fixture: {error}"))?;
+    transaction
+        .exec_drop(
+            "UPDATE characters SET map = ?, zone = 0, instance_id = 0, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
+             WHERE guid = ? AND online = 0",
+            (
+                u32::from(vendor_map),
+                vendor_x + 2.0,
+                vendor_y,
+                vendor_z,
+                vendor_o,
+                bot.character_guid,
+            ),
+        )
+        .map_err(|error| anyhow!("Relocate vendor bot near vendor: {error}"))?;
+    if transaction.affected_rows() != 1 {
+        bail!("vendor character relocation lost its offline ownership guard");
+    }
+    transaction
+        .commit()
+        .map_err(|error| anyhow!("Commit vendor fixture transaction: {error}"))?;
+
+    info!(
+        "Vendor fixture: character={} vendor={}/{} counter={} item={} extended_cost={} currency={} quantity/cost={}/{}",
+        bot.character_guid,
+        vendor_entry,
+        vendor_spawn_guid,
+        guid_counter,
+        item_entry,
+        extended_cost,
+        currency_id,
+        currency_quantity,
+        currency_cost
+    );
+    Ok(VendorSmokeFixture {
+        options: VendorSmokeOptions {
+            phase: VendorSmokePhase::Purchase,
+            vendor,
+            target_match_radius,
+            item_entry,
+            extended_cost,
+            currency_id,
+            currency_before: currency_quantity,
+            currency_cost,
+            expected_item_total: 1,
+            timeout_secs,
+        },
+        original_position,
+        original_currency,
+    })
+}
+/// Resolve one exact `world.creature` vendor spawn and its ambiguity guard.
+///
+/// Shared by the vendor buy and sell smokes: the spawn must have the expected
+/// entry, sit in the base phase for difficulty 0, and (without a trusted live
+/// counter) be the only same-entry spawn inside its match radius. Returns the
+/// open world connection so callers can run their own extra checks.
+pub(crate) fn resolve_vendor_sql_spawn(
+    vendor_entry: u32,
+    vendor_spawn_guid: u64,
+    runtime_counter: Option<u64>,
+) -> Result<(mysql::Conn, ResolvedCreatureTarget, f32)> {
+    use mysql::prelude::Queryable;
+
     let world_url = world_db_url()?;
     let world_opts =
         mysql::Opts::from_url(&world_url).map_err(|error| anyhow!("Bad world DB URL: {error}"))?;
@@ -191,19 +290,6 @@ pub(crate) fn prepare_vendor_smoke_fixture(
             );
         }
     }
-    let vendor_row_count: u64 = world
-        .exec_first(
-            "SELECT COUNT(*) FROM npc_vendor \
-             WHERE entry = ? AND item = ? AND ExtendedCost = ? AND type = 1",
-            (vendor_entry, item_entry, extended_cost),
-        )
-        .map_err(|error| anyhow!("Validate exact npc_vendor row: {error}"))?
-        .unwrap_or(0);
-    if vendor_row_count != 1 {
-        bail!(
-            "expected one npc_vendor row for vendor/item/extended-cost {vendor_entry}/{item_entry}/{extended_cost}, found {vendor_row_count}"
-        );
-    }
     let vendor_map = u16::try_from(vendor_map)
         .map_err(|_| anyhow!("vendor map id does not fit protocol: {vendor_map}"))?;
     let guid_counter = runtime_counter.unwrap_or(0);
@@ -225,68 +311,7 @@ pub(crate) fn prepare_vendor_smoke_fixture(
         packed_guid,
     };
 
-    let mut transaction = characters
-        .start_transaction(mysql::TxOpts::default())
-        .map_err(|error| anyhow!("Start vendor fixture transaction: {error}"))?;
-    transaction
-        .exec_drop(
-            "INSERT INTO character_currency \
-             (CharacterGuid, Currency, Quantity, WeeklyQuantity, TrackedQuantity, IncreasedCapQuantity, EarnedQuantity, Flags) \
-             VALUES (?, ?, ?, 0, 0, 0, 0, 0) \
-             ON DUPLICATE KEY UPDATE Quantity = VALUES(Quantity), WeeklyQuantity = 0, \
-                 TrackedQuantity = 0, IncreasedCapQuantity = 0, EarnedQuantity = 0, Flags = 0",
-            (bot.character_guid, currency_id, currency_quantity),
-        )
-        .map_err(|error| anyhow!("Seed vendor currency fixture: {error}"))?;
-    transaction
-        .exec_drop(
-            "UPDATE characters SET map = ?, zone = 0, instance_id = 0, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
-             WHERE guid = ? AND online = 0",
-            (
-                u32::from(vendor_map),
-                vendor_x + 2.0,
-                vendor_y,
-                vendor_z,
-                vendor_o,
-                bot.character_guid,
-            ),
-        )
-        .map_err(|error| anyhow!("Relocate vendor bot near vendor: {error}"))?;
-    if transaction.affected_rows() != 1 {
-        bail!("vendor character relocation lost its offline ownership guard");
-    }
-    transaction
-        .commit()
-        .map_err(|error| anyhow!("Commit vendor fixture transaction: {error}"))?;
-
-    info!(
-        "Vendor fixture: character={} vendor={}/{} counter={} item={} extended_cost={} currency={} quantity/cost={}/{}",
-        bot.character_guid,
-        vendor_entry,
-        vendor_spawn_guid,
-        guid_counter,
-        item_entry,
-        extended_cost,
-        currency_id,
-        currency_quantity,
-        currency_cost
-    );
-    Ok(VendorSmokeFixture {
-        options: VendorSmokeOptions {
-            phase: VendorSmokePhase::Purchase,
-            vendor,
-            target_match_radius,
-            item_entry,
-            extended_cost,
-            currency_id,
-            currency_before: currency_quantity,
-            currency_cost,
-            expected_item_total: 1,
-            timeout_secs,
-        },
-        original_position,
-        original_currency,
-    })
+    Ok((world, vendor, target_match_radius))
 }
 pub(crate) fn load_vendor_smoke_db_state(
     bot: &config::BotConfig,
@@ -557,9 +582,9 @@ pub(crate) fn prepare_bank_smoke_fixture(
     // cross faction boundaries on continent maps (for example Exodar vs.
     // Silvermoon), and C++ `GetNPCIfCanInteractWith` correctly rejects hostile
     // NPCs even when their BANKER flag and distance are valid.
-    let neutral: Option<(u64, u32, u32, f64, f64, f64, f32)> = world
+    let neutral: Option<(u64, u32, u32, f64, f64, f64, f32, f32)> = world
         .exec_first(
-            "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation \
+            "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation, c.wander_distance \
              FROM creature c JOIN creature_template ct ON ct.entry = c.id \
              WHERE ct.faction = 35 \
                AND ((IF(c.npcflag <> 0, c.npcflag, ct.npcflag) & ?) <> 0) \
@@ -574,7 +599,7 @@ pub(crate) fn prepare_bank_smoke_fixture(
         Some(row) => row,
         None => world
             .exec_first(
-                "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation \
+                "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation, c.wander_distance \
                  FROM creature c JOIN creature_template ct ON ct.entry = c.id \
                  WHERE ((IF(c.npcflag <> 0, c.npcflag, ct.npcflag) & ?) <> 0) \
                  ORDER BY c.guid LIMIT 1",
@@ -583,16 +608,27 @@ pub(crate) fn prepare_bank_smoke_fixture(
             .map_err(|e| anyhow!("Resolve fallback banker: {e}"))?
             .ok_or_else(|| anyhow!("No banker creature spawn exists in world DB"))?,
     };
-    let (spawn_guid, entry, banker_map, banker_x, banker_y, banker_z, banker_orientation) =
-        banker_row;
+    let (
+        spawn_guid,
+        entry,
+        banker_map,
+        banker_x,
+        banker_y,
+        banker_z,
+        banker_orientation,
+        banker_wander_distance,
+    ) = banker_row;
     let banker_map = u16::try_from(banker_map)
         .map_err(|_| anyhow!("banker map id does not fit protocol: {banker_map}"))?;
-    let guid_counter = runtime_counter.ok_or_else(|| {
-        anyhow!(
-            "banker entry {entry} resolved world.creature guid {spawn_guid}, but needs the live ObjectGuid low counter"
-        )
-    })?;
-    let (low, high) = create_creature_guid_raw(banker_map, entry, guid_counter);
+    // Without an explicit counter the phase discovers the live ObjectGuid
+    // after its active-mover ACK (counter 0 = discover, as for vendors).
+    let guid_counter = runtime_counter.unwrap_or(0);
+    let packed_guid = runtime_counter
+        .map(|counter| {
+            let (low, high) = create_creature_guid_raw(banker_map, entry, counter);
+            build_packed_guid(low, high)
+        })
+        .unwrap_or_default();
     let banker = ResolvedCreatureTarget {
         entry,
         spawn_guid,
@@ -602,7 +638,12 @@ pub(crate) fn prepare_bank_smoke_fixture(
         y: banker_y,
         z: banker_z,
         orientation: banker_orientation,
-        packed_guid: build_packed_guid(low, high),
+        packed_guid,
+    };
+    let target_match_radius = if runtime_counter.is_none() {
+        discovery_match_radius_for_spawn(&mut world, "banker", &banker, banker_wander_distance)?
+    } else {
+        banker_wander_distance.max(0.0) + 2.0
     };
 
     let mut transaction = characters
@@ -656,6 +697,7 @@ pub(crate) fn prepare_bank_smoke_fixture(
         options: BankSmokeOptions {
             phase: BankSmokePhase::Deposit,
             banker,
+            target_match_radius,
             item_guid,
             item_entry,
             inventory_slot,

@@ -173,6 +173,10 @@ pub enum UpdateBlock {
         guid: ObjectGuid,
         create_data: CorpseCreateData,
     },
+    CreateCorpseBirth {
+        guid: ObjectGuid,
+        create_data: CorpseCreateData,
+    },
     CreateSceneObject {
         guid: ObjectGuid,
         create_data: SceneObjectCreateData,
@@ -384,7 +388,20 @@ impl ServerPacket for UpdateObject {
                     write_area_trigger_create_block(&mut blocks_buf, guid, create_data);
                 }
                 UpdateBlock::CreateCorpse { guid, create_data } => {
-                    write_corpse_create_block(&mut blocks_buf, guid, create_data);
+                    write_corpse_create_block(
+                        &mut blocks_buf,
+                        UpdateType::CreateObject,
+                        guid,
+                        create_data,
+                    );
+                }
+                UpdateBlock::CreateCorpseBirth { guid, create_data } => {
+                    write_corpse_create_block(
+                        &mut blocks_buf,
+                        UpdateType::CreateObject2,
+                        guid,
+                        create_data,
+                    );
                 }
                 UpdateBlock::CreateSceneObject { guid, create_data } => {
                     write_scene_object_create_block(&mut blocks_buf, guid, create_data);

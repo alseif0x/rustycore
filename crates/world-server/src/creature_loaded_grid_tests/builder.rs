@@ -217,6 +217,103 @@ fn loaded_grid_db_backed_builder_maps_spawn_template_runtime_like_cpp() {
     assert_eq!(focus_runtime.stats.power, 25);
 }
 #[test]
+fn loaded_grid_db_backed_builder_applies_base_variance_before_final_ai_truncation_like_cpp() {
+    let entry = 12_400;
+    let spawn = db_backed_spawn(entry);
+    let runtime_row = CreatureSpawnRuntimeRowLikeCpp {
+        spawn_id: spawn.spawn_id,
+        model_id: 999,
+        equipment_id: 0,
+        wander_distance: 15.0,
+        curhealth: 77,
+        curmana: 33,
+        movement_type: 2,
+        npc_flags: None,
+        unit_flags: None,
+        unit_flags2: None,
+        unit_flags3: None,
+        ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+        swim_allowed: true,
+        flight_movement_type: wow_constants::CreatureFlightMovementType::None as u8,
+        rooted: false,
+        chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
+        random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+        interaction_pause_timer_ms:
+            wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+        string_id: String::new(),
+        spawn_time_secs: 300,
+    };
+    let (display_store, model_store) = empty_display_stores();
+    let model_info_store = loaded_grid_model_info_store_like_cpp();
+    let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
+
+    for (base_variance, expected_min, expected_max, expected_ai_bounds) in
+        [(1.0, 2.0, 3.0, (2, 3)), (0.5, 1.5, 2.25, (1, 2))]
+    {
+        let (template, resolved_spawn, runtime) =
+            build_loaded_grid_creature_inputs_from_db_like_cpp(
+                &spawn,
+                &runtime_row,
+                &db_backed_template_store_with_regen_and_vehicle(entry, true, 0, base_variance),
+                &CreatureDifficultyStoreLikeCpp::from_records(
+                    [wow_data::CreatureDifficultyRecordLikeCpp {
+                        damage_modifier: 1.0,
+                        ..db_backed_difficulty_store(entry)
+                            .get_like_cpp(entry, 2)
+                            .clone()
+                    }],
+                    |_| 1.0,
+                ),
+                &CreatureBaseStatsStoreLikeCpp::from_records([(
+                    19,
+                    1,
+                    wow_data::CreatureBaseStatsRecordLikeCpp {
+                        base_health: [10, 20, 100],
+                        base_mana: 50,
+                        base_armor: 123,
+                        attack_power: 14,
+                        ranged_attack_power: 789,
+                        base_damage: [1.0; 3],
+                    },
+                )]),
+                &CreatureClassificationHealthRatesLikeCpp::default(),
+                &display_store,
+                &model_store,
+                &model_info_store,
+                None,
+                &CreatureAddonStoreLikeCpp::default(),
+                2,
+                9,
+                123,
+                true,
+                None,
+                &mut random,
+            )
+            .expect("DB-backed builder should apply template BaseVariance");
+
+        assert_eq!(runtime.stats.min_damage, expected_min);
+        assert_eq!(runtime.stats.max_damage, expected_max);
+
+        let resolved = CreatureLoadedGridLifecycleResolverLikeCpp::new(
+            [template],
+            [resolved_spawn],
+            [(entry, runtime)],
+        )
+        .resolve_loaded_grid_creature_like_cpp(
+            spawn.spawn_id,
+            map_creature_guid(entry, 571, spawn.spawn_id as i64),
+        )
+        .expect("loaded-grid lifecycle should retain final AI damage truncation");
+        assert_eq!(
+            (
+                resolved.creature.ai_ownership().min_damage,
+                resolved.creature.ai_ownership().max_damage,
+            ),
+            expected_ai_bounds
+        );
+    }
+}
+#[test]
 fn loaded_grid_db_backed_builder_sanitizes_sql_unit_flags_like_cpp() {
     let entry = 12_401;
     let spawn = db_backed_spawn(entry);
@@ -1052,7 +1149,7 @@ fn loaded_grid_db_backed_builder_preserves_vehicle_template_id_like_cpp() {
     let (template, _, _) = build_loaded_grid_creature_inputs_from_db_like_cpp(
         &spawn,
         &runtime_row,
-        &db_backed_template_store_with_regen_and_vehicle(entry, true, 77),
+        &db_backed_template_store_with_regen_and_vehicle(entry, true, 77, 0.0),
         &db_backed_difficulty_store(entry),
         &db_backed_base_stats_store(),
         &CreatureClassificationHealthRatesLikeCpp::default(),

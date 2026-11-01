@@ -1,0 +1,6 @@
+{
+  "name": "the loot crate may not depend on wow-world-inventory; inventory sits above it and holds the registry sync that reads LootState (#1363 slice Q follow-up)",
+  "source": "wow-world-loot",
+  "target": "wow-world-inventory",
+  "expected": "forbidden"
+}

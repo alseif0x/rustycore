@@ -1,0 +1,12 @@
+{
+ "slice": "#1363 slice 12d (the visibility source position -> wow-world-entities visibility_session/session_visibility.rs over VisibilitySessionHostLikeCpp; the host method of that name retires)",
+ "base": "4cf327c8c",
+ "moved": ["represented_visibility_source_position_like_cpp"],
+ "rules": [
+  ["pub\\(crate\\) fn {name}\\(&self\\)", "pub fn {name}<H: VisibilitySessionHostLikeCpp>(host: &H)"],
+  ["crate::session::hub_ref\\(self\\)", "host.hub_ref()"],
+  ["wow_world_entities::current_seer_guid_like_cpp\\(self\\)", "current_seer_guid_like_cpp(host)"],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\.", "host."]
+ ]
+}

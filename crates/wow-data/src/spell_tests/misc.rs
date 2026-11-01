@@ -154,6 +154,31 @@ fn hit_metadata_composes_each_db2_contributor_and_effect_slot_like_cpp() {
             .is_none()
     );
 }
+
+#[test]
+fn selected_misc_attributes_choose_highest_record_id_independent_of_input_order() {
+    let build = |rows| {
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &crate::spell_db2::SpellCategoriesStore::from_entries([]),
+            &crate::spell_db2::SpellMiscStore::from_entries(rows),
+            &crate::spell_db2::SpellEffectDb2Store::from_entries([]),
+            &crate::spell_db2::SpellShapeshiftStore::from_entries([]),
+        );
+        store
+            .misc_attributes_for_exact_difficulty(90_002, 0)
+            .expect("the selected SpellMisc key has effective attributes")
+    };
+    let mut lower = test_spell_misc_entry_like_cpp(9, 90_002, 0, 0);
+    lower.attributes[11] = 17;
+    let mut higher = test_spell_misc_entry_like_cpp(10, 90_002, 0, 0);
+    higher.attributes[11] = 29;
+
+    let mut expected = [0; 15];
+    expected[11] = 29;
+    for rows in [vec![lower.clone(), higher.clone()], vec![higher, lower]] {
+        assert_eq!(build(rows), expected);
+    }
+}
 #[test]
 fn synthetic_hit_metadata_insertion_supports_focused_consumers() {
     let mut store = SpellStore::new();
@@ -192,8 +217,9 @@ fn db2_cooldowns_set_recovery_max_like_cpp() {
 
     // C++ GetRecoveryTime = max(RecoveryTime 3000, CategoryRecoveryTime 5000) = 5000.
     assert_eq!(store.spells.get(&300).unwrap().recovery_time_ms, 5000);
-    // GCD (cooldown_ms) is a separate mechanic — untouched by this slice.
-    assert_eq!(store.spells.get(&300).unwrap().cooldown_ms, 0);
+    // C++ SpellInfo copies StartRecoveryTime into the spell info
+    // (SpellInfo.cpp:1261-1265).
+    assert_eq!(store.spells.get(&300).unwrap().cooldown_ms, 1500);
 }
 #[test]
 fn invalid_rank_seed_unites_every_touched_valid_component() {

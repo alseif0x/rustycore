@@ -608,10 +608,34 @@ pub(crate) async fn logout_and_wait_routed_like_cpp(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     inflater: &mut ServerPacketInflater,
-    mut realm_connection: Option<&mut EncryptedWorldConnection>,
+    realm_connection: Option<&mut EncryptedWorldConnection>,
     character_guid: u64,
     result: &mut BotRunResult,
 ) -> Result<bool> {
+    logout_and_wait_route_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        inflater,
+        realm_connection,
+        character_guid,
+        result,
+    )
+    .await
+    .map(|route| route.is_some())
+}
+
+/// As `logout_and_wait_routed_like_cpp`, returning which connection carried
+/// `SMSG_LOGOUT_COMPLETE` (`None`: only the bounded offline fallback).
+pub(crate) async fn logout_and_wait_route_like_cpp(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    mut realm_connection: Option<&mut EncryptedWorldConnection>,
+    character_guid: u64,
+    result: &mut BotRunResult,
+) -> Result<Option<LogoutCompletionRoute>> {
     send_encrypted_packet(stream, crypt, CMSG_LOGOUT_REQUEST, &[0]).await?;
     info!("[Bot {}] ✅ CMSG_LOGOUT_REQUEST sent", bot_index);
 
@@ -752,7 +776,7 @@ pub(crate) async fn logout_and_wait_routed_like_cpp(
             }
         ),
     }
-    Ok(completion_route.is_some())
+    Ok(completion_route)
 }
 pub(crate) async fn best_effort_close(
     bot_index: usize,

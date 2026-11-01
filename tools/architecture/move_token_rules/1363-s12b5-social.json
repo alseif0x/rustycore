@@ -1,0 +1,77 @@
+{
+ "slice": "#1363 slice 12b5 (the duel effect with its two duel-state steps and the guild-id install -> wow-world-social over SocialSessionHostLikeCpp)",
+ "base": "10bdca1a7",
+ "moved": [
+  "set_represented_duel_arbiter_guid_like_cpp",
+  "set_represented_duel_state_like_cpp",
+  "apply_duel_effect_like_cpp",
+  "set_represented_guild_id_like_cpp"
+ ],
+ "rules": [
+  [
+   "\\|player\\|\\s*\\{\\s*player\\s*\\.\\s*duel_info_like_cpp\\(\\)\\s*\\}\\s*\\)\\s*\\.\\s*flatten",
+   "|player| player.duel_info_like_cpp()).flatten"
+  ],
+  [
+   "pub\\(crate\\) fn set_represented_duel_arbiter_guid_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "fn set_represented_duel_arbiter_guid_like_cpp<H: SocialSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "fn set_represented_duel_state_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "fn set_represented_duel_state_like_cpp<H: SocialSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(in crate::session\\) fn apply_duel_effect_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn apply_duel_effect_like_cpp<H: SocialSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn set_represented_guild_id_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn set_represented_guild_id_like_cpp<H: crate::SocialSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "crate::session::split_social_mut\\(self\\)",
+   "host.split_social_mut()"
+  ],
+  [
+   "crate::session::hub_mut\\(self\\)",
+   "host.hub_mut()"
+  ],
+  [
+   "wow_world_social::",
+   "crate::"
+  ],
+  [
+   "\\bself\\s*\\.\\s*set_represented_duel_state_like_cpp\\(",
+   "set_represented_duel_state_like_cpp(host,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*set_represented_duel_arbiter_guid_like_cpp\\(",
+   "set_represented_duel_arbiter_guid_like_cpp(host,"
+  ],
+  [
+   "crate::session::mailbox::",
+   "wow_world_core::session::mailbox::"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*self\\s*\\.\\s*social\\s*\\.\\s*record_represented_duel_request_for_test_like_cpp\\(\\s*RepresentedDuelRequestedLikeCpp\\s*\\{([^}]*)\\}\\s*\\)\\s*;",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if let Some(social) = host.social_limits_for_test_like_cpp() { social.record_represented_duel_request_for_test_like_cpp(crate::RepresentedDuelRequestedLikeCpp {\\1}); }"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if !canonical && self\\s*\\.\\s*core\\s*\\.\\s*player_handle_like_cpp\\s*\\.\\s*is_none\\(\\)\\s*\\{\\s*return self\\s*\\.\\s*mutate_player_guild_state_like_cpp\\(",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && !canonical && host.core().player_handle_like_cpp.is_none() { return { let (social, hub) = host.split_social_mut(); mutate_player_guild_state_for_test_like_cpp(&hub.shared(), social,"
+  ],
+  [
+   "\\}\\)\\s*\\.\\s*is_some\\(\\)\\s*;\\s*\\}\\s*canonical\\s*\\}$",
+   "}) }.is_some(); } canonical }"
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ]
+ ],
+ "rustfmt_note": "the first rule only drops the closure braces rustfmt removes once `self.core` becomes the shorter `host.core()` chain"
+}

@@ -1,0 +1,2 @@
+crates/wow-world/src/session/player_vitals_adapter.rs	set_player_alive_like_cpp	crates/wow-world-entities/src/player_vitals.rs
+crates/wow-world/src/session/player_vitals_adapter.rs	set_player_ghost_flag_like_cpp	crates/wow-world-entities/src/player_vitals.rs

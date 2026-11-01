@@ -1,98 +1,145 @@
 ---
 name: orchestrate-rustycore
-description: "Route RustyCore development work between Sol and Luna when a bounded independent task benefits from delegation. Use for implementation coordination or adapting this workflow, not ordinary factual answers."
+description: "Route RustyCore development work between one parent integrator and bounded workers, per runtime (Claude Code: Opus; OpenCode Go: DeepSeek + Luna builder; DSH Web: go-mix; Codex: Sol/Luna). Use for implementation coordination or adapting this workflow, not ordinary factual answers."
 ---
 
 # RustyCore orchestration
 
 AGENTS.md owns scope, authority, validation cadence and completion. This skill owns
-task routing, not another architecture plan. Delegation is explicitly requested for
-useful independent work, not for every task. Keep one macrodeliverable and one parent
+task routing, not another architecture plan. Keep one macrodeliverable and one parent
 integrator; no per-worker issues, PRs or mandatory continuation requests.
 
-## Routing
+## Decision authority
 
-MiMo is outside the active workflow: do not call it or use its credentials. Its
-local experimental profile must not replace the main project configuration.
+Substantive technical decisions are **made inside the agent workflow, never parked on the
+human operator**. This is the rule that keeps a round from stalling.
 
-- Parent Sol: `medium` default; own architecture, decomposition, coordination,
-  integration and final acceptance. Delegate routine bounded implementation to Luna;
-  implement directly for trivial, inseparable or critical work. Keep ambiguous
-  architecture, ownership, concurrency, persistence and protocol decisions in the
-  Sol parent, and record the evidence that supports them. Reasoning effort is a real
-  runtime setting, not a promise in prose: do not claim a higher effort or a model
-  switch unless the effective session configuration confirms it.
-- `luna_worker`: `gpt-5.6-luna`, `max`; implement a complete bounded responsibility
-  with decided contracts and assigned files, including its tests and consumers.
-  Luna also handles focused read-only exploration or the parent's final-check sequence
-  when explicitly assigned that mode. Keep architectural decisions with Sol.
-  Sol and Luna are the only models in the active orchestration workflow.
+- **Who decides.** Parity and behaviour contracts, intentional departures from the
+  reference, the scope and cut points of a slice, ownership boundaries and design choices
+  are decided at high effort: in DSH `go-mix` the coordinator decides at `high`, consulting
+  GPT-6.1 Sol `high` or Claude Opus 5.5 `medium` for a concrete uncertainty; in OpenCode
+  Go the DeepSeek orchestrator decides, with review on a model family different from the
+  builder and never Sol; in Claude Code the Opus parent itself. If the reviewer route is unavailable,
+  state that it failed, decide from the recorded evidence, and label the decision as
+  taken without that second opinion.
+- **Who executes.** The coordinator/parent owns review, validation, Git, integration and
+  the durable record of the decision. It executes what the reviewer decided and reports
+  the outcome; it does not return the decision to the human as a question.
+- **Reserved to the human.** Only two things: runtime/database/destructive operations
+  (a live server, a real client capture, schema or data mutation) and material changes to
+  the objective's scope or acceptance criteria. No other gate.
+- **When a decision needs a reserved gate.** Record it as a **bounded hold**: the decision
+  taken, the exact capture or operation that would close it, and what is forbidden in the
+  meantime (for example: behaviour retained, expansion forbidden, no parity claimed). Then
+  continue with the rest of the work. A reserved gate blocks that one item, not the round.
+- **Never do this.** Do not end a round with a question whose answer is a technical choice
+  the reviewer tier can make; do not repeat a request for approval across rounds; do not
+  treat "the human has not answered" as a blocker for work that does not touch a reserved
+  operation.
 
-Use the actual available model/effort and record it in the handoff. Custom TOML roles
-apply only on clients that load them; otherwise pass explicit supported model/effort
-and the role instructions to the available delegation tool. Keep context bounded;
-avoid full-history forks when they force inherited models or expose irrelevant data.
-If a role/model/effort is unavailable, disclose that once and keep safe work moving
-in the parent. Do not silently substitute models or use a paid API fallback. A quota
-or unsupported optional role is not a reason to abandon the delivery.
+## Roles and principles (runtime-neutral)
 
-## One useful collaborator
+The roles are the same in every runtime; only the models differ (see **Routing by runtime**).
 
-Start with at most one child at a time. No worker spawns children. The parent must
-have useful independent work; execute directly if delegation costs more than it saves.
-Once a nontrivial implementation unit has a clear contract, independent file ownership
-and useful concurrent parent work, assign it to Luna with a real spawn call rather than
-merely describing delegation and doing it all in Sol. The parent can settle other
-consumers, prepare integration or inspect a separate boundary, but must not duplicate
-the child's implementation. File count alone does not require delegation. Keep tiny,
-tightly coupled or unavailable-model tasks local; briefly identify the reason when a
-substantial delivery stays root-only. This is not a user approval checkpoint.
-Give the child the checkout/base, owned paths, objective, relevant Rust/C++ anchors,
-contract/non-goals, acceptance criteria and whether checks are deferred or assigned.
-Do not send secrets or full session transcripts.
+- **One parent integrator** owns architecture, decomposition, contracts, coordination,
+  review, Git, integration and final acceptance. It does not implement routine units.
+- **One bounded worker** implements a settled unit, does read-only exploration, or runs
+  the agreed final sequence as exclusive validation executor, as assigned.
+- **At most one child at a time** (route files state any exception). **No worker spawns
+  children.** No overlapping edits between parent and worker; the parent owns Git.
+- **One useful collaborator.** Delegate only when the parent has useful independent work
+  meanwhile and delegation saves more than it costs; never delegate merely to consume a
+  collaborator's quota. Do not duplicate the child's implementation.
+- **No silent model substitution.** Use only the routes and fallbacks in the current
+  runtime's route file. If a role/model/effort is unavailable, disclose it once and keep
+  safe work moving in the parent. **No paid-API fallback** unless the route says so.
+- **Actual model/effort.** Workers report the model/effort that actually ran; a
+  configured role or default is not evidence that it ran — claims need a successful
+  spawn trace.
+- **Bounded context.** Avoid full-history forks when they force inherited models or
+  expose irrelevant data; do not send secrets or session transcripts to children.
+- **The parent inspects the actual diff** and its consumers, not just the summary.
 
-Within a shared checkout, parent and child must not edit overlapping files, perform
+## Routing by runtime
+
+Identify the session's runtime and read only its route file. Each client reads only its
+own defaults.
+
+| Runtime | Route | Client defaults |
+|---|---|---|
+| Claude Code / `ocx claude` (default) | [routes/claude.md](routes/claude.md): Opus parent, Opus `rustycore-worker` | `.claude/settings.json`, `.claude/agents/` |
+| OpenCode Go | [routes/go-mix.md](routes/go-mix.md#opencode-go): DeepSeek orchestrator/scout/reviewer, Luna `max` builder | `opencode.json`, `.opencode/` |
+| DSH Web `go-mix` (if the user chooses it) | [routes/go-mix.md](routes/go-mix.md#dsh-web-go-mix): Go DeepSeek coordinator, Luna `max` worker | preset `go-mix` in `~/.dsh` |
+| Codex | [routes/codex.md](routes/codex.md): Sol parent, `luna_worker` | `.codex/config.toml`, `.codex/agents/` |
+
+## Sizing the work
+
+The worker is productive on small units with compiler feedback and stalls on large,
+open-ended ones. The parent makes the decisions, the worker executes them.
+
+- One unit is one behavior or one module: a few files, a change that `cargo check` and
+  focused tests can confirm. Split anything larger before assigning it.
+- For a restructuring (for example splitting a large file), first assign a read-only
+  exploration that returns a map: phases with line ranges, the locals each phase reads
+  and writes, the locks it holds, early returns. The parent then fixes the cut points,
+  module names and signatures, and assigns one module per implementation task.
+- Give the worker a self-contained task: checkout/base, owned paths, objective, exact
+  line ranges or symbols, the Rust/C++ anchors, the contract and non-goals, the crate
+  and test filter to check with, and the acceptance criteria. Quote the rules that
+  apply instead of asking it to read long documents again. No secrets or transcripts.
+
+## Running the worker
+
+In Claude Code, start at most one worker at a time (other routes: see their route file);
+no worker spawns children. Run it in the
+background and keep doing useful parent work (settling consumers, preparing the next
+unit's contract, reviewing the previous diff) without duplicating the worker's edits.
+
+- **Heartbeat:** check the worker's output every ~5 minutes. It should be editing
+  within ~15 tool calls or ~8 minutes of starting an implementation unit.
+- **Stall:** if two heartbeats pass with reads but no edit, stop it and reassign the
+  unit smaller or with the missing decision made. A stall is a sizing problem, not a
+  reason to change model or provider.
+- **Review every diff** against the contract and its consumers before assigning the
+  next unit, not just the summary. Assign corrections as a new small unit.
+
+Within a shared checkout, parent and worker must not edit overlapping files, perform
 Git mutations, or change shared generated/policy files concurrently. The parent owns
-Git and integration; serialize overlapping work. Worktrees are optional when useful,
-not a compulsory handoff step; they do not isolate DBs, processes, caches or network.
-Permissions may inherit live session overrides. These role instructions are not a
-security sandbox; keep unneeded credentials and live resources out of worker tasks.
+Git and integration. Worktrees are optional; they do not isolate DBs, processes,
+caches or network. These instructions are not a security sandbox; keep unneeded
+credentials and live resources out of worker tasks.
 
-Workers return the actual model/effort, base and final diff identity, exact paths/symbols,
-changes, unexecuted tests and concrete blockers. Claims of model use require a successful
-spawn trace; a configured role or default is not evidence that it ran.
-The parent inspects the actual diff and consumers, not just the summary. Resolve
-routine uncertainty locally; escalate on evidence, not a fixed attempt counter or
-a compulsory escalation chain. Preserve useful work when changing owners.
+Workers return the actual model/effort, base and final diff identity, exact
+paths/symbols, the checks they ran with exits, unexecuted checks and concrete blockers.
+Claims of model use require a successful spawn trace.
 
 ## Acceptance and resumption
 
-Follow AGENTS.md's complete-implementation-first cadence and exclusive validation
-owner. Luna can execute the agreed final sequence as the exclusive validation executor;
-that assignment does not include another QA campaign or autonomous repairs. The parent interprets findings and assigns
-corrections, then reruns affected evidence on the combined candidate as required.
-Delegate only non-live checks to these roles; authorized live DB/runtime QA stays with
-the parent under AGENTS.md. Do not send a worker a task its role explicitly forbids.
-Freeze inputs while that sequence runs. Reuse valid evidence for unchanged inputs;
-do not rerun successful commands merely because ownership passed between agents.
-Do not delegate a single shell command merely to consume a collaborator's quota.
+For diagnostic-only work, prefer focused checks and one guarded live epoch instead of
+a full campaign. The parent schedules these measurements, keeps them serial and does
+not edit the candidate worktree during QA. Group behavior corrections into one
+accepted candidate; required matrix, capture and terminal evidence still runs once
+on that candidate. Fixtures must use effective data and native action evidence rather
+than simplified rows that can hide a defect.
+
+Implementation checks stay crate-scoped and sequential (`cargo check -p`, focused
+`cargo test -p` with `CARGO_BUILD_JOBS=1`), as the worker definition says. Any explicit
+instruction deferring worker checks for a whole sweep (the parked #1233 sweep) does not
+apply to #1241 units: their workers run these checks (R3). Completed-delivery
+acceptance follows AGENTS.md: the parent plans it once and may assign the worker as the
+exclusive validation executor for the agreed non-live sequence; that assignment does not
+include another QA campaign or autonomous repairs. The parent interprets findings and
+assigns corrections. Authorized live DB/runtime QA stays with the parent. Reuse valid
+evidence for unchanged inputs. Per-PR checklist and the no-attribution commit/PR rule:
+[develop-rustycore](../develop-rustycore/SKILL.md).
 
 The parent's diff inspection is required; an additional reviewer agent or automated
 review request is not. Preserve any explicit external contribution/review requirements.
 No automatic review loop, new approval gate, or permission to publish/runtime-write.
 
 Use the existing task/checkpoint for material decisions and final evidence, with a
-short handoff in the conversation for active child/process IDs and remaining work.
-Do not create a competing orchestration ledger for every helper. On resume reconcile
-Git and running processes before continuing; do not replay completed operations.
-Report actual time/usage/rework when available, otherwise unknown. This initial
-profile is not benchmark-proven and does not enforce a hard CPU/RAM/token budget.
-
-Configuration shape checked against
-[Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents).
-The Sol-orchestrator/Luna-executor topology is also used by
-[donvito's template](https://github.com/donvito/codex-astra-luna-orchestrator);
-this project deliberately omits its broad mandatory-delegation triggers and staged
-tester/reviewer pipeline.
-New project defaults require a fresh session and a trusted project configuration;
-inspect effective settings rather than assuming files changed an existing session.
+short handoff in the conversation for active worker/process IDs and remaining work.
+On resume reconcile Git and running processes before continuing; do not replay
+completed operations. Report actual time/usage/rework when available, otherwise unknown.
+New project defaults require a fresh session; inspect effective settings rather than
+assuming files changed an existing session.

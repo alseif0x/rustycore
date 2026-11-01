@@ -8,7 +8,6 @@ members = [
     "crates/wow-logging",
     "crates/wow-crypto",
     "crates/wow-math",
-    "crates/wow-collections",
     # Infrastructure
     "crates/wow-database",
     "crates/wow-persistence",
@@ -16,6 +15,26 @@ members = [
     "crates/wow-proto",
     # ECS + Game Core
     "crates/wow-world",
+    "crates/wow-world-application",
+    "crates/wow-world-character",
+    "crates/wow-world-core",
+    "crates/wow-world-creature",
+    "crates/wow-world-entities",
+    "crates/wow-world-interaction",
+    "crates/wow-world-instances",
+    "crates/wow-world-inventory",
+    "crates/wow-world-lifecycle",
+    "crates/wow-world-loot",
+    "crates/wow-world-loot-ops",
+    "crates/wow-world-quest",
+    "crates/wow-world-player-conditions",
+    "crates/wow-world-social",
+    "crates/wow-world-spell",
+    "crates/wow-world-visibility",
+    "crates/wow-world-test-support",
+    "crates/wow-conditions",
+    "crates/wow-progression",
+    "crates/wow-spell-acquisition",
     "crates/wow-map",
     "crates/wow-movement",
     "crates/wow-entities",
@@ -30,12 +49,9 @@ members = [
     "crates/wow-social",
     "crates/wow-loot",
     "crates/wow-instances",
-    "crates/wow-pvp",
-    "crates/wow-achievement",
     "crates/wow-anticheat",
     "crates/wow-data",
     "crates/wow-script",
-    "crates/wow-scripts",
     # FFI
     "crates/wow-recastdetour",
     # Executables
@@ -45,6 +61,8 @@ members = [
     "crates/world-server",
     # Tooling
     "crates/capture-diff",
+    "tools/xtask",
+    "crates/wow-util-collections",
 ]
 exclude = [
     "tools/wow-test-bot",
@@ -75,7 +93,6 @@ rustls-pemfile = "2"
 # Protobuf
 prost = "0.13"
 prost-build = "0.13"
-prost-types = "0.13"
 
 # ECS
 
@@ -91,7 +108,6 @@ anyhow = "1"
 bitflags = "2"
 num-derive = "0.4"
 num-traits = "0.2"
-strum = { version = "0.26", features = ["derive"] }
 
 # Cryptography
 num-bigint = "0.4"
@@ -122,7 +138,6 @@ libc = "0.2"
 inventory = "0.3"
 
 # Allocation
-bumpalo = { version = "3", features = ["collections"] }
 
 # Buffer management
 bytes = "1"
@@ -140,14 +155,11 @@ smallvec = { version = "1", features = ["union", "const_generics"] }
 
 # HTTP / Hyper
 hyper = { version = "1", features = ["http1", "http2", "server"] }
-hyper-util = { version = "0.1", features = ["tokio", "server-auto", "http1", "http2", "service"] }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json"] }
 
 # Misc
 once_cell = "1"
-cfg-if = "1"
 
 # Workspace crates
 wow-core = { path = "crates/wow-core" }
@@ -156,12 +168,27 @@ wow-config = { path = "crates/wow-config" }
 wow-logging = { path = "crates/wow-logging" }
 wow-crypto = { path = "crates/wow-crypto" }
 wow-math = { path = "crates/wow-math" }
-wow-collections = { path = "crates/wow-collections" }
+wow-util-collections = { path = "crates/wow-util-collections" }
 wow-database = { path = "crates/wow-database" }
 wow-persistence = { path = "crates/wow-persistence" }
 wow-network = { path = "crates/wow-network" }
 wow-proto = { path = "crates/wow-proto" }
 wow-world = { path = "crates/wow-world" }
+wow-world-application = { path = "crates/wow-world-application" }
+wow-world-character = { path = "crates/wow-world-character" }
+wow-world-core = { path = "crates/wow-world-core" }
+wow-world-creature = { path = "crates/wow-world-creature" }
+wow-world-entities = { path = "crates/wow-world-entities" }
+wow-world-interaction = { path = "crates/wow-world-interaction" }
+wow-world-instances = { path = "crates/wow-world-instances" }
+wow-world-inventory = { path = "crates/wow-world-inventory" }
+wow-world-lifecycle = { path = "crates/wow-world-lifecycle" }
+wow-world-spell = { path = "crates/wow-world-spell" }
+wow-world-visibility = { path = "crates/wow-world-visibility" }
+wow-world-test-support = { path = "crates/wow-world-test-support" }
+wow-conditions = { path = "crates/wow-conditions" }
+wow-progression = { path = "crates/wow-progression" }
+wow-spell-acquisition = { path = "crates/wow-spell-acquisition" }
 wow-map = { path = "crates/wow-map" }
 wow-movement = { path = "crates/wow-movement" }
 wow-entities = { path = "crates/wow-entities" }
@@ -175,14 +202,16 @@ wow-chat = { path = "crates/wow-chat" }
 world-server = { path = "crates/world-server" }
 wow-module-api = { path = "crates/wow-module-api" }
 wow-social = { path = "crates/wow-social" }
+wow-world-social = { path = "crates/wow-world-social" }
+wow-world-loot = { path = "crates/wow-world-loot" }
+wow-world-loot-ops = { path = "crates/wow-world-loot-ops" }
+wow-world-quest = { path = "crates/wow-world-quest" }
+wow-world-player-conditions = { path = "crates/wow-world-player-conditions" }
 wow-loot = { path = "crates/wow-loot" }
 wow-instances = { path = "crates/wow-instances" }
-wow-pvp = { path = "crates/wow-pvp" }
-wow-achievement = { path = "crates/wow-achievement" }
 wow-anticheat = { path = "crates/wow-anticheat" }
 wow-data = { path = "crates/wow-data" }
 wow-script = { path = "crates/wow-script" }
-wow-scripts = { path = "crates/wow-scripts" }
 wow-recastdetour = { path = "crates/wow-recastdetour" }
 
 [workspace.lints.rust]
@@ -200,11 +229,37 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
 [profile.dev]
-# This workspace's combined type DWARF exceeds GNU ld's 32-bit debug
-# relocations. Line tables keep useful backtraces without that linker input.
+# Full type DWARF exceeds GNU ld's 32-bit debug relocations. `.cargo/config.toml`
+# links with lld, which has no such limit, so keep line tables here as the
+# portable floor and let anyone without lld still link this workspace.
 debug = 1
+# Emit debuginfo beside the binary instead of inside it: the linker no longer
+# copies it into every artifact, which is the bulk of dev link time.
+split-debuginfo = "unpacked"
 
+# Dependencies change rarely and are cached across builds, so optimising them is
+# paid once and refunded on every run. At opt-level 0 the crypto, protobuf and
+# sqlx stacks are slow enough to distort debugging.
+[profile.dev.package."*"]
+opt-level = 2
+
+# Build scripts and proc macros (prost-build) execute during the build itself,
+# so optimising them shortens the very build that compiles them.
+[profile.dev.build-override]
+opt-level = 1
+
+# Day-to-day release builds. codegen-units is left at Cargo's default of 16:
+# forcing 1 serialises codegen and multiplies peak RSS per rustc, which is what
+# makes this workspace unbuildable on smaller machines. Thin LTO already does the
+# cross-crate optimisation that codegen-units = 1 is usually reached for.
 [profile.release]
 lto = "thin"
+strip = "debuginfo"
+
+# Shipping builds. Maximum optimisation, and correspondingly the slowest and most
+# memory-hungry: build with `cargo build --profile dist` on a machine with RAM to
+# spare, not on a laptop.
+[profile.dist]
+inherits = "release"
+lto = "fat"
 codegen-units = 1
-strip = "symbols"

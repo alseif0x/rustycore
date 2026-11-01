@@ -113,6 +113,7 @@ rested_xp_timeout_secs="${WOW_BOT_RESTED_XP_TIMEOUT_SECS:-120}"
 rested_xp_offline_secs="${WOW_BOT_RESTED_XP_OFFLINE_SECS:-86400}"
 detour_chase_timeout_secs="${WOW_BOT_DETOUR_CHASE_TIMEOUT_SECS:-30}"
 loot_race_timeout_secs="${WOW_BOT_LOOT_RACE_TIMEOUT_SECS:-30}"
+trade_timeout_secs="${WOW_BOT_TRADE_TIMEOUT_SECS:-30}"
 ensure_accounts="${WOW_BOT_ENSURE_TEST_ACCOUNTS:-1}"
 
 export BNET_HOST="${BNET_HOST:-127.0.0.1}"
@@ -157,6 +158,14 @@ vendor_requested=0
 if [[ "${WOW_BOT_VENDOR_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   vendor_requested=1
 fi
+vendor_sell_requested=0
+if [[ "${WOW_BOT_VENDOR_SELL_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  vendor_sell_requested=1
+fi
+movement_requested=0
+if [[ "${WOW_BOT_MOVEMENT_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  movement_requested=1
+fi
 rested_xp_requested=0
 if [[ "${WOW_BOT_RESTED_XP_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   rested_xp_requested=1
@@ -185,6 +194,18 @@ loot_race_acknowledged=0
 if [[ "${WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   loot_race_acknowledged=1
 fi
+trade_requested=0
+if [[ "${WOW_BOT_TRADE_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  trade_requested=1
+fi
+trade_acknowledged=0
+if [[ "${WOW_BOT_ACK_DISPOSABLE_TRADE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  trade_acknowledged=1
+fi
+if ((trade_acknowledged && !trade_requested)); then
+  echo "WOW_BOT_ACK_DISPOSABLE_TRADE is only valid with WOW_BOT_TRADE_SMOKE" >&2
+  exit 2
+fi
 if ((rested_xp_acknowledged && !rested_xp_requested)); then
   echo "WOW_BOT_ACK_DISPOSABLE_RESTED_XP is only valid with WOW_BOT_RESTED_XP_SMOKE" >&2
   exit 2
@@ -197,13 +218,17 @@ if ((loot_race_acknowledged && !loot_race_requested && !loot_item_capture_reques
   echo "WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE is only valid with WOW_BOT_LOOT_RACE_SMOKE or WOW_BOT_LOOT_ITEM_CAPTURE" >&2
   exit 2
 fi
-if ((stand_state_requested + quest_requested + bank_requested + void_storage_requested + void_storage_query_capture_requested + homebind_requested + inventory_swap_requested + vendor_requested + rested_xp_requested + detour_chase_requested + loot_race_requested + loot_item_capture_requested > 1)); then
-  echo "Stand-state, quest, bank, void-storage, void-storage-query-capture, homebind, inventory-swap, vendor, rested-XP, detour-chase-capture, loot-race, and loot-item-capture are separate modes" >&2
+if ((stand_state_requested + quest_requested + bank_requested + void_storage_requested + void_storage_query_capture_requested + homebind_requested + inventory_swap_requested + vendor_requested + vendor_sell_requested + movement_requested + rested_xp_requested + detour_chase_requested + loot_race_requested + loot_item_capture_requested + trade_requested > 1)); then
+  echo "Stand-state, quest, bank, void-storage, void-storage-query-capture, homebind, inventory-swap, vendor, vendor-sell, movement, rested-XP, detour-chase-capture, loot-race, loot-item-capture, and trade are separate modes" >&2
   exit 2
 fi
 if ((loot_race_requested || loot_item_capture_requested)) \
     && ((!loot_race_acknowledged)); then
   echo "Loot fixture modes require WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=1" >&2
+  exit 2
+fi
+if ((trade_requested && !trade_acknowledged)); then
+  echo "Trade smoke mutates two disposable characters and requires WOW_BOT_ACK_DISPOSABLE_TRADE=1" >&2
   exit 2
 fi
 
@@ -219,8 +244,8 @@ if ((detour_chase_requested)); then
   export WOW_BOT_ENSURE_TEST_ACCOUNTS=0
 fi
 
-if ((loot_race_requested || loot_item_capture_requested)); then
-  # Loot fixtures require pre-provisioned, already-owned disposable identities.
+if ((loot_race_requested || loot_item_capture_requested || trade_requested)); then
+  # Loot and trade fixtures require pre-provisioned, already-owned disposable identities.
   # Never let the generic local bootstrap overwrite an existing numeric account
   # id or reassign a configured character before the fixture contract validates.
   ensure_accounts=0
@@ -228,7 +253,7 @@ if ((loot_race_requested || loot_item_capture_requested)); then
   fixture_journal="${WOW_BOT_FIXTURE_JOURNAL:-}"
   if [[ -z "$fixture_journal" || "$fixture_journal" != /* \
       || "$fixture_journal" == *$'\n'* ]]; then
-    echo "Loot fixture modes require an absolute WOW_BOT_FIXTURE_JOURNAL path" >&2
+    echo "Loot and trade fixture modes require an absolute WOW_BOT_FIXTURE_JOURNAL path" >&2
     exit 2
   fi
   if [[ ! -d "$(dirname -- "$fixture_journal")" ]]; then
@@ -259,6 +284,17 @@ if ((detour_chase_requested)); then
     --ack-disposable-detour-fixture
     --detour-fixture-manifest "$detour_fixture_manifest"
     --detour-chase-timeout "$detour_chase_timeout_secs"
+  )
+elif ((trade_requested)); then
+  report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-trade-smoke-report.json}"
+  log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-trade-smoke.log}"
+  mode_args=(
+    --trade-smoke
+    --ack-disposable-trade
+    --trade-account-a "${WOW_BOT_TRADE_ACCOUNT_A:-TESTBOT2@bot.local}"
+    --trade-account-b "${WOW_BOT_TRADE_ACCOUNT_B:-TESTBOT3@bot.local}"
+    --trade-item-entry "${WOW_BOT_TRADE_ITEM_ENTRY:-2589}"
+    --trade-timeout "$trade_timeout_secs"
   )
 elif ((loot_item_capture_requested)); then
   if ((!loot_race_acknowledged)); then
@@ -324,10 +360,13 @@ elif ((stand_state_requested)); then
     mode_args=(--stand-state "$WOW_BOT_STAND_STATE" --stand-state-timeout "$stand_state_timeout_secs")
   fi
 elif ((bank_requested)); then
-  : "${WOW_BOT_BANK_RUNTIME_COUNTER:?Set WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid}"
   report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-bank-smoke-report.json}"
   log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-bank-smoke.log}"
-  mode_args=(--bank-smoke --bank-runtime-counter "$WOW_BOT_BANK_RUNTIME_COUNTER" --bank-timeout "$bank_timeout_secs")
+  # Without an override the bot discovers the banker's live ObjectGuid.
+  mode_args=(--bank-smoke --bank-timeout "$bank_timeout_secs")
+  if [[ -n "${WOW_BOT_BANK_RUNTIME_COUNTER:-}" ]]; then
+    mode_args+=(--bank-runtime-counter "$WOW_BOT_BANK_RUNTIME_COUNTER")
+  fi
   if [[ -n "${WOW_BOT_BANK_ITEM_ENTRY:-}" ]]; then
     mode_args+=(--bank-item-entry "$WOW_BOT_BANK_ITEM_ENTRY")
   fi
@@ -385,6 +424,26 @@ elif ((vendor_requested)); then
   if [[ -n "${WOW_BOT_VENDOR_RUNTIME_COUNTER:-}" ]]; then
     mode_args+=(--vendor-runtime-counter "$WOW_BOT_VENDOR_RUNTIME_COUNTER")
   fi
+elif ((vendor_sell_requested)); then
+  report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-vendor-sell-smoke-report.json}"
+  log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-vendor-sell-smoke.log}"
+  mode_args=(
+    --vendor-sell-smoke
+    --vendor-entry "${WOW_BOT_VENDOR_ENTRY:-18525}"
+    --vendor-spawn-guid "${WOW_BOT_VENDOR_SPAWN_GUID:-96654}"
+    --vendor-sell-item-entry "${WOW_BOT_VENDOR_SELL_ITEM_ENTRY:-2589}"
+    --vendor-timeout "$vendor_timeout_secs"
+  )
+  if [[ -n "${WOW_BOT_VENDOR_RUNTIME_COUNTER:-}" ]]; then
+    mode_args+=(--vendor-runtime-counter "$WOW_BOT_VENDOR_RUNTIME_COUNTER")
+  fi
+  if [[ -n "${WOW_BOT_VENDOR_SELL_EXPECTED_MONEY:-}" ]]; then
+    mode_args+=(--vendor-sell-expected-money "$WOW_BOT_VENDOR_SELL_EXPECTED_MONEY")
+  fi
+elif ((movement_requested)); then
+  report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-movement-smoke-report.json}"
+  log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-movement-smoke.log}"
+  mode_args=(--movement-smoke)
 elif ((quest_requested)); then
   : "${WOW_BOT_QUEST_CREATURE_ENTRY:?Set WOW_BOT_QUEST_CREATURE_ENTRY for quest-smoke mode}"
   report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-quest-smoke-report.json}"
@@ -487,6 +546,10 @@ if ((loot_race_requested || loot_item_capture_requested)); then
     smoke_subject="TESTBOT2@bot.local and TESTBOT3@bot.local"
   fi
 fi
+if ((trade_requested)); then
+  selection_args=()
+  smoke_subject="${WOW_BOT_TRADE_ACCOUNT_A:-TESTBOT1@bot.local} and ${WOW_BOT_TRADE_ACCOUNT_B:-TESTBOT2@bot.local} (trade)"
+fi
 
 bot_command=(
   "$bot_exec"
@@ -503,7 +566,7 @@ if ((RC_CALLER_XTRACE)); then
   set -x
 fi
 
-if ((loot_race_requested || loot_item_capture_requested)); then
+if ((loot_race_requested || loot_item_capture_requested || trade_requested)); then
   # Preserve PID ownership across the shell boundary. TERM/INT reaches the
   # Rust handler installed before fixture mutation, and SIGKILL cannot leave a
   # detached bot child continuing to mutate the durable fixture.
@@ -518,6 +581,15 @@ echo "report: $report_path"
 
 if command -v jq >/dev/null 2>&1; then
   jq '{login_only, quest_smoke, stand_state_smoke, bank_smoke, homebind_smoke, inventory_swap_smoke, vendor_smoke, rested_xp_smoke, loot_race_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, stand_state_smoke, stand_state_smoke_passed, stand_states_requested, stand_states_confirmed, stand_state_failure, bank_smoke, bank_smoke_passed, bank_banker_entry, bank_banker_spawn_guid, bank_banker_guid_counter, bank_item_guid, bank_item_entry, bank_inventory_slot, bank_bank_slot, bank_open_confirmed, bank_deposit_persisted, bank_relogin_after_deposit, bank_withdraw_persisted, bank_failure, homebind_smoke, homebind_smoke_passed, homebind_innkeeper_entry, homebind_innkeeper_spawn_guid, homebind_innkeeper_guid_counter, homebind_spell_go_seen, homebind_bind_point_update_seen, homebind_player_bound_seen, homebind_gossip_complete_seen, homebind_db_persisted, homebind_relogin_verified, homebind_failure, inventory_swap_smoke, inventory_swap_smoke_passed, inventory_swap_item_guid_a, inventory_swap_item_guid_b, inventory_swap_item_entry_a, inventory_swap_item_entry_b, inventory_swap_slot_a, inventory_swap_slot_b, inventory_swap_validation_gate_seen, inventory_swap_forward_persisted, inventory_swap_relogin_after_forward, inventory_swap_reverse_persisted, inventory_swap_relogin_after_reverse, inventory_swap_item_create_sha256, inventory_swap_item_create_relogin_verified, inventory_swap_item_metadata_persisted, inventory_swap_failure, vendor_smoke, vendor_smoke_passed, vendor_entry, vendor_spawn_guid, vendor_runtime_counter, vendor_item_entry, vendor_extended_cost, vendor_currency_id, vendor_currency_before, vendor_currency_after, vendor_item_total_after, vendor_inventory_seen, vendor_buy_succeeded_seen, vendor_set_currency_seen, vendor_item_push_seen, vendor_relogin_verified, vendor_failure, rested_xp_smoke, rested_xp_smoke_passed, rested_xp_offline_wilderness_bonus, rested_xp_offline_resting_bonus, rested_xp_target_entry, rested_xp_target_spawn_guid, rested_xp_target_guid_counter, rested_xp_packet_amount, rested_xp_packet_original, rested_xp_db_xp_before, rested_xp_db_xp_after, rested_xp_db_rest_before, rested_xp_db_rest_after, rested_xp_relog_verified, rested_xp_failure, loot_race_smoke, loot_race_smoke_passed, loot_race_target_entry, loot_race_target_spawn_guid, loot_race_target_runtime_counter, loot_race_party_confirmed, loot_race_target_discovered, loot_race_loot_opened, loot_race_loot_list_id, loot_race_loot_coins, loot_race_item_push_seen, loot_race_loot_removed_seen, loot_race_money_notify_amount, loot_race_coin_removed_seen, loot_race_db_item_total, loot_race_db_money_delta, loot_race_relog_verified, loot_race_failure, quest_smoke_passed, quest_target_entry, quest_target_spawn_guid, quest_target_guid_counter, quest_ids_seen, quest_titles_seen, quest_accept_sent, quest_accept_confirm_seen, quest_db_verified, quest_db_status, quest_failure, join_result}]}' "$report_path"
+  if ((vendor_sell_requested)); then
+    jq '{vendor_sell_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, vendor_sell_smoke, vendor_sell_smoke_passed, vendor_sell_entry, vendor_sell_spawn_guid, vendor_sell_runtime_counter, vendor_sell_item_entry, vendor_sell_item_guid, vendor_sell_money_before, vendor_sell_money_after, vendor_sell_money_delta, vendor_sell_expected_money_delta, vendor_sell_item_sent, vendor_sell_response_seen, vendor_sell_response_reason, vendor_sell_db_persisted, vendor_sell_relogin_verified, vendor_sell_failure}]}' "$report_path"
+  fi
+  if ((quest_requested)); then
+    jq '{quest_smoke, results: [.results[] | {account, quest_smoke_passed, quest_character_before, quest_character_restored, quest_restore_failure}]}' "$report_path"
+  fi
+  if ((movement_requested)); then
+    jq '{movement_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, movement_smoke, movement_smoke_passed, movement_login_position, movement_final_position, movement_opcodes_sent, movement_db_position, movement_db_persisted, movement_relogin_position, movement_relogin_verified, movement_failure}]}' "$report_path"
+  fi
   if ((void_storage_requested || void_storage_query_capture_requested)); then
     jq '{void_storage_smoke, void_storage_query_capture, results: [.results[] | {account, void_storage_smoke, void_storage_smoke_passed, void_storage_query_capture, void_storage_query_capture_passed, void_storage_item_id, void_storage_unlock_persisted, void_storage_deposit_persisted, void_storage_deposit_relogin_verified, void_storage_swap_persisted, void_storage_swap_relogin_verified, void_storage_withdraw_persisted, void_storage_withdraw_relogin_verified, void_storage_failure}]}' "$report_path"
   fi

@@ -2,15 +2,15 @@
   "schema_version": 2,
   "categories": {
     "foundation": [
-      "wow-collections",
+      "wow-util-collections",
       "wow-constants",
       "wow-core",
       "wow-math",
       "wow-module-api",
-      "wow-persistence"
+      "wow-persistence",
+      "wow-recastdetour"
     ],
     "domain-runtime": [
-      "wow-achievement",
       "wow-ai",
       "wow-anticheat",
       "wow-chat",
@@ -20,13 +20,31 @@
       "wow-loot",
       "wow-map",
       "wow-movement",
-      "wow-pvp",
       "wow-script",
       "wow-social",
-      "wow-spell"
+      "wow-spell",
+      "wow-progression"
     ],
     "application": [
-      "wow-world"
+      "wow-conditions",
+      "wow-spell-acquisition",
+      "wow-world",
+      "wow-world-application",
+      "wow-world-character",
+      "wow-world-core",
+      "wow-world-creature",
+      "wow-world-entities",
+      "wow-world-interaction",
+      "wow-world-instances",
+      "wow-world-inventory",
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-loot-ops",
+      "wow-world-player-conditions",
+      "wow-world-quest",
+      "wow-world-social",
+      "wow-world-spell",
+      "wow-world-visibility"
     ],
     "adapter-platform": [
       "wow-config",
@@ -38,8 +56,6 @@
       "wow-network",
       "wow-packet",
       "wow-proto",
-      "wow-recastdetour",
-      "wow-scripts",
       "wow-session"
     ],
     "composition": [
@@ -49,7 +65,9 @@
       "world-server"
     ],
     "tooling": [
-      "capture-diff"
+      "capture-diff",
+      "wow-world-test-support",
+      "xtask"
     ]
   },
   "allowed_category_dependencies": {
@@ -87,6 +105,291 @@
     ]
   },
   "restricted_packages": {
+    "wow-handler": [
+      "wow-constants",
+      "wow-packet"
+    ],
+    "wow-world-application": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-map",
+      "wow-packet",
+      "wow-persistence",
+      "wow-spell-acquisition",
+      "wow-world-character",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-instances",
+      "wow-world-interaction",
+      "wow-world-inventory",
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-loot-ops",
+      "wow-world-player-conditions",
+      "wow-world-quest",
+      "wow-world-social",
+      "wow-world-spell",
+      "wow-world-visibility"
+    ],
+    "wow-world-core": [
+      "wow-ai",
+      "wow-conditions",
+      "wow-config",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-instances",
+      "wow-loot",
+      "wow-map",
+      "wow-movement",
+      "wow-network",
+      "wow-packet",
+      "wow-persistence",
+      "wow-progression",
+      "wow-recastdetour",
+      "wow-script",
+      "wow-session",
+      "wow-social"
+    ],
+    "wow-world-character": [
+      "wow-conditions",
+      "wow-config",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-network",
+      "wow-packet",
+      "wow-persistence",
+      "wow-progression",
+      "wow-social",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-instances",
+      "wow-world-interaction",
+      "wow-world-inventory",
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-spell",
+      "wow-world-visibility"
+    ],
+    "wow-world-creature": [
+      "wow-ai",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-map",
+      "wow-movement",
+      "wow-packet",
+      "wow-persistence",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-spell"
+    ],
+    "wow-world-interaction": [
+      "wow-constants",
+      "wow-core",
+      "wow-entities",
+      "wow-handler",
+      "wow-packet",
+      "wow-world-core"
+    ],
+    "wow-world-entities": [
+      "wow-ai",
+      "wow-anticheat",
+      "wow-conditions",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-loot",
+      "wow-map",
+      "wow-movement",
+      "wow-packet",
+      "wow-persistence",
+      "wow-progression",
+      "wow-recastdetour",
+      "wow-world-core",
+      "wow-world-interaction",
+      "wow-world-lifecycle",
+      "wow-world-visibility"
+    ],
+    "wow-world-instances": [
+      "wow-ai",
+      "wow-conditions",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-instances",
+      "wow-map",
+      "wow-packet",
+      "wow-persistence",
+      "wow-social",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-social",
+      "wow-world-spell"
+    ],
+    "wow-world-inventory": [
+      "wow-conditions",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-packet",
+      "wow-persistence",
+      "wow-progression",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-interaction",
+      "wow-world-lifecycle",
+      "wow-world-loot"
+    ],
+    "wow-world-lifecycle": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-loot",
+      "wow-map",
+      "wow-movement",
+      "wow-packet",
+      "wow-persistence",
+      "wow-progression",
+      "wow-social",
+      "wow-world-core",
+      "wow-world-visibility"
+    ],
+    "wow-world-loot": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-loot",
+      "wow-map",
+      "wow-packet",
+      "wow-world-core"
+    ],
+    "wow-world-loot-ops": [
+      "wow-conditions",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-loot",
+      "wow-map",
+      "wow-packet",
+      "wow-persistence",
+      "wow-social",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-instances",
+      "wow-world-inventory",
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-player-conditions",
+      "wow-world-quest",
+      "wow-world-social",
+      "wow-world-spell"
+    ],
+    "wow-world-player-conditions": [
+      "wow-conditions",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-world-core",
+      "wow-world-instances",
+      "wow-world-inventory",
+      "wow-world-social",
+      "wow-world-spell"
+    ],
+    "wow-world-quest": [
+      "wow-conditions",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-loot",
+      "wow-packet",
+      "wow-persistence",
+      "wow-progression",
+      "wow-script",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-instances",
+      "wow-world-inventory",
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-player-conditions",
+      "wow-world-social",
+      "wow-world-spell"
+    ],
+    "wow-world-social": [
+      "wow-chat",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-packet",
+      "wow-persistence",
+      "wow-progression",
+      "wow-social",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-inventory",
+      "wow-world-spell"
+    ],
+    "wow-world-spell": [
+      "wow-combat",
+      "wow-conditions",
+      "wow-config",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-map",
+      "wow-packet",
+      "wow-persistence",
+      "wow-spell-acquisition",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-inventory",
+      "wow-world-lifecycle"
+    ],
+    "wow-world-visibility": [
+      "wow-core",
+      "wow-entities",
+      "wow-packet",
+      "wow-world-core"
+    ],
+    "wow-conditions": [
+      "wow-constants",
+      "wow-data",
+      "wow-entities",
+      "wow-loot"
+    ],
+    "wow-spell-acquisition": [
+      "wow-core",
+      "wow-data"
+    ],
     "wow-data": [
       "wow-constants",
       "wow-core"
@@ -104,6 +407,17 @@
     "wow-session": [
       "wow-network",
       "wow-packet"
+    ],
+    "wow-world-test-support": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-map",
+      "wow-packet",
+      "wow-persistence",
+      "wow-world-core",
+      "wow-world-entities"
     ]
   },
   "exceptions": [
@@ -169,12 +483,6 @@
     },
     {
       "from": "wow-world",
-      "to": "wow-logging",
-      "tracking_issue": 584,
-      "reason": "The mixed world application crate still consumes logging infrastructure directly."
-    },
-    {
-      "from": "wow-world",
       "to": "wow-network",
       "tracking_issue": 584,
       "reason": "Directory, Group and mailbox authority have already left wow-network. The mixed wow-world application still adapts concrete session-link, framing and transport-fence contracts. This adapter consumption is not itself a second gameplay owner. #584 owns separating those legitimate protocol/lifecycle uses from any remaining gameplay-to-transport coupling, preserving socket, ordering and backpressure contracts. It may retain an evidenced adapter edge; no new trait or crate is required solely to remove the exception. #153 verifies the final classification."
@@ -187,15 +495,28 @@
     },
     {
       "from": "wow-world",
-      "to": "wow-recastdetour",
-      "tracking_issue": 584,
-      "reason": "The mixed world application crate still reaches the concrete pathfinding adapter."
-    },
-    {
-      "from": "wow-world",
       "to": "wow-session",
       "tracking_issue": 584,
       "reason": "#297 earned a transport-only kernel and #378 kept application/gameplay adapters outside it. wow-world consuming that kernel is an intended application-to-adapter relationship; wow-session retains its exact wow-network/wow-packet allowlist and may not gain gameplay, map, database or catalog dependencies. #584 owns the remaining kernel/application boundary decision after complete consumer migration. Concrete transport types need ports only if a real boundary requires them, not to erase this exception or force an application-layer reclassification. #153 verifies the decision without implementing a new abstraction."
+    },
+    {
+      "from": "wow-progression",
+      "to": "wow-data",
+      "tracking_issue": 584,
+      "reason": "The reputation domain still reads concrete static-data stores (reputation rank tables and progression rewards) instead of receiving them as injected DTOs. The edge exists because the catalogs are the authority for rank thresholds; retiring it belongs to the B-phase rules extraction that injects catalog views, as #584 tracks."
+    },
+    {
+      "from": "wow-progression",
+      "to": "wow-packet",
+      "tracking_issue": 584,
+      "reason": "The reputation domain still builds its reputation-list presentation packets directly. The edge is presentation debt, not state ownership: the rank math and faction state are the domain's, and the retirement condition is moving packet construction behind the application adapter (B-phase rules extraction), as #584 tracks."
+    },
+    {
+      "from": "wow-packet",
+      "to": "wow-entities",
+      "kind": "normal",
+      "tracking_issue": 584,
+      "reason": "The creature CREATE projection lives in the domain crate so the map manager can hold it without depending on the wire crate; the wire crate consumes it to encode, which is the correct direction of the dependency and removes the last domain-runtime -> adapter-platform edge of the B6 map_manager extraction. The alternative is a duplicated mirror of the struct, which the structure standard forbids."
     }
   ],
   "external_dependencies": {
@@ -207,15 +528,13 @@
     ],
     "protected_packages": [
       "wow-data",
+      "wow-handler",
       "wow-network",
       "wow-packet",
-      "wow-session"
+      "wow-session",
+      "wow-world-test-support"
     ],
     "allowed": {
-      "wow-achievement": {
-        "normal": [],
-        "build": []
-      },
       "wow-ai": {
         "normal": [
           "rand"
@@ -230,42 +549,35 @@
         "normal": [],
         "build": []
       },
-      "wow-collections": {
-        "normal": [
-          "smallvec"
-        ],
-        "build": []
-      },
       "wow-combat": {
         "normal": [],
+        "build": []
+      },
+      "wow-conditions": {
+        "normal": [
+          "num-traits",
+          "parking_lot"
+        ],
         "build": []
       },
       "wow-constants": {
         "normal": [
           "bitflags",
           "num-derive",
-          "num-traits",
-          "serde",
-          "strum"
+          "num-traits"
         ],
         "build": []
       },
       "wow-core": {
         "normal": [
-          "bitflags",
           "libc",
-          "num-derive",
-          "num-traits",
-          "rand",
-          "serde",
-          "thiserror"
+          "rand"
         ],
         "build": []
       },
       "wow-data": {
         "normal": [
           "anyhow",
-          "bitflags",
           "num-traits",
           "rand",
           "tracing"
@@ -274,8 +586,14 @@
       },
       "wow-entities": {
         "normal": [
-          "bitflags"
+          "bitflags",
+          "num-traits",
+          "rand"
         ],
+        "build": []
+      },
+      "wow-handler": {
+        "normal": [],
         "build": []
       },
       "wow-instances": {
@@ -292,10 +610,7 @@
       },
       "wow-map": {
         "normal": [
-          "bumpalo",
-          "parking_lot",
-          "rand",
-          "smallvec"
+          "rand"
         ],
         "build": []
       },
@@ -319,7 +634,6 @@
         "normal": [
           "bytes",
           "dashmap",
-          "ed25519-dalek",
           "flume",
           "num-traits",
           "rand",
@@ -335,16 +649,11 @@
           "bytes",
           "flate2",
           "num-traits",
-          "thiserror",
-          "tracing"
+          "thiserror"
         ],
         "build": []
       },
       "wow-persistence": {
-        "normal": [],
-        "build": []
-      },
-      "wow-pvp": {
         "normal": [],
         "build": []
       },
@@ -372,17 +681,165 @@
         "normal": [],
         "build": []
       },
+      "wow-spell-acquisition": {
+        "normal": [],
+        "build": []
+      },
       "wow-world": {
         "normal": [
           "dashmap",
           "flume",
-          "inventory",
           "num-traits",
-          "parking_lot",
           "rand",
           "tracing"
         ],
         "build": []
+      },
+      "wow-world-application": {
+        "normal": [
+          "num-traits",
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-character": {
+        "normal": [
+          "flume",
+          "num-traits",
+          "tokio",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-core": {
+        "normal": [
+          "dashmap",
+          "flume",
+          "num-traits",
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-creature": {
+        "normal": [],
+        "build": []
+      },
+      "wow-world-entities": {
+        "normal": [
+          "num-traits",
+          "rand",
+          "tokio",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-inventory": {
+        "normal": [
+          "num-traits",
+          "rand",
+          "tokio",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-lifecycle": {
+        "normal": [
+          "dashmap",
+          "flume",
+          "rand",
+          "tokio",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-loot": {
+        "normal": [
+          "flume",
+          "num-traits",
+          "rand",
+          "tokio"
+        ],
+        "build": []
+      },
+      "wow-world-loot-ops": {
+        "normal": [
+          "flume",
+          "rand",
+          "tokio",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-player-conditions": {
+        "normal": [],
+        "build": []
+      },
+      "wow-world-quest": {
+        "normal": [
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-social": {
+        "normal": [
+          "tokio",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-interaction": {
+        "normal": [
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-instances": {
+        "normal": [
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-spell": {
+        "normal": [
+          "num-traits",
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-visibility": {
+        "normal": [
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-test-support": {
+        "normal": [
+          "flume"
+        ],
+        "build": []
+      },
+      "wow-util-collections": {
+        "normal": [
+          "smallvec"
+        ],
+        "build": []
+      },
+      "wow-progression": {
+        "normal": [],
+        "build": []
+      },
+      "wow-recastdetour": {
+        "normal": [
+          "bitflags",
+          "thiserror"
+        ],
+        "build": [
+          "cc"
+        ]
       }
     },
     "allowed_paths": [
@@ -403,7 +860,7 @@
         "reason": "The selected terrain adapter consumes reviewed shared map schemas; no native owner enters wow-map."
       },
       {
-        "from": "wow-world",
+        "from": "wow-world-core",
         "to": "forever-navigation",
         "kind": "normal",
         "path": "../rustycore-extractors/crates/forever-navigation",
@@ -412,6 +869,13 @@
       }
     ],
     "exceptions": [
+      {
+        "from": "wow-world-core",
+        "to": "tokio",
+        "kind": "normal",
+        "tracking_issue": 584,
+        "reason": "#1263 F4a P4a moves the existing battle-pet operation gates and loot persistence completion coordination unchanged. Tokio synchronization remains inherited application debt and does not grant ownership of the Session driver, runtime tasks or clocks."
+      },
       {
         "from": "wow-loot",
         "to": "tokio",
@@ -430,28 +894,10 @@
   },
   "reserved_packages": [
     {
-      "package": "wow-combat",
-      "issue": 29,
-      "state": "open",
-      "reason": "Name held for the M3 melee-math slice that will own real combat state."
-    },
-    {
       "package": "wow-spell",
       "issue": 30,
       "state": "open",
       "reason": "Name held for the M3 spell slices #30-#35."
-    },
-    {
-      "package": "wow-achievement",
-      "issue": 48,
-      "state": "open",
-      "reason": "Name held for Part 2 parity; no slice owns achievements yet."
-    },
-    {
-      "package": "wow-pvp",
-      "issue": 48,
-      "state": "open",
-      "reason": "Name held for Part 2 parity; no slice owns PvP yet."
     }
   ]
 }

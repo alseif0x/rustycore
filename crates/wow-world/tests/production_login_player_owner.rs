@@ -1,9 +1,13 @@
 //! Production-linked login regression: wow-world is compiled WITHOUT cfg(test).
 //! C++ CharacterHandler.cpp:1065-1070 constructs Player before LoadFromDB;
 //! Player.cpp:17748/17759 loads inventory/mail on that same Player.
-//! Fixtures stop at PetStable or EquipmentInventory, after initial map selection.
-//! It is deliberately not a complete login or database integration test.
+//! Fixtures stop at PetStable or EquipmentInventory, after initial map selection,
+//! except `module_hook`, which answers every load empty so the login reaches
+//! its end. None of this is a database integration test.
 //! Run in both dev and release: storage mutations must survive disabled debug assertions.
+
+// The production finalization future's nested type layout exceeds the default query depth.
+#![recursion_limit = "256"]
 
 use std::sync::{
     Arc,
@@ -25,6 +29,12 @@ struct LoginPort {
     reached_inventory_load: AtomicBool,
     stop_at_pet_load: bool,
     manager: Arc<std::sync::Mutex<wow_map::MapManager>>,
+    /// `module_hook`: every load answers empty so the login runs to its end,
+    /// and the online mark is recorded instead of refused.
+    full_login: AtomicBool,
+    seed_self_res_spells_on_customizations_load: AtomicBool,
+    unit_flags2_load_probe: std::sync::Mutex<Option<(u32, bool)>>,
+    events: std::sync::Mutex<Vec<&'static str>>,
 }
 
 // Unexpected persistence calls fail the test rather than silently succeeding.
@@ -120,12 +130,23 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
     fn load_initial_world_states_like_cpp<'a>(
         &'a self,
     ) -> PersistenceFutureLikeCpp<'a, PlayerInitialWorldStatesLoadOutcomeLikeCpp> {
+        if self.full_login.load(Ordering::SeqCst) {
+            return Box::pin(async {
+                PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+                    templates: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![]),
+                    saved_values: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![]),
+                }
+            });
+        }
         panic!("unexpected load_initial_world_states_like_cpp");
     }
     fn load_login_transports_like_cpp<'a>(
         &'a self,
         _: PlayerLoginTransportLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginTransportLoadOutcomeLikeCpp> {
+        if self.full_login.load(Ordering::SeqCst) {
+            return Box::pin(async { PlayerLoginTransportLoadOutcomeLikeCpp::Loaded(vec![]) });
+        }
         panic!("unexpected load_login_transports_like_cpp");
     }
     fn load_account_collection_like_cpp<'a>(
@@ -174,6 +195,10 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         &'a self,
         _: PlayerOnlineMarkRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        if self.full_login.load(Ordering::SeqCst) {
+            self.events.lock().unwrap().push("online");
+            return Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 1 } });
+        }
         panic!("unexpected mark_player_online_like_cpp");
     }
     fn save_account_collection_like_cpp<'a>(
@@ -236,6 +261,7 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
                 summoned_pet_number: None,
                 at_login_flags: Some(0),
                 zone_id: Some(12),
+                death_expire_time: Some(0),
                 dungeon_difficulty: None,
                 chosen_title: None,
                 health: Some(100),
@@ -277,6 +303,67 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         &'a self,
         request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
+        if self.full_login.load(Ordering::SeqCst) {
+            let probe = *self.unit_flags2_load_probe.lock().unwrap();
+            if let Some((unrelated, remove_on_aura_load)) = probe {
+                let seed = matches!(
+                    &request,
+                    PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable { .. }
+                );
+                let aura_load = matches!(
+                    &request,
+                    PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras { .. }
+                );
+                if seed || aura_load {
+                    let mut manager = self.manager.lock().unwrap();
+                    let (handle, _) = manager
+                        .current_player_admission_like_cpp(ObjectGuid::create_player(1, 42))
+                        .unwrap();
+                    manager
+                        .with_player_mut_like_cpp(handle, |player| {
+                            let unit = player.unit_mut();
+                            if seed {
+                                unit.set_unit_flags2_like_cpp(
+                                    wow_constants::UnitFlags2::from_bits_retain(unrelated),
+                                );
+                            } else {
+                                assert_eq!(
+                                    unit.data().flags2,
+                                    unrelated | wow_constants::UnitFlags2::REGENERATE_POWER.bits(),
+                                    "InitStats load seed must precede aura loading"
+                                );
+                                if remove_on_aura_load {
+                                    unit.set_unit_flags2_like_cpp(
+                                        wow_constants::UnitFlags2::from_bits_retain(unrelated),
+                                    );
+                                }
+                                self.events.lock().unwrap().push("flags2-before-auras");
+                            }
+                        })
+                        .unwrap();
+                }
+            }
+            if matches!(
+                &request,
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { .. }
+            ) && self
+                .seed_self_res_spells_on_customizations_load
+                .swap(false, Ordering::SeqCst)
+            {
+                let player_guid = ObjectGuid::create_player(1, 42);
+                let mut manager = self.manager.lock().unwrap();
+                let player = manager
+                    .find_map_mut(0, 0)
+                    .expect("login map exists before self CREATE")
+                    .map_mut()
+                    .get_typed_player_mut(player_guid)
+                    .expect("canonical login Player exists before self CREATE");
+                for spell_id in [3026, 21169, 3026] {
+                    player.add_self_res_spell(spell_id);
+                }
+            }
+            return module_hook::empty_auxiliary_load(request);
+        }
         match request {
             PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail { .. } => Box::pin(async {
                 PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
@@ -338,6 +425,7 @@ async fn hydrate(
         "enUS".into(),
         packet_rx,
         send_tx,
+        wow_world::session::registry::build_dispatch_table(),
     );
     let guid = ObjectGuid::create_player(1, 42);
     let manager = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(300_000, 10)));
@@ -362,6 +450,10 @@ async fn hydrate(
         reached_inventory_load: AtomicBool::new(false),
         stop_at_pet_load,
         manager: Arc::clone(&manager),
+        full_login: AtomicBool::new(false),
+        seed_self_res_spells_on_customizations_load: AtomicBool::new(false),
+        unit_flags2_load_probe: std::sync::Mutex::new(None),
+        events: std::sync::Mutex::new(Vec::new()),
     });
     let maps = Arc::new(MapStore::from_entries([MapEntry {
         id: 0,
@@ -412,6 +504,7 @@ async fn hydrate(
         addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
         equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
         power_types: Arc::new(PowerTypeStore::from_entries([])),
+        localized_names: Arc::new(Default::default()),
     };
     let progression = ProgressionCatalogsLikeCpp {
         no_reset_talent_cost: false,
@@ -423,21 +516,17 @@ async fn hydrate(
     let grid: PlayerGridLoadResolverLikeCpp =
         Arc::new(|_, _, _| panic!("unexpected grid publication"));
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
-    let modules = wow_module_api::ModuleRegistry::new();
     let rest = PlayerRestRatePolicyLikeCpp::default();
     let features = SupportFeaturePolicyLikeCpp::default();
-    let mut login = Box::pin(
-        session.handle_continue_player_login_with_module_registry_like_cpp(
-            &generator,
-            &modules,
-            &creatures,
-            &bootstrap,
-            &rest,
-            &progression,
-            &features,
-            &grid,
-        ),
-    );
+    let mut login = Box::pin(session.handle_continue_player_login_with_catalogs_like_cpp(
+        &generator,
+        &creatures,
+        &bootstrap,
+        &rest,
+        &progression,
+        &features,
+        &grid,
+    ));
     // Poll once: early fixture reads are ready; the selected checkpoint is pending.
     let pending =
         std::future::poll_fn(|cx| std::task::Poll::Ready(login.as_mut().poll(cx).is_pending()))
@@ -465,6 +554,8 @@ async fn hydrate(
 mod cleanup;
 #[path = "production_login_player_owner/finalization.rs"]
 mod finalization;
+#[path = "production_login_player_owner/module_hook.rs"]
+mod module_hook;
 #[path = "production_login_player_owner/save.rs"]
 mod save;
 #[path = "production_login_player_owner/teleport_admission.rs"]

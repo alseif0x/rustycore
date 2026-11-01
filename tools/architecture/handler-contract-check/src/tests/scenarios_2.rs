@@ -4,6 +4,26 @@
 
 use super::*;
 
+const LEGACY_REGISTRY_BRIDGE_SOURCE: &str = r#"
+    pub(crate) struct LegacyPacketHandlerRegistrationLikeCpp {
+        pub(crate) entry: &'static PacketHandlerEntry,
+    }
+    inventory::collect!(LegacyPacketHandlerRegistrationLikeCpp);
+    macro_rules! register_packet_handler_like_cpp {
+        ($entry:expr) => {
+            const _: () = {
+                static ENTRY: $crate::session::registry::PacketHandlerEntry = $entry;
+                inventory::submit! {
+                    $crate::session::registry::LegacyPacketHandlerRegistrationLikeCpp {
+                        entry: &ENTRY,
+                    }
+                }
+            };
+        };
+    }
+    pub(crate) use register_packet_handler_like_cpp;
+"#;
+
 #[test]
 fn registration_guard_rejects_registration_macro_exports_and_reexports() {
     let upstream_aliases =
@@ -229,7 +249,7 @@ fn ownership_source_graph_follows_cfg_path_and_target_directories() {
     fs::write(&regular_path, "pub fn legitimate() {}\n").expect("write regular path");
     fs::write(&target_path, "pub fn generated() {}\n").expect("write target path");
 
-    let (sources, explicit_paths, _) =
+    let (sources, explicit_paths, ..) =
         audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
             .expect("valid cfg-inactive #[path] modules");
     assert_eq!(explicit_paths, 2);
@@ -342,7 +362,7 @@ fn ownership_is_logical_not_a_physical_handlers_prefix() {
     )
     .expect("write hidden submission");
 
-    let (sources, _, unconditional) =
+    let (sources, _, _, _) =
         audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
             .expect("source graph resolves");
     let shadow = shadow.canonicalize().expect("canonical shadow");
@@ -350,7 +370,7 @@ fn ownership_is_logical_not_a_physical_handlers_prefix() {
         sources.get(&shadow),
         Some(&BTreeSet::from(["crate::shadow".to_owned()]))
     );
-    let error = audit_package_registration_sources("wow-world", &sources, &unconditional)
+    let error = audit_package_registration_sources("wow-world", &sources)
         .expect_err("a physical handlers prefix must not confer logical ownership");
     assert!(
         error.contains(
@@ -392,7 +412,7 @@ fn ownership_propagates_every_logical_remount_to_descendants() {
     )
     .expect("write remounted child submission");
 
-    let (sources, explicit_paths, unconditional) =
+    let (sources, explicit_paths, _, _) =
         audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
             .expect("every logical remount is traversed");
     assert_eq!(explicit_paths, 1);
@@ -404,7 +424,7 @@ fn ownership_propagates_every_logical_remount_to_descendants() {
             "crate::shadow::child".to_owned(),
         ]))
     );
-    let error = audit_package_registration_sources("wow-world", &sources, &unconditional)
+    let error = audit_package_registration_sources("wow-world", &sources)
         .expect_err("an outside remount must remove the handler-owner exemption from descendants");
     assert!(
         error.contains("inventory registration macro inventory::submit!"),
@@ -443,90 +463,86 @@ fn ownership_rejects_module_declarations_inside_item_bodies() {
 }
 
 #[test]
-fn ownership_allows_only_the_exact_registry_module_collector() {
+fn ownership_rejects_the_retired_legacy_registry_bridge() {
+    // #1360 retired the World legacy inventory bridge: the registry module
+    // needs no collector, and every piece of the old bridge now fails closed,
+    // in wow-world's registry module as anywhere else.
     let fixture = source_graph_fixture("collector-owner");
     let crate_root = fixture.join("src/lib.rs");
-    fs::create_dir_all(crate_root.parent().expect("crate root parent"))
-        .expect("create collector source directory");
-    let canonical_root = {
-        fs::write(&crate_root, "inventory::collect!(PacketHandlerEntry);\n")
-            .expect("write exact collector");
-        crate_root.canonicalize().expect("canonical collector root")
-    };
-    // #359 moved the collector out of wow-handler: the entry names WorldSession,
-    // so it lives in the dispatcher owner's registry module.
-    let sources = BTreeMap::from([(
-        canonical_root.clone(),
-        BTreeSet::from(["crate::session::registry".to_owned()]),
-    )]);
-    let unconditional: BTreeSet<_> = sources.keys().cloned().collect();
+    let session_module = fixture.join("src/session/mod.rs");
+    let registry_module = fixture.join("src/session/registry.rs");
+    fs::create_dir_all(registry_module.parent().expect("registry module parent"))
+        .expect("create registry source directory");
+    fs::write(&crate_root, "mod session;\n").expect("write crate root");
+    fs::write(&session_module, "pub mod registry;\n").expect("write session module");
+    fs::write(
+        &registry_module,
+        "pub type WorldPacketHandlerRegistry = wow_handler::PacketHandlerRegistry<u8, u8>;\n",
+    )
+    .expect("write bridge-free registry module");
+    let (sources, _, _, _) =
+        audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
+            .expect("registry source graph parses");
+    audit_package_registration_sources("wow-world", &sources)
+        .expect("a registry module without the legacy bridge passes");
 
-    audit_package_registration_sources("wow-world", &sources, &unconditional)
-        .expect("one exact unconditional collector in the registry module must pass");
-    let elsewhere = BTreeMap::from([(
-        canonical_root,
-        BTreeSet::from(["crate::session::driver".to_owned()]),
-    )]);
-    let error = audit_package_registration_sources("wow-world", &elsewhere, &unconditional)
-        .expect_err("another session module must not own the collector");
-    assert!(
-        error.contains("inventory registration macro inventory::collect!"),
-        "{error}"
-    );
-
-    for (name, source, expected_error) in [
+    let wrapper_struct = r#"
+        pub(crate) struct LegacyPacketHandlerRegistrationLikeCpp {
+            pub(crate) entry: &'static PacketHandlerEntry,
+        }
+    "#;
+    let wrapper_macro = r#"
+        macro_rules! register_packet_handler_like_cpp {
+            ($entry:expr) => {
+                const _: () = {
+                    static ENTRY: $crate::session::registry::PacketHandlerEntry = $entry;
+                };
+            };
+        }
+    "#;
+    let mutants = [
         (
-            "conditional",
-            "#[cfg(windows)] inventory::collect!(PacketHandlerEntry);\n",
-            "conditionally compiles inventory::collect!(PacketHandlerEntry)",
+            "whole-bridge",
+            LEGACY_REGISTRY_BRIDGE_SOURCE,
+            "inventory registration macro inventory::collect!",
         ),
         (
-            "duplicate",
-            "inventory::collect!(PacketHandlerEntry);\n\
-             inventory::collect!(PacketHandlerEntry);\n",
-            "must define exactly one unconditional module-level",
+            "whole-bridge-wrapper",
+            LEGACY_REGISTRY_BRIDGE_SOURCE,
+            "reintroduces the retired legacy inventory registration bridge",
         ),
         (
-            "nested",
-            "const INSTALL: () = { inventory::collect!(PacketHandlerEntry); };\n",
-            "outside module item level",
+            "wrapper-type",
+            wrapper_struct,
+            "reintroduces the retired legacy inventory registration bridge",
         ),
         (
-            "renamed-namespace",
-            "use inv as inventory;\n\
-             inventory::collect!(PacketHandlerEntry);\n",
-            "can alias an inventory registration macro",
+            "wrapper-macro",
+            wrapper_macro,
+            "reintroduces the retired legacy inventory registration bridge",
         ),
         (
-            "raw-renamed-namespace",
-            "extern crate inv as r#inventory;\n\
-             r#inventory::collect!(PacketHandlerEntry);\n",
-            "crate alias can hide inventory",
+            "collector",
+            "inventory::collect!(LegacyPacketHandlerRegistrationLikeCpp);",
+            "inventory registration macro inventory::collect!",
         ),
         (
-            "module-namespace",
-            "mod inventory { pub use inv::*; }\n\
-             inventory::collect!(PacketHandlerEntry);\n",
-            "shadows the canonical inventory crate namespace",
+            "wrapper-reexport",
+            "pub(crate) use register_packet_handler_like_cpp;",
+            "aliases or reexports an audited handler registration macro",
         ),
-    ] {
-        fs::write(&crate_root, source).expect("write collector mutant");
-        let error = audit_package_registration_sources("wow-world", &sources, &unconditional)
-            .expect_err("collector mutant must fail closed");
-        assert!(
-            error.contains(expected_error),
-            "{name}: expected {expected_error:?}, got {error:?}"
-        );
+    ];
+    for package in ["wow-world", "world-server"] {
+        for (name, source, expected_error) in mutants {
+            fs::write(&registry_module, source).expect("write bridge mutant");
+            let error = audit_package_registration_sources(package, &sources)
+                .expect_err("a reintroduced legacy bridge piece must fail closed");
+            assert!(
+                error.contains(expected_error),
+                "{package} {name}: expected {expected_error:?}, got {error:?}"
+            );
+        }
     }
-
-    fs::write(&crate_root, "inventory::collect!(PacketHandlerEntry);\n")
-        .expect("restore exact collector");
-    let error = audit_package_registration_sources("world-server", &sources, &unconditional)
-        .expect_err("the exact collector is forbidden outside the registry module");
-    assert!(
-        error.contains("inventory registration macro inventory::collect!"),
-        "{error}"
-    );
 
     fs::remove_dir_all(&fixture).expect("remove collector fixture");
 }
@@ -551,16 +567,13 @@ fn ownership_rejects_collector_mounted_below_a_conditional_parent() {
         fs::write(&crate_root, format!("{parent_attribute}\nmod session;\n"))
             .expect("write conditional collector parent");
         fs::write(&session_module, "pub mod registry;\n").expect("write session module");
-        fs::write(
-            &collector_module,
-            "inventory::collect!(PacketHandlerEntry);\n",
-        )
-        .expect("write nested collector");
+        fs::write(&collector_module, LEGACY_REGISTRY_BRIDGE_SOURCE)
+            .expect("write nested registry bridge");
 
-        let (sources, _, unconditional) =
+        let (sources, _, _, _) =
             audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
                 .expect("cfg-independent graph follows collector module");
-        let error = audit_package_registration_sources("wow-world", &sources, &unconditional)
+        let error = audit_package_registration_sources("wow-world", &sources)
             .expect_err("a collector below a conditional parent does not own the collector");
         assert!(
             error.contains("inventory registration macro inventory::collect!"),
@@ -806,7 +819,7 @@ fn metadata_scope_fails_closed_on_unknown_dependency_kinds() {
 
 #[test]
 fn source_guard_discovers_direct_and_macro_generated_registrations() {
-    let report = analyze_inline_source(
+    let direct = analyze_inline_source(
         r#"
             inventory::submit! {
                 PacketHandlerEntry {
@@ -816,8 +829,25 @@ fn source_guard_discovers_direct_and_macro_generated_registrations() {
                     handler_name: "alpha",
                 }
             }
+        "#,
+    )
+    .expect("unconditional synthetic registrations must pass");
 
-            macro_rules! register_handler {
+    assert_eq!(
+        direct,
+        RegistrationSourceReport {
+            direct_submissions: 1,
+            builder_entries: 0,
+            builder_registrars: 0,
+            registration_macro_invocations: 0,
+            registration_macro_names: BTreeSet::new(),
+        }
+    );
+
+    // A legacy inventory expansion is no longer a registration macro (#1263 F5 tail).
+    let legacy = analyze_inline_source(
+        r#"
+            macro_rules! register_move {
                 ($opcode:ident) => {
                     inventory::submit! {
                         PacketHandlerEntry {
@@ -829,18 +859,52 @@ fn source_guard_discovers_direct_and_macro_generated_registrations() {
                     }
                 };
             }
-
-            register_handler!(Beta);
+            register_move!(Beta);
         "#,
     )
-    .expect("unconditional synthetic registrations must pass");
+    .expect_err("the legacy inventory expansion is no longer the registration grammar");
+    assert!(
+        legacy.contains("still expands through the legacy inventory submission grammar"),
+        "{legacy}"
+    );
+
+    // The structural builder registration macro is discovered and counted once.
+    let structural = crate::registrations::analyze_inline_source_at_module(
+        r#"
+            macro_rules! register_move {
+                ($builder:ident, $opcode:ident) => {
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::Inplace,
+                        handler_name: "macro",
+                        handler: hidden,
+                    })?
+                };
+            }
+            pub fn register_movement_tail_handlers_like_cpp<S, C>(
+                builder: &mut RegistryBuilder<S, C>,
+            ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
+            where
+                S: MovementHandlerHostLikeCpp<C> + Send,
+                C: Sync,
+            {
+                register_move!(builder, Beta);
+                Ok(())
+            }
+        "#,
+        crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
+    )
+    .expect("the structural builder registration macro is the audited grammar");
 
     assert_eq!(
-        report,
+        structural,
         RegistrationSourceReport {
-            direct_submissions: 1,
+            direct_submissions: 0,
+            builder_entries: 0,
+            builder_registrars: 0,
             registration_macro_invocations: 1,
-            registration_macro_names: ["register_handler".to_owned()].into_iter().collect(),
+            registration_macro_names: ["register_move".to_owned()].into_iter().collect(),
         }
     );
 }

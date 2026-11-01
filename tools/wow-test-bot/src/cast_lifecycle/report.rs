@@ -30,25 +30,38 @@ pub(super) fn prepare_identity_map(events: &[ObservedEvent]) -> HashMap<Guid, Gu
 }
 
 pub(super) fn evaluate(evidence: &mut Evidence) {
-    let mut next_sequence = 0usize;
+    let mut next_instance_sequence = None;
+    let mut next_realm_sequence = None;
     let mut all_matched = evidence.failure.is_none();
     let mut matched_sequences = std::collections::HashSet::new();
     for fact in &mut evidence.expected_rules {
-        let found = evidence
-            .events
-            .iter()
-            .skip(next_sequence)
-            .find(|event| event.error.is_none() && matches_rule(&fact.rule, event));
+        let connection = match &fact.rule {
+            ExpectedRule::Packet { connection, .. } => *connection,
+            _ => Connection::Instance,
+        };
+        let after = match connection {
+            Connection::Instance => next_instance_sequence,
+            Connection::Realm => next_realm_sequence,
+        };
+        let found = evidence.events.iter().find(|event| {
+            event.connection == connection
+                && after.is_none_or(|sequence| event.sequence > sequence)
+                && event.error.is_none()
+                && matches_rule(&fact.rule, event)
+        });
         if let Some(event) = found {
             fact.matched = true;
             fact.event_sequence = Some(event.sequence);
-            fact.detail = format!("matched ordered event {}", event.sequence);
-            next_sequence = event.sequence + 1;
+            fact.detail = format!("matched ordered {connection:?} event {}", event.sequence);
+            match connection {
+                Connection::Instance => next_instance_sequence = Some(event.sequence),
+                Connection::Realm => next_realm_sequence = Some(event.sequence),
+            }
             matched_sequences.insert(event.sequence);
         } else {
             fact.matched = false;
             fact.event_sequence = None;
-            fact.detail = "no ordered decoded event satisfied this identity/spell rule".to_string();
+            fact.detail = format!("no ordered {connection:?} decoded event satisfied this rule");
             all_matched = false;
         }
     }
@@ -83,6 +96,25 @@ pub(super) fn evaluate(evidence: &mut Evidence) {
             )
         });
     }
+    let exact_packet_opcodes = evidence
+        .expected_rules
+        .iter()
+        .filter_map(|fact| match &fact.rule {
+            ExpectedRule::Packet { opcode, .. } => Some(*opcode),
+            _ => None,
+        })
+        .collect::<std::collections::HashSet<_>>();
+    if let Some(event) = evidence.events.iter().find(|event| {
+        exact_packet_opcodes.contains(&event.opcode) && !matched_sequences.contains(&event.sequence)
+    }) {
+        all_matched = false;
+        evidence.failure.get_or_insert_with(|| {
+            format!(
+                "unexpected, duplicate, or wrong-route exact packet 0x{:04X} at event {} on {:?}",
+                event.opcode, event.sequence, event.connection
+            )
+        });
+    }
     if let Some(event) = evidence.events.iter().find(|event| event.error.is_some()) {
         evidence.failure.get_or_insert_with(|| {
             format!(
@@ -100,15 +132,48 @@ pub(super) fn evaluate(evidence: &mut Evidence) {
         && evidence.failure.is_none();
 }
 
-/// Normal logout is part of the scenario contract: an unconfirmed empty REALM
-/// SMSG_LOGOUT_COMPLETE fails the run even when every cast expectation matched.
-pub(super) fn finalize_logout(evidence: &mut Evidence) {
-    if !evidence.logout_confirmed {
-        evidence
-            .failure
-            .get_or_insert_with(|| "normal logout was not confirmed".to_string());
+/// Apply the finish-policy proof requirement before evaluating the final report.
+pub(super) fn finalize_finish(evidence: &mut Evidence) {
+    match evidence.finish_policy {
+        FinishPolicy::Logout => {
+            if !evidence.logout_request_completed {
+                evidence.failure.get_or_insert_with(|| {
+                    "normal logout request was not locally written".to_string()
+                });
+            }
+            if !evidence.logout_confirmed {
+                evidence
+                    .failure
+                    .get_or_insert_with(|| "normal logout was not confirmed".to_string());
+            }
+            if evidence.logout_route.as_deref() != Some("realm") {
+                evidence
+                    .failure
+                    .get_or_insert_with(|| "normal logout was not confirmed on realm".to_string());
+            }
+            if !evidence.finish_completed {
+                evidence.failure.get_or_insert_with(|| {
+                    "normal logout finish did not complete locally".to_string()
+                });
+            }
+        }
+        FinishPolicy::Disconnect => {
+            evidence.logout_confirmed = false;
+            evidence.logout_route = None;
+            if !evidence.local_disconnect_recorded || !evidence.finish_completed {
+                evidence
+                    .failure
+                    .get_or_insert_with(|| "local disconnect was not recorded".to_string());
+            }
+        }
     }
     evaluate(evidence);
+}
+
+/// Kept as a small test helper for the original default logout contract.
+pub(super) fn finalize_logout(evidence: &mut Evidence) {
+    evidence.finish_policy = FinishPolicy::Logout;
+    finalize_finish(evidence);
 }
 
 fn event_is_plan_bound(
@@ -117,6 +182,7 @@ fn event_is_plan_bound(
     identities: &HashMap<Guid, Guid>,
 ) -> bool {
     expected_rules.iter().any(|fact| match &fact.rule {
+        ExpectedRule::Packet { .. } => false,
         ExpectedRule::Prepare {
             client_cast_id,
             server_cast_id,
@@ -171,11 +237,24 @@ fn identity_matches_either(
 }
 
 fn matches_rule(rule: &ExpectedRule, event: &ObservedEvent) -> bool {
+    if let ExpectedRule::Packet {
+        connection,
+        opcode,
+        body_hex,
+    } = rule
+    {
+        return event.connection == *connection
+            && event.opcode == *opcode
+            && hex::decode(body_hex).is_ok_and(|expected| {
+                hex::decode(&event.body_hex).is_ok_and(|actual| actual == expected)
+            });
+    }
     // Classic Opcodes.cpp registers all six observed cast opcodes on INSTANCE.
     if event.connection != Connection::Instance {
         return false;
     }
     match rule {
+        ExpectedRule::Packet { .. } => unreachable!("packet rules handled before cast route gate"),
         ExpectedRule::Prepare {
             client_cast_id,
             server_cast_id,
@@ -294,6 +373,9 @@ fn target_matches(expected: &TargetExpectation, actual: Option<&TargetFact>) -> 
         TargetExpectation::Empty => actual.flags == 0 && actual.unit.empty() && actual.item.empty(),
         TargetExpectation::Unit(guid) => {
             actual.flags & 0x2 != 0 && actual.unit == *guid && actual.item.empty()
+        }
+        TargetExpectation::CorpseAlly(guid) => {
+            actual.flags & 0x8000 != 0 && actual.unit == *guid && actual.item.empty()
         }
     }
 }

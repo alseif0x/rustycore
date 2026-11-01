@@ -789,6 +789,8 @@ impl Default for PlayerCombatStats {
 /// Data needed to build a full player create packet for the client.
 pub struct PlayerCreateData {
     pub guid: ObjectGuid,
+    /// UnitData::Summon, C++ `Unit::GetMinionGUID`.
+    pub summon: ObjectGuid,
     /// PlayerData::WowAccount.
     pub wow_account: ObjectGuid,
     /// PlayerData::BnetAccount.
@@ -801,6 +803,9 @@ pub struct PlayerCreateData {
     pub native_display_id: u32,
     pub health: i64,
     pub max_health: i64,
+    /// Native Unit::AuraState projected for this CREATE's viewer.
+    pub aura_state: u32,
+    pub unit_flags2: u32,
     pub faction_template: i32,
     pub current_area_id: u32,
     /// PlayerData::PlayerFlags.
@@ -927,6 +932,10 @@ pub struct PlayerCreateData {
     /// appearance masks into `Player::m_activePlayerData->Transmog` before
     /// `ActivePlayerData::WriteCreate`.
     pub transmog: Vec<u32>,
+    /// ActivePlayerData::SelfResSpells dynamic field values, in owner order.
+    pub self_res_spells: Vec<i32>,
+    /// ActivePlayerData::NoReagentCostMask.
+    pub no_reagent_cost_mask: [u32; 4],
     /// ActivePlayerData::TraitConfigs.
     pub trait_configs: Vec<TraitConfigCreateData>,
 }

@@ -352,7 +352,6 @@ fn login_grid_load_preserves_precreated_dungeon_kind_like_cpp() {
             has_reset_schedule: false,
         },
     );
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let metadata = Arc::new(Mutex::new(
         super::super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
             SpawnStore::new(),
@@ -365,7 +364,6 @@ fn login_grid_load_preserves_precreated_dungeon_kind_like_cpp() {
 
     let outcome = super::super::ensure_login_player_grid_loaded_like_cpp(
         &canonical,
-        &legacy,
         &metadata,
         &caches,
         &area_trigger_templates,
@@ -387,7 +385,6 @@ fn login_grid_load_accepts_authoritative_garrison_world_map_like_cpp() {
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
     canonical.lock().unwrap().create_world_map(1_151, 0);
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let metadata = Arc::new(Mutex::new(
         super::super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
             SpawnStore::new(),
@@ -408,7 +405,6 @@ fn login_grid_load_accepts_authoritative_garrison_world_map_like_cpp() {
 
     let outcome = super::super::ensure_login_player_grid_loaded_like_cpp(
         &canonical,
-        &legacy,
         &metadata,
         &caches,
         &area_trigger_templates,
@@ -429,7 +425,6 @@ fn login_grid_load_accepts_authoritative_garrison_world_map_like_cpp() {
 fn login_grid_load_does_not_fabricate_missing_instanceable_map_like_cpp() {
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let metadata = Arc::new(Mutex::new(
         super::super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
             SpawnStore::new(),
@@ -442,7 +437,6 @@ fn login_grid_load_does_not_fabricate_missing_instanceable_map_like_cpp() {
 
     let outcome = super::super::ensure_login_player_grid_loaded_like_cpp(
         &canonical,
-        &legacy,
         &metadata,
         &caches,
         &area_trigger_templates,
@@ -461,7 +455,6 @@ fn login_grid_load_rejects_stale_dungeon_zero_world_map_like_cpp() {
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
     canonical.lock().unwrap().create_world_map(33, 0);
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let metadata = Arc::new(Mutex::new(
         super::super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
             SpawnStore::new(),
@@ -474,7 +467,6 @@ fn login_grid_load_rejects_stale_dungeon_zero_world_map_like_cpp() {
 
     let outcome = super::super::ensure_login_player_grid_loaded_like_cpp(
         &canonical,
-        &legacy,
         &metadata,
         &caches,
         &area_trigger_templates,
@@ -495,7 +487,6 @@ fn login_grid_load_rejects_stale_dungeon_zero_world_map_like_cpp() {
 fn login_grid_load_can_materialize_missing_common_world_map_like_cpp() {
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let metadata = Arc::new(Mutex::new(
         super::super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
             SpawnStore::new(),
@@ -508,7 +499,6 @@ fn login_grid_load_can_materialize_missing_common_world_map_like_cpp() {
 
     let outcome = super::super::ensure_login_player_grid_loaded_like_cpp(
         &canonical,
-        &legacy,
         &metadata,
         &caches,
         &area_trigger_templates,
@@ -529,7 +519,6 @@ fn login_grid_load_can_materialize_missing_common_world_map_like_cpp() {
 fn login_grid_load_does_not_guess_missing_faction_split_world_map_like_cpp() {
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let metadata = Arc::new(Mutex::new(
         super::super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
             SpawnStore::new(),
@@ -542,7 +531,6 @@ fn login_grid_load_does_not_guess_missing_faction_split_world_map_like_cpp() {
 
     let outcome = super::super::ensure_login_player_grid_loaded_like_cpp(
         &canonical,
-        &legacy,
         &metadata,
         &caches,
         &area_trigger_templates,
@@ -557,7 +545,7 @@ fn login_grid_load_does_not_guess_missing_faction_split_world_map_like_cpp() {
     assert!(canonical.lock().unwrap().find_map(609, 0).is_none());
 }
 #[test]
-fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp() {
+fn login_grid_load_skips_already_loaded_canonical_creature_like_cpp() {
     let spawn_id = 70_001;
     let entry = 42;
     let position = Position::new(1_000.0, 1_000.0, 0.0, 0.0);
@@ -588,7 +576,6 @@ fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp(
             .expect("test canonical creature add to map");
     }
 
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let mut store = SpawnStore::new();
     store.add_object_spawn(
         &SpawnData {
@@ -629,7 +616,6 @@ fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp(
 
     let outcome = super::super::ensure_login_player_grid_loaded_like_cpp(
         &canonical,
-        &legacy,
         &metadata,
         &caches,
         &area_trigger_templates,
@@ -641,14 +627,6 @@ fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp(
 
     assert_eq!(outcome.skipped_already_loaded, 1);
     assert_eq!(outcome.creature_records_added, 0);
-    assert_eq!(
-        outcome.legacy_creature_mirrors, 1,
-        "C++ has one Map object store; Rust's temporary canonical/legacy split must mirror already-loaded canonical creatures into the legacy tick world"
-    );
-    assert!(
-        legacy.read().unwrap().find_creature(571, 0, guid).is_some(),
-        "already-loaded canonical creature must be present in legacy MapManager so the creature tick can move it"
-    );
 }
 #[test]
 fn login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp() {
@@ -664,14 +642,12 @@ fn login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp() {
         "regression setup must place the player and nearby creature across a C++ NGrid boundary"
     );
     assert!(
-        player_position.distance_2d(&creature_position)
-            <= wow_world::map_manager::VISIBILITY_RADIUS,
+        player_position.distance_2d(&creature_position) <= wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
         "regression creature must be inside the client visibility radius"
     );
 
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let mut store = SpawnStore::new();
     store.add_object_spawn(
         &SpawnData {
@@ -742,7 +718,6 @@ fn login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp() {
 
     let outcome = super::super::ensure_login_player_grid_loaded_like_cpp(
         &canonical,
-        &legacy,
         &metadata,
         &caches,
         &area_trigger_templates,
@@ -753,7 +728,6 @@ fn login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp() {
     );
 
     assert_eq!(outcome.creature_records_added, 1);
-    assert_eq!(outcome.legacy_creature_mirrors, 1);
     assert_eq!(outcome.load_record_missing, 0);
     assert_eq!(outcome.add_to_map_errors, 0);
     let guid = {
@@ -767,25 +741,6 @@ fn login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp() {
             .guid()
     };
     assert_eq!(guid.realm_id(), 7);
-    assert!(
-        legacy.read().unwrap().find_creature(1, 0, guid).is_some(),
-        "materialized canonical creature must be mirrored into the legacy visible/tick world"
-    );
-    assert!(
-        legacy
-            .read()
-            .unwrap()
-            .get_visible_creatures(
-                1,
-                0,
-                player_position.x,
-                player_position.y,
-                player_position.z
-            )
-            .iter()
-            .any(|creature| creature.guid() == guid),
-        "nearby creature from the adjacent C++ NGrid must be visible after login"
-    );
 }
 #[test]
 fn login_grid_load_materializes_area_triggers_like_cpp() {
@@ -796,7 +751,6 @@ fn login_grid_load_materializes_area_triggers_like_cpp() {
 
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let mut store = SpawnStore::new();
     store.add_area_trigger_spawn(&SpawnData {
         object_type: SpawnObjectType::AreaTrigger,
@@ -841,7 +795,6 @@ fn login_grid_load_materializes_area_triggers_like_cpp() {
 
     let outcome = super::super::ensure_login_player_grid_loaded_like_cpp(
         &canonical,
-        &legacy,
         &metadata,
         &caches,
         &area_trigger_templates,

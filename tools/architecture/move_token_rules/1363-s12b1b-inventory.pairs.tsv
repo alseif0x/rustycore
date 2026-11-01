@@ -1,0 +1,4 @@
+# base_path name head_path (#1363 slice 12b1b inventory, base e5c8195b0)
+crates/wow-world/src/session/player_items/valuation.rs	update_represented_item_level_area_based_scaling_with_publication_like_cpp	crates/wow-world-inventory/src/player_items_session/scaling.rs
+crates/wow-world/src/session/player_items/equipment_sets.rs	build_equipment_set_use_context_like_cpp	crates/wow-world-inventory/src/player_items_session/equipment_sets.rs
+crates/wow-world/src/session/player_items/items.rs	uncage_item_state_like_cpp	crates/wow-world-inventory/src/battle_pet_session/item_state.rs

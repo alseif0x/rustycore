@@ -230,10 +230,8 @@ dependencies = [
  "axum",
  "bitflags",
  "bytes",
- "dashmap",
  "flate2",
  "hyper",
- "hyper-util",
  "num-bigint",
  "num-traits",
  "parking_lot",
@@ -1847,6 +1845,7 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "wow-config",
  "wow-database",
@@ -2275,28 +2274,6 @@ dependencies = [
  "unicode-bidi",
  "unicode-normalization",
  "unicode-properties",
-]
-
-[[package]]
-name = "strum"
-version = "0.26.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
-dependencies = [
- "strum_macros",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.26.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn",
 ]
 
 [[package]]
@@ -3168,7 +3145,6 @@ dependencies = [
  "wow-config",
  "wow-constants",
  "wow-core",
- "wow-crypto",
  "wow-data",
  "wow-database",
  "wow-entities",
@@ -3182,21 +3158,23 @@ dependencies = [
  "wow-network",
  "wow-packet",
  "wow-persistence",
- "wow-scripts",
+ "wow-script",
  "wow-social",
  "wow-world",
+ "wow-world-application",
+ "wow-world-core",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-social",
+ "wow-world-spell",
+ "wow-world-test-support",
 ]
-
-[[package]]
-name = "wow-achievement"
-version = "0.1.0"
 
 [[package]]
 name = "wow-ai"
 version = "0.1.0"
 dependencies = [
  "rand",
- "wow-constants",
  "wow-core",
  "wow-instances",
 ]
@@ -3212,21 +3190,23 @@ dependencies = [
 [[package]]
 name = "wow-chat"
 version = "0.1.0"
-dependencies = [
- "wow-constants",
- "wow-core",
-]
-
-[[package]]
-name = "wow-collections"
-version = "0.1.0"
-dependencies = [
- "smallvec",
-]
 
 [[package]]
 name = "wow-combat"
 version = "0.1.0"
+
+[[package]]
+name = "wow-conditions"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "parking_lot",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-loot",
+]
 
 [[package]]
 name = "wow-config"
@@ -3244,21 +3224,14 @@ dependencies = [
  "bitflags",
  "num-derive",
  "num-traits",
- "serde",
- "strum",
 ]
 
 [[package]]
 name = "wow-core"
 version = "0.1.0"
 dependencies = [
- "bitflags",
  "libc",
- "num-derive",
- "num-traits",
  "rand",
- "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -3289,7 +3262,6 @@ name = "wow-data"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bitflags",
  "num-traits",
  "rand",
  "tracing",
@@ -3313,8 +3285,6 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
- "wow-config",
- "wow-logging",
  "wow-persistence",
 ]
 
@@ -3323,14 +3293,21 @@ name = "wow-entities"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "num-traits",
+ "rand",
  "wow-constants",
  "wow-core",
  "wow-loot",
+ "wow-movement",
 ]
 
 [[package]]
 name = "wow-handler"
 version = "0.1.0"
+dependencies = [
+ "wow-constants",
+ "wow-packet",
+]
 
 [[package]]
 name = "wow-instances"
@@ -3348,7 +3325,6 @@ version = "0.1.0"
 dependencies = [
  "tracing",
  "tracing-subscriber",
- "wow-config",
 ]
 
 [[package]]
@@ -3365,17 +3341,13 @@ dependencies = [
 name = "wow-map"
 version = "0.1.0"
 dependencies = [
- "bumpalo",
  "forever-terrain",
  "forever-vmap",
- "parking_lot",
  "rand",
- "smallvec",
  "wow-constants",
  "wow-core",
  "wow-entities",
  "wow-loot",
- "wow-math",
 ]
 
 [[package]]
@@ -3408,7 +3380,6 @@ dependencies = [
  "aes-gcm",
  "bytes",
  "dashmap",
- "ed25519-dalek",
  "flate2",
  "flume",
  "num-traits",
@@ -3431,9 +3402,9 @@ dependencies = [
  "flate2",
  "num-traits",
  "thiserror",
- "tracing",
  "wow-constants",
  "wow-core",
+ "wow-entities",
  "wow-loot",
  "wow-movement",
 ]
@@ -3443,18 +3414,22 @@ name = "wow-persistence"
 version = "0.1.0"
 
 [[package]]
-name = "wow-proto"
+name = "wow-progression"
 version = "0.1.0"
 dependencies = [
- "bytes",
- "prost",
- "prost-build",
- "prost-types",
+ "wow-constants",
+ "wow-data",
+ "wow-entities",
+ "wow-packet",
 ]
 
 [[package]]
-name = "wow-pvp"
+name = "wow-proto"
 version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-build",
+]
 
 [[package]]
 name = "wow-recastdetour"
@@ -3470,18 +3445,7 @@ name = "wow-script"
 version = "0.1.0"
 dependencies = [
  "inventory",
- "wow-constants",
  "wow-core",
-]
-
-[[package]]
-name = "wow-scripts"
-version = "0.1.0"
-dependencies = [
- "tokio",
- "wow-constants",
- "wow-core",
- "wow-script",
 ]
 
 [[package]]
@@ -3510,6 +3474,21 @@ name = "wow-spell"
 version = "0.1.0"
 
 [[package]]
+name = "wow-spell-acquisition"
+version = "0.1.0"
+dependencies = [
+ "wow-core",
+ "wow-data",
+]
+
+[[package]]
+name = "wow-util-collections"
+version = "0.1.0"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "wow-world"
 version = "0.1.0"
 dependencies = [
@@ -3517,17 +3496,18 @@ dependencies = [
  "flume",
  "forever-casc",
  "forever-navigation",
- "inventory",
  "num-traits",
- "parking_lot",
  "rand",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "wow-ai",
  "wow-anticheat",
  "wow-chat",
+ "wow-combat",
+ "wow-conditions",
  "wow-config",
  "wow-constants",
  "wow-core",
@@ -3536,7 +3516,6 @@ dependencies = [
  "wow-entities",
  "wow-handler",
  "wow-instances",
- "wow-logging",
  "wow-loot",
  "wow-map",
  "wow-module-api",
@@ -3544,6 +3523,125 @@ dependencies = [
  "wow-network",
  "wow-packet",
  "wow-persistence",
+ "wow-progression",
+ "wow-recastdetour",
+ "wow-script",
+ "wow-session",
+ "wow-social",
+ "wow-spell-acquisition",
+ "wow-world",
+ "wow-world-application",
+ "wow-world-character",
+ "wow-world-core",
+ "wow-world-creature",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-interaction",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-loot-ops",
+ "wow-world-player-conditions",
+ "wow-world-quest",
+ "wow-world-social",
+ "wow-world-spell",
+ "wow-world-test-support",
+ "wow-world-visibility",
+]
+
+[[package]]
+name = "wow-world-application"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-map",
+ "wow-packet",
+ "wow-persistence",
+ "wow-spell-acquisition",
+ "wow-world-application",
+ "wow-world-character",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-interaction",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-loot-ops",
+ "wow-world-player-conditions",
+ "wow-world-quest",
+ "wow-world-social",
+ "wow-world-spell",
+ "wow-world-visibility",
+]
+
+[[package]]
+name = "wow-world-character"
+version = "0.1.0"
+dependencies = [
+ "flume",
+ "num-traits",
+ "tokio",
+ "tracing",
+ "wow-conditions",
+ "wow-config",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-network",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-social",
+ "wow-world-character",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-interaction",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-spell",
+ "wow-world-visibility",
+]
+
+[[package]]
+name = "wow-world-core"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "flume",
+ "forever-navigation",
+ "num-traits",
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-ai",
+ "wow-conditions",
+ "wow-config",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-instances",
+ "wow-loot",
+ "wow-map",
+ "wow-movement",
+ "wow-network",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
  "wow-recastdetour",
  "wow-script",
  "wow-session",
@@ -3551,10 +3649,325 @@ dependencies = [
 ]
 
 [[package]]
+name = "wow-world-creature"
+version = "0.1.0"
+dependencies = [
+ "wow-ai",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-map",
+ "wow-movement",
+ "wow-packet",
+ "wow-persistence",
+ "wow-recastdetour",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-spell",
+ "wow-world-test-support",
+]
+
+[[package]]
+name = "wow-world-entities"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-ai",
+ "wow-anticheat",
+ "wow-conditions",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-loot",
+ "wow-map",
+ "wow-movement",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-recastdetour",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-interaction",
+ "wow-world-lifecycle",
+ "wow-world-visibility",
+]
+
+[[package]]
+name = "wow-world-instances"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "tracing",
+ "wow-ai",
+ "wow-conditions",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-instances",
+ "wow-map",
+ "wow-packet",
+ "wow-persistence",
+ "wow-social",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-social",
+ "wow-world-spell",
+]
+
+[[package]]
+name = "wow-world-interaction"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "wow-constants",
+ "wow-core",
+ "wow-entities",
+ "wow-handler",
+ "wow-packet",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-inventory"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-conditions",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-interaction",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+]
+
+[[package]]
+name = "wow-world-lifecycle"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "flume",
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-loot",
+ "wow-map",
+ "wow-movement",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-social",
+ "wow-world-core",
+ "wow-world-visibility",
+]
+
+[[package]]
+name = "wow-world-loot"
+version = "0.1.0"
+dependencies = [
+ "flume",
+ "num-traits",
+ "rand",
+ "tokio",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-loot",
+ "wow-map",
+ "wow-packet",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-loot-ops"
+version = "0.1.0"
+dependencies = [
+ "flume",
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-conditions",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-loot",
+ "wow-map",
+ "wow-packet",
+ "wow-persistence",
+ "wow-social",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-loot-ops",
+ "wow-world-player-conditions",
+ "wow-world-quest",
+ "wow-world-social",
+ "wow-world-spell",
+]
+
+[[package]]
+name = "wow-world-player-conditions"
+version = "0.1.0"
+dependencies = [
+ "wow-conditions",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-world-core",
+ "wow-world-instances",
+ "wow-world-inventory",
+ "wow-world-player-conditions",
+ "wow-world-social",
+ "wow-world-spell",
+]
+
+[[package]]
+name = "wow-world-quest"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "wow-conditions",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-loot",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-script",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-player-conditions",
+ "wow-world-quest",
+ "wow-world-social",
+ "wow-world-spell",
+]
+
+[[package]]
+name = "wow-world-social"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "tracing",
+ "wow-chat",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-social",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-inventory",
+ "wow-world-spell",
+]
+
+[[package]]
+name = "wow-world-spell"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-combat",
+ "wow-conditions",
+ "wow-config",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-map",
+ "wow-packet",
+ "wow-persistence",
+ "wow-spell-acquisition",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-spell",
+ "wow-world-test-support",
+]
+
+[[package]]
+name = "wow-world-test-support"
+version = "0.1.0"
+dependencies = [
+ "flume",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-map",
+ "wow-packet",
+ "wow-persistence",
+ "wow-world-core",
+ "wow-world-entities",
+]
+
+[[package]]
+name = "wow-world-visibility"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "wow-core",
+ "wow-entities",
+ "wow-packet",
+ "wow-world-core",
+]
+
+[[package]]
 name = "writeable"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
+
+[[package]]
+name = "xtask"
+version = "0.1.0"
 
 [[package]]
 name = "yoke"

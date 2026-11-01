@@ -1,0 +1,132 @@
+{
+ "slice": "#1363 slice 12b2b (the loaded item-mod replay, item-set auras, loaded enchantments, effects and spell actions -> wow-world-application over LoadedItemModsHostLikeCpp)",
+ "base": "ca48c58e9",
+ "moved": [
+  "apply_initial_loaded_item_mods_like_cpp",
+  "apply_initial_item_set_auras_like_cpp",
+  "apply_loaded_equipped_item_enchantments_like_cpp",
+  "apply_loaded_equipped_item_enchantment_effects_like_cpp",
+  "apply_loaded_enchantment_spell_action_like_cpp",
+  "initial_loaded_item_mods_can_apply_like_cpp",
+  "loaded_inventory_item_visible_update_like_cpp",
+  "apply_represented_item_bonus_action_state_like_cpp"
+ ],
+ "rules": [
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_initial_loaded_item_mods_like_cpp\\(\\s*&mut self,",
+   "pub fn apply_initial_loaded_item_mods_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_initial_loaded_item_mods_like_cpp\\(\\s*&self,",
+   "pub fn apply_initial_loaded_item_mods_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_initial_item_set_auras_like_cpp\\(\\s*&mut self,",
+   "fn apply_initial_item_set_auras_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_initial_item_set_auras_like_cpp\\(\\s*&self,",
+   "fn apply_initial_item_set_auras_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_loaded_equipped_item_enchantments_like_cpp\\(\\s*&mut self,",
+   "pub fn apply_loaded_equipped_item_enchantments_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_loaded_equipped_item_enchantments_like_cpp\\(\\s*&self,",
+   "pub fn apply_loaded_equipped_item_enchantments_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_loaded_equipped_item_enchantment_effects_like_cpp\\(\\s*&mut self,",
+   "fn apply_loaded_equipped_item_enchantment_effects_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_loaded_equipped_item_enchantment_effects_like_cpp\\(\\s*&self,",
+   "fn apply_loaded_equipped_item_enchantment_effects_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_loaded_enchantment_spell_action_like_cpp\\(\\s*&mut self,",
+   "fn apply_loaded_enchantment_spell_action_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_loaded_enchantment_spell_action_like_cpp\\(\\s*&self,",
+   "fn apply_loaded_enchantment_spell_action_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn initial_loaded_item_mods_can_apply_like_cpp\\(\\s*&mut self,",
+   "fn initial_loaded_item_mods_can_apply_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn initial_loaded_item_mods_can_apply_like_cpp\\(\\s*&self,",
+   "fn initial_loaded_item_mods_can_apply_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn loaded_inventory_item_visible_update_like_cpp\\(\\s*&mut self,",
+   "fn loaded_inventory_item_visible_update_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn loaded_inventory_item_visible_update_like_cpp\\(\\s*&self,",
+   "fn loaded_inventory_item_visible_update_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_represented_item_bonus_action_state_like_cpp\\(\\s*&mut self,",
+   "pub fn apply_represented_item_bonus_action_state_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn apply_represented_item_bonus_action_state_like_cpp\\(\\s*&self,",
+   "pub fn apply_represented_item_bonus_action_state_like_cpp<H: LoadedItemModsHostLikeCpp>(host: &H,"
+  ],
+  [
+   "crate::session::split_inventory_mut\\(self\\)",
+   "host.split_inventory_mut()"
+  ],
+  [
+   "crate::session::split_inventory_ref\\(self\\)",
+   "host.split_inventory_ref()"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "(record_represented_items_set_item_events_like_cpp|record_represented_item_mods_like_cpp)\\(\\s*self,",
+   "\\1(host,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*spell_store\\(\\)",
+   "host.hub_ref().catalogs.spell_store()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*apply_aura_with_effect_mask_like_cpp\\(",
+   "session_aura_application_cx_like_cpp(host).apply_aura_with_effect_mask_like_cpp("
+  ],
+  [
+   "\\bself\\s*\\.\\s*apply_initial_item_equip_auras_like_cpp\\(",
+   "session_aura_application_cx_like_cpp(host).apply_initial_item_equip_auras_like_cpp("
+  ],
+  [
+   "\\bself\\s*\\.\\s*remove_aura\\(",
+   "session_aura_application_cx_like_cpp(host).remove_aura_like_cpp("
+  ],
+  [
+   "\\bself\\s*\\.\\s*apply_aura_with_effect_mask_without_update_like_cpp\\(([^;]*?)effect_mask,\\s*\\)",
+   "session_aura_application_cx_like_cpp(host).apply_aura_with_effect_mask_provenance_and_update_like_cpp(\\1effect_mask, wow_entities::AuraCastProvenanceLikeCpp::default(), false,)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*(apply_enchantment_effect_refs|item_storage_template|apply_enchantment_random_suffix_ref)\\(",
+   "host.hub_ref().catalogs.\\1("
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*self\\s*\\.\\s*inventory\\s*\\.\\s*record_represented_item_bonus_actions_for_test_like_cpp\\(([^;]*)\\);",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if TrainerSessionHostLikeCpp::world_test_consumer_like_cpp(host) { host.split_inventory_mut().0.record_represented_item_bonus_actions_for_test_like_cpp(\\1); }"
+  ],
+  [
+   "\\bself\\s*\\.\\s*({name})\\(",
+   "\\1(host,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ]
+ ]
+}

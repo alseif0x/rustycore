@@ -300,7 +300,11 @@ async fn production_retirement_failure_reaches_caller_and_preserves_replacement(
     };
     probe.released.store(true, Ordering::SeqCst);
     let report = operation.await;
-    assert_eq!(report.outcome(Step::Retirement), Outcome::RetirementFailed);
+    assert_eq!(
+        report.outcome(Step::Retirement),
+        Outcome::Unavailable,
+        "the stale-incarnation recovery fence rejects retirement before any retirement side effect"
+    );
     assert_eq!(report.outcome(Step::Release), Outcome::NotAttempted);
     assert_eq!(report.disposition, Disposition::RetainAndEscalate);
     assert_ne!(report.player, Some(replacement));
@@ -397,14 +401,18 @@ async fn production_saturated_logout_publication_yields_and_cancellation_keeps_r
         outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     }));
     while receiver.try_recv().is_ok() {}
-    for _ in 0..8 {
+    for _ in 0..6 {
         output.try_send(vec![0]).unwrap();
     }
-    assert!(output.is_full());
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
     let mut operation = Box::pin(
         session.finalize_session_with_generator_like_cpp(Mode::CharacterSelection, &generator),
     );
+    assert!(
+        std::future::poll_fn(|cx| std::task::Poll::Ready(operation.as_mut().poll(cx).is_pending()))
+            .await
+    );
+    assert!(output.is_full());
     assert!(
         std::future::poll_fn(|cx| std::task::Poll::Ready(operation.as_mut().poll(cx).is_pending()))
             .await
@@ -419,10 +427,154 @@ async fn production_saturated_logout_publication_yields_and_cancellation_keeps_r
     );
     assert_eq!(report.outcome(Step::Release), Outcome::NotAttempted);
     assert_eq!(report.disposition, Disposition::RetainAndEscalate);
+    let cancel_combat = wow_constants::ServerOpcodes::CancelCombat as u16;
+    let native_packets = receiver
+        .try_iter()
+        .filter(|bytes| bytes.len() >= 2)
+        .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+        .collect::<Vec<_>>();
+    assert_eq!(native_packets, vec![cancel_combat; 2]);
     assert_eq!(
         session
             .finalize_session_with_generator_like_cpp(Mode::Disconnect, &generator)
             .await,
         report
     );
+}
+
+// ── `player.logout` (#1444 H1) ────────────────────────────────────────────
+
+/// What a logout module observed: the reason, the character saves already
+/// requested, the steps the ledger had run, whether the canonical map lock was
+/// free and whether the player was still on the map.
+type LogoutObservation = (wow_module_api::LogoutReason, usize, Vec<Step>, bool, bool);
+
+struct LogoutProbe {
+    port: Arc<LoginPort>,
+    steps: Arc<Probe>,
+    guid: ObjectGuid,
+    calls: Mutex<Vec<LogoutObservation>>,
+}
+
+impl wow_module_api::PlayerModule for LogoutProbe {
+    fn on_logout(&self, snapshot: &wow_module_api::PlayerLogoutSnapshot) {
+        let saves = self
+            .port
+            .save_probe
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map_or(0, |probe| probe.requests.lock().unwrap().len());
+        let steps = self.steps.seen.lock().unwrap().clone();
+        let guard = self.port.manager.try_lock();
+        let map_free = guard.is_ok();
+        let on_map = guard.is_ok_and(|manager| {
+            manager
+                .find_map(0, 0)
+                .is_some_and(|map| map.map().get_typed_player(self.guid).is_some())
+        });
+        self.calls
+            .lock()
+            .unwrap()
+            .push((snapshot.reason, saves, steps, map_free, on_map));
+    }
+}
+
+fn install_logout_probe(
+    session: &mut WorldSession,
+    port: &Arc<LoginPort>,
+    steps: &Arc<Probe>,
+) -> Arc<LogoutProbe> {
+    let probe = Arc::new(LogoutProbe {
+        port: Arc::clone(port),
+        steps: Arc::clone(steps),
+        guid: session.player_guid().unwrap(),
+        calls: Mutex::new(Vec::new()),
+    });
+    let mut registry = wow_module_api::ModuleRegistry::new();
+    registry
+        .register_module(
+            wow_module_api::ModuleDescriptor::new(
+                "alpha.logout",
+                wow_module_api::ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Logout",
+            )
+            .unwrap(),
+            wow_module_api::ModuleHooks::new().player(Arc::clone(&probe) as _),
+        )
+        .unwrap();
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    probe
+}
+
+/// C++ `LogoutPlayer`: `SaveToDB`, then `OnPlayerLogout`, then
+/// `RemovePlayerFromMap` (`WorldSession.cpp:633-670`). Here: once, after the
+/// save and every offline mark the disconnect plan runs first, while the
+/// player is still on its map, with no map guard held, and never replayed.
+#[tokio::test]
+async fn production_logout_hook_runs_once_after_the_save_and_before_map_removal() {
+    let (mut session, port, _receiver, steps) = setup(
+        Step::LoginAccountOffline,
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        true,
+    )
+    .await;
+    let probe = install_logout_probe(&mut session, &port, &steps);
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+
+    let report = session
+        .finalize_session_with_generator_like_cpp(Mode::Disconnect, &generator)
+        .await;
+    assert_eq!(report.disposition, Disposition::Complete);
+    assert_eq!(
+        session
+            .finalize_session_with_generator_like_cpp(Mode::Disconnect, &generator)
+            .await,
+        report,
+        "a completed finalization is not replayed"
+    );
+
+    let calls = probe.calls.lock().unwrap();
+    assert_eq!(calls.len(), 1, "the logout hook runs exactly once");
+    let (reason, saves, seen, map_free, on_map) = &calls[0];
+    assert_eq!(*reason, wow_module_api::LogoutReason::Disconnect);
+    assert_eq!(
+        *saves, 1,
+        "the character save was requested before the hook"
+    );
+    for step in [
+        Step::CharacterOffline,
+        Step::CharacterAccountOffline,
+        Step::LoginAccountOffline,
+    ] {
+        assert!(
+            seen.contains(&step),
+            "{step:?} ran before the hook: {seen:?}"
+        );
+    }
+    assert!(*map_free, "no canonical map guard is held during the hook");
+    assert!(*on_map, "the hook runs before the player leaves the map");
+}
+
+#[tokio::test]
+async fn production_logout_hook_never_runs_when_an_earlier_obligation_failed() {
+    let (mut session, port, _receiver, steps) = setup(
+        Step::CharacterOffline,
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "known rollback".into(),
+        },
+        true,
+    )
+    .await;
+    let probe = install_logout_probe(&mut session, &port, &steps);
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    let report = session
+        .finalize_session_with_generator_like_cpp(Mode::Disconnect, &generator)
+        .await;
+    assert_eq!(report.outcome(Step::Retirement), Outcome::NotAttempted);
+    assert!(probe.calls.lock().unwrap().is_empty());
 }

@@ -1081,6 +1081,12 @@ pub struct MapManager {
     pub(super) next_map_incarnation_like_cpp: u64,
     pub(super) tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp,
     pub(super) next_tick_epoch_like_cpp: u64,
+    /// #1263 F6-8D3b-2 (R7b-1): creature registrations deferred because no
+    /// map instance existed for their key yet. They join that map's own
+    /// respawn queue (C++ `Map::_respawnTimes`) the moment the instance is
+    /// created, so the deferral never needs a second (legacy) queue.
+    pub(super) deferred_creature_respawns_like_cpp:
+        BTreeMap<MapKey, Vec<crate::creature_respawn_queue::PendingRespawn>>,
 }
 
 /// Where one canonical map tick is between its split and its resumption.

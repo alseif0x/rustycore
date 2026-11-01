@@ -12,7 +12,9 @@
 
 mod entity_world;
 mod game_object;
+mod lent_creature;
 mod object_update_selection;
+mod pet_combat;
 mod relocation;
 mod respawn;
 mod runtime;
@@ -32,6 +34,8 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use self::entity_world::EntityWorld;
+pub use self::lent_creature::{LentCreatureOriginLikeCpp, LentCreatureReturnLikeCpp};
+pub use self::pet_combat::MapPetCombatStopOutcomeLikeCpp;
 pub use self::runtime::{
     MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
 };
@@ -2017,6 +2021,7 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     personal_phase_tracker: MultiPersonalPhaseTracker,
     spawn_group_state: SpawnGroupRuntimeState,
     respawn_store: RespawnStoreLikeCpp,
+    creature_respawn_queue: crate::creature_respawn_queue::CreatureRespawnQueueLikeCpp,
     pool_data: SpawnedPoolDataLikeCpp,
     grid_state_unloaded: bool,
     /// Whether the one-shot C++ `Map::LoadCorpseData` database load completed.
@@ -2214,6 +2219,7 @@ where
             personal_phase_tracker: MultiPersonalPhaseTracker::default(),
             spawn_group_state: SpawnGroupRuntimeState::new(),
             respawn_store: RespawnStoreLikeCpp::new(),
+            creature_respawn_queue: Default::default(),
             pool_data: SpawnedPoolDataLikeCpp::new(),
             grid_state_unloaded: false,
             corpse_data_loaded_like_cpp: false,
@@ -4919,11 +4925,7 @@ fn typed_loot_authorities_share_storage_like_cpp(
         (AccessorObjectKind::Creature, AccessorObjectKind::Creature) => previous
             .creature()
             .zip(replacement.creature())
-            .is_some_and(|(previous, replacement)| {
-                previous
-                    .loot_authority_like_cpp()
-                    .shares_storage_like_cpp(replacement.loot_authority_like_cpp())
-            }),
+            .is_some_and(|(left, right)| left.is_same_incarnation_like_cpp(right)),
         (AccessorObjectKind::GameObject, AccessorObjectKind::GameObject) => previous
             .game_object()
             .zip(replacement.game_object())

@@ -482,7 +482,6 @@ fn game_event_announce_consumption_fans_out_system_chat_like_cpp() {
 
     let summary = consume_game_event_live_update_side_effects_like_cpp(
         &mut manager,
-        None,
         &mut metadata,
         &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         None,
@@ -795,7 +794,6 @@ fn game_event_smart_ai_consume_no_maps_missing_event_noops_and_counts_action_lik
 
     let summary = consume_game_event_live_update_side_effects_like_cpp(
         &mut manager,
-        None,
         &mut metadata,
         &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         None,

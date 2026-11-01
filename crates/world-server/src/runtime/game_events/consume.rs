@@ -2,7 +2,6 @@ use super::super::*;
 
 pub(crate) fn consume_game_event_live_update_side_effects_like_cpp(
     manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &mut spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     battlemaster_list_store: Option<&wow_data::BattlemasterListStore>,
@@ -41,7 +40,6 @@ pub(crate) fn consume_game_event_live_update_side_effects_like_cpp(
             GameEventLiveUpdateActionLikeCpp::Spawn(event_id) => {
                 let _ = game_event_spawn_for_event_like_cpp(
                     manager,
-                    legacy_manager,
                     canonical_spawn_metadata,
                     loaded_grid_creature_respawn_caches,
                     event_id,

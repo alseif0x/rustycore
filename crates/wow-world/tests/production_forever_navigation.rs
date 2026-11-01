@@ -18,10 +18,10 @@ use wow_recastdetour::{
     PathQueryFilterContext,
 };
 #[cfg(feature = "test-fixtures")]
-use wow_world::map_manager::ForeverNavigationTestFailurePlan;
+use wow_world::pathfinder::ForeverNavigationTestFailurePlan;
 use wow_world::{
     WorldMMapPathfinderWorkerLikeCpp,
-    map_manager::{
+    pathfinder::{
         ForeverNavigationContext, ForeverNavigationError, ForeverNavigationLimits,
         ForeverNavigationQueryRequest, WorldDetourPathError, WorldMMapPathRequestLikeCpp,
     },

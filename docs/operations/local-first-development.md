@@ -19,30 +19,47 @@ evaluated as `skipped` before a runner is assigned. This preserves the existing 
 external contributions without spending hosted compute or waiting for a remote review on normal
 maintainer work.
 
-## One gate, three budgets
+## One entry point, three local levels
 
 There is exactly one validation entry point. `docs/operations/validation-v2.md` is its contract;
 this document is only the trust policy around it.
 
 ```bash
-./tools/validation-v2 quick --base origin/3.4.3   # bounded acceptance / documentation delta
-./tools/validation-v2 final --base origin/3.4.3   # before publishing the final commit
-./tools/validation-v2 audit --base origin/3.4.3   # explicit exhaustive budget
+./tools/validation-v2                              # level 1 / none: NOT VALIDATED
+./tools/validation-v2 2 --base origin/3.4.3       # level 2 / quick hygiene
+./tools/validation-v2 3 --base origin/3.4.3 --require-changes --timings --logs
 ```
 
-`quick` and `final` are path-scoped: they plan from the committed, staged, unstaged and untracked
-diff and run only what it touches. `final` additionally enforces the curated hotspot LOC ceilings
-when workspace Rust changed, plus the cheap repository-wide physical source/test/tooling
-ratchet for every nonempty diff. Its normal mode permits only reviewed legacy non-growth;
-macro closeout additionally requires `check_architecture.py physical-files --terminal`.
-Neither profile runs the exhaustive persistence inventory, capture QA, a live
-database, or a review. `audit` covers committed capture contracts; live databases, fresh captures,
-runtime QA and code review remain separate procedures. Directory-first routing can compile
-documentation under crate/tool directories; see [the runner contract](validation-v2.md).
+Level 1 is the default working mode: no profile selects canonical `none` (numeric alias `1`),
+prints **NOT VALIDATED**, performs no Git, Rust, `protoc`, Cargo-metadata, lock or check command,
+produces no acceptance manifest, and exits `0` only as an acknowledgement. It is not validation
+evidence. Continue authorized implementation, including writing tests and coherent checkpoints,
+without automatic validation at internal boundaries or at the end of local implementation.
+
+Level 2 (`2`/`quick`) is path-scoped hygiene: Git diff/whitespace, changed shell/JSON/Python
+syntax, optional `actionlint`, and `cargo fmt` for routed workspace or standalone tools. Cargo fmt
+may inspect manifests. It does not run `cargo check`, `cargo test`, `cargo build`, `cargo run`,
+locked dependency metadata, a protobuf probe, or self-test/architecture/contract suites.
+
+Level 3 (`3`/`final`) preserves the current final acceptance. It additionally enforces the curated
+hotspot LOC ceilings when workspace Rust changed, plus the cheap repository-wide physical
+source/test/tooling ratchet for every nonempty diff. Its normal mode permits only reviewed legacy
+non-growth; macro closeout additionally requires `check_architecture.py physical-files --terminal`.
+Required architecture, production-integration, capture and live evidence remains scope-dependent.
+Neither level 2 nor level 3 runs the exhaustive persistence inventory, capture QA, a live database,
+or a review unless those are explicitly added by the issue's acceptance. `audit` and `self-test`
+remain expert explicit commands, not extra daily levels. Directory-first routing can format or
+compile documentation under crate/tool directories; see [the runner contract](validation-v2.md).
+
+Before authorized publication or issue completion, run the full required acceptance and report
+implementation/unvalidated work separately from accepted evidence. Use
+`./tools/validation-v2 verify --manifest <path> --require-profile final` when a consumer must
+reject level-2 evidence as final. Push, merge, runtime authority and hosted CI are unchanged.
 
 AGENTS.md owns execution cadence and exclusive validation scheduling. Implement the
 complete delivery before running its acceptance; delegation adds no per-worker CI
-or independent review gate. Run focused tests for affected behavior at that point:
+or independent review gate. Run focused tests for affected behavior only when the
+explicit acceptance campaign begins:
 
 ```bash
 CARGO_TARGET_DIR="$PWD/target" CARGO_BUILD_JOBS=1 \
@@ -52,7 +69,10 @@ CARGO_TARGET_DIR="$PWD/target" CARGO_BUILD_JOBS=1 \
 
 Validation commands must expose their real exit status. Do not append `| head`, `| grep`,
 `; echo EXIT=$?`, or another pipeline that can turn a failed checker into a reported success. If
-output must be retained, redirect it to a log and check the validator's own exit code.
+output must be retained, use `--logs` (private command logs beside the manifest) or
+redirect it to a log and check the validator's own exit code. Keep the original
+package/feature selection when investigating a failure; see the canonical runner
+guide for `--no-fail-fast` batches and explicit, still-red `--keep-going` diagnostics.
 
 Choose this focused run when its evidence is missing or a failure needs investigation; do not
 rerun it merely because the same cases ran in `final`'s complete library suite. The runner
@@ -83,18 +103,32 @@ Validation does not review code and does not start servers.
   scenarios stay behind two explicit flags.
 
 These guards are not crash-proof rollback. `SIGKILL`, host failure or failed restoration requires
-operator recovery from retained evidence. `loot-race` currently requires the chest fixture to
-exist already; the systemd wrapper does not install/remove the PM2 capture wrapper's chest.
-It also does not inherit that capture wrapper's journal-gated restart guarantee. Do not use
+operator recovery from retained evidence. `loot-race` installs and removes the chest fixture through
+the capture wrapper's shared guard, with the world stopped for both writes (#373). "Stopped" is
+verified, not assumed: the unit must be inactive with no main PID, the PID it served from gone and
+no listener on the world/instance ports. If that cannot be proven during the restore, the chest
+cleanup and the build copy are skipped, the fixture stays armed and the run exits 70. Every
+swapping command (`login`, `loot-race`, `loot-item`) writes its report from the restore trap, so
+the outcome is `passed-restored`, `failed-restored` or `restore-failed`, never a pass that hides a
+failed restore.
+It does not inherit that capture wrapper's journal-gated restart guarantee. Do not use
 the systemd smoke as proof of complete fixture recovery or as a fresh capture replacement.
 
 For a guarded login/world-entry check of a clean committed candidate:
 
 ```bash
 ./tools/qa-runtime.sh --allow-runtime-qa \
-  --world-exec /home/server/rustycore/target/release/world-server \
+  --world-exec /absolute/path/to/candidate/target/debug/world-server \
   --report /tmp/rustycore-login-runtime-report.json login
 ```
+
+Live QA candidates are **debug** builds (`cargo build --locked -p world-server`), not release.
+A release build of `world-server` costs 15–25 minutes per iteration on this host; a debug build is
+enough to prove functional behaviour and keeps fix → rebuild → rerun loops short. Use a release
+build only for the actual deployment (`redeploy-rustycore.sh`) or when a scenario measurably needs
+release speed (for example the bot times out against a debug server); say so in the evidence.
+Build the candidate from the clean committed head you are validating, with the shared-target
+precautions below.
 
 `login` uses the maintained login wrapper with a hash-pinned bot binary. It disables account
 provisioning, password generation and inherited fixture modes, verifies the bot's authentication,

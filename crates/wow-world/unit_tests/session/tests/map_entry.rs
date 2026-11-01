@@ -1,0 +1,469 @@
+//! Map selection is not Player attachment. The compatibility entrypoint still
+//! composes both synchronously; a decision is not a durable/asynchronous permit.
+use super::*;
+
+#[tokio::test]
+async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failure() {
+    use std::future::Future;
+    use std::task::{Context, Poll, Waker};
+    for delayed in [false, true] {
+        for outcome in ["written", "cancelled", "missing", "closed", "timeout"] {
+            let (mut session, _input, instance) = make_session();
+            install_canonical_player_owner_for_test(&mut session, 0, 0);
+            session.set_player_health_like_cpp(100, 100);
+            session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
+            let handle = session.core.player_handle_like_cpp.unwrap();
+            let destination = Position::new(10.0, 20.0, 30.0, 0.5);
+            let (realm_tx, realm) = flume::unbounded();
+            session.install_realm_send_channel_for_test(realm_tx);
+            let fence = wow_network::SocketWriteFenceLikeCpp::default();
+            if outcome != "missing" {
+                session.install_realm_send_write_fence_for_test(fence.clone());
+            }
+            if delayed {
+                assert!(session.set_represented_can_delay_teleport_like_cpp(true));
+                session.teleport_to(1, destination).await;
+                assert!(realm.is_empty());
+            }
+            let mut transfer = Box::pin(async {
+                if delayed {
+                    assert!(
+                        session
+                            .process_represented_delayed_teleport_after_update()
+                            .await
+                    );
+                } else {
+                    session.teleport_to(1, destination).await;
+                }
+            });
+            let first = transfer
+                .as_mut()
+                .poll(&mut Context::from_waker(Waker::noop()));
+            if outcome == "missing" {
+                assert!(first.is_ready());
+            } else {
+                assert!(matches!(first, Poll::Pending));
+            }
+            let cancel = realm
+                .try_recv()
+                .expect("CombatStop precedes TransferPending on realm");
+            assert_eq!(
+                u16::from_le_bytes(cancel[..2].try_into().unwrap()),
+                ServerOpcodes::CancelCombat as u16
+            );
+            let pending = realm.try_recv().expect("TransferPending precedes fence");
+            assert_eq!(
+                u16::from_le_bytes(pending[..2].try_into().unwrap()),
+                ServerOpcodes::TransferPending as u16
+            );
+            let before_fence_instance = drain_server_opcodes(&instance);
+            assert!(!before_fence_instance.contains(&ServerOpcodes::SuspendToken));
+            assert!(!before_fence_instance.contains(&ServerOpcodes::CancelCombat));
+            if outcome == "written" {
+                assert!(fence.acknowledge_marker_like_cpp(&realm.try_recv().unwrap()));
+                transfer.await;
+                assert_eq!(
+                    drain_server_opcodes(&instance),
+                    vec![ServerOpcodes::SuspendToken]
+                );
+            } else if outcome == "closed" {
+                // A receiver disappearing after marker admission must not release the token.
+                // Without a physical-writer close notification this reaches the bounded timeout.
+                drop(realm);
+                transfer.await;
+            } else if outcome == "timeout" {
+                transfer.await;
+            } else {
+                drop(transfer);
+            }
+            assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+            assert_eq!(session.pending_teleport_like_cpp(), Some((1, destination)));
+            assert!(crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
+            if outcome != "written" && outcome != "cancelled" {
+                assert_eq!(session.state(), SessionState::Disconnecting);
+            }
+            assert!(
+                instance.is_empty(),
+                "failure/cancellation must not publish a late token"
+            );
+            assert!(
+                session
+                    .finish_worldport_native_before_disconnect_like_cpp()
+                    .await
+            );
+            assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+            assert_eq!(session.player_position_like_cpp(), Some(destination));
+        }
+    }
+}
+
+#[test]
+fn trait_create_projection_retains_full_rows_order_and_invalidation() {
+    use wow_packet::packets::update::{TraitConfigCreateData, TraitEntryCreateData};
+    let (mut session, _, _) = make_session();
+    assert!(session.owned_trait_configs_for_create_like_cpp().is_none());
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
+    assert!(session.owned_trait_configs_for_create_like_cpp().is_none());
+    let first = TraitConfigCreateData {
+        id: 900,
+        config_type: 1,
+        chr_specialization_id: 62,
+        combat_config_flags: 4,
+        local_identifier: 17,
+        skill_line_id: 27,
+        trait_system_id: 37,
+        name: "Runtime configuration".into(),
+        entries: vec![TraitEntryCreateData {
+            trait_node_id: 55,
+            trait_node_entry_id: 66,
+            rank: 2,
+            granted_ranks: 1,
+        }],
+    };
+    let mut second = first.clone();
+    second.id = 100;
+    second.name = "Second in insertion order".into();
+    let configs = vec![first, second];
+    assert!(
+        session.complete_represented_trait_config_authority_load_like_cpp(
+            configs.iter().map(|c| (
+                c.id,
+                c.config_type,
+                c.chr_specialization_id,
+                c.combat_config_flags
+            )),
+            false,
+        )
+    );
+    assert!(
+        session.owned_trait_configs_for_create_like_cpp().is_none(),
+        "headers are not full configurations"
+    );
+    assert!(
+        !session.retain_loaded_trait_configs_like_cpp(&[configs[0].clone(), configs[0].clone()])
+    );
+    assert!(session.owned_trait_configs_for_create_like_cpp().is_none());
+    assert!(session.retain_loaded_trait_configs_like_cpp(&configs));
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp(),
+        Some(configs.clone())
+    );
+    let mut mismatched = configs.clone();
+    mismatched[1].config_type = 3;
+    assert!(!session.retain_loaded_trait_configs_like_cpp(&mismatched));
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp(),
+        Some(configs.clone())
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp(),
+        Some(configs)
+    );
+    session.begin_represented_trait_config_authority_load_like_cpp();
+    assert!(session.owned_trait_configs_for_create_like_cpp().is_none());
+    assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
+    assert_eq!(
+        session.owned_trait_configs_for_create_like_cpp(),
+        Some(vec![])
+    );
+}
+
+#[test]
+fn appearance_read_distinguishes_missing_active_and_detached_owner() {
+    let (mut session, _, _) = make_session();
+    assert_eq!(session.owned_player_customizations_like_cpp(), None);
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
+    assert_eq!(session.owned_player_customizations_like_cpp(), Some(vec![]));
+    let choices = vec![wow_entities::PlayerCustomizationChoice {
+        option_id: 17,
+        choice_id: 29,
+    }];
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.gameplay_state_mut().customizations = choices.clone();
+        })
+        .unwrap();
+    assert_eq!(
+        session.owned_player_customizations_like_cpp(),
+        Some(choices.clone())
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        session.owned_player_customizations_like_cpp(),
+        Some(choices)
+    );
+    session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .retire_player_like_cpp(session.core.player_handle_like_cpp.unwrap())
+        .unwrap();
+    assert_eq!(session.owned_player_customizations_like_cpp(), None);
+}
+
+#[tokio::test]
+async fn recovery_is_bounded_and_terminal_save_requires_coherent_source() {
+    use wow_entities::PlayerTransferRecovery;
+    let (mut session, _, output) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
+    let source = Position::new(1.0, 2.0, 3.0, 0.5);
+    let home = Position::new(10.0, 20.0, 30.0, 0.5);
+    session.set_player_position_like_cpp(source);
+    assert!(
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 0,
+            area_id: 0,
+            position: home,
+        })
+    );
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert!(session.set_pending_teleport_like_cpp(Some((1, Position::default()))));
+    assert!(session.set_represented_far_teleport_pending_like_cpp(true));
+    session.core.state = SessionState::Transfer;
+    wow_world_character::recover_rejected_worldport_like_cpp(&mut session).await;
+    assert_eq!(
+        session
+            .player_teleport_state_snapshot_like_cpp()
+            .unwrap()
+            .recovery,
+        PlayerTransferRecovery::Homebind
+    );
+    assert_eq!(session.pending_teleport_like_cpp(), Some((0, home)));
+    drain_server_opcodes(&output);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([]));
+    assert!(!session.try_attach_worldport_destination_like_cpp(0, home));
+    for _ in 0..2 {
+        wow_world_character::recover_rejected_worldport_like_cpp(&mut session).await;
+        assert_eq!(session.core.state, SessionState::Disconnecting);
+        let state = session.player_teleport_state_snapshot_like_cpp().unwrap();
+        assert_eq!(state.recovery, PlayerTransferRecovery::Terminal);
+        assert!(state.far_pending, "terminal is not successful entry");
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+        assert!(output.is_empty());
+    }
+    let save = session
+        .prepare_player_save_like_cpp(0)
+        .expect("coherent source can be saved");
+    assert_eq!(save.header.map_id, 0);
+    assert_eq!(save.header.position, source);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([0]));
+    session.teleport_to(0, home).await;
+    assert!(!session.try_attach_worldport_destination_like_cpp(0, home));
+    assert!(output.is_empty());
+    session
+        .with_owned_player_mut_like_cpp(|p| {
+            p.unit_mut()
+                .world_mut()
+                .relocate(Position::new(f32::NAN, 2.0, 3.0, 0.5))
+        })
+        .unwrap();
+    assert!(session.prepare_player_save_like_cpp(0).is_none());
+}
+
+#[tokio::test]
+async fn recovery_missing_or_invalid_homebind_terminates_without_replacing_source() {
+    for invalid in [false, true] {
+        let (mut session, _, output) = make_session();
+        install_canonical_player_owner_for_test(&mut session, 0, 0);
+        session.set_map_store(crate::teleport_test_fixtures::world_maps([0]));
+        assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        assert!(session.set_pending_teleport_like_cpp(Some((1, Position::default()))));
+        assert!(session.set_represented_far_teleport_pending_like_cpp(true));
+        if invalid {
+            assert!(
+                session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+                    map_id: 0,
+                    area_id: 0,
+                    position: Position::new(f32::NAN, 0.0, 0.0, 0.0),
+                })
+            );
+        }
+        wow_world_character::recover_rejected_worldport_like_cpp(&mut session).await;
+        assert_eq!(session.core.state, SessionState::Disconnecting);
+        assert_eq!(
+            session.pending_teleport_like_cpp(),
+            Some((1, Position::default()))
+        );
+        assert!(output.is_empty());
+    }
+}
+
+#[test]
+fn rejected_entry_preserves_source_coordinates_and_exact_detached_owner() {
+    for collision in [false, true] {
+        let (mut session, _, _) = make_session();
+        let guid = install_canonical_player_owner_for_test(&mut session, 0, 0);
+        session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
+        let source = Position::new(1.0, 2.0, 3.0, 0.5);
+        session.set_player_position_like_cpp(source);
+        let handle = session.core.player_handle_like_cpp.unwrap();
+        let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+        let address = session
+            .with_owned_player_like_cpp(|p| p as *const Player as usize)
+            .unwrap();
+        assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        if collision {
+            add_canonical_test_player_on_map(&manager, guid, Position::default(), 1, 0);
+        } else {
+            session.set_map_store(crate::teleport_test_fixtures::world_maps([0]));
+        }
+        assert!(
+            !session
+                .try_attach_worldport_destination_like_cpp(1, Position::new(10.0, 20.0, 30.0, 0.0))
+        );
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+        assert_eq!(session.core.player_map_id_like_cpp(), 0);
+        let manager = manager.try_lock().expect("failure releases map guards");
+        assert_eq!(
+            manager.player_residence_like_cpp(handle),
+            Some(wow_map::PlayerResidenceLikeCpp::Detached)
+        );
+        assert_eq!(
+            manager.with_player_like_cpp(handle, |p| (
+                p as *const Player as usize,
+                p.unit().world().map_id(),
+                p.unit().world().position()
+            )),
+            Some((address, 0, source))
+        );
+    }
+}
+
+#[tokio::test]
+async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry() {
+    for delayed in [false, true] {
+        let (mut session, _, output) = make_session();
+        install_canonical_player_owner_for_test(&mut session, 0, 0);
+        session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
+        session.set_player_health_like_cpp(100, 100);
+        let handle = session.core.player_handle_like_cpp.unwrap();
+        let address = session
+            .with_owned_player_like_cpp(|p| p as *const Player as usize)
+            .unwrap();
+        assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        assert!(session.update_player_teleport_state_like_cpp(|state| {
+            state.can_delay = delayed;
+            state.far_pending = true;
+            state.near_pending = true;
+            state.near_destination = Some((0, Position::default()));
+        }));
+        let destination = Position::new(10.0, 20.0, 30.0, 0.5);
+        session
+            .teleport_to_with_options(0, destination, TELE_TO_SEAMLESS_LIKE_CPP)
+            .await;
+        if delayed {
+            assert!(output.is_empty());
+            assert!(
+                session
+                    .process_represented_delayed_teleport_after_update()
+                    .await
+            );
+        }
+        assert_eq!(
+            drain_server_opcodes(&output),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken,
+            ]
+        );
+        assert!(crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
+        assert!(
+            !session
+                .player_teleport_state_snapshot_like_cpp()
+                .unwrap()
+                .near_pending
+        );
+        assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
+        assert_eq!(session.current_canonical_player_map_key_like_cpp(), None);
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+        // Exercise attachment separately from packet publication. This is not
+        // full ACK/client acceptance; preparing a map must not count as entry.
+        assert!(session.try_attach_worldport_destination_like_cpp(0, destination));
+        assert_eq!(
+            session.current_canonical_player_map_key_like_cpp(),
+            Some(wow_map::MapKey::new(0, 0))
+        );
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+        assert_eq!(
+            session.with_owned_player_like_cpp(|p| (
+                p as *const Player as usize,
+                p.unit().world().position()
+            )),
+            Some((address, destination))
+        );
+    }
+}
+
+#[test]
+fn map_entry_preparation_preserves_active_and_detached_player_residence() {
+    for detached in [false, true] {
+        let (mut session, _, output) = make_session();
+        install_canonical_player_owner_for_test(&mut session, 0, 0);
+        session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
+        let position = Position::new(7.0, 8.0, 9.0, 0.5);
+        session.set_player_position_like_cpp(position);
+        if detached {
+            assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+        }
+        let handle = session.core.player_handle_like_cpp.unwrap();
+        let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+        let residence = manager.lock().unwrap().player_residence_like_cpp(handle);
+        for created in [true, false] {
+            let decision = session.prepare_canonical_map_entry_like_cpp(1).unwrap();
+            let key = match decision {
+                wow_map::CreateMapDecision::Create { key, .. } => {
+                    assert!(created);
+                    key
+                }
+                wow_map::CreateMapDecision::Existing { key, .. } => {
+                    assert!(!created);
+                    key
+                }
+                other => panic!("unexpected admission {other:?}"),
+            };
+            assert_eq!(key, wow_map::MapKey::new(1, 0));
+            assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+            let manager = manager
+                .try_lock()
+                .expect("preparation releases its map guard");
+            assert_eq!(manager.player_residence_like_cpp(handle), residence);
+            assert_eq!(
+                manager.with_player_like_cpp(handle, |p| p.unit().world().position()),
+                Some(position)
+            );
+            assert_eq!(manager.find_map(1, 0).unwrap().player_count(), 0);
+        }
+        assert!(output.is_empty());
+    }
+}
+
+#[test]
+fn map_entry_missing_catalog_does_not_change_the_current_player() {
+    let (mut session, _, output) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
+    session.set_map_store(crate::teleport_test_fixtures::world_maps([0]));
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    assert_eq!(session.prepare_canonical_map_entry_like_cpp(1), None);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .try_lock()
+        .unwrap();
+    assert_eq!(
+        manager.player_residence_like_cpp(handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Active(
+            wow_map::MapKey::new(0, 0)
+        ))
+    );
+    assert!(manager.find_map(1, 0).is_none());
+    assert!(output.is_empty());
+}

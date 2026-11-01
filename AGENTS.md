@@ -34,9 +34,11 @@ documented experimental waiver; a branch rename does not waive checks.
   smaller compatible subset. A bounded milestone never silently reduces the full port.
 - Integration/default branch: 3.4.3. One implementation macro-issue, one feature branch,
   one PR into 3.4.3. Main is only an optional stable release pointer; releases are tags.
+  Exception: see "#1241 wow-world split programme" below.
 - Toolchain is declared in rust-toolchain.toml / Cargo.toml (currently Rust 1.98, edition 2024).
 - Development host is aarch64; hosted runners are x86_64. Label machine-dependent evidence.
 - Local protoc: /home/ubuntu/.local/protoc/bin/protoc. Set PROTOC for protobuf-dependent builds.
+- Write documentation, checkpoints, and new or updated explanatory code comments in English.
 
 Start each session with:
 
@@ -105,8 +107,10 @@ For protocol, gameplay, database, lifetime, persistence and runtime behavior:
 5. Update the owning checkpoint/acceptance with exact source anchors, code targets, command,
    SHA, result and remaining boundary. Existing inventory gaps may be closed only with real
    implementation evidence; no new #NEXT row or percentage calculation for every helper.
-6. Validate proportionally and commit coherent validated changes on the issue branch.
-   Continue remaining authorized work; publication retains its own gate.
+6. Keep coherent changes and local checkpoints; under level 1 they may be explicitly
+   unvalidated. Validate proportionally during the explicit completed-delivery acceptance
+   and commit coherent validated changes on the issue branch before publication or issue
+   completion. Continue remaining authorized work; publication retains its own gate.
 
 Audit behavior against the relevant versioned C++ paths and appropriate real captures.
 The user approved AzerothCore as a complementary source for missing or suspect gameplay in
@@ -115,6 +119,7 @@ proof. Compare the complete operation, scripts and effective data before adaptin
 Keep 3.4.3 packet layouts, IDs/data schemas, admission and lifecycle contracts explicit: 3.3.5
 wire formats or SQL are not drop-in replacements. Resolve version differences using target-build
 evidence and an explicit behavior contract; record source SHA/functions and retained uncertainty.
+A #1241 move-only step is exempt from a new C++ re-audit (see the programme note below).
 Use secondary references selectively for the active responsibility, not as a new whole-port audit.
 If an affected comment/test relies on an unsupported earlier analysis,
 locate the C++ equivalent and correct the evidence before approving the behavior. Pause an
@@ -128,14 +133,32 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination when useful bounded independent work can be delegated. This explicitly
-requests selective subagent work, with Luna as the usual bounded implementation
-collaborator, not delegation for every task. Project Codex defaults
-live in `.codex/config.toml` and `.codex/agents/`; they do not override runtime permissions.
+coordination: one parent integrator decides, reviews and integrates but does not implement
+routine units; one bounded worker at a time implements. The skill owns the exact routes:
+
+| Runtime | Route file | Client defaults |
+|---|---|---|
+| Claude Code / `ocx claude` (default) | `routes/claude.md` (Opus parent, Opus `rustycore-worker`) | `.claude/settings.json`, `.claude/agents/` |
+| OpenCode Go | `routes/go-mix.md` (DeepSeek orchestrator, Luna builder) | `opencode.json`, `.opencode/` |
+| DSH Web `go-mix` (only if the user chooses it) | `routes/go-mix.md` | preset `go-mix` in `~/.dsh` |
+| Codex | `routes/codex.md` (Sol parent, Luna worker) | `.codex/config.toml`, `.codex/agents/` |
+
+A session applies only its own runtime's route. Client defaults do not override runtime
+permissions; inspect effective runtime evidence before claiming which route ran.
+
+The orchestration skill also owns the **decision authority** rule: substantive technical
+decisions (parity and behaviour contracts, intentional departures from the reference, slice
+scope and cut points, ownership boundaries and design) are made by the reviewer tier at high
+effort and are **not parked on the human operator**. Only runtime/database/destructive
+operations and material changes to the objective's scope are reserved to the human; a
+decision that needs one of those is recorded as a bounded hold — decision taken, the exact
+capture that closes it, and what is forbidden meanwhile — while the rest of the work
+continues.
 
 Use the existing architecture skill for boundary/design questions and the safe-refactor skill
 for approved behavior-preserving restructuring. They apply the maintained project documents;
 they are not separate frozen architecture snapshots.
+Day-to-day structure guide for any code change: [develop-rustycore](.agents/skills/develop-rustycore/SKILL.md).
 
 - Require both correct semantic ownership and manageable production/test/fixture files.
   The module-design guide owns the numeric budgets and bounded exception policy.
@@ -172,11 +195,68 @@ they are not separate frozen architecture snapshots.
 ## Validation
 
 Implement the complete authorized delivery first, including its tests and consumers;
-then run affected acceptance tests, applicable QA and publication validation. During
-implementation use inspection, not CI, builds or test runs per internal change or
-worker handoff. At final acceptance, fix findings and rerun affected evidence as needed.
-An explicit user request for an earlier diagnostic run remains authoritative.
-Do not claim unexecuted evidence as passing.
+then run affected acceptance tests, applicable QA and publication validation when the
+explicit acceptance campaign begins. During implementation use the default level-1
+working mode: continue writing tests and coherent local checkpoints, but do not run
+automatic validation at internal boundaries or at the end of local implementation.
+The one exception is the implementing worker's own feedback loop: crate-scoped
+`cargo check -p <crate>` and focused `cargo test -p <crate> <filter>` on the unit it
+owns, sequentially with `CARGO_BUILD_JOBS=1`. That is coding, not acceptance evidence.
+Report implementation/unvalidated work separately from accepted evidence. At final
+acceptance, fix findings and rerun affected evidence as needed. An explicit user
+request for an earlier diagnostic run remains authoritative. Do not claim unexecuted
+evidence as passing.
+
+### #1241 wow-world split programme
+
+This programme exception is owned by #1241, continued by #1263, and
+[wow-world-distribution-plan.md](docs/architecture/wow-world-distribution-plan.md):
+
+- It uses one PR per phase (F0, F1, ...) or per domain, merged continuously into 3.4.3,
+  instead of one long-lived branch.
+- A move-only step (R2: no semantic change, no rename, no new canonical path) keeps its
+  C++ anchors unchanged and needs no new C++ re-audit or per-helper source comparison.
+  Behavior changes go to #1241 F6 with parity evidence.
+- The level-1 deferral does not apply. Each #1241 PR must compile
+  (`cargo check -p wow-world --all-targets` plus the moved domain's crate), pass the moved
+  domain's tests (R3) and pass the R1 net-move check
+  `python3 tools/architecture/net_move.py check --base origin/3.4.3`.
+- In the approved F4 extraction, moved items/fields may become `pub` inside internal
+  `publish = false` `wow-world-*` crates only where a concrete cross-crate consumer needs
+  that access. Review each widening and re-export; keep narrower visibility for members
+  used only inside their defining crate. Preserve one authority and invariant-bearing
+  operations, without adding wrappers, clones or new mutable paths just to relocate code.
+  `publish = false` is not isolation. External module APIs must not expose Session,
+  domain storage or these internal states; #583's module contract remains separate.
+- The maintained distribution plan §10 owns the single candidate-bound acceptance
+  campaign. Workers do not run a duplicate campaign at internal handoffs. Across crate
+  moves preserve the union of test identities, cfg/features and ignored state, rather
+  than requiring the historical total to remain in the origin crate alone.
+
+### Local development levels
+
+The default working command is `./tools/validation-v2` with no profile. It selects
+canonical profile `none` (numeric alias `1`), prints **NOT VALIDATED**, performs no
+Git, Rust, `protoc`, metadata (including Cargo metadata), lock or check command, writes no acceptance
+manifest, and exits `0` only as an acknowledgement. That exit is not validation.
+
+Level `2` (`quick`) is the bounded hygiene pass: Git diff/whitespace checks, changed
+shell/JSON/Python syntax, optional `actionlint`, and `cargo fmt` for routed workspace
+or standalone tools. Cargo fmt may inspect manifests, but level 2 does not run
+`cargo check`, `cargo test`, `cargo build`, `cargo run`, locked dependency metadata,
+the protobuf probe, or self-test/architecture/contract suites.
+
+Level `3` (`final`) preserves the current final acceptance. Required architecture,
+production-integration, capture and live evidence remains scope-dependent and is not
+silently replaced by the level alias. `audit` and `self-test` remain expert explicit
+commands, not additional daily levels. When a consumer needs final evidence, use
+`./tools/validation-v2 verify --manifest <path> --require-profile final` (or another
+explicit canonical profile) so a level-2 manifest cannot be accepted as final.
+
+The full required acceptance remains necessary before an authorized publication or
+issue completion. Push, merge, runtime and hosted-CI authority are unchanged. No
+validation level permits fabricating parity, ignoring source contracts or closing an
+issue without its required evidence.
 
 The user's ordinary local acceptance budget is ten minutes for the complete campaign,
 including the required additional checks, on this host with the active warm cache.
@@ -203,6 +283,13 @@ across worktrees; no worker starts its own parallel campaign. Check for active w
 and available RAM/disk before launching. On this shared host start Cargo with one job
 (`VALIDATION_V2_CARGO_JOBS=1` for the runner); increase only with demonstrated headroom.
 Do not kill unrelated processes to obtain resources. Agent-count limits are not resource locks.
+Live runtime QA (`tools/qa-runtime.sh`) uses a debug `world-server` candidate built from the committed
+head; release builds are reserved for deployment or a documented need for release speed.
+When several worktrees share one `CARGO_TARGET_DIR`, cargo can reuse another worktree's artifacts
+(path crates share artifact names and freshness is mtime-based): serialize builds behind one host
+lock and, before each build, touch in your worktree every file any active worktree changed, so the
+affected crates rebuild from your own sources. Architecture checkers build in the checkout-local
+`target/arch-tools` and must print a scan-root banner naming the checkout.
 
 Keep direct Cargo and runner commands on the same per-worktree target directory; the
 runner defaults to `<checkout>/target` and respects explicit `CARGO_TARGET_DIR`. For
@@ -216,15 +303,15 @@ Use [validation-v2](docs/operations/validation-v2.md) and
 [local-first development](docs/operations/local-first-development.md) for the actual profiles.
 
 ~~~bash
-export PROTOC=/home/ubuntu/.local/protoc/bin/protoc
-export CARGO_BUILD_JOBS=1
-export CARGO_TARGET_DIR="$PWD/target"
-cargo check -p world-server
-cargo test -p wow-world <focused-test> --lib
-cargo fmt --all -- --check
-git diff --check
-./tools/validation-v2 quick --base origin/3.4.3
+./tools/validation-v2                              # level 1 / none: acknowledgement only
+./tools/validation-v2 2 --base origin/3.4.3       # quick hygiene
+./tools/validation-v2 3 --base origin/3.4.3       # final acceptance
 ~~~
+
+At completed-delivery acceptance, select the real library/binary/integration target
+and set `PROTOC`, `CARGO_BUILD_JOBS=1` and the per-worktree `CARGO_TARGET_DIR` for
+any required direct Cargo checks or tests. Level 2 does not run those Cargo checks;
+level 3/final and the issue-specific acceptance campaign do.
 
 Choose the real library/binary/integration target; do not assume every crate has a library.
 Run affected production-linked integration targets explicitly when required; library tests

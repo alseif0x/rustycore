@@ -708,10 +708,19 @@ fn player_login_guid_uses_configured_realm() {
     assert_eq!(build_player_login(guid, realm_id, far_clip), expected);
 }
 #[test]
-fn quest_smoke_requires_live_runtime_counter() {
-    let error = resolve_quest_runtime_counter(None, 12_345, 15_513).unwrap_err();
+fn quest_target_without_counter_defers_to_live_discovery() {
+    let target = quest_target_from_spawn(None, (54_984, 15_278, 530), (1.0, 2.0, 3.0, 0.5));
+    assert_eq!(target.guid_counter, 0, "0 selects post-login discovery");
+    assert!(target.packed_guid.is_empty(), "no guessed GUID may be sent");
+    assert_eq!(
+        (target.spawn_guid, target.entry, target.map_id),
+        (54_984, 15_278, 530)
+    );
 
-    assert!(error.to_string().contains("WOW_BOT_QUEST_RUNTIME_COUNTER"));
+    let explicit = quest_target_from_spawn(Some(143), (54_984, 15_278, 530), (1.0, 2.0, 3.0, 0.5));
+    let (low, high) = create_creature_guid_raw(530, 15_278, 143);
+    assert_eq!(explicit.guid_counter, 143);
+    assert_eq!(explicit.packed_guid, build_packed_guid(low, high));
 }
 #[test]
 fn legacy_creature_guid_constructor_keeps_counter_map_and_entry_fields() {
@@ -857,4 +866,43 @@ fn homebind_smoke_requires_exact_bind_spell_go() {
         player_low,
         player_high,
     ));
+}
+#[test]
+fn quest_restore_snapshot_is_taken_only_for_character_mutations() {
+    let mut options = QuestSmokeOptions {
+        creature_entry: 15_278,
+        creature_spawn_guid: None,
+        creature_guid_counter: None,
+        map_id: Some(530),
+        expected_quest_id: Some(9_393),
+        forbidden_quest_id: None,
+        forbidden_title_contains: None,
+        query_details: true,
+        accept: true,
+        reset_before_run: true,
+        relocate_before_login: false,
+        set_level_before_login: None,
+        set_race_before_login: None,
+        set_class_before_login: None,
+        objective_persist: false,
+        objective_seed: Vec::new(),
+        objective_status: 0,
+        gossip_select_option_id: None,
+        expect_trainer_list: false,
+        expect_trainer_id: None,
+        timeout_secs: 10,
+    };
+    assert!(!quest_smoke_mutates_character(&options));
+    for mutate in [
+        |o: &mut QuestSmokeOptions| o.relocate_before_login = true,
+        |o: &mut QuestSmokeOptions| o.set_level_before_login = Some(3),
+        |o: &mut QuestSmokeOptions| o.set_race_before_login = Some(10),
+        |o: &mut QuestSmokeOptions| o.set_class_before_login = Some(3),
+    ] {
+        let mut mutated = options.clone();
+        mutate(&mut mutated);
+        assert!(quest_smoke_mutates_character(&mutated));
+    }
+    options.objective_persist = true;
+    assert!(!quest_smoke_mutates_character(&options));
 }

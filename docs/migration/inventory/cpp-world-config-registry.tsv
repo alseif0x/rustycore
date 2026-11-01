@@ -208,7 +208,7 @@ Int	CONFIG_GM_LEVEL_IN_GM_LIST	server/game/World/World.h:291	GM.InGMList.Level	I
 Int	CONFIG_GM_LEVEL_IN_WHO_LIST	server/game/World/World.h:292	GM.InWhoList.Level	Int	server/game/World/World.cpp:1150	SEC_ADMINISTRATOR		missing_in_rust	-
 Int	CONFIG_START_GM_LEVEL	server/game/World/World.h:293	GM.StartLevel	Int	server/game/World/World.cpp:1151	1		missing_in_rust	-
 Int	CONFIG_FORCE_SHUTDOWN_THRESHOLD	server/game/World/World.h:294	GM.ForceShutdownThreshold	Int	server/game/World/World.cpp:1165	30		missing_in_rust	-
-Int	CONFIG_GROUP_VISIBILITY	server/game/World/World.h:295	Visibility.GroupMode	Int	server/game/World/World.cpp:1167	1		missing_in_rust	-
+Int	CONFIG_GROUP_VISIBILITY	server/game/World/World.h:295	Visibility.GroupMode	Int	server/game/World/World.cpp:1167	1	get_int:crates/world-server/src/app.rs; SessionWorldConfig.group_visibility_mode:crates/wow-world-core/src/session/state/config.rs; visible_other_players_from_registry_like_cpp:crates/wow-world-entities/src/visibility_session/session_visibility.rs	represented_partial	#43: canonical Player ghost gate consumes signed modes 0/1/2/3 (unknown uses subgroup, default 1), current HOME-group membership and canonical team; focused feedback recorded in STATE.md, final/live acceptance pending. Full battleground/original-group ownership is not claimed.
 Int	CONFIG_MAIL_DELIVERY_DELAY	server/game/World/World.h:296	MailDeliveryDelay	Int	server/game/World/World.cpp:1169	HOUR		missing_in_rust	-
 Int	CONFIG_CLEAN_OLD_MAIL_TIME	server/game/World/World.h:297	CleanOldMailTime	Int	server/game/World/World.cpp:1170	4		missing_in_rust	-
 Int	CONFIG_UPTIME_UPDATE	server/game/World/World.h:298	UpdateUptimeInterval	Int	server/game/World/World.cpp:1177	10		missing_in_rust	-

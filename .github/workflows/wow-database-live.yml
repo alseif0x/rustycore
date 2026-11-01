@@ -10,6 +10,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "crates/wow-database/**"
+      - "tools/modules/sql_guard_vectors.json"
   workflow_dispatch:
 
 permissions:
@@ -20,8 +21,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  live-db-updater:
-    name: DbUpdater populate/update against MariaDB 10.6
+  live-db-migrations:
+    name: Migration and module SQL harness against MariaDB 10.6
     if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -64,11 +65,13 @@ jobs:
           done
           mysqladmin ping -h127.0.0.1 -P3306 -uroot -proot --silent
 
-      - name: Run live DbUpdater harness
+      # The DbUpdater harness this job used to run was retired with the
+      # updater; the live tests now are the migration ones (#1444 H6).
+      - name: Run live migration and module SQL harness
         env:
           RUSTYCORE_DB_IT_HOST: 127.0.0.1
           RUSTYCORE_DB_IT_PORT: "3306"
           RUSTYCORE_DB_IT_USER: root
           RUSTYCORE_DB_IT_PASS: root
         run: |
-          cargo test --locked -p wow-database live_mariadb_populate_and_update_records_updates_like_cpp -- --ignored --nocapture
+          cargo test --locked -p wow-database --lib live_mariadb -- --ignored --nocapture

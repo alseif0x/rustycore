@@ -1,18 +1,10 @@
 # Project defaults; do not override operator permissions, credentials or providers.
-model = "gpt-5.6-luna"
+# Codex sessions only (Claude Code, DSH and OpenCode do not read this file).
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
-developer_instructions = """
-Operator model preference, 2026-10-17: do not use Sol. Codex/Luna is for
-implementation of an already decided responsibility and its consumers/tests.
-Analysis, architecture, orchestration and independent review use OpenCode's
-DeepSeek/GLM profiles. This explicit preference supersedes the old Sol routing
-in the project orchestration skill; it does not waive AGENTS.md scope, evidence,
-validation or publication rules. Do not claim a model switch for an already
-open conversation from these defaults alone.
-"""
 
 [agents]
 enabled = true
 max_concurrent_threads_per_session = 1
-default_subagent_model = "gpt-5.6-luna"
+default_subagent_model = "gpt-6-luna"
 default_subagent_reasoning_effort = "max"

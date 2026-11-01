@@ -420,7 +420,6 @@ impl Default for ControlSubsystem {
     fn default() -> Self {
         Self {
             owner_guid: None,
-            minion_guid: None,
             summon_slots: [ObjectGuid::EMPTY; MAX_SUMMON_SLOT],
             gameobject_slots: [ObjectGuid::EMPTY; MAX_GAMEOBJECT_SLOT],
             owned_gameobjects: Vec::new(),

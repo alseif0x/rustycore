@@ -7,30 +7,14 @@
 use super::*;
 use wow_database::player::spell_acquisition_adapter::spell_acquisition_port;
 
-/// Run the world server with explicit process arguments.
-///
-/// Boxing keeps the enormous startup future private to this crate and gives
-/// embedders a stable, compact library boundary.
-pub fn run(args: Vec<String>) -> Pin<Box<dyn Future<Output = Result<ExitCode>> + Send + 'static>> {
-    run_with_modules(args, wow_module_api::ModuleRegistry::new())
-}
-
-/// Run the world server with a pre-composed trusted module registry.
-///
-/// The generated compositor crate (issue #229) calls this after invoking every
-/// installed module's registrar in the operator's declared order. `run` is the
-/// zero-module case and passes an empty registry, so the ordinary build is
-/// unchanged and never observes a module.
-pub fn run_with_modules(
-    args: Vec<String>,
-    modules: wow_module_api::ModuleRegistry,
-) -> Pin<Box<dyn Future<Output = Result<ExitCode>> + Send + 'static>> {
-    Box::pin(run_inner(args, Arc::new(modules)))
-}
+#[path = "entry.rs"]
+mod entry;
+pub use entry::{run, run_with_composition, run_with_modules};
 
 async fn run_inner(
     args: Vec<String>,
     modules: Arc<wow_module_api::ModuleRegistry>,
+    module_lock: &'static str,
 ) -> Result<ExitCode> {
     // Initialize logging
     tracing_subscriber::fmt()
@@ -40,6 +24,9 @@ async fn run_inner(
         )
         .init();
     wow_logging::install_panic_hook_like_cpp();
+    // A panic inside a linked-module callback is caught at the module boundary
+    // and only disables that module (#1445): log it as contained, not fatal.
+    wow_logging::set_contained_panic_probe_like_cpp(wow_module_api::module_callback_in_progress);
 
     let cli = WorldServerCliLikeCpp::parse_from(args);
     if cli.show_help {
@@ -183,7 +170,10 @@ async fn run_inner(
 
     info!("Connected to hotfix database");
 
-    let migration_manifest = wow_database::migration::bundled_manifest()?;
+    let module_schema = wow_database::migration::ModuleSchema::from_lock(module_lock)
+        .context("the composed modules.lock.toml is invalid")?;
+    let migration_manifest =
+        wow_database::migration::bundled_manifest()?.with_module_schema(&module_schema)?;
     for (database, pool) in [
         (wow_database::migration::DatabaseKind::Auth, login_db.pool()),
         (
@@ -213,6 +203,11 @@ async fn run_inner(
     clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
     verify_world_db_version_like_cpp(world_db.as_ref()).await?;
     set_realm_offline(&login_db, realm_id).await?;
+    let world_module_hooks = module_hooks::WorldModuleHooksLikeCpp::after_config_load_like_cpp(
+        Arc::clone(&modules),
+        &world_configs,
+        realm_id,
+    );
     let realm_list = Arc::new(Mutex::new(RealmListSnapshotLikeCpp::default()));
     let realm_list_summary = update_realm_list_once_like_cpp(&login_db, &realm_list)
         .await
@@ -1055,6 +1050,22 @@ async fn run_inner(
         wow_data::character_progression::ChrClassesStore::load(&data_dir, &locale)
             .context("Failed to load ChrClasses.db2")?,
     );
+    let chr_customization_display_info_store = Arc::new(
+        wow_data::character_progression::ChrCustomizationDisplayInfoStore::load(&data_dir, &locale)
+            .context("Failed to load ChrCustomizationDisplayInfo.db2")?,
+    );
+    let shapeshift_display_links_absent =
+        crate::static_data_overlay::shapeshift_display_links_absent(
+            &chr_customization_display_info_store,
+            &static_data_overlay_persistence,
+        )
+        .await
+        .context("Failed to certify effective shapeshift customization display links")?;
+    info!(
+        "Loaded {} ChrCustomizationDisplayInfo DB2 rows; shapeshift fallback link gate: {}",
+        chr_customization_display_info_store.len(),
+        shapeshift_display_links_absent
+    );
     let power_type_store = Arc::new(
         crate::static_data_overlay::load_power_type_store_like_cpp(
             &data_dir,
@@ -1087,18 +1098,24 @@ async fn run_inner(
         "Loaded {} creature family rows from CreatureFamily.db2",
         creature_family_store.len()
     );
-    let spell_levels_store = Arc::new(
-        wow_data::SpellLevelsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellLevels.db2")?,
-    );
-    info!(
-        "Loaded {} spell level rows from SpellLevels.db2",
-        spell_levels_store.len()
-    );
     let spell_core_hotfix_persistence =
         wow_database::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::new(Arc::clone(
             &hotfix_db,
         ));
+    let spell_levels_store = Arc::new(
+        spell::core_db2_hotfix::load_spell_levels_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellLevels store")?,
+    );
+    info!(
+        "Loaded {} effective spell level rows",
+        spell_levels_store.len()
+    );
     let spell_acquisition_startup_persistence =
         wow_database::MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::new(
             Arc::clone(&hotfix_db),
@@ -1217,11 +1234,17 @@ async fn run_inner(
         spell_category_store.len()
     );
     let spell_aura_options_store = Arc::new(
-        wow_data::SpellAuraOptionsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellAuraOptions.db2")?,
+        spell::core_db2_hotfix::load_spell_aura_options_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellAuraOptions store")?,
     );
     info!(
-        "Loaded {} spell aura options rows",
+        "Loaded {} effective spell aura options rows",
         spell_aura_options_store.len()
     );
     let spell_aura_restrictions_store = Arc::new(
@@ -1253,20 +1276,35 @@ async fn run_inner(
         spell_casting_requirements_store.len()
     );
     let spell_class_options_store = Arc::new(
-        wow_data::SpellClassOptionsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellClassOptions.db2")?,
+        spell::core_db2_hotfix::load_spell_class_options_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellClassOptions store")?,
     );
     info!(
-        "Loaded {} spell class options rows",
+        "Loaded {} effective spell class options rows",
         spell_class_options_store.len()
     );
     // C++ `sSpellMgr` label authority, read by `SpellInfo::HasLabel`
     // (`SpellInfo.cpp`) for the damage-taken-from-caster-by-label term.
     let spell_label_store = Arc::new(
-        wow_data::SpellLabelStore::load(&data_dir, &locale)
-            .context("Failed to load SpellLabel.db2")?,
+        spell::core_db2_hotfix::load_spell_label_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellLabel store")?,
     );
-    info!("Loaded {} spell label rows", spell_label_store.len());
+    info!(
+        "Loaded {} effective spell label rows",
+        spell_label_store.len()
+    );
     let spell_equipped_items_store = Arc::new(
         spell::core_db2_hotfix::load_spell_equipped_items_store_like_cpp(
             &data_dir,
@@ -1334,8 +1372,14 @@ async fn run_inner(
         pet_family_spell_store.family_count()
     );
     let spell_procs_per_minute_store = Arc::new(
-        wow_data::SpellProcsPerMinuteStore::load(&data_dir, &locale)
-            .context("Failed to load SpellProcsPerMinute.db2")?,
+        spell::core_db2_hotfix::load_spell_procs_per_minute_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellProcsPerMinute store")?,
     );
     info!(
         "Loaded {} spell procs-per-minute rows",
@@ -2049,6 +2093,17 @@ async fn run_inner(
         wow_data::PlayerConditionStore::load(&data_dir, &locale)
             .context("Failed to load PlayerCondition.db2 — check DataDir and DBC.Locale config")?,
     );
+    let condition_presence_persistence =
+        wow_database::MariaDbConditionPresencePersistenceAdapter::new(Arc::clone(&hotfix_db));
+    let condition_presence_catalog =
+        crate::hotfix::condition_presence::load_condition_presence_catalog(
+            &data_dir,
+            &locale,
+            &condition_presence_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective PlayerCondition/UnitCondition presence")?;
     let adventure_map_poi_store = Arc::new(
         wow_data::AdventureMapPoiStore::load(&data_dir, &locale)
             .context("Failed to load AdventureMapPOI.db2 — check DataDir and DBC.Locale config")?,
@@ -3737,9 +3792,9 @@ async fn run_inner(
         active_realm.id.address_like_cpp(),
     ));
 
-    // Build handler dispatch table
-    let table = wow_world::session::registry::build_dispatch_table();
-    info!("Loaded {} packet handlers", table.len());
+    // Build the process-wide packet-handler registry before admitting sessions.
+    let packet_handler_registry = crate::compose_packet_handlers_like_cpp()?;
+    info!("Loaded {} packet handlers", packet_handler_registry.len());
 
     // Build account lookup
     let account_lookup: Arc<dyn AccountLookup> = Arc::new(DbAccountLookup {
@@ -3944,9 +3999,10 @@ async fn run_inner(
     let spell_proc_outcome = crate::spell::world_catalog::load_spell_proc_like_cpp(
         &spell_world_catalog_persistence,
         &spell_store,
+        serverside_spell_store.as_ref(),
         spell_chain_store.as_ref(),
+        difficulty_store.as_ref(),
         spell_aura_options_store.as_ref(),
-        spell_misc_store.as_ref(),
         spell_class_options_store.as_ref(),
         spell_procs_per_minute_store.as_ref(),
     )
@@ -4077,6 +4133,9 @@ async fn run_inner(
         )
         .await
         .context("Failed to audit normal trainer wrapper authority")?;
+    spell_store.install_effective_cast_costs_like_cpp(
+        trainer_spell_static_authority.cast_cost_store.clone(),
+    );
     let spell_acquisition_safe_cast_spell_ids =
         Arc::new(trainer_spell_static_authority.safe_cast_spell_ids);
     let spell_acquisition_valid_craft_spell_ids =
@@ -4121,15 +4180,10 @@ async fn run_inner(
         group_load_summary.skipped_member_rows,
     );
 
-    // Shared world state (creatures/grids visible to every session on the same map).
-    // Each session gets a clone of this Arc on creation.
-    let mut legacy_map_manager = LegacyMapManager::new();
-    // Wire file-backed terrain so the live spawn/respawn path ground-snaps
-    // creatures with real `.map` heights (issue #15). DataDir-rooted, lazy.
-    legacy_map_manager.set_terrain(Arc::new(wow_world::map_manager::LiveTerrainHeights::new(
-        &data_dir,
-    )));
-    let shared_map: SharedMapManager = Arc::new(std::sync::RwLock::new(legacy_map_manager));
+    // File-backed terrain so the live spawn/respawn path ground-snaps
+    // creatures with real `.map` heights (issue #15). DataDir-rooted, lazy;
+    // shared by every session and the canonical creature runtime.
+    let live_terrain = Arc::new(wow_world::terrain::LiveTerrainHeights::new(&data_dir));
     let instance_lock_persistence_port: Arc<
         dyn wow_persistence::InstanceLockPersistencePortLikeCpp,
     > = Arc::new(
@@ -4180,11 +4234,7 @@ async fn run_inner(
             warn!("Canonical MapManager lock poisoned; InitSpawnGroupState hook not installed")
         }
     }
-    register_loaded_instance_ids(
-        &shared_map,
-        canonical_map_manager.as_ref(),
-        &registered_instance_ids,
-    );
+    register_loaded_instance_ids(canonical_map_manager.as_ref(), &registered_instance_ids);
 
     let loaded_grid_creature_respawn_caches = LoadedGridCreatureRespawnCachesLikeCpp {
         realm_id,
@@ -4250,7 +4300,6 @@ async fn run_inner(
             })?;
             consume_game_event_live_update_side_effects_like_cpp(
                 &mut manager,
-                Some(&shared_map),
                 &mut canonical_spawn_metadata,
                 &loaded_grid_creature_respawn_caches,
                 Some(battlemaster_list_typed_store.as_ref()),
@@ -4608,7 +4657,10 @@ async fn run_inner(
             Arc::clone(&spell_acquisition_port),
             Arc::clone(&instance_lock_persistence_port),
             Arc::clone(&battle_pet_purchase_persistence_port),
-        ),
+        )
+        .with_player_trade_like_cpp(Arc::new(
+            wow_database::MariaDbPlayerTradePersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+        )),
         wow_world::session::WorldPersistenceCapabilitiesLikeCpp::required_like_cpp(
             Arc::clone(&map_corpse_persistence_port),
             Arc::clone(&group_loot_money_persistence_port),
@@ -4624,7 +4676,6 @@ async fn run_inner(
         ),
     );
     let grid_canonical_map_manager = Arc::clone(&canonical_map_manager);
-    let grid_legacy_manager = Arc::clone(&shared_map);
     let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
     let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
     let grid_map_store = Arc::clone(&map_store);
@@ -4632,7 +4683,6 @@ async fn run_inner(
     let player_grid_loader = Arc::new(move |map_id, instance_id, position| {
         ensure_login_player_grid_loaded_like_cpp(
             &grid_canonical_map_manager,
-            &grid_legacy_manager,
             &grid_spawn_metadata,
             &grid_loaded_caches,
             grid_area_trigger_template_store.as_ref(),
@@ -4644,8 +4694,9 @@ async fn run_inner(
     });
     let session_resources = SessionResources {
         core: SessionCoreCapabilitiesLikeCpp {
+            packet_handlers: Arc::clone(&packet_handler_registry),
             handler_catalogs: Arc::new(wow_world::session::SessionHandlerCatalogsLikeCpp {
-                object_mgr: object_mgr_catalogs,
+                object_mgr: Arc::clone(&object_mgr_catalogs),
                 player_grid_loader,
                 area_triggers: Arc::new(wow_world::session::AreaTriggerCatalogsLikeCpp {
                     db2: Arc::clone(&area_trigger_db2_store),
@@ -4704,6 +4755,7 @@ async fn run_inner(
                     addons: Arc::clone(&creature_addon_store),
                     equipment: Arc::clone(&creature_equipment_store),
                     power_types: Arc::clone(&power_type_store),
+                    localized_names: Arc::clone(&object_mgr_catalogs.creature),
                 }),
                 progression: Arc::new(wow_world::session::ProgressionCatalogsLikeCpp {
                     no_reset_talent_cost: world_config_bool(
@@ -4804,6 +4856,7 @@ async fn run_inner(
                     ),
                     minimum_level: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
                 }),
+                trade_policy: Arc::new(trade_policy_like_cpp(&world_configs)),
                 support_feature_policy: Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp {
                     support_enabled: world_config_bool(
                         &world_configs,
@@ -4913,6 +4966,7 @@ async fn run_inner(
         player: SessionPlayerCatalogCapabilitiesLikeCpp {
             condition_store: Arc::clone(&condition_store),
             player_condition_store: Arc::clone(&player_condition_store),
+            condition_presence_catalog: Arc::clone(&condition_presence_catalog),
             content_tuning_store: Arc::clone(&content_tuning_store),
             curve_store: Arc::clone(&curve_store),
             curve_point_store: Arc::clone(&curve_point_store),
@@ -4937,11 +4991,13 @@ async fn run_inner(
             num_talents_at_level_store: Arc::clone(&num_talents_at_level_store),
             chr_races_store: Arc::clone(&chr_races_store),
             chr_classes_store: Arc::clone(&chr_classes_store),
+            shapeshift_display_links_absent,
             power_type_store: Arc::clone(&power_type_store),
         },
         spells: SessionSpellCatalogCapabilitiesLikeCpp {
             spell_chain_store: Arc::clone(&spell_chain_store),
             spell_store: Arc::clone(&spell_store),
+            serverside_spell_store: Arc::clone(&serverside_spell_store),
             spell_acquisition_catalog: Arc::clone(&spell_acquisition_catalog),
             spell_acquisition_safe_cast_spell_ids: Arc::clone(
                 &spell_acquisition_safe_cast_spell_ids,
@@ -4990,6 +5046,7 @@ async fn run_inner(
             map_store: Arc::clone(&map_store),
             dungeon_encounter_store: Arc::clone(&dungeon_encounter_store),
             world_safe_loc_store: Arc::clone(&world_safe_loc_store),
+            graveyards: Arc::clone(&graveyard_store),
             map_difficulty_store: Arc::clone(&map_difficulty_store),
             map_difficulty_x_condition_store: Arc::clone(&map_difficulty_x_condition_store),
             access_requirement_store: Arc::clone(&access_requirement_store),
@@ -5070,6 +5127,11 @@ async fn run_inner(
             reputation_rates: reputation_rates_like_cpp(&world_configs),
             repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
             durability_loss_on_death_rate: durability_loss_on_death_rate_like_cpp(&world_configs),
+            death_policy: death_policy_like_cpp(&world_configs),
+            group_visibility_mode: world_configs
+                .get_int("CONFIG_GROUP_VISIBILITY")
+                .map(|value| value as i32)
+                .unwrap_or(1),
             stats_limits: stats_limits_like_cpp(&world_configs),
             reset_schedule: reset_schedule_like_cpp(&world_configs),
             offhand_check_at_spell_unlearn: world_config_bool(
@@ -5089,6 +5151,12 @@ async fn run_inner(
                 "CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF",
                 7,
             ),
+            quest_ignore_auto_complete: world_config_bool(
+                &world_configs,
+                "CONFIG_QUEST_IGNORE_AUTO_COMPLETE",
+                false,
+            ),
+            quest_status_keep_abandoned: quest_status_keep_abandoned_like_cpp(&world_configs),
             enable_ae_loot: world_config_bool(&world_configs, "CONFIG_ENABLE_AE_LOOT", false),
             server_expansion: world_config_u8(&world_configs, "CONFIG_EXPANSION", 2),
             instance_ignore_raid: world_config_bool(
@@ -5168,47 +5236,47 @@ async fn run_inner(
 
     info!("Starting realm listener on {realm_addr}");
     info!("Starting instance listener on {instance_addr}");
-    let mut legacy_creature_aggro_config = legacy_creature_aggro_config_like_cpp(&world_configs);
-    legacy_creature_aggro_config.expected_stat_store =
+    let mut creature_aggro_config = creature_aggro_config_like_cpp(&world_configs);
+    creature_aggro_config.expected_stat_store =
         wow_data::ExpectedStatStore::load(&data_dir, &locale)
             .ok()
             .map(Arc::new);
-    legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
-    legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
-    legacy_creature_aggro_config.map_store = Some(Arc::clone(&map_store));
-    legacy_creature_aggro_config.disable_mgr = Some(Arc::clone(&disable_mgr));
-    legacy_creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
-    legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
-    legacy_creature_aggro_config.spell_duration_store = Some(Arc::clone(&spell_duration_store));
-    legacy_creature_aggro_config.spell_cooldowns_store = Some(Arc::clone(&spell_cooldowns_store));
-    legacy_creature_aggro_config.spell_category_store = Some(Arc::clone(&spell_category_store));
-    legacy_creature_aggro_config.spell_x_spell_visual_store =
+    creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
+    creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
+    creature_aggro_config.map_store = Some(Arc::clone(&map_store));
+    creature_aggro_config.disable_mgr = Some(Arc::clone(&disable_mgr));
+    creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
+    creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
+    creature_aggro_config.spell_duration_store = Some(Arc::clone(&spell_duration_store));
+    creature_aggro_config.spell_cooldowns_store = Some(Arc::clone(&spell_cooldowns_store));
+    creature_aggro_config.spell_category_store = Some(Arc::clone(&spell_category_store));
+    creature_aggro_config.spell_x_spell_visual_store =
         Some(Arc::clone(&spell_x_spell_visual_store));
-    legacy_creature_aggro_config.spell_target_restrictions_store =
+    creature_aggro_config.spell_target_restrictions_store =
         Some(Arc::clone(&spell_target_restrictions_store));
-    legacy_creature_aggro_config.spell_casting_requirements_store =
+    creature_aggro_config.spell_casting_requirements_store =
         Some(Arc::clone(&spell_casting_requirements_store));
-    legacy_creature_aggro_config.spell_aura_restrictions_store =
+    creature_aggro_config.spell_aura_restrictions_store =
         Some(Arc::clone(&spell_aura_restrictions_store));
-    legacy_creature_aggro_config.spell_store = Some(Arc::clone(&spell_store));
-    legacy_creature_aggro_config.spell_threat_store = Some(Arc::clone(&spell_threat_store));
-    legacy_creature_aggro_config.spell_chain_store = Some(Arc::clone(&spell_chain_store));
-    legacy_creature_aggro_config.spell_linked_store = Some(Arc::clone(&spell_linked_store));
-    legacy_creature_aggro_config.spell_condition_store = Some(Arc::clone(&condition_store));
-    legacy_creature_aggro_config.spell_script_exact_spell_ids_like_cpp =
+    creature_aggro_config.spell_store = Some(Arc::clone(&spell_store));
+    creature_aggro_config.spell_threat_store = Some(Arc::clone(&spell_threat_store));
+    creature_aggro_config.spell_chain_store = Some(Arc::clone(&spell_chain_store));
+    creature_aggro_config.spell_linked_store = Some(Arc::clone(&spell_linked_store));
+    creature_aggro_config.spell_condition_store = Some(Arc::clone(&condition_store));
+    creature_aggro_config.spell_script_exact_spell_ids_like_cpp =
         Some(Arc::clone(&spell_script_exact_spell_ids));
-    legacy_creature_aggro_config.spell_script_all_rank_root_spell_ids_like_cpp =
+    creature_aggro_config.spell_script_all_rank_root_spell_ids_like_cpp =
         Some(Arc::clone(&spell_script_all_rank_root_spell_ids));
-    legacy_creature_aggro_config.legacy_spell_script_spell_ids_like_cpp =
+    creature_aggro_config.legacy_spell_script_spell_ids_like_cpp =
         Some(Arc::clone(&legacy_spell_script_spell_ids));
-    legacy_creature_aggro_config.spell_linked_rejected_trigger_spell_ids_like_cpp =
+    creature_aggro_config.spell_linked_rejected_trigger_spell_ids_like_cpp =
         Some(Arc::clone(&spell_linked_rejected_trigger_spell_ids));
-    legacy_creature_aggro_config.spell_custom_attribute_store =
+    creature_aggro_config.spell_custom_attribute_store =
         Some(Arc::clone(&spell_custom_attribute_store));
-    legacy_creature_aggro_config.difficulty_store = Some(Arc::clone(&difficulty_store));
-    legacy_creature_aggro_config.creature_template_lifecycle_store =
+    creature_aggro_config.difficulty_store = Some(Arc::clone(&difficulty_store));
+    creature_aggro_config.creature_template_lifecycle_store =
         Some(Arc::clone(&creature_template_lifecycle_store));
-    legacy_creature_aggro_config.chr_races_store = Some(Arc::clone(&chr_races_store));
+    creature_aggro_config.chr_races_store = Some(Arc::clone(&chr_races_store));
 
     let (realm_listener_ready_tx, realm_listener_ready_rx) = tokio::sync::oneshot::channel();
     let (instance_listener_ready_tx, instance_listener_ready_rx) = tokio::sync::oneshot::channel();
@@ -5219,7 +5287,7 @@ async fn run_inner(
         let listener_policy = world_listener_policy;
         let resources = Arc::clone(&session_resources);
         let mgr = Arc::clone(&session_mgr);
-        let smap = Arc::clone(&shared_map);
+        let session_terrain = Arc::clone(&live_terrain);
         let canonical_map = Arc::clone(&canonical_map_manager);
         let spawn_metadata = Arc::clone(&canonical_spawn_metadata);
         let active_sessions = Arc::clone(&active_session_registry);
@@ -5228,7 +5296,7 @@ async fn run_inner(
         let port = instance_port;
         let mmap_config = mmap_runtime_config.clone();
         let mmap_pathfinder = mmap_pathfinder.clone();
-        let session_aggro_config = legacy_creature_aggro_config.clone();
+        let session_aggro_config = creature_aggro_config.clone();
         async move {
             wow_network::start_world_listener(
                 realm_addr,
@@ -5237,7 +5305,7 @@ async fn run_inner(
                 move |account, pkt_rx, send_tx, send_write_fence_like_cpp, socket_timeouts| {
                     let resources = Arc::clone(&resources);
                     let mgr = Arc::clone(&mgr);
-                    let smap = Arc::clone(&smap);
+                    let session_terrain = Arc::clone(&session_terrain);
                     let canonical_map = Arc::clone(&canonical_map);
                     let spawn_metadata = Arc::clone(&spawn_metadata);
                     let active_sessions = Arc::clone(&active_sessions);
@@ -5253,7 +5321,7 @@ async fn run_inner(
                         socket_timeouts,
                         resources,
                         mgr,
-                        smap,
+                        session_terrain,
                         canonical_map,
                         spawn_metadata,
                         port,
@@ -5315,22 +5383,9 @@ async fn run_inner(
 
     let map_update_interval_ms = world_config_u32(&world_configs, "CONFIG_INTERVAL_MAPUPDATE", 10)
         .max(wow_map::MIN_MAP_UPDATE_DELAY_MS);
-    let legacy_creature_global_runtime_enabled =
-        legacy_creature_global_runtime_enabled_from_config_like_cpp();
-    if legacy_creature_global_runtime_enabled {
-        info!(
-            map_update_interval_ms,
-            "RustyCore.LegacyCreatureGlobalRuntime enabled; legacy creature tick owner set to GlobalLegacy"
-        );
-        match shared_map.write() {
-            Ok(mut manager) => {
-                manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
-            }
-            Err(_) => {
-                warn!("Legacy MapManager lock poisoned; cannot enable GlobalLegacy tick owner")
-            }
-        }
-    }
+    // #1263 F6-8D3b-2/F6-8E: the canonical map loop is the only creature
+    // runtime; the retired owner keys only warn.
+    warn_retired_creature_tick_owner_keys_like_cpp();
     let respawn_condition_interval_ms = world_config_u32(
         &world_configs,
         "CONFIG_RESPAWN_MINCHECKINTERVALMS",
@@ -5341,9 +5396,13 @@ async fn run_inner(
     let respawn_db_producer_stop = Arc::new(AtomicBool::new(false));
     let (respawn_db_writer_tx, mut respawn_db_writer_handle) =
         spawn_respawn_db_writer_like_cpp(Arc::clone(&respawn_persistence));
+    let world_module_hooks = world_module_hooks.with_realm_announcer_like_cpp(
+        &player_registry,
+        &active_realm.id,
+        realm_id,
+    );
     let mut map_update_handle = spawn_canonical_map_update_loop(
         Arc::clone(&canonical_map_manager),
-        Arc::clone(&shared_map),
         map_update_interval_ms,
         respawn_condition_interval_ms,
         Arc::clone(&canonical_spawn_metadata),
@@ -5360,21 +5419,14 @@ async fn run_inner(
         Arc::clone(&active_session_registry),
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),
-    );
-    let mut legacy_creature_runtime_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
-        legacy_creature_global_runtime_enabled,
-        Arc::clone(&shared_map),
-        Arc::clone(&canonical_map_manager),
-        Arc::clone(&map_store),
-        mmap_runtime_config.clone(),
-        mmap_pathfinder.clone(),
-        legacy_creature_aggro_config.clone(),
-        map_update_interval_ms,
-        Some(respawn_db_writer_tx.clone()),
-        Arc::clone(&respawn_db_mutation_order),
-        Arc::clone(&respawn_db_producer_stop),
-        Some(Arc::clone(&group_registry)),
-        Arc::clone(&player_registry),
+        Some(CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
+            mmap_runtime_config.clone(),
+            mmap_pathfinder.clone(),
+            creature_aggro_config.clone(),
+            Some(Arc::clone(&group_registry)),
+            Some(Arc::clone(&live_terrain)),
+        )),
+        world_module_hooks.clone(),
     );
 
     let mut ready_check_tick_handle = spawn_group_ready_check_tick_loop(
@@ -5389,14 +5441,14 @@ async fn run_inner(
         db_keepalive_interval_minutes_like_cpp(&world_configs),
     );
 
-    let startup_script_summary = wow_scripts::lifecycle::on_startup().await;
+    let startup_script_summary = wow_script::lifecycle::on_startup_like_cpp();
+    world_module_hooks.startup_like_cpp(&worldserver_full_version_like_cpp(), u32::from(realm_id));
     info!(
         callbacks = startup_script_summary.callbacks,
         "Ran ScriptMgr::OnStartup-style lifecycle hooks"
     );
 
     let mut map_update_finished = false;
-    let mut legacy_creature_runtime_finished = false;
     let mut respawn_db_writer_finished = false;
 
     // Wait for shutdown signal or a supervised background task failure.
@@ -5447,19 +5499,6 @@ async fn run_inner(
                 Err(e) => {
                     world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
                     tracing::error!("Map update task failed: {e}");
-                }
-            }
-        }
-        result = &mut legacy_creature_runtime_handle => {
-            legacy_creature_runtime_finished = true;
-            match result {
-                Ok(()) => {
-                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-                    tracing::error!("Legacy creature runtime task stopped unexpectedly");
-                }
-                Err(e) => {
-                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-                    tracing::error!("Legacy creature runtime task failed: {e}");
                 }
             }
         }
@@ -5607,19 +5646,13 @@ async fn run_inner(
     // producer observes this flag on its next interval, performs one final
     // tick to consume state such as `save_respawn_requested`, then returns.
     respawn_db_producer_stop.store(true, Ordering::Release);
-    let (map_update_stopped, legacy_runtime_stopped) = tokio::join!(
-        stop_respawn_db_producer_like_cpp(
-            "canonical-map-update",
-            &mut map_update_handle,
-            map_update_finished,
-        ),
-        stop_respawn_db_producer_like_cpp(
-            "legacy-creature-runtime",
-            &mut legacy_creature_runtime_handle,
-            legacy_creature_runtime_finished,
-        ),
-    );
-    if !map_update_stopped || !legacy_runtime_stopped {
+    let map_update_stopped = stop_respawn_db_producer_like_cpp(
+        "canonical-map-update",
+        &mut map_update_handle,
+        map_update_finished,
+    )
+    .await;
+    if !map_update_stopped {
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
     }
 
@@ -5651,7 +5684,8 @@ async fn run_inner(
         tracing::error!("Failed to clear online account state for realm {realm_id}: {e}");
     }
 
-    let shutdown_script_summary = wow_scripts::lifecycle::on_shutdown().await;
+    let shutdown_script_summary = wow_script::lifecycle::on_shutdown_like_cpp();
+    world_module_hooks.shutdown_like_cpp(world_runtime_state.get_exit_code_like_cpp());
     info!(
         callbacks = shutdown_script_summary.callbacks,
         "Ran ScriptMgr::OnShutdown-style lifecycle hooks"

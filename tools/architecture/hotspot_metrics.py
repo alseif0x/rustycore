@@ -22,6 +22,12 @@ RUST_LITERAL_OR_COMMENT_TRANSLATION = bytes(
 EXACT_CFG_TEST_ATTRIBUTE = re.compile(
     rb"\s*cfg\s*\(\s*test\s*\)\s*\Z"
 )
+# #1241 F4a-P2: the wow-world `test-fixtures` gate is test-only too. The feature is
+# enabled only through dev-dependencies, never in a production build. Matched on the
+# raw (unmasked) bytes because masking blanks the feature string.
+TEST_FIXTURES_CFG_ATTRIBUTE = re.compile(
+    rb'\s*cfg\s*\(\s*any\s*\(\s*test\s*,\s*feature\s*=\s*"test-fixtures"\s*\)\s*\)\s*\Z'
+)
 
 
 def blank_rust_noncode(masked: bytearray, start: int, end: int) -> None:
@@ -308,16 +314,20 @@ def cfg_test_item_end(source: bytes, cursor: int, kind: str) -> int:
 def top_level_cfg_test_item_spans(source: str) -> list[tuple[int, int]]:
     """Return exact byte spans of test-only top-level items in a Rust file."""
     masked = mask_rust_noncode(source)
+    original = source.encode("utf-8")
     spans: list[tuple[int, int]] = []
-    brace_depth = 0
+    # Depth covers every delimiter, not only braces: a `#[cfg(...)]` on a
+    # function parameter or an array element is nested code, and a brace-only
+    # counter read it as a top-level item and then failed on the parameter.
+    depth = 0
     cursor = 0
     while cursor < len(masked):
         byte = masked[cursor]
-        if byte == ord("{"):
-            brace_depth += 1
-        elif byte == ord("}"):
-            brace_depth -= 1
-        elif byte == ord("#") and brace_depth == 0:
+        if byte in (ord("{"), ord("("), ord("[")):
+            depth += 1
+        elif byte in (ord("}"), ord(")"), ord("]")):
+            depth -= 1
+        elif byte == ord("#") and depth == 0:
             bracket = skip_rust_whitespace(masked, cursor + 1)
             if bracket < len(masked) and masked[bracket] == ord("["):
                 closing = matching_rust_delimiter(
@@ -329,6 +339,8 @@ def top_level_cfg_test_item_spans(source: str) -> list[tuple[int, int]]:
                     )
                 if EXACT_CFG_TEST_ATTRIBUTE.fullmatch(
                     masked[bracket + 1 : closing]
+                ) or TEST_FIXTURES_CFG_ATTRIBUTE.fullmatch(
+                    original[bracket + 1 : closing]
                 ):
                     item_start = closing + 1
                     kind, search_start = cfg_test_item_kind(masked, item_start)
@@ -365,7 +377,7 @@ def file_is_entirely_cfg_test(source: str) -> bool:
         stripped = line.strip()
         if not stripped or stripped.startswith("//"):
             continue
-        if stripped == "#![cfg(test)]":
+        if stripped in ("#![cfg(test)]", '#![cfg(any(test, feature = "test-fixtures"))]'):
             return True
         if stripped.startswith("#!["):
             continue
@@ -443,6 +455,10 @@ def run_hotspot_classifier_self_tests() -> int:
         "fn production_possible() {}",
         'const FAKE: &str = "#[cfg(test)] mod fake { }";',
         "pub fn production_after() {}",
+        '#[cfg(any(test, feature = "test-fixtures"))]',
+        "fn fixture_gated() {}",
+        '#[cfg(any(test, feature = "test-fixtures", unix))]',
+        "fn not_exactly_the_gate() {}",
     ]
     source = "\n".join(lines) + "\n"
     expected = (
@@ -450,6 +466,7 @@ def run_hotspot_classifier_self_tests() -> int:
         | set(range(11, 15))
         | set(range(15, 20))
         | set(range(20, 25))
+        | {31, 32}
     )
     actual = top_level_cfg_test_line_indexes(source)
     if actual != expected:
@@ -506,6 +523,10 @@ PATH_MODULE_MOUNTS_COMMAND = (
     "--locked",
     "--manifest-path",
     "tools/architecture/handler-contract-check/Cargo.toml",
+    # Checkout-local: under a CARGO_TARGET_DIR shared between checkouts, Cargo
+    # treats another checkout's build of this binary as fresh (#1468 B1).
+    "--target-dir",
+    "target/arch-tools",
     "--bin",
     "session-ownership-check",
     "--",
@@ -539,6 +560,12 @@ def path_module_mounts() -> dict[pathlib.Path, list[tuple[pathlib.Path, bool]]]:
         raise ArchitectureError(
             "cannot resolve #[path] module mounts: "
             f"{result.stderr.strip() or result.stdout.strip()}"
+        )
+    banner = f"session-ownership-check: scan root {REPO_ROOT.resolve()} ("
+    if not any(line.startswith(banner) for line in result.stderr.splitlines()):
+        raise ArchitectureError(
+            "#[path] module mounts did not come from a scan of this checkout: "
+            f"no '{banner}...' banner on stderr"
         )
     try:
         rows = json.loads(result.stdout)

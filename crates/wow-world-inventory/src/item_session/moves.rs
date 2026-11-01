@@ -1,0 +1,779 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Inventory move planning and execution for the item handlers: the swap
+//! queue, child-item redirects and equips, and the equip-to-empty move.
+
+use std::collections::VecDeque;
+
+use wow_constants::{InventoryResult, ItemFieldFlags};
+use wow_core::ObjectGuid;
+use wow_entities::{
+    INVENTORY_SLOT_BAG_0, NULL_BAG, NULL_SLOT, SwapItemPreflightResult, is_bank_pos,
+    is_child_equipment_pos, is_equipment_pos, is_inventory_pos,
+};
+use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
+
+use super::item_mutations::{
+    execute_inventory_auto_unequip_offhand_if_need_like_cpp, execute_inventory_stack_merge_like_cpp,
+};
+use super::real_swap::execute_inventory_real_swap_like_cpp;
+use super::{InventoryEquipChildPlanLikeCpp, InventorySwapStepLikeCpp, ItemSessionHostLikeCpp};
+use crate::{
+    InventoryStorageQuestChecksLikeCpp, InventoryStorageTargetLikeCpp, InventorySwapTargetLikeCpp,
+};
+
+pub(super) fn validate_inventory_redirected_empty_move_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &H,
+    src: u16,
+    dst: u16,
+) -> Result<Option<u32>, InventoryResult> {
+    let Some(preflight) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.plan_inventory_swap_preflight_like_cpp(hub, src, dst)
+    }) else {
+        return Err(InventoryResult::InternalBagError);
+    };
+    match preflight.result {
+        SwapItemPreflightResult::NoSource => return Ok(None),
+        SwapItemPreflightResult::Error(result) => return Err(result),
+        SwapItemPreflightResult::ChildRedirect { .. } => {
+            return Err(InventoryResult::InternalBagError);
+        }
+        SwapItemPreflightResult::Continue => {}
+    }
+
+    let [src_bag, src_slot] = src.to_be_bytes();
+    let [dst_bag, dst_slot] = dst.to_be_bytes();
+    if ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_pos(hub, dst_bag, dst_slot)
+    })
+    .is_some()
+    {
+        return Err(InventoryResult::InternalBagError);
+    }
+    let source = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_pos(hub, src_bag, src_slot)
+    })
+    .ok_or(InventoryResult::ItemNotFound)?;
+    let count = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.resolved_inventory_item_object_like_cpp(hub, source.guid)
+    })
+    .map(|item| item.count())
+    .ok_or(InventoryResult::ItemNotFound)?;
+    let Some((result, target)) = host
+        .validate_inventory_swap_target_like_cpp(src_bag, src_slot, dst_bag, dst_slot, false, true)
+    else {
+        return Err(InventoryResult::InternalBagError);
+    };
+    if result != InventoryResult::Ok {
+        return Err(result);
+    }
+    if matches!(target, InventorySwapTargetLikeCpp::None) {
+        return Err(InventoryResult::InternalBagError);
+    }
+    Ok(Some(count))
+}
+
+pub(super) async fn execute_inventory_swap_positions_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    src: u16,
+    dst: u16,
+) {
+    let mut pending = VecDeque::from([(src, dst)]);
+    let mut steps = 0usize;
+    while let Some((step_src, step_dst)) = pending.pop_front() {
+        steps += 1;
+        if steps > 4 {
+            host.core()
+                .send_equip_error(InventoryResult::InternalBagError, None, None, 0, 0);
+            return;
+        }
+        match execute_inventory_swap_step_like_cpp(
+            host,
+            item_guid_generator,
+            creature_spawn_catalogs,
+            step_src,
+            step_dst,
+        )
+        .await
+        {
+            InventorySwapStepLikeCpp::Done => {}
+            InventorySwapStepLikeCpp::ChildRedirect {
+                first_src,
+                first_dst,
+                second_src,
+                second_dst,
+            } => {
+                pending.push_front((second_src, second_dst));
+                pending.push_front((first_src, first_dst));
+            }
+        }
+    }
+}
+
+/// Validate the two recursive `Player::SwapItem` moves against a temporary
+/// overlay before `AutoUnequipChildItem` is persisted. C++ performs those
+/// calls synchronously; preserving that observable order in Rust must not
+/// leave the child hidden when a later dead/combat/charmed/unequip/equip
+/// gate rejects either move.
+pub fn plan_inventory_child_redirect_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+    child_bag: u8,
+    child_slot: u8,
+    first_src: u16,
+    first_dst: u16,
+    second_src: u16,
+    second_dst: u16,
+) -> Result<u8, InventoryResult> {
+    let child_move = host
+        .storage_move_plan_like_cpp(
+            child_bag,
+            child_slot,
+            INVENTORY_SLOT_BAG_0,
+            NULL_SLOT,
+            InventoryStorageTargetLikeCpp::Inventory,
+        )
+        .ok_or(InventoryResult::ItemNotFound)??;
+    if !child_move.existing_updates.is_empty() {
+        return Err(InventoryResult::InternalBagError);
+    }
+    let Some((hidden_bag, hidden_slot, hidden_count)) = child_move.moved_destination else {
+        return Err(InventoryResult::InternalBagError);
+    };
+    if hidden_bag != INVENTORY_SLOT_BAG_0
+        || !is_child_equipment_pos(hidden_bag, hidden_slot)
+        || hidden_count != child_move.source_count
+    {
+        return Err(InventoryResult::InternalBagError);
+    }
+    if !host.apply_committed_inventory_item_relocation_like_cpp(
+        child_bag,
+        child_slot,
+        hidden_bag,
+        hidden_slot,
+        hidden_count,
+    ) {
+        return Err(InventoryResult::InternalBagError);
+    }
+
+    let first_count = validate_inventory_redirected_empty_move_like_cpp(host, first_src, first_dst);
+    let mut first_applied_count = None;
+    let validation = match first_count {
+        Ok(Some(count)) => {
+            let [first_src_bag, first_src_slot] = first_src.to_be_bytes();
+            let [first_dst_bag, first_dst_slot] = first_dst.to_be_bytes();
+            if host.apply_committed_inventory_item_relocation_like_cpp(
+                first_src_bag,
+                first_src_slot,
+                first_dst_bag,
+                first_dst_slot,
+                count,
+            ) {
+                first_applied_count = Some(count);
+                validate_inventory_redirected_empty_move_like_cpp(host, second_src, second_dst)
+                    .map(|_| ())
+            } else {
+                Err(InventoryResult::InternalBagError)
+            }
+        }
+        Ok(None) => validate_inventory_redirected_empty_move_like_cpp(host, second_src, second_dst)
+            .map(|_| ()),
+        Err(result) => Err(result),
+    };
+
+    let first_rolled_back = if let Some(count) = first_applied_count {
+        let [first_src_bag, first_src_slot] = first_src.to_be_bytes();
+        let [first_dst_bag, first_dst_slot] = first_dst.to_be_bytes();
+        host.apply_committed_inventory_item_relocation_like_cpp(
+            first_dst_bag,
+            first_dst_slot,
+            first_src_bag,
+            first_src_slot,
+            count,
+        )
+    } else {
+        true
+    };
+    debug_assert!(first_rolled_back);
+    let child_rolled_back = host.apply_committed_inventory_item_relocation_like_cpp(
+        hidden_bag,
+        hidden_slot,
+        child_bag,
+        child_slot,
+        hidden_count,
+    );
+    debug_assert!(child_rolled_back);
+    if !first_rolled_back || !child_rolled_back {
+        return Err(InventoryResult::InternalBagError);
+    }
+
+    validation.map(|()| hidden_slot)
+}
+
+/// Current upstream TrinityCore calls `Player::AutoUnequipChildItem`
+/// before recursively continuing either child redirect in
+/// `Player::SwapItem`. The legacy 3.4.3 snapshot omitted that call and
+/// recurses on the unchanged equipped child forever. Persist the child in
+/// the already validated reserved slot so both queued moves observe its
+/// equipment position as empty.
+pub(super) async fn execute_inventory_auto_unequip_child_item_like_cpp<
+    H: ItemSessionHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    child_bag: u8,
+    child_slot: u8,
+    child_guid: ObjectGuid,
+    hidden_slot: u8,
+) -> bool {
+    if is_child_equipment_pos(child_bag, child_slot) {
+        return true;
+    }
+
+    host.execute_inventory_storage_move_like_cpp(
+        item_guid_generator,
+        creature_spawn_catalogs,
+        child_bag,
+        child_slot,
+        INVENTORY_SLOT_BAG_0,
+        hidden_slot,
+        InventoryStorageTargetLikeCpp::Inventory,
+        InventoryStorageQuestChecksLikeCpp::None,
+        None,
+    )
+    .await;
+
+    ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_guid_like_cpp(hub, child_guid)
+    })
+    .is_some_and(|(bag, slot, _)| bag == INVENTORY_SLOT_BAG_0 && slot == hidden_slot)
+}
+
+/// Current upstream C++ `Player::CanEquipChildItem`. Rust represents the
+/// parent/child link with the child's `CHILD` flag plus creator GUID; the
+/// DB2 row supplies the visible equipment slot. When that slot is busy,
+/// validate where the displaced item can be stored before moving the
+/// parent, preserving C++'s no-partial-parent-move failure contract.
+pub fn plan_inventory_equip_child_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &H,
+    parent_bag: u8,
+    parent_slot: u8,
+    parent_guid: ObjectGuid,
+) -> Result<Option<InventoryEquipChildPlanLikeCpp>, InventoryResult> {
+    let Some(parent) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.resolved_inventory_item_object_like_cpp(hub, parent_guid)
+    }) else {
+        return Ok(None);
+    };
+    let Some(child_equipment) = host
+        .hub_ref()
+        .catalogs
+        .item_child_equipment_for_parent_like_cpp(parent.object().entry())
+    else {
+        return Ok(None);
+    };
+    let destination_slot = child_equipment.child_item_equip_slot;
+    if !is_equipment_pos(INVENTORY_SLOT_BAG_0, destination_slot) {
+        return Err(InventoryResult::NotEquippable);
+    }
+    let Some(item_objects) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.resolved_inventory_item_objects_like_cpp(hub)
+    }) else {
+        return Err(InventoryResult::ItemNotFound);
+    };
+    let Some(child) = item_objects.values().find(|item| {
+        item.has_item_flag(ItemFieldFlags::CHILD)
+            && item.data().creator == parent_guid
+            && (child_equipment.child_item_id <= 0
+                || item.object().entry() == child_equipment.child_item_id as u32)
+    }) else {
+        return Ok(None);
+    };
+    let child_guid = child.object().guid();
+    if ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_guid_like_cpp(hub, child_guid)
+    })
+    .is_some_and(|(bag, slot, _)| bag == INVENTORY_SLOT_BAG_0 && slot == destination_slot)
+    {
+        return Ok(None);
+    }
+
+    let Some(displaced) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_pos(hub, INVENTORY_SLOT_BAG_0, destination_slot)
+    }) else {
+        return Ok(Some(InventoryEquipChildPlanLikeCpp {
+            child_guid,
+            destination_slot,
+            displaced_storage: None,
+        }));
+    };
+    let displaced_object = {
+        let (state, hub) = host.split_inventory_ref();
+        state.resolved_inventory_item_object_like_cpp(hub, displaced.guid)
+    };
+    let displaced_proto = host
+        .hub_ref()
+        .catalogs
+        .item_storage_template(displaced.entry_id);
+    let child_is_bag = host
+        .hub_ref()
+        .catalogs
+        .item_storage_template(child.object().entry())
+        .is_some_and(|template| template.container_slots > 0);
+    let can_unequip = {
+        let (state, hub) = host.split_inventory_ref();
+        state.can_unequip_inventory_item_at_like_cpp(
+            hub,
+            INVENTORY_SLOT_BAG_0,
+            destination_slot,
+            !child_is_bag,
+            displaced_object.as_ref(),
+            displaced_proto.as_ref(),
+            {
+                let (state, hub) = host.split_inventory_ref();
+                state.direct_item_contains_items(hub, displaced.guid)
+            },
+        )
+    };
+    if can_unequip != InventoryResult::Ok {
+        return Err(can_unequip);
+    }
+
+    let displaced_storage = if is_inventory_pos(parent_bag, parent_slot) {
+        let mut last_result = InventoryResult::InvFull;
+        let mut destination = None;
+        for (bag, slot) in [(parent_bag, NULL_SLOT), (NULL_BAG, NULL_SLOT)] {
+            let Some((result, _, _)) = host.plan_store_existing_inventory_item_at_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                destination_slot,
+                bag,
+                slot,
+                true,
+            ) else {
+                continue;
+            };
+            last_result = result;
+            if result == InventoryResult::Ok {
+                destination = Some((bag, slot, InventoryStorageTargetLikeCpp::Inventory));
+                break;
+            }
+        }
+        destination.ok_or(last_result)?
+    } else if is_bank_pos(parent_bag, parent_slot) {
+        let mut last_result = InventoryResult::BankFull;
+        let mut destination = None;
+        for (bag, slot) in [(parent_bag, NULL_SLOT), (NULL_BAG, NULL_SLOT)] {
+            let Some((result, _)) = host.plan_bank_existing_inventory_item_at_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                destination_slot,
+                bag,
+                slot,
+                true,
+            ) else {
+                continue;
+            };
+            last_result = result;
+            if result == InventoryResult::Ok {
+                destination = Some((bag, slot, InventoryStorageTargetLikeCpp::Bank));
+                break;
+            }
+        }
+        destination.ok_or(last_result)?
+    } else {
+        return Err(InventoryResult::CantSwap);
+    };
+
+    Ok(Some(InventoryEquipChildPlanLikeCpp {
+        child_guid,
+        destination_slot,
+        displaced_storage: Some(displaced_storage),
+    }))
+}
+
+/// Current upstream C++ `Player::EquipChildItem`, executed only after the
+/// parent move and its preflight have succeeded.
+pub(super) async fn execute_inventory_equip_child_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    plan: InventoryEquipChildPlanLikeCpp,
+) -> bool {
+    if ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_guid_like_cpp(hub, plan.child_guid)
+    })
+    .is_some_and(|(bag, slot, _)| bag == INVENTORY_SLOT_BAG_0 && slot == plan.destination_slot)
+    {
+        return true;
+    }
+
+    if let Some((bag, slot, target)) = plan.displaced_storage {
+        host.execute_inventory_storage_move_like_cpp(
+            item_guid_generator,
+            creature_spawn_catalogs,
+            INVENTORY_SLOT_BAG_0,
+            plan.destination_slot,
+            bag,
+            slot,
+            target,
+            InventoryStorageQuestChecksLikeCpp::None,
+            None,
+        )
+        .await;
+        if ({
+            let (state, hub) = host.split_inventory_ref();
+            state.get_inventory_item_by_pos(hub, INVENTORY_SLOT_BAG_0, plan.destination_slot)
+        })
+        .is_some()
+        {
+            return false;
+        }
+    }
+
+    let Some((child_bag, child_slot, _)) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_guid_like_cpp(hub, plan.child_guid)
+    }) else {
+        return false;
+    };
+    host.execute_inventory_equip_to_empty_raw_like_cpp(
+        child_bag,
+        child_slot,
+        wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, plan.destination_slot),
+    )
+    .await;
+    let Some((bag, slot, child)) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_guid_like_cpp(hub, plan.child_guid)
+    })
+    .filter(|(bag, slot, _)| *bag == INVENTORY_SLOT_BAG_0 && *slot == plan.destination_slot) else {
+        return false;
+    };
+    // C++ `EquipChildItem` goes through `EquipItem` and its `OnPlayerEquip`.
+    super::module_hooks::raise_item_equipped_hook_like_cpp(host, &child, bag, slot);
+    true
+}
+
+pub(super) async fn execute_inventory_swap_step_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    src: u16,
+    dst: u16,
+) -> InventorySwapStepLikeCpp {
+    let [src_bag, src_slot] = src.to_be_bytes();
+    let [dst_bag, dst_slot] = dst.to_be_bytes();
+    let source = {
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_pos(hub, src_bag, src_slot)
+    };
+    let destination = {
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_pos(hub, dst_bag, dst_slot)
+    };
+    let source_guid = source.as_ref().map(|item| item.guid);
+    let destination_guid = destination.as_ref().map(|item| item.guid);
+
+    let Some(preflight) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.plan_inventory_swap_preflight_like_cpp(hub, src, dst)
+    }) else {
+        return InventorySwapStepLikeCpp::Done;
+    };
+    match preflight.result {
+        SwapItemPreflightResult::NoSource => return InventorySwapStepLikeCpp::Done,
+        SwapItemPreflightResult::ChildRedirect {
+            first_src,
+            first_dst,
+            second_src,
+            second_dst,
+        } => {
+            let child = source
+                .as_ref()
+                .filter(|item| {
+                    is_equipment_pos(src_bag, src_slot)
+                        && ({
+                            let (state, hub) = host.split_inventory_ref();
+                            state.resolved_inventory_item_object_like_cpp(hub, item.guid)
+                        })
+                        .is_some_and(|object| object.has_item_flag(ItemFieldFlags::CHILD))
+                })
+                .map(|item| (src_bag, src_slot, item.guid))
+                .or_else(|| {
+                    destination
+                        .as_ref()
+                        .filter(|item| {
+                            is_equipment_pos(dst_bag, dst_slot)
+                                && ({
+                                    let (state, hub) = host.split_inventory_ref();
+                                    state.resolved_inventory_item_object_like_cpp(hub, item.guid)
+                                })
+                                .is_some_and(|object| object.has_item_flag(ItemFieldFlags::CHILD))
+                        })
+                        .map(|item| (dst_bag, dst_slot, item.guid))
+                });
+            let Some((child_bag, child_slot, child_guid)) = child else {
+                return InventorySwapStepLikeCpp::Done;
+            };
+            let hidden_slot = match plan_inventory_child_redirect_like_cpp(
+                host, child_bag, child_slot, first_src, first_dst, second_src, second_dst,
+            ) {
+                Ok(hidden_slot) => hidden_slot,
+                Err(result) => {
+                    host.core()
+                        .send_equip_error(result, source_guid, destination_guid, 0, 0);
+                    return InventorySwapStepLikeCpp::Done;
+                }
+            };
+            if !execute_inventory_auto_unequip_child_item_like_cpp(
+                host,
+                item_guid_generator,
+                creature_spawn_catalogs,
+                child_bag,
+                child_slot,
+                child_guid,
+                hidden_slot,
+            )
+            .await
+            {
+                return InventorySwapStepLikeCpp::Done;
+            }
+            return InventorySwapStepLikeCpp::ChildRedirect {
+                first_src,
+                first_dst,
+                second_src,
+                second_dst,
+            };
+        }
+        SwapItemPreflightResult::Error(result) => {
+            host.core()
+                .send_equip_error(result, source_guid, destination_guid, 0, 0);
+            return InventorySwapStepLikeCpp::Done;
+        }
+        SwapItemPreflightResult::Continue => {}
+    }
+
+    let Some(source) = source else {
+        return InventorySwapStepLikeCpp::Done;
+    };
+    let source_limit_category = host
+        .hub_ref()
+        .catalogs
+        .item_storage_template(source.entry_id)
+        .map_or(0, |template| template.item_limit_category);
+
+    let Some(destination) = destination else {
+        let Some((result, target)) = host.validate_inventory_swap_target_like_cpp(
+            src_bag, src_slot, dst_bag, dst_slot, false, true,
+        ) else {
+            return InventorySwapStepLikeCpp::Done;
+        };
+        if result != InventoryResult::Ok {
+            host.core()
+                .send_equip_error(result, Some(source.guid), None, 0, source_limit_category);
+            return InventorySwapStepLikeCpp::Done;
+        }
+        match target {
+            InventorySwapTargetLikeCpp::Inventory => {
+                host.execute_inventory_storage_move_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    src_bag,
+                    src_slot,
+                    dst_bag,
+                    dst_slot,
+                    InventoryStorageTargetLikeCpp::Inventory,
+                    InventoryStorageQuestChecksLikeCpp::None,
+                    None,
+                )
+                .await;
+            }
+            InventorySwapTargetLikeCpp::Bank => {
+                host.execute_inventory_storage_move_like_cpp(
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    src_bag,
+                    src_slot,
+                    dst_bag,
+                    dst_slot,
+                    InventoryStorageTargetLikeCpp::Bank,
+                    InventoryStorageQuestChecksLikeCpp::None,
+                    None,
+                )
+                .await;
+            }
+            InventorySwapTargetLikeCpp::Equipment { dest } => {
+                execute_inventory_equip_to_empty_like_cpp(
+                    host,
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    src_bag,
+                    src_slot,
+                    dest,
+                )
+                .await;
+            }
+            InventorySwapTargetLikeCpp::None => {}
+        }
+        return InventorySwapStepLikeCpp::Done;
+    };
+
+    let source_is_bag = host
+        .hub_ref()
+        .catalogs
+        .item_storage_template(source.entry_id)
+        .is_some_and(|template| template.container_slots > 0);
+    let destination_is_bag = host
+        .hub_ref()
+        .catalogs
+        .item_storage_template(destination.entry_id)
+        .is_some_and(|template| template.container_slots > 0);
+    if !source_is_bag && !destination_is_bag && source.entry_id == destination.entry_id {
+        let Some((result, target)) = host.validate_inventory_swap_target_like_cpp(
+            src_bag, src_slot, dst_bag, dst_slot, false, false,
+        ) else {
+            return InventorySwapStepLikeCpp::Done;
+        };
+        if result == InventoryResult::Ok && !matches!(target, InventorySwapTargetLikeCpp::None) {
+            execute_inventory_stack_merge_like_cpp(
+                host,
+                item_guid_generator,
+                creature_spawn_catalogs,
+                src_bag,
+                src_slot,
+                dst_bag,
+                dst_slot,
+                source,
+                destination,
+            )
+            .await;
+            return InventorySwapStepLikeCpp::Done;
+        }
+    }
+
+    let Some((source_result, source_target)) = host
+        .validate_inventory_swap_target_like_cpp(src_bag, src_slot, dst_bag, dst_slot, true, true)
+    else {
+        return InventorySwapStepLikeCpp::Done;
+    };
+    if source_result != InventoryResult::Ok {
+        host.core().send_equip_error(
+            source_result,
+            Some(source.guid),
+            Some(destination.guid),
+            0,
+            source_limit_category,
+        );
+        return InventorySwapStepLikeCpp::Done;
+    }
+    let destination_limit_category = host
+        .hub_ref()
+        .catalogs
+        .item_storage_template(destination.entry_id)
+        .map_or(0, |template| template.item_limit_category);
+    let Some((destination_result, destination_target)) = host
+        .validate_inventory_swap_target_like_cpp(dst_bag, dst_slot, src_bag, src_slot, true, true)
+    else {
+        return InventorySwapStepLikeCpp::Done;
+    };
+    if destination_result != InventoryResult::Ok {
+        host.core().send_equip_error(
+            destination_result,
+            Some(destination.guid),
+            Some(source.guid),
+            0,
+            destination_limit_category,
+        );
+        return InventorySwapStepLikeCpp::Done;
+    }
+
+    execute_inventory_real_swap_like_cpp(
+        host,
+        item_guid_generator,
+        creature_spawn_catalogs,
+        src_bag,
+        src_slot,
+        dst_bag,
+        dst_slot,
+        source,
+        destination,
+        source_target,
+        destination_target,
+    )
+    .await;
+    InventorySwapStepLikeCpp::Done
+}
+
+pub(super) async fn execute_inventory_equip_to_empty_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    source_bag: u8,
+    source_slot: u8,
+    destination: u16,
+) {
+    let Some(source) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_pos(hub, source_bag, source_slot)
+    }) else {
+        return;
+    };
+    let child_plan =
+        match plan_inventory_equip_child_like_cpp(host, source_bag, source_slot, source.guid) {
+            Ok(plan) => plan,
+            Err(result) => {
+                host.core()
+                    .send_equip_error(result, Some(source.guid), None, 0, 0);
+                return;
+            }
+        };
+    let source_guid = source.guid;
+    host.execute_inventory_equip_to_empty_raw_like_cpp(source_bag, source_slot, destination)
+        .await;
+    let [destination_bag, destination_slot] = destination.to_be_bytes();
+    if !({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_guid_like_cpp(hub, source_guid)
+    })
+    .is_some_and(|(bag, slot, _)| bag == destination_bag && slot == destination_slot)
+    {
+        return;
+    }
+    // AzerothCore `Player::EquipItem` -> `OnPlayerEquip` (`PlayerStorage.cpp:2940`):
+    // the item reached its equipment position and the move committed.
+    super::module_hooks::raise_item_equipped_hook_like_cpp(
+        host,
+        &source,
+        destination_bag,
+        destination_slot,
+    );
+    if let Some(plan) = child_plan {
+        let _ = execute_inventory_equip_child_like_cpp(
+            host,
+            item_guid_generator,
+            creature_spawn_catalogs,
+            plan,
+        )
+        .await;
+    }
+    execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+        host,
+        item_guid_generator,
+        creature_spawn_catalogs,
+    )
+    .await;
+}

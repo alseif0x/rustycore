@@ -1,0 +1,692 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! The represented `GameObject::Update` tick at the session boundary (#1363
+//! slice 10a; moved from the World `session/world_entities/{gameobject,spawn}.rs`):
+//! per-player state expiry, despawn delays and respawns, door/button and
+//! goober resets, charges, traps, fishing bobbers, chest restocks, capture
+//! points and the `GO_JUST_DEACTIVATED` cleanup, plus the linked-trap despawn.
+
+use std::time::{Duration, Instant};
+
+use wow_constants::Team;
+use wow_core::ObjectGuid;
+
+use crate::world_entities_host::WorldEntitiesHostLikeCpp;
+use crate::{RepresentedCapturePointStateLikeCpp, RepresentedGameObjectUseEffect};
+
+pub fn tick_represented_gameobject_update_like_cpp<H: WorldEntitiesHostLikeCpp>(host: &mut H) {
+    let now = Instant::now();
+    let current_player_guid = host.player_guid();
+    let current_player_position = host.hub_ref().player_position_like_cpp();
+    let current_map_id = host.core().player_map_id_like_cpp();
+    let expired_per_player_states = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let despawn_expired = state
+                .per_player_despawn_until
+                .is_some_and(|until| until <= now);
+            let go_state_expired = state
+                .per_player_go_state_until
+                .is_some_and(|until| until <= now);
+            if !despawn_expired && !go_state_expired {
+                return None;
+            }
+            let current_go_state = state.go_state.unwrap_or(wow_entities::GoState::Ready);
+            Some((
+                guid,
+                state
+                    .per_player_state_player_guid
+                    .unwrap_or(wow_core::ObjectGuid::EMPTY),
+                despawn_expired,
+                state
+                    .per_player_go_state
+                    .is_some_and(|go_state| go_state != current_go_state),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let expired_despawn_delay_guids = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            state
+                .despawn_delay_until
+                .is_some_and(|despawn_until| despawn_until <= now)
+                .then_some(guid)
+        })
+        .collect::<Vec<_>>();
+    let expired_respawn_guids = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            state
+                .respawn_until
+                .is_some_and(|respawn_until| respawn_until <= now)
+                .then_some(guid)
+        })
+        .collect::<Vec<_>>();
+    let expired_door_or_button_guids = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let is_door_or_button = matches!(
+                state.go_type.map(u32::from),
+                Some(wow_entities::GAMEOBJECT_TYPE_DOOR | wow_entities::GAMEOBJECT_TYPE_BUTTON)
+            );
+            let is_activated = state.loot_state == Some(wow_entities::LootState::Activated);
+            let cooldown_expired = state
+                .cooldown_until
+                .is_some_and(|cooldown_until| cooldown_until <= now);
+            (is_door_or_button && is_activated && cooldown_expired).then_some(guid)
+        })
+        .collect::<Vec<_>>();
+    let expired_goober_guids = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let is_goober =
+                state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_GOOBER);
+            let is_activated = state.loot_state == Some(wow_entities::LootState::Activated);
+            let cooldown_expired = state
+                .cooldown_until
+                .is_some_and(|cooldown_until| cooldown_until <= now);
+            (is_goober && is_activated && cooldown_expired).then_some(guid)
+        })
+        .collect::<Vec<_>>();
+    let just_deactivated_goobers = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let is_goober =
+                state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_GOOBER);
+            let is_just_deactivated =
+                state.loot_state == Some(wow_entities::LootState::JustDeactivated);
+            (is_goober && is_just_deactivated)
+                .then(|| state.goober_use_source.map(|source| (guid, source)))
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    let mut generic_just_deactivated_gameobjects = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let is_goober =
+                state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_GOOBER);
+            let is_just_deactivated =
+                state.loot_state == Some(wow_entities::LootState::JustDeactivated);
+            (is_just_deactivated && !is_goober).then_some((
+                guid,
+                state.go_type.map(u32::from),
+                state.owner_guid.is_some(),
+                state.linked_trap_entry,
+                state.linked_trap_guid,
+                state.despawn_at_action,
+                state.go_anim_progress,
+                state.chest_restock_time_secs,
+            ))
+        })
+        .collect::<Vec<_>>();
+    generic_just_deactivated_gameobjects
+        .sort_by_key(|(_, _, delete_after_clear, _, _, _, _, _)| (*delete_after_clear,));
+    let charge_depleted_guids = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let depletes_by_charges = matches!(
+                state.go_type.map(u32::from),
+                Some(
+                    wow_entities::GAMEOBJECT_TYPE_SPELLCASTER
+                        | wow_entities::GAMEOBJECT_TYPE_GUARDPOST
+                )
+            );
+            let max_charges = state.max_charges?;
+            (depletes_by_charges && state.use_count >= max_charges).then_some((guid, max_charges))
+        })
+        .collect::<Vec<_>>();
+    let not_ready_bomb_trap_guids = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let is_bomb_trap = state.go_type.map(u32::from)
+                == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
+                && state
+                    .trap_use_source
+                    .is_some_and(|source| source.charges == 2);
+            let is_not_ready = state.loot_state == Some(wow_entities::LootState::NotReady);
+            (is_bomb_trap && is_not_ready).then_some(guid)
+        })
+        .collect::<Vec<_>>();
+    let not_ready_non_bomb_traps = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let source = state.trap_use_source?;
+            let is_non_bomb_trap = state.go_type.map(u32::from)
+                == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
+                && source.charges != 2;
+            let is_not_ready = state.loot_state == Some(wow_entities::LootState::NotReady);
+            (is_non_bomb_trap && is_not_ready).then_some((
+                guid,
+                state.owner_guid.is_some() && state.owner_in_combat.unwrap_or(false),
+                source.start_delay_secs,
+            ))
+        })
+        .collect::<Vec<_>>();
+    let default_not_ready_gameobjects = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let Some(go_type) = state.go_type.map(u32::from) else {
+                return None;
+            };
+            let has_special_not_ready_branch = matches!(
+                go_type,
+                wow_entities::GAMEOBJECT_TYPE_TRAP
+                    | wow_entities::GAMEOBJECT_TYPE_FISHING_NODE
+                    | wow_entities::GAMEOBJECT_TYPE_CHEST
+            );
+            let is_not_ready = state.loot_state == Some(wow_entities::LootState::NotReady);
+            (is_not_ready && !has_special_not_ready_branch).then_some(guid)
+        })
+        .collect::<Vec<_>>();
+    let ready_fishing_bobbers = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let is_fishing_bobber =
+                state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_FISHING_NODE);
+            let is_not_ready = state.loot_state == Some(wow_entities::LootState::NotReady);
+            let ready = state
+                .fishing_bobber_ready_at
+                .is_some_and(|ready_at| ready_at <= now);
+            (is_fishing_bobber && is_not_ready && ready).then_some((
+                guid,
+                state.owner_guid.unwrap_or(wow_core::ObjectGuid::EMPTY),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let restocked_chests = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let is_chest =
+                state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_CHEST);
+            let restock_expired = state
+                .chest_restock_until
+                .is_some_and(|restock_until| restock_until <= now);
+            let can_restock_from_state = matches!(
+                state.loot_state,
+                Some(wow_entities::LootState::Activated | wow_entities::LootState::NotReady)
+            );
+            (is_chest && restock_expired && can_restock_from_state).then_some(guid)
+        })
+        .collect::<Vec<_>>();
+    let ready_bomb_trap_guids = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let is_bomb_trap = state.go_type.map(u32::from)
+                == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
+                && state
+                    .trap_use_source
+                    .is_some_and(|source| source.charges == 2);
+            let is_ready = state.loot_state == Some(wow_entities::LootState::Ready);
+            let cooldown_expired = state
+                .cooldown_until
+                .is_none_or(|cooldown_until| cooldown_until <= now);
+            (is_bomb_trap && is_ready && cooldown_expired).then_some(guid)
+        })
+        .collect::<Vec<_>>();
+    let ready_non_bomb_traps = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let source = state.trap_use_source?;
+            let is_non_bomb_trap = state.go_type.map(u32::from)
+                == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
+                && source.charges != 2;
+            let is_ready = state.loot_state == Some(wow_entities::LootState::Ready);
+            let cooldown_expired = state
+                .cooldown_until
+                .is_none_or(|cooldown_until| cooldown_until <= now);
+            if !is_non_bomb_trap || !is_ready || !cooldown_expired || source.radius == 0 {
+                return None;
+            }
+
+            let target_guid = if state.owner_guid.is_some() || source.check_all_units {
+                state.trap_target_guid
+            } else {
+                let player_guid = current_player_guid?;
+                let trap_position = state.position?;
+                let player_position = current_player_position?;
+                let same_map = state.map_id.is_none_or(|map_id| map_id == current_map_id);
+                let activation_radius = source.radius as f32 / 2.0;
+                (same_map && trap_position.is_within_dist(&player_position, activation_radius))
+                    .then_some(player_guid)
+            }?;
+
+            Some((guid, target_guid))
+        })
+        .collect::<Vec<_>>();
+    let activated_bomb_traps = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let source = state.trap_use_source?;
+            let is_bomb_trap = state.go_type.map(u32::from)
+                == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
+                && source.charges == 2;
+            let is_activated = state.loot_state == Some(wow_entities::LootState::Activated);
+            (is_bomb_trap && is_activated).then_some((guid, source))
+        })
+        .collect::<Vec<_>>();
+    let activated_non_bomb_traps = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let source = state.trap_use_source?;
+            let is_non_bomb_trap = state.go_type.map(u32::from)
+                == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
+                && source.charges != 2;
+            let is_activated = state.loot_state == Some(wow_entities::LootState::Activated);
+            let target_guid =
+                (!state.loot_state_unit_guid.is_empty()).then_some(state.loot_state_unit_guid)?;
+            (is_non_bomb_trap && is_activated).then_some((
+                guid,
+                source,
+                target_guid,
+                state.owner_guid.unwrap_or(wow_core::ObjectGuid::EMPTY),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let expired_capture_points = host
+        .world_entities()
+        .represented_gameobject_use_states_iter_like_cpp()
+        .filter_map(|(&guid, state)| {
+            let source = state.capture_point_source?;
+            let capture_team = match state.capture_point_state {
+                Some(RepresentedCapturePointStateLikeCpp::ContestedHorde) => Team::Horde,
+                Some(RepresentedCapturePointStateLikeCpp::ContestedAlliance) => Team::Alliance,
+                _ => return None,
+            };
+            let expired = state
+                .capture_point_assault_until
+                .is_some_and(|until| until <= now);
+            expired.then_some((guid, capture_team, source))
+        })
+        .collect::<Vec<_>>();
+
+    for (guid, player_guid, despawned, needs_state_update) in expired_per_player_states {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            if despawned {
+                state.per_player_despawn_until = None;
+                state.per_player_despawn_secs = None;
+            }
+            state.per_player_go_state = None;
+            state.per_player_go_state_until = None;
+            if state.per_player_despawn_until.is_none() && state.per_player_go_state_until.is_none()
+            {
+                state.per_player_state_player_guid = None;
+            }
+        }
+        host.world_entities_mut()
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::GameObjectPerPlayerStateExpired {
+                    gameobject_guid: guid,
+                    player_guid,
+                    despawned,
+                    needs_state_update,
+                },
+            );
+    }
+    for guid in expired_despawn_delay_guids {
+        let linked_trap_guid = host
+            .world_entities()
+            .represented_gameobject_use_state_like_cpp(guid)
+            .and_then(|state| state.linked_trap_guid);
+        if let Some(trap_guid) = linked_trap_guid.filter(|trap_guid| *trap_guid != guid) {
+            despawn_represented_linked_trap_by_guid_like_cpp(host, trap_guid);
+        }
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.despawn_delay_until = None;
+            state.loot_state = Some(wow_entities::LootState::NotReady);
+            state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
+            if state.go_type.map(u32::from) != Some(wow_entities::GAMEOBJECT_TYPE_TRANSPORT) {
+                state.go_state = Some(wow_entities::GoState::Ready);
+            }
+        }
+        host.core_mut().client_visible_guids_like_cpp.remove(&guid);
+        host.remove_cached_loot_for_owner_like_cpp(guid);
+        crate::send_represented_gameobject_delete_packets_like_cpp(host, guid);
+    }
+    for guid in expired_respawn_guids {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.respawn_until = None;
+            state.loot_state = Some(wow_entities::LootState::Ready);
+            state.go_state = Some(wow_entities::GoState::Ready);
+        }
+        host.core_mut().client_visible_guids_like_cpp.insert(guid);
+    }
+    for guid in expired_door_or_button_guids {
+        host.world_entities_mut()
+            .reset_represented_gameobject_door_or_button_like_cpp(guid);
+    }
+    for (guid, max_charges) in charge_depleted_guids {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.use_count = 0;
+            state.loot_state = Some(wow_entities::LootState::JustDeactivated);
+        }
+        host.world_entities_mut()
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::GameObjectChargesDepleted {
+                    gameobject_guid: guid,
+                    max_charges,
+                    loot_state: wow_entities::LootState::JustDeactivated,
+                },
+            );
+    }
+    for guid in not_ready_bomb_trap_guids {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.cooldown_until = Some(now + Duration::from_secs(10));
+            state.loot_state = Some(wow_entities::LootState::Ready);
+        }
+    }
+    for (guid, owner_in_combat, start_delay_secs) in not_ready_non_bomb_traps {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.cooldown_until =
+                owner_in_combat.then_some(now + Duration::from_secs(u64::from(start_delay_secs)));
+            state.loot_state = Some(wow_entities::LootState::Ready);
+        }
+    }
+    for guid in default_not_ready_gameobjects {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.loot_state = Some(wow_entities::LootState::Ready);
+        }
+    }
+    for (guid, owner_guid) in ready_fishing_bobbers {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.fishing_bobber_ready_at = None;
+            state.loot_state = Some(wow_entities::LootState::Ready);
+        }
+        if !owner_guid.is_empty() {
+            host.world_entities_mut()
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::FishingBobberReady {
+                        gameobject_guid: guid,
+                        owner_guid,
+                    },
+                );
+        }
+    }
+    for guid in restocked_chests {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.chest_restock_until = None;
+            state.loot_state = Some(wow_entities::LootState::Ready);
+            state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
+        }
+        host.remove_cached_loot_for_owner_like_cpp(guid);
+        let _ = host.queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp(guid);
+    }
+    for guid in ready_bomb_trap_guids {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.loot_state = Some(wow_entities::LootState::Activated);
+        }
+    }
+    for (guid, target_guid) in ready_non_bomb_traps {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.loot_state = Some(wow_entities::LootState::Activated);
+            state.loot_state_unit_guid = target_guid;
+        }
+        host.world_entities_mut()
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::TrapTargetActivated {
+                    gameobject_guid: guid,
+                    target_guid,
+                },
+            );
+    }
+    for (guid, source) in activated_bomb_traps {
+        if source.spell_id != 0 {
+            host.world_entities_mut()
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TrapBombSpellCast {
+                        gameobject_guid: guid,
+                        spell_id: source.spell_id,
+                    },
+                );
+        }
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.loot_state = Some(wow_entities::LootState::JustDeactivated);
+        }
+    }
+    for (guid, source, target_guid, original_caster_guid) in activated_non_bomb_traps {
+        if source.spell_id != 0 {
+            host.world_entities_mut()
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TrapTargetSpellCast {
+                        gameobject_guid: guid,
+                        target_guid,
+                        spell_id: source.spell_id,
+                        original_caster_guid,
+                    },
+                );
+        }
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            let cooldown_secs = if source.cooldown_secs != 0 {
+                source.cooldown_secs
+            } else {
+                4
+            };
+            state.cooldown_until = Some(now + Duration::from_secs(u64::from(cooldown_secs)));
+            if source.charges == 1 {
+                state.loot_state = Some(wow_entities::LootState::JustDeactivated);
+            } else if source.charges == 0 {
+                state.loot_state = Some(wow_entities::LootState::Ready);
+            }
+        }
+    }
+    for (guid, capture_team, source) in expired_capture_points {
+        let (state, broadcast_text_id, event_id) = match capture_team {
+            Team::Horde => (
+                RepresentedCapturePointStateLikeCpp::HordeCaptured,
+                source.capture_broadcast_horde,
+                source.capture_event_horde,
+            ),
+            Team::Alliance => (
+                RepresentedCapturePointStateLikeCpp::AllianceCaptured,
+                source.capture_broadcast_alliance,
+                source.capture_event_alliance,
+            ),
+            Team::Other => continue,
+        };
+        if let Some(go_state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            go_state.capture_point_state = Some(state);
+            go_state.capture_point_last_team_capture = capture_team;
+            go_state.capture_point_assault_until = None;
+        }
+        crate::record_represented_capture_point_update_like_cpp(
+            host,
+            guid,
+            source,
+            state,
+            broadcast_text_id,
+            event_id,
+            0,
+        );
+    }
+    for guid in expired_goober_guids {
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.gameobject_flags &= !wow_entities::GO_FLAG_IN_USE;
+            state.loot_state = Some(wow_entities::LootState::JustDeactivated);
+            state.cooldown_until = None;
+        }
+    }
+    for (guid, source) in just_deactivated_goobers {
+        crate::apply_represented_gameobject_goober_just_deactivated_like_cpp(host, guid, source);
+        if !source.consumable {
+            let _ = host.queue_goober_gameobject_state_refresh_for_same_map_like_cpp(guid);
+        }
+    }
+    for (
+        guid,
+        go_type,
+        delete_after_clear,
+        linked_trap_entry,
+        linked_trap_guid,
+        is_despawn_at_action,
+        go_anim_progress,
+        chest_restock_time_secs,
+    ) in generic_just_deactivated_gameobjects
+    {
+        if let Some(trap_entry) = linked_trap_entry.filter(|trap_entry| *trap_entry != 0) {
+            if let Some(trap_guid) = linked_trap_guid {
+                despawn_represented_linked_trap_by_guid_like_cpp(host, trap_guid);
+            }
+            host.world_entities_mut()
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GameObjectLinkedTrapDespawn {
+                        gameobject_guid: guid,
+                        trap_entry,
+                    },
+                );
+        }
+        host.remove_cached_loot_for_owner_like_cpp(guid);
+        let mut delete_after_clear = delete_after_clear;
+        let mut schedule_respawn = false;
+        let is_chest = go_type == Some(wow_entities::GAMEOBJECT_TYPE_CHEST);
+        if is_chest && !is_despawn_at_action && !delete_after_clear {
+            if let Some(state) = host
+                .world_entities_mut()
+                .represented_gameobject_use_state_mut_like_cpp(guid)
+            {
+                state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
+                state.use_count = 0;
+                if chest_restock_time_secs.is_some_and(|restock_secs| restock_secs != 0) {
+                    let restock_secs = chest_restock_time_secs.unwrap_or_default();
+                    state.chest_restock_until =
+                        Some(now + Duration::from_secs(u64::from(restock_secs)));
+                    state.loot_state = Some(wow_entities::LootState::NotReady);
+                } else {
+                    state.loot_state = Some(wow_entities::LootState::Ready);
+                }
+            }
+            host.world_entities_mut()
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
+                        gameobject_guid: guid,
+                        deleted: false,
+                    },
+                );
+            continue;
+        }
+        if let Some(state) = host
+            .world_entities_mut()
+            .represented_gameobject_use_state_mut_like_cpp(guid)
+        {
+            state.loot_state = Some(wow_entities::LootState::NotReady);
+            state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
+            state.use_count = 0;
+            if !delete_after_clear
+                && state
+                    .respawn_delay_secs
+                    .is_some_and(|respawn_delay| respawn_delay != 0)
+            {
+                if state.spawned_by_default == Some(false) {
+                    delete_after_clear = true;
+                } else {
+                    let respawn_delay = state.respawn_delay_secs.unwrap_or_default();
+                    state.respawn_until = Some(now + Duration::from_secs(u64::from(respawn_delay)));
+                    schedule_respawn = true;
+                }
+            }
+        }
+        let send_despawn_at_action = is_despawn_at_action || go_anim_progress > 0;
+        if send_despawn_at_action && !delete_after_clear && !schedule_respawn {
+            crate::send_represented_gameobject_despawn_to_visible_set_like_cpp(host, guid);
+            host.world_entities_mut()
+                .restore_represented_gameobject_override_flags_like_cpp(guid);
+        }
+        if delete_after_clear || schedule_respawn {
+            host.core_mut().client_visible_guids_like_cpp.remove(&guid);
+            crate::send_represented_gameobject_delete_packets_like_cpp(host, guid);
+        }
+        host.world_entities_mut()
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
+                    gameobject_guid: guid,
+                    deleted: delete_after_clear,
+                },
+            );
+    }
+}
+
+pub fn despawn_represented_linked_trap_by_guid_like_cpp<H: WorldEntitiesHostLikeCpp>(
+    host: &mut H,
+    trap_guid: ObjectGuid,
+) {
+    if trap_guid.is_empty() || !trap_guid.is_game_object() {
+        return;
+    }
+    if let Some(state) = host
+        .world_entities_mut()
+        .represented_gameobject_use_state_mut_like_cpp(trap_guid)
+    {
+        state.loot_state = Some(wow_entities::LootState::NotReady);
+        state.loot_state_unit_guid = ObjectGuid::EMPTY;
+        if state.go_type.map(u32::from) != Some(wow_entities::GAMEOBJECT_TYPE_TRANSPORT) {
+            state.go_state = Some(wow_entities::GoState::Ready);
+        }
+    }
+    host.core_mut()
+        .client_visible_guids_like_cpp
+        .remove(&trap_guid);
+    host.remove_cached_loot_for_owner_like_cpp(trap_guid);
+    crate::send_represented_gameobject_delete_packets_like_cpp(host, trap_guid);
+}

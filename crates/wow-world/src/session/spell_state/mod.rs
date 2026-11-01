@@ -3,19 +3,21 @@
 //! group; the canonical owners keep authority over the state they touch.
 
 use super::*;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use wow_world_spell::PlayerSpellAndTraitTestFixtureLikeCpp;
+
 mod acquisition;
 mod aura;
 mod aura_application;
+mod aura_host;
 mod aura_publication;
 mod cast;
 mod catalog;
 mod cooldown;
-mod effects;
-mod mount_aura;
-mod shapeshift;
 
-pub(crate) use aura::RepresentedShapeshiftMutationLikeCpp;
 mod spell;
-mod spell_click;
+mod spell_click_host;
 mod spell_publication;
 mod spellbook;
+mod spellbook_host;

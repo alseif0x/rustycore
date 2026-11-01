@@ -1,0 +1,6 @@
+{
+  "name": "the creature runtime crate may not depend on wow-world; it makes no WorldSession call (#1363)",
+  "source": "wow-world-creature",
+  "target": "wow-world",
+  "expected": "forbidden"
+}

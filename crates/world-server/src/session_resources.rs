@@ -43,6 +43,8 @@ pub(super) struct SessionResources {
 
 /// Required process capabilities shared by every admitted session.
 pub(super) struct SessionCoreCapabilitiesLikeCpp {
+    /// Immutable process-wide opcode registry shared by all constructed sessions.
+    pub(super) packet_handlers: Arc<wow_world::session::registry::WorldPacketHandlerRegistry>,
     /// Required immutable capabilities borrowed by the outer driver for one
     /// session pass. Production sessions never retain this aggregate.
     pub(super) handler_catalogs: Arc<wow_world::session::SessionHandlerCatalogsLikeCpp>,
@@ -141,6 +143,7 @@ impl SessionInventoryCapabilitiesLikeCpp {
 pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) condition_store: Arc<wow_data::ConditionEntriesByTypeStore>,
     pub(super) player_condition_store: Arc<wow_data::PlayerConditionStore>,
+    pub(super) condition_presence_catalog: Arc<wow_data::ConditionPresenceCatalog>,
     pub(super) content_tuning_store: Arc<wow_data::progression_rewards::ContentTuningStore>,
     pub(super) curve_store: Arc<wow_data::progression_rewards::CurveStore>,
     pub(super) curve_point_store: Arc<wow_data::progression_rewards::CurvePointStore>,
@@ -173,6 +176,7 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
         Arc<wow_data::progression_rewards::NumTalentsAtLevelStore>,
     pub(super) chr_races_store: Arc<wow_data::character_progression::ChrRacesStore>,
     pub(super) chr_classes_store: Arc<wow_data::character_progression::ChrClassesStore>,
+    pub(super) shapeshift_display_links_absent: bool,
     /// C++ `sDB2Manager.GetPowerTypeEntry`: `Unit::EnergizeBySpell` reads the
     /// `UseRegenInterrupt` flag from it and `Player::RegeneratePower` reads the
     /// regen rates (`Unit.cpp:6581-6585`, `Player.cpp:1706`).
@@ -183,6 +187,7 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
 pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
     pub(super) spell_chain_store: Arc<wow_data::SpellChainStoreLikeCpp>,
     pub(super) spell_store: Arc<wow_data::SpellStore>,
+    pub(super) serverside_spell_store: Arc<wow_data::ServersideSpellStoreLikeCpp>,
     /// Process-wide immutable acquisition projection composed from the
     /// effective spell metadata sources.
     pub(super) spell_acquisition_catalog: Arc<wow_data::SpellAcquisitionCatalogLikeCpp>,
@@ -232,7 +237,7 @@ pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
     pub(super) script_name_interner: Arc<wow_data::ScriptNameInternerLikeCpp>,
 }
 
-/// Immutable map, area, creature, mount, vehicle and phase catalogs.
+/// Immutable map, area, creature, graveyard, mount, vehicle and phase catalogs.
 pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) area_table_store: Arc<wow_data::AreaTableStore>,
     pub(super) fishing_base_skill_store: Arc<wow_data::FishingBaseSkillStoreLikeCpp>,
@@ -240,6 +245,8 @@ pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) map_store: Arc<wow_data::MapStore>,
     pub(super) dungeon_encounter_store: Arc<wow_data::DungeonEncounterStore>,
     pub(super) world_safe_loc_store: Arc<wow_data::WorldSafeLocStore>,
+    /// C++ `ObjectMgr::GraveyardStore` used by EffectStuck's dead-player repop.
+    pub(super) graveyards: Arc<wow_data::GraveyardStore>,
     pub(super) map_difficulty_store: Arc<wow_data::MapDifficultyStore>,
     pub(super) map_difficulty_x_condition_store: Arc<wow_data::MapDifficultyXConditionStore>,
     pub(super) access_requirement_store: Arc<wow_data::AccessRequirementStoreLikeCpp>,
@@ -313,6 +320,10 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) repair_cost_rate: f32,
     /// C++ `RATE_DURABILITY_LOSS_ON_DEATH` fraction (`DurabilityLoss.OnDeath`).
     pub(super) durability_loss_on_death_rate: f32,
+    /// C++ `CONFIG_DEATH_*` policy (`Death.*`).
+    pub(super) death_policy: wow_world::DeathPolicyLikeCpp,
+    /// C++ `CONFIG_GROUP_VISIBILITY` Player visibility policy.
+    pub(super) group_visibility_mode: i32,
     /// C++ `CONFIG_STATS_LIMITS_*` caps (`Stats.Limits.*`).
     pub(super) stats_limits: wow_data::StatsLimitsLikeCpp,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` for instance lock expiry.
@@ -325,6 +336,8 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) cast_unstuck_enabled: bool,
     pub(super) quest_low_level_hide_diff: u32,
     pub(super) quest_high_level_hide_diff: u32,
+    pub(super) quest_ignore_auto_complete: bool,
+    pub(super) quest_status_keep_abandoned: Option<bool>,
     pub(super) enable_ae_loot: bool,
     /// C++ `CONFIG_EXPANSION`; used by map-entry expansion gates.
     pub(super) server_expansion: u8,
@@ -371,6 +384,10 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
         session.set_condition_store(Arc::clone(&self.condition_store));
         session.set_player_condition_store(Arc::clone(&self.player_condition_store));
+        wow_world::session::install_condition_presence_catalog(
+            session,
+            Arc::clone(&self.condition_presence_catalog),
+        );
         session.set_content_tuning_store(Arc::clone(&self.content_tuning_store));
         session.set_curve_store(Arc::clone(&self.curve_store));
         session.set_curve_point_store(Arc::clone(&self.curve_point_store));
@@ -394,6 +411,7 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
         session.set_num_talents_at_level_store(Arc::clone(&self.num_talents_at_level_store));
         session.set_chr_races_store(Arc::clone(&self.chr_races_store));
         session.set_chr_classes_store(Arc::clone(&self.chr_classes_store));
+        session.set_shapeshift_display_links_absent(self.shapeshift_display_links_absent);
         session.set_power_type_store(Arc::clone(&self.power_type_store));
     }
 }
@@ -402,6 +420,10 @@ impl SessionSpellCatalogCapabilitiesLikeCpp {
     /// Installs this complete capability group after bootstrap construction.
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
         session.set_spell_store(Arc::clone(&self.spell_store));
+        wow_world::session::install_serverside_spell_catalog(
+            session,
+            Arc::clone(&self.serverside_spell_store),
+        );
         session.set_spell_acquisition_catalog(Arc::clone(&self.spell_acquisition_catalog));
         session.set_spell_acquisition_static_authority_like_cpp(
             self.spell_acquisition_safe_cast_spell_ids.iter().copied(),
@@ -454,6 +476,7 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
         session.set_map_store(Arc::clone(&self.map_store));
         session.set_dungeon_encounter_store(Arc::clone(&self.dungeon_encounter_store));
         session.set_world_safe_loc_store_like_cpp(Arc::clone(&self.world_safe_loc_store));
+        session.set_graveyard_store(Arc::clone(&self.graveyards));
         session.set_map_difficulty_store(Arc::clone(&self.map_difficulty_store));
         session.set_map_difficulty_x_condition_store(Arc::clone(
             &self.map_difficulty_x_condition_store,
@@ -527,6 +550,10 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
     ) {
         session.set_quest_low_level_hide_diff_like_cpp(self.quest_low_level_hide_diff);
         session.set_quest_high_level_hide_diff_like_cpp(self.quest_high_level_hide_diff);
+        session.set_quest_status_save_policy_like_cpp(
+            self.quest_ignore_auto_complete,
+            self.quest_status_keep_abandoned,
+        );
         session.set_player_registry(Arc::clone(&self.player_registry));
         session.set_game_event_quest_complete_sender_like_cpp(
             self.game_event_quest_complete_tx.clone(),
@@ -535,6 +562,8 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session.set_reputation_rates_like_cpp(self.reputation_rates);
         session.set_repair_cost_rate_like_cpp(self.repair_cost_rate);
         session.set_durability_loss_on_death_rate_like_cpp(self.durability_loss_on_death_rate);
+        session.set_death_policy_like_cpp(self.death_policy);
+        session.set_group_visibility_mode(self.group_visibility_mode);
         session.set_stats_limits_like_cpp(self.stats_limits);
         session.set_reset_schedule_like_cpp(self.reset_schedule);
         session.set_offhand_check_at_spell_unlearn_like_cpp(self.offhand_check_at_spell_unlearn);

@@ -338,21 +338,9 @@ pub(super) fn analyze_function(
     errors: &mut Vec<String>,
 ) {
     let enclosing = format!("fn {}", normalized_ident(&function.sig.ident));
-    let generic_operations = function
-        .sig
-        .generics
-        .params
-        .iter()
-        .any(|param| matches!(param, syn::GenericParam::Type(_)))
-        .then(|| {
-            persistence_operations_in_block(
-                &function.block,
-                generic_type_param_names(&function.sig.generics)
-                    .into_iter()
-                    .collect(),
-            )
-        })
-        .unwrap_or_default();
+    let generic_params = generic_guard_params(&[&function.sig.generics], &function.sig.inputs);
+    let generic_operation_sites =
+        generic_guard_sites(&function.block, &generic_params, symbols, None);
     let visibility = normalized_visibility(&function.vis);
     add_attribute_records(
         accumulator,
@@ -397,6 +385,7 @@ pub(super) fn analyze_function(
         cfg.clone(),
     );
     analyzer.visible_macro_shadows = visible_macro_shadows;
+    analyzer.generic_function_params = generic_params;
     analyzer.register_local_uses(&function.block.stmts);
     analyzer.register_local_callables(&function.block.stmts);
     analyzer.register_local_constants(&function.block.stmts);
@@ -421,10 +410,85 @@ pub(super) fn analyze_function(
             fingerprint,
         );
     }
+    let parameter_free_sites = std::mem::take(&mut analyzer.parameter_free_operation_sites);
     drop(analyzer);
-    let unresolved = generic_operations
+    report_unresolved_generic_sites(
+        generic_operation_sites,
+        &parameter_free_sites,
+        &enclosing,
+        accumulator,
+        errors,
+    );
+}
+
+/// Marker for an argument-position `impl Trait`, an anonymous type parameter.
+const APIT_PARAM_MARKER: &str = "impl Trait";
+
+/// The type parameters a body is checked against (#1437): every declared type
+/// parameter of its enclosing generics, plus a marker when an input uses
+/// argument-position `impl Trait`. Empty means the body is not generic.
+pub(super) fn generic_guard_params(
+    generics: &[&syn::Generics],
+    inputs: &syn::punctuated::Punctuated<FnArg, syn::Token![,]>,
+) -> BTreeSet<String> {
+    #[derive(Default)]
+    struct ImplTraitInType(bool);
+    impl<'ast> Visit<'ast> for ImplTraitInType {
+        fn visit_type_impl_trait(&mut self, _: &'ast syn::TypeImplTrait) {
+            self.0 = true;
+        }
+    }
+    let mut params = generics
+        .iter()
+        .flat_map(|generics| generic_type_param_names(generics))
+        .collect::<BTreeSet<_>>();
+    let mut apit = ImplTraitInType::default();
+    for input in inputs {
+        if let FnArg::Typed(typed) = input {
+            apit.visit_type(&typed.ty);
+        }
+    }
+    if apit.0 {
+        params.insert(APIT_PARAM_MARKER.to_owned());
+    }
+    params
+}
+
+/// Persistence-shaped sites of a generic body; none for a non-generic one.
+pub(super) fn generic_guard_sites(
+    block: &syn::Block,
+    generic_params: &BTreeSet<String>,
+    symbols: &ModuleSymbols,
+    same_impl_functions: Option<&BTreeSet<String>>,
+) -> BTreeMap<usize, String> {
+    if generic_params.is_empty() {
+        return BTreeMap::new();
+    }
+    generic_persistence_operation_sites(
+        block,
+        generic_params.clone(),
+        &symbols.dependency_crate_aliases,
+        same_impl_functions,
+    )
+}
+
+/// A site stays unresolved unless the analyzer recorded its operation from
+/// declared flow, or typed its receiver to declared types that cannot be one
+/// of the body's type parameters (#1437).
+pub(super) fn report_unresolved_generic_sites(
+    sites: BTreeMap<usize, String>,
+    parameter_free_sites: &BTreeSet<usize>,
+    enclosing: &str,
+    accumulator: &AccessAccumulator,
+    errors: &mut Vec<String>,
+) {
+    let unresolved = sites
         .into_iter()
-        .filter(|operation| !accumulator.contains_symbol(&enclosing, operation))
+        .filter(|(site, _)| !parameter_free_sites.contains(site))
+        .map(|(_, operation)| operation)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .filter(|operation| !accumulator.contains_symbol(enclosing, operation))
         .collect::<Vec<_>>();
     if !unresolved.is_empty() {
         errors.push(format!(
@@ -504,6 +568,17 @@ pub(super) fn analyze_impl(
             );
         }
     }
+    // Functions of an inherent impl, for its `Self::name` calls (#1437).
+    let inherent_functions = item_impl.trait_.is_none().then(|| {
+        item_impl
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                ImplItem::Fn(function) => Some(normalized_ident(&function.sig.ident)),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>()
+    });
     for item in &item_impl.items {
         let ImplItem::Fn(method) = item else {
             if syntax_mentions_persistence(item, symbols) {
@@ -569,6 +644,7 @@ pub(super) fn analyze_impl(
                 PersistenceOperation::TypeReference,
             );
         }
+        let guard_enclosing = enclosing.clone();
         let mut analyzer = BodyAnalyzer::new(
             RecordContext {
                 classification: context.classification,
@@ -585,6 +661,20 @@ pub(super) fn analyze_impl(
             method_cfg.clone(),
         );
         analyzer.visible_macro_shadows = visible_macro_shadows.clone();
+        // Generic impl methods face the same generic-body guard as module
+        // functions, so a concrete receiver's generic method is audited at its
+        // own definition (#1437).
+        let generic_params = generic_guard_params(
+            &[&item_impl.generics, &method.sig.generics],
+            &method.sig.inputs,
+        );
+        let generic_operation_sites = generic_guard_sites(
+            &method.block,
+            &generic_params,
+            symbols,
+            inherent_functions.as_ref(),
+        );
+        analyzer.generic_function_params = generic_params;
         analyzer.register_local_uses(&method.block.stmts);
         analyzer.register_local_callables(&method.block.stmts);
         analyzer.register_local_constants(&method.block.stmts);
@@ -620,5 +710,14 @@ pub(super) fn analyze_impl(
                 fingerprint,
             );
         }
+        let parameter_free_sites = std::mem::take(&mut analyzer.parameter_free_operation_sites);
+        drop(analyzer);
+        report_unresolved_generic_sites(
+            generic_operation_sites,
+            &parameter_free_sites,
+            &guard_enclosing,
+            accumulator,
+            errors,
+        );
     }
 }

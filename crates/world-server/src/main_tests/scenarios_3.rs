@@ -58,7 +58,6 @@ fn game_event_spawn_non_pool_gameobject_not_spawned_by_default_is_not_added_like
 
     let summary = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        None,
         &metadata,
         &caches,
         event_id,
@@ -125,7 +124,7 @@ fn game_event_pool_spawn_uses_canonical_event_pool_ids_like_cpp() {
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
     let summary =
-        game_event_spawn_pools_for_event_like_cpp(&mut manager, None, &metadata, &caches, event_id);
+        game_event_spawn_pools_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
 
     assert_eq!(summary.event_id, event_id);
     assert!(!summary.missing_event_pool_ids);
@@ -223,7 +222,7 @@ fn game_event_pool_missing_event_id_is_noop_like_cpp() {
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
     let spawn_summary =
-        game_event_spawn_pools_for_event_like_cpp(&mut manager, None, &metadata, &caches, 99);
+        game_event_spawn_pools_for_event_like_cpp(&mut manager, &metadata, &caches, 99);
     let unspawn_summary = game_event_unspawn_pools_for_event_like_cpp(&mut manager, &metadata, 99);
 
     assert!(spawn_summary.missing_event_pool_ids);
@@ -254,7 +253,7 @@ fn game_event_pool_empty_event_id_list_is_noop_like_cpp() {
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
     let spawn_summary =
-        game_event_spawn_pools_for_event_like_cpp(&mut manager, None, &metadata, &caches, event_id);
+        game_event_spawn_pools_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
     let unspawn_summary =
         game_event_unspawn_pools_for_event_like_cpp(&mut manager, &metadata, event_id);
 
@@ -305,8 +304,7 @@ fn game_event_pool_spawn_filters_by_pool_template_map_id_like_cpp() {
     );
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-    let summary =
-        game_event_spawn_pools_like_cpp(&mut manager, None, &metadata, &caches, &[pool_id]);
+    let summary = game_event_spawn_pools_like_cpp(&mut manager, &metadata, &caches, &[pool_id]);
 
     assert_eq!(summary.event_pool_ids_seen, 1);
     assert_eq!(summary.missing_pool_templates, 0);
@@ -339,7 +337,7 @@ fn game_event_pool_spawn_missing_pool_template_is_counted_noop_like_cpp() {
     let metadata = canonical_spawn_metadata_with_pool_mgr_like_cpp(PoolMgrLikeCpp::new());
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-    let summary = game_event_spawn_pools_like_cpp(&mut manager, None, &metadata, &caches, &[5302]);
+    let summary = game_event_spawn_pools_like_cpp(&mut manager, &metadata, &caches, &[5302]);
 
     assert_eq!(summary.event_pool_ids_seen, 1);
     assert_eq!(summary.missing_pool_templates, 1);
@@ -426,7 +424,7 @@ fn game_event_pool_spawn_loaded_grid_records_blocked_loader_and_unloaded_skips_l
     let metadata = canonical_spawn_metadata_with_store_and_pool_mgr_like_cpp(store, pool_mgr);
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-    let summary = game_event_spawn_pools_like_cpp(&mut manager, None, &metadata, &caches, &[5303]);
+    let summary = game_event_spawn_pools_like_cpp(&mut manager, &metadata, &caches, &[5303]);
 
     assert_eq!(summary.maps_matched, 1);
     assert_eq!(summary.pool_spawn_actions_blocked_loaded_grid, 1);
@@ -851,7 +849,7 @@ fn library_composition_preserves_cpp_startup_and_shutdown_order() {
         "CharacterDatabase::open_with_pool_size(",
         "WorldDatabase::open_with_pool_size(",
         "HotfixDatabase::open_with_pool_size(",
-        "let migration_manifest = wow_database::migration::bundled_manifest()?;",
+        "wow_database::migration::bundled_manifest()?.with_module_schema(&module_schema)?;",
         "wow_database::migration::validate_runtime_schema(",
         "clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;",
         "set_realm_offline(&login_db, realm_id).await?;",

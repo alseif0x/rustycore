@@ -52,7 +52,18 @@ pub struct SpellPowerCostInfoLikeCpp {
     pub optional_cost: u32,
 }
 
-/// Minimal `SpellEffectInfo` fields needed by C++ ConditionMgr validation.
+/// Raw `SpellEffect.db2` fields used by C++ polarity and scaling calculations.
+/// This type's default represents known zero values; `SpellEffectInfo` defaults
+/// its optional metadata to `None` when the raw values are unknown.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SpellEffectPolarityMetadata {
+    pub attributes: u32,
+    pub real_points_per_level: f32,
+    pub scaling_coefficient: f32,
+    pub scaling_variance: f32,
+}
+
+/// Represented `SpellEffectInfo` fields used by current validation and effect logic.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SpellEffectInfo {
     pub effect_index: u32,
@@ -84,6 +95,9 @@ pub struct SpellEffectInfo {
     pub chain_targets: i32,
     pub implicit_target_1: u32,
     pub implicit_target_2: u32,
+    /// Exact DB2 inputs used by C++ effect polarity and scaling checks.
+    /// `None` means a legacy or synthetic effect has no known raw metadata.
+    pub polarity_metadata: Option<SpellEffectPolarityMetadata>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,7 +146,7 @@ impl SpellLinkedSpellInfoLikeCpp {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpellProcEntryLikeCpp {
     pub school_mask: u8,
-    pub spell_family_name: u16,
+    pub spell_family_name: u32,
     pub spell_family_mask: [u32; 4],
     pub proc_flags: [u32; 2],
     pub spell_type_mask: u32,
@@ -150,7 +164,7 @@ impl SpellProcEntryLikeCpp {
     pub(super) fn from_row_like_cpp(row: &SpellProcRowLikeCpp) -> Self {
         Self {
             school_mask: row.school_mask,
-            spell_family_name: row.spell_family_name,
+            spell_family_name: u32::from(row.spell_family_name),
             spell_family_mask: row.spell_family_mask,
             proc_flags: row.proc_flags,
             spell_type_mask: row.spell_type_mask,
@@ -172,12 +186,12 @@ impl SpellProcEntryLikeCpp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellProcEventSpellInfoLikeCpp {
-    pub spell_family_name: u16,
+    pub spell_family_name: u32,
     pub spell_family_mask: [u32; 4],
 }
 
 impl SpellProcEventSpellInfoLikeCpp {
-    pub fn is_affected_like_cpp(&self, family_name: u16, family_mask: [u32; 4]) -> bool {
+    pub fn is_affected_like_cpp(&self, family_name: u32, family_mask: [u32; 4]) -> bool {
         if family_name == 0 {
             return true;
         }
@@ -236,7 +250,7 @@ pub struct SpellProcSourceSpellInfoLikeCpp {
     pub difficulty: u32,
     pub first_rank_spell_id: u32,
     pub next_rank_spell_id: Option<u32>,
-    pub spell_family_name: u16,
+    pub spell_family_name: u32,
     pub proc_flags: [u32; 2],
     pub proc_charges: u32,
     pub proc_chance: f32,
@@ -249,32 +263,69 @@ pub struct SpellProcSourceSpellInfoLikeCpp {
 impl SpellProcSourceSpellInfoLikeCpp {
     pub fn from_loaded_spell_like_cpp(
         spell_id: u32,
-        difficulty: u32,
+        difficulty_id: u8,
         spells: &SpellStore,
+        difficulties: &crate::difficulty::DifficultyStore,
         spell_chains: &SpellChainStoreLikeCpp,
         spell_aura_options: &crate::spell_db2::SpellAuraOptionsStore,
-        spell_misc: &crate::spell_db2::SpellMiscStore,
         spell_class_options: &crate::spell_db2::SpellClassOptionsStore,
         spell_procs_per_minute: &crate::spell_db2::SpellProcsPerMinuteStore,
-    ) -> Option<Self> {
-        let spell = spells.get(i32::try_from(spell_id).ok()?)?;
-        let difficulty_id = u8::try_from(difficulty).unwrap_or(0);
-        let aura_options =
-            spell_aura_options.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id);
-        let spell_misc = spell_misc.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id);
-        let spell_class_options = spell_class_options.entry_for_spell_like_cpp(spell_id);
+    ) -> Result<Option<Self>> {
+        if !spells.contains_spell_info_exact_like_cpp(spell_id, difficulty_id) {
+            return Ok(None);
+        }
 
-        Some(Self {
+        let spell_id_key = spell_id as i32;
+        let aura_options = resolve_spell_aura_options_entry(
+            spell_aura_options,
             spell_id,
-            difficulty,
+            difficulty_id,
+            Some(difficulties),
+        )
+        .map_err(|error| anyhow::anyhow!("failed to resolve proc aura options: {error:?}"))?;
+        let (spell_family_name, _) = resolve_spell_family(
+            spell_class_options,
+            spell_id_key,
+            difficulty_id,
+            Some(difficulties),
+        )
+        .map_err(|error| anyhow::anyhow!("failed to resolve proc spell family: {error:?}"))?;
+        let attributes =
+            resolve_spell_attributes(spells, spell_id_key, difficulty_id, Some(difficulties))
+                .map_err(|error| {
+                    anyhow::anyhow!("failed to resolve proc spell attributes: {error:?}")
+                })?;
+        let resolved_effects =
+            resolve_spell_effect_rows(spells, spell_id_key, difficulty_id, Some(difficulties))
+                .map_err(|error| {
+                    anyhow::anyhow!("failed to resolve proc spell effects: {error:?}")
+                })?;
+
+        let effects_len = resolved_effects
+            .last()
+            .map_or(0, |effect| effect.effect_index as usize + 1);
+        let mut effects = (0..effects_len)
+            .map(|effect_index| SpellEffectInfo {
+                effect_index: effect_index as u32,
+                polarity_metadata: Some(SpellEffectPolarityMetadata::default()),
+                ..SpellEffectInfo::default()
+            })
+            .collect::<Vec<_>>();
+        for effect in resolved_effects {
+            let effect_index = usize::try_from(effect.effect_index)
+                .map_err(|_| anyhow::anyhow!("resolved proc effect index is not addressable"))?;
+            effects[effect_index] = effect.clone();
+        }
+
+        Ok(Some(Self {
+            spell_id,
+            difficulty: u32::from(difficulty_id),
             first_rank_spell_id: spell_chains.first_spell_in_chain_like_cpp(spell_id),
             next_rank_spell_id: match spell_chains.next_spell_in_chain_like_cpp(spell_id) {
                 0 => None,
                 next => Some(next),
             },
-            spell_family_name: spell_class_options
-                .map(|entry| u16::from(entry.spell_class_set))
-                .unwrap_or(0),
+            spell_family_name: u32::from(spell_family_name),
             proc_flags: aura_options
                 .map(|entry| {
                     [
@@ -298,11 +349,9 @@ impl SpellProcSourceSpellInfoLikeCpp {
                 })
                 .map(|entry| entry.base_proc_rate)
                 .unwrap_or(0.0),
-            attributes3: spell_misc
-                .map(|entry| entry.attributes[3] as u32)
-                .unwrap_or(0),
-            effects: spell.effects().to_vec(),
-        })
+            attributes3: attributes.map(|attributes| attributes[3]).unwrap_or(0),
+            effects,
+        }))
     }
 
     pub fn is_ranked_like_cpp(&self) -> bool {
@@ -330,7 +379,7 @@ impl SpellProcSourceSpellInfoLikeCpp {
                     aura_type: effect.effect_aura,
                     spell_class_mask: effect.effect_spell_class_mask,
                     calc_value: effect.calc_value_no_caster_like_cpp(),
-                    trigger_spell: u32::try_from(effect.effect_trigger_spell).unwrap_or(0),
+                    trigger_spell: effect.effect_trigger_spell as u32,
                 })
                 .collect(),
         }
@@ -688,4 +737,161 @@ pub(super) struct SpellInterruptRowLikeCpp {
 pub(super) struct SpellHitEffectMechanicRowLikeCpp {
     pub(super) record_id: u32,
     pub(super) mechanic: i32,
+}
+
+/// Represented C++ `SpellInfo::IsPositive` (`NegativeEffects.none()`).
+/// The current spell model does not persist C++'s calculated bitset, so this
+/// keeps the target/aura/sign fallback next to the canonical spell metadata.
+pub fn represented_spell_is_positive_like_cpp(spell_info: &SpellInfo) -> bool {
+    let effects: Vec<(u32, i32, i32, u32, u32)> = if spell_info.effects().is_empty() {
+        vec![(
+            spell_info.effect_type,
+            spell_info.aura_type.unwrap_or(0),
+            spell_info.effect_base_points,
+            0,
+            0,
+        )]
+    } else {
+        spell_info
+            .effects()
+            .iter()
+            .map(|effect| {
+                (
+                    effect.effect,
+                    effect.effect_aura,
+                    effect.effect_base_points,
+                    effect.implicit_target_1,
+                    effect.implicit_target_2,
+                )
+            })
+            .collect()
+    };
+
+    const fn target_checks_enemy_like_cpp(target: u32) -> bool {
+        matches!(
+            target,
+            2 | 6 | 15 | 16 | 24 | 28 | 53 | 54 | 93 | 104 | 108 | 115 | 116 | 129 | 134 | 151
+        )
+    }
+
+    !effects
+        .into_iter()
+        .any(|(effect, aura, amount, target_a, target_b)| {
+            let targets_enemy =
+                target_checks_enemy_like_cpp(target_a) || target_checks_enemy_like_cpp(target_b);
+            effect == spell_effect_types::SPELL_EFFECT_INSTAKILL
+                || effect == spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE
+                || effect == spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE
+                || effect == spell_effect_types::SPELL_EFFECT_POWER_DRAIN
+                || effect == spell_effect_types::SPELL_EFFECT_POWER_BURN
+                || effect == spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
+                || effect == spell_effect_types::SPELL_EFFECT_THREAT
+                || effect == spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT
+                || effect == spell_effect_types::SPELL_EFFECT_ATTACK_ME
+                || effect == spell_effect_types::SPELL_EFFECT_DISTRACT
+                || (effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                    && (targets_enemy
+                        || matches!(
+                            aura,
+                            aura_types::SPELL_AURA_PERIODIC_DAMAGE
+                                | aura_types::SPELL_AURA_PERIODIC_DAMAGE_PERCENT
+                                | aura_types::SPELL_AURA_MOD_CONFUSE
+                                | aura_types::SPELL_AURA_MOD_FEAR
+                                | aura_types::SPELL_AURA_MOD_TAUNT
+                                | aura_types::SPELL_AURA_MOD_STUN
+                                | aura_types::SPELL_AURA_MOD_ROOT
+                                | aura_types::SPELL_AURA_MOD_SILENCE
+                                | aura_types::SPELL_AURA_MOD_DECREASE_SPEED
+                                | aura_types::SPELL_AURA_GHOST
+                                | aura_types::SPELL_AURA_SCHOOL_HEAL_ABSORB
+                        )
+                        || (matches!(
+                            aura,
+                            aura_types::SPELL_AURA_MOD_STAT
+                                | aura_types::SPELL_AURA_MOD_INCREASE_HEALTH
+                                | aura_types::SPELL_AURA_MOD_INCREASE_HEALTH_PERCENT
+                                | aura_types::SPELL_AURA_MOD_SCALE
+                                | aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+                                | aura_types::SPELL_AURA_MOD_PERCENT_STAT
+                        ) && amount < 0)))
+        })
+}
+
+pub fn represented_spell_power_has_power_like_cpp(
+    power_costs: &[SpellPowerCostLikeCpp],
+    before_power: &[(i8, i32, i32)],
+) -> bool {
+    power_costs.iter().all(|cost| {
+        if cost.amount <= 0 {
+            return true;
+        }
+        let Some(power_type) = <PowerType as num_traits::FromPrimitive>::from_i8(cost.power_type)
+        else {
+            return true;
+        };
+        if matches!(
+            power_type,
+            PowerType::Health | PowerType::None | PowerType::Max
+        ) {
+            return true;
+        }
+        before_power
+            .iter()
+            .find(|(snapshot_power_type, _, _)| *snapshot_power_type == cost.power_type)
+            .map(|(_, current, _)| *current >= cost.amount)
+            .unwrap_or(false)
+    })
+}
+
+pub fn represented_spell_valid_with_seen_like_cpp(
+    spell_store: &SpellStore,
+    spell_id: i32,
+    seen: &mut HashSet<i32>,
+) -> bool {
+    if !seen.insert(spell_id) {
+        return true;
+    }
+
+    let Some(spell_info) = spell_store.get(spell_id) else {
+        return false;
+    };
+
+    spell_info.effects().iter().all(|effect| {
+        if effect.effect != spell_effect_types::SPELL_EFFECT_LEARN_SPELL {
+            return true;
+        }
+        if effect.effect_trigger_spell <= 0 {
+            return false;
+        }
+        represented_spell_valid_with_seen_like_cpp(spell_store, effect.effect_trigger_spell, seen)
+    })
+}
+
+pub fn player_target_spell_effect_is_hit_inert_like_cpp(effect: &SpellEffectInfo) -> bool {
+    if effect.effect == spell_effect_types::SPELL_EFFECT_NONE
+        || spell_effect_types::is_cpp_null_or_unused_noop(effect.effect)
+    {
+        return true;
+    }
+    if effect.effect_trigger_spell != 0 {
+        return false;
+    }
+    match effect.effect {
+        spell_effect_types::SPELL_EFFECT_APPLY_AURA => matches!(
+            effect.effect_aura,
+            aura_types::SPELL_AURA_MOD_STEALTH_DETECT
+                | aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+                | aura_types::SPELL_AURA_MOD_PERCENT_STAT
+                | aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
+                | aura_types::SPELL_AURA_NO_PVP_CREDIT
+                | aura_types::SPELL_AURA_MOD_REPUTATION_GAIN
+                | aura_types::SPELL_AURA_MOD_XP_PCT
+                | aura_types::SPELL_AURA_MOD_EXPERTISE
+        ),
+        spell_effect_types::SPELL_EFFECT_PARRY
+        | spell_effect_types::SPELL_EFFECT_BLOCK
+        | spell_effect_types::SPELL_EFFECT_DUAL_WIELD
+        | spell_effect_types::SPELL_EFFECT_PROFICIENCY => true,
+        _ => false,
+    }
 }

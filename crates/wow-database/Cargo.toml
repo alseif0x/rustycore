@@ -10,8 +10,6 @@ sqlx = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-wow-config = { workspace = true }
-wow-logging = { workspace = true }
 wow-persistence = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -19,3 +17,6 @@ sha1 = { workspace = true }
 sha2 = { workspace = true }
 toml = { workspace = true }
 anyhow = { workspace = true }
+
+[lints]
+workspace = true

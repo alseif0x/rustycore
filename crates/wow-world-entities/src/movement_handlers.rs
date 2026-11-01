@@ -1,0 +1,945 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Movement handlers for the C++ `MovementHandler.cpp` family (#1263 F5).
+//!
+//! C++ source of truth: `src/server/game/Handlers/MovementHandler.cpp`
+//! (`HandleMoveTimeSkippedOpcode`, `HandleSetActiveMoverOpcode`,
+//! `HandleSetCollisionHeightAck`, `HandleMoveKnockBackAck`,
+//! `HandleMoveApplyMovementForceAck`, `HandleMoveRemoveMovementForceAck`,
+//! `HandleMoveSetModMovementForceMagnitudeAck`,
+//! `HandleMoveInitActiveMoverComplete` and `HandleMoveTeleportAck`,
+//! the handlers behind `CMSG_MOVE_TIME_SKIPPED`, `CMSG_SET_ACTIVE_MOVER`,
+//! `CMSG_MOVE_SET_COLLISION_HEIGHT_ACK`, `CMSG_MOVE_KNOCK_BACK_ACK`,
+//! `CMSG_MOVE_APPLY_MOVEMENT_FORCE_ACK`,
+//! `CMSG_MOVE_REMOVE_MOVEMENT_FORCE_ACK`,
+//! `CMSG_MOVE_SET_MOD_MOVEMENT_FORCE_MAGNITUDE_ACK`,
+//! `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` and `CMSG_MOVE_TELEPORT_ACK`), plus
+//! `src/server/game/Handlers/VehicleHandler.cpp` `HandleMoveSetVehicleRecAck`
+//! for `CMSG_MOVE_SET_VEHICLE_REC_ID_ACK`.
+//! Both bodies keep their original parse, gates, order, log strings and
+//! packets; the session only lends its hub, so the World side owns the host
+//! thunks and the `MovementHandlerHostLikeCpp` implementation. The remaining
+//! `CMSG_MOVE_*` family stays in `wow-world` for later slices.
+
+use tracing::{info, trace, warn};
+use wow_constants::ClientOpcodes;
+use wow_core::ObjectGuid;
+use wow_handler::{
+    DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
+    RegistryBuilder, SessionStatus,
+};
+use wow_packet::packets::movement::{
+    MoveApplyMovementForceAck, MoveInitActiveMoverComplete, MoveKnockBackAck,
+    MoveRemoveMovementForceAck, MoveSetCollisionHeightAck, MoveSkipTime, MoveTeleportAck,
+    MoveTimeSkipped, MoveUpdateApplyMovementForce, MoveUpdateKnockBack,
+    MoveUpdateModMovementForceMagnitude, MoveUpdateRemoveMovementForce, MovementAck, MovementForce,
+    SetActiveMover,
+};
+use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
+use wow_world_core::session::HubMut;
+
+mod tail_registrations;
+pub use tail_registrations::register_movement_tail_handlers_like_cpp;
+
+/// Borrowed inputs of one movement handler invocation.
+pub struct MovementHandlerCxLikeCpp<'a> {
+    hub: HubMut<'a>,
+}
+
+impl<'a> MovementHandlerCxLikeCpp<'a> {
+    pub fn new(hub: HubMut<'a>) -> Self {
+        Self { hub }
+    }
+
+    /// Handle CMSG_SET_ACTIVE_MOVER — client sets which unit is currently being moved.
+    ///
+    /// The client sends this after login to establish the active mover GUID.
+    /// The mover must match C++ `Player::GetUnitBeingMoved()`.
+    pub async fn handle_set_active_mover(&mut self, pkt: SetActiveMover) {
+        info!(
+            account = self.hub.shared().core.account_id,
+            mover = ?pkt.active_mover,
+            expected = ?self.hub.shared().player_moved_unit_guid_like_cpp(),
+            "RUST_LOGIN_TRACE SetActiveMover"
+        );
+
+        let Some(expected_mover) = self.hub.shared().player_moved_unit_guid_like_cpp() else {
+            warn!(
+                account = self.hub.shared().core.account_id,
+                "SetActiveMover received without canonical active mover"
+            );
+            return;
+        };
+        if pkt.active_mover != expected_mover {
+            warn!(
+                account = self.hub.shared().core.account_id,
+                "SetActiveMover GUID mismatch: expected {:?}, got {:?}",
+                expected_mover,
+                pkt.active_mover
+            );
+            // C++ only logs this mismatch.
+        }
+    }
+
+    /// Handle C++ `HandleMoveTimeSkippedOpcode`.
+    pub async fn handle_move_time_skipped(&mut self, pkt: MoveTimeSkipped) {
+        trace!(
+            account = self.hub.shared().core.account_id,
+            mover = ?pkt.mover_guid,
+            time_skipped = pkt.time_skipped,
+            "MoveTimeSkipped"
+        );
+        if self
+            .hub
+            .apply_move_time_skipped_like_cpp(pkt.mover_guid, pkt.time_skipped)
+            && let Some(source_position) = self.hub.shared().mover_position_like_cpp(pkt.mover_guid)
+        {
+            self.hub
+                .shared()
+                .broadcast_from_movement_source_set_like_cpp(
+                    pkt.mover_guid,
+                    source_position,
+                    MoveSkipTime {
+                        mover_guid: pkt.mover_guid,
+                        time_skipped: pkt.time_skipped,
+                    }
+                    .to_bytes(),
+                    wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
+                );
+        }
+    }
+
+    /// Handle C++ `HandleMoveSetVehicleRecAck` (`VehicleHandler.cpp:193`).
+    pub async fn handle_move_set_vehicle_rec_id_ack(
+        &mut self,
+        opcode: ClientOpcodes,
+        pkt: wow_packet::packets::vehicle::MoveSetVehicleRecIdAck,
+    ) -> MoveSetVehicleRecIdAckStepLikeCpp {
+        trace!(
+            account = self.hub.shared().core.account_id,
+            ?opcode,
+            vehicle_rec_id = pkt.vehicle_rec_id,
+            "MoveSetVehicleRecIdAck"
+        );
+        MoveSetVehicleRecIdAckStepLikeCpp::ApplyMoveSetVehicleRecIdAck { ack: pkt.data }
+    }
+
+    /// Handle C++ `HandleSetCollisionHeightAck` (`MovementHandler.cpp:576`).
+    pub async fn handle_move_set_collision_height_ack(
+        &mut self,
+        pkt: MoveSetCollisionHeightAck,
+    ) -> MoveSetCollisionHeightAckStepLikeCpp {
+        trace!(
+            account = self.hub.shared().core.account_id,
+            height = pkt.height,
+            mount_display_id = pkt.mount_display_id,
+            reason = pkt.reason,
+            "MoveSetCollisionHeightAck"
+        );
+        MoveSetCollisionHeightAckStepLikeCpp::RecordValidatedAck { ack: pkt.data }
+    }
+
+    /// Handle C++ `HandleMoveKnockBackAck` (`MovementHandler.cpp:548`).
+    ///
+    /// C++ order: the body logs the ACK, then `Player::ValidateMovementInfo`,
+    /// the `_player->m_unitMovedByMe` gate and the `_player->m_movementInfo`
+    /// write run inside `WorldSession::apply_knock_back_ack_like_cpp`, which
+    /// lives on the World player shell that the handler context does not
+    /// reach. The thunk applies that host step at this point and resumes in
+    /// [`Self::finish_move_knock_back_ack`] with its accepted flag.
+    pub async fn handle_move_knock_back_ack(
+        &mut self,
+        pkt: MoveKnockBackAck,
+    ) -> MoveKnockBackAckStepLikeCpp {
+        trace!(
+            account = self.hub.shared().core.account_id,
+            has_speeds = pkt.speeds.is_some(),
+            "MoveKnockBackAck"
+        );
+        MoveKnockBackAckStepLikeCpp { ack: pkt.ack }
+    }
+
+    /// Resumes C++ `HandleMoveKnockBackAck` after the host applied the
+    /// validated active-mover gate and the player movement-info write.
+    pub async fn finish_move_knock_back_ack(
+        &mut self,
+        step: MoveKnockBackAckStepLikeCpp,
+        accepted: bool,
+    ) {
+        if accepted {
+            let mut status = step.ack.status.clone();
+            let Some(adjusted_time) = self.hub.shared().resolved_player_movement_time_like_cpp()
+            else {
+                return;
+            };
+            status.time = adjusted_time;
+            self.hub.shared().broadcast_to_movement_set_like_cpp(
+                MoveUpdateKnockBack { status }.to_bytes(),
+                false,
+            );
+        }
+    }
+
+    /// Handle C++ `HandleMoveApplyMovementForceAck` (`MovementHandler.cpp:581`).
+    ///
+    /// C++ order: the body logs the ACK, then `Player::ValidateMovementInfo`,
+    /// the `mover->GetGUID()` gate and the ACK record run inside
+    /// `WorldSession::record_apply_movement_force_ack_like_cpp`, which lives
+    /// on the World player shell that the handler context does not reach. The
+    /// thunk applies that host step at this point and resumes in
+    /// [`Self::finish_move_apply_movement_force_ack`] with its accepted flag.
+    pub async fn handle_move_apply_movement_force_ack(
+        &mut self,
+        pkt: MoveApplyMovementForceAck,
+    ) -> MoveApplyMovementForceAckStepLikeCpp {
+        trace!(
+            account = self.hub.shared().core.account_id,
+            force = ?pkt.force.id,
+            "MoveApplyMovementForceAck"
+        );
+        MoveApplyMovementForceAckStepLikeCpp {
+            ack: pkt.ack,
+            force: pkt.force,
+        }
+    }
+
+    /// Resumes C++ `HandleMoveApplyMovementForceAck` after the host applied
+    /// the validated active-mover gate and recorded the ACK.
+    pub async fn finish_move_apply_movement_force_ack(
+        &mut self,
+        step: MoveApplyMovementForceAckStepLikeCpp,
+        accepted: bool,
+    ) {
+        if accepted
+            && let Some(source_position) = self
+                .hub
+                .shared()
+                .mover_position_like_cpp(step.ack.status.guid)
+        {
+            self.hub
+                .shared()
+                .broadcast_from_movement_source_set_like_cpp(
+                    step.ack.status.guid,
+                    source_position,
+                    MoveUpdateApplyMovementForce {
+                        status: step.ack.status,
+                        force: step.force,
+                    }
+                    .to_bytes(),
+                    wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
+                );
+        }
+    }
+
+    /// Handle C++ `HandleMoveRemoveMovementForceAck` (`MovementHandler.cpp:603`).
+    ///
+    /// C++ order: the body logs the ACK, then `Player::ValidateMovementInfo`,
+    /// the `mover->GetGUID()` gate and the ACK record run inside
+    /// `WorldSession::record_remove_movement_force_ack_like_cpp`, which lives
+    /// on the World player shell that the handler context does not reach. The
+    /// thunk applies that host step at this point and resumes in
+    /// [`Self::finish_move_remove_movement_force_ack`] with its accepted flag.
+    pub async fn handle_move_remove_movement_force_ack(
+        &mut self,
+        pkt: MoveRemoveMovementForceAck,
+    ) -> MoveRemoveMovementForceAckStepLikeCpp {
+        trace!(
+            account = self.hub.shared().core.account_id,
+            force = ?pkt.id,
+            "MoveRemoveMovementForceAck"
+        );
+        MoveRemoveMovementForceAckStepLikeCpp {
+            ack: pkt.ack,
+            id: pkt.id,
+        }
+    }
+
+    /// Resumes C++ `HandleMoveRemoveMovementForceAck` after the host applied
+    /// the validated active-mover gate and recorded the ACK.
+    pub async fn finish_move_remove_movement_force_ack(
+        &mut self,
+        step: MoveRemoveMovementForceAckStepLikeCpp,
+        accepted: bool,
+    ) {
+        if accepted
+            && let Some(source_position) = self
+                .hub
+                .shared()
+                .mover_position_like_cpp(step.ack.status.guid)
+        {
+            self.hub
+                .shared()
+                .broadcast_from_movement_source_set_like_cpp(
+                    step.ack.status.guid,
+                    source_position,
+                    MoveUpdateRemoveMovementForce {
+                        status: step.ack.status,
+                        trigger_guid: step.id,
+                    }
+                    .to_bytes(),
+                    wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
+                );
+        }
+    }
+
+    /// Handle C++ `HandleMoveSetModMovementForceMagnitudeAck` (`MovementHandler.cpp:638`).
+    ///
+    /// C++ order: the shared `MovementSpeedAck` dispatcher logged the ACK
+    /// before routing, then `Player::ValidateMovementInfo`, the mover-GUID
+    /// gate, the `m_movementForceModMagnitudeChanges` counter check and the
+    /// ACK records run inside
+    /// `WorldSession::handle_movement_force_mod_magnitude_ack_like_cpp`, which
+    /// lives on the World player shell that the handler context does not reach.
+    /// The thunk applies that host step at this point and resumes in
+    /// [`Self::finish_move_set_mod_movement_force_magnitude_ack`] with its
+    /// accepted flag.
+    pub async fn handle_move_set_mod_movement_force_magnitude_ack(
+        &mut self,
+        opcode: ClientOpcodes,
+        ack: MovementAck,
+        speed: f32,
+    ) -> MoveSetModMovementForceMagnitudeAckStepLikeCpp {
+        trace!(
+            account = self.hub.shared().core.account_id,
+            ?opcode,
+            speed,
+            "MovementSpeedAck"
+        );
+        MoveSetModMovementForceMagnitudeAckStepLikeCpp { opcode, ack, speed }
+    }
+
+    /// Resumes C++ `HandleMoveSetModMovementForceMagnitudeAck` after the host
+    /// applied the validated active-mover gate, the counter check and the ACK
+    /// records.
+    pub async fn finish_move_set_mod_movement_force_magnitude_ack(
+        &mut self,
+        step: MoveSetModMovementForceMagnitudeAckStepLikeCpp,
+        accepted: bool,
+    ) {
+        if accepted
+            && let Some(source_position) = self
+                .hub
+                .shared()
+                .mover_position_like_cpp(step.ack.status.guid)
+        {
+            let mut status = step.ack.status.clone();
+            status.time = self
+                .hub
+                .shared()
+                .adjust_client_movement_time_like_cpp(status.time);
+            self.hub
+                .shared()
+                .broadcast_from_movement_source_set_like_cpp(
+                    status.guid,
+                    source_position,
+                    MoveUpdateModMovementForceMagnitude {
+                        status,
+                        speed: step.speed,
+                    }
+                    .to_bytes(),
+                    wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
+                );
+        }
+    }
+
+    /// Handle CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE — client acknowledges active mover ready.
+    ///
+    /// C++ updates transport timing, then calls `UpdateObjectVisibility(false)`.
+    /// That marks `NOTIFY_VISIBILITY_CHANGED`; the visible object batch is sent
+    /// later by the normal map/object visibility pass, not directly from this
+    /// packet handler. The transport-time write and the visibility mark run in
+    /// `WorldSession::apply_move_init_active_mover_complete_like_cpp`, which
+    /// lives on the World player shell that the handler context does not reach;
+    /// the thunk applies that host step at this point.
+    pub async fn handle_move_init_active_mover_complete(
+        &mut self,
+        pkt: MoveInitActiveMoverComplete,
+    ) -> MoveInitActiveMoverCompleteStepLikeCpp {
+        info!(
+            account = self.hub.shared().core.account_id,
+            ticks = pkt.ticks,
+            "RUST_LOGIN_TRACE MoveInitActiveMoverComplete"
+        );
+        MoveInitActiveMoverCompleteStepLikeCpp { ticks: pkt.ticks }
+    }
+
+    /// Handle C++ `HandleMoveTeleportAck` (`MovementHandler.cpp:261`).
+    ///
+    /// C++ order: the body logs the ACK, then the near-teleport state machine
+    /// (`IsBeingTeleportedNear`, the mover-GUID gate, the semaphore reset and the
+    /// destination update) runs in
+    /// `crate::handle_move_teleport_ack_like_cpp` (`teleport_session`, #1363
+    /// slice 11a), which needs the session host that the handler context does
+    /// not reach; the thunk applies that host step at this point.
+    pub async fn handle_move_teleport_ack(
+        &mut self,
+        pkt: MoveTeleportAck,
+    ) -> MoveTeleportAckStepLikeCpp {
+        trace!(
+            account = self.hub.shared().core.account_id,
+            mover = ?pkt.mover_guid,
+            ack_index = pkt.ack_index,
+            move_time = pkt.move_time,
+            "MoveTeleportAck"
+        );
+        MoveTeleportAckStepLikeCpp {
+            mover_guid: pkt.mover_guid,
+            ack_index: pkt.ack_index,
+            move_time: pkt.move_time,
+        }
+    }
+}
+
+/// Host step that finishes one C++ `HandleMoveSetVehicleRecAck` call.
+///
+/// C++ runs `GetPlayer()->ValidateMovementInfo(&setVehicleRecIdAck.Data.Status)`
+/// on the World player shell, which the handler context does not reach, so the
+/// thunk applies it where this step says the C++ body runs it.
+pub enum MoveSetVehicleRecIdAckStepLikeCpp {
+    /// C++ order: after the owner logs the ACK, the host applies
+    /// `WorldSession::apply_move_set_vehicle_rec_id_ack_like_cpp` to the ACK
+    /// status.
+    ApplyMoveSetVehicleRecIdAck { ack: MovementAck },
+}
+
+/// Host step that finishes one C++ `HandleSetCollisionHeightAck` call.
+///
+/// C++ runs `GetPlayer()->ValidateMovementInfo(&setCollisionHeightAck.Data.Status)`
+/// through the session's validated-ACK path, which lives on the World shell
+/// that the handler context does not reach, so the thunk applies it where this
+/// step says the C++ body runs it.
+pub enum MoveSetCollisionHeightAckStepLikeCpp {
+    /// C++ order: after the owner logs the ACK, the host applies
+    /// `WorldSession::record_validated_movement_ack_like_cpp` to the ACK.
+    RecordValidatedAck { ack: MovementAck },
+}
+
+/// Host step that carries one logged C++ `HandleMoveKnockBackAck` ACK across
+/// the World player-shell gate and into the accepted-mover broadcast.
+pub struct MoveKnockBackAckStepLikeCpp {
+    /// ACK the host validates in place before the broadcast decides.
+    pub ack: MovementAck,
+}
+
+/// Host step that carries one logged C++ `HandleMoveApplyMovementForceAck`
+/// ACK and force across the World player-shell gate and into the
+/// accepted-mover broadcast.
+pub struct MoveApplyMovementForceAckStepLikeCpp {
+    /// ACK the host validates in place before the broadcast decides.
+    pub ack: MovementAck,
+    /// Movement force the C++ body echoes back to the movement set.
+    pub force: MovementForce,
+}
+
+/// Host step that carries one logged C++ `HandleMoveRemoveMovementForceAck`
+/// ACK and trigger GUID across the World player-shell gate and into the
+/// accepted-mover broadcast.
+pub struct MoveRemoveMovementForceAckStepLikeCpp {
+    /// ACK the host validates in place before the broadcast decides.
+    pub ack: MovementAck,
+    /// Trigger GUID the C++ body echoes back to the movement set.
+    pub id: ObjectGuid,
+}
+
+/// Host step that carries one logged C++
+/// `HandleMoveSetModMovementForceMagnitudeAck` ACK, opcode and speed across the
+/// World player-shell gate and into the accepted-mover broadcast.
+pub struct MoveSetModMovementForceMagnitudeAckStepLikeCpp {
+    /// Opcode the ACK names; the shared `MovementSpeedAck` read kept it.
+    pub opcode: ClientOpcodes,
+    /// ACK the host validates in place before the broadcast decides.
+    pub ack: MovementAck,
+    /// Client speed the C++ body echoes back to the movement set.
+    pub speed: f32,
+}
+
+/// Host step that carries one logged C++ `HandleMoveInitActiveMoverComplete`
+/// tick count across the World player-shell gate and into the transport-time
+/// write plus visibility mark.
+pub struct MoveInitActiveMoverCompleteStepLikeCpp {
+    /// Client tick count the C++ body subtracts from the server game time.
+    pub ticks: u32,
+}
+
+/// Host step that carries one logged C++ `HandleMoveTeleportAck` ACK across the
+/// World session-shell gate and into the near-teleport state machine.
+pub struct MoveTeleportAckStepLikeCpp {
+    /// GUID of the mover the ACK names.
+    pub mover_guid: ObjectGuid,
+    /// ACK sequence index the C++ body records.
+    pub ack_index: i32,
+    /// Client move time the C++ body records.
+    pub move_time: i32,
+}
+
+/// Builds a movement handler context from a host's hub.
+pub trait MovementHandlerHostLikeCpp<C> {
+    fn movement_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+    ) -> MovementHandlerCxLikeCpp<'a>;
+
+    /// C++ `HandleMoveSetVehicleRecAck` runs `Player::ValidateMovementInfo`
+    /// on the ACK status, which lives on the World player shell that the
+    /// handler context does not reach.
+    fn apply_move_set_vehicle_rec_id_ack_like_cpp(&mut self, ack: &mut MovementAck);
+
+    /// C++ `HandleSetCollisionHeightAck` validates the ACK status and records
+    /// the validated movement ACK through
+    /// `WorldSession::record_validated_movement_ack_like_cpp`, which lives on
+    /// the World session shell that the handler context does not reach.
+    fn record_validated_movement_ack_like_cpp(
+        &mut self,
+        opcode: ClientOpcodes,
+        ack: &mut MovementAck,
+        speed: Option<f32>,
+    ) -> bool;
+
+    /// C++ `HandleMoveKnockBackAck` (`MovementHandler.cpp:548`) runs
+    /// `Player::ValidateMovementInfo`, the `m_unitMovedByMe` gate and the
+    /// `m_movementInfo` write through
+    /// `WorldSession::apply_knock_back_ack_like_cpp`, which lives on the World
+    /// player shell that the handler context does not reach.
+    fn apply_knock_back_ack_like_cpp(
+        &mut self,
+        opcode: ClientOpcodes,
+        ack: &mut MovementAck,
+    ) -> bool;
+
+    /// C++ `HandleMoveApplyMovementForceAck` (`MovementHandler.cpp:581`) runs
+    /// the same validated active-mover gate and records the ACK through
+    /// `WorldSession::record_apply_movement_force_ack_like_cpp`, which lives
+    /// on the World player shell that the handler context does not reach.
+    fn record_apply_movement_force_ack_like_cpp(
+        &mut self,
+        ack: &mut MovementAck,
+        force: &MovementForce,
+    ) -> bool;
+
+    /// C++ `HandleMoveRemoveMovementForceAck` (`MovementHandler.cpp:603`) runs
+    /// the same validated active-mover gate and records the ACK through
+    /// `WorldSession::record_remove_movement_force_ack_like_cpp`, which lives
+    /// on the World player shell that the handler context does not reach.
+    fn record_remove_movement_force_ack_like_cpp(
+        &mut self,
+        ack: &mut MovementAck,
+        force_id: ObjectGuid,
+    ) -> bool;
+
+    /// C++ `HandleMoveSetModMovementForceMagnitudeAck` (`MovementHandler.cpp:638`)
+    /// runs `Player::ValidateMovementInfo`, the `mover->GetGUID()` gate, the
+    /// `m_movementForceModMagnitudeChanges` counter check and the ACK records
+    /// through `WorldSession::handle_movement_force_mod_magnitude_ack_like_cpp`,
+    /// which lives on the World player shell that the handler context does not
+    /// reach.
+    fn handle_movement_force_mod_magnitude_ack_like_cpp(
+        &mut self,
+        opcode: ClientOpcodes,
+        ack: &mut MovementAck,
+        speed: f32,
+    ) -> bool;
+
+    /// C++ `HandleMoveInitActiveMoverComplete` (`MovementHandler.cpp:808`) runs
+    /// `SetPlayerLocalFlag(PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME)`,
+    /// `SetTransportServerTime` and `UpdateObjectVisibility(false)` through
+    /// `WorldSession::apply_move_init_active_mover_complete_like_cpp`, which
+    /// lives on the World player shell that the handler context does not reach.
+    fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32);
+
+    /// C++ `HandleMoveTeleportAck` (`MovementHandler.cpp:261`) runs the
+    /// near-teleport state machine through
+    /// `crate::handle_move_teleport_ack_like_cpp` (`teleport_session`, #1363
+    /// slice 11a), which needs the session host that the handler context does
+    /// not reach.
+    fn handle_move_teleport_ack_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        mover_guid: ObjectGuid,
+        ack_index: i32,
+        move_time: i32,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `HandleMovementOpcode` (`MovementHandler.cpp:310`) for the
+    /// mechanical `CMSG_MOVE_*` tail: the body reads the session catalogs the
+    /// generic tail thunk cannot reach.
+    fn handle_movement_opcode_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `HandleMovementAckMessage` (`MovementHandler.cpp:563`) for the
+    /// acknowledgement tail.
+    fn handle_movement_ack_message_like_cpp<'a>(
+        &'a mut self,
+        opcode: ClientOpcodes,
+        ack: wow_packet::packets::movement::MovementAckMessage,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `HandleForceSpeedChangeAck` (`MovementHandler.cpp:468`) for the
+    /// speed-change acknowledgement tail.
+    fn handle_movement_speed_ack_like_cpp<'a>(
+        &'a mut self,
+        opcode: ClientOpcodes,
+        ack: wow_packet::packets::movement::MovementSpeedAck,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `HandleMoveSplineDoneOpcode` (`MovementHandler.cpp:667`).
+    fn handle_move_spline_done_like_cpp<'a>(
+        &'a mut self,
+        done: wow_packet::packets::movement::MoveSplineDone,
+    ) -> HandlerFuture<'a, ()>;
+}
+
+fn handle_set_active_mover_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::SetActiveMover::read(&mut pkt) {
+            Ok(mover) => {
+                session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_set_active_mover(mover)
+                    .await
+            }
+            Err(e) => tracing::warn!("Failed to read SetActiveMover: {e}"),
+        }
+    })
+}
+
+fn handle_move_time_skipped_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::MoveTimeSkipped::read(&mut pkt) {
+            Ok(skipped) => {
+                session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_time_skipped(skipped)
+                    .await
+            }
+            Err(e) => tracing::warn!("Failed to read MoveTimeSkipped: {e}"),
+        }
+    })
+}
+
+fn handle_move_set_vehicle_rec_id_ack_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let opcode = pkt
+            .client_opcode()
+            .unwrap_or(ClientOpcodes::MoveSetVehicleRecIdAck);
+        match wow_packet::packets::vehicle::MoveSetVehicleRecIdAck::read(&mut pkt) {
+            Ok(ack) => {
+                let step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_set_vehicle_rec_id_ack(opcode, ack)
+                    .await;
+                let MoveSetVehicleRecIdAckStepLikeCpp::ApplyMoveSetVehicleRecIdAck { mut ack } =
+                    step;
+                session.apply_move_set_vehicle_rec_id_ack_like_cpp(&mut ack);
+            }
+            Err(e) => tracing::warn!("Failed to read MoveSetVehicleRecIdAck: {e}"),
+        }
+    })
+}
+
+fn handle_move_set_collision_height_ack_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::MoveSetCollisionHeightAck::read(&mut pkt) {
+            Ok(ack) => {
+                let step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_set_collision_height_ack(ack)
+                    .await;
+                let MoveSetCollisionHeightAckStepLikeCpp::RecordValidatedAck { mut ack } = step;
+                session.record_validated_movement_ack_like_cpp(
+                    ClientOpcodes::MoveSetCollisionHeightAck,
+                    &mut ack,
+                    None,
+                );
+            }
+            Err(e) => tracing::warn!("Failed to read MoveSetCollisionHeightAck: {e}"),
+        }
+    })
+}
+
+fn handle_move_knock_back_ack_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::MoveKnockBackAck::read(&mut pkt) {
+            Ok(ack) => {
+                let mut step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_knock_back_ack(ack)
+                    .await;
+                let accepted = session
+                    .apply_knock_back_ack_like_cpp(ClientOpcodes::MoveKnockBackAck, &mut step.ack);
+                session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .finish_move_knock_back_ack(step, accepted)
+                    .await;
+            }
+            Err(e) => tracing::warn!("Failed to read MoveKnockBackAck: {e}"),
+        }
+    })
+}
+
+fn handle_move_apply_movement_force_ack_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::MoveApplyMovementForceAck::read(&mut pkt) {
+            Ok(ack) => {
+                let mut step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_apply_movement_force_ack(ack)
+                    .await;
+                let accepted =
+                    session.record_apply_movement_force_ack_like_cpp(&mut step.ack, &step.force);
+                session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .finish_move_apply_movement_force_ack(step, accepted)
+                    .await;
+            }
+            Err(e) => tracing::warn!("Failed to read MoveApplyMovementForceAck: {e}"),
+        }
+    })
+}
+
+fn handle_move_remove_movement_force_ack_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::MoveRemoveMovementForceAck::read(&mut pkt) {
+            Ok(ack) => {
+                let mut step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_remove_movement_force_ack(ack)
+                    .await;
+                let accepted =
+                    session.record_remove_movement_force_ack_like_cpp(&mut step.ack, step.id);
+                session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .finish_move_remove_movement_force_ack(step, accepted)
+                    .await;
+            }
+            Err(e) => tracing::warn!("Failed to read MoveRemoveMovementForceAck: {e}"),
+        }
+    })
+}
+
+fn handle_move_set_mod_movement_force_magnitude_ack_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let opcode = pkt
+            .client_opcode()
+            .unwrap_or(ClientOpcodes::MoveSetModMovementForceMagnitudeAck);
+        match wow_packet::packets::movement::MovementSpeedAck::read(&mut pkt) {
+            Ok(ack) => {
+                let mut step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_set_mod_movement_force_magnitude_ack(opcode, ack.ack, ack.speed)
+                    .await;
+                let accepted = session.handle_movement_force_mod_magnitude_ack_like_cpp(
+                    step.opcode,
+                    &mut step.ack,
+                    step.speed,
+                );
+                session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .finish_move_set_mod_movement_force_magnitude_ack(step, accepted)
+                    .await;
+            }
+            Err(e) => tracing::warn!("Failed to read MovementSpeedAck: {e}"),
+        }
+    })
+}
+
+fn handle_move_init_active_mover_complete_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::MoveInitActiveMoverComplete::read(&mut pkt) {
+            Ok(init) => {
+                let step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_init_active_mover_complete(init)
+                    .await;
+                session.apply_move_init_active_mover_complete_like_cpp(step.ticks);
+            }
+            Err(e) => tracing::warn!("Failed to read MoveInitActiveMoverComplete: {e}"),
+        }
+    })
+}
+
+fn handle_move_teleport_ack_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::MoveTeleportAck::read(&mut pkt) {
+            Ok(ack) => {
+                let step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_teleport_ack(ack)
+                    .await;
+                session
+                    .handle_move_teleport_ack_like_cpp(
+                        catalogs,
+                        step.mover_guid,
+                        step.ack_index,
+                        step.move_time,
+                    )
+                    .await;
+            }
+            Err(e) => tracing::warn!("Failed to read MoveTeleportAck: {e}"),
+        }
+    })
+}
+
+pub fn register_movement_handlers_like_cpp<S, C>(
+    builder: &mut RegistryBuilder<S, C>,
+) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SetActiveMover,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_active_mover",
+        handler: handle_set_active_mover_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveTimeSkipped,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_move_time_skipped",
+        handler: handle_move_time_skipped_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveSetVehicleRecIdAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_set_vehicle_rec_id_ack",
+        handler: handle_move_set_vehicle_rec_id_ack_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveSetCollisionHeightAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_set_collision_height_ack",
+        handler: handle_move_set_collision_height_ack_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveKnockBackAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_knock_back_ack",
+        handler: handle_move_knock_back_ack_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveApplyMovementForceAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_apply_movement_force_ack",
+        handler: handle_move_apply_movement_force_ack_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveRemoveMovementForceAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_remove_movement_force_ack",
+        handler: handle_move_remove_movement_force_ack_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveInitActiveMoverComplete,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_init_active_mover_complete",
+        handler: handle_move_init_active_mover_complete_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveTeleportAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_teleport_ack",
+        handler: handle_move_teleport_ack_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveSetModMovementForceMagnitudeAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_movement_speed_ack",
+        handler: handle_move_set_mod_movement_force_magnitude_ack_thunk::<S, C>,
+    })?;
+    Ok(())
+}

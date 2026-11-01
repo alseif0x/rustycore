@@ -143,6 +143,32 @@ fn test_spell_info_without_aura(spell_id: i32) -> SpellInfo {
     }
 }
 
+#[test]
+fn represented_spell_positivity_marks_resurrection_sickness_modifiers_negative() {
+    for aura_type in [
+        crate::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+        crate::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT,
+    ] {
+        for (amount, expected_positive) in [(-1, false), (0, true), (1, true)] {
+            let mut spell = test_spell_info_with_aura(15_007, aura_type);
+            spell.effect_base_points = amount;
+            spell.effects[0].effect_base_points = amount;
+            assert_eq!(
+                represented_spell_is_positive_like_cpp(&spell),
+                expected_positive,
+                "aura type {aura_type} amount {amount} follows C++ SpellInfo::IsPositiveEffect"
+            );
+        }
+    }
+}
+
+#[test]
+fn represented_spell_positivity_marks_ghost_aura_negative() {
+    let spell = test_spell_info_with_aura(8_326, crate::spell::aura_types::SPELL_AURA_GHOST);
+
+    assert!(!represented_spell_is_positive_like_cpp(&spell));
+}
+
 fn test_spell_proc_entry_like_cpp() -> SpellProcEntryLikeCpp {
     SpellProcEntryLikeCpp {
         school_mask: 0,
@@ -504,10 +530,18 @@ fn shapeshift_form(flags: i32) -> crate::spell_db2::SpellShapeshiftFormEntry {
     }
 }
 
+#[path = "spell_tests/difficulty_normalization.rs"]
+mod difficulty_normalization;
+#[path = "spell_tests/effect_resolution.rs"]
+mod effect_resolution;
+#[path = "spell_tests/exact_mechanic.rs"]
+mod exact_mechanic;
 #[path = "spell_tests/instance.rs"]
 mod instance;
 #[path = "spell_tests/misc.rs"]
 mod misc;
+#[path = "spell_tests/proc_sources.rs"]
+mod proc_sources;
 #[path = "spell_tests/spell_1.rs"]
 mod spell_1;
 #[path = "spell_tests/spell_2.rs"]
@@ -520,3 +554,5 @@ mod spell_4;
 mod spell_5;
 #[path = "spell_tests/spell_6.rs"]
 mod spell_6;
+#[path = "spell_tests/visuals.rs"]
+mod visuals;

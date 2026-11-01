@@ -137,5 +137,32 @@ class HotspotSnapshotTests(unittest.TestCase):
                 self.assertEqual(int(output.strip()), lines)
 
 
+class HotspotTestFixturesGateTests(unittest.TestCase):
+    """#1241 F4a-P2: the wow-world `test-fixtures` gate counts as test-only code."""
+
+    def test_gated_top_level_items_are_test_lines(self):
+        source = (
+            "pub fn production() {}\n"
+            '#[cfg(any(test, feature = "test-fixtures"))]\n'
+            "mod fixtures;\n"
+            '#[cfg(any(test, feature = "test-fixtures"))]\n'
+            "impl Hub {\n"
+            "    fn only_tests(&self) {}\n"
+            "}\n"
+            '#[cfg(any(test, feature = "other"))]\n'
+            "fn production_possible() {}\n"
+            '#[cfg(not(any(test, feature = "test-fixtures")))]\n'
+            "fn production_only() {}\n"
+        )
+        self.assertEqual(hotspot_metrics.top_level_cfg_test_line_indexes(source), {1, 2, 3, 4, 5, 6})
+        self.assertEqual(hotspot_metrics.hotspot_line_counts(source), (11, 5, 6))
+
+    def test_gated_inner_attribute_marks_the_whole_file(self):
+        self.assertTrue(hotspot_metrics.file_is_entirely_cfg_test(
+            '//! fixtures\n#![cfg(any(test, feature = "test-fixtures"))]\npub struct A;\n'))
+        self.assertFalse(hotspot_metrics.file_is_entirely_cfg_test(
+            '#![cfg(any(test, feature = "other"))]\npub struct A;\n'))
+
+
 if __name__ == "__main__":
     unittest.main()

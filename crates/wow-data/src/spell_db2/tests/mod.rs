@@ -60,3 +60,12 @@ fn test_spell_effect_entry(id: u32, spell_id: u32, effect_mechanic: i32) -> Spel
 }
 
 mod scenarios_1;
+
+#[path = "resurrection_effect_data.rs"]
+mod resurrection_effect_data;
+#[path = "scalar_catalog_loading.rs"]
+mod scalar_catalog_loading;
+#[path = "shapeshift_display_data.rs"]
+mod shapeshift_display_data;
+#[path = "visual_metadata_loading.rs"]
+mod visual_metadata_loading;

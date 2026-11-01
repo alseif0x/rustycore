@@ -548,6 +548,24 @@ impl ServerPacket for QuestGiverQuestFailed {
     }
 }
 
+/// Timed-quest failure notification.
+///
+/// C++ anchor: `QuestUpdateFailedTimer::Write`, `QuestPackets.cpp:643-648`,
+/// writes one `uint32 QuestID`. `Opcodes.cpp:1975` routes
+/// `SMSG_QUEST_UPDATE_FAILED_TIMER` over the realm connection; its opcode is
+/// `0x2a8b` (`ServerOpcodes::QuestUpdateFailedTimer`).
+pub struct QuestUpdateFailedTimer {
+    pub quest_id: u32,
+}
+
+impl ServerPacket for QuestUpdateFailedTimer {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QuestUpdateFailedTimer;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.quest_id);
+    }
+}
+
 // ── SMSG_QUERY_QUEST_INFO_RESPONSE ───────────────────────────────────────────
 
 /// One quest objective as sent in QueryQuestInfoResponse.

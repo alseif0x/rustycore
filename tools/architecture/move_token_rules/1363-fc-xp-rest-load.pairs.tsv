@@ -1,0 +1,2 @@
+crates/wow-world/src/session/persistence/load.rs	load_represented_xp_rest_bonus_like_cpp	crates/wow-world-instances/src/instance_session/rest_flags.rs
+crates/wow-world/src/session/persistence/load.rs	clear_represented_rest_flags_for_character_load_like_cpp	crates/wow-world-instances/src/instance_session/rest_flags.rs

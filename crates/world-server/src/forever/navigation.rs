@@ -7,7 +7,7 @@ use forever_casc::{Locale, integrity, package::Context as PackageContext};
 use std::{ffi::OsStr, fs, path::Path, sync::Arc};
 use wow_world::{
     WorldMMapPathfinderWorkerLikeCpp,
-    map_manager::{
+    pathfinder::{
         ForeverNavigation56Expected, ForeverNavigation57Expected, ForeverNavigationLimits,
     },
 };

@@ -16,6 +16,7 @@ use tracing::{debug, error, info, warn};
 
 mod bot_srp6;
 mod cast_lifecycle;
+mod chat_say;
 mod run_report;
 use run_report::{log_bot_summary, write_report_if_requested};
 mod config;
@@ -36,6 +37,27 @@ use wow_crypto::WorldCrypt;
 mod bot;
 #[allow(unused_imports)]
 use bot::*;
+
+fn apply_cast_lifecycle_character_guid_override(
+    bots: &mut [config::BotConfig],
+    character_guid: Option<u64>,
+    cast_lifecycle_mode: bool,
+    single_account_selected: bool,
+) -> Result<()> {
+    let Some(character_guid) = character_guid else {
+        return Ok(());
+    };
+    if !cast_lifecycle_mode || !single_account_selected || bots.len() != 1 {
+        bail!(
+            "cast lifecycle character_guid override requires --cast-lifecycle with exactly one --single account"
+        );
+    }
+    if character_guid == 0 || character_guid > OBJECT_GUID_COUNTER_MASK {
+        bail!("cast lifecycle character_guid override must be a nonzero 40-bit counter");
+    }
+    bots[0].character_guid = character_guid;
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -68,6 +90,8 @@ async fn main() -> Result<()> {
             || cli.homebind_smoke
             || cli.inventory_swap_smoke
             || cli.vendor_smoke
+            || cli.vendor_sell_smoke
+            || cli.movement_smoke
             || cli.equipment_set_race_smoke
             || cli.rested_xp_smoke
             || cli.detour_chase_capture
@@ -77,12 +101,24 @@ async fn main() -> Result<()> {
             || cli.loot_item_capture
             || cli.group_capacity_race_smoke
             || cli.quest_smoke
+            || cli.trade.smoke
+            || cli.trade.recover
             || cli.single_account.is_some();
         if conflicting_mode {
             bail!("--recover-loot-fixture must be used alone");
         }
         loot_race::recover_pending_fixture().await?;
         info!("Pending loot fixture recovered and cleanup marker written");
+        return Ok(());
+    }
+    if cli.trade.recover {
+        if cli.trade.smoke || cli.single_account.is_some() || cli.ensure_test_accounts {
+            bail!("--recover-trade-fixture must be used alone");
+        }
+        if !recover_pending_trade_fixture_if_present().await? {
+            bail!("no pending trade fixture record exists at WOW_BOT_FIXTURE_JOURNAL");
+        }
+        info!("Pending trade fixture recovered and cleanup marker written");
         return Ok(());
     }
     let detour_chase_options = if cli.detour_chase_capture {
@@ -140,6 +176,15 @@ async fn main() -> Result<()> {
                 || bot.account.eq_ignore_ascii_case(&cli.loot_race_account_b)
         });
     }
+    if cli.trade.smoke {
+        if cli.single_account.is_some() {
+            bail!("--single is incompatible with --trade-smoke; select the pair with --trade-account-a/-b");
+        }
+        bots.retain(|bot| {
+            bot.account.eq_ignore_ascii_case(&cli.trade.account_a)
+                || bot.account.eq_ignore_ascii_case(&cli.trade.account_b)
+        });
+    }
     if cli.group_capacity_race_smoke {
         if cli.single_account.is_some() {
             bail!("--single is incompatible with --group-capacity-race-smoke");
@@ -168,6 +213,14 @@ async fn main() -> Result<()> {
         });
     }
     apply_password_overrides(&mut bots);
+    apply_cast_lifecycle_character_guid_override(
+        &mut bots,
+        cast_lifecycle_options
+            .as_ref()
+            .and_then(|options| options.plan.character_guid),
+        cli.cast_lifecycle,
+        cli.single_account.is_some(),
+    )?;
 
     if bots.is_empty() {
         bail!("No enabled bots matched the current config/filter");
@@ -209,7 +262,8 @@ async fn main() -> Result<()> {
         || cli.creature_spell_capture
         || cli.cast_lifecycle
         || cli.group_capacity_race_smoke
-        || cli.equipment_set_race_smoke;
+        || cli.equipment_set_race_smoke
+        || cli.trade.smoke;
     validate_provisioning_mode(guarded_identity_mode, cli.ensure_test_accounts)?;
     let post_login_mode_count = [
         cli.stand_state_smoke,
@@ -219,6 +273,8 @@ async fn main() -> Result<()> {
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.vendor_smoke,
+        cli.vendor_sell_smoke,
+        cli.movement_smoke,
         cli.equipment_set_race_smoke,
         cli.rested_xp_smoke,
         cli.detour_chase_capture,
@@ -228,13 +284,14 @@ async fn main() -> Result<()> {
         cli.loot_item_capture,
         cli.group_capacity_race_smoke,
         cli.quest_smoke,
+        cli.trade.smoke,
     ]
     .into_iter()
     .filter(|enabled| *enabled)
     .count();
     if post_login_mode_count > 1 {
         bail!(
-            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, detour-chase-capture, creature-spell-capture, cast-lifecycle, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes"
+            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, vendor-sell, movement, equipment-set-race, rested-xp, detour-chase-capture, creature-spell-capture, cast-lifecycle, loot-race, loot-item-capture, group-capacity-race, trade, and quest smoke are separate post-login modes"
         );
     }
     if cli.bank_smoke && bots.len() != 1 {
@@ -242,11 +299,6 @@ async fn main() -> Result<()> {
     }
     if cli.bank_smoke && cli.bank_timeout_secs == 0 {
         bail!("--bank-timeout must be greater than zero");
-    }
-    if cli.bank_smoke && cli.bank_runtime_counter.is_none() {
-        bail!(
-            "--bank-smoke requires --bank-runtime-counter or WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid"
-        );
     }
     if (cli.void_storage_smoke || cli.void_storage_query_capture) && bots.len() != 1 {
         bail!("void-storage modes require exactly one bot; select it with --single");
@@ -290,6 +342,8 @@ async fn main() -> Result<()> {
     {
         bail!("vendor smoke requires nonzero fixture identifiers/cost and a seeded currency quantity greater than one purchase cost");
     }
+    validate_post_login_smoke_cli(&cli, bots.len())?;
+    cli.trade.validate(&bots)?;
     if cli.equipment_set_race_smoke {
         if bots.len() != 2 {
             bail!("--equipment-set-race-smoke requires exactly its two configured bots");
@@ -337,7 +391,15 @@ async fn main() -> Result<()> {
         &bots,
         &loot_race_cli,
     )?;
-    if loot_mode {
+    if cli.trade.smoke {
+        validate_trade_journal_contract()?;
+        let bots_for_validation = bots.clone();
+        tokio::task::spawn_blocking(move || {
+            validate_exact_loot_bot_identities(&bots_for_validation)
+        })
+        .await
+        .map_err(|e| anyhow!("Trade identity-preflight DB worker join failed: {e}"))??;
+    } else if loot_mode {
         loot_race::validate_journal_contract()?;
         let bots_for_validation = bots.clone();
         tokio::task::spawn_blocking(move || {
@@ -395,43 +457,7 @@ async fn main() -> Result<()> {
     }
     info!(
         "Mode: {}; client_build={}; LFG timeout: {}s; auto_teleport={}; require_proposal={}; require_group={}",
-        if cli.stand_state_smoke {
-            "stand-state-smoke"
-        } else if cli.bank_smoke {
-            "bank-smoke"
-        } else if cli.void_storage_smoke {
-            "void-storage-smoke"
-        } else if cli.void_storage_query_capture {
-            "void-storage-query-capture"
-        } else if cli.homebind_smoke {
-            "homebind-smoke"
-        } else if cli.inventory_swap_smoke {
-            "inventory-swap-smoke"
-        } else if cli.vendor_smoke {
-            "vendor-smoke"
-        } else if cli.equipment_set_race_smoke {
-            "equipment-set-race-smoke"
-        } else if cli.rested_xp_smoke {
-            "rested-xp-smoke"
-        } else if cli.detour_chase_capture {
-            "detour-chase-capture"
-        } else if cli.creature_spell_capture {
-            "creature-spell-capture"
-        } else if cli.cast_lifecycle {
-            "cast-lifecycle"
-        } else if cli.loot_race_smoke {
-            "loot-race-smoke"
-        } else if cli.loot_item_capture {
-            "loot-item-capture"
-        } else if cli.group_capacity_race_smoke {
-            "group-capacity-race-smoke"
-        } else if cli.quest_smoke {
-            "quest-smoke"
-        } else if cli.login_only {
-            "login-only"
-        } else {
-            "lfg"
-        },
+        run_mode_label(&cli),
         client_build(),
         timeout_secs,
         auto_teleport,
@@ -448,6 +474,8 @@ async fn main() -> Result<()> {
         && !cli.homebind_smoke
         && !cli.inventory_swap_smoke
         && !cli.vendor_smoke
+        && !cli.vendor_sell_smoke
+        && !cli.movement_smoke
         && !cli.equipment_set_race_smoke
         && !cli.rested_xp_smoke
         && !cli.detour_chase_capture
@@ -456,6 +484,7 @@ async fn main() -> Result<()> {
         && !cli.loot_race_smoke
         && !cli.loot_item_capture
         && !cli.group_capacity_race_smoke
+        && !cli.trade.smoke
     {
         cleanup_bot_group_state(&bots)?;
     }
@@ -485,6 +514,23 @@ async fn main() -> Result<()> {
             loot_race::run_workflow(
                 bots,
                 loot_race_cli,
+                dungeon_id,
+                timeout_secs,
+                auto_teleport,
+                shutdown,
+            )
+            .await,
+        )
+        .await?;
+        for result in &results {
+            log_bot_summary(result, require_proposal, require_group, cli.login_only);
+        }
+    } else if cli.trade.smoke {
+        let shutdown = install_loot_termination_token()?;
+        results = finish_guarded_trade_result(
+            run_trade_workflow(
+                bots,
+                cli.trade.clone(),
                 dungeon_id,
                 timeout_secs,
                 auto_teleport,
@@ -601,6 +647,8 @@ async fn main() -> Result<()> {
                     cli.vendor_timeout_secs,
                 )
                 .await
+            } else if cli.vendor_sell_smoke || cli.movement_smoke {
+                run_post_login_smoke(&cli, bot, dungeon_id, timeout_secs, auto_teleport).await
             } else if cli.rested_xp_smoke {
                 run_rested_xp_smoke_workflow(
                     bot,
@@ -682,7 +730,7 @@ async fn main() -> Result<()> {
                         log_bot_summary(&result, require_proposal, require_group, cli.login_only);
                         results.push(result);
                     } else {
-                        error!("❌ Bot run ERROR: {}", error);
+                        error!("❌ Bot run ERROR: {:#}", error);
                     }
                 }
             }
@@ -729,7 +777,7 @@ async fn main() -> Result<()> {
                     log_bot_summary(&result, require_proposal, require_group, cli.login_only);
                     results.push(result);
                 }
-                Ok((account, Err(e))) => error!("❌ Bot {} ERROR: {}", account, e),
+                Ok((account, Err(e))) => error!("❌ Bot {} ERROR: {:#}", account, e),
                 Err(e) => error!("❌ Bot task join error: {}", e),
             }
         }

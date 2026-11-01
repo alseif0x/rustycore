@@ -344,6 +344,42 @@ pub(super) fn collect_expression_surfaces(
     collector.visit_item(item);
 }
 
+fn module_is_or_below(module: &str, root: &str) -> bool {
+    module == root
+        || module
+            .strip_prefix(root)
+            .is_some_and(|suffix| suffix.starts_with("::"))
+}
+
+fn collects_session_contract_types(role: PackageRole, module: &str) -> bool {
+    match role {
+        PackageRole::Network => true,
+        PackageRole::World | PackageRole::WorldCore => [
+            WORLD_SESSION_MAILBOX_MODULE,
+            WORLD_LOOT_PERSISTENCE_MODULE,
+            WORLD_PLAYER_DIRECTORY_MODULE,
+            WORLD_SESSION_DIRECTORY_MODULE,
+        ]
+        .into_iter()
+        .any(|root| module_is_or_below(module, root)),
+        PackageRole::Social => module_is_or_below(module, SOCIAL_GROUP_MODULE),
+        PackageRole::WorldSocial
+        | PackageRole::WorldSpell
+        | PackageRole::WorldInteraction
+        | PackageRole::WorldInstances
+        | PackageRole::WorldVisibility
+        | PackageRole::WorldLoot
+        | PackageRole::WorldEntities
+        | PackageRole::WorldInventory
+        | PackageRole::WorldLifecycle
+        | PackageRole::WorldCharacter
+        | PackageRole::WorldQuest
+        | PackageRole::WorldLootOps
+        | PackageRole::WorldApplication => false,
+        PackageRole::Server => false,
+    }
+}
+
 pub(super) fn collect_items(
     role: PackageRole,
     items: &[Item],
@@ -442,24 +478,63 @@ pub(super) fn collect_items(
             ));
         }
 
-        if role == PackageRole::Network
-            || (role == PackageRole::World
-                && (module == WORLD_SESSION_DIRECTORY_MODULE
-                    || module == WORLD_SESSION_MAILBOX_MODULE
-                    || module.starts_with(&format!("{WORLD_SESSION_MAILBOX_MODULE}::"))
-                    || module == WORLD_LOOT_PERSISTENCE_MODULE))
-            || (role == PackageRole::Social
-                && (module == SOCIAL_GROUP_MODULE
-                    || module.starts_with(&format!("{SOCIAL_GROUP_MODULE}::"))))
-        {
+        if matches!(
+            role,
+            PackageRole::WorldCore
+                | PackageRole::WorldSocial
+                | PackageRole::WorldSpell
+                | PackageRole::WorldInteraction
+                | PackageRole::WorldInstances
+                | PackageRole::WorldVisibility
+                | PackageRole::WorldLoot
+                | PackageRole::WorldEntities
+                | PackageRole::WorldInventory
+                | PackageRole::WorldLifecycle
+                | PackageRole::WorldCharacter
+                | PackageRole::WorldQuest
+                | PackageRole::WorldLootOps
+                | PackageRole::WorldApplication
+        ) {
+            match item {
+                Item::Struct(item_struct) if item_struct.ident == WORLD_SESSION_NAME => {
+                    builder.errors.push(format!(
+                        "{module} in {} defines a {WORLD_SESSION_NAME} struct; \
+                         its ownership must remain in {}",
+                        role.package_name(),
+                        PackageRole::World.package_name(),
+                    ));
+                }
+                Item::Impl(item_impl)
+                    if type_path_ends_with(&item_impl.self_ty, WORLD_SESSION_NAME) =>
+                {
+                    builder.errors.push(format!(
+                        "{module} in {} defines a {WORLD_SESSION_NAME} impl; \
+                         its ownership must remain in {}",
+                        role.package_name(),
+                        PackageRole::World.package_name(),
+                    ));
+                }
+                _ => {}
+            }
+        }
+
+        core_owner::collect_item(item, role, module, &item_cfg, item_availability, builder);
+
+        if collects_session_contract_types(role, module) {
             collect_contract_type(item, module, &item_cfg, item_availability, builder);
         }
 
         match (role, module, item) {
-            (PackageRole::World, WORLD_SESSION_MODULE, Item::Struct(item_struct)) => {
+            (PackageRole::World, module, Item::Struct(item_struct))
+                if module == WORLD_SESSION_MODULE || module == WORLD_SESSION_STATE_MODULE =>
+            {
                 collect_struct(
                     item_struct,
-                    module,
+                    // Keep the syntax baseline keyed to the public Session
+                    // facade even though the definition is physically in its
+                    // private state child. The exact two-module guard above
+                    // still lets `set_once` reject a root/child duplicate.
+                    WORLD_SESSION_MODULE,
                     cfg,
                     availability,
                     WORLD_SESSION_NAME,
@@ -711,6 +786,8 @@ impl BaselineBuilder {
         bridge_accesses: BridgeAccessBaseline,
     ) -> Result<SessionSyntaxBaseline, String> {
         let session_helper_bodies = self.session_helper_bodies();
+        let mut session_core_owner = self.session_core_owner;
+        session_core_owner.canonicalize();
         let network_contract = network_contract(&self.contract_types);
         let mut errors = self.errors;
         let world_session_definition = self.world_session_definition.ok_or_else(|| {
@@ -767,6 +844,7 @@ impl BaselineBuilder {
                     .collect(),
                 impl_items: self.world_session_impl_items.into_iter().collect(),
             },
+            session_core_owner,
             session_resources: SessionResourcesSurface {
                 definition: session_resources_definition.expect("validated definition"),
                 fields: self.session_resources_fields.into_iter().collect(),

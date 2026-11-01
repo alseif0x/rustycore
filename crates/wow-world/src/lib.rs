@@ -5,7 +5,7 @@
 
 //! World server core: session management, handlers, and world state.
 
-pub(crate) mod battle_pet_account;
+pub(crate) use wow_world_core::battle_pet_account;
 pub(crate) mod battle_pet_purchase;
 pub mod canonical_player_access;
 mod canonical_player_sync;
@@ -18,47 +18,58 @@ pub use finalization::{
 pub mod conditions;
 pub mod entity_update_bridge;
 pub mod forever;
+pub mod handler_composition;
 pub mod handlers;
 pub mod loot_persistence;
-pub mod map_manager;
-mod packet_registry;
-pub mod phasing;
+pub use wow_world_core::{
+    corpse_load, creature_movement, creature_projection, creature_respawn, pathfinder,
+    runtime_plan, terrain,
+};
+#[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
+#[cfg(test)]
+#[path = "../unit_tests/canonical_creature_fixtures.rs"]
+pub(crate) mod canonical_creature_fixtures;
+#[cfg(test)]
+#[path = "../unit_tests/handler_contract_tests.rs"]
+mod handler_contract_tests;
 mod player;
 mod player_cast;
 #[path = "session/directory.rs"]
 pub mod player_directory;
-#[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
+#[cfg(test)]
+#[path = "../unit_tests/player_inventory_test_fixture.rs"]
+mod player_inventory_test_fixture;
 pub(crate) mod profession;
-mod quest;
-pub mod reputation;
+#[cfg(test)]
+#[path = "../unit_tests/selected_spell_fixtures.rs"]
+pub(crate) mod selected_spell_fixtures;
 pub mod session;
 mod session_commands;
 mod session_persistence_capabilities;
 mod session_policy;
-#[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
+mod session_rules;
 pub(crate) mod spell_acquisition;
 mod spell_cast_adapter;
-#[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
-pub(crate) mod trainer_offer;
-
-mod catalogs;
 #[cfg(test)]
-mod handler_contract_tests;
-mod session_rules;
-#[cfg(test)]
+#[path = "../unit_tests/teleport_test_fixtures.rs"]
 mod teleport_test_fixtures;
 #[cfg(test)]
+#[path = "../unit_tests/vendor_trade_persistence_test_fixture.rs"]
 mod vendor_trade_persistence_test_fixture;
 
-pub use map_manager::{
-    ChaseTargetSnapshotLikeCpp, GridCoord, MapManager, SharedMapManager, WorldCreature,
-    WorldMMapPathfinderWorkerLikeCpp,
-};
+pub use creature_movement::ChaseTargetSnapshotLikeCpp;
+pub use pathfinder::WorldMMapPathfinderWorkerLikeCpp;
 pub use session::{MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, WorldSession};
 pub use session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,
     ReputationRatesLikeCpp,
 };
+pub use wow_world_core::session::DeathPolicyLikeCpp;
+pub use wow_world_entities::creature_message_to_set_target_allows_like_cpp;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+#[path = "../unit_tests/native_death_test_fixtures.rs"]
+mod native_death_test_fixtures;
 
 pub use battle_pet_account::{BattlePetAccountAttachmentLikeCpp, BattlePetAccountRegistryLikeCpp};

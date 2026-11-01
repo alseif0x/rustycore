@@ -5,6 +5,9 @@
 use super::*;
 mod binding;
 mod difficulty;
+mod host;
 mod instance;
 mod map_key;
 mod map_resolution;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) mod test_fixtures;

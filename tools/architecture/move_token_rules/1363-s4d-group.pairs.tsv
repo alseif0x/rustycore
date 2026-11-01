@@ -1,0 +1,14 @@
+# base_path name head_path (#1363 slice 4d group, base dc17fe39b)
+crates/wow-world/src/handlers/group/commands.rs	handle_apply_group_removal_command_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/handlers/group/commands.rs	handle_apply_group_join_command_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/handlers/group/commands.rs	handle_send_party_update_command_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/handlers/group/commands.rs	handle_apply_group_difficulty_command_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/handlers/group/commands.rs	handle_apply_group_subgroup_command_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/session/social/group.rs	apply_group_subgroup_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/session/social/group.rs	reconcile_group_state_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/session/social/group.rs	defer_group_state_reconciliation_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/session/social/group.rs	apply_authoritative_group_state_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/session/social/group.rs	send_destroyed_group_party_update_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/session/instances/difficulty.rs	reconcile_group_difficulty_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/session/group_application_handler_contexts.rs	apply_group_publication_tail_like_cpp	crates/wow-world-instances/src/group_session.rs
+crates/wow-world/src/session/group_application_handler_contexts.rs	send_group_party_update_after_owner_like_cpp	crates/wow-world-instances/src/group_session.rs

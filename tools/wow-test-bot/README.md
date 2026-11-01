@@ -64,8 +64,11 @@ quest as active in `character_queststatus`, seeds nonzero
 `character_queststatus_objectives` rows, logs in, sends logout, and verifies the
 objective rows survived the server's logout save.
 
-For a full personal-bank persistence round-trip, set `WOW_BOT_BANK_SMOKE=1`
-and `WOW_BOT_BANK_RUNTIME_COUNTER=<live-counter>`. The bot creates one isolated
+For a full personal-bank persistence round-trip, set `WOW_BOT_BANK_SMOKE=1`.
+After each login the bot sends `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` (C++
+`Player::CanNeverSee` hides world objects until then) and discovers the
+banker's live ObjectGuid near its SQL position; `WOW_BOT_BANK_RUNTIME_COUNTER`
+is an optional override. The bot creates one isolated
 test item for the local bot character, opens a neutral banker, deposits the
 item, logs out and authenticates again, withdraws it, logs out again, verifies
 both DB transitions, then deletes the item and restores the original position.
@@ -129,6 +132,33 @@ position. Optional fixture overrides are `WOW_BOT_VENDOR_ENTRY`,
 `WOW_BOT_VENDOR_SPAWN_GUID`, `WOW_BOT_VENDOR_ITEM_ENTRY`,
 `WOW_BOT_VENDOR_EXTENDED_COST`, `WOW_BOT_VENDOR_CURRENCY_ID`,
 `WOW_BOT_VENDOR_CURRENCY_COST`, and `WOW_BOT_VENDOR_CURRENCY_QUANTITY`.
+
+For a vendor SELL round-trip, set `WOW_BOT_VENDOR_SELL_SMOKE=1` and select
+exactly one offline `@bot.local` account. The fixture seeds one isolated item
+(default `2589` Linen Cloth, override `WOW_BOT_VENDOR_SELL_ITEM_ENTRY`) into an
+empty backpack slot, snapshots money and position, and relocates beside the
+same vendor spawn as the buy smoke (`WOW_BOT_VENDOR_ENTRY`,
+`WOW_BOT_VENDOR_SPAWN_GUID`, optional checked `WOW_BOT_VENDOR_RUNTIME_COUNTER`;
+the spawn must carry the vendor npcflag and not `NO_SELL_VENDOR`). After
+login and `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` it discovers the live vendor
+GUID, sends `CMSG_SELL_ITEM` (C++ `SellItem::Read` order) and requires that no
+`SMSG_SELL_RESPONSE` arrives: C++ `HandleSellItemOpcode` sends nothing on
+success and `SendSellError` only for failures. After the routed logout the
+item's `character_inventory` and `item_instance` rows must both be gone (C++
+`_SaveInventory` deletes buyback-slot items instead of saving them) and money
+must have increased; `WOW_BOT_VENDOR_SELL_EXPECTED_MONEY` asserts the exact
+`SellPrice` gain, which lives in DB2 data the bot cannot read. A fresh relogin
+re-checks the same state, then cleanup removes leftover rows and restores the
+original money and position.
+
+For a basic movement round-trip, set `WOW_BOT_MOVEMENT_SMOKE=1` with one
+offline `@bot.local` character standing on open, flat ground. The bot reads the
+login position from `SMSG_LOGIN_VERIFY_WORLD`, sends
+`CMSG_MOVE_START_FORWARD`, two `CMSG_MOVE_HEARTBEAT`s and `CMSG_MOVE_STOP`
+200 ms apart at run speed along its facing (4.2 yards, login Z kept), logs out,
+and requires `characters.map/position_*` within 0.1 yards of the final sent
+position; a relogin must publish the same position. Cleanup restores the
+original position once the character is offline.
 
 For the two-session equipment-set GUID and relog smoke, use two existing
 disposable local identities:
@@ -226,14 +256,25 @@ service's own process, installs the candidate through `systemctl`, waits until
 it is serving again, runs this smoke, and attempts to restore the original build on
 normal and trapped exits — including failure, caught interruption and a hung bot. A restore that does
 not come back clean is reported as the run's outcome even when the smoke passed.
+The two-session player-trade smoke (#38) uses the same swap and restore path:
+`./tools/qa-runtime.sh --allow-runtime-qa --ack-disposable-trade --world-exec
+target/release/world-server --report /tmp/trade-qa.json trade` (see
+`RUSTYCORE_SMOKE.md`, "Two-session player trade smoke").
 `./tools/qa-runtime.sh self-test` proves that restore path against fake services;
 `snapshot` prints the live identity without touching anything.
 
 Until #331 this was driven by `pr-preflight.sh qa-loot-race` against PM2, which
 this host no longer runs.
 
-The current systemd `loot-race` command requires chest spawn `9106001` to exist
-before the swap; it does not install/remove the capture wrapper's chest fixture.
+The systemd `loot-race` command installs chest spawn `9106001` itself through
+the same shared guard as the capture wrapper
+(`crates/capture-diff/scripts/loot-fixture-common.sh`): after stopping the world
+and confirming no character is online it validates the pinned template, loot and
+addon, refuses a pre-existing spawn or spawn-scoped metadata, sets the addon money
+to `10/10` and inserts the exact spawn, then starts the candidate. Its EXIT trap
+stops the world, removes the generated respawn row and the unchanged spawn and
+restores the `0/0` money bounds before the original build starts; a cleanup that
+cannot prove those postconditions fails the run with status `70` (#373).
 It reports a surviving bot journal as failure but still enters build restoration;
 it does not provide the PM2 capture wrapper's journal-gated restart guarantee.
 `SIGKILL` and host failure also bypass shell traps. Preserve recovery evidence and

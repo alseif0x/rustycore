@@ -209,7 +209,9 @@ impl SpellStore {
             SpellHitCategoriesRowLikeCpp {
                 record_id: u32::MAX,
                 category_id,
+                start_recovery_category_id: 0,
                 charge_category_id,
+                prevention_type: 0,
                 defense_type,
                 spell_mechanic,
             },
@@ -219,6 +221,8 @@ impl SpellStore {
             SpellHitMiscRowLikeCpp {
                 record_id: u32::MAX,
                 school_mask,
+                speed: 0.0,
+                launch_delay: 0.0,
             },
         );
         self.spell_hit_effect_mechanics_by_difficulty.insert(

@@ -1,0 +1,917 @@
+//! Session scenarios exercising the represented world entities responsibility.
+//!
+//! Split out of session_tests.rs under #626; assertions and registrations
+//! are unchanged and the shared fixtures stay in the parent module.
+
+use super::*;
+
+#[path = "scenarios_world_entities_6/creature_visibility.rs"]
+mod creature_visibility;
+
+#[tokio::test]
+async fn gameobject_visual_despawn_shared_vision_phase_range_and_have_at_client_gates_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+    let viewer_guid = ObjectGuid::create_player(1, 50_533);
+    let target_guid = ObjectGuid::create_player(1, 50_534);
+    let incompatible_phase_guid = test_gameobject_guid(605_063, 50_535);
+    let out_of_range_guid = test_gameobject_guid(605_064, 50_536);
+    let not_visible_guid = test_gameobject_guid(605_065, 50_537);
+    let sendable_guid = test_gameobject_guid(605_066, 50_538);
+
+    configure_dynamic_object_values_snapshot_session_like_cpp(
+        &mut session,
+        &canonical,
+        viewer_guid,
+        571,
+        7,
+    );
+    add_canonical_test_player_on_map(
+        &canonical,
+        target_guid,
+        Position::new(12.0, 22.0, 32.0, 0.0),
+        571,
+        7,
+    );
+    {
+        let mut guard = canonical.lock().unwrap();
+        *guard
+            .find_map_mut(571, 7)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(target_guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .phase_shift_mut() = PhaseShift::from_phases([10]);
+    }
+    add_shared_vision_viewer_to_canonical_target_like_cpp(
+        &canonical,
+        571,
+        7,
+        target_guid,
+        viewer_guid,
+    );
+    add_canonical_visual_despawn_gameobject_like_cpp(
+        &canonical,
+        incompatible_phase_guid,
+        605_063,
+        5_050_535,
+        Position::new(11.0, 21.0, 31.0, 0.0),
+        571,
+        7,
+    );
+    add_canonical_visual_despawn_gameobject_like_cpp(
+        &canonical,
+        out_of_range_guid,
+        605_064,
+        5_050_536,
+        Position::new(10_000.0, 20_000.0, 31.0, 0.0),
+        571,
+        7,
+    );
+    add_canonical_visual_despawn_gameobject_like_cpp(
+        &canonical,
+        not_visible_guid,
+        605_065,
+        5_050_537,
+        Position::new(11.0, 21.0, 31.0, 0.0),
+        571,
+        7,
+    );
+    add_canonical_visual_despawn_gameobject_like_cpp(
+        &canonical,
+        sendable_guid,
+        605_066,
+        5_050_538,
+        Position::new(11.0, 21.0, 31.0, 0.0),
+        571,
+        7,
+    );
+    assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
+    session
+        .world_entities
+        .insert_represented_gameobject_phase_shift_for_test_like_cpp(
+            incompatible_phase_guid,
+            PhaseShift::from_phases([20]),
+        );
+    session
+        .world_entities
+        .insert_represented_gameobject_phase_shift_for_test_like_cpp(
+            out_of_range_guid,
+            PhaseShift::from_phases([10]),
+        );
+    session
+        .world_entities
+        .insert_represented_gameobject_phase_shift_for_test_like_cpp(
+            not_visible_guid,
+            PhaseShift::from_phases([10]),
+        );
+    session
+        .world_entities
+        .insert_represented_gameobject_phase_shift_for_test_like_cpp(
+            sendable_guid,
+            PhaseShift::from_phases([10]),
+        );
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(incompatible_phase_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(out_of_range_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(sendable_guid);
+    session
+        .visibility
+        .set_represented_seer_guid_fixture_like_cpp(Some(target_guid));
+
+    assert_eq!(
+        session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
+        1
+    );
+
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![ServerOpcodes::GameObjectDespawn]
+    );
+    assert_eq!(
+        session
+            .visibility
+            .represented_gameobject_visual_despawn_delivery_count_like_cpp(),
+        1
+    );
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&incompatible_phase_guid)
+    );
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&out_of_range_guid)
+    );
+    assert!(
+        !session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&not_visible_guid)
+    );
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&sendable_guid)
+    );
+}
+#[tokio::test]
+async fn gameobject_visual_despawn_direct_blocked_until_shared_vision_qualifies_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+    let viewer_guid = ObjectGuid::create_player(1, 50_539);
+    let target_guid = ObjectGuid::create_player(1, 50_540);
+    let dynamic_seer_guid = test_dynamic_object_guid(605_067, 50_541);
+    let gameobject_guid = test_gameobject_guid(605_068, 50_542);
+
+    configure_dynamic_object_values_snapshot_session_like_cpp(
+        &mut session,
+        &canonical,
+        viewer_guid,
+        571,
+        7,
+    );
+    add_canonical_test_player_on_map(
+        &canonical,
+        target_guid,
+        Position::new(12.0, 22.0, 32.0, 0.0),
+        571,
+        7,
+    );
+    add_canonical_visual_despawn_gameobject_like_cpp(
+        &canonical,
+        gameobject_guid,
+        605_068,
+        5_050_542,
+        Position::new(11.0, 21.0, 31.0, 0.0),
+        571,
+        7,
+    );
+    assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(gameobject_guid);
+    session
+        .visibility
+        .set_represented_seer_guid_fixture_like_cpp(Some(dynamic_seer_guid));
+
+    assert_eq!(
+        session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
+        0
+    );
+    assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
+    assert!(
+        session
+            .visibility
+            .represented_gameobject_visual_despawn_delivery_is_empty_like_cpp()
+    );
+
+    add_shared_vision_viewer_to_canonical_target_like_cpp(
+        &canonical,
+        571,
+        7,
+        target_guid,
+        viewer_guid,
+    );
+    session
+        .visibility
+        .set_represented_seer_guid_fixture_like_cpp(Some(target_guid));
+    assert_eq!(
+        session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
+        1
+    );
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![ServerOpcodes::GameObjectDespawn]
+    );
+}
+#[tokio::test]
+async fn gameobject_visual_despawn_mismatched_seer_with_vehicle_sends_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+    let player_guid = ObjectGuid::create_player(1, 50_520);
+    let gameobject_guid = test_gameobject_guid(605_058, 50_521);
+    let seer_guid = test_dynamic_object_guid(605_059, 50_522);
+
+    configure_dynamic_object_values_snapshot_session_like_cpp(
+        &mut session,
+        &canonical,
+        player_guid,
+        571,
+        7,
+    );
+    add_canonical_visual_despawn_gameobject_like_cpp(
+        &canonical,
+        gameobject_guid,
+        605_058,
+        5_050_521,
+        Position::new(11.0, 21.0, 31.0, 0.0),
+        571,
+        7,
+    );
+    assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(gameobject_guid);
+    session
+        .visibility
+        .set_represented_seer_guid_fixture_like_cpp(Some(seer_guid));
+    let mut vehicle_kit = Vehicle::new(
+        player_guid,
+        TypeId::Player,
+        Position::new(10.0, 20.0, 30.0, 0.0),
+        77,
+        88,
+        std::iter::empty(),
+    );
+    vehicle_kit.install();
+    session.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = Some(vehicle_kit);
+
+    session.process_pending().await;
+
+    let opcodes = drain_server_opcodes(&send_rx);
+    assert!(opcodes.contains(&ServerOpcodes::GameObjectDespawn));
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&gameobject_guid)
+    );
+}
+#[tokio::test]
+async fn gameobject_visual_despawn_out_of_range_keeps_client_visible_guid_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+    let player_guid = ObjectGuid::create_player(1, 50_511);
+    let gameobject_guid = test_gameobject_guid(605_053, 50_512);
+
+    configure_dynamic_object_values_snapshot_session_like_cpp(
+        &mut session,
+        &canonical,
+        player_guid,
+        571,
+        7,
+    );
+    add_canonical_visual_despawn_gameobject_like_cpp(
+        &canonical,
+        gameobject_guid,
+        605_053,
+        5_050_512,
+        Position::new(10_000.0, 20_000.0, 30.0, 0.0),
+        571,
+        7,
+    );
+    assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 7)
+            .unwrap()
+            .last_game_objects_update_summary()
+            .generic_visual_despawn_guids
+            .as_slice(),
+        &[gameobject_guid]
+    );
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(gameobject_guid);
+
+    session.process_pending().await;
+
+    assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&gameobject_guid)
+    );
+}
+#[tokio::test]
+async fn gameobject_visibility_on_destroy_out_of_range_keeps_client_visible_guid_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+    let player_guid = ObjectGuid::create_player(1, 50_507);
+    let gameobject_guid = test_gameobject_guid(605_051, 50_508);
+
+    configure_dynamic_object_values_snapshot_session_like_cpp(
+        &mut session,
+        &canonical,
+        player_guid,
+        571,
+        7,
+    );
+    add_canonical_visibility_on_destroy_gameobject_like_cpp(
+        &canonical,
+        gameobject_guid,
+        605_051,
+        5_050_508,
+        Position::new(10_000.0, 20_000.0, 30.0, 0.0),
+        571,
+        7,
+    );
+    assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 7)
+            .unwrap()
+            .last_game_objects_update_summary()
+            .generic_visibility_on_destroy_guids
+            .as_slice(),
+        &[gameobject_guid]
+    );
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(gameobject_guid);
+
+    session.process_pending().await;
+
+    assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&gameobject_guid)
+    );
+}
+#[tokio::test]
+async fn gameobject_visibility_on_destroy_vertical_only_separation_sends_destroy_like_cpp() {
+    // C++ visibility distance is 2D (CanSeeOrDetect -> IsWithinDist is3D=false;
+    // Object.cpp:1587-1609). A GameObject at the player's exact X/Y but a large Z offset
+    // is within the 2D sight range even though its 3D distance exceeds it. The is3D=false
+    // flag on the destroy-fanout distance check sends the destroy like C++; a 3D check
+    // would wrongly keep it client-visible.
+    let (mut session, _, send_rx) = make_session();
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+    let player_guid = ObjectGuid::create_player(1, 50_540);
+    let gameobject_guid = test_gameobject_guid(605_090, 50_541);
+
+    configure_dynamic_object_values_snapshot_session_like_cpp(
+        &mut session,
+        &canonical,
+        player_guid,
+        571,
+        7,
+    );
+    let visibility_range = canonical
+        .lock()
+        .unwrap()
+        .find_map(571, 7)
+        .unwrap()
+        .map()
+        .visibility_range();
+    // Same X/Y as the player (10, 20); Z far enough above that the 3D distance exceeds
+    // the sight range (plus combat reach) while the 2D distance stays 0.
+    add_canonical_visibility_on_destroy_gameobject_like_cpp(
+        &canonical,
+        gameobject_guid,
+        605_090,
+        5_050_541,
+        Position::new(10.0, 20.0, 30.0 + visibility_range + 100.0, 0.0),
+        571,
+        7,
+    );
+    assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 7)
+            .unwrap()
+            .last_game_objects_update_summary()
+            .generic_visibility_on_destroy_guids
+            .as_slice(),
+        &[gameobject_guid]
+    );
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(gameobject_guid);
+
+    session.process_pending().await;
+
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![ServerOpcodes::UpdateObject]
+    );
+    assert!(
+        !session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&gameobject_guid)
+    );
+}
+#[test]
+fn gameobject_interaction_resolves_canonical_map_object_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let gameobject_guid = test_gameobject_guid(777, 9);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Tester".to_string(),
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        2,
+        1,
+        10,
+        0,
+    ));
+
+    let mut gameobject = GameObject::new();
+    gameobject.world_mut().object_mut().create(gameobject_guid);
+    gameobject.world_mut().object_mut().set_entry(777);
+    gameobject.world_mut().set_map(571, 0).unwrap();
+    gameobject
+        .world_mut()
+        .relocate(Position::new(14.9, 0.0, 0.0, 0.0));
+    gameobject.world_mut().object_mut().add_to_world();
+
+    canonical
+        .lock()
+        .unwrap()
+        .create_world_map(571, 0)
+        .map_mut()
+        .insert_map_object_record(
+            wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
+        )
+        .unwrap();
+
+    assert_eq!(
+        wow_world_entities::represented_gameobject_can_interact_with_like_cpp(
+            &session,
+            gameobject_guid,
+            5.0
+        ),
+        Some(RepresentedGameObjectAccessLikeCpp {
+            entry: 777,
+            position: Position::new(14.9, 0.0, 0.0, 0.0),
+        })
+    );
+
+    session.set_player_position_like_cpp(Position::new(20.1, 0.0, 0.0, 0.0));
+    assert_eq!(
+        wow_world_entities::represented_gameobject_can_interact_with_like_cpp(
+            &session,
+            gameobject_guid,
+            5.0
+        ),
+        None
+    );
+}
+#[test]
+fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let manager = shared_map_manager();
+    let canonical = Arc::clone(&manager);
+    let player_guid = ObjectGuid::create_player(1, 26_820);
+    let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+    let visible_guid = test_creature_guid(20);
+    let far_guid = test_creature_guid(21);
+    let visible_pos = Position::new(20.0, 20.0, 0.0, 0.0);
+    let far_pos = Position::new(5000.0, 5000.0, 0.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "VisibilityOwner".to_string(),
+        player_position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
+    for (guid, position) in [(visible_guid, visible_pos), (far_guid, far_pos)] {
+        manager.lock().unwrap().add_creature(
+            571,
+            0,
+            crate::creature_projection::new_runtime_creature_like_cpp(
+                guid, 900, position, 100, 80, 1, 2, 0.0, 1, 35, 0, 0,
+            ),
+        );
+    }
+
+    let visible = session.visible_world_creatures_from_map_like_cpp(571, &player_position);
+
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].guid(), visible_guid);
+}
+#[test]
+fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline_like_cpp() {
+    use wow_constants::movement::MovementFlag;
+
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let manager = shared_map_manager();
+    let canonical = Arc::clone(&manager);
+    let player_guid = ObjectGuid::create_player(1, 76_010);
+    let creature_guid = test_creature_guid(76_011);
+    let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+    let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "VisibleCreatureViewer".to_string(),
+        player_position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
+
+    // #1263 F6-8B: the canonical incarnation owns the live runtime state, so it
+    // is the one carrying the spline, and it is given a different level from
+    // its legacy duplicate so a legacy-preferred selection cannot satisfy both
+    // assertions below.
+    let mut canonical_carrier = crate::creature_projection::new_runtime_creature_like_cpp(
+        creature_guid,
+        76_011,
+        creature_position,
+        100,
+        33,
+        1,
+        2,
+        0.0,
+        1,
+        35,
+        0,
+        0,
+    );
+    canonical_carrier
+        .unit_mut()
+        .world_mut()
+        .set_map(571, 0)
+        .unwrap();
+    canonical_carrier
+        .unit_mut()
+        .world_mut()
+        .set_combat_reach(1.0);
+    crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut canonical_carrier)
+        .begin_move_spline_like_cpp(Position::new(24.0, 20.0, 0.0, 0.0))
+        .expect("canonical runtime spline must launch");
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .expect("canonical map instance")
+        .map_mut()
+        .add_map_object_record_to_map_like_cpp(
+            wow_entities::MapObjectRecord::new_creature(canonical_carrier).unwrap(),
+        )
+        .unwrap();
+
+    let mut legacy_creature = crate::creature_projection::new_runtime_creature_like_cpp(
+        creature_guid,
+        76_011,
+        creature_position,
+        100,
+        12,
+        1,
+        2,
+        0.0,
+        1,
+        35,
+        0,
+        0,
+    );
+    legacy_creature
+        .unit_mut()
+        .world_mut()
+        .set_map(571, 0)
+        .unwrap();
+    legacy_creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .add_to_world();
+    manager
+        .lock()
+        .unwrap()
+        .add_creature(571, 0, legacy_creature);
+
+    let visible = session.visible_world_creatures_from_map_like_cpp(571, &player_position);
+
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].guid(), creature_guid);
+    assert_eq!(
+        visible[0].level(),
+        33,
+        "the selected candidate is the canonical incarnation, not its legacy duplicate"
+    );
+    assert!(
+        visible[0].active_move_spline_like_cpp().is_some(),
+        "C++ has one map Creature; Rust visibility must select the canonical runtime state, which carries the active MoveSpline"
+    );
+    assert!(
+        MovementFlag::from_bits_retain(
+            crate::creature_projection::creature_create_data_like_cpp(&visible[0]).movement_flags,
+        )
+        .contains(MovementFlag::FORWARD),
+        "the canonical active spline carries C++ MoveSplineInit::Launch movement flags into CREATE"
+    );
+}
+#[test]
+fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let guid = test_creature_guid(9301);
+    let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+    let visible_position = Position::new(20.0, 20.0, 0.0, 0.0);
+    let far_position = Position::new(5000.0, 5000.0, 0.0, 0.0);
+
+    session.set_player_map_position_like_cpp(571, player_position);
+    session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
+
+    let mut creature = crate::creature_projection::new_runtime_creature_like_cpp(
+        guid,
+        900,
+        visible_position,
+        100,
+        80,
+        1,
+        2,
+        0.0,
+        1,
+        35,
+        0,
+        0,
+    );
+    let _ = creature.unit_mut().world_mut().set_map(571, 0);
+    creature.unit_mut().world_mut().object_mut().add_to_world();
+    *creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
+
+    assert!(
+        !session.represented_can_receive_creature_message_to_set_like_cpp(guid, &creature, false),
+        "C++ MessageDistDeliverer::SendPacket requires HaveAtClient"
+    );
+
+    session.core.client_visible_guids_like_cpp.insert(guid);
+    assert!(
+        session.represented_can_receive_creature_message_to_set_like_cpp(guid, &creature, false),
+        "same phase + in range + HaveAtClient must receive"
+    );
+
+    let mut wrong_phase = creature.clone();
+    *wrong_phase.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([20]);
+    assert!(
+        !session.represented_can_receive_creature_message_to_set_like_cpp(
+            guid,
+            &wrong_phase,
+            false
+        ),
+        "MessageDistDeliverer rejects players outside source phase"
+    );
+
+    let mut far_creature = creature.clone();
+    far_creature.set_ai_position(far_position);
+    assert!(
+        !session.represented_can_receive_creature_message_to_set_like_cpp(
+            guid,
+            &far_creature,
+            false
+        ),
+        "MessageDistDeliverer applies source GetVisibilityRange distance"
+    );
+
+    let mut wrong_map = crate::creature_projection::new_runtime_creature_like_cpp(
+        test_creature_guid(9302),
+        900,
+        visible_position,
+        100,
+        80,
+        1,
+        2,
+        0.0,
+        1,
+        35,
+        0,
+        0,
+    );
+    let _ = wrong_map.unit_mut().world_mut().set_map(530, 0);
+    wrong_map.unit_mut().world_mut().object_mut().add_to_world();
+    *wrong_map.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(wrong_map.guid());
+    assert!(
+        !session.represented_can_receive_creature_message_to_set_like_cpp(
+            wrong_map.guid(),
+            &wrong_map,
+            false
+        ),
+        "Cell::VisitWorldObjects cannot deliver across maps"
+    );
+}
+#[test]
+fn visible_creatures_skip_not_in_world_canonical_objects_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 9303);
+    let in_world_guid = test_creature_guid(9304);
+    let removed_guid = test_creature_guid(9305);
+    let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "VisibleCreatureViewer".to_string(),
+        player_position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
+    add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        in_world_guid,
+        9304,
+        Position::new(20.0, 20.0, 0.0, 0.0),
+        571,
+        0,
+        80,
+    );
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        removed_guid,
+        9305,
+        Position::new(21.0, 21.0, 0.0, 0.0),
+        571,
+        0,
+        80,
+    );
+    let pet_guid = test_pet_guid(9306);
+    add_canonical_test_pet(
+        &canonical,
+        pet_guid,
+        player_guid,
+        9307,
+        Position::new(22.0, 22.0, 0.0, 0.0),
+        0,
+    );
+    {
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.find_map_mut(571, 0).unwrap().map_mut();
+        *map.get_typed_player_mut(player_guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .phase_shift_mut() = PhaseShift::from_phases([10]);
+        *map.get_typed_creature_mut(in_world_guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .phase_shift_mut() = PhaseShift::from_phases([10]);
+        map.get_typed_creature_mut(in_world_guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        map.get_typed_creature_mut(removed_guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+        *map.get_typed_pet_mut(pet_guid)
+            .unwrap()
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .phase_shift_mut() = PhaseShift::from_phases([10]);
+    }
+
+    let visible = session
+        .visible_creatures_from_canonical_map_like_cpp(571, &player_position)
+        .expect("canonical map");
+
+    assert_eq!(visible.len(), 2);
+    assert!(visible.iter().any(|creature| creature.guid() == pet_guid));
+}
+#[test]
+fn visible_gameobjects_use_canonical_map_cells_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+    let visible_guid = test_gameobject_guid(910, 30);
+    let far_guid = test_gameobject_guid(911, 31);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    canonical.lock().unwrap().create_world_map(571, 0);
+
+    session.record_represented_gameobject_runtime_state_like_cpp(
+        571,
+        visible_guid,
+        910,
+        Position::new(20.0, 20.0, 0.0, 0.0),
+        3,
+    );
+    session.record_represented_gameobject_display_model_like_cpp(
+        visible_guid,
+        7000,
+        1.5,
+        [0.0, 0.0, 0.0, 1.0],
+    );
+    session.record_represented_gameobject_runtime_state_like_cpp(
+        571,
+        far_guid,
+        911,
+        Position::new(5000.0, 5000.0, 0.0, 0.0),
+        3,
+    );
+    session.record_represented_gameobject_display_model_like_cpp(
+        far_guid,
+        7001,
+        1.0,
+        [0.0, 0.0, 0.0, 1.0],
+    );
+
+    let visible = session
+        .visible_gameobjects_from_canonical_map_like_cpp(571, &player_position, 800.0)
+        .expect("canonical map");
+
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].guid, visible_guid);
+    assert_eq!(visible[0].entry, 910);
+    assert_eq!(visible[0].display_id, 7000);
+    assert_eq!(visible[0].go_type, 3);
+    assert_eq!(visible[0].scale, 1.5);
+}

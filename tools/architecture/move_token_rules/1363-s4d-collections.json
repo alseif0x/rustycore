@@ -1,0 +1,94 @@
+{
+ "slice": "#1363 slice 4d (collections: CMSG_USE_TOY -> wow-world-spell, CMSG_ADD_TOY -> wow-world-inventory)",
+ "base": "dc17fe39b",
+ "moved": [
+  "handle_use_toy_with_generator_like_cpp",
+  "handle_add_toy"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) async fn handle_use_toy_with_generator_like_cpp\\(\\s*&mut self,",
+   "pub async fn handle_use_toy_with_generator_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) async fn handle_add_toy\\(&mut self,",
+   "pub async fn handle_add_toy<H: AddToyHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "\\bself\\s*\\.item_storage_template\\(",
+   "host.hub_ref().catalogs.item_storage_template("
+  ],
+  [
+   "\\bself\\s*\\.spell_store\\(\\)",
+   "host.hub_ref().catalogs.spell_store()"
+  ],
+  [
+   "\\bself\\s*\\.has_account_toy_like_cpp\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)",
+   "{ let (state, hub) = (host.lifecycle(), host.hub_ref()); state.has_account_toy_like_cpp(hub, \\1) }"
+  ],
+  [
+   "\\bself\\s*\\.add_account_toy_like_cpp\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)",
+   "{ let (state, mut hub) = host.split_lifecycle_mut(); state.add_account_toy_like_cpp(&mut hub, \\1) }"
+  ],
+  [
+   "\\bself\\s*\\.set_active_spell_cast_like_cpp\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)",
+   "{ let cast = \\1; host.mutate_cast_execution_like_cpp(|state| state.active = cast) }"
+  ],
+  [
+   "\\bself\\s*\\.get_inventory_item_by_guid_like_cpp\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.get_inventory_item_by_guid_like_cpp(hub, \\1) })"
+  ],
+  [
+   "\\bself\\s*\\.resolved_inventory_item_objects_like_cpp\\(\\)",
+   "{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_objects_like_cpp(hub) }"
+  ],
+  [
+   "\\bself\\s*\\.send_equip_error\\(",
+   "host.core().send_equip_error("
+  ],
+  [
+   "\\bself\\s*\\.send_packet_realm\\(",
+   "host.core().send_packet_realm("
+  ],
+  [
+   "\\bself\\s*\\.catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "\\bself\\s*\\.core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "crate::session::split_spell_state_ref\\(self\\)",
+   "host.split_spell_state_ref()"
+  ],
+  [
+   "crate::session::hub_mut\\(self\\)",
+   "host.hub_mut()"
+  ],
+  [
+   "crate::session::SpellCastState\\b",
+   "wow_entities::SpellCastState"
+  ],
+  [
+   "wow_world_spell::",
+   "crate::"
+  ],
+  [
+   "crate::session::CreatureSpawnCatalogsLikeCpp\\b",
+   "CreatureSpawnCatalogsLikeCpp"
+  ],
+  [
+   "wow_world_inventory::",
+   "crate::"
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ],
+  [
+   "\\(\\s*self(,|\\))",
+   "(host\\1"
+  ]
+ ]
+}

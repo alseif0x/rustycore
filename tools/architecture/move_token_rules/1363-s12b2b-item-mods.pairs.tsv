@@ -1,0 +1,8 @@
+crates/wow-world/src/session/player_items/modifiers.rs	apply_initial_loaded_item_mods_like_cpp	crates/wow-world-application/src/player_items_session/loaded_item_mods.rs
+crates/wow-world/src/session/player_items/modifiers.rs	apply_initial_item_set_auras_like_cpp	crates/wow-world-application/src/player_items_session/loaded_item_mods.rs
+crates/wow-world/src/session/player_items/enchantment.rs	apply_loaded_equipped_item_enchantments_like_cpp	crates/wow-world-application/src/player_items_session/loaded_item_mods.rs
+crates/wow-world/src/session/player_items/enchantment.rs	apply_loaded_equipped_item_enchantment_effects_like_cpp	crates/wow-world-application/src/player_items_session/loaded_item_mods.rs
+crates/wow-world/src/session/player_items/enchantment.rs	apply_loaded_enchantment_spell_action_like_cpp	crates/wow-world-application/src/player_items_session/loaded_item_mods.rs
+crates/wow-world/src/session/player_items/modifiers.rs	initial_loaded_item_mods_can_apply_like_cpp	crates/wow-world-application/src/player_items_session/loaded_item_mods.rs
+crates/wow-world/src/session/player_items/persistence_load.rs	loaded_inventory_item_visible_update_like_cpp	crates/wow-world-application/src/player_items_session/loaded_item_mods.rs
+crates/wow-world/src/session/player_items/modifiers.rs	apply_represented_item_bonus_action_state_like_cpp	crates/wow-world-application/src/player_items_session/loaded_item_mods.rs

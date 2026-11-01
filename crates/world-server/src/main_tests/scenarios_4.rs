@@ -4,6 +4,7 @@
 //! unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::quest_status_keep_abandoned_like_cpp;
 
 #[test]
 fn world_listener_captures_application_resources_outside_transport_boundary() {
@@ -175,9 +176,41 @@ fn session_resources_requires_named_capability_bundles() {
         !session_resources.contains("Option<"),
         "named capability bundles must be mandatory at production construction"
     );
+    // This unresolved cleaner-policy fact is configuration data, not an optional resource.
+    let optional_policy_field = "pub(super) quest_status_keep_abandoned: Option<bool>,";
+    assert_eq!(
+        resources_source.matches(optional_policy_field).count(),
+        1,
+        "the unresolved cleaner policy remains the one allowed optional config fact"
+    );
+    let resources_without_optional_policy = resources_source.replace(optional_policy_field, "");
     assert!(
-        !resources_source.contains("Option<"),
+        !resources_without_optional_policy.contains("Option<"),
         "every inner production capability must also be required by its Rust type"
+    );
+    let spell_capabilities = resources_source
+        .split("pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {")
+        .nth(1)
+        .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
+        .expect("SessionSpellCatalogCapabilitiesLikeCpp declaration should be present");
+    assert!(
+        spell_capabilities.contains(
+            "pub(super) serverside_spell_store: Arc<wow_data::ServersideSpellStoreLikeCpp>,"
+        ),
+        "the spell catalog bundle must require the canonical serverside spell catalog"
+    );
+    let world_capabilities = resources_source
+        .split("pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {")
+        .nth(1)
+        .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
+        .expect("SessionWorldCatalogCapabilitiesLikeCpp declaration should be present");
+    assert!(
+        world_capabilities.contains("pub(super) graveyards: Arc<wow_data::GraveyardStore>,"),
+        "EffectStuck's real graveyard repop requires the World catalog capability"
+    );
+    assert!(
+        resources_source.contains("session.set_graveyard_store(Arc::clone(&self.graveyards));"),
+        "the required World graveyard capability must be installed into the session"
     );
     for retired_test_only_catalog in [
         "adventure_map_poi_store",
@@ -199,7 +232,6 @@ fn session_resources_requires_named_capability_bundles() {
         "emotes_text_store",
         "feature_system_bpay_store_enabled",
         "feature_system_character_undelete_enabled",
-        "graveyard_store",
         "import_price_stores",
         "item_class_store",
         "item_currency_cost_store",
@@ -215,7 +247,6 @@ fn session_resources_requires_named_capability_bundles() {
         "player_create_info_store",
         "party_level_req",
         "party_raid_warnings",
-        "serverside_spell_store",
         "spell_enchant_proc_store",
         "spell_totem_model_store",
         "tact_key_store",
@@ -360,6 +391,16 @@ fn session_resources_requires_named_capability_bundles() {
     assert!(
         !session_factory_source.contains("set_session_handler_catalogs_like_cpp("),
         "the session pass must borrow runtime catalogs instead of retaining them"
+    );
+    // #1445 H0: the one exception is the immutable linked-module registry,
+    // which the hook ports need at points the driver does not reach. It is the
+    // dispatch catalogs' own `Arc`, installed once, never a second copy.
+    assert_eq!(
+        session_factory_source
+            .matches("session.install_module_hooks_like_cpp(Arc::clone(&resources.core.handler_catalogs.modules));")
+            .count(),
+        1,
+        "the factory must install the compositor's module registry exactly once"
     );
     // A session parked on an idle rail must still observe the cooperative
     // shutdown gate, which is a flag rather than a wake-up: without this the
@@ -555,40 +596,33 @@ fn sessionless_tap_group_index_matches_the_session_answer_like_cpp() {
         "no registry means no tap groups, not a panic"
     );
 }
-/// The tick owner is decided once, before the loop that reads it starts.
+/// The canonical map loop is the only creature runtime.
 ///
-/// A flip after `spawn_legacy_creature_runtime_update_loop_like_cpp` is the only
-/// remaining window in which the loop and a session can both tick the same
-/// creature, so the single production call site is asserted rather than left to
-/// convention (#28).
+/// #1263 F6-8E deleted the legacy global creature loop, the per-session creature
+/// tick and the tick owner that chose between them, so no source may select or
+/// spawn another creature runtime (#28: two ticks of one creature).
 #[test]
-fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() {
+fn the_canonical_map_loop_is_the_only_creature_runtime_like_cpp() {
     let app = include_str!("../app.rs");
-    let calls: Vec<_> = app.match_indices("set_tick_owner(").collect();
-    assert_eq!(
-        calls.len(),
-        1,
-        "production must decide the tick owner exactly once, found {}",
-        calls.len()
-    );
-    let spawn = app
-        .find("spawn_legacy_creature_runtime_update_loop_like_cpp(")
-        .expect("the global legacy creature loop is spawned in app.rs");
-    assert!(
-        calls[0].0 < spawn,
-        "the owner must be set before the loop that reads it is spawned"
-    );
-
+    assert!(app.contains("spawn_canonical_map_update_loop("));
     for source in [
+        app,
         include_str!("../lib.rs"),
         include_str!("../runtime/delivery.rs"),
         include_str!("../runtime/map.rs"),
         include_str!("../runtime/map/update_loop.rs"),
     ] {
-        assert!(
-            !source.contains("set_tick_owner("),
-            "only app.rs may decide the tick owner"
-        );
+        for retired in [
+            "set_tick_owner(",
+            "RuntimeTickOwner",
+            "spawn_legacy_creature_runtime_update_loop_like_cpp(",
+            "run_legacy_creature_",
+        ] {
+            assert!(
+                !source.contains(retired),
+                "the retired creature runtime `{retired}` must not come back"
+            );
+        }
     }
 }
 #[test]
@@ -604,23 +638,33 @@ fn startup_has_no_schema_mutation_and_validates_before_runtime_writes() {
     let first_runtime_write = app.find("clear_online_accounts_like_cpp(").unwrap();
     assert!(validation < first_runtime_write);
 }
+/// The two former creature runtime selection keys are retired: whatever a
+/// configuration sets them to, startup only warns and runs the canonical map
+/// loop.
 #[test]
-fn legacy_creature_global_runtime_config_defaults_to_cpp_map_owned_runtime() {
+fn retired_creature_owner_keys_are_only_warned_like_cpp() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
 
-    wow_config::load_config_from_str("").expect("config should load");
-    assert!(legacy_creature_global_runtime_enabled_from_config_like_cpp());
-
-    wow_config::load_config_from_str("RustyCore.LegacyCreatureGlobalRuntime = 0\n")
-        .expect("config should load");
-    assert!(!legacy_creature_global_runtime_enabled_from_config_like_cpp());
-
-    wow_config::load_config_from_str("RustyCore.LegacyCreatureGlobalRuntime = 1\n")
-        .expect("config should load");
-    assert!(legacy_creature_global_runtime_enabled_from_config_like_cpp());
+    for config in [
+        "",
+        "RustyCore.LegacyCreatureGlobalRuntime = 0\n",
+        "RustyCore.LegacyCreatureGlobalRuntime = 1\n",
+        "RustyCore.CanonicalCreatureRuntime = 0\n",
+        "RustyCore.CanonicalCreatureRuntime = 1\n",
+    ] {
+        wow_config::load_config_from_str(config).expect("config should load");
+        crate::warn_retired_creature_tick_owner_keys_like_cpp();
+    }
+    let app = include_str!("../app.rs");
+    assert_eq!(
+        app.matches("warn_retired_creature_tick_owner_keys_like_cpp()")
+            .count(),
+        1
+    );
+    assert!(!app.contains("creature_tick_owner_from_config"));
 }
 #[test]
-fn legacy_creature_aggro_config_uses_cpp_no_gray_aggro_keys_like_cpp() {
+fn creature_aggro_config_uses_cpp_no_gray_aggro_keys_like_cpp() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
 
     wow_config::load_config_from_str(
@@ -639,7 +683,7 @@ CreatureFamilyAssistanceDelay = 3456
     )
     .expect("config should load");
     let configs = wow_config::load_world_config_values();
-    let config = legacy_creature_aggro_config_like_cpp(&configs);
+    let config = creature_aggro_config_like_cpp(&configs);
 
     // C++ first clamps NoGrayAggro values to MaxPlayerLevel, then clamps
     // Below down to Above when Above > 0 && Above < Below.
@@ -920,6 +964,38 @@ fn account_instances_per_hour_uses_cpp_world_config_key() {
         7
     );
 }
+
+#[test]
+fn quest_status_cleaner_policy_keeps_only_source_proven_modes() {
+    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+    // CharacterDatabaseCleaner.cpp:30-62 returns before reading flags when disabled.
+    wow_config::load_config_from_str("CleanCharacterDB = 0\nPersistentCharacterCleanFlags = 16\n")
+        .expect("config should load");
+    assert_eq!(
+        quest_status_keep_abandoned_like_cpp(&wow_config::load_world_config_values()),
+        Some(true)
+    );
+
+    // The cleaner post-mask `flags &= configuredPersistentFlags` clears the
+    // Source QUESTSTATUS bit (Player.cpp:20146) when the configured mask omits it.
+    wow_config::load_config_from_str("CleanCharacterDB = 1\nPersistentCharacterCleanFlags = 0\n")
+        .expect("config should load");
+    assert_eq!(
+        quest_status_keep_abandoned_like_cpp(&wow_config::load_world_config_values()),
+        Some(true)
+    );
+
+    // A mask that preserves QUESTSTATUS depends on the missing world_variable
+    // cleaner state and must remain unresolved here.
+    wow_config::load_config_from_str("CleanCharacterDB = 1\nPersistentCharacterCleanFlags = 16\n")
+        .expect("config should load");
+    assert_eq!(
+        quest_status_keep_abandoned_like_cpp(&wow_config::load_world_config_values()),
+        None
+    );
+}
+
 #[test]
 fn chat_fake_message_preventing_uses_cpp_world_config_key() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");

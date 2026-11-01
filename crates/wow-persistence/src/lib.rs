@@ -25,6 +25,7 @@ mod hotfix;
 mod hotfix_delivery_metadata;
 mod instance_lock;
 mod player;
+mod player_trade;
 mod quest;
 mod skill_world_rules;
 mod spell;
@@ -167,6 +168,9 @@ pub use hotfix::{
     ChrSpecializationHotfixRowLikeCpp, ChrSpecializationHotfixRowsLikeCpp,
 };
 pub use hotfix::{
+    ConditionPresenceLoadOutcome, ConditionPresencePersistencePort, ConditionPresenceRows,
+};
+pub use hotfix::{
     CreatureDisplayHotfixLoadOutcomeLikeCpp, CreatureDisplayHotfixPersistencePortLikeCpp,
     CreatureDisplayInfoHotfixRowLikeCpp, CreatureModelDataHotfixRowLikeCpp,
 };
@@ -243,6 +247,7 @@ pub use player::{
     PlayerQuestRewardDurableRequestLikeCpp, PlayerQuestRewardMoneyLikeCpp,
     PlayerQuestRewardPersistencePortLikeCpp,
 };
+pub use player_trade::*;
 pub use quest::*;
 pub use quest::{
     CreatureQuestItemPersistenceRowLikeCpp, GameObjectQuestItemPersistenceRowLikeCpp,
@@ -260,9 +265,9 @@ pub use spell::{
     SpellAcquisitionStartupPersistencePortLikeCpp, SpellCustomAttributePersistenceRowLikeCpp,
     SpellEffectHotfixPersistenceRowLikeCpp, SpellLearnSpellHotfixPersistenceRowLikeCpp,
     SpellLearnSpellWorldPersistenceRowLikeCpp, SpellLevelsHotfixPersistenceRowLikeCpp,
-    SpellMiscHotfixPersistenceRowLikeCpp, SpellReagentsPersistenceRowLikeCpp,
-    SummonPropertiesHotfixPersistenceRowLikeCpp, TalentHotfixPersistenceRowLikeCpp,
-    TrainerSpellAuditPersistenceCatalogLikeCpp,
+    SpellMiscHotfixPersistenceRowLikeCpp, SpellReagentsCurrencyPersistenceRowLikeCpp,
+    SpellReagentsPersistenceRowLikeCpp, SummonPropertiesHotfixPersistenceRowLikeCpp,
+    TalentHotfixPersistenceRowLikeCpp, TrainerSpellAuditPersistenceCatalogLikeCpp,
 };
 pub use spell::{
     SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP, SpellInfoKeyContributorHotfixBatchLikeCpp,
@@ -279,20 +284,22 @@ pub use spell::{
     SpellWorldCatalogLoadOutcomeLikeCpp, SpellWorldCatalogPersistencePortLikeCpp,
 };
 pub use spell::{
-    SpellAuraRestrictionsHotfixRowLikeCpp, SpellCastTimesHotfixRowLikeCpp,
-    SpellCastingRequirementsHotfixRowLikeCpp, SpellCategoriesHotfixRowLikeCpp,
-    SpellCategoryHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
-    SpellCoreDb2HotfixLoadOutcomeLikeCpp, SpellCoreDb2HotfixPersistencePortLikeCpp,
-    SpellDurationHotfixRowLikeCpp, SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
-    SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp,
-    SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp,
+    SpellAuraOptionsHotfixRow, SpellAuraRestrictionsHotfixRowLikeCpp,
+    SpellCastTimesHotfixRowLikeCpp, SpellCastingRequirementsHotfixRowLikeCpp,
+    SpellCategoriesHotfixRowLikeCpp, SpellCategoryHotfixRowLikeCpp, SpellClassOptionsHotfixRow,
+    SpellCooldownsHotfixRowLikeCpp, SpellCoreDb2HotfixLoadOutcomeLikeCpp,
+    SpellCoreDb2HotfixPersistencePortLikeCpp, SpellDurationHotfixRowLikeCpp,
+    SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
+    SpellInterruptsHotfixRowLikeCpp, SpellLabelHotfixRow, SpellLevelsHotfixRow,
+    SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp,
+    SpellPowerHotfixRowLikeCpp, SpellProcsPerMinuteHotfixRow, SpellRadiusHotfixRowLikeCpp,
     SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
     SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 pub use static_data_overlay::{
-    AreaTableHotfixRowLikeCpp, PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
-    StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
-    UiMapXMapArtHotfixRowLikeCpp,
+    AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow, PowerTypeHotfixRowLikeCpp,
+    SpellEnchantProcPersistenceRowLikeCpp, StaticDataOverlayPersistencePortLikeCpp,
+    StaticDataRowsLoadOutcomeLikeCpp, UiMapXMapArtHotfixRowLikeCpp,
 };
 pub use stored_item::{
     InventoryItemCountPersistenceRequestLikeCpp, InventoryItemDestroyPersistenceRequestLikeCpp,
@@ -318,6 +325,7 @@ mod outcome;
 pub use outcome::{LogicalDatabaseLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp};
 
 pub use world::{
+    CorpsePersistenceMutationOutcomeLikeCpp, CorpseSaveRequestLikeCpp,
     GameEventConditionSaveLoadOutcomeLikeCpp, GameEventConditionSavePersistenceRowLikeCpp,
     GameEventPersistenceMutationLikeCpp, GameEventPersistenceMutationOutcomeLikeCpp,
     GameEventPersistencePortLikeCpp, MapCorpseAuxiliaryLoadOutcomeLikeCpp,
@@ -344,6 +352,7 @@ pub use battle_pet::{
 
 pub use player::{
     PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerPetSaveTransactionLikeCpp, PlayerPetSpellSaveOperationLikeCpp,
 };
 
 mod session_administration;
@@ -412,28 +421,29 @@ pub use player::{
     PlayerBattlegroundLocationLoadRowLikeCpp, PlayerBuybackClearRequestLikeCpp,
     PlayerCharacterAuraEffectLoadRowLikeCpp, PlayerCharacterAuraLoadRowLikeCpp,
     PlayerCharacterBaseLoadOutcomeLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
-    PlayerCharacterBaseLoadRowLikeCpp, PlayerCufProfileLoadRowLikeCpp,
+    PlayerCharacterBaseLoadRowLikeCpp, PlayerCorpseLocationLoadRow, PlayerCufProfileLoadRowLikeCpp,
     PlayerCurrencyLoadRowLikeCpp, PlayerCustomizationLoadRowLikeCpp,
     PlayerEquipmentInventoryLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
     PlayerGlyphLoadRowLikeCpp, PlayerGuildMembershipLoadRowLikeCpp,
     PlayerHomebindLocationLoadRowLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
     PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
     PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
-    PlayerInventoryItemLoadRowLikeCpp, PlayerLoginAdmissionLoadOutcomeLikeCpp,
-    PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAdmissionLoadedLikeCpp,
-    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairActionLikeCpp,
-    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
-    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
-    PlayerLoginTransportLoadRowLikeCpp, PlayerMailLoadRowLikeCpp, PlayerOnlineMarkRequestLikeCpp,
-    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
-    PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
-    PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
-    PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
-    PlayerReputationLoadRowLikeCpp, PlayerSkillLoadRowLikeCpp, PlayerSpellChargeLoadRowLikeCpp,
-    PlayerSpellCooldownLoadRowLikeCpp, PlayerSpellLoadRowLikeCpp, PlayerTalentLoadRowLikeCpp,
-    PlayerTraitConfigLoadRowLikeCpp, PlayerTraitEntryLoadRowLikeCpp,
-    PlayerTransmogOutfitLoadRowLikeCpp, PlayerVoidStorageLoadRowLikeCpp,
+    PlayerInventoryItemLoadPayload, PlayerInventoryItemLoadRowLikeCpp,
+    PlayerLoginAdmissionLoadOutcomeLikeCpp, PlayerLoginAdmissionLoadRequestLikeCpp,
+    PlayerLoginAdmissionLoadedLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
+    PlayerLoginItemRepairActionLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
+    PlayerLoginPetTalentResetOutcomeLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
+    PlayerMailLoadRowLikeCpp, PlayerOnlineMarkRequestLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp,
+    PlayerPetAuraLoadRowLikeCpp, PlayerPetDeclinedNamesLoadRowLikeCpp,
+    PlayerPetSpellChargeLoadRowLikeCpp, PlayerPetSpellCooldownLoadRowLikeCpp,
+    PlayerPetSpellLoadRowLikeCpp, PlayerPetStableLoadRowLikeCpp,
+    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerReputationLoadRowLikeCpp,
+    PlayerSkillLoadRowLikeCpp, PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
+    PlayerSpellLoadRowLikeCpp, PlayerTalentLoadRowLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
+    PlayerTraitEntryLoadRowLikeCpp, PlayerTransmogOutfitLoadRowLikeCpp,
+    PlayerVoidStorageLoadRowLikeCpp,
 };
 
 mod account_collections;
@@ -451,10 +461,13 @@ pub use player::{
     PlayerCharacterSaveResultLikeCpp, PlayerCharacterSnapshotSaveLikeCpp,
     PlayerCufProfileSaveLikeCpp, PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp,
     PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp,
-    PlayerGlyphSaveLikeCpp, PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp,
-    PlayerPositionSaveLikeCpp, PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp,
-    PlayerSpellChargeSaveLikeCpp, PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp,
-    PlayerSpellSaveLikeCpp, PlayerSpellStateLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
+    PlayerGlyphSaveLikeCpp, PlayerInstanceLockTimeSaveLikeCpp, PlayerItemDurabilitySave,
+    PlayerItemGemSaveLikeCpp, PlayerItemSaveLikeCpp, PlayerItemSaveStateLikeCpp,
+    PlayerLifecycleAuraEffectSave, PlayerLifecycleAuraFamilySave, PlayerLifecycleAuraSave,
+    PlayerLifecycleAuraSpellSave, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
+    PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
+    PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
+    PlayerSpellStateLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
     PlayerTalentResetSaveRowLikeCpp, PlayerTalentSaveLikeCpp, PlayerTutorialsSaveLikeCpp,
     PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
     PlayerXpPersistenceRequestLikeCpp, PlayerXpRestStateSaveLikeCpp,

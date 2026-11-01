@@ -9,7 +9,8 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
     #[cfg(test)]
     {
         player.gameplay_state_mut().customizations = session
-            .loaded_player_customizations_like_cpp
+            .lifecycle
+            .loaded_player_customizations_for_test_like_cpp()
             .iter()
             .map(|choice| wow_entities::PlayerCustomizationChoice {
                 option_id: choice.option_id,
@@ -17,7 +18,10 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
             })
             .collect();
     }
-    player.set_gray_level_like_cpp(session.gray_level(session.player_level_like_cpp()));
+    player.set_gray_level_like_cpp(
+        crate::session::hub_ref(&session)
+            .gray_level(crate::session::hub_ref(&session).player_level_like_cpp()),
+    );
     // C++ constructs Player before LoadFromDB / _LoadInventory
     // (CharacterHandler.cpp:1065-1070; Player.cpp:17748). Production inventory
     // already belongs to Player: querying it here would require the very
@@ -36,54 +40,26 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
     Some(())
 }
 
+#[cfg(test)]
 pub(crate) fn sync_player_liquid_status_like_cpp(session: &WorldSession, status: u32) {
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
+    let _ = session.core.mutate_canonical_player_like_cpp(|player| {
         player.set_liquid_status_like_cpp(status);
-    });
-}
-
-pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray_level: u8) {
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
-        player.set_level_and_gray_level_like_cpp(level, gray_level);
     });
 }
 
 #[cfg(test)]
 pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) {
-    let known_spells = session.known_spells_fixture_like_cpp();
-    let quests = session.player_quest_gameplay_snapshot_like_cpp();
-    let mount_vehicle_kit = session.player_mount_vehicle_kit_like_cpp.clone();
-    let vehicle_seat_flags = session.player_vehicle_seat_flags_like_cpp;
-    let vehicle_seat_id = session.player_vehicle_seat_id_like_cpp;
-    let pet_guid = session.represented_pet_guid_like_cpp;
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
-        let state = player.gameplay_state_mut();
-        let rows = known_spells
-            .iter()
-            .copied()
-            .map(|spell_id| {
-                (
-                    spell_id,
-                    wow_entities::PlayerKnownSpellRecord {
-                        spell_id,
-                        state: wow_entities::PlayerSpellLoadState::Unchanged,
-                        active: true,
-                        disabled: false,
-                        favorite: false,
-                        dependent: false,
-                    },
-                )
-            })
-            .collect();
-        state
-            .spells
-            .replace_known_spells_and_rows_like_cpp(known_spells.clone(), rows);
-        if let Some(quests) = quests.clone() {
-            state.quests = quests;
-        }
-        state.mount_vehicle_kit = mount_vehicle_kit.clone();
-        state.vehicle_seat_flags = vehicle_seat_flags;
-        state.vehicle_seat_id = vehicle_seat_id;
-        state.pet_guid = pet_guid;
-    });
+    wow_world_inventory::PlayerRegistryHydrationContext::new(
+        session.core.player_registry_hydration_access_like_cpp(),
+        &session.spell_state,
+        &session.quest_state,
+        (
+            &session.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+            &session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+            &session.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+            &session.fixtures.pets.represented_pet_guid_like_cpp,
+        ),
+        true,
+    )
+    .hydrate();
 }

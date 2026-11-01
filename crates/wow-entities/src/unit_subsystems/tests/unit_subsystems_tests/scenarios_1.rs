@@ -20,6 +20,7 @@ fn aura_cast_provenance_is_slot_scoped_and_cleared_on_replacement_like_cpp() {
     let provenance = AuraCastProvenanceLikeCpp {
         cast_id: ObjectGuid::new(6, 77),
         spell_visual_id: 9_001,
+        caster_level: None,
     };
 
     auras.set_visible(7, first);
@@ -74,12 +75,41 @@ fn aura_cast_provenance_is_slot_scoped_and_cleared_on_replacement_like_cpp() {
         applied_at: std::time::Instant::now(),
     };
     auras.insert_runtime_application_like_cpp(runtime.clone());
+    let metadata = AuraPersistenceMetadata {
+        item_guid: ObjectGuid::EMPTY,
+        cast_item_id: 0,
+        cast_item_level: -1,
+        recalculate_mask: 0x5,
+        charges: 2,
+        base_amounts: vec![(0, 10), (2, -7)],
+    };
+    assert!(auras.set_aura_persistence_metadata(9, metadata.clone()));
+    assert_eq!(auras.aura_persistence_metadata(9), Some(&metadata));
+
+    let mut replacement = runtime.clone();
+    replacement.spell_id = 301;
+    auras.insert_runtime_application_like_cpp(replacement);
+    assert_eq!(auras.aura_persistence_metadata(9), None);
+    assert!(auras.set_aura_persistence_metadata(9, metadata.clone()));
     auras.set_aura_cast_provenance_like_cpp(9, provenance);
-    assert_eq!(auras.remove_runtime_application_like_cpp(9), Some(runtime));
+    assert_eq!(
+        auras
+            .remove_runtime_application_like_cpp(9)
+            .unwrap()
+            .spell_id,
+        301
+    );
+    assert_eq!(auras.aura_persistence_metadata(9), None);
     assert_eq!(
         auras.aura_cast_provenance_like_cpp(9),
         AuraCastProvenanceLikeCpp::default()
     );
+    assert!(!auras.set_aura_persistence_metadata(9, metadata.clone()));
+
+    auras.insert_runtime_application_like_cpp(runtime.clone());
+    assert!(auras.set_aura_persistence_metadata(9, metadata));
+    auras.clear_runtime_applications_like_cpp();
+    assert_eq!(auras.aura_persistence_metadata(9), None);
 }
 
 #[test]
@@ -423,6 +453,28 @@ fn spell_history_cooldowns_track_spell_category_hold_and_update_like_cpp() {
     history.update(2_501);
     assert!(!history.has_cooldown(100, 9, 2_501));
     assert!(history.has_cooldown(101, 11, 2_501));
+}
+
+#[test]
+fn spell_history_ready_gate_uses_raw_membership_until_unit_maintenance() {
+    let mut history = SpellHistory::default();
+    history.cooldowns_loaded = true;
+    assert!(history.start_cooldown(100, 21169, 0, 5, 42, 0, false));
+    assert!(!history.start_cooldown(100, 30000, 0, 0, 43, 0, true));
+    assert!(!history.has_cooldown_membership_like_cpp(30000, 43));
+    assert!(history.start_cooldown(100, 30000, 0, 1, 43, 0, true));
+
+    assert!(history.has_cooldown_membership_like_cpp(21169, 0));
+    assert!(history.has_cooldown_membership_like_cpp(90000, 42));
+    assert!(history.has_cooldown_membership_like_cpp(30000, 43));
+
+    // Clock expiry alone does not remove the source map entry. Unit::Update
+    // performs maintenance; a prepare before that point still sees it.
+    assert!(!history.has_cooldown(21169, 0, 106));
+    assert!(history.has_cooldown_membership_like_cpp(21169, 0));
+    history.update(106);
+    assert!(!history.has_cooldown_membership_like_cpp(21169, 0));
+    assert!(history.has_cooldown_membership_like_cpp(30000, 43));
 }
 
 #[test]

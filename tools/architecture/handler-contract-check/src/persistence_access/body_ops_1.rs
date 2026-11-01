@@ -43,6 +43,8 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             context_version: 0,
             suppress_records: false,
             visible_macro_shadows: BTreeSet::new(),
+            generic_function_params: BTreeSet::new(),
+            parameter_free_operation_sites: BTreeSet::new(),
         }
     }
     pub(super) fn analyze_without_records(&mut self, analyze: impl FnOnce(&mut Self)) {

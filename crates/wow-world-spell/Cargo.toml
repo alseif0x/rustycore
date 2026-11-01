@@ -1,0 +1,47 @@
+[package]
+name = "wow-world-spell"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+test-fixtures = [
+    "wow-spell-acquisition/test-fixtures",
+    "wow-world-core/test-fixtures",
+    "wow-world-entities/test-fixtures",
+    "wow-world-inventory/test-fixtures",
+]
+
+[dependencies]
+num-traits = { workspace = true }
+rand = { workspace = true }
+tracing = { workspace = true }
+wow-config = { workspace = true }
+wow-constants = { workspace = true }
+wow-combat = { workspace = true }
+wow-conditions = { workspace = true }
+wow-core = { workspace = true }
+wow-data = { workspace = true }
+wow-entities = { workspace = true }
+wow-packet = { workspace = true }
+wow-map = { workspace = true }
+wow-persistence = { workspace = true }
+wow-spell-acquisition = { workspace = true }
+wow-world-core = { workspace = true }
+wow-world-entities = { workspace = true }
+wow-world-inventory = { workspace = true }
+wow-world-lifecycle = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
+wow-world-core = { workspace = true, features = ["test-fixtures"] }
+wow-world-test-support = { workspace = true }
+# Keep this crate cfg-aligned with core in all-targets tests: core's dev-only
+# fixtures add arguments that this library passes only under its own feature.
+wow-world-spell = { workspace = true, features = ["test-fixtures"] }
+
+[lints]
+workspace = true

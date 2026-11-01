@@ -309,7 +309,8 @@ impl UpdateObject {
                         create_data.bounds_radius_2d
                     ));
                 }
-                UpdateBlock::CreateCorpse { guid, create_data } => {
+                UpdateBlock::CreateCorpse { guid, create_data }
+                | UpdateBlock::CreateCorpseBirth { guid, create_data } => {
                     lines.push(format!(
                         "#{index:03} corpse guid={guid:?} entry={} display={} pos=({:.3},{:.3},{:.3},{:.3})",
                         create_data.entry_id,
@@ -515,6 +516,13 @@ impl UpdateObject {
             create_data,
         }
     }
+    /// Object.cpp:130 / Map.cpp:573: CREATE2 only while the corpse is new.
+    pub fn create_corpse_birth_block(create_data: CorpseCreateData) -> UpdateBlock {
+        UpdateBlock::CreateCorpseBirth {
+            guid: create_data.guid,
+            create_data,
+        }
+    }
     pub fn create_scene_object_block(create_data: SceneObjectCreateData) -> UpdateBlock {
         UpdateBlock::CreateSceneObject {
             guid: create_data.guid,
@@ -609,6 +617,7 @@ impl UpdateObject {
 
         let create_data = PlayerCreateData {
             guid,
+            summon: ObjectGuid::EMPTY,
             wow_account: ObjectGuid::EMPTY,
             bnet_account: ObjectGuid::EMPTY,
             race,
@@ -619,6 +628,9 @@ impl UpdateObject {
             native_display_id: display_id,
             health: combat.health,
             max_health: combat.max_health,
+            // Creation does not run Unit::Update. A fresh Unit starts at zero.
+            aura_state: 0,
+            unit_flags2: 0,
             faction_template: faction,
             current_area_id: zone_id,
             player_flags: 0,
@@ -695,6 +707,8 @@ impl UpdateObject {
             heirloom_flags: Vec::new(),
             toys: Vec::new(),
             transmog: Vec::new(),
+            self_res_spells: Vec::new(),
+            no_reagent_cost_mask: [0; 4],
             trait_configs: Vec::new(),
             quest_log,
         };
@@ -725,11 +739,25 @@ impl UpdateObject {
             }],
         }
     }
-    /// Populate PlayerData::PlayerFlags and PlayerData::PlayerFlagsEx on the
-    /// self CREATE block.
-    ///
-    /// C++ `Player::LoadFromDB` restores these into `m_playerData` before
-    /// `Map::SendInitSelf` calls `Player::BuildCreateUpdateBlockForPlayer`.
+    /// Populate the canonical Unit::Flags2 without recreating login defaults.
+    pub fn set_player_unit_flags2_like_cpp(&mut self, flags: u32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject { create_data, .. } = block {
+                create_data.unit_flags2 = flags;
+            }
+        }
+    }
+
+    /// Populate the already maintained, viewer-projected Unit::AuraState.
+    pub fn set_player_aura_state_like_cpp(&mut self, aura_state: u32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject { create_data, .. } = block {
+                create_data.aura_state = aura_state;
+            }
+        }
+    }
+
+    /// Populate PlayerData flags restored before Map::SendInitSelf.
     pub fn set_player_flags_like_cpp(&mut self, player_flags: u32, player_flags_ex: u32) {
         for block in &mut self.blocks {
             if let UpdateBlock::CreateObject {
@@ -768,6 +796,43 @@ impl UpdateObject {
                     heirlooms.into_iter().map(|(_, flags)| flags).collect();
                 create_data.transmog = transmog;
                 create_data.trait_configs = trait_configs;
+                return;
+            }
+        }
+    }
+    /// Populate ActivePlayerData::SelfResSpells on the self CREATE block.
+    pub fn set_player_self_res_spells(&mut self, self_res_spells: Vec<i32>) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.self_res_spells = self_res_spells;
+                return;
+            }
+        }
+    }
+    /// Populate UnitData::Summon on a Player CREATE block from the canonical Unit snapshot.
+    pub fn set_player_summon_guid_like_cpp(&mut self, summon: ObjectGuid) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject { create_data, .. } = block {
+                create_data.summon = summon;
+                return;
+            }
+        }
+    }
+    /// Populate ActivePlayerData::NoReagentCostMask on the self CREATE block.
+    pub fn set_player_no_reagent_cost_mask_like_cpp(&mut self, mask: [u32; 4]) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.no_reagent_cost_mask = mask;
                 return;
             }
         }

@@ -8,6 +8,9 @@
 use super::*;
 use crate::map_rules::ensure_map_guid_sequence_source_like_cpp;
 
+#[path = "player_corpses.rs"]
+mod player_corpses;
+
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,
@@ -711,7 +714,15 @@ where
                 .entity_world
                 .get_mut(&guid)
                 .and_then(MapObjectRecord::creature_mut)
-                .map(|creature| creature.unit_mut().add_to_world_like_cpp());
+                .map(|creature| {
+                    // #1444 H3b: `creature.added_to_world`, reported after the
+                    // tick by the lifecycle phase (AzerothCore
+                    // `OnCreatureAddWorld`, `Creature::AddToWorld`).
+                    creature
+                        .runtime_state_mut()
+                        .module_added_to_world_pending_like_cpp = true;
+                    creature.unit_mut().add_to_world_like_cpp()
+                });
             let creature_search_formation = self
                 .map_object_record(guid)
                 .and_then(MapObjectRecord::creature)
@@ -1115,7 +1126,7 @@ where
         self.map_object_by_kind(guid, &[AccessorObjectKind::Creature])
     }
 
-    pub(crate) fn get_typed_creature(&self, guid: ObjectGuid) -> Option<&Creature> {
+    pub fn get_typed_creature(&self, guid: ObjectGuid) -> Option<&Creature> {
         let record = self.map_object_record(guid)?;
         if record.kind() != AccessorObjectKind::Creature {
             return None;

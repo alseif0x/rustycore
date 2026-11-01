@@ -1,0 +1,4 @@
+crates/wow-world/src/session/spell_state/spell.rs	has_represented_self_res_spell_like_cpp	crates/wow-world-spell/src/spell_state_session/operations.rs
+crates/wow-world/src/session/spell_state/spell.rs	interrupt_non_melee_spells_for_far_teleport_like_cpp	crates/wow-world-spell/src/spell_state_session/operations.rs
+crates/wow-world/src/session/spell_state/spellbook.rs	apply_login_known_spell_proficiencies_like_cpp	crates/wow-world-spell/src/spell_state_session/operations.rs
+crates/wow-world/src/session/spell_state/spell_publication.rs	publish_spell_pull_attack_start_like_cpp	crates/wow-world-spell/src/spell_state_session/pull_attack_start.rs

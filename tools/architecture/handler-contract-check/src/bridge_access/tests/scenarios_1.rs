@@ -298,32 +298,34 @@ fn bridge_hiding_macros_fail_closed_but_transparent_arguments_are_visible() {
 }
 
 #[test]
-fn curated_anchor_records_its_declared_direction() {
+fn retired_legacy_runtime_bridges_are_no_longer_curated_anchors() {
+    // #1263 F6-8E-1 deleted the `run_legacy_creature_*_and_deliver_once_like_cpp`
+    // bridges; a function reusing such a name is not granted a direction.
     let baseline = inventory_bridge_accesses(&[BridgeSource {
         package: "world-server",
-        module: "crate::runtime::game_events::grid",
+        module: "crate::runtime::delivery",
         source_path: "src/session.rs",
         inherited_cfg: &[],
         source: r#"
-            fn mirror_loaded_grid_creature_to_legacy_like_cpp(
+            fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
                 canonical: &wow_map::MapManager,
                 legacy: &wow_world::MapManager,
             ) {}
         "#,
     }])
-    .expect("curated method parses");
+    .expect("dual-sided function parses");
     assert_eq!(baseline.bridges.len(), 1);
-    assert_eq!(
-        baseline.bridges[0].direction_markers,
-        vec![BridgeDirection::CanonicalToLegacy]
+    assert!(
+        !baseline.bridges[0]
+            .direction_markers
+            .contains(&BridgeDirection::LegacyToCanonical)
     );
-    let sides: BTreeSet<_> = baseline.bridges[0]
-        .evidence
-        .iter()
-        .map(|marker| marker.side)
-        .collect();
-    assert!(sides.contains(&BridgeSide::Legacy));
-    assert!(sides.contains(&BridgeSide::Canonical));
+    assert!(
+        baseline.bridges[0]
+            .evidence
+            .iter()
+            .all(|marker| marker.kind != BridgeEvidenceKind::CuratedAnchorDefinition)
+    );
 }
 
 #[test]

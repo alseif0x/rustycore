@@ -187,6 +187,80 @@ impl GraveyardStore {
         context: GraveyardLookupContextLikeCpp,
         world_safe_locs: &WorldSafeLocStore,
     ) -> Option<u32> {
+        self.closest_graveyard_in_zone_admitting_like_cpp(
+            zone_id,
+            context,
+            world_safe_locs,
+            |data, _| graveyard_team_conditions_met_like_cpp(data, context.team),
+        )
+    }
+
+    /// C++ `ObjectMgr::GetClosestGraveyardInZone` with a live `conditionObject`
+    /// (`ObjectMgr.cpp`, the `if (conditionObject)` branch): the graveyard's
+    /// conditions must meet the object, and a graveyard on the current map's
+    /// `ParentMapID` must be a visible map of the object's phase shift.
+    pub fn closest_graveyard_in_zone_with_condition_object_like_cpp(
+        &self,
+        zone_id: u32,
+        context: GraveyardLookupContextLikeCpp,
+        world_safe_locs: &WorldSafeLocStore,
+        mut conditions_meet: impl FnMut(&ConditionsReference) -> bool,
+        phase_has_visible_map_id: impl Fn(u32) -> bool,
+    ) -> Option<u32> {
+        self.closest_graveyard_in_zone_admitting_like_cpp(
+            zone_id,
+            context,
+            world_safe_locs,
+            |data, entry_map_id| {
+                if !conditions_meet(&data.conditions) {
+                    return false;
+                }
+                !(Some(entry_map_id) == context.parent_map_id
+                    && !phase_has_visible_map_id(entry_map_id))
+            },
+        )
+    }
+
+    /// C++ `ObjectMgr::GetClosestGraveyard`: search the location's zone, then
+    /// walk `AreaTable::ParentAreaID` until a graveyard is found.
+    ///
+    /// `zone_id` is the C++ `TerrainMgr::GetZoneId` result for the location;
+    /// the caller owns that terrain lookup. A zero zone above z = -500 answers
+    /// the team's default graveyard exactly as C++ does.
+    pub fn closest_graveyard_like_cpp(
+        &self,
+        zone_id: u32,
+        context: GraveyardLookupContextLikeCpp,
+        parent_area_id: impl Fn(u32) -> Option<u32>,
+        mut in_zone: impl FnMut(&Self, u32) -> Option<u32>,
+    ) -> Option<u32> {
+        if zone_id == 0 && context.z > -500.0 {
+            return Self::default_graveyard_safe_loc_id_like_cpp(context.team);
+        }
+
+        let mut graveyard = in_zone(self, zone_id);
+        let mut parent = parent_area_id(zone_id).filter(|parent| *parent != 0);
+        while graveyard.is_none() {
+            let Some(parent_id) = parent else {
+                break;
+            };
+            graveyard = in_zone(self, parent_id);
+            parent = if graveyard.is_none() {
+                parent_area_id(parent_id).filter(|parent| *parent != 0)
+            } else {
+                None
+            };
+        }
+        graveyard
+    }
+
+    fn closest_graveyard_in_zone_admitting_like_cpp(
+        &self,
+        zone_id: u32,
+        context: GraveyardLookupContextLikeCpp,
+        world_safe_locs: &WorldSafeLocStore,
+        mut admit: impl FnMut(&GraveyardData, u32) -> bool,
+    ) -> Option<u32> {
         let Some(graveyards) = self.graveyards_for_zone(zone_id) else {
             return if !context.is_battleground_or_arena {
                 Self::default_graveyard_safe_loc_id_like_cpp(context.team)
@@ -200,15 +274,15 @@ impl GraveyardStore {
         let mut far: Option<u32> = None;
 
         for data in graveyards {
-            if !graveyard_team_conditions_met_like_cpp(data, context.team) {
-                continue;
-            }
-
             let Some(entry) = world_safe_locs.get(data.safe_loc_id) else {
                 continue;
             };
 
             let entry_map_id = entry.map_id;
+            if !admit(data, entry_map_id) {
+                continue;
+            }
+
             let same_or_parent_map =
                 entry_map_id == context.map_id || Some(entry_map_id) == context.parent_map_id;
 
@@ -478,5 +552,90 @@ mod tests {
         );
 
         assert_eq!(selected, Some(ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP));
+    }
+    #[test]
+    fn closest_graveyard_with_condition_object_filters_conditions_and_parent_phase_like_cpp() {
+        let mut graveyards = GraveyardStore::default();
+        graveyards.load_graveyard_zones_from_rows_like_cpp(
+            [row(101, 20), row(102, 20), row(200, 20)],
+            |_| true,
+            |_| true,
+        );
+        let mut context = lookup_context(600, TEAM_HORDE_LIKE_CPP);
+        context.parent_map_id = Some(571);
+
+        // 101 and 102 sit on the visible parent map: the nearest wins.
+        let selected = graveyards.closest_graveyard_in_zone_with_condition_object_like_cpp(
+            20,
+            context,
+            &world_safe_locs(),
+            |_| true,
+            |map_id| map_id == 571,
+        );
+        assert_eq!(selected, Some(101));
+
+        // Conditions that fail for the object exclude every graveyard.
+        let selected = graveyards.closest_graveyard_in_zone_with_condition_object_like_cpp(
+            20,
+            context,
+            &world_safe_locs(),
+            |_| false,
+            |_| true,
+        );
+        assert_eq!(selected, None);
+
+        // The parent map is not a visible map of the phase shift: only the
+        // far graveyard on map 1 remains.
+        let selected = graveyards.closest_graveyard_in_zone_with_condition_object_like_cpp(
+            20,
+            context,
+            &world_safe_locs(),
+            |_| true,
+            |_| false,
+        );
+        assert_eq!(selected, Some(200));
+    }
+
+    #[test]
+    fn closest_graveyard_walks_parent_areas_and_defaults_zero_zone_like_cpp() {
+        let mut graveyards = GraveyardStore::default();
+        graveyards.load_graveyard_zones_from_rows_like_cpp([row(102, 30)], |_| true, |_| true);
+        let context = lookup_context(571, TEAM_HORDE_LIKE_CPP);
+        let in_zone = |store: &GraveyardStore, zone_id: u32| {
+            // Zone 20 has links that never pass, like a team-filtered zone.
+            if zone_id == 20 {
+                return None;
+            }
+            store.closest_graveyard_in_zone_like_cpp(zone_id, context, &world_safe_locs())
+        };
+        let parent = |area_id: u32| match area_id {
+            20 => Some(25),
+            25 => Some(30),
+            _ => Some(0),
+        };
+
+        assert_eq!(
+            graveyards.closest_graveyard_like_cpp(20, context, parent, in_zone),
+            Some(10),
+            "zone 25 has no links, so C++ answers the team default there"
+        );
+        assert_eq!(
+            graveyards.closest_graveyard_like_cpp(0, context, parent, in_zone),
+            Some(HORDE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP)
+        );
+        let mut deep = context;
+        deep.z = -600.0;
+        assert_eq!(
+            graveyards.closest_graveyard_like_cpp(30, deep, parent, in_zone),
+            Some(102)
+        );
+    }
+
+    #[test]
+    fn map_store_corpse_map_id_defaults_to_none_like_cpp() {
+        let mut maps = map_store();
+        assert_eq!(maps.corpse_map_id_like_cpp(600), -1);
+        maps.set_corpse_map_id_like_cpp(600, 571);
+        assert_eq!(maps.corpse_map_id_like_cpp(600), 571);
     }
 }

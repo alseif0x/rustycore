@@ -1,19 +1,11 @@
 //! Represented spell-effect execution and the ticks that drive it.
 //!
-//! Separated from the Session root under #621.
+//! Separated from the Session root under #621. The reputation and
+//! force-deselect effects moved to `wow_world_social` (#1363 slice 12b3).
 
 use super::*;
-mod checks;
-mod combat;
-mod destinations;
-mod effect_apply;
-mod effect_combat;
-mod effect_summon;
-mod effects;
-mod effects_player;
-mod effects_power;
-mod effects_progress;
-mod execution;
-mod execution_overloads;
-mod threat;
-mod ticks;
+mod effect_host;
+#[cfg(test)]
+#[path = "../../../unit_tests/session/spell_effects/effects_player/test_only.rs"]
+mod effects_player_test_only;
+mod execution_host;

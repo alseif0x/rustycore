@@ -11,5 +11,5 @@ mod guild;
 mod trade;
 
 #[cfg(test)]
-#[path = "group_tests.rs"]
+#[path = "../../../unit_tests/session/social/group_tests.rs"]
 mod group_tests;

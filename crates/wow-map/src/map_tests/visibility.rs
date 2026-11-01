@@ -151,6 +151,42 @@ fn transport_visibility_walk_uses_same_phase_map_references_not_distance_like_cp
 }
 
 #[test]
+fn immediate_replacement_takes_only_its_own_old_destroy_intent_once() {
+    let mut map = test_map();
+    let mut player = test_player_for_viewpoint(4510290);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    let player_guid = player.guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+    let guids = [4510291, 4510292].map(|counter| {
+        let guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 7, 0, counter);
+        let mut corpse = Corpse::new_at(CorpseType::Bones, 1_000);
+        corpse.world_mut().object_mut().create(guid);
+        corpse.world_mut().set_map(571, 7).unwrap();
+        corpse.world_mut().relocate(Position::xyz(1.0, 2.0, 3.0));
+        map.add_corpse_to_map_like_cpp(corpse).unwrap();
+        map.remove_from_map_like_cpp(guid, true).unwrap();
+        guid
+    });
+    let selected = map
+        .take_object_visibility_destroy_for_guid_like_cpp(guids[0])
+        .unwrap();
+    assert_eq!(selected.object_guid, guids[0]);
+    assert_eq!(selected.recipient_guids, vec![player_guid]);
+    assert!(
+        map.take_object_visibility_destroy_for_guid_like_cpp(guids[0])
+            .is_none()
+    );
+    let remaining = map.take_object_visibility_destroy_recipients_like_cpp();
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].object_guid, guids[1]);
+}
+
+#[test]
 fn grid_activation_range_uses_creature_sight_for_inactive_sources_like_cpp() {
     let mut map = test_map();
     let creature = test_creature_for_spawn(1234, 1234001, true);

@@ -1,0 +1,3 @@
+crates/wow-world/src/session/deferred_visibility.rs	handle_destroy_visible_object_like_cpp_command_like_cpp	crates/wow-world-entities/src/visibility_session/deferred.rs
+crates/wow-world/src/session/deferred_visibility.rs	apply_deferred_player_visibility_refresh_like_cpp	crates/wow-world-entities/src/visibility_session/deferred.rs
+crates/wow-world/src/session/visibility/operations.rs	flush_pending_visibility_refresh_with_catalogs_like_cpp	crates/wow-world-entities/src/visibility_session/deferred.rs

@@ -63,7 +63,7 @@ fn unit_constructor_matches_cpp_base_state() {
     assert!(unit.subsystems().motion.spline.finalized);
     assert_eq!(unit.subsystems().control.charmer_guid, None);
     assert_eq!(unit.subsystems().control.owner_guid, None);
-    assert_eq!(unit.subsystems().control.minion_guid, None);
+    assert_eq!(unit.minion_guid_like_cpp(), None);
     assert_eq!(
         unit.subsystems().control.summon_slots,
         [ObjectGuid::EMPTY; MAX_SUMMON_SLOT]
@@ -742,10 +742,21 @@ fn can_see_or_detect_unit_like_cpp_applies_ghost_despawn_and_always_detectable_g
     target.set_server_side_ghost_visibility_like_cpp(0x2);
     assert!(!seer.can_see_or_detect_unit_like_cpp(&target, false, true, false));
 
-    target.set_ghost_visible_to_seer_by_group_like_cpp(true);
-    assert!(seer.can_see_or_detect_unit_like_cpp(&target, false, true, false));
+    assert!(
+        !seer.can_see_or_detect_unit_with_context(
+            &target,
+            false,
+            true,
+            false,
+            UnitVisibilityContext {
+                distance_allowed: true,
+                corpse_visibility: false,
+                player_group_visibility: true,
+            },
+        ),
+        "a non-Player WorldObject cannot receive the Player-group ghost exception"
+    );
 
-    target.set_ghost_visible_to_seer_by_group_like_cpp(false);
     seer.set_server_side_ghost_visibility_detect_like_cpp(0x2);
     assert!(seer.can_see_or_detect_unit_like_cpp(&target, false, true, false));
 

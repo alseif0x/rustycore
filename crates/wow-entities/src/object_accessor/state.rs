@@ -18,6 +18,15 @@ pub enum AccessorObjectKind {
     Conversation,
 }
 
+pub fn represented_seer_kinds_like_cpp() -> &'static [AccessorObjectKind] {
+    &[
+        AccessorObjectKind::Player,
+        AccessorObjectKind::Creature,
+        AccessorObjectKind::Pet,
+        AccessorObjectKind::DynamicObject,
+    ]
+}
+
 impl AccessorObjectKind {
     pub fn from_guid(guid: ObjectGuid) -> Option<Self> {
         match guid.high_type() {
@@ -557,6 +566,19 @@ impl MapObjectRecord {
     pub fn into_player(self) -> Result<Box<Player>, Self> {
         match self.body {
             MapObjectBody::Player(player) => Ok(player),
+            body => Err(Self {
+                kind: self.kind,
+                body,
+            }),
+        }
+    }
+
+    /// Recover the typed Creature value so its one Map owner can lend it by
+    /// value and insert it back (#1263 F6-8D3b-2: the session mutation root
+    /// mutates the canonical incarnation itself, never a clone of it).
+    pub fn into_creature(self) -> Result<Box<Creature>, Self> {
+        match self.body {
+            MapObjectBody::Creature(creature) => Ok(creature),
             body => Err(Self {
                 kind: self.kind,
                 body,

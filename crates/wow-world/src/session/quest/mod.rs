@@ -4,10 +4,13 @@
 
 use super::*;
 
-mod giver;
+mod host;
+mod objective_drain;
+pub(crate) use objective_drain::QuestObjectiveOperationLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use objective_drain::quest_reward_fixture_refs_like_cpp;
 mod objectives;
 mod persistence;
-mod publication;
 mod reset;
 mod rewards;
 pub(in crate::session) mod state;

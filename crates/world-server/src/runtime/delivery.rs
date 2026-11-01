@@ -1,15 +1,12 @@
-//! Runtime event routing, delivery, and the legacy map-owned update loop.
+//! Runtime event routing and delivery for the canonical creature runtime.
 
 use super::*;
 
-mod creature_boundary;
-pub(crate) use creature_boundary::*;
-
 // ── Runtime candidate routing + delivery ────────────────────────────────────
 //
-// These functions started as dormant Slice 4A.1b infrastructure and are now
-// reached through the map-owned `RustyCore.LegacyCreatureGlobalRuntime` loop,
-// which is enabled by default to match C++ `MapManager::Update`.
+// These functions started as Slice 4A.1b infrastructure; since #1263 F6-8D3b
+// they deliver the admitted canonical creature executor's deferred output
+// (`canonical_creature_runtime.rs`) after the canonical guard is released.
 // C++ anchors: `Object.cpp : WorldObject::SendMessageToSet` (~1746-1764),
 // `GridNotifiersImpl.h : MessageDistDeliverer::Visit(PlayerMapType&)` (~43-46),
 // `GridNotifiers.h : MessageDistDeliverer::SendPacket`.
@@ -200,11 +197,11 @@ impl RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
 /// **No guards are held during `try_send`**: candidates are collected into a
 /// `Vec` first, then commands are sent outside the DashMap iteration.
 pub(crate) fn resolve_runtime_event_candidates_like_cpp(
-    event: &wow_world::map_manager::RuntimeEvent,
+    event: &wow_world::runtime_plan::RuntimeEvent,
     registry: &wow_world::session::directory::PlayerRegistry,
     summary: &mut RuntimeDeliverySummaryLikeCpp,
 ) {
-    use wow_world::map_manager::RecipientRule;
+    use wow_world::runtime_plan::RecipientRule;
 
     match &event.recipients {
         RecipientRule::SelfOnly => {
@@ -600,7 +597,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
 /// Returns a [`RuntimeDeliverySummaryLikeCpp`] for test assertions.
 /// No blocking sends — backpressure via `try_send` only.
 pub(crate) fn deliver_runtime_plan_like_cpp(
-    plan: &wow_world::map_manager::RuntimePlan,
+    plan: &wow_world::runtime_plan::RuntimePlan,
     registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeDeliverySummaryLikeCpp {
     let mut summary = RuntimeDeliverySummaryLikeCpp::default();
@@ -702,23 +699,23 @@ pub(crate) fn deliver_refresh_visible_world_creatures_like_cpp(
 ///
 /// The scan itself is map-owned and runs in `wow-world`; this bridge only
 /// collects cheap, copyable receiver state from [`PlayerRegistry`] and drops
-/// DashMap guards before the legacy map lock is taken.
+/// DashMap guards before the canonical map lock is taken.
 #[cfg(test)]
-pub(crate) fn collect_legacy_creature_aggro_candidates_like_cpp(
+pub(crate) fn collect_creature_aggro_candidates_like_cpp(
     registry: &wow_world::session::directory::PlayerRegistry,
-) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
-    collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(registry, None)
+) -> Vec<wow_world::session::CreatureAggroCandidateLikeCpp> {
+    collect_creature_aggro_candidates_with_canonical_like_cpp(registry, None)
 }
 
-pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
+pub(crate) fn collect_creature_aggro_candidates_with_canonical_like_cpp(
     registry: &wow_world::session::directory::PlayerRegistry,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
-) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
+) -> Vec<wow_world::session::CreatureAggroCandidateLikeCpp> {
     let mut candidates: Vec<_> = registry
-        .legacy_aggro_candidates()
+        .aggro_candidates()
         .into_iter()
         .map(
-            |snapshot| wow_world::session::LegacyCreatureAggroCandidateLikeCpp {
+            |snapshot| wow_world::session::CreatureAggroCandidateLikeCpp {
                 player_guid: snapshot.player_guid,
                 map_id: snapshot.map_id,
                 instance_id: snapshot.instance_id,
@@ -815,32 +812,32 @@ pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
     candidates
 }
 
-pub(crate) fn legacy_creature_aggro_config_like_cpp(
+pub(crate) fn creature_aggro_config_like_cpp(
     configs: &WorldConfigSet,
-) -> wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+) -> wow_world::session::CreatureAggroConfigLikeCpp {
     let creature_aggro_rate = world_config_f32(configs, "RATE_CREATURE_AGGRO", 1.0);
-    wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+    wow_world::session::CreatureAggroConfigLikeCpp {
         expected_stat_store: None,
         no_gray_aggro_above: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_ABOVE", 0),
         no_gray_aggro_below: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_BELOW", 0),
         creature_aggro_rate,
         max_player_level_config: world_config_u32(configs, "CONFIG_MAX_PLAYER_LEVEL", 80),
-        visibility_distance_continents: legacy_visibility_distance_like_cpp(
+        visibility_distance_continents: creature_aggro_visibility_distance_like_cpp(
             "Visibility.Distance.Continents",
             wow_entities::DEFAULT_VISIBILITY_DISTANCE,
             creature_aggro_rate,
         ),
-        visibility_distance_instances: legacy_visibility_distance_like_cpp(
+        visibility_distance_instances: creature_aggro_visibility_distance_like_cpp(
             "Visibility.Distance.Instances",
             wow_entities::DEFAULT_VISIBILITY_INSTANCE,
             creature_aggro_rate,
         ),
-        visibility_distance_battlegrounds: legacy_visibility_distance_like_cpp(
+        visibility_distance_battlegrounds: creature_aggro_visibility_distance_like_cpp(
             "Visibility.Distance.BG",
             533.0,
             creature_aggro_rate,
         ),
-        visibility_distance_arenas: legacy_visibility_distance_like_cpp(
+        visibility_distance_arenas: creature_aggro_visibility_distance_like_cpp(
             "Visibility.Distance.Arenas",
             533.0,
             creature_aggro_rate,
@@ -884,7 +881,7 @@ pub(crate) fn legacy_creature_aggro_config_like_cpp(
     }
 }
 
-pub(crate) fn legacy_visibility_distance_like_cpp(
+pub(crate) fn creature_aggro_visibility_distance_like_cpp(
     key: &str,
     default: f32,
     creature_aggro_rate: f32,
@@ -899,17 +896,6 @@ pub(crate) fn legacy_visibility_distance_like_cpp(
         configured
     }
 }
-
-/// Deliver map-owned creature aggro starts to their exact victim sessions.
-///
-/// C++ contrast: `CreatureAI::MoveInLineOfSight`/`Creature::CanStartAttack`
-/// decides the engagement from map state; `Unit::SendMeleeAttackStart` sends
-/// the visible combat-start packet. This helper routes that already-resolved
-/// engagement to the victim session outside all map locks. The transition is
-/// authoritative and one-shot, so it is published to the session's durable
-/// Per-map accumulated time for the player melee phase, shared across ticks.
-pub(crate) type SharedPlayerMeleePhaseStateLikeCpp =
-    Arc<Mutex<wow_world::session::PlayerMeleePhaseStateLikeCpp>>;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct RuntimePlayerMeleeDeliverySummaryLikeCpp {
@@ -989,38 +975,13 @@ pub(crate) fn deliver_player_melee_results_like_cpp(
     summary
 }
 
-/// One player melee phase: collect, resolve, deliver.
-pub(crate) fn run_legacy_player_melee_tick_and_deliver_once_like_cpp(
-    legacy_map_manager: &SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    registry: &wow_world::session::directory::PlayerRegistry,
-    group_registry: Option<&Arc<wow_social::group::GroupRegistry>>,
-    diff_ms: u32,
-    phase_state: &SharedPlayerMeleePhaseStateLikeCpp,
-    config: &wow_world::session::LegacyCreatureAggroConfigLikeCpp,
-) -> (
-    wow_world::session::LegacyPlayerMeleeTickOutcomeLikeCpp,
-    RuntimePlayerMeleeDeliverySummaryLikeCpp,
-) {
-    let tap_index = build_tap_group_index_like_cpp(group_registry);
-    let attackers = collect_player_melee_attackers_like_cpp(registry, &tap_index);
-    let outcome = {
-        let mut state = phase_state
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        wow_world::session::run_legacy_player_melee_tick_once_like_cpp(
-            legacy_map_manager,
-            canonical_map_manager,
-            &attackers,
-            diff_ms,
-            &mut state,
-            config,
-        )
-    };
-    let delivery = deliver_player_melee_results_like_cpp(&outcome.commands, registry);
-    (outcome, delivery)
-}
-
+/// Deliver map-owned creature aggro starts to their exact victim sessions.
+///
+/// C++ contrast: `CreatureAI::MoveInLineOfSight`/`Creature::CanStartAttack`
+/// decides the engagement from map state; `Unit::SendMeleeAttackStart` sends
+/// the visible combat-start packet. This helper routes that already-resolved
+/// engagement to the victim session outside all map locks. The transition is
+/// authoritative and one-shot, so it is published to the session's durable
 /// FIFO rail without waiting on its bounded visual-command queue.
 pub(crate) fn deliver_creature_attack_start_commands_like_cpp(
     commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
@@ -1115,8 +1076,10 @@ pub(crate) fn build_tap_group_index_like_cpp(
 
 /// Commit creature attack-start commands through each map's single writer.
 ///
-/// The returned outcomes stay in command order so delivery can publish only
-/// transitions accepted by the canonical owner.
+/// #1263 F6-8D3a-1: the body lives in wow-world so the admitted canonical
+/// executor commits through the same transition; this adapter only takes the
+/// canonical guard for a caller that does not hold it.
+#[cfg(test)]
 pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
     commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
@@ -1127,27 +1090,15 @@ pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
     let Ok(mut manager) = manager.lock() else {
         return Vec::new();
     };
-    commands
-        .iter()
-        .map(|command| {
-            manager.execute_map_command_like_cpp(
-                u32::from(command.map_id),
-                command.instance_id,
-                wow_map::MapCommandLikeCpp::CreatureAttackStart {
-                    attacker_guid: command.attacker_guid,
-                    victim_guid: command.victim_guid,
-                    previous_victim_guid: command.previous_victim_guid,
-                },
-            )
-        })
-        .collect()
+    wow_world::session::apply_creature_attack_start_commands_on_manager_like_cpp(
+        &mut manager,
+        commands,
+    )
 }
 
 /// Commit creature evade/combat-stop commands through each map's single writer.
-///
-/// C++ `Unit::CombatStop` removes every attacker and clears the corresponding
-/// `CombatReference` from both participants. Player and Creature victims now
-/// take the same map-owned path; the session command is delivery-only.
+/// The body lives in wow-world beside the start commit (#1263 F6-8D3a-1).
+#[cfg(test)]
 pub(crate) fn apply_canonical_creature_attack_stops_like_cpp(
     commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
@@ -1158,82 +1109,14 @@ pub(crate) fn apply_canonical_creature_attack_stops_like_cpp(
     let Ok(mut manager) = manager.lock() else {
         return Vec::new();
     };
-    commands
-        .iter()
-        .map(|command| {
-            manager.execute_map_command_like_cpp(
-                u32::from(command.map_id),
-                command.instance_id,
-                wow_map::MapCommandLikeCpp::CreatureCombatStop {
-                    attacker_guid: command.attacker_guid,
-                    victim_guid: command.victim_guid,
-                },
-            )
-        })
-        .collect()
+    wow_world::session::apply_creature_attack_stop_commands_on_manager_like_cpp(
+        &mut manager,
+        commands,
+    )
 }
 
-/// Remove attack-start/stop fanout that has no committed canonical map
-/// transition behind it while retaining unrelated aggro-plan events.
-///
-/// The legacy tick still produces wire events before the transitional map
-/// command bridge runs. Exact `(source, packet)` signatures couple those two
-/// products until the legacy producer itself emits `MapCommandLikeCpp`.
-pub(crate) fn retain_committed_creature_combat_events_like_cpp(
-    plan: &mut wow_world::map_manager::RuntimePlan,
-    start_commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
-    start_outcomes: &[wow_map::MapCommandOutcomeLikeCpp],
-    stop_commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
-    stop_outcomes: &[wow_map::MapCommandOutcomeLikeCpp],
-) {
-    use wow_packet::ServerPacket as _;
-
-    let start_signature =
-        |command: &wow_world::session::mailbox::CreatureAttackStartLikeCppCommand| {
-            (
-                command.attacker_guid,
-                wow_packet::packets::combat::AttackStart {
-                    attacker: command.attacker_guid,
-                    victim: command.victim_guid,
-                }
-                .to_bytes(),
-            )
-        };
-    let stop_signature =
-        |command: &wow_world::session::mailbox::CreatureAttackStopLikeCppCommand| {
-            (
-                command.attacker_guid,
-                wow_packet::packets::combat::SAttackStop {
-                    attacker: command.attacker_guid,
-                    victim: command.victim_guid,
-                    now_dead: false,
-                }
-                .to_bytes(),
-            )
-        };
-    let mut all_combat_signatures: Vec<_> = start_commands.iter().map(start_signature).collect();
-    all_combat_signatures.extend(stop_commands.iter().map(stop_signature));
-    let mut applied_combat_signatures: Vec<_> = start_commands
-        .iter()
-        .zip(start_outcomes)
-        .filter(|(_, outcome)| outcome.is_applied())
-        .map(|(command, _)| start_signature(command))
-        .collect();
-    applied_combat_signatures.extend(
-        stop_commands
-            .iter()
-            .zip(stop_outcomes)
-            .filter(|(_, outcome)| outcome.is_applied())
-            .map(|(command, _)| stop_signature(command)),
-    );
-
-    plan.events.retain(|event| {
-        let matches = |(source_guid, packet_bytes): &(wow_core::ObjectGuid, Vec<u8>)| {
-            *source_guid == event.source_guid && *packet_bytes == event.packet_bytes
-        };
-        !all_combat_signatures.iter().any(matches) || applied_combat_signatures.iter().any(matches)
-    });
-}
+#[cfg(test)]
+pub(crate) use wow_world::session::retain_committed_creature_combat_events_like_cpp;
 
 pub(crate) fn deliver_creature_attack_stop_commands_like_cpp(
     commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
@@ -1330,9 +1213,9 @@ pub(crate) fn deliver_creature_melee_damage_commands_like_cpp(
 ///
 /// C++ `ChaseMovementGenerator` dereferences a live `Unit*`; the Rust creature
 /// step has no object accessor, so the same facts are collected here from
-/// [`PlayerRegistry`] and every DashMap guard is dropped before the legacy map
-/// lock is taken — the pattern the aggro scan already uses.
-pub(crate) fn collect_legacy_chase_target_snapshots_like_cpp(
+/// [`PlayerRegistry`] and every DashMap guard is dropped before the canonical
+/// map lock is taken — the pattern the aggro scan already uses.
+pub(crate) fn collect_chase_target_snapshots_like_cpp(
     registry: &wow_world::session::directory::PlayerRegistry,
 ) -> std::collections::HashMap<
     (u16, u32, wow_core::ObjectGuid),
@@ -1364,129 +1247,57 @@ pub(crate) fn collect_legacy_chase_target_snapshots_like_cpp(
         .collect()
 }
 
-/// Run one legacy global creature-movement tick and deliver its runtime plan.
+/// Wake every in-world session of each map key the lifecycle phase changed.
 ///
-/// Production reaches this through the map-owned
-/// `RustyCore.LegacyCreatureGlobalRuntime` loop. The tick
-/// body itself owns all map-lock ordering; delivery happens afterwards through
-/// the already-tested `SendIfVisibleLikeCpp` rail.
-pub(crate) fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
-    legacy_map_manager: &SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
-    diff_ms: u32,
+/// The canonical owner (#1263 F6-8D3b-1) calls it with the executor's deferred
+/// refresh keys once every guard is released.
+pub(crate) fn deliver_creature_lifecycle_refreshes_like_cpp(
+    refresh_map_keys: &[(u16, u32)],
     registry: &wow_world::session::directory::PlayerRegistry,
-) -> (
-    wow_world::session::LegacyCreatureMovementTickOutcomeLikeCpp,
-    RuntimeDeliverySummaryLikeCpp,
-) {
-    let chase_targets = collect_legacy_chase_target_snapshots_like_cpp(registry);
-    let outcome = wow_world::session::run_legacy_creature_movement_tick_once_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        mmap_config,
-        mmap_pathfinder,
-        &chase_targets,
-        diff_ms,
-    );
-    let delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
-    (outcome, delivery)
-}
-
-/// Run one legacy global creature lifecycle tick and wake affected sessions.
-///
-/// Production reaches this through the map-owned
-/// `RustyCore.LegacyCreatureGlobalRuntime` loop. The
-/// lifecycle body mutates legacy/canonical map state and returns map keys whose
-/// sessions need to recompute creature visibility; delivery is map-scoped
-/// refresh commands via `try_send`.
-pub(crate) fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
-    legacy_map_manager: &SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    map_store: &wow_data::MapStore,
-    now: std::time::Instant,
-    registry: &wow_world::session::directory::PlayerRegistry,
-) -> (
-    wow_world::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
-    RuntimeVisibilityRefreshDeliverySummaryLikeCpp,
-) {
-    let outcome = wow_world::session::run_legacy_creature_lifecycle_tick_once_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        map_store,
-        now,
-    );
+) -> RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
     let mut delivery = RuntimeVisibilityRefreshDeliverySummaryLikeCpp::default();
-    for (map_id, instance_id) in &outcome.refresh_map_keys {
+    for (map_id, instance_id) in refresh_map_keys {
         delivery.merge(deliver_refresh_visible_world_creatures_like_cpp(
             *map_id,
             *instance_id,
             registry,
         ));
     }
-    (outcome, delivery)
+    delivery
 }
 
-/// Run one legacy global creature aggro scan and deliver attack-start commands.
-///
-/// Production reaches this through the map-owned
-/// `RustyCore.LegacyCreatureGlobalRuntime` loop. Candidate
-/// player snapshots are collected before taking the legacy map lock; delivery
-/// happens after the map-owned aggro result is computed.
-pub(crate) fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
-    legacy_map_manager: &SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+/// Submit the lifecycle phase's respawn statements to the shared writer, in
+/// production order, while the caller still holds the respawn mutation-order
+/// gate (#1263 F6-8D3b-1).
+pub(crate) fn submit_creature_lifecycle_respawn_db_mutations_like_cpp(
+    mutations: &mut Vec<wow_persistence::RespawnPersistenceMutationLikeCpp>,
+    respawn_db_writer_tx: &RespawnDbWriterSenderLikeCpp,
+) -> usize {
+    let mut submitted = 0;
+    for mutation in mutations.drain(..) {
+        if respawn_db_writer_tx.send(mutation).is_err() {
+            tracing::error!(
+                "Shared respawn DB writer stopped before creature respawn statement submission"
+            );
+        } else {
+            submitted += 1;
+        }
+    }
+    submitted
+}
+
+/// Deliver the committed attack starts, then the committed stops, to their
+/// victim sessions, as one summary. The canonical owner (#1263 F6-8D3b-1) hands
+/// it the executor's committed commands after every guard is released.
+pub(crate) fn deliver_committed_creature_combat_commands_like_cpp(
+    applied_start_commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
+    applied_stop_commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
     registry: &wow_world::session::directory::PlayerRegistry,
-    aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
-) -> (
-    wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
-    RuntimeCreatureAttackStartDeliverySummaryLikeCpp,
-    RuntimeDeliverySummaryLikeCpp,
-) {
-    let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
-        registry,
-        canonical_map_manager,
-    );
-    let mut outcome = wow_world::session::run_legacy_creature_aggro_tick_once_with_config_like_cpp(
-        legacy_map_manager,
-        &candidates,
-        aggro_config,
-    );
-    let start_outcomes =
-        apply_canonical_creature_attack_starts_like_cpp(&outcome.commands, canonical_map_manager);
-    let stop_outcomes = apply_canonical_creature_attack_stops_like_cpp(
-        &outcome.stop_commands,
-        canonical_map_manager,
-    );
-    retain_committed_creature_combat_events_like_cpp(
-        &mut outcome.plan,
-        &outcome.commands,
-        &start_outcomes,
-        &outcome.stop_commands,
-        &stop_outcomes,
-    );
-    // Delivery is an adapter over committed map outcomes. A stale/missing map
-    // command cannot publish a packet or ask a Session to reconstruct the
-    // transition that the canonical owner rejected.
-    let applied_start_commands: Vec<_> = outcome
-        .commands
-        .iter()
-        .zip(&start_outcomes)
-        .filter(|(_, map_outcome)| map_outcome.is_applied())
-        .map(|(command, _)| command.clone())
-        .collect();
-    let applied_stop_commands: Vec<_> = outcome
-        .stop_commands
-        .iter()
-        .zip(&stop_outcomes)
-        .filter(|(_, map_outcome)| map_outcome.is_applied())
-        .map(|(command, _)| command.clone())
-        .collect();
+) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
     let mut delivery =
-        deliver_creature_attack_start_commands_like_cpp(&applied_start_commands, registry);
+        deliver_creature_attack_start_commands_like_cpp(applied_start_commands, registry);
     let stop_delivery =
-        deliver_creature_attack_stop_commands_like_cpp(&applied_stop_commands, registry);
+        deliver_creature_attack_stop_commands_like_cpp(applied_stop_commands, registry);
     delivery.commands_seen += stop_delivery.commands_seen;
     delivery.candidates_seen += stop_delivery.candidates_seen;
     delivery.candidates_queued += stop_delivery.candidates_queued;
@@ -1496,461 +1307,5 @@ pub(crate) fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
     delivery.candidates_skipped_not_in_world += stop_delivery.candidates_skipped_not_in_world;
     delivery.candidates_skipped_dead += stop_delivery.candidates_skipped_dead;
     delivery.send_failed += stop_delivery.send_failed;
-    let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
-    (outcome, delivery, plan_delivery)
-}
-
-/// Run one legacy global creature melee tick and deliver victim commands.
-///
-/// Production reaches this through the map-owned
-/// `RustyCore.LegacyCreatureGlobalRuntime` loop. The tick
-/// body mutates canonical victim health and returns final-health commands; this
-/// bridge delivers them outside all map locks.
-pub(crate) fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
-    legacy_map_manager: &SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    registry: &wow_world::session::directory::PlayerRegistry,
-    config: &wow_world::session::LegacyCreatureAggroConfigLikeCpp,
-) -> (
-    wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
-    RuntimeCreatureMeleeDeliverySummaryLikeCpp,
-    RuntimeDeliverySummaryLikeCpp,
-) {
-    let outcome = wow_world::session::run_legacy_creature_melee_tick_once_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        config,
-    );
-    let delivery = deliver_creature_melee_damage_commands_like_cpp(&outcome.commands, registry);
-    let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
-    (outcome, delivery, plan_delivery)
-}
-
-pub(crate) fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp(
-    legacy_map_manager: &SharedMapManager,
-    canonical_map_manager: Option<&wow_world::session::SharedCanonicalMapManager>,
-    registry: &wow_world::session::directory::PlayerRegistry,
-    config: &wow_world::session::LegacyCreatureAggroConfigLikeCpp,
-) -> (
-    wow_world::session::LegacyCreatureSpellTickOutcomeLikeCpp,
-    RuntimeDeliverySummaryLikeCpp,
-) {
-    let outcome = wow_world::session::run_legacy_creature_spell_tick_once_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        config,
-    );
-    // START and GO are committed map events and enter every eligible
-    // observer's durable FIFO in plan order.
-    let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
-    (outcome, plan_delivery)
-}
-
-/// Combined single-shot legacy creature runtime bridge.
-///
-/// This is the production loop body behind the
-/// `RustyCore.LegacyCreatureGlobalRuntime` flag and the same body used by the
-/// task-boundary tests. It mirrors the current legacy creature tick split while
-/// proving that lifecycle refresh and movement fanout can run without holding
-/// map locks during channel delivery.
-#[derive(Debug)]
-pub(crate) struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
-    pub boundary: CreatureRuntimeBoundaryOutcomeLikeCpp,
-    pub player_melee: wow_world::session::LegacyPlayerMeleeTickOutcomeLikeCpp,
-    pub player_melee_delivery: RuntimePlayerMeleeDeliverySummaryLikeCpp,
-    pub lifecycle: wow_world::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
-    pub lifecycle_delivery: RuntimeVisibilityRefreshDeliverySummaryLikeCpp,
-    pub movement: wow_world::session::LegacyCreatureMovementTickOutcomeLikeCpp,
-    pub movement_delivery: RuntimeDeliverySummaryLikeCpp,
-    pub aggro: wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
-    pub aggro_delivery: RuntimeCreatureAttackStartDeliverySummaryLikeCpp,
-    pub aggro_plan_delivery: RuntimeDeliverySummaryLikeCpp,
-    pub spell: wow_world::session::LegacyCreatureSpellTickOutcomeLikeCpp,
-    pub spell_plan_delivery: RuntimeDeliverySummaryLikeCpp,
-    pub melee: wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
-    pub melee_delivery: RuntimeCreatureMeleeDeliverySummaryLikeCpp,
-    pub melee_plan_delivery: RuntimeDeliverySummaryLikeCpp,
-}
-
-pub(crate) fn run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp(
-    input: CreatureRuntimeTickInputLikeCpp,
-    legacy_map_manager: &SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    map_store: &wow_data::MapStore,
-    mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
-    aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
-    now: std::time::Instant,
-    registry: &wow_world::session::directory::PlayerRegistry,
-    respawn_db_mutation_order: Option<&SharedRespawnDbMutationOrderLikeCpp>,
-    respawn_db_writer_tx: Option<&RespawnDbWriterSenderLikeCpp>,
-    group_registry: Option<&Arc<wow_social::group::GroupRegistry>>,
-    player_melee_phase_state: &SharedPlayerMeleePhaseStateLikeCpp,
-) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
-    // Phase 0: player auto-attack, before the respawn ordering gate is taken.
-    //
-    // Two reasons it goes first and outside that guard. The DB-order mutex must
-    // not be held across a phase that takes both map locks, and a creature a
-    // player just killed has to be dead before lifecycle enumerates corpses —
-    // otherwise its corpse waits a whole tick (#28).
-    let (player_melee, player_melee_delivery) =
-        run_legacy_player_melee_tick_and_deliver_once_like_cpp(
-            legacy_map_manager,
-            canonical_map_manager,
-            registry,
-            group_registry,
-            input.diff_ms,
-            player_melee_phase_state,
-            &aggro_config,
-        );
-
-    // Hold the same ordering gate as the canonical tick from before the
-    // lifecycle mutation until every resulting statement is in the shared
-    // mailbox. This makes DB operation order match runtime mutation order.
-    let respawn_db_mutation_order_guard = respawn_db_mutation_order.map(|order| {
-        order
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-    });
-    let (mut lifecycle, lifecycle_delivery) =
-        run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
-            legacy_map_manager,
-            canonical_map_manager,
-            map_store,
-            now,
-            registry,
-        );
-    let db_mutations_produced = lifecycle.respawn_db_mutations.len();
-    let mut db_mutations_submitted = 0;
-    if let Some(respawn_db_writer_tx) = respawn_db_writer_tx {
-        for mutation in lifecycle.respawn_db_mutations.drain(..) {
-            if respawn_db_writer_tx.send(mutation).is_err() {
-                tracing::error!(
-                    "Shared respawn DB writer stopped before legacy respawn statement submission"
-                );
-            } else {
-                db_mutations_submitted += 1;
-            }
-        }
-    }
-    drop(respawn_db_mutation_order_guard);
-
-    let (movement, movement_delivery) = run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        mmap_config,
-        mmap_pathfinder,
-        input.diff_ms,
-        registry,
-    );
-    let (aggro, aggro_delivery, aggro_plan_delivery) =
-        run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
-            legacy_map_manager,
-            canonical_map_manager,
-            registry,
-            aggro_config.clone(),
-        );
-    let (spell, spell_plan_delivery) = run_legacy_creature_spell_tick_and_deliver_once_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        registry,
-        &aggro_config,
-    );
-    let (melee, melee_delivery, melee_plan_delivery) =
-        run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
-            legacy_map_manager,
-            canonical_map_manager,
-            registry,
-            &aggro_config,
-        );
-
-    let publication_events = movement.plan.events.len()
-        + aggro.plan.events.len()
-        + spell.plan.events.len()
-        + melee.plan.events.len();
-    let session_commands = lifecycle_delivery.candidates_queued
-        + movement_delivery.candidates_queued
-        + aggro_delivery.candidates_queued
-        + aggro_plan_delivery.candidates_queued
-        + spell_plan_delivery.candidates_queued
-        + melee_delivery.candidates_queued
-        + melee_plan_delivery.candidates_queued
-        + player_melee_delivery.candidates_queued;
-    let map_incarnation_mismatches =
-        input.current_map_incarnation_mismatches_like_cpp(canonical_map_manager);
-    let mut completed_phases = Vec::with_capacity(6);
-    if !player_melee.skipped_owner_not_global {
-        completed_phases.push(CreatureRuntimePhaseLikeCpp::PlayerMelee);
-    }
-    if !lifecycle.skipped_owner_not_global {
-        completed_phases.push(CreatureRuntimePhaseLikeCpp::Lifecycle);
-    }
-    if !movement.skipped_owner_not_global {
-        completed_phases.push(CreatureRuntimePhaseLikeCpp::Movement);
-    }
-    if !aggro.skipped_owner_not_global {
-        completed_phases.push(CreatureRuntimePhaseLikeCpp::Aggro);
-    }
-    if !spell.skipped_owner_not_global {
-        completed_phases.push(CreatureRuntimePhaseLikeCpp::Spell);
-    }
-    if !melee.skipped_owner_not_global {
-        completed_phases.push(CreatureRuntimePhaseLikeCpp::Melee);
-    }
-    let boundary = CreatureRuntimeBoundaryOutcomeLikeCpp {
-        input,
-        completed_phases,
-        map_incarnation_mismatches,
-        publication_events,
-        session_commands,
-        db_mutations_produced,
-        db_mutations_submitted,
-    };
-
-    LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
-        boundary,
-        player_melee,
-        player_melee_delivery,
-        lifecycle,
-        lifecycle_delivery,
-        movement,
-        movement_delivery,
-        aggro,
-        aggro_delivery,
-        aggro_plan_delivery,
-        spell,
-        spell_plan_delivery,
-        melee,
-        melee_delivery,
-        melee_plan_delivery,
-    }
-}
-
-/// Compatibility entry point for focused callers that do not yet own the
-/// loop-level tick envelope. Production uses the explicit-input variant.
-pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
-    legacy_map_manager: &SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    map_store: &wow_data::MapStore,
-    mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
-    aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
-    diff_ms: u32,
-    now: std::time::Instant,
-    registry: &wow_world::session::directory::PlayerRegistry,
-    respawn_db_mutation_order: Option<&SharedRespawnDbMutationOrderLikeCpp>,
-    respawn_db_writer_tx: Option<&RespawnDbWriterSenderLikeCpp>,
-    group_registry: Option<&Arc<wow_social::group::GroupRegistry>>,
-    player_melee_phase_state: &SharedPlayerMeleePhaseStateLikeCpp,
-) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
-    let input =
-        CreatureRuntimeTickInputLikeCpp::capture_like_cpp(0, diff_ms, canonical_map_manager);
-    run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp(
-        input,
-        legacy_map_manager,
-        canonical_map_manager,
-        map_store,
-        mmap_config,
-        mmap_pathfinder,
-        aggro_config,
-        now,
-        registry,
-        respawn_db_mutation_order,
-        respawn_db_writer_tx,
-        group_registry,
-        player_melee_phase_state,
-    )
-}
-
-/// Spawn the legacy global creature runtime loop.
-///
-/// C++ contrast: `World::Update` calls `sMapMgr->Update(diff)` and
-/// `MapManager::Update` uses `CONFIG_INTERVAL_MAPUPDATE` / `MapUpdateInterval`.
-/// This Rust bridge uses the same configured interval and is enabled by default
-/// so creature AI is map-owned like C++. Set
-/// `RustyCore.LegacyCreatureGlobalRuntime = 0` only for local diagnostics.
-///
-/// The actual tick is executed via `spawn_blocking` because the legacy manager
-/// uses `std::sync::RwLock` and movement may touch synchronous mmap/pathfinding
-/// state. Packet fanout still happens outside map locks inside the single-shot
-/// bridge.
-pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
-    enabled: bool,
-    legacy_map_manager: SharedMapManager,
-    canonical_map_manager: SharedCanonicalMapManager,
-    map_store: Arc<wow_data::MapStore>,
-    mmap_config: MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
-    aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
-    tick_interval_ms: u32,
-    respawn_db_writer_tx: Option<RespawnDbWriterSenderLikeCpp>,
-    respawn_db_mutation_order: SharedRespawnDbMutationOrderLikeCpp,
-    respawn_db_producer_stop: SharedRespawnDbProducerStopLikeCpp,
-    group_registry: Option<Arc<wow_social::group::GroupRegistry>>,
-    player_registry: Arc<PlayerRegistry>,
-) -> tokio::task::JoinHandle<()> {
-    // Per-map accumulated time for the melee phase's combat-reference sweep.
-    // Owned by the loop task, cloned into each `spawn_blocking`, never held
-    // across a map guard.
-    let player_melee_phase_state: SharedPlayerMeleePhaseStateLikeCpp = Arc::new(Mutex::new(
-        wow_world::session::PlayerMeleePhaseStateLikeCpp::default(),
-    ));
-    if !enabled {
-        return tokio::spawn(async move {
-            let mut interval =
-                tokio::time::interval(Duration::from_millis(u64::from(tick_interval_ms.max(1))));
-            loop {
-                interval.tick().await;
-                if respawn_db_producer_stop.load(Ordering::Acquire) {
-                    break;
-                }
-            }
-        });
-    }
-
-    tokio::spawn(async move {
-        let mut interval =
-            tokio::time::interval(Duration::from_millis(u64::from(tick_interval_ms.max(1))));
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-        // Track real wall-clock elapsed between ticks. C++ `World::Update(diff)`
-        // / `MapManager::Update(diff)` feed the measured frame diff to
-        // `MotionMaster::Update` so `_timer.Update(diff)` advances at real time.
-        // The canonical map loop already does this; the legacy creature loop
-        // previously passed the constant `tick_interval_ms`, which let the
-        // generator timer drift behind the spline's real-clock finalization and
-        // delayed wander re-arming in proportion to scheduler lag. Mirror the
-        // canonical loop here.
-        let mut last_tick = Instant::now();
-        let mut tick_epoch = 0_u64;
-
-        loop {
-            interval.tick().await;
-            let stop_after_tick = respawn_db_producer_stop.load(Ordering::Acquire);
-            let now = Instant::now();
-            let diff_ms = now
-                .duration_since(last_tick)
-                .as_millis()
-                .min(u128::from(u32::MAX)) as u32;
-            last_tick = now;
-            if diff_ms == 0 {
-                continue;
-            }
-            let tick_input = CreatureRuntimeTickInputLikeCpp::capture_like_cpp(
-                tick_epoch,
-                diff_ms,
-                Some(&canonical_map_manager),
-            );
-            tick_epoch = tick_epoch.saturating_add(1);
-            let legacy_for_tick = Arc::clone(&legacy_map_manager);
-            let canonical_for_tick = Arc::clone(&canonical_map_manager);
-            let map_store_for_tick = Arc::clone(&map_store);
-            let mmap_config_for_tick = mmap_config.clone();
-            let mmap_pathfinder_for_tick = mmap_pathfinder.clone();
-            let aggro_config_for_tick = aggro_config.clone();
-            let registry_for_tick = Arc::clone(&player_registry);
-            let respawn_db_mutation_order_for_tick = Arc::clone(&respawn_db_mutation_order);
-            let respawn_db_writer_tx_for_tick = respawn_db_writer_tx.clone();
-            let group_registry_for_tick = group_registry.clone();
-            let player_melee_phase_state_for_tick = Arc::clone(&player_melee_phase_state);
-
-            let tick_result = tokio::task::spawn_blocking(move || {
-                run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp(
-                    tick_input,
-                    &legacy_for_tick,
-                    Some(&canonical_for_tick),
-                    map_store_for_tick.as_ref(),
-                    &mmap_config_for_tick,
-                    mmap_pathfinder_for_tick.as_deref(),
-                    aggro_config_for_tick,
-                    now,
-                    registry_for_tick.as_ref(),
-                    Some(&respawn_db_mutation_order_for_tick),
-                    respawn_db_writer_tx_for_tick.as_ref(),
-                    group_registry_for_tick.as_ref(),
-                    &player_melee_phase_state_for_tick,
-                )
-            })
-            .await;
-
-            let Ok(outcome) = tick_result else {
-                tracing::error!("Legacy global creature runtime tick task panicked; stopping loop");
-                break;
-            };
-
-            if outcome.boundary.map_incarnation_mismatches > 0 {
-                tracing::warn!(
-                    tick_epoch = outcome.boundary.input.tick_epoch,
-                    mismatches = outcome.boundary.map_incarnation_mismatches,
-                    "Legacy creature runtime tick observed a map incarnation change after admission"
-                );
-            }
-
-            let touched_creatures = outcome.lifecycle.corpses_despawned
-                + outcome.movement.movement_packets
-                + outcome.aggro.aggro_starts
-                + outcome.spell.casts_ready
-                + outcome.melee.canonical_hits;
-            if touched_creatures > 0 {
-                debug!(
-                    lifecycle_corpses_despawned = outcome.lifecycle.corpses_despawned,
-                    lifecycle_respawns_processed = outcome.lifecycle.respawns_processed,
-                    lifecycle_refresh_commands = outcome.lifecycle_delivery.candidates_queued,
-                    movement_packets = outcome.movement.movement_packets,
-                    movement_commands = outcome.movement_delivery.candidates_queued,
-                    movement_seen = outcome.movement_delivery.candidates_seen,
-                    movement_skipped_not_in_world =
-                        outcome.movement_delivery.candidates_skipped_not_in_world,
-                    movement_skipped_wrong_map =
-                        outcome.movement_delivery.candidates_skipped_wrong_map,
-                    movement_skipped_wrong_instance =
-                        outcome.movement_delivery.candidates_skipped_wrong_instance,
-                    movement_skipped_distance =
-                        outcome.movement_delivery.candidates_skipped_distance,
-                    movement_send_failed = outcome.movement_delivery.send_failed,
-                    aggro_starts = outcome.aggro.aggro_starts,
-                    aggro_commands = outcome.aggro_delivery.candidates_queued,
-                    aggro_alerts = outcome.aggro.alert_triggers,
-                    aggro_movement_interrupts = outcome.aggro.movement_interrupts,
-                    aggro_plan_commands = outcome.aggro_plan_delivery.candidates_queued,
-                    creature_spell_casts = outcome.spell.casts_ready,
-                    creature_spell_plan_events = outcome.spell_plan_delivery.events_seen,
-                    creature_spell_plan_commands = outcome.spell_plan_delivery.candidates_queued,
-                    creature_spell_plan_skipped_not_in_world =
-                        outcome.spell_plan_delivery.candidates_skipped_not_in_world,
-                    creature_spell_plan_skipped_wrong_map =
-                        outcome.spell_plan_delivery.candidates_skipped_wrong_map,
-                    creature_spell_plan_skipped_wrong_instance = outcome
-                        .spell_plan_delivery
-                        .candidates_skipped_wrong_instance,
-                    creature_spell_plan_skipped_distance =
-                        outcome.spell_plan_delivery.candidates_skipped_distance,
-                    creature_spell_plan_send_failed = outcome.spell_plan_delivery.send_failed,
-                    creature_spell_noninstant_unrepresented =
-                        outcome.spell.noninstant_casts_unrepresented,
-                    creature_spell_effects_unrepresented =
-                        outcome.spell.spell_effects_unrepresented,
-                    creature_spell_projectiles_unrepresented =
-                        outcome.spell.spell_projectiles_unrepresented,
-                    creature_spell_visuals_unrepresented =
-                        outcome.spell.spell_visuals_unrepresented,
-                    creature_spell_range_rejections = outcome.spell.spell_range_rejections,
-                    creature_spell_los_rejections = outcome.spell.spell_los_rejections,
-                    melee_compatibility_hits = outcome.melee.canonical_hits,
-                    melee_outcomes_unrepresented = outcome.melee.melee_outcomes_unrepresented,
-                    melee_attacker_incarnation_rejections =
-                        outcome.melee.attacker_incarnation_rejections,
-                    melee_creature_victim_sync_cas_rejections =
-                        outcome.melee.legacy_creature_victim_sync_cas_rejections,
-                    melee_commands = outcome.melee_delivery.candidates_queued,
-                    melee_plan_commands = outcome.melee_plan_delivery.candidates_queued,
-                    "Legacy global creature runtime tick produced visible work"
-                );
-            }
-
-            if stop_after_tick {
-                break;
-            }
-        }
-    })
+    delivery
 }

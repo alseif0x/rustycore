@@ -1,0 +1,7 @@
+crates/wow-world/src/session/canonical_access/operations.rs	set_player_rest_flag_like_cpp	crates/wow-world-instances/src/instance_session/rest_flags.rs
+crates/wow-world/src/session/canonical_access/operations.rs	remove_player_rest_flag_like_cpp	crates/wow-world-instances/src/instance_session/rest_flags.rs
+crates/wow-world/src/session/canonical_access/operations.rs	defer_player_rest_flag_sync_like_cpp	crates/wow-world-instances/src/instance_session/rest_flags.rs
+crates/wow-world/src/session/canonical_access/operations.rs	end_player_rest_flag_sync_like_cpp	crates/wow-world-instances/src/instance_session/rest_flags.rs
+crates/wow-world/src/session/canonical_access/operations.rs	clear_player_deferred_rest_flag_update_like_cpp	crates/wow-world-instances/src/instance_session/rest_flags.rs
+crates/wow-world/src/session/canonical_access/operations.rs	take_player_deferred_rest_flag_update_dirty_like_cpp	crates/wow-world-instances/src/instance_session/rest_flags.rs
+crates/wow-world/src/session/canonical_access/operations.rs	with_owned_player_mut_for_rest_like_cpp	crates/wow-world-instances/src/instance_session/rest_flags.rs

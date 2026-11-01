@@ -3,14 +3,16 @@
 //! group; the canonical owners keep authority over the state they touch.
 
 use super::*;
+
+pub(crate) use wow_world_inventory::CR_ARMOR_PENETRATION_LIKE_CPP;
+
 mod damage;
-mod death;
+mod host;
+#[cfg(test)]
 mod melee;
 mod regeneration;
 mod state;
 mod vitals;
 
-pub(in crate::session) use damage::write_absorbed_shield_amount_like_cpp;
-pub(in crate::session) use melee::{
-    RepresentedArmorMitigationLikeCpp, RepresentedMeleeSwingLikeCpp,
-};
+#[cfg(test)]
+pub(in crate::session) use wow_world_creature::RepresentedArmorMitigationLikeCpp;

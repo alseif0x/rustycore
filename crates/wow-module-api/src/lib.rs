@@ -5,11 +5,18 @@
 
 //! Public source API for trusted Rust modules compiled into the server.
 //!
-//! This crate is deliberately small: it exists only to carry the one vertical
-//! issue #228 earned, `player.login -> SendSystemMessageSelf`. It mirrors C++
-//! `ScriptMgr::OnPlayerLogin` (`ScriptMgr.cpp:2052-2055`), invoked after a
-//! completed login (`CharacterHandler.cpp:1452`), against the `PlayerScript`
-//! hook shape (`ScriptMgr.h:764`).
+//! Source API 1 (#228) carried one vertical, `player.login ->
+//! SendSystemMessageSelf`. It mirrors C++ `ScriptMgr::OnPlayerLogin`
+//! (`ScriptMgr.cpp:2052-2055`), invoked after a completed login
+//! (`CharacterHandler.cpp:1452`), against the `PlayerScript` hook shape
+//! (`ScriptMgr.h:764`).
+//!
+//! Source API 2 (#1445) keeps that contract unchanged and adds the registry by
+//! capability: a module registers a [`ModuleHooks`] set with one entry per
+//! hook family it implements, modelled on AzerothCore's script classes
+//! (`src/server/game/Scripting/ScriptDefines/*.h`). Dispatch stays in
+//! `ModuleId` order, validates each batch as a whole, and isolates a panicking
+//! callback by disabling its module for the rest of the process.
 //!
 //! What a module receives is an immutable snapshot; what it returns is a
 //! validated batch of typed effects. It never sees a `WorldSession`, a
@@ -20,17 +27,53 @@
 //! compiled in, the types are expected to evolve, and official internal
 //! scripts keep their own separate dispatch.
 
+mod chat;
 mod config;
+mod creature;
+mod decision;
 mod effect;
 mod hook;
+mod player;
 mod registry;
+mod world;
 
+pub use chat::{ChatKind, ChatMessageSnapshot, ChatModule, ChatOutcome};
 pub use config::{ModuleConfig, ModuleConfigError, ModuleConfigValue};
-pub use effect::{ModuleEffectError, PlayerLoginEffect, PlayerLoginEffects, ScopedEffects};
-pub use hook::{PlayerLoginModule, PlayerLoginSnapshot};
-pub use registry::{
-    ModuleDescriptor, ModuleId, ModuleRegistrationError, ModuleRegistry, ModuleVersion,
+pub use creature::{
+    CreatureAddedToWorldSnapshot, CreatureDiedSnapshot, CreatureLocation, CreatureModule,
 };
+pub use decision::ChatDecision;
+pub use effect::{
+    EffectBatch, HookOutcome, ModuleEffectError, NotificationEffect, PlayerLoginEffect,
+    PlayerLoginEffects, ScopedEffects,
+};
+pub use hook::{PlayerLoginModule, PlayerLoginSnapshot};
+pub use player::{
+    CreatureKillSnapshot, ItemEquippedSnapshot, LogoutReason, LootItemSnapshot, LootMoneySnapshot,
+    PlayerHook, PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule,
+    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot, SpellCastSnapshot,
+};
+pub use registry::{
+    HookFamily, ModuleDescriptor, ModuleHooks, ModuleId, ModuleRegistrationError, ModuleRegistry,
+    ModuleVersion, module_callback_in_progress,
+};
+pub use world::{
+    ConfigLoadedSnapshot, WorldEffect, WorldEffects, WorldModule, WorldShutdownSnapshot,
+    WorldStartupSnapshot, WorldUpdateSnapshot,
+};
+
+/// The player identity every snapshot carries. Re-exported so a module names
+/// it through this crate alone: `tools/modules/compose.py` refuses a module
+/// with a normal dependency on any other server crate, `wow-core` included.
+pub use wow_core::ObjectGuid;
+
+/// The source API this server provides. `tools/modules/compose.py` records it
+/// in `modules.lock.toml` and its tests assert it matches this constant.
+pub const SOURCE_API: &str = "2";
+
+/// Every source API a module may declare. API 2 is additive over API 1, so a
+/// module written against API 1 composes and runs unchanged.
+pub const COMPATIBLE_SOURCE_APIS: &[&str] = &["1", "2"];
 
 #[cfg(test)]
 #[path = "tests.rs"]

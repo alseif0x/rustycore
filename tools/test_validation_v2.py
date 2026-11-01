@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import io
 import importlib.machinery
 import importlib.util
 import json
@@ -17,6 +18,7 @@ import sys
 import tempfile
 import threading
 import time
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 
@@ -61,6 +63,23 @@ def synthetic_metadata(repo: Path) -> dict[str, object]:
 def stable_manifest(value: object) -> object:
     """The runner owns the comparison form; the fixture must not keep a rival copy."""
     return runner.normalise_manifest(value)
+
+
+def test_no_validation_level() -> None:
+    for arguments in ([], ["none"], ["1"]):
+        captured = io.StringIO()
+        with patch.object(sys, "argv", ["validation-v2", *arguments]), \
+             patch.object(runner, "provenance", side_effect=AssertionError("level 1 must not inspect Git/Rust")), \
+             patch.object(runner, "command_environment", side_effect=AssertionError("level 1 must not probe tools")), \
+             patch.object(runner, "acquire_lock", side_effect=AssertionError("level 1 must not acquire locks")), \
+             patch.object(runner, "write_manifest", side_effect=AssertionError("level 1 must not produce evidence")), \
+             redirect_stdout(captured):
+            assert runner.main() == 0
+        assert "NOT VALIDATED" in captured.getvalue()
+        assert "no acceptance manifest" in captured.getvalue()
+    for option in ("--logs", "--require-changes", "--keep-going", "--architecture", "--timings"):
+        with patch.object(sys, "argv", ["validation-v2", "1", option]):
+            assert runner.main() == runner.USAGE_ERROR
 
 
 def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], directory: Path) -> None:
@@ -111,6 +130,31 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert success["plan"]["workspace"] is None
     assert len(success["commands"]) == 2
     assert all(command["status"] == "passed" for command in success["commands"])
+    alias_manifest = directory / "level-two.json"
+    alias_result = invoke("2", alias_manifest, {"PROTOC": "/must-not-be-probed"})
+    assert alias_result.returncode == 0, alias_result.stderr
+    assert "ITERATION ONLY" in alias_result.stdout
+    assert json.loads(alias_manifest.read_text())["profile"] == "quick"
+    logged_manifest = directory / "logged.json"
+    logged_result = invoke("quick", logged_manifest, flags=["--logs"])
+    assert logged_result.returncode == 0, logged_result.stderr
+    logged = json.loads(logged_manifest.read_text())
+    assert stable_manifest(logged) == stable_manifest(success)
+    log_directory = directory / "logged-logs"
+    assert log_directory.stat().st_mode & 0o777 == 0o700
+    logs = sorted(log_directory.glob("*.log"))
+    assert len(logs) == len(logged["commands"])
+    for log, command in zip(logs, logged["commands"]):
+        assert log.stat().st_mode & 0o777 == 0o600
+        assert json.loads(log.read_text().splitlines()[0])["argv"] == command["argv"]
+    retained = [log.read_bytes() for log in logs]
+    repeated_log = invoke("quick", logged_manifest, flags=["--logs"])
+    assert repeated_log.returncode != 0  # Never overwrite earlier evidence.
+    assert [log.read_bytes() for log in logs] == retained
+    assert "command logs" in logged_result.stdout
+    for mode, flag in (("quick", "--keep-going"), ("audit", "--require-changes"), ("verify", "--logs")):
+        invalid_option = invoke(mode, directory / "invalid-option.json", flags=[flag])
+        assert invalid_option.returncode == runner.USAGE_ERROR
     stable_success = stable_manifest(success)
     for run in range(2, 11):
         repeated_manifest = directory / f"success-{run}.json"
@@ -193,7 +237,10 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     # heavy lock is free decides how far it gets. Only the recorded budget is
     # this test's business.
     audit_manifest = directory / "audit-timeout.json"
-    invoke("audit", audit_manifest)
+    audit_bin = directory / "audit-bin"
+    audit_bin.mkdir()
+    fake_tool(audit_bin / "cargo", "exit 0\n")
+    invoke("audit", audit_manifest, {"PATH": f"{audit_bin}:{base_env['PATH']}"})
     if audit_manifest.exists():
         recorded = json.loads(audit_manifest.read_text())
         assert recorded["resources"]["command_timeout_seconds"] == runner.AUDIT_TIMEOUT
@@ -302,6 +349,31 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     outcomes, exit_code = runner.run_steps(repo, steps, base_env, 30)
     assert exit_code == 19
     assert [outcome["section"] for outcome in outcomes] == ["pass", "fail"]
+
+    # The combined audit policy check must stop before expensive Cargo and
+    # persistence scans on failure, without dropping any green-path coverage.
+    audit = runner.audit_steps("base", 1)
+    for red_section, expected_sections in (
+        ("architecture-policy-check", ["diff-hygiene", "architecture-policy-check"]),
+        (None, [step["section"] for step in audit]),
+    ):
+        def simulated_body(step: dict[str, object]) -> str:
+            if step["section"] == red_section:
+                return "raise SystemExit(19)"
+            tool = step.get(runner.SCAN_ROOT_BANNER_KEY)
+            if tool is None:
+                return "pass"
+            # A green scan step must show the banner naming this checkout.
+            banner = f"{tool}: scan root {repo.resolve()} (fixture)"
+            return f"import sys; print({banner!r}, file=sys.stderr)"
+
+        simulated = [
+            {**step, "argv": [sys.executable, "-c", simulated_body(step)]}
+            for step in audit
+        ]
+        outcomes, exit_code = runner.run_steps(repo, simulated, base_env, 30)
+        assert exit_code == (19 if red_section else 0)
+        assert [outcome["section"] for outcome in outcomes] == expected_sections
 
     # An independent acceptance named by a red step still runs, the run keeps
     # the first failure's exit code, and steps after the named one do not run.
@@ -435,7 +507,7 @@ def test_interrupt_and_verdict_contract(
     environment["VALIDATION_V2_MANIFEST"] = str(manifest)
     environment["VALIDATION_V2_TIMEOUT_SECONDS"] = "60"
     process = subprocess.Popen(
-        [str(tools / "validation-v2"), "quick", "--base", "HEAD"],
+        [str(tools / "validation-v2"), "quick", "--base", "HEAD", "--logs"],
         cwd=repo,
         env=environment,
         text=True,
@@ -472,6 +544,8 @@ def test_interrupt_and_verdict_contract(
     assert last["failure_kind"] == "interrupted"
     assert last["status"] == "failed"
     assert last["argv"][0] == "actionlint"
+    interrupted_logs = directory / "interrupted-logs"
+    assert any("VALIDATION_V2_CHILD_READY" in log.read_text() for log in interrupted_logs.glob("*.log"))
     workflow.unlink()
     (fake_bin / "actionlint").unlink()
 
@@ -505,6 +579,14 @@ def test_interrupt_and_verdict_contract(
     assert result.returncode == 0, result.stderr
     accepted = verify(green_manifest)
     assert accepted.returncode == 0, accepted.stderr
+    assert runner.verify_manifest(green_manifest, "quick") == 0
+    assert runner.verify_manifest(green_manifest, "final") == runner.VERDICT_ERROR
+    guarded = subprocess.run(
+        [str(tools / "validation-v2"), "verify", "--manifest", str(green_manifest), "--require-profile", "final"],
+        cwd=repo, env=base_env, text=True, capture_output=True,
+    )
+    assert guarded.returncode == runner.VERDICT_ERROR
+    assert "required 'final'" in guarded.stderr
 
     green = json.loads(green_manifest.read_text())
     unreadable = directory / "unreadable.json"
@@ -546,6 +628,87 @@ def test_interrupt_and_verdict_contract(
     assert "requires --manifest" in usage.stderr
 
 
+def references_checker(planned: list[list[str]]) -> bool:
+    return any(runner.CHECKER_MANIFEST in command for command in planned)
+
+
+def test_handler_graph_contract() -> None:
+    """A crate manifest triggers the checker suite in final when its
+    dependency, feature or target tables or its package name change against
+    the base, in any TOML spelling, including a new or deleted crate; a
+    comment-only or other metadata edit does not (#1363 slices Q2 and 4c).
+    Quick never plans a checker command for any of them."""
+    checker_suite = ["cargo", "test", "--locked", *runner.CHECKER_CARGO,
+                     "--jobs", "2", "--lib", "--no-fail-fast"]
+    package = '[package]\nname = "x"\nversion = "0.1.0"\n'
+    with_handler = package + '\n[dependencies]\nwow-handler = { path = "../wow-handler" }\n'
+    without = package + '\n[dependencies]\nwow-core = { path = "../wow-core" }\n'
+    optional = (package + '\n[dependencies]\nwow-handler = { path = "../wow-handler", optional = true }\n'
+                '\n[features]\ndefault = []\n')
+    edits = {
+        # name: (base text, head text or None for a deletion, triggers)
+        "comment-only": (with_handler, with_handler + "# comment naming wow-handler\n", False),
+        "description": (with_handler, with_handler.replace(
+            'version = "0.1.0"\n', 'version = "0.1.0"\ndescription = "d"\n'), False),
+        "lints": (with_handler, with_handler + "\n[lints]\nworkspace = true\n", False),
+        "same-graph-table-form": (with_handler, package + '\n[dependencies.wow-handler]\npath = "../wow-handler"\n', False),
+        "adds-other-dependency": (with_handler, with_handler + 'wow-core = { path = "../wow-core" }\n', True),
+        "gains": (without, with_handler, True),
+        "loses": (with_handler, without, True),
+        "dotted": (without, package + '\n[dependencies]\nwow-handler.workspace = true\n', True),
+        "table-form": (without, package + '\n[dependencies.wow-handler]\npath = "../wow-handler"\n', True),
+        "quoted-key": (without, package + '\n[dependencies]\n"wow-handler" = { path = "../wow-handler" }\n', True),
+        "to-dev-dependency": (with_handler, package + '\n[dev-dependencies]\nwow-handler = { path = "../wow-handler" }\n', True),
+        # #1408 review follow-up 1: only one of these tables differs, so
+        # dropping it from `GRAPH_TABLES` fails this test.
+        "dev-dependencies-only": (without, without + '\n[dev-dependencies]\nwow-handler = { path = "../wow-handler" }\n', True),
+        "build-dependencies-only": (without, without + '\n[build-dependencies]\nwow-handler = { path = "../wow-handler" }\n', True),
+        "default-feature": (optional, optional.replace("default = []", 'default = ["wow-handler"]'), True),
+        "renamed-package": (with_handler, with_handler.replace('name = "x"', 'name = "y"'), True),
+        "target-table": (without, without + '\n[target.\'cfg(unix)\'.dependencies]\nwow-handler = { path = "../wow-handler" }\n', True),
+        "unparsable": (without, without + "[dependencies\n", True),
+        "deleted": (with_handler, None, True),
+        "deleted-plain": (without, None, True),
+    }
+    created = {"new": with_handler, "new-plain": without}
+    with tempfile.TemporaryDirectory(prefix="validation-v2-handler-graph-") as scratch:
+        root = Path(scratch)
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        for key, value in (("user.email", "validation-v2@example.invalid"), ("user.name", "Validation V2")):
+            subprocess.run(["git", "config", key, value], cwd=root, check=True)
+        for name, (base_text, _, _) in edits.items():
+            manifest = root / "crates" / name / "Cargo.toml"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(base_text)
+        subprocess.run(["git", "add", "."], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+        base = runner.output(root, "git", "rev-parse", "HEAD")
+        expected: dict[str, bool] = {}
+        for name, (_, head_text, triggers) in edits.items():
+            manifest = root / "crates" / name / "Cargo.toml"
+            if head_text is None:
+                manifest.unlink()
+            else:
+                manifest.write_text(head_text)
+            expected[name] = triggers
+        for name, text in created.items():
+            (root / "crates" / name).mkdir()
+            (root / "crates" / name / "Cargo.toml").write_text(text)
+            expected[name] = True
+        for name, triggers in expected.items():
+            path = f"crates/{name}/Cargo.toml"
+            assert runner.handler_graph_changed(root, base, [path]) is triggers, name
+            planned, _ = runner.validation_commands(root, "final", 2, base, runner.grouped_paths([path]), None)
+            quick_planned, _ = runner.validation_commands(root, "quick", 2, base, runner.grouped_paths([path]), None)
+            assert (checker_suite in planned) is triggers, name
+            # #1407 review follow-up 1: not merely "no `cargo test`", which
+            # quick could never plan; quick plans no checker command at all.
+            assert not references_checker(quick_planned), name
+        # A diff of several manifests triggers when any one of them does.
+        assert runner.handler_graph_changed(root, base, ["crates/comment-only/Cargo.toml", "crates/gains/Cargo.toml"])
+        assert not runner.handler_graph_changed(root, base, ["crates/comment-only/Cargo.toml", "crates/lints/Cargo.toml"])
+
+
 def test_planner_contract(repo: Path) -> None:
     metadata = synthetic_metadata(repo)
     one_crate_paths = ["crates/a/src/lib.rs"]
@@ -559,12 +722,13 @@ def test_planner_contract(repo: Path) -> None:
     }
     quick, _ = runner.validation_commands(repo, "quick", 2, "base", one_crate_groups, workspace)
     final, _ = runner.validation_commands(repo, "final", 2, "base", one_crate_groups, workspace)
-    assert any(command[:5] == ["cargo", "check", "--locked", "--tests", "--jobs"] for command in quick)
-    assert not any(command[:2] == ["cargo", "test"] for command in quick)
+    assert ["cargo", "fmt", "--all", "--check"] in quick
+    assert all(command[0] != "cargo" or command[1] == "fmt" for command in quick)
     final_check = next(command for command in final if command[:2] == ["cargo", "check"])
     assert all(package in final_check for package in ("a", "b", "c"))
     final_test = next(command for command in final if command[:2] == ["cargo", "test"])
     assert "a" in final_test and "b" not in final_test and "c" not in final_test
+    assert "--no-fail-fast" in final_test  # Same package/feature batch after a test failure.
     ratchet = ["python3", "tools/architecture/check_architecture.py", "hotspot-ratchet"]
     assert ratchet in final and ratchet not in quick
     physical = ["python3", "tools/architecture/check_architecture.py", "physical-files"]
@@ -578,9 +742,209 @@ def test_planner_contract(repo: Path) -> None:
         assert physical in only_final, changed
         assert ratchet not in only_final, changed
     physical_groups = runner.grouped_paths(["tools/architecture/physical-file-policy.json"])
-    physical_quick, _ = runner.validation_commands(repo, "quick", 2, "base", physical_groups, None)
-    assert ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_physical_files.py"] in physical_quick
+    physical_final, _ = runner.validation_commands(repo, "final", 2, "base", physical_groups, None)
+    assert ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_physical_files.py"] in physical_final
     assert len({tuple(command) for command in final}) == len(final)
+    # R1 net-move (#1241/#1263): planned only in final, for a wow-world/src
+    # change (including a deletion) or for the reviewed R1 policy, never in
+    # quick; its own suite only in final.
+    net_move = ["python3", "tools/architecture/net_move.py", "check", "--base", "base"]
+    net_move_suite = ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_net_move.py"]
+    assert net_move not in quick and net_move not in final
+    for mode in ("quick", "final"):
+        for changed in ("crates/wow-world/src/session/mod.rs", "crates/wow-world/src/deleted.rs"):
+            planned, _ = runner.validation_commands(repo, mode, 2, "base", runner.grouped_paths([changed]), None)
+            assert (net_move in planned) == (mode == "final"), (mode, changed)
+        for changed in ("crates/wow-world/tests/loot.rs", "crates/wow-map/src/lib.rs", "crates/wow-world/Cargo.toml"):
+            planned, _ = runner.validation_commands(repo, mode, 2, "base", runner.grouped_paths([changed]), None)
+            assert net_move not in planned, (mode, changed)
+        policy_planned, _ = runner.validation_commands(
+            repo, mode, 2, "base", runner.grouped_paths(["tools/architecture/net-move-policy.json"]), None)
+        assert (net_move in policy_planned) == (mode == "final"), mode
+    for changed in ("tools/architecture/net_move.py", "tools/architecture/test_net_move.py"):
+        suite_final, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert net_move_suite in suite_final and net_move_suite not in suite_quick, changed
+        assert net_move not in suite_final, changed
+    policy_suite, _ = runner.validation_commands(
+        repo, "final", 2, "base", runner.grouped_paths(["tools/architecture/net-move-policy.json"]), None)
+    assert net_move_suite in policy_suite and net_move in policy_suite
+
+    # Ignored sources (#1241 F3-6b): final plans the check for any crates/ change,
+    # including a deletion; quick never does; its suite follows its own files.
+    ignored = ["python3", "tools/architecture/ignored_sources.py", "check"]
+    ignored_suite = ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_ignored_sources.py"]
+    assert ignored in final and ignored not in quick
+    for changed in ("crates/wow-world/unit_tests/session/progression/skills_f3_shims.rs",
+                    "crates/wow-map/src/deleted.rs", "crates/wow-world/Cargo.toml"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert ignored in planned and ignored not in quick_planned, changed
+    for changed in ("tools/qa.py", "docs/state.md", ".gitignore"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert ignored not in planned, changed
+    for changed in ("tools/architecture/ignored_sources.py", "tools/architecture/test_ignored_sources.py"):
+        suite_final, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert ignored_suite in suite_final and ignored_suite not in suite_quick, changed
+    # wow-world closure (#1363 slice A): final plans the lock-only check for a
+    # Cargo.lock or wow-world* manifest change and for the check itself; quick
+    # never does; its suite follows its own files.
+    closure_check = ["python3", "tools/architecture/wow_world_closure.py", "check"]
+    closure_suite = ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_wow_world_closure.py"]
+    assert closure_check not in final
+    for changed in ("Cargo.lock", "crates/wow-world/Cargo.toml", "crates/wow-world-inventory/Cargo.toml"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert closure_check in planned and closure_check not in quick_planned, changed
+        assert closure_suite not in planned, changed
+    for changed in ("crates/wow-world/src/lib.rs", "crates/wow-map/Cargo.toml", "docs/state.md"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert closure_check not in planned, changed
+    for changed in ("tools/architecture/wow_world_closure.py", "tools/architecture/test_wow_world_closure.py"):
+        suite_final, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert closure_suite in suite_final and closure_check in suite_final, changed
+        assert closure_suite not in suite_quick and closure_check not in suite_quick, changed
+    # #1442 T0: final plans the census check for any crates/wow-world* change
+    # (deletions included), Cargo.lock, the ledger, the ceiling, the tool or
+    # the session-index helpers it imports; quick never does. Its suite follows
+    # the tool and those helpers only.
+    census_check = ["python3", "tools/architecture/wow_world_test_census.py", "check"]
+    census_suite = ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_wow_world_test_census.py"]
+    assert census_check not in final and census_check not in quick
+    for changed in (
+        "crates/wow-world/unit_tests/session/tests/deleted.rs",
+        "crates/wow-world/src/lib.rs",
+        "crates/wow-world-social/src/lib.rs",
+        "Cargo.lock",
+        "tools/architecture/wow-world-test-census.json",
+        "tools/architecture/wow-world-test-ceiling.json",
+        "tools/architecture/wow_world_test_census.py",
+        "tools/architecture/wow_world_test_scan.py",
+        "tools/architecture/test_wow_world_test_census.py",
+        "tools/architecture/session_method_index.py",
+        "tools/architecture/hotspot_metrics.py",
+    ):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert census_check in planned and census_check not in quick_planned, changed
+        assert census_suite not in quick_planned, changed
+        assert (census_suite in planned) == changed.endswith(".py"), changed
+    for changed in ("crates/wow-map/src/lib.rs", "docs/state.md", "tools/architecture/net_move.py"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert census_check not in planned and census_suite not in planned, changed
+    # #1363 slice 6c (#1405 review): each tool's self-test runs in final when
+    # that tool changes, never in quick and never for an unrelated change.
+    tool_self_tests = {
+        tool: ["python3", tool, "self-test"]
+        for tool in ("tools/architecture/warning_units.py", "tools/architecture/move_token_compare.py")
+    }
+    for tool, command in tool_self_tests.items():
+        suite_final, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([tool]), None)
+        suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([tool]), None)
+        assert command in suite_final and command not in suite_quick, tool
+        others = [other for name, other in tool_self_tests.items() if name != tool]
+        assert all(other not in suite_final for other in others), tool
+    for changed in ("tools/architecture/net_move.py", "crates/wow-world/src/lib.rs", "docs/state.md"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert all(command not in planned for command in tool_self_tests.values()), changed
+    # #1363 done criterion (#1411 review follow-up 2): final plans the session
+    # method index check for a wow-world/src change and for the index, its
+    # policy or the masking it uses; quick never does. The self-test follows
+    # the tool only.
+    session_index = ["python3", "tools/architecture/session_method_index.py", "check"]
+    session_index_self_test = ["python3", "tools/architecture/session_method_index.py", "self-test"]
+    for changed in (
+        "crates/wow-world/src/session/mod.rs",
+        "crates/wow-world/src/deleted.rs",
+        "tools/architecture/session_method_index.py",
+        "tools/architecture/session-method-index.json",
+        "tools/architecture/hotspot_metrics.py",
+    ):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert session_index in planned and session_index not in quick_planned, changed
+        assert (session_index_self_test in planned) == changed.endswith("session_method_index.py"), changed
+    for changed in ("crates/wow-world/unit_tests/lib.rs", "crates/wow-world-inventory/src/lib.rs", "docs/state.md"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert session_index not in planned and session_index_self_test not in planned, changed
+    # #1363 slice Q2 (#1406 review follow-up 1): final runs the checker lib
+    # suite, whose repository test pins the checked production-package set,
+    # for a workspace manifest or lock change; quick never does.
+    checker_suite = ["cargo", "test", "--locked", *runner.CHECKER_CARGO,
+                     "--jobs", "2", "--lib", "--no-fail-fast"]
+    assert checker_suite not in final and checker_suite not in quick
+    for changed in ("Cargo.toml", "Cargo.lock"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert checker_suite in planned and not references_checker(quick_planned), changed
+    for changed in ("crates/wow-world/src/lib.rs", "docs/state.md", "tools/qa.py"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert checker_suite not in planned, changed
+    # #1409 review follow-up 1 and #1410 review follow-up 3: a changed or
+    # deleted `wow-world-*` domain manifest makes final check the tests of
+    # every existing domain crate standalone (its own features only), one
+    # crate per command; quick never does, and neither does a change to
+    # `wow-world` itself, another crate's manifest or a domain source file.
+    # `wow-world-other`'s package name differs from its directory: `-p` takes
+    # the `[package] name` (#1411 review follow-up 3).
+    for name, package in (
+        ("wow-world-fixture", "wow-world-fixture"),
+        ("wow-world-other", "wow-world-other-package"),
+        ("wow-world", "wow-world"),
+    ):
+        (repo / "crates" / name).mkdir(parents=True, exist_ok=True)
+        (repo / "crates" / name / "Cargo.toml").write_text(f'[package]\nname = "{package}"\n')
+    domain_workspace = {
+        "root_wide": False,
+        "direct_packages": ["wow-world-fixture"],
+        # A closure wider than the crate, so the closure check differs from
+        # the standalone one.
+        "reverse_closure_packages": ["wow-world-fixture", "b"],
+        "direct_library_packages": [],
+    }
+    standalone_all = [
+        ["cargo", "check", "--locked", "--tests", "--jobs", "2", "-p", name]
+        for name in ("wow-world-fixture", "wow-world-other-package")
+    ]
+    for changed, expected in (
+        ("crates/wow-world-fixture/Cargo.toml", True),
+        ("crates/wow-world-other/Cargo.toml", True),
+        ("crates/wow-world-deleted/Cargo.toml", True),
+        ("crates/wow-world/Cargo.toml", False),
+        ("crates/a/Cargo.toml", False),
+        ("crates/wow-world-fixture/src/lib.rs", False),
+    ):
+        groups = runner.grouped_paths([changed])
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", groups, domain_workspace)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", groups, domain_workspace)
+        standalone_planned = [
+            command for command in planned
+            if command[:2] == ["cargo", "check"] and "--tests" in command and command.count("-p") == 1
+        ]
+        assert standalone_planned == (standalone_all if expected else []), changed
+        assert all(command[:2] != ["cargo", "check"] for command in quick_planned), changed
+    test_handler_graph_contract()
+    # The F3-4 situation: a committed mount whose shim a `skills/` rule hides fails the check.
+    spec = importlib.util.spec_from_file_location(
+        "ignored_sources", Path(__file__).resolve().parent / "architecture/ignored_sources.py")
+    ignored_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ignored_module)
+    with tempfile.TemporaryDirectory(prefix="rustycore-ignored-") as scratch:
+        scratch_root = Path(scratch)
+        subprocess.run(["git", "init", "-q", str(scratch_root)], check=True)
+        (scratch_root / ".gitignore").write_text("skills/\n")
+        shim = scratch_root / "crates/wow-world/unit_tests/session/progression/skills/f3_shims.rs"
+        shim.parent.mkdir(parents=True)
+        shim.write_text("// shim\n")
+        assert ignored_module.ignored_sources(scratch_root) == [
+            "crates/wow-world/unit_tests/session/progression/skills/f3_shims.rs"]
+        with redirect_stdout(io.StringIO()):
+            assert ignored_module.check(scratch_root) == 1
+        shim.rename(shim.parent.with_name("skills_f3_shims.rs"))     # the F3-6 relocation
+        with redirect_stdout(io.StringIO()):
+            assert ignored_module.check(scratch_root) == 0
 
     # A root-wide path widens the check to the whole workspace. It must not
     # narrow the tests to nothing: the broader the change, the weaker that made
@@ -590,6 +954,43 @@ def test_planner_contract(repo: Path) -> None:
     assert root_workspace["root_wide"] is True
     assert root_workspace["direct_packages"] == ["a", "b", "c"]
     assert root_workspace["direct_library_packages"] == ["a", "b", "c"]
+
+    # Both root config spellings affect every package and standalone manifest,
+    # including deletion and mixed config/source diffs. No on-disk existence
+    # check may turn a deleted configuration into text-only acceptance.
+    for config_path in sorted(runner.CARGO_CONFIG_PATHS):
+        for source_paths in ([], one_crate_paths):
+            paths = [config_path, *source_paths]
+            groups = runner.grouped_paths(paths)
+            assert groups["workspace-root"] == [config_path]
+            config_workspace = runner.affected_workspace(repo, paths, groups, metadata)
+            assert config_workspace == {**root_workspace, "direct_library_packages": ["a", "b", "c"]}
+            for mode in ("quick", "final"):
+                planned, _ = runner.validation_commands(repo, mode, 1, "base", groups, config_workspace)
+                assert (["cargo", "check", "--locked", "--workspace", "--all-targets", "--jobs", "1"] in planned) == (mode == "final")
+                suites = [command for command in planned if command[:2] == ["cargo", "test"]]
+                if mode == "final":
+                    workspace_suite = next(command for command in suites if "--manifest-path" not in command)
+                    assert workspace_suite == ["cargo", "test", "--no-fail-fast", "--locked", "--lib",
+                                               "--jobs", "1", "-p", "a", "-p", "b", "-p", "c"]
+                else:
+                    assert not suites
+                checker_mode = "test" if mode == "final" else "fmt"
+                assert any(command[:2] == ["cargo", checker_mode] and runner.CHECKER_MANIFEST in command
+                           for command in planned)
+                assert any(command[:2] == ["cargo", "check" if mode == "final" else "fmt"] and runner.BOT_MANIFEST in command
+                           for command in planned)
+                if mode == "quick":
+                    assert all(command[0] != "cargo" or command[1] == "fmt" for command in planned)
+                assert len({tuple(command) for command in planned}) == len(planned)
+                overlapping = runner.grouped_paths([
+                    *paths, "tools/architecture/handler-contract-check/src/lib.rs",
+                    "tools/wow-test-bot/src/main.rs",
+                ])
+                assert runner.validation_commands(repo, mode, 1, "base", overlapping, config_workspace)[0] == planned
+
+    assert runner.classify_path("docs/config.toml") == "documentation"
+    assert runner.classify_path(".cargo/unrelated-note") == "other"
 
     # With a crate changed alongside it, the root-wide path must not lose the
     # tests that crate would have got on its own.
@@ -626,12 +1027,41 @@ def test_planner_contract(repo: Path) -> None:
             repo, "final", 2, "base", harness_groups, None
         )
         assert ["python3", "tools/test_validation_v2.py"] in harness_commands, harness_commands
+    workflow_suite = repo / runner.WORKFLOW_CONTRACT_SUITE
+    workflow_suite.write_text("fixture\n")
+    for changed in ([runner.WORKFLOW_CONTRACT_SUITE], [runner.RUNNER_PATH],
+                    [".github/workflows/rust-ci.yml"], [".github/workflows/validation-determinism.yml"]):
+        planned, _ = runner.validation_commands(repo, "final", 1, "base", runner.grouped_paths(changed), None)
+        assert ["python3", runner.WORKFLOW_CONTRACT_SUITE] in planned
+    for path in (runner.BUILD_INPUT_DIAGNOSTIC, runner.BUILD_INPUT_CONTRACT_SUITE):
+        planned, _ = runner.validation_commands(repo, "final", 1, "base", runner.grouped_paths([path]), None)
+        assert ["python3", runner.BUILD_INPUT_CONTRACT_SUITE] in planned
+        assert not any(command[0] == "cargo" for command in planned)
 
     docs_commands, _ = runner.validation_commands(
         repo, "quick", 2, "base", runner.grouped_paths(["docs/guide.md"]), None
     )
     assert not any(command and command[0] == "cargo" for command in docs_commands)
     assert runner.validation_commands(repo, "quick", 2, "base", {}, None)[0] == []
+    quick_paths = [
+        "Cargo.toml", "crates/a/src/lib.rs", "tools/validation-v2", runner.RUNNER_CONTRACT_SUITE,
+        runner.WORKFLOW_CONTRACT_SUITE, runner.BUILD_INPUT_DIAGNOSTIC,
+        "tools/architecture/physical-file-policy.json", "tools/architecture/check_architecture.py",
+        "tools/architecture/handler-contract-check/src/lib.rs", "tools/wow-test-bot/src/main.rs",
+    ]
+    with patch.object(runner, "resolve_base", return_value="base"), \
+         patch.object(runner, "changed_paths", return_value=quick_paths), \
+         patch.object(runner, "cargo_metadata", side_effect=AssertionError("quick must not resolve dependencies")), \
+         patch.object(runner, "require_protoc_for", side_effect=AssertionError("quick must not require protobuf")):
+        quick_plan = runner.build_plan(repo, "quick", 1, "base", {}, 30)
+    assert quick_plan["workspace"] is None and quick_plan["metadata"] is None
+    for command in quick_plan["planned_commands"]:
+        assert command[0] != "cargo" or command[1] == "fmt", command
+        assert command[:2] != ["python3", runner.RUNNER_CONTRACT_SUITE], command
+        assert command[:2] != ["python3", runner.WORKFLOW_CONTRACT_SUITE], command
+        assert command[:2] != ["python3", runner.BUILD_INPUT_CONTRACT_SUITE], command
+        assert "unittest" not in command and "self-test" not in command, command
+    assert runner.validation_commands(repo, "none", 1, "base", runner.grouped_paths(quick_paths), workspace)[0] == []
 
     # No profile may silence a checker test by name. A skipped test is a test
     # that rots: #363 was nine stale literals hiding behind `--skip`.
@@ -655,7 +1085,6 @@ def test_planner_contract(repo: Path) -> None:
     assert not any("--skip" in step["argv"] for step in audit), audit
     assert [step["section"] for step in audit] == [
         "diff-hygiene",
-        "architecture-policy-self-test",
         "architecture-policy-check",
         "workspace-format",
         "handler-contract-format",
@@ -670,7 +1099,10 @@ def test_planner_contract(repo: Path) -> None:
         "capture-creature-spell-contract",
     ]
     policy_step = next(step for step in audit if step["section"] == "architecture-policy-check")
-    assert policy_step["continue_to_section_on_failure"] == "session-persistence-ratchet"
+    assert all("continue_to_section_on_failure" not in step for step in audit)
+    assert policy_step["argv"] == ["python3", "tools/architecture/check_architecture.py", "check", "--self-test"]
+    assert sum("check_architecture.py" in " ".join(step["argv"]) for step in audit) == 1
+    assert all("--no-fail-fast" in step["argv"] for step in audit if step["argv"][:2] == ["cargo", "test"])
     assert not any("check_architecture.py" in " ".join(command) for command in quick)
     assert not any("session-ownership-check" in " ".join(command) for command in final)
 
@@ -796,6 +1228,11 @@ def test_cargo_target_contract(
     default = effective(None)
     assert default["CARGO_TARGET_DIR"] == str(repository / "target")
     assert default["CARGO_BUILD_JOBS"] == "1"
+    with patch.dict(os.environ, base_env, clear=True), patch.object(
+        runner, "resolve_protoc", side_effect=AssertionError("self-test must not probe host protoc")
+    ):
+        hermetic = runner.command_environment(repo, 1, resolve_protobuf=False)
+    assert "PROTOC" not in hermetic
     probe(None, repository / "target", "default")
 
     for blank_value in ("", "   "):
@@ -853,9 +1290,11 @@ def test_architecture_plan_contract() -> None:
         # hide the ownership verdict.
         assert first[0]["continue_to_section_on_failure"] == "session-syntax-acceptance"
         assert all("continue_to_section_on_failure" not in step for step in first[1:])
+        # #1468 B1: the ownership scan must show it read this checkout.
+        assert first[1][runner.SCAN_ROOT_BANNER_KEY] == "session-ownership-check"
         assert actual[0] == [*checker, "check", "--self-test"]
         assert actual[1] == [
-            "cargo", "run", "--release", "--locked", "--manifest-path", runner.CHECKER_MANIFEST,
+            "cargo", "run", "--release", "--locked", *runner.CHECKER_CARGO,
             "--bin", "session-ownership-check", "--jobs", "2", "--", "check", "--syntax-only",
         ]
         assert actual[2:] == (retained if original else [])
@@ -893,9 +1332,182 @@ def test_timing_plan_contract() -> None:
             assert after == before
 
 
+def test_empty_scope_contract(repo: Path, tools: Path, environment: dict[str, str], directory: Path) -> None:
+    for profile in ("quick", "final", "2", "3"):
+        manifest = directory / f"empty-{profile}.json"
+        result = subprocess.run(
+            [str(tools / "validation-v2"), profile, "--base", "HEAD", "--require-changes"],
+            cwd=repo, env={**environment, "VALIDATION_V2_MANIFEST": str(manifest)},
+            capture_output=True, text=True,
+        )
+        assert result.returncode == runner.USAGE_ERROR, (result.stdout, result.stderr)
+        recorded = json.loads(manifest.read_text())
+        assert recorded["profile"] == runner.LEVEL_PROFILES.get(profile, profile)
+        assert "empty validation scope" in recorded["runner_error"]
+        assert recorded["commands"] == []
+        assert recorded["plan"]["require_changes"] is True
+        assert runner.manifest_problems(recorded)
+    result = subprocess.run(
+        [str(tools / "validation-v2"), "quick", "--base", "HEAD"], cwd=repo,
+        env={**environment, "VALIDATION_V2_MANIFEST": str(directory / "empty-allowed.json")},
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    assert "NO CHANGED PATHS" in result.stdout
+
+
+def test_evidence_contract(repo: Path, environment: dict[str, str], directory: Path) -> None:
+    logs = runner.create_log_directory(directory / "evidence.json")
+    steps = [
+        {"section": "first", "argv": [sys.executable, "-c", "print('first output'); raise SystemExit(19)"]},
+        {"section": "second", "argv": [sys.executable, "-c", "print('second output'); raise SystemExit(23)"]},
+        {"section": "third", "argv": [sys.executable, "-c", "print('last output')"]},
+    ]
+    results, code = runner.run_steps(repo, steps, environment, 30, log_directory=logs, keep_going=True)
+    assert code == 19
+    assert [r["status"] for r in results] == ["failed", "failed", "passed"]
+    for index, (step, message) in enumerate(zip(steps, ("first output", "second output", "last output")), 1):
+        log = logs / f"{index:02d}-{step['section']}.log"
+        contents = log.read_text()
+        assert message in contents
+        assert json.loads(contents.splitlines()[0])["argv"] == step["argv"]
+    # No caller may turn a diagnostic red run into a green manifest.
+    assert runner.manifest_problems({"schema": runner.MANIFEST_SCHEMA, "runner": "rustycore-validation-v2",
+                                    "status": "passed", "exit_code": 0, "commands": results,
+                                    "plan": {"planned_steps": steps}})
+    for reason in ("oom", "timeout", "signal", "child-signal", "interrupted", "output-log"):
+        def fatal(*args, sink=None, **kwargs):
+            outcome = {"status": "failed", "exit_code": 137, "failure_kind": reason, "duration_seconds": 0}
+            sink.append(outcome)
+            return outcome
+        with patch.object(runner, "run_one", side_effect=fatal):
+            results, code = runner.run_steps(repo, steps, environment, 30, keep_going=True)
+        assert code == 137 and len(results) == 1, reason
+    # Logs reject symlink/stale targets rather than truncating arbitrary files.
+    sentinel = directory / "sentinel.txt"
+    sentinel.write_text("preserve")
+    link = logs / "symlink.log"
+    link.symlink_to(sentinel)
+    try:
+        runner.run_one(repo, [sys.executable, "-c", "pass"], environment, 30, log_path=link)
+    except FileExistsError:
+        pass
+    else:
+        raise AssertionError("log symlink was accepted")
+    assert sentinel.read_text() == "preserve"
+    # A logging I/O failure is non-green even when the child succeeds.
+    original_tee = runner.tee_output
+    def broken_log(stream, reports, log, errors):
+        original_tee(stream, reports, None, errors)
+        errors.append("fixture log full")
+    with patch.object(runner, "tee_output", side_effect=broken_log):
+        result = runner.run_one(repo, [sys.executable, "-c", "pass"], environment, 30,
+                                log_path=logs / "full.log")
+    assert result["status"] == "failed" and result["failure_kind"] == "output-log"
+    assert runner.failed_exit_code(result) == runner.RUNNER_ERROR
+
+
+def test_module_and_persistence_plan_contract() -> None:
+    """#1468: final compiles the SQL-mode compositor (and runs the module tool
+    suite) for module-surface changes, and records - without running - the
+    exhaustive persistence inventory when its inputs change."""
+    repo = RUNNER_PATH.parents[1]
+    compositor = ["python3", runner.SQL_COMPOSITOR_CHECK, "--jobs", "2"]
+    suite = ["python3", runner.MODULE_TOOL_SUITE]
+
+    def plan(profile: str, paths: list[str]) -> tuple[list[list[str]], list[str]]:
+        return runner.validation_commands(repo, profile, 2, "base", runner.grouped_paths(paths), None)
+
+    for path in (
+        "tools/modules/compose.py",
+        "tools/modules/examples/milestones/src/lib.rs",
+        "crates/world-server/src/entry.rs",
+        "crates/world-server/src/app.rs",
+        "crates/world-server/src/lib.rs",
+        "crates/world-modules/src/main.rs",
+        "crates/wow-module-api/src/lib.rs",
+    ):
+        planned, _ = plan("final", [path])
+        assert compositor in planned, path
+        assert (suite in planned) is path.startswith("tools/modules/"), path
+        quick, _ = plan("quick", [path])
+        assert compositor not in quick and suite not in quick, path
+    for path in ("crates/world-server/src/runtime/map.rs", "docs/architecture/modules.md"):
+        planned, _ = plan("final", [path])
+        assert compositor not in planned and suite not in planned, path
+    # The compositor step compiles world-server: it needs the pinned protoc.
+    try:
+        runner.require_protoc_for([{"section": "x", "argv": compositor}], {})
+    except ValueError as error:
+        assert "protoc" in str(error)
+    else:
+        raise AssertionError("the compositor step must require protoc")
+
+    for path in (
+        "tools/architecture/persistence-boundary-workflows.json",
+        "tools/architecture/persistence-access-snapshot.json",
+        "tools/architecture/handler-contract-check/src/persistence_policy.rs",
+        "tools/architecture/handler-contract-check/src/session_ownership/state_3.rs",
+        "tools/architecture/handler-contract-check/src/bin/session-ownership-check.rs",
+        "tools/architecture/session-ownership-policy.json",
+        "crates/wow-database/src/migration/module_ops.rs",
+        "crates/world-server/src/runtime/map.rs",
+    ):
+        planned, skips = plan("final", [path])
+        assert any("persistence inventory" in skip and "audit" in skip for skip in skips), path
+        assert not any(
+            command[:2] == ["cargo", "run"] and "session-ownership-check" in command
+            and "--syntax-only" not in command
+            for command in planned
+        ), "final never runs the exhaustive inventory"
+        _, quick_skips = plan("quick", [path])
+        assert not quick_skips, path
+    for path in ("docs/architecture/modules.md", "crates/wow-database/Cargo.toml", "tools/modules/compose.py"):
+        _, skips = plan("final", [path])
+        assert not any("persistence inventory" in skip for skip in skips), path
+
+
+def test_scan_root_banner_contract() -> None:
+    """#1468 review B1: a scan step passes only when its tool's stderr banner
+    names this checkout; the checker builds into a checkout-local target dir."""
+    audit = runner.audit_steps("base", 2)
+    banners = {step["section"]: step.get(runner.SCAN_ROOT_BANNER_KEY) for step in audit}
+    assert banners["handler-contract-repository-check"] == "handler-contract-check"
+    assert banners["session-persistence-ratchet"] == "session-ownership-check"
+    for step in audit:
+        argv = step["argv"]
+        if argv[:1] == ["cargo"] and runner.CHECKER_MANIFEST in argv and argv[1] != "fmt":
+            index = argv.index("--target-dir")
+            assert argv[index + 1] == runner.ARCH_TOOLS_TARGET_DIR == "target/arch-tools"
+    with tempfile.TemporaryDirectory(prefix="validation-v2-banner-") as scratch:
+        repo = Path(scratch).resolve()
+        environment = os.environ.copy()
+
+        def outcome(stderr_line: str) -> dict[str, object]:
+            command = ["python3", "-c", f"import sys; print({stderr_line!r}, file=sys.stderr)"]
+            # tee_output writes the child's bytes to the real stdout buffer.
+            return runner.run_one(repo, command, environment, 30, banner_tool="tool")
+
+        good = outcome(f"tool: scan root {repo} (compiled tree = current git top-level)")
+        assert good["status"] == "passed" and good["failure_kind"] is None, good
+        for line in (
+            "",  # a stale binary that predates the banner
+            f"tool: scan root {repo}/../elsewhere (compiled tree = current git top-level)",
+            f"other: scan root {repo} (x)",
+            f"tool: scan root {repo}-sibling (x)",
+        ):
+            bad = outcome(line)
+            assert bad["status"] == "failed" and bad["failure_kind"] == "scan-root", (line, bad)
+        plain = runner.run_one(repo, ["true"], environment, 30)
+        assert plain["status"] == "passed"
+
+
 def main() -> None:
+    test_no_validation_level()
     test_architecture_plan_contract()
     test_timing_plan_contract()
+    test_module_and_persistence_plan_contract()
+    test_scan_root_banner_contract()
     with tempfile.TemporaryDirectory(prefix="validation-v2-self-test-") as raw_directory:
         directory = Path(raw_directory)
         repo = directory / "repo"
@@ -918,8 +1530,13 @@ def main() -> None:
         environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
         environment.pop("CARGO_TARGET_DIR", None)
         environment.pop("VALIDATION_V2_CARGO_JOBS", None)
+        # The canonical final recipe exports a timeout; the fixtures pin the
+        # runner defaults, so the self-test must not inherit it (#1363 slice 6c).
+        environment.pop("VALIDATION_V2_TIMEOUT_SECONDS", None)
         environment.pop("PROTOC", None)
         environment["VALIDATION_V2_LOCK_DIR"] = str(directory / "locks")
+        test_empty_scope_contract(repo, tools, environment, directory)
+        test_evidence_contract(repo, environment, directory)
         test_cargo_target_contract(repo, environment, directory)
         test_runner_contract(repo, tools, environment, directory)
         test_interrupt_and_verdict_contract(repo, tools, environment, directory, fake_bin)

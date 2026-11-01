@@ -1,0 +1,2 @@
+crates/wow-world/src/session/persistence/load.rs	set_loaded_player_identity_like_cpp	crates/wow-world-application/src/continue_login/identity.rs
+crates/wow-world/src/session/player_load_values.rs	gender_from_u8	crates/wow-world-application/src/continue_login/identity.rs

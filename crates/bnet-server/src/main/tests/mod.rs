@@ -2,8 +2,6 @@
 //!
 //! Separated from main.rs under #685.
 
-use crate::*;
-
 use super::{
     BnetCliLikeCpp, bnet_cli_help_like_cpp, bnet_full_version_like_cpp,
     bnet_thread_config_from_values_like_cpp, create_pid_file_like_cpp,

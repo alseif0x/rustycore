@@ -11,7 +11,7 @@ use std::{
 use wow_core::Position;
 use wow_entities::PhaseShift;
 use wow_recastdetour::{DetourOwnerCapabilitiesLikeCpp, PathQueryFilterContext};
-use wow_world::{WorldMMapPathfinderWorkerLikeCpp, map_manager::WorldMMapPathRequestLikeCpp};
+use wow_world::{WorldMMapPathfinderWorkerLikeCpp, pathfinder::WorldMMapPathRequestLikeCpp};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 

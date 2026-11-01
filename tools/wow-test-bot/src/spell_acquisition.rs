@@ -207,6 +207,23 @@ fn learned(payload: &[u8]) -> Result<Vec<(u32, bool)>> {
     Ok(spells)
 }
 
+/// C++ NPCPackets.cpp `TrainerBuyFailed::Write`: packed TrainerGUID, int32
+/// SpellID, int32 TrainerFailedReason (Trainer.h `TrainerFailReason`).
+const SMSG_TRAINER_BUY_FAILED: u16 = 0x26E0;
+
+fn trainer_buy_failed(payload: &[u8]) -> Result<(i32, i32)> {
+    let (size, _, _) =
+        packet_parser::parse_packed_guid(payload).context("invalid TrainerBuyFailed GUID")?;
+    let body = payload
+        .get(size..)
+        .filter(|body| body.len() == 8)
+        .context("TrainerBuyFailed must carry exactly SpellID and reason")?;
+    Ok((
+        i32::from_le_bytes(body[0..4].try_into()?),
+        i32::from_le_bytes(body[4..8].try_into()?),
+    ))
+}
+
 async fn next(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
@@ -392,10 +409,18 @@ pub(super) async fn execute(
         Action::Verify {} => unreachable!(),
     }
     let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let mut unrelated = Vec::new();
     while tokio::time::Instant::now() < deadline {
         if let Some((instance, op, payload)) =
             next(stream, crypt, inflater, realm, deadline).await?
         {
+            if op == SMSG_TRAINER_BUY_FAILED {
+                let (spell, reason) = trainer_buy_failed(&payload)?;
+                bail!("trainer refused the purchase: SMSG_TRAINER_BUY_FAILED spell {spell} reason {reason}");
+            }
+            if op != 0x2C4A && op != SMSG_ON_MONSTER_MOVE && unrelated.len() < 32 {
+                unrelated.push(format!("0x{op:04X}"));
+            }
             if op == 0x2C4A {
                 if !instance {
                     bail!("LearnedSpells arrived on realm instead of instance");
@@ -416,7 +441,10 @@ pub(super) async fn execute(
         }
     }
     if !receipt.learned_on_instance {
-        bail!("expected learning publication timed out");
+        bail!(
+            "expected learning publication timed out (other packets: {})",
+            unrelated.join(" ")
+        );
     }
     if let Action::Trainer {
         trainer_id,

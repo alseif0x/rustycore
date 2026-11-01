@@ -1,8 +1,10 @@
 //! MariaDB adapter for the complete spell-acquisition startup source family.
 
+mod checked_rows;
+
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow};
 use wow_persistence::{
     BattlePetSpeciesHotfixPersistenceRowLikeCpp, PersistenceFutureLikeCpp,
     ServersideSpellEffectPersistenceRowLikeCpp, ServersideSpellPersistenceRowLikeCpp,
@@ -11,8 +13,9 @@ use wow_persistence::{
     SpellCustomAttributePersistenceRowLikeCpp, SpellEffectHotfixPersistenceRowLikeCpp,
     SpellLearnSpellHotfixPersistenceRowLikeCpp, SpellLearnSpellWorldPersistenceRowLikeCpp,
     SpellLevelsHotfixPersistenceRowLikeCpp, SpellMiscHotfixPersistenceRowLikeCpp,
-    SpellReagentsPersistenceRowLikeCpp, SummonPropertiesHotfixPersistenceRowLikeCpp,
-    TalentHotfixPersistenceRowLikeCpp, TrainerSpellAuditPersistenceCatalogLikeCpp,
+    SpellReagentsCurrencyPersistenceRowLikeCpp, SpellReagentsPersistenceRowLikeCpp,
+    SummonPropertiesHotfixPersistenceRowLikeCpp, TalentHotfixPersistenceRowLikeCpp,
+    TrainerSpellAuditPersistenceCatalogLikeCpp,
 };
 
 use crate::{HotfixDatabase, HotfixStatements, SqlResult, WorldDatabase, WorldStatements};
@@ -41,6 +44,7 @@ const SPELL_REAGENTS_SQL: &str = concat!(
     "ReagentCount3, ReagentCount4, ReagentCount5, ReagentCount6, ",
     "ReagentCount7, ReagentCount8 FROM spell_reagents WHERE (`VerifiedBuild` > 0) = ?"
 );
+const SPELL_REAGENTS_CURRENCY_SQL: &str = "SELECT ID, SpellID, CurrencyTypesID, CurrencyCount FROM spell_reagents_currency WHERE (`VerifiedBuild` > 0) = ?";
 
 fn raw_i64_like_cpp(result: &SqlResult, column: usize) -> Option<i64> {
     result
@@ -56,6 +60,55 @@ fn raw_i64_like_cpp(result: &SqlResult, column: usize) -> Option<i64> {
         .or_else(|| result.try_read::<u32>(column).map(i64::from))
         .or_else(|| result.try_read::<u16>(column).map(i64::from))
         .or_else(|| result.try_read::<u8>(column).map(i64::from))
+}
+
+fn required_i32_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<i32> {
+    let raw = raw_i64_like_cpp(result, column)
+        .ok_or_else(|| anyhow!("missing or unsupported numeric value for {field}"))?;
+    i32::try_from(raw).with_context(|| format!("{field} is outside the signed 32-bit range"))
+}
+
+fn required_i16_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<i16> {
+    let raw = raw_i64_like_cpp(result, column)
+        .ok_or_else(|| anyhow!("missing or unsupported numeric value for {field}"))?;
+    i16::try_from(raw).with_context(|| format!("{field} is outside the signed 16-bit range"))
+}
+
+fn required_u32_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<u32> {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Ok(value);
+    }
+    let raw = raw_i64_like_cpp(result, column)
+        .ok_or_else(|| anyhow!("missing or unsupported numeric value for {field}"))?;
+    u32::try_from(raw).with_context(|| format!("{field} is outside the unsigned 32-bit range"))
+}
+
+fn required_u16_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<u16> {
+    let raw = raw_i64_like_cpp(result, column)
+        .ok_or_else(|| anyhow!("missing or unsupported numeric value for {field}"))?;
+    u16::try_from(raw).with_context(|| format!("{field} is outside the unsigned 16-bit range"))
+}
+
+fn required_spell_id_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<i32> {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Ok(value as i32);
+    }
+    required_i32_like_cpp(result, column, field)
+}
+
+fn required_array_like_cpp<T, const N: usize>(
+    mut read: impl FnMut(usize, &str) -> Result<T>,
+    first_column: usize,
+    field: &str,
+) -> Result<[T; N]>
+where
+    T: Copy + Default,
+{
+    let mut values = [T::default(); N];
+    for (index, value) in values.iter_mut().enumerate() {
+        *value = read(first_column + index, &format!("{field}{}", index + 1))?;
+    }
+    Ok(values)
 }
 
 fn f32_bits_like_cpp(result: &SqlResult, column: usize) -> Option<u32> {
@@ -205,128 +258,6 @@ async fn query_world_rows_like_cpp<T>(
     Ok(rows)
 }
 
-fn decode_serverside_effect_like_cpp(
-    result: &SqlResult,
-) -> ServersideSpellEffectPersistenceRowLikeCpp {
-    ServersideSpellEffectPersistenceRowLikeCpp {
-        spell_id: result.try_read(0).unwrap_or(0),
-        effect_index: result.try_read(1).unwrap_or(0),
-        difficulty_id: result.try_read(2).unwrap_or(0),
-        effect: result.try_read(3).unwrap_or(0),
-        effect_aura: result.try_read(4).unwrap_or(0),
-        effect_amplitude: result.try_read(5).unwrap_or(0.0),
-        effect_attributes: result.try_read(6).unwrap_or(0),
-        effect_aura_period: result.try_read(7).unwrap_or(0),
-        effect_bonus_coefficient: result.try_read(8).unwrap_or(0.0),
-        effect_chain_amplitude: result.try_read(9).unwrap_or(0.0),
-        effect_chain_targets: result.try_read(10).unwrap_or(0),
-        effect_item_type: result.try_read(11).unwrap_or(0),
-        effect_mechanic: result.try_read(12).unwrap_or(0),
-        effect_points_per_resource: result.try_read(13).unwrap_or(0.0),
-        effect_pos_facing: result.try_read(14).unwrap_or(0.0),
-        effect_real_points_per_level: result.try_read(15).unwrap_or(0.0),
-        effect_trigger_spell: result.try_read(16).unwrap_or(0),
-        bonus_coefficient_from_ap: result.try_read(17).unwrap_or(0.0),
-        pvp_multiplier: result.try_read(18).unwrap_or(0.0),
-        coefficient: result.try_read(19).unwrap_or(0.0),
-        variance: result.try_read(20).unwrap_or(0.0),
-        resource_coefficient: result.try_read(21).unwrap_or(0.0),
-        group_size_base_points_coefficient: result.try_read(22).unwrap_or(0.0),
-        effect_base_points: result.try_read(23).unwrap_or(0.0),
-        effect_misc_value: [
-            result.try_read(24).unwrap_or(0),
-            result.try_read(25).unwrap_or(0),
-        ],
-        effect_radius_index: [
-            result.try_read(26).unwrap_or(0),
-            result.try_read(27).unwrap_or(0),
-        ],
-        effect_spell_class_mask: std::array::from_fn(|index| {
-            result.try_read(28 + index).unwrap_or(0)
-        }),
-        implicit_target: [
-            result.try_read(32).unwrap_or(0),
-            result.try_read(33).unwrap_or(0),
-        ],
-    }
-}
-
-fn decode_serverside_spell_like_cpp(result: &SqlResult) -> ServersideSpellPersistenceRowLikeCpp {
-    ServersideSpellPersistenceRowLikeCpp {
-        spell_id: result.try_read(0).unwrap_or(0),
-        difficulty_id: result.try_read(1).unwrap_or(0),
-        category_id: result.try_read(2).unwrap_or(0),
-        dispel: result.try_read(3).unwrap_or(0),
-        mechanic: result.try_read(4).unwrap_or(0),
-        attributes: result.try_read(5).unwrap_or(0),
-        attributes_ex: std::array::from_fn(|i| result.try_read(6 + i).unwrap_or(0)),
-        stances: result.try_read(20).unwrap_or(0),
-        stances_not: result.try_read(21).unwrap_or(0),
-        targets: result.try_read(22).unwrap_or(0),
-        target_creature_type: result.try_read(23).unwrap_or(0),
-        requires_spell_focus: result.try_read(24).unwrap_or(0),
-        facing_caster_flags: result.try_read(25).unwrap_or(0),
-        caster_aura_state: result.try_read(26).unwrap_or(0),
-        target_aura_state: result.try_read(27).unwrap_or(0),
-        exclude_caster_aura_state: result.try_read(28).unwrap_or(0),
-        exclude_target_aura_state: result.try_read(29).unwrap_or(0),
-        caster_aura_spell: result.try_read(30).unwrap_or(0),
-        target_aura_spell: result.try_read(31).unwrap_or(0),
-        exclude_caster_aura_spell: result.try_read(32).unwrap_or(0),
-        exclude_target_aura_spell: result.try_read(33).unwrap_or(0),
-        caster_aura_type: result.try_read(34).unwrap_or(0),
-        target_aura_type: result.try_read(35).unwrap_or(0),
-        exclude_caster_aura_type: result.try_read(36).unwrap_or(0),
-        exclude_target_aura_type: result.try_read(37).unwrap_or(0),
-        casting_time_index: result.try_read(38).unwrap_or(0),
-        recovery_time: result.try_read(39).unwrap_or(0),
-        category_recovery_time: result.try_read(40).unwrap_or(0),
-        start_recovery_category: result.try_read(41).unwrap_or(0),
-        start_recovery_time: result.try_read(42).unwrap_or(0),
-        interrupt_flags: result.try_read(43).unwrap_or(0),
-        aura_interrupt_flags: [
-            result.try_read(44).unwrap_or(0),
-            result.try_read(45).unwrap_or(0),
-        ],
-        channel_interrupt_flags: [
-            result.try_read(46).unwrap_or(0),
-            result.try_read(47).unwrap_or(0),
-        ],
-        proc_flags: [
-            result.try_read(48).unwrap_or(0),
-            result.try_read(49).unwrap_or(0),
-        ],
-        proc_chance: result.try_read(50).unwrap_or(0),
-        proc_charges: result.try_read(51).unwrap_or(0),
-        proc_cooldown: result.try_read(52).unwrap_or(0),
-        proc_base_ppm: result.try_read(53).unwrap_or(0.0),
-        max_level: result.try_read(54).unwrap_or(0),
-        base_level: result.try_read(55).unwrap_or(0),
-        spell_level: result.try_read(56).unwrap_or(0),
-        duration_index: result.try_read(57).unwrap_or(0),
-        range_index: result.try_read(58).unwrap_or(0),
-        speed: result.try_read(59).unwrap_or(0.0),
-        launch_delay: result.try_read(60).unwrap_or(0.0),
-        stack_amount: result.try_read(61).unwrap_or(0),
-        equipped_item_class: result.try_read(62).unwrap_or(0),
-        equipped_item_sub_class_mask: result.try_read(63).unwrap_or(0),
-        equipped_item_inventory_type_mask: result.try_read(64).unwrap_or(0),
-        content_tuning_id: result.try_read(65).unwrap_or(0),
-        spell_name: result.try_read(66).unwrap_or_default(),
-        cone_angle: result.try_read(67).unwrap_or(0.0),
-        cone_width: result.try_read(68).unwrap_or(0.0),
-        max_target_level: result.try_read(69).unwrap_or(0),
-        max_affected_targets: result.try_read(70).unwrap_or(0),
-        spell_family_name: result.try_read(71).unwrap_or(0),
-        spell_family_flags: std::array::from_fn(|i| result.try_read(72 + i).unwrap_or(0)),
-        dmg_class: result.try_read(76).unwrap_or(0),
-        prevention_type: result.try_read(77).unwrap_or(0),
-        area_group_id: result.try_read(78).unwrap_or(0),
-        school_mask: result.try_read(79).unwrap_or(0),
-        charge_category_id: result.try_read(80).unwrap_or(0),
-    }
-}
-
 async fn load_spell_reagents_like_cpp(
     db: &HotfixDatabase,
     official: bool,
@@ -340,10 +271,51 @@ async fn load_spell_reagents_like_cpp(
     }
     loop {
         rows.push(SpellReagentsPersistenceRowLikeCpp {
-            id: result.try_read(0).unwrap_or(0),
-            spell_id: result.try_read(1).unwrap_or(0),
-            reagent: std::array::from_fn(|i| result.try_read(2 + i).unwrap_or(0)),
-            reagent_count: std::array::from_fn(|i| result.try_read(10 + i).unwrap_or(0)),
+            id: required_u32_like_cpp(&result, 0, "spell_reagents.ID")?,
+            spell_id: required_spell_id_like_cpp(&result, 1, "spell_reagents.SpellID")?,
+            reagent: required_array_like_cpp(
+                |column, field| required_i32_like_cpp(&result, column, field),
+                2,
+                "spell_reagents.Reagent",
+            )?,
+            reagent_count: required_array_like_cpp(
+                |column, field| required_i16_like_cpp(&result, column, field),
+                10,
+                "spell_reagents.ReagentCount",
+            )?,
+        });
+        if !result.next_row() {
+            break;
+        }
+    }
+    Ok(rows)
+}
+
+async fn load_spell_reagents_currency_like_cpp(
+    db: &HotfixDatabase,
+    official: bool,
+) -> Result<Vec<SpellReagentsCurrencyPersistenceRowLikeCpp>> {
+    let mut statement = db.prepare(HotfixStatements::base(SPELL_REAGENTS_CURRENCY_SQL));
+    statement.set_bool(0, official);
+    let mut result = db.query(&statement).await?;
+    let mut rows = Vec::with_capacity(result.count());
+    if result.is_empty() {
+        return Ok(rows);
+    }
+    loop {
+        rows.push(SpellReagentsCurrencyPersistenceRowLikeCpp {
+            id: required_u32_like_cpp(&result, 0, "spell_reagents_currency.ID")?,
+            spell_id: required_u32_like_cpp(&result, 1, "spell_reagents_currency.SpellID")?,
+            currency_types_id: required_u16_like_cpp(
+                &result,
+                2,
+                "spell_reagents_currency.CurrencyTypesID",
+            )?,
+            currency_count: required_u16_like_cpp(
+                &result,
+                3,
+                "spell_reagents_currency.CurrencyCount",
+            )?,
         });
         if !result.next_row() {
             break;
@@ -357,6 +329,15 @@ fn classify_like_cpp<T>(result: Result<T>) -> SpellAcquisitionStartupLoadOutcome
         Ok(rows) => SpellAcquisitionStartupLoadOutcomeLikeCpp::Loaded(rows),
         Err(error) => SpellAcquisitionStartupLoadOutcomeLikeCpp::Failed {
             reason: error.to_string(),
+        },
+    }
+}
+
+fn classify_checked<T>(result: Result<T>) -> SpellAcquisitionStartupLoadOutcomeLikeCpp<T> {
+    match result {
+        Ok(rows) => SpellAcquisitionStartupLoadOutcomeLikeCpp::Loaded(rows),
+        Err(error) => SpellAcquisitionStartupLoadOutcomeLikeCpp::Failed {
+            reason: format!("{error:#}"),
         },
     }
 }
@@ -396,16 +377,9 @@ impl SpellAcquisitionStartupPersistencePortLikeCpp
         '_,
         SpellAcquisitionStartupLoadOutcomeLikeCpp<Vec<ServersideSpellEffectPersistenceRowLikeCpp>>,
     > {
-        Box::pin(async move {
-            classify_like_cpp(
-                query_world_rows_like_cpp(
-                    &self.world_db,
-                    WorldStatements::SEL_SERVERSIDE_SPELL_EFFECT,
-                    decode_serverside_effect_like_cpp,
-                )
-                .await,
-            )
-        })
+        Box::pin(
+            async move { classify_checked(checked_rows::serverside_effects(&self.world_db).await) },
+        )
     }
     fn load_serverside_spells_like_cpp(
         &self,
@@ -413,16 +387,9 @@ impl SpellAcquisitionStartupPersistencePortLikeCpp
         '_,
         SpellAcquisitionStartupLoadOutcomeLikeCpp<Vec<ServersideSpellPersistenceRowLikeCpp>>,
     > {
-        Box::pin(async move {
-            classify_like_cpp(
-                query_world_rows_like_cpp(
-                    &self.world_db,
-                    WorldStatements::SEL_SERVERSIDE_SPELL,
-                    decode_serverside_spell_like_cpp,
-                )
-                .await,
-            )
-        })
+        Box::pin(
+            async move { classify_checked(checked_rows::serverside_spells(&self.world_db).await) },
+        )
     }
     fn load_spell_custom_attributes_like_cpp(
         &self,
@@ -519,6 +486,20 @@ impl SpellAcquisitionStartupPersistencePortLikeCpp
     > {
         Box::pin(async move {
             classify_like_cpp(load_spell_reagents_like_cpp(&self.hotfix_db, official).await)
+        })
+    }
+
+    fn load_spell_reagents_currency_overlay_like_cpp(
+        &self,
+        official: bool,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellAcquisitionStartupLoadOutcomeLikeCpp<Vec<SpellReagentsCurrencyPersistenceRowLikeCpp>>,
+    > {
+        Box::pin(async move {
+            classify_like_cpp(
+                load_spell_reagents_currency_like_cpp(&self.hotfix_db, official).await,
+            )
         })
     }
 }

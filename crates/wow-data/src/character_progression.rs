@@ -433,6 +433,10 @@ impl ChrClassesXPowerTypesStore {
 }
 
 impl ChrCustomizationChoiceStore {
+    pub fn entries(&self) -> impl Iterator<Item = &ChrCustomizationChoiceEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -456,6 +460,10 @@ impl ChrCustomizationChoiceStore {
 }
 
 impl ChrCustomizationDisplayInfoStore {
+    pub fn entries(&self) -> impl Iterator<Item = &ChrCustomizationDisplayInfoEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -473,6 +481,10 @@ impl ChrCustomizationDisplayInfoStore {
 }
 
 impl ChrCustomizationElementStore {
+    pub fn entries(&self) -> impl Iterator<Item = &ChrCustomizationElementEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -498,6 +510,10 @@ impl ChrCustomizationElementStore {
 }
 
 impl ChrCustomizationOptionStore {
+    pub fn entries(&self) -> impl Iterator<Item = &ChrCustomizationOptionEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -540,6 +556,10 @@ impl ChrCustomizationReqStore {
 }
 
 impl ChrCustomizationReqChoiceStore {
+    pub fn entries(&self) -> impl Iterator<Item = &ChrCustomizationReqChoiceEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -599,6 +619,15 @@ impl ChrRaceXChrModelStore {
 }
 
 impl ChrRacesStore {
+    /// Whether any configured race selects this nonzero resurrection-sickness spell.
+    pub fn is_resurrection_sickness_spell(&self, spell_id: i32) -> bool {
+        spell_id != 0
+            && self
+                .entries
+                .values()
+                .any(|race| race.res_sickness_spell_id == spell_id)
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "ChrRaces.db2", |id, idx, r| {
             ChrRacesEntry {

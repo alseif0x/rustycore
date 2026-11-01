@@ -106,7 +106,7 @@ impl Creature {
             Some(now_ms.saturating_add(u64::from(self.corpse_delay).saturating_mul(1_000)));
         self.unit.set_health(0);
         self.respawn_delay = self.ai_ownership.respawn_time_secs.min(u64::from(u32::MAX)) as u32;
-        self.set_death_state_runtime(DeathState::JustDied, game_time_secs);
+        self.set_kill_death_state_runtime_like_cpp(game_time_secs);
         self.unit.set_health(0);
     }
     pub fn complete_ai_death_state_after_kill_hooks_like_cpp(
@@ -120,7 +120,7 @@ impl Creature {
         self.ai_ownership.death_time_ms = Some(now_ms);
         self.ai_ownership.corpse_despawn_at_ms =
             Some(now_ms.saturating_add(u64::from(self.corpse_delay).saturating_mul(1_000)));
-        self.set_death_state_runtime(DeathState::JustDied, game_time_secs);
+        self.set_kill_death_state_runtime_like_cpp(game_time_secs);
         self.unit.set_health(0);
     }
     pub fn apply_corpse_loot_flags_after_death_state_like_cpp(
@@ -143,23 +143,6 @@ impl Creature {
             flags.insert(UnitFlags::SKINNABLE);
             self.unit.set_unit_flags_like_cpp(flags);
         }
-    }
-    pub fn respawn_ai(&mut self, now_ms: u64) {
-        self.ai_ownership.state = CreatureAiState::Idle;
-        self.ai_ownership.combat_target = None;
-        self.ai_ownership.move_target = None;
-        self.ai_ownership.move_start_ms = now_ms;
-        self.ai_ownership.last_swing_ms = now_ms;
-        self.ai_ownership.death_time_ms = None;
-        self.ai_ownership.corpse_despawn_at_ms = None;
-        self.ai_ownership.spline_id = self.ai_ownership.spline_id.saturating_add(1);
-        self.unit.set_death_state(DeathState::Alive);
-        self.unit.set_health(self.unit.data().max_health);
-        self.unit
-            .world_mut()
-            .relocate(self.ai_ownership.home_position);
-        self.unit.set_attacking(None);
-        self.last_damaged_time = 0;
     }
     pub fn can_ai_wander(&self) -> bool {
         !self.is_template_rooted_like_cpp()
@@ -596,6 +579,17 @@ impl Creature {
     }
     pub const fn already_call_assistance(&self) -> bool {
         self.already_call_assistance
+    }
+    /// The canonical persistent creature runtime state (#1263 F6-8A).
+    ///
+    /// Owners that still reach this state through a legacy bridge read this
+    /// same storage; there is no second copy.
+    pub const fn runtime_like_cpp(&self) -> &CreatureRuntimeLikeCpp {
+        &self.runtime_like_cpp
+    }
+    /// Mutable access to the canonical persistent creature runtime state.
+    pub const fn runtime_like_cpp_mut(&mut self) -> &mut CreatureRuntimeLikeCpp {
+        &mut self.runtime_like_cpp
     }
     pub const fn already_searched_assistance(&self) -> bool {
         self.already_searched_assistance

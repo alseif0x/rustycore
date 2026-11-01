@@ -1,0 +1,6 @@
+#[cfg(test)]
+pub(crate) use wow_world_core::session::state::hub_support::RepresentedPlayerGearStatsLikeCpp;
+pub(crate) use wow_world_core::session::state::hub_support::{
+    SPELL_SCHOOL_MASK_ALL_LIKE_CPP, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
+    SPELL_SCHOOL_MASK_SPELL_LIKE_CPP,
+};

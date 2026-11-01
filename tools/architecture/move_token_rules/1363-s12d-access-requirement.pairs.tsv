@@ -1,0 +1,3 @@
+crates/wow-world/src/session/map_admission.rs	access_requirement_abort_like_cpp	crates/wow-world-instances/src/instance_session/access_requirement.rs
+crates/wow-world/src/session/collections/operations.rs	access_requirement_leader_has_achievement_like_cpp	crates/wow-world-instances/src/instance_session/access_requirement.rs
+crates/wow-world/src/session/connection_identity.rs	trinity_sprintf_like_cpp	crates/wow-world-instances/src/instance_session/access_requirement.rs

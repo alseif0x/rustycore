@@ -1,0 +1,3 @@
+crates/wow-world/src/session/publication/operations.rs	represented_unit_values_update_to_update_object_like_cpp	crates/wow-world-quest/src/quest_session/unit_update_publication.rs
+crates/wow-world/src/session/publication/operations.rs	represented_unit_packet_update_to_update_object_like_cpp	crates/wow-world-quest/src/quest_session/unit_update_publication.rs
+crates/wow-world/src/session/world_entities/creature_interaction.rs	represented_viewer_dependent_creature_npc_flags_like_cpp	crates/wow-world-quest/src/quest_session/unit_update_publication.rs

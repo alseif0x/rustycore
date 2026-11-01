@@ -32,6 +32,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 flume = { workspace = true }
+wow-script = { workspace = true }
 wow-core = { workspace = true }
 wow-config = { workspace = true }
 wow-logging = { workspace = true }
@@ -43,14 +44,18 @@ wow-movement = { workspace = true }
 wow-network = { workspace = true }
 wow-module-api = { workspace = true }
 wow-world = { workspace = true }
+wow-world-core = { workspace = true }
+wow-world-application = { workspace = true }
+wow-world-inventory = { workspace = true }
+wow-world-lifecycle = { workspace = true }
+wow-world-social = { workspace = true }
 wow-handler = { workspace = true }
 wow-instances = { workspace = true }
 wow-packet = { workspace = true }
 wow-constants = { workspace = true }
-wow-crypto = { workspace = true }
 wow-entities = { workspace = true }
 wow-map = { workspace = true }
-wow-scripts = { workspace = true }
+wow-world-spell = { workspace = true }
 wow-social = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -59,6 +64,10 @@ forever-navigation = { path = "../../../rustycore-extractors/crates/forever-navi
 
 [dev-dependencies]
 wow-world = { workspace = true, features = ["test-fixtures"] }
+wow-world-test-support = { workspace = true }
 
 [build-dependencies]
 cc = { version = "1", optional = true }
+
+[lints]
+workspace = true

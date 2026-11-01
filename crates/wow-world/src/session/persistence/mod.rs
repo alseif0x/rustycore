@@ -3,8 +3,9 @@
 //! group; the canonical owners keep authority over the state they touch.
 
 use super::*;
-mod commit;
 mod load;
 mod load_authority;
 mod plans;
 mod save;
+#[cfg(test)]
+pub(crate) mod test_fixtures;

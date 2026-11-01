@@ -1,0 +1,12 @@
+{
+ "slice": "#1363 final cleanup (allow-list fix A: the account-mount login partial rows -> wow-world-character login_session/account_mounts.rs over CharacterLoginHostLikeCpp; the host method of that name retires)",
+ "base": "f27b315ea",
+ "moved": ["account_mount_login_partial_rows_like_cpp"],
+ "comment": "The player-condition read is the WorldEntitiesHostLikeCpp supertrait method, whose World impl is WorldSession::represented_meets_player_condition_id_like_cpp(self, id): the same call the base body made. No new host method.",
+ "rules": [
+  ["pub\\(crate\\) fn {name}\\(&self\\)", "pub fn {name}<H: CharacterLoginHostLikeCpp + ?Sized>(host: &H)"],
+  ["crate::session::split_lifecycle_ref\\(self\\)", "host.split_lifecycle_ref()"],
+  ["\\bself\\s*\\.\\s*catalogs\\s*\\.", "host.hub_ref().catalogs."],
+  ["\\bself\\.", "host."]
+ ]
+}

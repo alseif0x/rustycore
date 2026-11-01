@@ -1,0 +1,45 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! World-side construction of the gameobject handler context (#1263 F5).
+//!
+//! The entities crate owns the handlers and their context; the session only
+//! splits its interaction and world-entity state from the hub.
+//!
+//! `#1263 F5 remaining families`: the adapter also lends `CMSG_GAMEOBJ_USE`,
+//! whose body stays in the World shell.
+
+use wow_handler::HandlerFuture;
+use wow_packet::WorldPacket;
+use wow_world_entities::{GameObjectHandlerCxLikeCpp, GameObjectHandlerHostLikeCpp};
+
+use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
+
+impl GameObjectHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+    fn gameobject_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        _catalogs: &'a SessionHandlerCatalogsLikeCpp,
+    ) -> GameObjectHandlerCxLikeCpp<'a> {
+        let (interaction, world_entities, hub) =
+            crate::session::split_interaction_world_entities_mut(self);
+        GameObjectHandlerCxLikeCpp::new(hub, interaction, world_entities)
+    }
+
+    fn handle_game_obj_use_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            wow_world_entities::handle_game_obj_use_with_catalogs_like_cpp(
+                self,
+                catalogs.object_mgr.as_ref(),
+                catalogs.id_generators.item.as_ref(),
+                catalogs.item_valuation.as_ref(),
+                pkt,
+            )
+            .await
+        })
+    }
+}

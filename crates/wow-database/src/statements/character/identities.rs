@@ -2,8 +2,6 @@
 //!
 //! Separated from the character.rs root under #652. Behaviour is preserved.
 
-use super::*;
-
 /// Prepared statements for the character database.
 ///
 /// Covers character list, creation, deletion, and login operations.
@@ -834,6 +832,18 @@ pub enum CharStatements {
     /// DELETE FROM character_aura_effect WHERE guid = ?
     DEL_CHAR_AURA_EFFECT,
 
+    /// DELETE FROM character_aura WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?
+    DEL_CHAR_AURA_BY_KEY,
+
+    /// DELETE FROM character_aura_effect WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?
+    DEL_CHAR_AURA_EFFECT_BY_KEY,
+
+    /// DELETE FROM character_aura WHERE guid = ? AND spell = ?
+    DEL_CHAR_AURA_BY_SPELL,
+
+    /// DELETE FROM character_aura_effect WHERE guid = ? AND spell = ?
+    DEL_CHAR_AURA_EFFECT_BY_SPELL,
+
     /// DELETE FROM character_gifts WHERE guid = ?
     DEL_CHAR_GIFT,
 
@@ -1202,6 +1212,9 @@ pub enum CharStatements {
     /// C++ `CHAR_UPD_CHARACTER` persists this field immediately before powers.
     /// UPDATE characters SET health = ? WHERE guid = ?
     UPD_CHAR_HEALTH,
+    /// C++ `CHAR_UPD_CHARACTER` persists Player-owned login/death metadata.
+    /// UPDATE characters SET at_login = ?, death_expire_time = ? WHERE guid = ?
+    UPD_CHAR_DEATH_METADATA,
     /// C++ `CHAR_UPD_CHARACTER` persists these fields in the full save.
     /// UPDATE characters SET power1 = ?, ..., power10 = ? WHERE guid = ?
     UPD_CHAR_POWERS,
@@ -1258,6 +1271,12 @@ pub enum CharStatements {
 
     /// UPDATE item_instance SET durability = ? WHERE guid = ?
     UPD_ITEM_INSTANCE_DURABILITY,
+
+    /// Full-save durability update guarded by both persisted owner relations.
+    /// UPDATE item_instance JOIN character_inventory ON character_inventory.item = item_instance.guid
+    /// SET item_instance.durability = ? WHERE item_instance.guid = ?
+    /// AND item_instance.owner_guid = ? AND character_inventory.guid = ?
+    UPD_ITEM_INSTANCE_DURABILITY_OWNED,
 
     /// UPDATE item_instance SET flags = ? WHERE guid = ?
     UPD_ITEM_INSTANCE_FLAGS,

@@ -201,16 +201,43 @@ fn port_graveyard_reads_empty_packet_like_cpp() {
 }
 
 #[test]
-fn reclaim_corpse_reads_raw_corpse_guid_like_cpp() {
+fn reclaim_corpse_reads_packed_corpse_guid_like_cpp() {
     let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 0, 42);
-    let mut pkt = WorldPacket::new_empty();
-    pkt.write_bytes(&corpse_guid.to_raw_bytes());
-    pkt.reset_read();
+    let mut corpse = WorldPacket::new_empty();
+    corpse.write_packed_guid(&corpse_guid);
+    // The empty and Player hints are the observed C++ reclaim request bodies.
+    for (body, expected) in [
+        (vec![0x00, 0x00], ObjectGuid::EMPTY),
+        (
+            vec![0x01, 0xa0, 0x14, 0x04, 0x08],
+            ObjectGuid::create_player(1, 20),
+        ),
+        (corpse.data().to_vec(), corpse_guid),
+    ] {
+        let mut pkt = WorldPacket::from_bytes(&body);
+        let parsed = ReclaimCorpse::read(&mut pkt).unwrap();
+        assert_eq!(parsed.corpse_guid, expected);
+        assert_eq!(pkt.read_position(), body.len());
+        assert_eq!(pkt.remaining(), 0);
 
-    let parsed = ReclaimCorpse::read(&mut pkt).unwrap();
+        // The C++ GUID extractor consumes its field without imposing EOF.
+        let mut with_trailing = body.clone();
+        with_trailing.push(0xab);
+        let mut pkt = WorldPacket::from_bytes(&with_trailing);
+        assert_eq!(ReclaimCorpse::read(&mut pkt).unwrap().corpse_guid, expected);
+        assert_eq!(pkt.read_position(), body.len());
+        assert_eq!(pkt.remaining(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 0xab);
 
-    assert_eq!(parsed.corpse_guid, corpse_guid);
-    assert_eq!(pkt.remaining(), 0);
+        for prefix_len in 0..body.len() {
+            assert!(
+                ReclaimCorpse::read(&mut WorldPacket::from_bytes(&body[..prefix_len])).is_err()
+            );
+        }
+    }
+    for missing_payload in [&[0x80, 0x00][..], &[0x00, 0x80], &[0xff, 0xff]] {
+        assert!(ReclaimCorpse::read(&mut WorldPacket::from_bytes(missing_payload)).is_err());
+    }
 }
 
 #[test]

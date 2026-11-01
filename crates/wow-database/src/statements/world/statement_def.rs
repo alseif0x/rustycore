@@ -263,12 +263,12 @@ impl StatementDef for WorldStatements {
                 "ctm.CreatureDisplayID, ",
                 "ctdiff.LootID, ctdiff.SkinLootID, ctdiff.GoldMin, ctdiff.GoldMax, ",
                 "c.phaseUseFlags, c.phaseid, c.phasegroup, c.terrainSwapMap, ",
-                "COALESCE(cmo.Ground, ctmv.Ground, 1), COALESCE(cmo.Swim, ctmv.Swim, 1), COALESCE(cmo.Flight, ctmv.Flight, 0), ",
-                "COALESCE(cmo.Rooted, ctmv.Rooted, 0), COALESCE(cmo.Chase, ctmv.Chase, 0), COALESCE(cmo.Random, ctmv.Random, 0), ",
-                "COALESCE(cmo.InteractionPauseTimer, ctmv.InteractionPauseTimer, 180000), ",
+                "COALESCE(cmo.Ground, ctmv.Ground), COALESCE(cmo.Swim, ctmv.Swim), COALESCE(cmo.Flight, ctmv.Flight), ",
+                "COALESCE(cmo.Rooted, ctmv.Rooted), COALESCE(cmo.Chase, ctmv.Chase), COALESCE(cmo.Random, ctmv.Random), ",
+                "COALESCE(cmo.InteractionPauseTimer, ctmv.InteractionPauseTimer), ",
                 "c.wander_distance, ",
-                "CASE WHEN ca.guid IS NOT NULL AND ca.PathId = 0 AND c.MovementType = 2 THEN 0 ELSE c.MovementType END, ",
-                "COALESCE(ca.PathId, cta.PathId, 0), ",
+                "CAST(CASE WHEN ca.guid IS NOT NULL AND ca.PathId = 0 AND c.MovementType = 2 THEN 0 ELSE c.MovementType END AS UNSIGNED), ",
+                "COALESCE(ca.PathId, cta.PathId), ",
                 "COALESCE(ctm.DisplayScale, 1.0), ",
                 "ct.Classification, ct.RegenHealth, ",
                 "c.npcflag, c.unit_flags, c.unit_flags2, c.unit_flags3, ",
@@ -287,9 +287,9 @@ impl StatementDef for WorldStatements {
                 "SELECT creature.guid, id, map, position_x, position_y, position_z, orientation, modelid, equipment_id, spawntimesecs, wander_distance, ",
                 "currentwaypoint, curhealth, curmana, MovementType, spawnDifficulties, eventEntry, poolSpawnId, creature.npcflag, creature.unit_flags, creature.unit_flags2, creature.unit_flags3, ",
                 "creature.phaseUseFlags, creature.phaseid, creature.phasegroup, creature.terrainSwapMap, creature.ScriptName, creature.StringId, ",
-                "COALESCE(cmo.Ground, ctm.Ground, 1), COALESCE(cmo.Swim, ctm.Swim, 1), COALESCE(cmo.Flight, ctm.Flight, 0), ",
-                "COALESCE(cmo.Rooted, ctm.Rooted, 0), COALESCE(cmo.Chase, ctm.Chase, 0), COALESCE(cmo.Random, ctm.Random, 0), ",
-                "COALESCE(cmo.InteractionPauseTimer, ctm.InteractionPauseTimer, 180000) ",
+                "COALESCE(cmo.Ground, ctm.Ground), COALESCE(cmo.Swim, ctm.Swim), COALESCE(cmo.Flight, ctm.Flight), ",
+                "COALESCE(cmo.Rooted, ctm.Rooted), COALESCE(cmo.Chase, ctm.Chase), COALESCE(cmo.Random, ctm.Random), ",
+                "COALESCE(cmo.InteractionPauseTimer, ctm.InteractionPauseTimer) ",
                 "FROM creature ",
                 "LEFT JOIN creature_template_movement ctm ON creature.id = ctm.CreatureId ",
                 "LEFT JOIN creature_movement_override cmo ON creature.guid = cmo.SpawnId ",
@@ -516,9 +516,15 @@ impl StatementDef for WorldStatements {
                 "LEFT JOIN hotfixes.item_sparse isp ON nv.item = isp.ID ",
                 "WHERE nv.entry = ? AND nv.item = ? LIMIT 1",
             ),
-            Self::SEL_ITEM_SELL_PRICE => {
-                "SELECT COALESCE(SellPrice, 0) FROM hotfixes.item_sparse WHERE ID = ? LIMIT 1"
-            }
+            // C++ `DB2StorageBase::LoadFromDB` loads official rows
+            // (`VerifiedBuild > 0`) first and custom rows second, each in
+            // primary-key order, so the effective ItemSparse record is the
+            // last one loaded. `SellPrice` stays `INT UNSIGNED`; a `COALESCE`
+            // with a literal widens it to DECIMAL, which the u64 reader rejects.
+            Self::SEL_ITEM_SELL_PRICE => concat!(
+                "SELECT SellPrice FROM hotfixes.item_sparse WHERE ID = ? ",
+                "ORDER BY (VerifiedBuild > 0) ASC, VerifiedBuild DESC LIMIT 1",
+            ),
             Self::SEL_ITEM_TEMPLATE_ADDON_MONEY_LOOT => concat!(
                 "SELECT MinMoneyLoot, MaxMoneyLoot ",
                 "FROM item_template_addon WHERE Id = ? LIMIT 1",

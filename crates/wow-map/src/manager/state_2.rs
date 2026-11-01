@@ -21,6 +21,7 @@ impl MapManager {
             next_map_incarnation_like_cpp: 1,
             tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp::Idle,
             next_tick_epoch_like_cpp: 1,
+            deferred_creature_respawns_like_cpp: BTreeMap::new(),
         };
         manager.set_grid_cleanup_delay(grid_cleanup_delay_ms);
         manager.set_map_update_interval(map_update_interval_ms);
@@ -78,6 +79,15 @@ impl MapManager {
                 if let Some(initializer) = spawn_group_initializer_like_cpp {
                     initializer(&mut map);
                 }
+                for respawn in self
+                    .deferred_creature_respawns_like_cpp
+                    .remove(&key)
+                    .unwrap_or_default()
+                {
+                    map.map_mut()
+                        .creature_respawn_queue_like_cpp_mut()
+                        .push_respawn(respawn);
+                }
                 if instance_id != 0 && (kind.is_dungeon() || kind.is_battleground_or_arena()) {
                     self.instance_ids.register_instance_id(instance_id);
                 }
@@ -88,6 +98,35 @@ impl MapManager {
                 entry.insert(map)
             }
         }
+    }
+
+    /// R7b-1 (#1263 F6-8D3b-2): hold one deferred creature registration on
+    /// the canonical side. With a map instance for `key` it joins that map's
+    /// respawn queue now; without one it waits here and joins the queue when
+    /// [`Self::create_map_entry`] creates the instance.
+    pub fn defer_creature_respawn_like_cpp(
+        &mut self,
+        key: MapKey,
+        respawn: crate::creature_respawn_queue::PendingRespawn,
+    ) {
+        match self.maps.get_mut(&key) {
+            Some(map) => map
+                .map_mut()
+                .creature_respawn_queue_like_cpp_mut()
+                .push_respawn(respawn),
+            None => self
+                .deferred_creature_respawns_like_cpp
+                .entry(key)
+                .or_default()
+                .push(respawn),
+        }
+    }
+
+    /// The registrations still waiting for their map instance.
+    pub fn deferred_creature_respawn_count_like_cpp(&self, key: MapKey) -> usize {
+        self.deferred_creature_respawns_like_cpp
+            .get(&key)
+            .map_or(0, Vec::len)
     }
 
     pub fn create_map_decision_like_cpp(

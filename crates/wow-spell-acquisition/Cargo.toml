@@ -1,0 +1,18 @@
+[package]
+name = "wow-spell-acquisition"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+# Shared metadata and malformed-plan fixtures for downstream acceptance tests.
+# No default feature exposes a constructor for the planner's publication tape.
+test-fixtures = []
+
+[dependencies]
+wow-core = { workspace = true }
+wow-data = { workspace = true }
+
+[lints]
+workspace = true

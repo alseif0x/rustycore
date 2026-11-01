@@ -10,22 +10,14 @@
 //! condition evaluation and `Loot::FillLoot` orchestration are intentionally
 //! layered above this crate.
 
-use std::collections::{HashMap, HashSet};
-
-use rand::Rng;
-use wow_core::ObjectGuid;
-
 mod authority;
+mod distribution;
+mod rolls;
 mod store;
+pub use authority::*;
+pub use distribution::*;
+pub use rolls::*;
 pub use store::*;
-
-pub use authority::{
-    CreatureLoot, LootClaimCommitError, LootClaimError, LootClaimLease, LootClaimPayload,
-    LootClaimPersistenceGuard, LootEntry, LootEntryFlags, LootInstallOutcome, LootItemClaimKey,
-    LootRoundRobinReleaseOutcome, LootViewerCloseOutcome, LootViewerOpenOutcome, NotNormalLootItem,
-    OwnedLootAuthority, OwnedLootAuthorityLifecycle, OwnedLootAuthorityStamp, OwnedLootScope,
-    OwnedLootSnapshot,
-};
 
 #[cfg(test)]
 #[path = "store/tests/mod.rs"]

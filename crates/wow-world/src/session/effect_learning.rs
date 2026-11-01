@@ -21,12 +21,12 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
         if self.player_guid() != Some(target) || spell <= 0 {
             return false;
         }
-        if !self.represented_spell_valid_for_learning_like_cpp(spell) {
+        if !wow_world_spell::represented_spell_valid_for_learning_like_cpp(self, spell) {
             return false;
         }
         // Existing represented limit: account mount acquisition has a richer
         // owner; neither planned nor fallback learning may install half of it.
-        self.mount_store().is_some_and(|mounts| {
+        self.catalogs.mount_store().is_some_and(|mounts| {
             mounts
                 .get_by_source_spell_id_like_cpp(spell as u32)
                 .is_none()
@@ -59,19 +59,19 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
     }
 
     fn fallback_snapshot(&self) -> Option<wow_entities::PlayerSpellRuntimeState> {
-        self.with_player_spell_runtime_like_cpp(Clone::clone)
+        wow_world_spell::with_player_spell_runtime_like_cpp(self, Clone::clone)
     }
 
     fn fallback_chains(&self) -> Option<&SpellChainStoreLikeCpp> {
-        self.spell_catalogs.spell_chain_store.as_deref()
+        self.catalogs.spell_catalogs.spell_chain_store.as_deref()
     }
 
     fn fallback_requirements(&self) -> Option<&SpellRequiredStoreLikeCpp> {
-        self.spell_catalogs.spell_required_store.as_deref()
+        self.catalogs.spell_catalogs.spell_required_store.as_deref()
     }
 
     fn fallback_traits(&self) -> Option<&wow_data::trait_tree::TraitDefinitionStore> {
-        self.trait_definition_store().map(AsRef::as_ref)
+        self.catalogs.trait_definition_store().map(AsRef::as_ref)
     }
 
     fn install_fallback_row(
@@ -80,23 +80,25 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
         source: &wow_entities::PlayerSpellRuntimeState,
     ) {
         let spell = row.spell_id;
-        if let Some(trait_id) = self.take_represented_trait_definition_id_like_cpp(spell)
+        if let Some(trait_id) =
+            wow_world_spell::take_represented_trait_definition_id_like_cpp(self, spell)
             && let Some(overridden) = u32::try_from(trait_id)
                 .ok()
                 .and_then(|id| {
-                    self.trait_definition_store()
+                    self.catalogs
+                        .trait_definition_store()
                         .and_then(|store| store.get(id))
                 })
                 .map(|definition| definition.overrides_spell_id)
                 .filter(|id| *id > 0)
         {
-            self.remove_represented_override_spell_like_cpp(overridden, spell);
+            wow_world_spell::remove_represented_override_spell_like_cpp(self, overridden, spell);
         }
         let complete_rows = source
             .rows_complete_like_cpp()
             .then(|| source.rows_like_cpp().clone());
-        self.learn_known_spell_like_cpp(spell);
-        let _ = self.install_loaded_spell_row_like_cpp(spell, row, complete_rows);
+        wow_world_spell::learn_known_spell_like_cpp(self, spell);
+        let _ = wow_world_spell::install_loaded_spell_row_like_cpp(self, spell, row, complete_rows);
         self.sync_player_registry_state_like_cpp();
     }
 }

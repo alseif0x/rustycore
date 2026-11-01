@@ -37,6 +37,45 @@ fn trainer_by_creature_gossip_option_matches_cpp_lookup_key() {
     );
 }
 
+/// #1436: `COALESCE(unsigned, unsigned, literal)` and `CASE ... THEN 0 ELSE
+/// unsigned` are NEWDECIMAL in MariaDB, which no unsigned reader decodes, so
+/// every spawn silently took the literal. C++
+/// `ObjectMgr::LoadCreatureMovementOverrides` (ObjectMgr.cpp:1603-1613) uses
+/// the two-column COALESCE and keeps the `CreatureMovementData` default on NULL.
+#[test]
+fn spawn_movement_projections_keep_unsigned_column_types_like_cpp() {
+    for statement in [
+        WorldStatements::SEL_CREATURES_IN_RANGE,
+        WorldStatements::SEL_CREATURE_SPAWNS,
+    ] {
+        let sql = statement.sql();
+        for column in [
+            "Ground",
+            "Swim",
+            "Flight",
+            "Rooted",
+            "Chase",
+            "Random",
+            "InteractionPauseTimer",
+        ] {
+            let needle = format!("COALESCE(cmo.{column}, ");
+            let start = sql.find(&needle).expect(&needle);
+            let end = start + sql[start..].find(')').unwrap();
+            assert_eq!(
+                sql[start..end].matches(',').count(),
+                1,
+                "{statement:?} {column}: {}",
+                &sql[start..=end]
+            );
+        }
+    }
+    assert!(
+        !WorldStatements::SEL_CREATURES_IN_RANGE
+            .sql()
+            .contains("PathId, 0)")
+    );
+}
+
 #[test]
 fn creatures_in_range_selects_addon_path_and_effective_movement_like_cpp() {
     let sql = WorldStatements::SEL_CREATURES_IN_RANGE.sql();
@@ -49,11 +88,11 @@ fn creatures_in_range_selects_addon_path_and_effective_movement_like_cpp() {
     );
     assert!(
         sql.contains(
-            "CASE WHEN ca.guid IS NOT NULL AND ca.PathId = 0 AND c.MovementType = 2 THEN 0 ELSE c.MovementType END"
+            "CAST(CASE WHEN ca.guid IS NOT NULL AND ca.PathId = 0 AND c.MovementType = 2 THEN 0 ELSE c.MovementType END AS UNSIGNED)"
         ),
         "C++ ObjectMgr::LoadCreatureAddons downgrades spawn waypoint movement when a spawn addon has PathId=0"
     );
-    assert!(sql.contains("COALESCE(ca.PathId, cta.PathId, 0)"));
+    assert!(sql.contains("COALESCE(ca.PathId, cta.PathId), "));
     assert!(
         !sql.contains("COALESCE(ca.mount, cta.mount, 0)"),
         "addon create fields must come from CreatureAddonStoreLikeCpp, which mirrors ObjectMgr load-time validation"

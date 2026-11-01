@@ -7,6 +7,5 @@ license = "GPL-3.0-only"
 [dependencies]
 wow-module-api = { path = "../../crates/wow-module-api" }
 
-[dev-dependencies]
-# The focused hook test builds a PlayerLoginSnapshot, which carries an ObjectGuid.
-wow-core = { path = "../../crates/wow-core" }
+# A module depends on no other server crate: `compose.py` refuses one that
+# does. Name `ObjectGuid` and every snapshot type through `wow_module_api`.

@@ -32,6 +32,7 @@ modules.lock.toml                  generated record of what was composed
 crates/world-modules/              generated compositor crate
 tools/modules/compose.py           sync | check
 tools/modules/fixtures/            copyable example module
+tools/modules/examples/milestones/  example.milestones: the source API 2 example (#1444)
 ```
 
 ## `module.toml`
@@ -65,31 +66,156 @@ Git installation/update workflow; no compositor `build.rs` discovers or rewrites
 source tree implicitly. Ordinary dependency downloads still follow Cargo's configuration.
 
 The compositor invokes registrars in the operator's `order`, then module id
-(`tools/modules/compose.py::ordered` / `render_main`). Current login callbacks instead run
-in `ModuleId` order, because `ModuleRegistry` stores them in a `BTreeMap`. These are two
-distinct deterministic orders, neither inferred from linker inventory. Operator composition
-order does not currently set callback order; future modifying hooks need an explicit
-composition/conflict contract rather than inheriting this distinction accidentally.
+(`tools/modules/compose.py::ordered` / `render_main`). Hook callbacks of every family instead
+run in `ModuleId` order, because `ModuleRegistry` stores modules in a `BTreeMap`. These are two
+distinct deterministic orders, neither inferred from linker inventory: `modules.lock.toml`'s
+`enabled_order` records that registration order, and module SQL (#1444 H6) is applied in it
+(then by version); it never sets callback order. Operator composition order does not set
+callback order; a pre-decision family states its own composition rule (for `chat.message`, the
+first `Deny` wins and `ReplaceText` chains in `ModuleId` order).
 
 ## What the compositor refuses before compiling
 
 - an id, version, package, crate path or registrar that fails its format rule;
 - a `crate_path` that escapes the module checkout;
 - a duplicate module id or duplicate Cargo package across checkouts;
-- a `source_api` this server does not provide.
+- a `source_api` this server does not provide;
+- a module crate with a normal dependency (`[dependencies]` or `[target.*.dependencies]`) on
+  any server workspace crate other than `wow-module-api`, whether by name, by a `path` into
+  the server tree or by `workspace = true`, including through a helper crate inside the module
+  checkout (#1445, ADR-002). It does not follow a path dependency that leaves both the checkout
+  and the server tree: native modules are trusted code, and this rule guards against accidental
+  coupling to server internals, not against a deliberate workaround. `wow-module-api` re-exports `ObjectGuid`, so neither a module nor
+  its tests need `wow-core`; development dependencies are not checked.
+  `tools/modules/fixtures/forbidden_dependency/` is the refusal fixture.
 
 ## `modules.lock.toml`
 
 Records identity, version, package, source path, requested ref, resolved commit,
-registrar, source API, enabled order and a content digest for every composed module.
-It holds no credentials and no URLs with secrets.
+registrar, source API, enabled order and a content digest for every composed module,
+plus its SQL record (below). It holds no credentials and no URLs with secrets.
+
+## Module SQL (#1444 H6)
+
+A module that needs tables ships `data/sql/manifest.toml`:
+
+```toml
+format = 1
+min_core_schema = "2026.08.02.00"   # a core migration version this module builds on
+
+[[migrations]]
+database = "characters"              # characters or world only
+version = "2026.10.21.00"            # dot-separated numbers, unique per database
+description = "per-character milestone counts"
+file = "characters/2026_10_21_00_counts.sql"   # relative to data/sql
+
+[[purge]]                            # reviewed DROP scripts, run only by an explicit purge
+database = "characters"
+file = "purge/characters.sql"
+```
+
+Owner decisions (2026-10-21, recorded on #1444):
+
+- **Scope.** A module changes only `characters` and `world`, and there only its own tables,
+  named `mod_<id with . as _>_…` (`example.milestones` → `mod_example_milestones_`). No
+  ALTER or DML on core tables; `auth` and `hotfixes` are closed to modules for now. Two
+  modules may not share a prefix.
+- **Record.** `compose.py sync` validates the manifest (files exist inside `data/sql`,
+  `min_core_schema` is a version this core's migration manifest reaches) and records it in the
+  lock: `[module.sql]` with `min_core_schema` and `source`, one `[[module.sql.migration]]` per
+  file with its SHA-256 (CRLF normalized, as `rustycore-db` hashes), and `[[module.sql.purge]]`.
+- **Immutable.** A migration recorded in the lock keeps its checksum and may not be dropped
+  from the manifest: `sync`/`check` refuse a change, and the startup check refuses applied
+  history whose checksum differs. A fix is a new migration file.
+- **Namespace.** Module history lives in the same `rustycore_schema_history` table, with
+  `component = "module:<id>"`.
+- **Embedded.** When any module has SQL or a tombstone exists, the generated compositor calls
+  `world_server::run_with_composition(args, modules, include_str!("../../../modules.lock.toml"))`.
+  The startup check (`ModuleSchema::from_lock` + `MigrationManifest::with_module_schema`) then
+  treats a composed module's migrations as `active` — the server refuses to start while one is
+  pending — and a tombstoned module's as `archived`: its history is accepted with its
+  checksums and nothing is required. The plain `world-server` binary and a zero-module
+  composition accept no module history; their compositor is unchanged.
+- **Removal keeps data.** A removed module leaves a tombstone in the lock: a block after the line
+  `# --- tombstones: written by rustycore-db module remove; …` holding `[[tombstone]]` entries
+  shaped like `[[module]]` ones. `compose.py` keeps that block byte for byte and refuses to
+  drop a module whose SQL is in the lock unless it is tombstoned. A re-installed module must
+  continue its tombstoned history. Removal never deletes data; a separate explicit purge runs
+  the module's reviewed DROP scripts.
+- **Static guard.** `compose.py` (`tools/modules/module_sql.py`) at sync and `rustycore-db`
+  (`wow_database::migration::module_sql`) before applying or purging check every statement, with
+  comments removed and strings emptied (`--` is a comment only before whitespace, as in MariaDB;
+  backslash escapes are assumed, which holds because `SET` is refused):
+  - migrations may `CREATE TABLE` the module's tables with columns first and then only the
+    options `ENGINE` (InnoDB, Aria, MyISAM, MEMORY), `[DEFAULT] CHARSET`/`CHARACTER SET`,
+    `COLLATE`, `COMMENT`, `AUTO_INCREMENT`, `ROW_FORMAT`; `ALTER TABLE` them with only
+    `ADD`/`DROP`/`MODIFY`/`CHANGE`/`ALTER` clauses and the same options; `CREATE`/`DROP INDEX` on
+    them; and `INSERT`/`REPLACE`/`UPDATE`/`DELETE` their rows without naming another table;
+  - purge scripts may only `DROP TABLE IF EXISTS` them, so a retried purge is safe;
+  - refused everywhere: qualified names, `SELECT`, `JOIN`, `RENAME`, `UNION`, partitions
+    (`PARTITION`, `EXCHANGE`, `CONVERT TABLE`), `TABLESPACE`, `DATA`/`INDEX DIRECTORY`,
+    `CONNECTION`, other engines, file I/O, sequences, side-effecting functions (`LOAD_FILE`,
+    `GET_LOCK`, `RELEASE_LOCK`, `SLEEP`, `BENCHMARK`, …), executable `/*! */` comments, foreign
+    keys to other tables and every other statement. `ALGORITHM=` and `LOCK=` clauses are refused
+    too, so online-DDL hints are not available to module tables;
+  - two modules may not have one table prefix inside the other (`mod_demo_` vs `mod_demo_x_`).
+  Both guards are tested against the shared `tools/modules/sql_guard_vectors.json`.
+- **Commands** (dry run unless `--yes`, which also requires `--config`), `rustycore-db module <apply|remove|purge> <id>`:
+  - `apply` runs the composed module's pending migrations per database in version order. It
+    tolerates only pending module migrations: it refuses while the schema has any other problem
+    (checksum drift, incomplete rows, unknown history), while an earlier module in `enabled_order` has a
+    pending migration, when `min_core_schema` is newer than the core manifest, when a file no
+    longer matches its recorded checksum, or when the guard refuses it. Like `purge`, it checks
+    every recorded file of both databases before it connects, and with `--yes` it dry-runs both
+    databases before changing either, so the refusals that can be checked in advance (files,
+    guard, core schema problems, `enabled_order`, `min_core_schema`) are found before
+    `characters` changes (#1468). A runtime SQL error in `world`, or a concurrent change between
+    the dry run and the write, can still leave `characters` applied; the incomplete history row
+    then needs explicit repair. It holds the same
+    advisory lock as `migrate`, and a failed statement leaves the row incomplete for explicit
+    recovery, like a core migration.
+  - `remove` keeps every table and history row. It copies the recorded files to
+    `modules/.retired/<id>/data/sql` and writes the module's tombstone into the lock. Then
+    `rustycore-module remove <id>` (which refuses before that step), `sync` and a rebuild.
+  - `purge` (only for a tombstoned, no longer composed module) runs the retained, re-verified and
+    guarded DROP scripts, deletes the module's history rows once none of its tables remain (so an
+    interrupted purge can be rerun), then its tombstone and the retained copy. Run `sync`
+    afterwards.
+- **Tests** use a throwaway database: the ignored `live_mariadb_module_apply_remove_and_purge`
+  (`RUSTYCORE_DB_IT_USER`, `_HOST`, `_PORT`, `_PASS`, as the other `live_mariadb*` tests), run in
+  CI by `.github/workflows/wow-database-live.yml`. Never point them at a server database.
+- **Core migrations stay separate.** `rustycore-db status|validate|migrate` read the lock
+  (`--lock`, default `modules.lock.toml`) so module history is validated, but `migrate`
+  applies core migrations only; module migrations are applied in `enabled_order`, then
+  version, by the operator's explicit module command.
+
+## The example module (#1444)
+
+`tools/modules/examples/milestones/` (`example.milestones`, source API 2) uses the `player.login`,
+`player.*`, `chat.*`, `world.*` and `creature.*` families together: a login greeting, a
+configurable `level_message` on level milestones, a per-session count of rewarded quests, a self
+message every `kill_milestone`-th kill (also logged on the next `world.update`), a `chat.message`
+pre-decision that denies messages containing one of `blocked_words`, an optional world
+announcement for level milestones queued from the player hook and sent by `world.update`, and a
+creature death counter logged at shutdown. `enabled_hooks` declares its four `player.*` hooks, and
+the `chat.*` family is registered only when a word is blocked. Its counters are in memory only;
+its README lists the typed configuration and the state boundary. It also ships module SQL
+(#1444 H6c): one `characters` migration creating `mod_example_milestones_counts` and its purge
+script, which show the lifecycle below; nothing writes that table until #583 gives modules
+durable state. Install it with
+`rustycore-module install --path tools/modules/examples/milestones`, `sync`, and add
+`modules/milestones` to the workspace members to build or test it; `test_rustycore_module.py`
+checks that it installs and composes, and `tools/modules/check_sql_compositor.py` does exactly
+that install/sync/member step, runs its tests and `cargo check -p world-modules` on the SQL-mode
+compositor, and restores the checkout (`final` runs it for module-surface changes, #1468).
 
 ## The zero-module build is unchanged
 
 With nothing under `modules/`, the compositor is a no-op that calls
 `world_server::run_with_modules` with an empty registry, and `world-server`'s own
-binary still calls `world_server::run`. That entry creates an empty registry; the login adapter
-checks `registry.is_empty()` and returns before constructing a snapshot or invoking callbacks.
+binary still calls `world_server::run`. That entry creates an empty registry; each World
+adapter entry checks `registry.handles(<family>)` and returns before constructing a snapshot
+or invoking callbacks, and the domain hook ports default to doing nothing.
 This is the current zero-module source path, not fresh capture proof for every server action.
 
 ## The module manager
@@ -132,8 +258,8 @@ entire stdout is not guaranteed to be a single JSON document.
 - `update` refuses a checkout with local modifications rather than discarding them.
 - `remove` resolves the id to exactly one validated checkout inside `modules/` and refuses any
   path that escapes it.
-- The manager never runs SQL. `data/sql/` is a reserved layout, not an integrated migration
-  mechanism or permission to bypass the project's explicit database-migration authority.
+- The manager never runs SQL. Module SQL is recorded by `sync` and applied only through
+  `rustycore-db` (see "Module SQL").
 
 The Git v1→v2 workflow still needs product-level acceptance. Inspection found that
 `install` calls `_pin`, which writes revision metadata into the checkout's `module.toml`,
@@ -145,7 +271,7 @@ local-path/composition tests do not establish a successful Git upgrade and resta
 
 `rustycore-module new` produces a module that compiles and tests as-is: manifest, `src/lib.rs`
 with a working `register`, a focused hook test asserting the module greets only on first login,
-an example configuration, `data/sql/{auth,characters,world,hotfixes}/` and a README stating the
+an example configuration, `data/sql/{characters,world}/` and a README stating the
 trust model. Optional directories are documented rather than generated empty.
 
 ## Typed configuration
@@ -200,12 +326,177 @@ its options.
 server does not provide, with an actionable message, before a single line is compiled:
 
 ```
-modules/incompatible_api/module.toml: source_api '2' is not supported;
-this server provides ['1']. Update the module or pin an older server.
+modules/incompatible_api/module.toml: source_api '3' is not supported;
+this server provides ['1', '2']. Update the module or pin an older server.
 ```
+
+`wow_module_api::SOURCE_API` and `COMPATIBLE_SOURCE_APIS` are the Rust side of the same
+numbers; `test_rustycore_module.py` asserts the composer agrees with them.
+
+## Source API 2: hook families, ports and the World adapter (#1445)
+
+API 2 is **additive**. An API 1 module (the skeleton, `register_player_login_module`,
+`PlayerLoginSnapshot` built with a struct literal, an exhaustive match on `PlayerLoginEffect`)
+compiles and runs unchanged; the server records `source_api = "2"` and each module keeps its own.
+
+**Registry by capability.** A module registers one `ModuleHooks` set with `register_module`,
+offering one `Arc` per hook family it implements, so one value can serve several families and
+keep one in-memory state. `register_player_login_module` is that call with only `player.login`.
+A set with no family is refused. Families follow AzerothCore's script classes
+(`src/server/game/Scripting/ScriptDefines/*.h`); `HookFamily` names them and
+`registry.handles(family)` lets an owner skip building a snapshot nobody receives.
+
+**Contract shape.** `wow-module-api` re-exports `ObjectGuid`, so a module names every type it
+needs through that one crate. Snapshots are owned copies; API 2 snapshots are `#[non_exhaustive]` with a
+constructor, so fields can be added without breaking modules. Effects are per family and
+validated as one batch, all or nothing (`EffectBatch`). Confirmed-result hooks return
+`NotificationEffect::SendSystemMessageSelf`; the pre-decision type `ChatDecision`
+(`Allow`/`Deny`/`ReplaceText`) is declared for `chat.message`.
+
+**Failure isolation.** Each callback runs under `catch_unwind` with `AssertUnwindSafe`: what a
+panicking callback queued is discarded, and the module is disabled for every family for the rest
+of the process (`HookOutcome::disabled`, `registry.is_disabled`). The other modules' batch still
+applies. Native modules are trusted code; this is isolation from bugs, not a sandbox. It needs
+unwinding panics, so no workspace profile may set `panic = "abort"` (a `wow-module-api` test
+checks it). `world-server` registers `wow_module_api::module_callback_in_progress` with the
+`wow-logging` panic hook, which then logs such a panic as contained instead of
+`Trinity::Fatal`-like.
+
+**Ports, not dependencies.** Domain crates never depend on `wow-module-api`. A hook point is a
+provided method on the domain's existing host trait with an empty default body, taking a plain
+domain event (for login, `ContinueLoginHostLikeCpp::player_login_hook_like_cpp` with
+`PlayerLoginHookEventLikeCpp`). Where building the event costs anything (canonical Player reads
+take the map lock), the port has a provided interest query too
+(`player_login_hook_wanted_like_cpp`, default `false`, answered by the World from
+`registry.handles`), so a zero-module server builds nothing. `WorldSession` overrides the port and calls the World adapter,
+`crates/wow-world/src/session/module_hooks.rs`, the one place that converts the event to the
+public snapshot, dispatches and applies the validated effects through the canonical owner. Test
+hosts implement nothing. No `wow-world*` dependency edge is added, so `wow_world_closure.py` and
+`dependency-policy.json` are unchanged; `wow-world-application`, `wow-world-lifecycle` and
+`wow-world-core` no longer depend on the module API at all.
+
+**Registry ownership.** The compositor's `Arc<ModuleRegistry>` is process-owned and immutable.
+The session factory installs the same `Arc` the dispatch catalogs carry into each session once,
+through `WorldSession::install_module_hooks_like_cpp` (a second install is refused and asserted
+in debug builds); it replaces the former test-only
+`SessionCore::module_registry_like_cpp`. Nothing else is installed into the session this way.
+
+**Ordering and locks.** A port is called where C++ calls `sScriptMgr`, after the transition and
+its persistence boundary (#169), and never with a split borrow, map guard, money guard or
+respawn-order guard held, nor across an `.await` with a guard. World and map hooks dispatch from
+`world-server` after the map lock is released. Modules never mutate the player spell map (#754):
+no effect can.
 
 `tools/modules/fixtures/incompatible_api/` is that fixture, and `doctor --json` reports
 `supported_source_apis` alongside each module's own.
+
+## Hook catalogue (#1444 first wave)
+
+Every hook below is a confirmed-result notification unless marked otherwise. Each one is raised
+after its transition and that transition's persistence boundary, exactly once, never under a
+map, money or respawn-order guard, and only when the port's interest query says a module wants
+it: `registry.handles_player_hook(<hook>)` for a `player.*` hook (AzerothCore
+`CALL_ENABLED_HOOKS`; a module declares its hooks with `PlayerModule::enabled_hooks`, every hook
+by default), `registry.handles(<family>)` for the others. `player.creature_kill` and
+`player.spell_cast` are **non-persistent observations**: they report an in-memory transition
+(the death state, a cast sent to the client) that has no persistence boundary of its own, not a
+durable or committed result.
+
+| Hook | Family / method | AzerothCore | RustyCore call site | Effects |
+|---|---|---|---|---|
+| `player.login` | `PlayerLoginModule::on_player_login` | `PlayerScript.h:332`, `CharacterHandler.cpp:1136` | `wow-world-application` `continue_login/login.rs`, last step, after `mark_player_online` | self message |
+| `player.logout` | `PlayerModule::on_logout` | `PlayerScript.h:338`, `WorldSession.cpp:828` | `wow-world-application` `session_lifecycle/finalization.rs`, `Retirement` step: after `CharacterSave` and the offline marks, after the registry cleanup, before the map removal | none (session closing) |
+| `player.level_changed` | `PlayerModule::on_level_changed` | `PlayerScript.h:263`, `Player.cpp:2585` | `wow-world-quest` `quest/reward/xp_grants.rs` `give_xp_like_cpp`, once per level gained (TrinityCore `Player.cpp:2231-2236`), only after the XP save applied | self message |
+| `player.money_changed` | `PlayerModule::on_money_changed` | `PlayerScript.h:282`, `Player.cpp:11688` | `wow-world-quest` `quest/objectives.rs`, the post-commit `MoneyChanged` drain every money path feeds (outside the exclusive money fence); a quest reward raises its own, see below | self message; the amount cannot be changed (#583) |
+| `player.quest_accepted` | `PlayerModule::on_quest_accepted` | `PlayerScript.h:750`, `PlayerQuest.cpp:426` | `wow-world-quest` `quest_session/accept_handlers.rs`, quest giver and shared-quest confirmation (after its source-item step, TrinityCore `Player.cpp:14436`), only once the status save applied or a completion reward committed it | self message |
+| `player.quest_rewarded` | `PlayerModule::on_quest_rewarded` | `PlayerScript.h:245`, `PlayerQuest.cpp:903` | `wow-world-quest` `quest/reward/coordinator.rs`, last step of the reward, after its single commit, the reward XP's level hooks and the reward's own money hook (AzerothCore order: `GiveXP`, `ModifyMoney`, `OnPlayerCompleteQuest`); carries the committed balances and the offered XP | self message |
+| `player.creature_kill` | `PlayerModule::on_creature_kill` | `PlayerScript.h:254`, `Unit.cpp:14298`; TrinityCore `Unit.cpp:10755` (`OnCreatureKill`) | `wow-world-entities` `creature_kill_session.rs`, the kill completion every player kill ends in (spell damage at once, map-tick melee through the session's pending-kill queue): once per `setDeathState(JUST_DIED)`, after the map lock of that transition is released, only for the session's own player | self message; non-persistent observation |
+| `player.spell_cast` | `PlayerModule::on_spell_cast` | `PlayerScript.h:326`, `Spell.cpp:3825`; TrinityCore `Spell.cpp:3671` | `wow-world-spell` `execution_session/execution.rs`, the only player `SMSG_SPELL_GO` producer: once per cast with the player as caster, after the SPELL_GO and before the effects; `triggered` is C++ `TRIGGERED_IGNORE_GCD`, the one trigger flag represented (every `CastSpell(..., true)` carries it) | self message; nothing can change spells or auras (#754); non-persistent observation |
+| `item.equipped` | `PlayerModule::on_equip` | `PlayerScript.h:416`, `PlayerStorage.cpp:2940` | `wow-world-inventory` `item_session`: equip into an empty slot (`moves.rs`), a real swap (`real_swap.rs`, once per item that lands in an equipment position) and the child equip, after the inventory transaction committed and the position changed | self message |
+| `player.loot_item` | `PlayerModule::on_loot_item` | `PlayerScript.h:431`, `Player.cpp:13918` | `wow-world-loot-ops` `loot_handlers/item.rs`, a directly looted item once durably stored, raised after the request's loot-removed notifications; roll winners and master-loot recipients are deliberately not reported, for AzerothCore parity: it raises `OnPlayerLootItem` only at the end of `StoreLootItem` (`Player.cpp:13918`) and other hooks for rolls and master loot (`Group.cpp:1652/1736`) | self message |
+| `player.loot_money` | `PlayerModule::on_loot_money` | `LootScript.h:44`, `LootHandler.cpp:273` | `wow-world-loot-ops` `session_loot/handlers/money.rs`, once for the looter after the group fanout committed (`money` is the whole `loot->gold`, `share` what the looter received), or after an item's money was durably applied; on the creature/GameObject path a repeated request on an emptied loot reports 0, as AzerothCore does; the item-held loot path raises nothing on a repeat | self message |
+| `chat.message` (**pre-decision**) | `ChatModule::on_chat_message` | `PlayerScript.h:657-709` (`OnPlayerCanUseChat`); TrinityCore `PlayerScript::OnChat` | `wow-world-social` `chat_handlers`: say, yell, free-text emote, party, raid, raid warning, instance chat and whisper, after every C++ check (language, mute, flood, length, `ValidateMessage`, links, GM silence, alive, level; group resolved; whisper receiver found), right before the send | `ChatDecision`: `Allow`, `Deny`, `ReplaceText` |
+| `world.config_loaded` | `WorldModule::on_config_loaded` | `WorldScript.h:53`, `World.cpp:300` (`OnAfterConfigLoad(false)`) | `world-server` `app.rs`, `WorldModuleHooksLikeCpp::after_config_load_like_cpp`, after the databases are started, the online accounts cleared and the realm marked offline, before the realm list is read (C++ reaches `LoadConfigSettings` only after `StartDB`); `reload` is always `false` (no reload exists) | log, world announcement |
+| `world.startup` | `WorldModule::on_startup` | `WorldScript.h:74`, `Main.cpp:395` (TrinityCore `Main.cpp:413`) | `world-server` `app.rs`, after both listeners are bound and the realm is marked online, beside the internal `on_startup_like_cpp`; the already spawned map loop dispatches no `world.update` before it | log, world announcement |
+| `world.update` | `WorldModule::on_update` | `WorldScript.h:71`, `World.cpp:1342` (TrinityCore `World.cpp:2862`) | `world-server` `runtime/map/update_loop.rs`, once per completed canonical tick, at its end, after the map manager, spawn metadata and respawn-order guards were released and after game events; only after `world.startup`; `diff_ms` is the time since the previous dispatch | log, world announcement; 5 ms budget per module, throttled warning and per-module metric |
+| `world.shutdown` | `WorldModule::on_shutdown` | `WorldScript.h:77`, `Main.cpp:419` (TrinityCore `Main.cpp:440`) | `world-server` `app.rs`, after the session flush and the respawn-writer drain, beside the internal `on_shutdown_like_cpp`, before the realm is marked offline. C++ runs it before `KickAll`/`UpdateSessions(1)`/`StopNetwork`; RustyCore's later point is an intentional deviation, so no module runs while sessions are still being finalized | log, world announcement |
+| `creature.added_to_world` | `CreatureModule::on_added_to_world` | `AllCreatureScript.h:43` (`OnCreatureAddWorld`, `Creature::AddToWorld`) | the creature is marked where it enters its map: a fresh canonical incarnation (`wow-world-entities` `creature_registry.rs`, the admission grid loads and respawns use) or a creature record added through `wow-map` `add_map_object_record_to_map_like_cpp`; the canonical map tick's lifecycle phase (`wow-world-creature` `creature_lifecycle_tick.rs`) reports and clears the mark on the first update that visits it, and `world-server` dispatches after the tick's guards were released (`runtime/map/update_loop.rs`, after the creature phases' delivery); non-persistent observation | log, world announcement |
+| `creature.died` | `CreatureModule::on_died` | `UnitScript.h:111` (`OnUnitDeath`, raised from `Unit::Kill`, `Unit.cpp:14307`) | `wow-entities` `Creature::set_kill_death_state_runtime_like_cpp`, the kill's transition from alive into `JUST_DIED` (player melee and spells, creature melee and damage share); a forced despawn, `DisappearAndDie` or forced respawn raises nothing, as in AzerothCore; pets are not creatures here and are not reported; reported and dispatched like `added_to_world`, exactly once per transition; the killer is not reported (see `player.creature_kill`); non-persistent observation | log, world announcement |
+
+An operation that runs on the session host raises its hook through a provided host-trait method;
+one that runs inside a borrowed context (`QuestRewardCx` and the objective drain on it) raises it
+through the `QuestModuleHookPortLikeCpp` the World hands the context. Both reach the same World
+adapter. A quest that completes and auto-rewards on accept reports `quest_rewarded` before
+`quest_accepted`, because the accept only becomes durable through that reward's commit. A hook
+whose persistence failed or is unknown is not raised: modules only observe durable results.
+The reward's hooks run at the end of the reward future: if that future is cancelled after the
+commit, its `money_changed` and `quest_rewarded` are lost together (the reward itself stays
+committed); modules must not treat a missing notification as a missing reward.
+
+**World family (#1444 H2).** `world.*` hooks have no session. `world-server`
+`module_hooks.rs` (`WorldModuleHooksLikeCpp`) dispatches them on the composition root's own
+tasks, asks `registry.handles(World)` first, and applies `WorldEffect`s: `Log` writes one line
+attributed to the module; `AnnounceWorld` is the port of C++ `World::SendWorldText`
+(`World.cpp:2982`): each non-empty line (TrinityCore `LineFromMessage` skips empty ones) as a
+`CHAT_MSG_SYSTEM` to every registered session whose player is in the world
+(`PlayerRegistry::in_world_registrations_like_cpp`), addressed with the realm's virtual address
+(`virtual_realm_address_like_cpp`, the formula the sessions use). Texts follow the system-message
+rules, and one dispatch sends at most 8 lines across its announcements; the rest is cut and logged,
+so a module cannot fill the players' socket queues. `world.update` runs on the map loop: each
+module's callback is timed apart from effect application against a 5 ms budget, the first
+overrun of each module is logged at once and later ones are summarized every 10 s, and calls,
+total, maximum and overruns are kept per module. A tick the loop skips (map timer not passed,
+barrier held, abandoned tick, shutdown, or before `world.startup`) dispatches nothing, and the
+next dispatch's `diff_ms` covers it.
+
+**Creature family (#1444 H3b).** `creature.*` hooks have no session; their effects are the
+`world.*` ones. The creature carries two runtime marks, set where C++ calls the hook
+(`Creature::AddToWorld`, a kill's transition into `JUST_DIED`) and consumed by the canonical tick's
+lifecycle phase, which visits every creature the map updates (the cells around players and
+active objects). So an event is reported by the tick after its transition, from that tick's
+outcome, once every guard of the tick was released; the map loop asks `handles(Creature)` before
+the guards, and without a creature module the phase reads nothing. **Coverage limit:** only a
+creature in the tick's admitted selection (the map's NearbyCells update plan) is visited, so an
+event for a creature outside it may never be reported, not just reported late: a creature added
+and removed between two ticks, a game-event or spawn-group creature in a cell no update visits,
+or one that leaves the selection before it is visited. Collecting the events from the map's
+`AddToMapOutcome` instead (plan row 16) is #1462. Effect warnings of the per-tick hooks (`world.update`, `creature.*`), such as a rejected
+batch or an announcement cut at the line cap, go through the same throttle as the budget
+warning: the first is logged, later ones are summarized every 10 s with the suppressed count.
+
+**Combat hooks (#1444 H3).** Both are non-persistent observations (see above).
+`player.spell_cast` is raised once the cast is visible (`SMSG_SPELL_GO` sent) and before its
+effects apply; a notification observes a cast that already happened, so the module's message
+follows the SPELL_GO. A cast that fails before SPELL_GO (cast checks, targets, power) raises
+nothing. This differs from AzerothCore, which calls `OnPlayerSpellCast` at the start of
+`Spell::_cast` (`Spell.cpp:3825`), before its `CheckCast` (`Spell.cpp:3851`), so a C++ module
+also sees casts that then fail. Creature and GameObject casts on the map tick raise nothing. A group kill
+reports only the killing player (the group reward fanout is not ported).
+
+**Chat pre-decision (#1444 H4).** `chat.message` is the first hook that can change what happens.
+`HookFamily::Chat` is a family of its own, so a server whose modules ignore chat builds nothing
+per message. The chat handlers run in a borrowed context, so the World lends it a
+`ChatModuleHookPortLikeCpp`. Decisions compose in `ModuleId` order: each module sees the text the
+previous ones left, the first `Deny` drops the message, and a panicking module is disabled with
+its decision discarded. A replaced text goes through the client-text rules again (511 bytes,
+`ValidateMessage`, emptiness, hyperlink shape); one that fails them drops the message rather than
+fall back to the text a module wanted replaced, and a module-inserted link never kicks the
+sender. Guild and officer chat, channels, AFK/DND replies and addon messages are not offered:
+guild chat and channel broadcast are not ported, and in C++ a veto after the AFK/DND toggle has
+no effect. A whisper is reported with `LANG_UNIVERSAL`, as AzerothCore `Player::Whisper` passes it
+(`Player.cpp:9667-9671`).
+
+**Security consequence: chat filtering fails open.** A chat module that panics is disabled for the
+rest of the process, like any module, and its decision is discarded. A module used as a
+profanity or spam filter therefore stops filtering after its first panic, and messages are sent
+unfiltered from then on (the disable is logged). A filter that must fail closed is out of scope
+until #583.
+
+**Equip hook coverage (#1444 H4).** `item.equipped` is raised only by the equip handlers (empty
+slot, real swap, child equip). Unlike AzerothCore, it is not raised for the equipment loaded at
+login (`QuickEquipItem` in `_LoadInventory`, `PlayerStorage.cpp:6008`), for a stack merged into an
+equipped stack (`PlayerStorage.cpp:2932`), or for a new character's starting outfit
+(`Player.cpp:724`).
 
 ## Approved next direction — #583 under #99, not implemented yet
 
@@ -284,12 +575,10 @@ publication must not duplicate a reward after a lost response or restart. Preser
 logical reward/receipt identity across retries, new runtime incarnations and schema/config
 upgrades; a data version must not accidentally become a new reward entitlement.
 
-Extend the existing `rustycore-db` authority for approved module migrations: review/dry-run,
-immutable checksums, component history and explicit recovery. Current runtime validation uses
-the embedded core manifest and rejects applied history absent from that manifest
-(`wow-database/src/migration.rs::bundled_manifest` / `build_report`). Module integration must
-retain verifiable migration history and required artifacts independently of the active module
-checkout; existing `Archived` entries are a useful primitive, not that completed integration.
+Module migrations extend the existing `rustycore-db` authority (#1444 H6, "Module SQL" above):
+immutable checksums, `module:<id>` component history, and an embedded lock that makes the
+startup check require composed modules' migrations and accept tombstoned history as `archived`.
+Durable module state built on it (receipts, retry-safe rewards) remains the work below.
 **Disable is not purge:** deactivate callbacks while retaining data/history; deleting module
 code must not implicitly delete data. Purging requires a separate explicit operation.
 MariaDB DDL may already be committed after failure: do not promise automatic rollback or a

@@ -288,6 +288,8 @@ pub(super) fn session() -> (
         "enUS".into(),
         packet_rx,
         send_tx,
+        crate::compose_packet_handlers_like_cpp()
+            .expect("phase-lifecycle fixture handlers compose without duplicates"),
     );
     let registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
     let (id, cancellation, ready) = registry

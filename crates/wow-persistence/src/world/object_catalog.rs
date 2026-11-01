@@ -10,7 +10,8 @@ pub struct CreatureTemplatePersistenceRowLikeCpp {
     pub name: String,
     pub ai_name: String,
     pub script_name: String,
-    pub required_expansion: u8,
+    /// C++ `CreatureTemplate::RequiredExpansion` is read with `GetUInt32()`.
+    pub required_expansion: u32,
     pub faction: u32,
     pub npc_flags: u64,
     pub speed_walk: f32,
@@ -37,6 +38,7 @@ pub struct CreatureTemplatePersistenceRowLikeCpp {
     pub flags_extra: u32,
     pub string_id: String,
     pub regen_health: bool,
+    pub base_variance: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -153,7 +155,8 @@ pub struct GameObjectTemplateAddonPersistenceRowLikeCpp {
     pub faction: u32,
     pub flags: u32,
     pub world_effect_id: u32,
-    pub anim_kit_id: u16,
+    /// C++ `GameObjectTemplateAddon::AIAnimKitID` is read with `GetUInt32()`.
+    pub anim_kit_id: u32,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GameObjectOverridePersistenceRowLikeCpp {

@@ -86,11 +86,13 @@ impl CorpseCreateData {
 
 pub(in crate::packets::update) fn write_corpse_create_block(
     buf: &mut WorldPacket,
+    update_type: UpdateType,
     guid: &ObjectGuid,
     create_data: &CorpseCreateData,
 ) {
-    write_stationary_world_object_create_prefix_like_cpp(
+    write_stationary_world_object_create_prefix_with_type_like_cpp(
         buf,
+        update_type,
         guid,
         TypeId::Corpse,
         create_data.position,

@@ -1,0 +1,4 @@
+crates/wow-world/src/session/spell_state/aura/spell_hit_authority.rs	can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp	crates/wow-world-application/src/continue_login/mod.rs
+crates/wow-world/src/session/spell_state/aura/spell_hit_authority.rs	can_authorize_empty_player_spell_hit_aura_source_like_cpp	crates/wow-world-application/src/continue_login/mod.rs
+crates/wow-world/src/session/spell_state/aura/spell_hit_authority.rs	sync_player_spell_hit_aura_authority_to_canonical_like_cpp	crates/wow-world-application/src/continue_login/mod.rs
+crates/wow-world/src/session/spell_state/aura_publication.rs	represented_war_mode_update_zone_aura_source_is_empty_like_cpp	crates/wow-world-application/src/continue_login/mod.rs

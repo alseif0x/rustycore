@@ -9,6 +9,11 @@ use sqlx::MySql;
 use sqlx::mysql::MySqlRow;
 use sqlx::{Column, Row, TypeInfo, ValueRef};
 
+use crate::field_like_cpp::{
+    NativeFieldLikeCpp, NativeWidthLikeCpp, missing_column_error_like_cpp, native_width_like_cpp,
+    row_error_like_cpp, undecodable_column_error_like_cpp,
+};
+
 /// TrinityCore-style database field categories derived from MySQL metadata.
 ///
 /// C++ stores this as `DatabaseFieldTypes` on `QueryResultFieldMetadata`.
@@ -327,6 +332,80 @@ impl SqlResult {
             .first()
             .and_then(|r| r.columns().get(index))
             .map(|c| c.type_info().name())
+    }
+}
+
+impl SqlResult {
+    /// Decode the current row at the MariaDB widths C++ `Field` reads
+    /// (`MysqlTypeToFieldType`), for the fail-closed getters in
+    /// [`crate::field_like_cpp`].
+    pub(crate) fn native_row_like_cpp(&self) -> anyhow::Result<Vec<NativeFieldLikeCpp>> {
+        let field_count = self.field_count();
+        let mut fields = Vec::with_capacity(field_count);
+        for column in 0..field_count {
+            fields.push(self.native_field_like_cpp(column)?);
+        }
+        Ok(fields)
+    }
+
+    fn native_field_like_cpp(&self, column: usize) -> anyhow::Result<NativeFieldLikeCpp> {
+        let Some(type_name) = self.column_type_name(column) else {
+            return Err(missing_column_error_like_cpp(column, self.field_count()));
+        };
+        if self.is_null(column) {
+            return Ok(NativeFieldLikeCpp::Null);
+        }
+        let decoded = match native_width_like_cpp(type_name) {
+            NativeWidthLikeCpp::UInt8 => self.try_read(column).map(NativeFieldLikeCpp::UInt8),
+            NativeWidthLikeCpp::Int8 => self.try_read(column).map(NativeFieldLikeCpp::Int8),
+            NativeWidthLikeCpp::Boolean => self
+                .try_read(column)
+                .map(NativeFieldLikeCpp::Int8)
+                .or_else(|| self.try_read(column).map(NativeFieldLikeCpp::UInt8)),
+            NativeWidthLikeCpp::UInt16 => self.try_read(column).map(NativeFieldLikeCpp::UInt16),
+            NativeWidthLikeCpp::Int16 => self.try_read(column).map(NativeFieldLikeCpp::Int16),
+            NativeWidthLikeCpp::UInt32 => self.try_read(column).map(NativeFieldLikeCpp::UInt32),
+            NativeWidthLikeCpp::Int32 => self.try_read(column).map(NativeFieldLikeCpp::Int32),
+            NativeWidthLikeCpp::UInt64 => self.try_read(column).map(NativeFieldLikeCpp::UInt64),
+            NativeWidthLikeCpp::Int64 => self.try_read(column).map(NativeFieldLikeCpp::Int64),
+            NativeWidthLikeCpp::Float => self.try_read(column).map(NativeFieldLikeCpp::Float),
+            NativeWidthLikeCpp::Double => self.try_read(column).map(NativeFieldLikeCpp::Double),
+            NativeWidthLikeCpp::Text => self
+                .try_read::<String>(column)
+                .or_else(|| {
+                    self.try_read::<Vec<u8>>(column)
+                        .map(|bytes| string_from_binary_field_like_cpp(&bytes))
+                })
+                .map(NativeFieldLikeCpp::Text),
+            NativeWidthLikeCpp::Unsupported => {
+                Some(NativeFieldLikeCpp::Unsupported(type_name.to_owned()))
+            }
+        };
+        decoded.ok_or_else(|| undecodable_column_error_like_cpp(column, type_name))
+    }
+}
+
+/// C++ `do { Field* fields = result->Fetch(); ... } while (result->NextRow())`:
+/// every row is decoded and mapped; the first error fails the load.
+pub(crate) fn collect_rows_like_cpp<T>(
+    mut result: SqlResult,
+    table: &str,
+    mut map: impl FnMut(&[NativeFieldLikeCpp]) -> anyhow::Result<T>,
+) -> anyhow::Result<Vec<T>> {
+    let mut rows = Vec::with_capacity(result.count());
+    if result.is_empty() {
+        return Ok(rows);
+    }
+    loop {
+        let index = rows.len();
+        let mapped = result
+            .native_row_like_cpp()
+            .and_then(|fields| map(&fields))
+            .map_err(|error| row_error_like_cpp(table, index, &error))?;
+        rows.push(mapped);
+        if !result.next_row() {
+            return Ok(rows);
+        }
     }
 }
 

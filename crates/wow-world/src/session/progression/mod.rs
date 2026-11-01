@@ -3,6 +3,8 @@
 //! group; the canonical owners keep authority over the state they touch.
 
 use super::*;
+
 mod reputation;
 mod skills;
+mod talent_host;
 mod talents;

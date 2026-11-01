@@ -2,47 +2,43 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! SQLx-free Player full-save lifecycle orchestration.
+//! SQLx-free Player full-save lifecycle adapter.
+//!
+//! The complete save coordinator — autosave timer, transfer gate, money fences,
+//! durable-work completion drain, capture, one-transaction persist,
+//! incarnation-bound acknowledgement, unlock and objective drain — is owned by
+//! `wow-world-lifecycle::player_save` (#1263 F4 remate). This adapter only
+//! selects the session participants it lends and supplies the session
+//! publication/registry seams; it holds no stage order of its own.
 //!
 //! Session snapshots represented Player state; the lifecycle adapter privately
 //! owns statement decomposition and single-transaction execution (#286).
 
-use std::sync::Arc;
+use std::future::Future;
 
 mod deferred;
 #[cfg(test)]
+#[path = "../../../unit_tests/session/lifecycle/persistence/fixture_tests.rs"]
 mod fixture_tests;
 pub use deferred::PlayerSaveOutcomeLikeCpp;
+// The ownerless fixture oracle is World-test evidence only: production captures
+// through the lifecycle coordinator's canonical owner.
+#[cfg(test)]
 mod prepared;
-mod projection;
 
-use tracing::{info, trace, warn};
+#[cfg(test)]
+use tracing::{info, warn};
+#[cfg(test)]
 use wow_persistence::{
-    PlayerActionButtonSaveLikeCpp, PlayerActionButtonsSaveLikeCpp,
     PlayerCharacterCommittedGroupsLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSnapshotSaveLikeCpp, PlayerCufProfileSaveLikeCpp,
-    PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
-    PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
-    PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
-    PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
-    PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
-    PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp, PlayerTutorialsSaveLikeCpp,
-    PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
+    PlayerTutorialsSaveLikeCpp,
 };
 
-use super::super::{
-    AbsolutePlayerMoneyCommitReconciliationLikeCpp, ExclusivePlayerMoneyPersistenceLikeCpp,
-    PlayerMoneyCommitCancellationFenceLikeCpp, PlayerSaveToDbSnapshotLikeCpp,
-    RepresentedEquipmentSetTypeLikeCpp, RepresentedEquipmentSetUpdateStateLikeCpp,
-    RepresentedPlayerSkillStateLikeCpp, RepresentedPlayerSpellStateLikeCpp, WorldSession,
-    character_power_snapshot_values_like_cpp, reconcile_absolute_player_money_commit_like_cpp,
-    unix_now,
-};
+#[cfg(test)]
+use super::super::PlayerSaveToDbSnapshotLikeCpp;
+use super::super::{ExclusivePlayerMoneyPersistenceLikeCpp, WorldSession};
 
 impl WorldSession {
-    /// Await a typed adapter transaction while the cancellation fence and the
-    /// Session-owned money exclusion remain active. The adapter observes the
-    /// durable money marker; Session owns reconciliation and quarantine.
     pub(crate) async fn await_exclusive_player_money_transaction_outcome_like_cpp<F>(
         &mut self,
         money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
@@ -54,234 +50,164 @@ impl WorldSession {
     where
         F: std::future::Future<Output = wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp>,
     {
-        let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
-            &self.durable_loot_money_persistence_like_cpp,
-        ));
-        match outcome_future.await {
-            wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed => {
-                cancellation_fence.disarm_like_cpp();
-                Some(money_persistence)
-            }
-            wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack {
-                reason,
-            } => {
-                cancellation_fence.disarm_like_cpp();
-                warn!(error = %reason, operation, "player-money transaction definitely rolled back");
-                None
-            }
-            wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::CommitOutcomeUnknown {
-                reason,
-                observed_money,
-            } => match reconcile_absolute_player_money_commit_like_cpp(
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state
+            .await_exclusive_player_money_transaction_outcome_like_cpp(
+                &mut hub,
+                money_persistence,
+                outcome_future,
                 money_before,
                 money_after,
-                observed_money,
-            ) {
-                AbsolutePlayerMoneyCommitReconciliationLikeCpp::Committed => {
-                    cancellation_fence.disarm_like_cpp();
-                    warn!(
-                        error = %reason,
-                        operation,
-                        money_before,
-                        money_after,
-                        "player-money COMMIT reply was lost but durable money proves the transaction committed"
-                    );
-                    Some(money_persistence)
-                }
-                AbsolutePlayerMoneyCommitReconciliationLikeCpp::RolledBack => {
-                    cancellation_fence.disarm_like_cpp();
-                    warn!(
-                        error = %reason,
-                        operation,
-                        money_before,
-                        money_after,
-                        "player-money COMMIT reply was lost but durable money proves the transaction rolled back"
-                    );
-                    None
-                }
-                AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate => {
-                    self.durable_loot_money_persistence_like_cpp
-                        .mark_indeterminate_like_cpp();
-                    cancellation_fence.disarm_like_cpp();
-                    self.kick(
-                        "player-money COMMIT outcome is unknown; relog required before another money mutation",
-                    );
-                    warn!(
-                        error = %reason,
-                        operation,
-                        money_before,
-                        money_after,
-                        ?observed_money,
-                        "player-money COMMIT outcome remains indeterminate; quarantined the session"
-                    );
-                    None
-                }
-            },
-        }
+                operation,
+            )
+            .await
     }
 
-    pub(crate) async fn save_current_player_to_db_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) -> PlayerSaveOutcomeLikeCpp {
-        // C++ `Player::SaveToDB` delays the next autosave for manual, code, and
-        // autosave callers before it appends statements.
-        self.reset_player_save_timer_like_cpp();
-        if let Some(outcome) = self.defer_player_save_for_transfer_like_cpp() {
-            return outcome;
-        }
-
-        let money_tracker = Arc::clone(&self.durable_loot_money_persistence_like_cpp);
-        let money_save_fence = money_tracker.close_admission_for_save_like_cpp();
-        trace!(fence = "player.save.mutations_closed", "persistence fence");
-        self.wait_for_durable_item_loot_persistence_like_cpp().await;
-        self.apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(
-            item_guid_generator,
-            false,
-        )
-        .await;
-        let money_state_is_determinate = self
-            .reconcile_durable_loot_money_before_save_like_cpp()
-            .await;
-        if !money_state_is_determinate {
-            // The same unknown transaction may also have committed talents,
-            // reset metadata, inventory, or other absolute state. Do not let a
-            // disconnect/autosave restore any pre-COMMIT runtime snapshot.
-            drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-                item_guid_generator,
-            )
-            .await;
-            return PlayerSaveOutcomeLikeCpp::Quarantined;
-        }
-        trace!(
-            fence = "player.save.pending_durable_work_drained",
-            "persistence fence"
-        );
-        let money_mutation_lock = money_tracker.lock_money_mutation_like_cpp().await;
-        if money_tracker.is_indeterminate_like_cpp() {
-            self.kick(
-                "player persistence became indeterminate while waiting for the full-save money lock; aborting the entire save",
-            );
-            drop(money_mutation_lock);
-            drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-                item_guid_generator,
-            )
-            .await;
-            return PlayerSaveOutcomeLikeCpp::Quarantined;
-        }
-
-        let Some(prepared) = self.prepare_player_save_like_cpp(unix_now()) else {
-            // Transfer may have begun while draining previously admitted durable work.
-            let outcome = self
-                .defer_player_save_for_transfer_like_cpp()
-                .unwrap_or(PlayerSaveOutcomeLikeCpp::Unavailable);
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                has_session_position = self.player_position_like_cpp().is_some(),
-                has_canonical_map_manager = self.canonical_map_manager.is_some(),
-                "Skipping Player::SaveToDB represented save because no coherent player snapshot is available"
-            );
-            drop(money_mutation_lock);
-            drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-                item_guid_generator,
-            )
-            .await;
-            return outcome;
-        };
-        let Some(player_lifecycle_port) = self.player_lifecycle_port_like_cpp().map(Arc::clone)
-        else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping Player::SaveToDB represented save because lifecycle persistence is unavailable"
-            );
-            drop(money_mutation_lock);
-            drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-                item_guid_generator,
-            )
-            .await;
-            return PlayerSaveOutcomeLikeCpp::Unavailable;
-        };
-
-        if money_tracker.is_indeterminate_like_cpp() {
-            self.kick(
-                "player persistence became indeterminate before the full-save semantic snapshot; aborting the entire save",
-            );
-            drop(money_mutation_lock);
-            drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-                item_guid_generator,
-            )
-            .await;
-            return PlayerSaveOutcomeLikeCpp::Quarantined;
-        }
-        let mut cancellation_fence =
-            PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(&money_tracker));
-        let guid = prepared.header.guid;
-        // Only the request crosses the asynchronous persistence boundary; the
-        // receipt remains owned by this operation and contains no borrowed guard.
-        let result = player_lifecycle_port
-            .save_character_like_cpp(prepared.request)
-            .await;
-        let outcome = match result.outcome {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows } => {
-                cancellation_fence.disarm_like_cpp();
-                prepared.receipt.acknowledge(self, &result.committed);
-                trace!(
-                    publication = "player.save.commit_confirmed",
-                    "persistence publication"
-                );
-                info!(
-                    guid = guid.counter(),
-                    statement_count = rows,
-                    "Player::SaveToDB represented save committed in one CharacterDatabase transaction"
-                );
-                PlayerSaveOutcomeLikeCpp::Applied
-            }
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
-                cancellation_fence.disarm_like_cpp();
-                warn!(
-                    guid = guid.counter(),
-                    "Failed to commit Player::SaveToDB represented transaction: {reason}"
-                );
-                PlayerSaveOutcomeLikeCpp::Failed
-            }
-            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                // The full save includes many absolute replacements. A money
-                // row alone cannot establish whether that whole transaction
-                // committed, so preserve dirty flags and force a reload before
-                // any further money mutation can race an unknown durable base.
-                money_tracker.mark_indeterminate_like_cpp();
-                trace!(fence = "player.save.relogin_required", "persistence fence");
-                cancellation_fence.disarm_like_cpp();
-                self.kick(
-                    "Player::SaveToDB COMMIT outcome is unknown; relog required before another money mutation",
-                );
-                warn!(
-                    guid = guid.counter(),
-                    "Player::SaveToDB represented transaction COMMIT outcome is unknown: {reason}"
-                );
-                PlayerSaveOutcomeLikeCpp::Quarantined
-            }
-        };
-        drop(money_mutation_lock);
-        drop(money_save_fence);
-        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-            item_guid_generator,
-        )
-        .await;
-        outcome
-    }
-
+    /// Existing ownerless/fixture regressions drive the moved coordinator through
+    /// the same entry point as the production callers.
     #[cfg(test)]
     pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) -> PlayerSaveOutcomeLikeCpp {
         let generators = self.id_generators_for_test_like_cpp();
-        self.save_current_player_to_db_with_generator_like_cpp(generators.item.as_ref())
-            .await
+        wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
+            self,
+            generators.item.as_ref(),
+        )
+        .await
+    }
+}
+
+/// The World shell's capabilities for the moved full-save coordinator.
+///
+/// Every method below is a step the coordinator cannot reach from the
+/// lifecycle crate: the session's selected owners, its durable Item-loot
+/// publication, its represented objective drain, its registry publication and
+/// the legacy ownerless fixture oracle. The coordinator keeps the order; these
+/// only lend the existing operation at the exact point C++ reaches it.
+impl wow_world_lifecycle::PlayerSaveHostLikeCpp for WorldSession {
+    fn player_save_participants_like_cpp(
+        &mut self,
+    ) -> wow_world_lifecycle::PlayerSaveParticipantsLikeCpp<'_> {
+        let talent_store = self.catalogs.talent_store().map(AsRef::as_ref);
+        let spell_store = self
+            .catalogs
+            .spell_catalogs
+            .spell_store()
+            .map(AsRef::as_ref);
+        let chr_races_store = self.catalogs.chr.races_store.as_deref();
+        let difficulty_store = self.catalogs.difficulty_store.as_deref();
+        let item_effect_store = self.catalogs.items.effect_store.as_deref();
+        let enchantment_store = self
+            .catalogs
+            .spell_catalogs
+            .spell_item_enchantment_store
+            .as_deref();
+        let currency_types_store = self.catalogs.currency_types_store.as_deref();
+        let quest_store = self.catalogs.quests.store.as_deref();
+        wow_world_lifecycle::PlayerSaveParticipantsLikeCpp {
+            lifecycle: &mut self.lifecycle,
+            operation: self.core.player_save_operation_access_like_cpp(
+                talent_store,
+                spell_store,
+                chr_races_store,
+                difficulty_store,
+                item_effect_store,
+                enchantment_store,
+                currency_types_store,
+                quest_store,
+                self.config.quest_status_keep_abandoned_like_cpp,
+            ),
+        }
+    }
+
+    fn apply_pending_durable_item_loot_completions_for_player_save_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+    ) -> impl Future<Output = ()> + Send {
+        async move {
+            // The save keeps its money fence, so this publication must not drain
+            // the money criteria; the post-unlock objective drain owns them.
+            wow_world_loot_ops::apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(
+                self,
+                item_guid_generator,
+                false,
+            )
+            .await;
+        }
+    }
+
+    fn reconcile_durable_loot_money_before_player_save_like_cpp(
+        &mut self,
+    ) -> impl Future<Output = bool> + Send {
+        WorldSession::reconcile_durable_loot_money_before_save_like_cpp(self)
+    }
+
+    fn quarantine_player_save_like_cpp(&mut self, reason: &str) {
+        self.kick(reason);
+    }
+
+    fn drain_represented_quest_objective_progress_for_player_save_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+    ) -> impl Future<Output = ()> + Send {
+        async move {
+            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                item_guid_generator,
+            )
+            .await;
+        }
+    }
+
+    fn sync_player_save_registry_state_like_cpp(&mut self) {
+        WorldSession::sync_player_registry_state_like_cpp(self);
+    }
+
+    fn player_save_diagnostics_like_cpp(
+        &self,
+    ) -> wow_world_lifecycle::PlayerSaveDiagnosticsLikeCpp {
+        wow_world_lifecycle::PlayerSaveDiagnosticsLikeCpp {
+            account_id: self.core.account_id,
+            player_guid: self.player_guid(),
+            has_session_position: crate::session::hub_ref(self)
+                .player_position_like_cpp()
+                .is_some(),
+            has_canonical_map_manager: self.core.canonical_map_manager.is_some(),
+        }
+    }
+
+    #[cfg(test)]
+    fn capture_ownerless_player_save_like_cpp(
+        &mut self,
+        now_unix_secs: i64,
+    ) -> Option<wow_world_lifecycle::OwnerlessPlayerSaveCaptureLikeCpp> {
+        if self.core.player_handle_like_cpp.is_some() {
+            return None;
+        }
+        let prepared_save = self.prepare_player_save_like_cpp(now_unix_secs)?;
+        let prepared::SavedPlayerReceipt::Fixture {
+            expected,
+            tutorials,
+        } = prepared_save.receipt
+        else {
+            return None;
+        };
+        Some(wow_world_lifecycle::OwnerlessPlayerSaveCaptureLikeCpp {
+            guid: prepared_save.header.guid,
+            request: prepared_save.request,
+            receipt: wow_world_lifecycle::OwnerlessPlayerSaveReceiptLikeCpp {
+                expected,
+                tutorials,
+            },
+        })
+    }
+
+    #[cfg(test)]
+    fn acknowledge_ownerless_player_save_like_cpp(
+        &mut self,
+        receipt: wow_world_lifecycle::OwnerlessPlayerSaveReceiptLikeCpp,
+        committed: &PlayerCharacterCommittedGroupsLikeCpp,
+    ) {
+        let groups = prepared::committed_groups_like_cpp(&receipt.expected, committed);
+        self.mark_current_player_save_to_db_committed_like_cpp(&groups);
+        let _ = receipt.tutorials;
     }
 }

@@ -1,0 +1,49 @@
+{
+ "slice": "#1363 final cleanup (allow-list fix D: the spell-hit authority proof, its current-difficulty entry, its canonical publication and the war-mode zone-aura source -> wow-world-application continue_login/mod.rs as provided ContinueLoginHostLikeCpp methods)",
+ "base": "f27b315ea",
+ "moved": [
+  "can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp",
+  "can_authorize_empty_player_spell_hit_aura_source_like_cpp",
+  "sync_player_spell_hit_aura_authority_to_canonical_like_cpp",
+  "represented_war_mode_update_zone_aura_source_is_empty_like_cpp"
+ ],
+ "comment": "The bodies become provided methods of ContinueLoginHostLikeCpp (where Self: Sized), so `self` stays `self` and the scenarios' method calls resolve to the trait method. Field reads name the World host impls of the same split (verified: LootSessionHostLikeCpp::split_inventory_ref, CharacterLoginHostLikeCpp::split_lifecycle_ref and SpellbookHostLikeCpp::split_spell_state_ref are crate::session::split_*_ref(self); `.0` is the field the base read). Two host methods are new: the identity-completeness predicate and the guild-id read, each the same-named WorldSession method. The continue-login host's required sync method becomes the provided one (its World impl retires). (Two tokenizer-only spellings: rustfmt writes the where clause with a trailing comma, and `.0 .` keeps the tuple index and the method call as separate tokens, as rustfmt's line break does in the head.)",
+ "rules": [
+  [
+   "pub\\(in crate::session\\) fn {name}\\(",
+   "fn {name}("
+  ],
+  [
+   "pub\\(crate\\) fn {name}\\(",
+   "fn {name}("
+  ],
+  [
+   "(fn {name}\\([^{]*?\\)\\s*->\\s*(?:bool|Option<bool>))\\s*\\{",
+   "\\1 where Self: Sized, {"
+  ],
+  [
+   "crate::session::split_spell_state_ref\\(self\\)",
+   "SpellbookHostLikeCpp::split_spell_state_ref(self)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*inventory\\s*\\.",
+   "LootSessionHostLikeCpp::split_inventory_ref(self).0 ."
+  ],
+  [
+   "\\bself\\s*\\.\\s*lifecycle\\s*\\.",
+   "CharacterLoginHostLikeCpp::split_lifecycle_ref(self).0 ."
+  ],
+  [
+   "crate::session::hub_ref\\(\\s*self\\s*,?\\s*\\)",
+   "self.hub_ref()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "self.hub_ref().catalogs."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "self.core()."
+  ]
+ ]
+}

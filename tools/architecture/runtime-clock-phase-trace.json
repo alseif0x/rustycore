@@ -24,11 +24,12 @@
         "canonical game events",
         "respawn condition scheduling",
         "the world phase of every ready session, before the map tick is admitted (#787)",
-        "the split tick's map-phase session requests and their completion boundary (#787)"
+        "the split tick's map-phase session requests and their completion boundary (#787)",
+        "the creature frame of every admitted map: lifecycle, movement, aggro and threat, spell and melee on the canonical incarnations (#1263 F6-8D3b-1; the only creature runtime since F6-8E-1)"
       ],
       "delivers_under_map_guard": false,
       "delivery_note": "recipients and packets are collected inside the guarded block and delivered after the map lock is released; the #787 split releases every synchronous guard — respawn mutation order, MapManager and spawn metadata — before any phase request is delivered or any completion awaited, and re-takes them only to resume the same tick with the diff saved at the split. Each step issues the world phase first (World.cpp:2704) and admits the map tick only after it is quiescent (World.cpp:2748); a claimed pass whose end cannot be observed abandons the tick instead of resuming over it.",
-      "resolution_guard": "World disconnect completion includes task-owned finalization and active registration retirement. Unresolved permits, including InterruptedAfterStart, hold the barrier across producer steps. Shutdown pauses ordinary simulation while session tasks drain; the final respawn tick requires an empty active-session registry. Canonical Map::Update dispatches no legacy AI/combat side effects; spawn/respawn and synchronization bridges retain their separate ownership contracts.",
+      "resolution_guard": "World disconnect completion includes task-owned finalization and active registration retirement. Unresolved permits, including InterruptedAfterStart, hold the barrier across producer steps. Shutdown pauses ordinary simulation while session tasks drain; the final respawn tick requires an empty active-session registry. The admitted creature executor runs each creature phase once per admitted tick under the creature execution lease (#1263 F6-8D2/D3b); no other creature runtime exists (F6-8E-1 deleted the legacy loop, the session creature tick and the tick owner).",
       "regression_anchors": [
         "canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp",
         "split_tick_runs_the_dynamic_tree_phase_before_the_session_pass_like_cpp",
@@ -47,30 +48,6 @@
         "failed_unknown_and_timed_out_finalization_retain_the_world_reply_and_session",
         "successful_finalization_replies_once_after_session_destruction",
         "a_disconnecting_session_refuses_stale_map_work_and_waits_for_world_retirement"
-      ]
-    },
-    {
-      "id": "legacy_creature_runtime",
-      "source": "crates/world-server/src/runtime/delivery.rs",
-      "entry": "spawn_legacy_creature_runtime_update_loop_like_cpp",
-      "cpp_anchor": "Map::Update creature frame: Unit -> threat -> AI -> melee",
-      "availability": "production",
-      "cadence": "configured map update interval, MissedTickBehavior::Delay",
-      "diff_source": "measured elapsed wall clock, propagated once into creature logical elapsed time; the constant interval was a real defect corrected by M2.3 and the per-creature wall-clock epoch was retired by #371",
-      "owns": [
-        "legacy creature lifecycle",
-        "movement and spline launch",
-        "aggro and threat",
-        "spell",
-        "creature melee and the selected-owner player melee transition from #28",
-        "respawn"
-      ],
-      "delivers_under_map_guard": false,
-      "delivery_note": "each run_legacy_creature_*_and_deliver_once_like_cpp bridge collects outcomes under the lock and delivers once after release",
-      "resolution_guard": "RuntimeTickOwner: the loop only resolves when the owner is GlobalLegacy, and session ticks read the same shared owner and skip",
-      "regression_anchors": [
-        "two_sessions_sharing_legacy_map_manager_see_same_creature_state",
-        "two_players_attacking_one_creature_resolve_once_under_the_map_owner_like_cpp"
       ]
     },
     {
@@ -118,34 +95,14 @@
       "delivers_under_map_guard": false,
       "resolution_guard": "single spawned task; touches no gameplay state",
       "regression_anchors": []
-    },
-    {
-      "id": "session_creature_tick",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "entry": "WorldSession update driver",
-      "cpp_anchor": "none: C++ has no session-driven creature frame",
-      "availability": "diagnostic",
-      "cadence": "driven by the owning session task, which since #787 runs only the phases the canonical producer requests on its phase rail; the task keeps a 50 ms wake solely to re-read the cooperative shutdown gate and runs no session work there",
-      "diff_source": "the producer's step diff, carried in the phase request (#787); the session measures none of its own",
-      "owns": [
-        "nothing in production"
-      ],
-      "delivers_under_map_guard": false,
-      "resolution_guard": "RuntimeTickOwner::Session; production startup sets GlobalLegacy so this path is inert unless the diagnostic config override selects it",
-      "regression_anchors": [
-        "two_sessions_sharing_legacy_map_manager_see_same_creature_state",
-        "the_player_melee_phase_is_inert_under_the_session_owner_like_cpp",
-        "a_coordinated_session_does_not_send_the_time_sync_twice_per_step",
-        "the_map_pass_tail_sends_the_periodic_time_sync_with_the_admitted_diff"
-      ]
     }
   ],
   "tick_owner": {
-    "type": "wow_world::map_manager::RuntimeTickOwner",
-    "constructed_default": "Session",
-    "production_default": "GlobalLegacy",
-    "production_default_source": "crates/world-server/src/bootstrap/config.rs::legacy_creature_global_runtime_enabled_from_config_like_cpp",
-    "production_default_mechanism": "RustyCore.LegacyCreatureGlobalRuntime is read as u8 and defaults to enabled when absent (unwrap_or(true)); app startup then calls set_tick_owner(GlobalLegacy)",
-    "note": "The constructed default and the stock production default deliberately differ: enabled startup selects GlobalLegacy; setting the config key to 0 retains the Session diagnostic owner. This is source configuration evidence, not a runtime acceptance result."
+    "type": "none: #1263 F6-8E-1 deleted wow_world::map_manager::RuntimeTickOwner",
+    "constructed_default": "none: the canonical map update loop is the only creature runtime",
+    "production_default": "the canonical map update loop",
+    "production_default_source": "crates/world-server/src/runtime/map/update_loop.rs::spawn_canonical_map_update_loop",
+    "production_default_mechanism": "app startup spawns only the canonical map loop; the retired keys RustyCore.LegacyCreatureGlobalRuntime and RustyCore.CanonicalCreatureRuntime are only warned (crates/world-server/src/bootstrap/config.rs::warn_retired_creature_tick_owner_keys_like_cpp)",
+    "note": "There is no owner to select: the legacy global creature loop, the per-session creature tick and the owner value were deleted together. This is source configuration evidence, not a runtime acceptance result."
   }
 }

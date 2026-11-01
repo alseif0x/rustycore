@@ -572,10 +572,10 @@ pub(crate) async fn observe_instance_after_realm_xp(
 pub(crate) fn prepare_quest_smoke_before_login(
     bot: &config::BotConfig,
     quest_options: &QuestSmokeOptions,
-) -> Result<()> {
+) -> Result<Option<QuestCharacterSnapshot>> {
     use mysql::prelude::Queryable;
 
-    let target = resolve_quest_target_for_bot(bot, quest_options)?;
+    let (target, _) = resolve_quest_target_for_bot(bot, quest_options)?;
 
     let characters_url = characters_db_url()?;
     let opts = mysql::Opts::from_url(&characters_url)
@@ -583,92 +583,120 @@ pub(crate) fn prepare_quest_smoke_before_login(
     let mut conn =
         mysql::Conn::new(opts).map_err(|e| anyhow!("Connect to characters DB failed: {}", e))?;
 
-    if quest_options.reset_before_run {
-        let quest_id = quest_options
-            .expected_quest_id
-            .ok_or_else(|| anyhow!("Quest reset requested without expected quest id"))?;
-        reset_bot_quest_state(&mut conn, bot.character_guid, quest_id)?;
-        info!(
-            "Quest smoke reset character {} quest {}",
-            bot.character_guid, quest_id
-        );
-    }
+    // Taken before any write below so the run can put these columns back.
+    let snapshot = quest_smoke_mutates_character(quest_options)
+        .then(|| {
+            snapshot_quest_character(
+                &mut conn,
+                bot.character_guid,
+                quest_options.expected_quest_id,
+            )
+        })
+        .transpose()?;
 
-    if quest_options.relocate_before_login {
-        let offset_x = 2.0_f64;
-        conn.exec_drop(
-            "UPDATE characters \
+    let mut apply_setup = || -> Result<()> {
+        if quest_options.reset_before_run {
+            let quest_id = quest_options
+                .expected_quest_id
+                .ok_or_else(|| anyhow!("Quest reset requested without expected quest id"))?;
+            reset_bot_quest_state(&mut conn, bot.character_guid, quest_id)?;
+            info!(
+                "Quest smoke reset character {} quest {}",
+                bot.character_guid, quest_id
+            );
+        }
+
+        if quest_options.relocate_before_login {
+            let offset_x = 2.0_f64;
+            conn.exec_drop(
+                "UPDATE characters \
              SET map = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
              WHERE guid = ?",
-            (
-                u32::from(target.map_id),
+                (
+                    u32::from(target.map_id),
+                    target.x + offset_x,
+                    target.y,
+                    target.z,
+                    target.orientation,
+                    bot.character_guid,
+                ),
+            )
+            .map_err(|e| {
+                anyhow!(
+                    "Relocate character {} near quest target: {}",
+                    bot.character_guid,
+                    e
+                )
+            })?;
+            info!(
+                "Quest smoke relocated character {} near creature {} ({}, {}, {})",
+                bot.character_guid,
+                target.spawn_guid,
                 target.x + offset_x,
                 target.y,
-                target.z,
-                target.orientation,
+                target.z
+            );
+        }
+
+        if let Some(level) = quest_options.set_level_before_login {
+            set_bot_character_level(&mut conn, bot.character_guid, level)?;
+            info!(
+                "Quest smoke set character {} level to {}",
+                bot.character_guid, level
+            );
+        }
+
+        if quest_options.set_race_before_login.is_some()
+            || quest_options.set_class_before_login.is_some()
+        {
+            set_bot_character_race_class(
+                &mut conn,
                 bot.character_guid,
-            ),
-        )
-        .map_err(|e| {
-            anyhow!(
-                "Relocate character {} near quest target: {}",
+                quest_options.set_race_before_login,
+                quest_options.set_class_before_login,
+            )?;
+            info!(
+                "Quest smoke set character {} race={:?} class={:?}",
                 bot.character_guid,
-                e
-            )
-        })?;
-        info!(
-            "Quest smoke relocated character {} near creature {} ({}, {}, {})",
-            bot.character_guid,
-            target.spawn_guid,
-            target.x + offset_x,
-            target.y,
-            target.z
-        );
+                quest_options.set_race_before_login,
+                quest_options.set_class_before_login
+            );
+        }
+
+        if quest_options.objective_persist {
+            let quest_id = quest_options
+                .expected_quest_id
+                .ok_or_else(|| anyhow!("Quest objective persistence requested without quest id"))?;
+            seed_bot_quest_objective_state(
+                &mut conn,
+                bot.character_guid,
+                quest_id,
+                quest_options.objective_status,
+                &quest_options.objective_seed,
+            )?;
+            info!(
+                "Quest smoke seeded character {} quest {} objectives {:?}",
+                bot.character_guid, quest_id, quest_options.objective_seed
+            );
+        }
+
+        Ok(())
+    };
+    if let Err(error) = apply_setup() {
+        // A partial setup must not outlive the failed run.
+        if let Some(snapshot) = &snapshot {
+            if let Err(restore_error) =
+                restore_quest_character(bot, snapshot, quest_options.expected_quest_id)
+            {
+                return Err(error.context(format!(
+                    "quest character restore after the failed setup also failed: {restore_error:#}"
+                )));
+            }
+        }
+        return Err(error);
     }
 
-    if let Some(level) = quest_options.set_level_before_login {
-        set_bot_character_level(&mut conn, bot.character_guid, level)?;
-        info!(
-            "Quest smoke set character {} level to {}",
-            bot.character_guid, level
-        );
-    }
-
-    if quest_options.set_race_before_login.is_some()
-        || quest_options.set_class_before_login.is_some()
-    {
-        set_bot_character_race_class(
-            &mut conn,
-            bot.character_guid,
-            quest_options.set_race_before_login,
-            quest_options.set_class_before_login,
-        )?;
-        info!(
-            "Quest smoke set character {} race={:?} class={:?}",
-            bot.character_guid,
-            quest_options.set_race_before_login,
-            quest_options.set_class_before_login
-        );
-    }
-
-    if quest_options.objective_persist {
-        let quest_id = quest_options
-            .expected_quest_id
-            .ok_or_else(|| anyhow!("Quest objective persistence requested without quest id"))?;
-        seed_bot_quest_objective_state(
-            &mut conn,
-            bot.character_guid,
-            quest_id,
-            quest_options.objective_status,
-            &quest_options.objective_seed,
-        )?;
-        info!(
-            "Quest smoke seeded character {} quest {} objectives {:?}",
-            bot.character_guid, quest_id, quest_options.objective_seed
-        );
-    }
-
-    Ok(())
+    Ok(snapshot)
 }
 /// Resolve the WoW account for a battle.net email, write `K_64` into
 /// account.session_key_bnet, and load the same build auth seed the worldserver

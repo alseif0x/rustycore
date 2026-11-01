@@ -3,10 +3,12 @@
 //! group; the canonical owners keep authority over the state they touch.
 
 use super::*;
+
 mod battle_pet;
 mod battle_pet_journal;
 mod battle_pet_publication;
 mod battle_pet_slots;
+mod host;
 mod persistence;
 mod pet;
 mod summoning;

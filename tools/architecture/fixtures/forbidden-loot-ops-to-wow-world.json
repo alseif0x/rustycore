@@ -1,0 +1,6 @@
+{
+  "name": "the loot-ops crate may not depend on wow-world; wow-world composes it (#1363 A7)",
+  "source": "wow-world-loot-ops",
+  "target": "wow-world",
+  "expected": "forbidden"
+}

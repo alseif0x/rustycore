@@ -1,0 +1,125 @@
+{
+ "slice": "#1363 slice 4c (open-item loot family -> wow-world-loot-ops)",
+ "base": "6fe5b5d2f",
+ "moved": [
+  "handle_open_item",
+  "open_active_item_loot_view_like_cpp",
+  "load_item_template_addon_money_loot_like_cpp",
+  "load_item_template_addon_loot_metadata_like_cpp",
+  "open_wrapped_gift_like_cpp",
+  "destroy_stale_wrapped_gift_like_cpp",
+  "generate_item_loot_template_entries_like_cpp",
+  "load_item_template_addon_loot_metadata_for_rows_like_cpp",
+  "item_loot_allowed_for_player_like_cpp_representable",
+  "loot_entry_flags_for_row_like_cpp",
+  "has_incomplete_quest_objective_for_item_like_cpp_representable",
+  "has_incomplete_quest_objective_for_object_id_like_cpp_representable",
+  "has_incomplete_quest_item_drop_for_item_like_cpp_representable",
+  "direct_inventory_item_count_like_cpp_representable",
+  "evaluate_loot_condition_like_cpp_representable",
+  "player_quest_objective_progress_like_cpp_representable",
+  "save_new_stored_item_loot_like_cpp"
+ ],
+ "rules": [
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+(handle_open_item)\\(",
+   "pub \\1fn \\2<H: OpenItemHostLikeCpp>("
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+(open_wrapped_gift_like_cpp|destroy_stale_wrapped_gift_like_cpp)\\(",
+   "pub(crate) \\1fn \\2<H: OpenItemHostLikeCpp>("
+  ],
+  [
+   "(OpenItemHostLikeCpp>)\\((\\s*)&mut self",
+   "\\1(\\2host: &mut H"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+(handle_open_item|open_active_item_loot_view_like_cpp|load_item_template_addon_money_loot_like_cpp|load_item_template_addon_loot_metadata_like_cpp)\\(",
+   "pub \\1fn \\2<H: LootSessionHostLikeCpp>("
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+(open_wrapped_gift_like_cpp|destroy_stale_wrapped_gift_like_cpp|generate_item_loot_template_entries_like_cpp|load_item_template_addon_loot_metadata_for_rows_like_cpp|item_loot_allowed_for_player_like_cpp_representable|loot_entry_flags_for_row_like_cpp|has_incomplete_quest_objective_for_item_like_cpp_representable|has_incomplete_quest_objective_for_object_id_like_cpp_representable|has_incomplete_quest_item_drop_for_item_like_cpp_representable|direct_inventory_item_count_like_cpp_representable|evaluate_loot_condition_like_cpp_representable|player_quest_objective_progress_like_cpp_representable|save_new_stored_item_loot_like_cpp)\\(",
+   "pub(crate) \\1fn \\2<H: LootSessionHostLikeCpp>("
+  ],
+  [
+   "(LootSessionHostLikeCpp>)\\((\\s*)&mut self",
+   "\\1(\\2host: &mut H"
+  ],
+  [
+   "(LootSessionHostLikeCpp>)\\((\\s*)&self",
+   "\\1(\\2host: &H"
+  ],
+  [
+   "crate::session::cx_inventory_ref\\(self\\)\\s*\\.(load_item_template_addon_[a-z_]+)\\(",
+   "\\1(host, "
+  ],
+  [
+   "crate::session::split_lifecycle_ref\\(self\\)",
+   "(host.lifecycle(), host.hub_ref())"
+  ],
+  [
+   "crate::session::split_inventory_ref\\(self\\)",
+   "host.split_inventory_ref()"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "wow_world_spell::known_spells_like_cpp\\(self\\)",
+   "host.known_spells_like_cpp()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)core(\\s*)\\.(\\s*)represented_runtime_subrng_like_cpp",
+   "host\\1.\\2core_mut()\\3.\\4represented_runtime_subrng_like_cpp"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)core\\b",
+   "host\\1.\\2core()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)loot(\\s*)\\.(\\s*)(insert_cached_loot_for_owner_like_cpp|add_active_loot_view_owner_like_cpp)",
+   "host\\1.\\2loot_mut()\\3.\\4\\5"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)loot\\b",
+   "host\\1.\\2loot()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)lifecycle\\b",
+   "host\\1.\\2lifecycle()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)catalogs\\b",
+   "host\\1.\\2hub_ref().catalogs"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)(item_template_flags|item_template_lock_id|lock_entry_exists_like_cpp)\\(",
+   "host\\1.\\2hub_ref().catalogs.\\3("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)send_equip_error\\(",
+   "host\\1.\\2core().send_equip_error("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)loot_conditions_allow_player_with_references_like_cpp_representable\\((\\s*)conditions,(\\s*)condition_references,(\\s*)\\)",
+   "loot_conditions_allow_player_with_references_like_cpp_representable(\\3conditions,\\4condition_references,\\5|condition| evaluate_loot_condition_like_cpp_representable(host, condition),\\5)"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*){name}\\(\\s*\\)",
+   "{name}(host)"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*){name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "\\bself(\\s*)\\.",
+   "host\\1."
+  ],
+  [
+   "\\bself\\b",
+   "host"
+  ]
+ ]
+}

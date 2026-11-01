@@ -7,6 +7,8 @@
 
 use super::*;
 
+mod corpse;
+
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,
@@ -86,6 +88,135 @@ where
         }
 
         result
+    }
+
+    /// Select Players reached by the selected Player `AuraApplication::ClientUpdate`
+    /// notifier. The caller commits each selected recipient against its current
+    /// Player handle while holding the same MapManager guard.
+    pub fn selected_aura_update_observers(&self, source_guid: ObjectGuid) -> Vec<ObjectGuid>
+    where
+        Terrain: MapWorldObjectEnvironment,
+    {
+        let Some(source) = self.get_typed_player(source_guid) else {
+            return Vec::new();
+        };
+        let source_world = source.unit().world();
+        if !source_world.object().is_in_world() {
+            return Vec::new();
+        }
+
+        let range = source_world.get_visibility_range(self);
+        let range_sq = range * range;
+        let position = source_world.position();
+        let nearby = self.nearby_cell_guids_like_cpp(
+            position.x,
+            position.y,
+            range + source_world.combat_reach(),
+        );
+        let mut recipients = Vec::new();
+
+        let mut players = nearby.world.players.into_iter().collect::<Vec<_>>();
+        players.sort_unstable();
+        for visited_guid in players {
+            let Some(visited) = self.get_typed_player(visited_guid) else {
+                continue;
+            };
+            let visited_world = visited.unit().world();
+            if !visited_world.object().is_in_world()
+                || !source_world.in_same_phase(visited_world)
+                || visited_world.position().distance_2d_sq(&position) > range_sq
+            {
+                continue;
+            }
+
+            // GridNotifiersImpl processes shared vision before the direct
+            // Player route, including when the visited Player is the source.
+            let mut shared_viewers = visited
+                .unit()
+                .subsystems()
+                .control
+                .shared_vision_guids
+                .iter()
+                .copied()
+                .collect::<Vec<_>>();
+            shared_viewers.sort_unstable();
+            for viewer_guid in shared_viewers {
+                if self
+                    .get_typed_player(viewer_guid)
+                    .is_some_and(|viewer| player_seer_guid(self, viewer) == visited_guid)
+                {
+                    recipients.push(viewer_guid);
+                }
+            }
+
+            if player_seer_guid(self, visited) == visited_guid
+                || visited.unit().subsystems().vehicle.vehicle_guid.is_some()
+            {
+                recipients.push(visited_guid);
+            }
+        }
+
+        let mut creatures = nearby.world.creatures.into_iter().collect::<Vec<_>>();
+        creatures.sort_unstable();
+        for visited_guid in creatures {
+            let Some(record) = self.map_object_record(visited_guid) else {
+                continue;
+            };
+            let unit = match record.kind() {
+                AccessorObjectKind::Creature => record.creature().map(|creature| creature.unit()),
+                AccessorObjectKind::Pet => record.pet().map(|pet| pet.creature().unit()),
+                _ => None,
+            };
+            let Some(unit) = unit else {
+                continue;
+            };
+            let visited_world = unit.world();
+            if !visited_world.object().is_in_world()
+                || !source_world.in_same_phase(visited_world)
+                || visited_world.position().distance_2d_sq(&position) > range_sq
+            {
+                continue;
+            }
+
+            let mut shared_viewers = unit
+                .subsystems()
+                .control
+                .shared_vision_guids
+                .iter()
+                .copied()
+                .collect::<Vec<_>>();
+            shared_viewers.sort_unstable();
+            recipients.extend(shared_viewers.into_iter().filter(|viewer_guid| {
+                self.get_typed_player(*viewer_guid)
+                    .is_some_and(|viewer| player_seer_guid(self, viewer) == visited_guid)
+            }));
+        }
+
+        let mut dynamic_objects = nearby.world.dynamic_objects.into_iter().collect::<Vec<_>>();
+        dynamic_objects.sort_unstable();
+        for visited_guid in dynamic_objects {
+            let Some(dynamic) = self.get_typed_dynamic_object(visited_guid) else {
+                continue;
+            };
+            let visited_world = dynamic.world();
+            if !visited_world.object().is_in_world()
+                || !source_world.in_same_phase(visited_world)
+                || visited_world.position().distance_2d_sq(&position) > range_sq
+            {
+                continue;
+            }
+
+            let caster_guid = dynamic.caster_guid();
+            if caster_guid.is_player()
+                && self
+                    .get_typed_player(caster_guid)
+                    .is_some_and(|caster| player_seer_guid(self, caster) == visited_guid)
+            {
+                recipients.push(caster_guid);
+            }
+        }
+
+        recipients
     }
 
     fn nearby_player_guids_for_visibility_like_cpp(
@@ -257,6 +388,31 @@ where
     ) -> usize {
         self.nearby_and_mark_player_visibility_guids_like_cpp(source_guid)
             .len()
+    }
+
+    /// Take only one object's removal intent before a same-GUID replacement
+    /// is immediately published. Unrelated deferred removals remain queued.
+    pub fn take_object_visibility_destroy_for_guid_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Option<ObjectVisibilityDestroyRecipientsLikeCpp> {
+        let mut recipients = Vec::new();
+        let mut found = false;
+        self.pending_object_visibility_destroy_recipients_like_cpp
+            .retain(|intent| {
+                if intent.object_guid != guid {
+                    return true;
+                }
+                found = true;
+                recipients.extend_from_slice(&intent.recipient_guids);
+                false
+            });
+        recipients.sort_unstable();
+        recipients.dedup();
+        found.then_some(ObjectVisibilityDestroyRecipientsLikeCpp {
+            object_guid: guid,
+            recipient_guids: recipients,
+        })
     }
 
     /// Drain object destroy recipients captured during map-owned removals.
@@ -466,14 +622,7 @@ where
     /// casters, summons and active non-Players. Players and Corpses are not
     /// included in the resulting ObjectUpdater GUID set.
     pub fn object_update_plan_for_current_tick_like_cpp(&self, diff_ms: u32) -> ObjectUpdatePlan {
-        let sources = self.map_update_player_sources_for_current_tick_like_cpp();
-
-        let visit_plan = self.map_update_visit_plan_like_cpp(
-            sources,
-            self.represented_active_non_player_sources_like_cpp(),
-            std::iter::empty(),
-            diff_ms,
-        );
+        let visit_plan = self.object_update_visit_plan_for_current_tick(diff_ms);
         let centers =
             visit_plan
                 .nearby_visit_centers
@@ -484,6 +633,17 @@ where
                 });
         let nearby = self.visit_nearby_cells_of_like_cpp(centers);
         self.object_update_plan_for_nearby_like_cpp(&nearby.nearby, diff_ms)
+    }
+
+    /// Complete source plan for this map's object update, including the
+    /// in-world Player set visited by the session/update phases.
+    pub fn object_update_visit_plan_for_current_tick(&self, diff_ms: u32) -> MapUpdateVisitPlan {
+        self.map_update_visit_plan_like_cpp(
+            self.map_update_player_sources_for_current_tick_like_cpp(),
+            self.represented_active_non_player_sources_like_cpp(),
+            std::iter::empty(),
+            diff_ms,
+        )
     }
 
     pub fn reset_notify_flags_for_cells_like_cpp(
@@ -544,5 +704,33 @@ where
                 .object()
                 .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED)
         })
+    }
+}
+
+fn player_seer_guid<Terrain, Lifecycle>(
+    map: &Map<Terrain, Lifecycle>,
+    player: &Player,
+) -> ObjectGuid
+where
+    Terrain: TerrainGridLoader,
+    Lifecycle: GridLifecycle,
+{
+    let farsight = player.active_data().farsight_object;
+    let player_guid = player.unit().world().object().guid();
+    if !farsight.is_empty()
+        && let Some(viewpoint) =
+            map.map_object_by_kind(farsight, wow_entities::represented_seer_kinds_like_cpp())
+        && viewpoint.object().is_in_world()
+        && viewpoint.map_id() == map.map_id()
+        && viewpoint.instance_id() == map.instance_id()
+    {
+        farsight
+    } else {
+        // `Player.cpp:300` initializes C++ m_seer to the Player itself;
+        // `GridNotifiersImpl.h:50-102` compares that live pointer. Rust's
+        // far-sight GUID is only the equivalent while it still resolves to an
+        // in-world seer on this exact map; a removed/stale viewpoint falls
+        // back to the Player body as the canonical default seer.
+        player_guid
     }
 }

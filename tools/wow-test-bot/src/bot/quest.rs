@@ -208,11 +208,21 @@ pub(crate) async fn run_quest_smoke_inner(
 ) -> Result<()> {
     let options_for_db = quest_options.clone();
     let bot_for_db = bot.clone();
-    let target = tokio::task::spawn_blocking(move || {
+    let (mut target, match_radius) = tokio::task::spawn_blocking(move || {
         resolve_quest_target_for_bot(&bot_for_db, &options_for_db)
     })
     .await
     .map_err(|e| anyhow!("Quest target DB worker join failed: {}", e))??;
+    discover_resolved_creature_target(
+        stream,
+        crypt,
+        server_inflater,
+        &mut target,
+        match_radius,
+        "questgiver discovery",
+        result,
+    )
+    .await?;
 
     result.quest_target_entry = Some(target.entry);
     result.quest_target_spawn_guid = Some(target.spawn_guid);
@@ -482,10 +492,13 @@ pub(crate) fn quest_smoke_passes(
 
     true
 }
+/// Resolve the questgiver's SQL spawn. Without an explicit live counter the
+/// returned target has `guid_counter == 0` and the post-login phase discovers
+/// its ObjectGuid near the SQL position; the f32 is that match radius.
 pub(crate) fn resolve_quest_target_for_bot(
     bot: &config::BotConfig,
     quest_options: &QuestSmokeOptions,
-) -> Result<ResolvedCreatureTarget> {
+) -> Result<(ResolvedCreatureTarget, f32)> {
     use mysql::prelude::Queryable;
 
     let world_url = world_db_url()?;
@@ -494,17 +507,19 @@ pub(crate) fn resolve_quest_target_for_bot(
     let mut world =
         mysql::Conn::new(world_opts).map_err(|e| anyhow!("Connect to world DB failed: {}", e))?;
 
-    let (spawn_guid, entry, map_id, x, y, z, orientation) = if let Some(spawn_guid) =
+    let (spawn_guid, entry, map_id, x, y, z, orientation, wander_distance) = if let Some(
+        spawn_guid,
+    ) =
         quest_options.creature_spawn_guid
     {
-        let row: Option<(u64, u32, u32, f64, f64, f64, f32)> = world
+        let row: Option<(u64, u32, u32, f64, f64, f64, f32, f32)> = world
             .exec_first(
-                "SELECT guid, id, map, position_x, position_y, position_z, orientation \
+                "SELECT guid, id, map, position_x, position_y, position_z, orientation, wander_distance \
                  FROM creature WHERE guid = ?",
                 (spawn_guid,),
             )
             .map_err(|e| anyhow!("Lookup creature spawn {}: {}", spawn_guid, e))?;
-        let (guid, entry, map_id, x, y, z, orientation) =
+        let (guid, entry, map_id, x, y, z, orientation, wander_distance) =
             row.ok_or_else(|| anyhow!("No world.creature row for guid {}", spawn_guid))?;
         if entry != quest_options.creature_entry {
             bail!(
@@ -522,6 +537,7 @@ pub(crate) fn resolve_quest_target_for_bot(
             y,
             z,
             orientation,
+            wander_distance,
         )
     } else {
         let player_position = load_bot_position(bot.character_guid).ok();
@@ -532,8 +548,12 @@ pub(crate) fn resolve_quest_target_for_bot(
                 anyhow!("Set WOW_BOT_QUEST_MAP_ID or use a bot character with a saved map position")
             })?;
 
-        let row: Option<(u64, u32, u32, f64, f64, f64, f32)> = if let Some((player_map, x, y, z)) =
-            player_position
+        let row: Option<(u64, u32, u32, f64, f64, f64, f32, f32)> = if let Some((
+            player_map,
+            x,
+            y,
+            z,
+        )) = player_position
         {
             let query_map = if quest_options.map_id.is_some() {
                 map_id
@@ -542,7 +562,7 @@ pub(crate) fn resolve_quest_target_for_bot(
             };
             world
                 .exec_first(
-                    "SELECT guid, id, map, position_x, position_y, position_z, orientation FROM creature \
+                    "SELECT guid, id, map, position_x, position_y, position_z, orientation, wander_distance FROM creature \
                      WHERE id = ? AND map = ? \
                      ORDER BY POW(position_x - ?, 2) + POW(position_y - ?, 2) + POW(position_z - ?, 2) \
                      LIMIT 1",
@@ -552,7 +572,7 @@ pub(crate) fn resolve_quest_target_for_bot(
         } else {
             world
                 .exec_first(
-                    "SELECT guid, id, map, position_x, position_y, position_z, orientation FROM creature \
+                    "SELECT guid, id, map, position_x, position_y, position_z, orientation, wander_distance FROM creature \
                      WHERE id = ? AND map = ? \
                      ORDER BY guid LIMIT 1",
                     (quest_options.creature_entry, map_id),
@@ -567,18 +587,49 @@ pub(crate) fn resolve_quest_target_for_bot(
                 map_id
             )
         })
-        .map(|(guid, entry, row_map, x, y, z, orientation)| {
-            (guid, entry, row_map as u16, x, y, z, orientation)
-        })?
+        .map(
+            |(guid, entry, row_map, x, y, z, orientation, wander_distance)| {
+                (
+                    guid,
+                    entry,
+                    row_map as u16,
+                    x,
+                    y,
+                    z,
+                    orientation,
+                    wander_distance,
+                )
+            },
+        )?
     };
 
-    let guid_counter = resolve_quest_runtime_counter(
+    let target = quest_target_from_spawn(
         quest_options.creature_guid_counter,
-        spawn_guid,
-        quest_options.creature_entry,
-    )?;
-    let (low, high) = create_creature_guid_raw(map_id, entry, guid_counter);
-    Ok(ResolvedCreatureTarget {
+        (spawn_guid, entry, map_id),
+        (x, y, z, orientation),
+    );
+    let radius = if target.guid_counter == 0 {
+        discovery_match_radius_for_spawn(&mut world, "questgiver", &target, wander_distance)?
+    } else {
+        wander_distance.max(0.0) + 2.0
+    };
+    Ok((target, radius))
+}
+/// Counter 0 means "discover after login"; an explicit counter keeps the
+/// pre-built packed GUID (WOW_BOT_QUEST_RUNTIME_COUNTER override).
+pub(crate) fn quest_target_from_spawn(
+    runtime_counter: Option<u64>,
+    (spawn_guid, entry, map_id): (u64, u32, u16),
+    (x, y, z, orientation): (f64, f64, f64, f32),
+) -> ResolvedCreatureTarget {
+    let guid_counter = runtime_counter.unwrap_or(0);
+    let packed_guid = runtime_counter
+        .map(|counter| {
+            let (low, high) = create_creature_guid_raw(map_id, entry, counter);
+            build_packed_guid(low, high)
+        })
+        .unwrap_or_default();
+    ResolvedCreatureTarget {
         entry,
         spawn_guid,
         guid_counter,
@@ -587,8 +638,8 @@ pub(crate) fn resolve_quest_target_for_bot(
         y,
         z,
         orientation,
-        packed_guid: build_packed_guid(low, high),
-    })
+        packed_guid,
+    }
 }
 pub(crate) fn reset_bot_quest_state(
     conn: &mut mysql::Conn,
@@ -701,17 +752,6 @@ pub(crate) fn verify_quest_accepted_in_db(
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-}
-pub(crate) fn resolve_quest_runtime_counter(
-    runtime_counter: Option<u64>,
-    spawn_guid: u64,
-    entry: u32,
-) -> Result<u64> {
-    runtime_counter.ok_or_else(|| {
-        anyhow!(
-            "Quest smoke for entry {entry} resolved world.creature guid {spawn_guid}, but needs the live ObjectGuid low counter. Set WOW_BOT_QUEST_RUNTIME_COUNTER or pass --quest-runtime-counter."
-        )
-    })
 }
 pub(crate) fn build_quest_giver_query_quest(packed_guid: &[u8], quest_id: u32) -> Vec<u8> {
     let mut data = Vec::with_capacity(packed_guid.len() + 5);

@@ -16,3 +16,6 @@ anyhow = { workspace = true }
 tokio = { workspace = true }
 world-server = { workspace = true }
 wow-module-api = { workspace = true }
+
+[lints]
+workspace = true

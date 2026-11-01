@@ -22,6 +22,62 @@ pub(super) const WORLD_PACKAGE_ROOT: &str = "crates/wow-world";
 
 pub(super) const WORLD_CRATE_ROOT: &str = "crates/wow-world/src/lib.rs";
 
+pub(super) const WORLD_CORE_PACKAGE_ROOT: &str = "crates/wow-world-core";
+
+pub(super) const WORLD_CORE_CRATE_ROOT: &str = "crates/wow-world-core/src/lib.rs";
+
+pub(super) const WORLD_SOCIAL_PACKAGE_ROOT: &str = "crates/wow-world-social";
+
+pub(super) const WORLD_SOCIAL_CRATE_ROOT: &str = "crates/wow-world-social/src/lib.rs";
+
+pub(super) const WORLD_SPELL_PACKAGE_ROOT: &str = "crates/wow-world-spell";
+
+pub(super) const WORLD_SPELL_CRATE_ROOT: &str = "crates/wow-world-spell/src/lib.rs";
+
+pub(super) const WORLD_INTERACTION_PACKAGE_ROOT: &str = "crates/wow-world-interaction";
+
+pub(super) const WORLD_INTERACTION_CRATE_ROOT: &str = "crates/wow-world-interaction/src/lib.rs";
+
+pub(super) const WORLD_INSTANCES_PACKAGE_ROOT: &str = "crates/wow-world-instances";
+
+pub(super) const WORLD_INSTANCES_CRATE_ROOT: &str = "crates/wow-world-instances/src/lib.rs";
+
+pub(super) const WORLD_VISIBILITY_PACKAGE_ROOT: &str = "crates/wow-world-visibility";
+
+pub(super) const WORLD_VISIBILITY_CRATE_ROOT: &str = "crates/wow-world-visibility/src/lib.rs";
+
+pub(super) const WORLD_LOOT_PACKAGE_ROOT: &str = "crates/wow-world-loot";
+
+pub(super) const WORLD_LOOT_CRATE_ROOT: &str = "crates/wow-world-loot/src/lib.rs";
+
+pub(super) const WORLD_ENTITIES_PACKAGE_ROOT: &str = "crates/wow-world-entities";
+
+pub(super) const WORLD_ENTITIES_CRATE_ROOT: &str = "crates/wow-world-entities/src/lib.rs";
+
+pub(super) const WORLD_INVENTORY_PACKAGE_ROOT: &str = "crates/wow-world-inventory";
+
+pub(super) const WORLD_INVENTORY_CRATE_ROOT: &str = "crates/wow-world-inventory/src/lib.rs";
+
+pub(super) const WORLD_LIFECYCLE_PACKAGE_ROOT: &str = "crates/wow-world-lifecycle";
+
+pub(super) const WORLD_LIFECYCLE_CRATE_ROOT: &str = "crates/wow-world-lifecycle/src/lib.rs";
+
+pub(super) const WORLD_CHARACTER_PACKAGE_ROOT: &str = "crates/wow-world-character";
+
+pub(super) const WORLD_CHARACTER_CRATE_ROOT: &str = "crates/wow-world-character/src/lib.rs";
+
+pub(super) const WORLD_QUEST_PACKAGE_ROOT: &str = "crates/wow-world-quest";
+
+pub(super) const WORLD_QUEST_CRATE_ROOT: &str = "crates/wow-world-quest/src/lib.rs";
+
+pub(super) const WORLD_LOOT_OPS_PACKAGE_ROOT: &str = "crates/wow-world-loot-ops";
+
+pub(super) const WORLD_LOOT_OPS_CRATE_ROOT: &str = "crates/wow-world-loot-ops/src/lib.rs";
+
+pub(super) const WORLD_APPLICATION_PACKAGE_ROOT: &str = "crates/wow-world-application";
+
+pub(super) const WORLD_APPLICATION_CRATE_ROOT: &str = "crates/wow-world-application/src/lib.rs";
+
 pub(super) const SERVER_PACKAGE_ROOT: &str = "crates/world-server";
 
 pub(super) const SERVER_CRATE_ROOT: &str = "crates/world-server/src/lib.rs";
@@ -35,6 +91,10 @@ pub(super) const SOCIAL_PACKAGE_ROOT: &str = "crates/wow-social";
 pub(super) const SOCIAL_CRATE_ROOT: &str = "crates/wow-social/src/lib.rs";
 
 pub(super) const WORLD_SESSION_MODULE: &str = "crate::session";
+
+/// The WorldSession definition lives in this private child module while the
+/// public facade remains `crate::session::WorldSession`.
+pub(super) const WORLD_SESSION_STATE_MODULE: &str = "crate::session::state";
 
 pub(super) const WORLD_SESSION_NAME: &str = "WorldSession";
 
@@ -67,6 +127,10 @@ pub(super) const SOCIAL_GROUP_MODULE: &str = "crate::group";
 /// registry access remains part of the ownership scan.
 pub(super) const WORLD_SESSION_DIRECTORY_MODULE: &str = "crate::session::directory";
 
+/// The directory owner is mounted at the crate root and may also have an
+/// explicit Session facade mount in destination layouts.
+pub(super) const WORLD_PLAYER_DIRECTORY_MODULE: &str = "crate::player_directory";
+
 pub(super) const SESSION_COMMAND_NAME: &str = "SessionCommand";
 
 pub(super) const FNV1A_64_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -75,8 +139,9 @@ pub(super) const FNV1A_64_OFFSET_A: u64 = 0xcbf2_9ce4_8422_2325;
 
 pub(super) const FNV1A_64_OFFSET_B: u64 = 0x8422_2325_cbf2_9ce4;
 
-pub(super) const OWNERSHIP_TARGET_NAMES: [&str; 3] = [
+pub(super) const OWNERSHIP_TARGET_NAMES: [&str; 4] = [
     WORLD_SESSION_NAME,
+    core_owner::SESSION_CORE_NAME,
     SESSION_RESOURCES_NAME,
     SESSION_COMMAND_NAME,
 ];
@@ -217,6 +282,8 @@ pub struct SessionFactoryHelperSurface {
 #[serde(deny_unknown_fields)]
 pub struct SessionSyntaxBaseline {
     pub world_session: WorldSessionSurface,
+    #[serde(default)]
+    pub session_core_owner: core_owner::SessionCoreSurface,
     pub session_resources: SessionResourcesSurface,
     pub session_factory: SessionFactorySurface,
     pub session_command: TypeSurface,
@@ -250,6 +317,31 @@ pub(super) struct BaselineEnvelope<'a> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum PackageRole {
     World,
+    WorldCore,
+    WorldSocial,
+    WorldSpell,
+    WorldInteraction,
+    WorldInstances,
+    WorldVisibility,
+    WorldLoot,
+    WorldEntities,
+    WorldInventory,
+    WorldLifecycle,
+    /// The character handler operations (#1363 A5); like the domain packages it
+    /// never owns a Session contract.
+    WorldCharacter,
+    /// The quest operations, player-condition projection and inventory
+    /// valuation (#1363 A6); like the domain packages it never owns a Session
+    /// contract.
+    WorldQuest,
+    /// The loot handlers and loot-release operations above the quest crate
+    /// (#1363 A7); like the domain packages it never owns a Session contract.
+    WorldLootOps,
+    /// The extracted application layer between `wow-world` and `wow-world-core`.
+    ///
+    /// It owns session-independent domain operations (`<X>CxLikeCpp`) and is the
+    /// non-authority vocabulary every `wow-world` facade re-exports.
+    WorldApplication,
     Server,
     Network,
     Social,
@@ -269,6 +361,20 @@ impl PackageRole {
     pub(super) fn package_name(self) -> &'static str {
         match self {
             Self::World => "wow-world",
+            Self::WorldCore => "wow-world-core",
+            Self::WorldSocial => "wow-world-social",
+            Self::WorldSpell => "wow-world-spell",
+            Self::WorldInteraction => "wow-world-interaction",
+            Self::WorldInstances => "wow-world-instances",
+            Self::WorldVisibility => "wow-world-visibility",
+            Self::WorldLoot => "wow-world-loot",
+            Self::WorldEntities => "wow-world-entities",
+            Self::WorldInventory => "wow-world-inventory",
+            Self::WorldLifecycle => "wow-world-lifecycle",
+            Self::WorldCharacter => "wow-world-character",
+            Self::WorldQuest => "wow-world-quest",
+            Self::WorldLootOps => "wow-world-loot-ops",
+            Self::WorldApplication => "wow-world-application",
             Self::Server => "world-server",
             Self::Network => "wow-network",
             Self::Social => "wow-social",
@@ -297,6 +403,9 @@ impl Availability {
 #[derive(Default)]
 pub(super) struct BaselineBuilder {
     pub(super) errors: Vec<String>,
+    pub(super) session_core_owner: core_owner::SessionCoreSurface,
+    pub(super) session_core_owner_impl_providers:
+        BTreeMap<usize, Vec<core_owner::SessionCoreProviderSurface>>,
     pub(super) world_session_definition: Option<DefinitionSurface>,
     pub(super) world_session_fields: BTreeSet<FieldSurface>,
     pub(super) world_session_impls: BTreeSet<(String, Option<String>, Vec<String>, String)>,

@@ -1,27 +1,42 @@
-// Copyright (c) 2026 alseif0x
-// RustyCore — WoW WotLK 3.4.3 server in Rust
-// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
-// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+//! Shell-owned Session mailbox pump and compatibility reexports for its protocol.
 
-//! Session mailbox: the cross-session command protocol, its durable rails and
-//! the single pump that applies them.
-//!
-//! Issue #140 moved this complete vertical out of `wow-network`, which now owns
-//! only transport primitives. Queue identity, FIFO order, durability, bounded
-//! capacity, incarnation fences, acknowledgements and shutdown drain are
-//! unchanged by the move.
-
-mod durable;
-mod protocol;
 mod pump;
-mod session_phase_permit;
-mod session_phase_rail;
 
-pub use durable::*;
-pub use protocol::*;
-pub use session_phase_permit::*;
-pub use session_phase_rail::*;
+pub use wow_world_core::session::SessionPassKind;
 
-#[cfg(test)]
-#[path = "tests.rs"]
-mod tests;
+pub use wow_world_core::session::mailbox::{
+    ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupDifficultyLikeCppCommand,
+    ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand,
+    ApplyGroupSubgroupLikeCppCommand, ApplyLootMoneyLikeCppCommand, ApplyLootMoneyResultLikeCpp,
+    ApplyPlayerMeleeResultLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
+    CommittedCreatureMeleeAdmission, CommittedCreatureMeleeReply,
+    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
+    CreatureMeleeAbsorbConsumptionLikeCpp, CreatureMeleePresentationStageLikeCpp,
+    DestroyVisibleObjectLikeCppCommand, DurableCreatureRuntimeCommandsLikeCpp,
+    GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
+    GameEventQuestCompleteResponseLikeCpp, GroupDifficultyKindLikeCpp, KickLikeCppCommand,
+    LootRollCommandIdentityLikeCpp, LootRollStoreWinnerCommand, LootRollVoteCommand,
+    MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP, MapPhaseAdmissionLikeCpp,
+    MasterLootGiveCommand, MasterLootGiveResult, NativePlayerDeathAdmission,
+    NativePlayerDeathReply, NotifyLootMoneyRemovedLikeCppCommand,
+    PendingWorldPhaseFinalizationLikeCpp, PlayerMeleeCreatureKillLikeCpp, PlayerMeleeSwingLikeCpp,
+    PlayerRecoveryAdmission, PlayerRecoveryReply, PlayerRecoveryStatus,
+    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    ResetSeasonalQuestStatusCommand, RunCommittedCreatureMeleeRequest,
+    RunMapPhasePassLikeCppCommand, RunMapPhasePassResultLikeCpp, RunNativePlayerDeathRequest,
+    RunPlayerRecoveryRequest, RunWorldPhasePassLikeCppRequest, RunWorldPhasePassResultLikeCpp,
+    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendPartyUpdateLikeCppCommand, SendPlayerAuraUpdateCommand,
+    SendPlayerSpellIfVisibleLikeCppCommand, SendRealmPacketLikeCppCommand,
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
+    SendRepresentedDuelRequestedLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand, SessionPhaseClaimLikeCpp,
+    SessionPhasePassOutcomeLikeCpp, SessionPhasePermitLikeCpp, SessionPhasePermitStateLikeCpp,
+    SessionPhaseRequestLikeCpp, SessionPhaseRevokeLikeCpp,
+    SetQuestSharingInfoAndSendDetailsCommand, SharedClientVisibleGuidsLikeCpp,
+    SharedClientVisibleTransportsLikeCpp, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
+    WorldSessionShutdownFlushLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
+};

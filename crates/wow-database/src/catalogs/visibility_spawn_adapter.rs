@@ -138,7 +138,7 @@ fn decode_creature(result: &SqlResult) -> CreatureVisibilityPersistenceRowLikeCp
             .flatten()
             .or_else(|| result.try_read(36))
             .or_else(|| result.try_read::<i16>(36).map(|v| v.max(0) as u8))
-            .unwrap_or(1),
+            .unwrap_or(0), // CreatureChaseMovementType::Run (CreatureData.h:393)
         random_movement_type: result
             .try_read::<Option<u8>>(37)
             .flatten()

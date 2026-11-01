@@ -20,6 +20,255 @@ and an ignored password file by default. Use only authorized test identities and
 approved runtime/DB targets; disabling bootstrap does not make gameplay read-only.
 Runtime swaps and destructive fixture modes retain their separate explicit guards.
 
+## Death lifecycle acceptance (#43, preparation)
+
+As of 2026-10-28, the login smoke does **not** exercise death/release/reclaim or
+spirit-healer recovery. The scripted runner has typed lifecycle requests and
+safe byte evidence and a finite movement/control handler with focused coding
+feedback. The guarded campaign remains in preparation. The scenarios below are
+acceptance requirements, not completed
+live runs.
+
+Use a committed debug `world-server` candidate under the runtime swap/restore
+guard. Read-only preflight on 2026-10-24 found TESTBOT1's sole character at level
+3, which cannot prove sickness. The revised fixture proposal on 2026-10-25
+preserves existing characters 16–18 and uses new disposable characters on
+existing accounts, with account provisioning disabled:
+
+| Account | Proposed character | Scenario role |
+|---|---|---|
+| TESTBOT3 (10) | Qadeathfall, Human Mage, level 80 | Fall, release, reclaim and healer victim. |
+| TESTBOT3 (10) | Qadeathmob, Human Mage, level 1 | Ordinary lethal creature damage without downgrading an existing character. |
+| TESTBOT3 (10) | Qadeathwisp, Night Elf Hunter, level 11 | Wisp Spirit and the one-minute sickness duration. |
+| TESTBOT5 (12) | Qadeathreinc, Orc Shaman, level 80 | Legal Reincarnation and its real reagent/cooldown checks. |
+| TESTBOT2 (9) | Qadeathcast, Human Paladin, level 80 | Observer, legal Redemption caster, and journal-bound Stuck actor. |
+
+The 2026-10-28 preparation uses a fifth new disposable character for the caster
+instead of altering character 15. This keeps existing character rows and spell
+lists outside fixture restoration. All five names and GUIDs must be checked
+again before allocation. This preparation does not authorize their creation.
+
+These names and new GUIDs are unallocated candidates. Recheck collisions,
+account ownership and offline state before any authorized preparation. Select
+each new character by its journaled GUID using an in-memory bot configuration;
+do not overwrite the private credential configuration. The updated Mage,
+Night Elf and Paladin location candidate is map 0 near
+(-9340.21, 167.61, 61.60), with the fall victims prepared 100 yards above it
+and the caster on the ground. Read-only World SQL on 2026-10-28 found Elwynn
+graveyard 106 at (-9339.72, 170.2, 61.5622) and the existing healer nearby.
+This keeps the corpse near the expected graveyard; actual area, conditions,
+teleport and healer interaction still require runtime evidence. Target
+`ObjectMgr::LoadWorldSafeLocs` reads `world_safe_locs` from World SQL
+(`ObjectMgr.cpp:7021-7048`), rather than a guessed DB2 location source.
+Runtime execution requires authorization for those fixtures, the Rust and
+reference targets, restarts and the normal character writes caused by death,
+durability loss and logout. Do not seed
+or erase unrelated characters, inventory, auras or corpse rows to obtain a pass.
+
+The target reference is `woltk-trinity-legacy` at
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. Capture each action on both realm
+and instance connections, including the client request and its ACKs. Record the
+candidate SHA/hash, reference SHA, account/character identity without credentials,
+ordered packets, scenario outcome and restoration outcome. A Rust-generated
+golden is not an independent reference capture.
+
+The Human victim/caster pair cannot prove Wisp Spirit or Reincarnation.
+The proposed Night Elf Hunter is race 4/class 3, and the Orc Shaman is
+race 2/class 7. Reincarnation must use the Shaman's
+actual learned 20608 and the 21169 cooldown check; granting a class spell to the
+Mage does not establish that contract. Record level and the effective
+ChrRaces-selected sickness spell. Include a level-11 case for the one-minute
+duration and a level-20-or-higher case for the full duration. Fixture preparation
+through SQL remains a scoped runtime action; it does not prove
+character creation or the complete class system.
+
+Before the first fixture mutation, write a new mode-0600 recovery journal with
+exclusive creation and fsync. Preserve exact prior rows/values and allocated
+IDs for every touched table; recovery must target those identities and retain
+the journal until restoration is confirmed. Prepare and recover the new rows
+with World stopped: its running GUID generators must not be bypassed by
+inserting new characters/items behind them. Use a transaction with unique
+inserts and journal the exact allocated IDs before the first write. Recovery
+removes only this fixture's owned rows; it does not restore entire auth tables or erase
+other account characters. Reuse the integrated bot's durable
+journal conventions. No fixture SQL has been executed by this preparation.
+
+The offline fixture helper is `tools/qa/death_fixture.py`. Its default `plan`
+mode reports proposed IDs, account bindings, character slots, name collisions,
+and offline ownership facts without writes. `snapshot --journal PATH` reads
+only journal-owned characters, corpses, auras, inventory/items and spells/
+cooldowns. Both modes use the private `CharacterDatabaseInfo` in
+`/home/server/trinity-legacy-install/etc/worldserver.conf` by default; credentials
+are passed to the `mariadb` child through `MYSQL_PWD` and never printed or
+written to the journal. The journal stores only the nonsecret target host, port
+and schema; snapshot and restore require those three values to match the current
+world config. Rotating the DB username/password alone does not change the target
+identity. Bot credentials are read in memory and the fixture GUID override is a
+separate in-memory copy.
+
+`prepare` and `restore` are internal calls for the parent runtime guard. The
+guard must hold the host lock and verify every `world-server` PID and listener
+port is stopped before calling either mode. The required `--world-stopped` flag
+is only the caller's assertion; this helper does not inspect or stop services.
+Both modes also require `--ack-disposable-death-fixture`. Use a new canonical
+mode-0700 recovery directory and a fresh journal path. The helper records its
+40-bit character/item reservations and prior-row absence, fsyncs the exclusive
+mode-0600 journal before inserts, and retains it after any ambiguous SQL result.
+Before cleanup, `restore` stores a read-only snapshot of current owned actor
+rows in that same journal and preserves it across retries.
+Recovery removes rows from the explicit C++-derived character/item owner-key
+allowlist only. Mail, pets, groups, guilds, cross-character social rows,
+unexpected item owners or identity drift hold cleanup for review. It never writes auth,
+World NPC or existing-character rows.
+
+Read-only usage is `python3 tools/qa/death_fixture.py plan` and then
+`python3 tools/qa/death_fixture.py snapshot --journal /absolute/private/death-fixture.journal`.
+The parent guard supplies `prepare` or `restore` with that journal path plus
+`--ack-disposable-death-fixture --world-stopped`; the helper's flag is not
+process proof. Do not invoke either mutating mode outside that guarded call.
+
+The SQL seeds alive characters, not death state: the Human and Night Elf fall
+victims and Orc Reincarnation candidate start airborne; the level-1 mob stays
+near Kobold Vermin spawn 9005000; the Paladin starts at ground level. It grants
+Paladin spell 7328, Shaman passive 20608, and legal Night Elf racial 20585
+(`Player.cpp:4269`, `HasSpell`, race 4); it never seeds ghost-only 20584. It
+also seeds the reviewed chest, backpack and Ankhs. `Player::DeleteFromDB` /
+`Corpse::DeleteFromDB` and
+`CharacterDatabase.cpp` define the explicit cleanup owner keys; corpse rows are
+keyed by character owner GUID. Currency uses `CharacterGuid`
+(`CharacterDatabase.cpp:324`); spell favorites, objective criteria and trait
+rows are covered by the explicit `guid` owner-key list and optional primary-DDL
+test. Character construction/load anchors remain
+`CharacterHandler.cpp:500-548` and `Player.cpp:17303-17340,22100-22114`;
+item enchant serialization/loading is `Item.cpp:411,585-717`.
+
+The worker authored hermetic fake-database tests in
+`tools/qa/test_death_fixture.py`; they have not been run. No fixture SQL or
+service operation was run while implementing this helper. Its optional owner-key
+DDL check reads `sql/base/characters_database.sql` under
+`RUSTYCORE_REFERENCE_CPP_ROOT`; it skips only when that variable is unset and
+fails if a supplied reference root is missing the file or a whitelisted column.
+
+Read-only schema inspection on 2026-10-25 confirmed that new `characters` rows
+need explicit `name` and `taximask`, and `item_instance` needs explicit
+`enchantments`; the other inspected non-null fields have defaults. Defaults
+alone do not make a playable fixture: pin homebind, location, native race/class
+appearance and the scenario's health/powers. Customization keys are
+`(guid, chrCustomizationOptionID)` and the choice value is
+`chrCustomizationChoiceID`. The Shaman cooldown fixture must inspect both
+`time` and `categoryEnd` in `character_spell_cooldown` for spell 21169. Recheck
+offline ownership and collisions before any later authorized fixture write.
+
+The death driver must retain raw request and response payloads, connection,
+opcode and observed order even when a scenario fails. Checksums alone cannot
+support byte comparison. Any normalization of GUIDs, clocks or counters needs
+an explicit field-level rule; it must preserve the connection, metadata and
+observable order being accepted. Observe-only collection cannot report a pass.
+
+The bot trace records logical decrypted, uncompressed opcode/body bytes.
+`bot/packets.rs::read_encrypted_packet` performs decryption and unwraps
+`SMSG_COMPRESSED_PACKET` before returning; do not label those returned bytes
+as encrypted frames. This matches capture-diff's packet model. At the pinned
+reference, `WorldSocket.cpp:526–532` logs server packets before queueing them
+for compression/encryption. A bot trace still records client arrival order,
+not the server's cross-socket enqueue order, and does not replace the required
+server captures and their candidate/process/fixture provenance. Retain both
+realm and instance routes with per-connection sequence and explicit action
+boundaries. Begin each connection's gameplay trace only after its authentication
+barrier; do not include authentication payloads. Use cancellation-safe readiness
+followed by a bounded complete frame read, as in `read_encrypted_packet_if_ready`;
+a frame timeout is terminal for that connection. Record send attempts and local
+write completion separately from server responses and scenario admission.
+
+The 2026-10-27 local closure work removes the encryption-key prefix and
+`SMSG_CONNECT_TO` continuation key from `bot/void_storage_2.rs` diagnostics.
+Authentication/control trace events must contain phase and routing metadata
+without key-bearing bodies. This logging change is not an executed death-driver
+or capture result.
+
+On this systemd host, extend the existing `tools/qa-runtime.sh` swap/restore
+guard for the selected lifecycle campaign. Retain actual C++ PKT and Rust
+`.bin`/`.meta` server captures as well as the bot trace. Pin the candidate,
+listener PID/start time, effective redacted configuration, fixture journal and
+restoration in the run report. The existing comparator supports raw pairs with
+`capture-diff diff --cpp <pkt> --rust <dir> --strict --json` and reviewed action
+boundaries. This avoids a general capture-import migration: do not manufacture
+PM2 identities for a systemd run or label it an imported ready flow. Existing
+required-flow provenance gates remain applicable to any later promotion.
+
+| Scenario | Required observations |
+|---|---|
+| Lethal fall, then release | Actual server-applied lethal damage; root before release; one corpse for the owner; ghost auras and water-walk; realm `PreRessurect` before `DeathReleaseLoc`; near teleport completed by its ACK. |
+| Lethal creature damage | Real creature attack kills the level-1 victim; retain the damage, health/VALUES and subsequent KillPlayer/root order. A client movement packet or direct SQL health edit cannot substitute. |
+| Reclaim | Early/out-of-range requests leave the ghost unchanged; after the actual reclaim delay and return to the corpse, the player becomes alive, land-walk is restored and corpse rows become bones/deleted as applicable. |
+| Spirit healer | Valid ghost-visible healer and interaction distance; resurrection, selected sickness and equipped/inventory durability loss; normal save and relog preserve the resulting state. |
+| Sickness lifetime and visibility | Short duration, refresh and expiry change canonical stats at the required update point; owner and stationary observers receive the relevant aura/value/visibility changes without a movement threshold bypass. |
+| Resurrection offer | A real cast produces the realm offer and the canonical request; decline, wrong offerer and repeat response preserve the expected state. Acceptance verifies immediate/rejected teleport and admitted near/far ACK paths, requested health/mana, full energy/focus, original aura caster and corpse conversion. A request installed only by a test fixture does not prove this scenario. |
+| Automatic release | No manual release request; the existing update driver expires the six-minute timer exactly once on an eligible map. Instanceable maps and PREVENT_RESURRECTION pause the countdown. |
+| Recovery | Disconnect/relogin while dead and while ghost; corpse location and movement restored; repeated release/reclaim/request packets do not duplicate effects. Restart/relogin evidence remains a separate required observation. |
+| Interrupted transfer/save | Exercise the candidate's retained operation and failure fences; distinguish known rollback, uncertain in-flight effects and actual DB outcome. Mocked futures alone do not prove durability. |
+
+The ordinary offer sequence includes decline before acceptance, a wrong
+offerer, accepted near/far transfer and duplicate responses. An accepted request
+retains its lineage across the Rust async wait. A late decline cannot rewrite
+that accepted continuation. Static inspection of the reference's request-pointer
+reset and delayed unconditional dereference leaves the adversarial
+decline-before-near-ACK sequence uncertain; do not claim that reference behavior
+is proven or attempt a reference crash experiment under ordinary gameplay QA
+authorization.
+
+The read-only preflight found no persisted `character_spell` or
+`character_inventory` rows for characters 14–16. Verify the effective login spell
+list; the full scenario needs a known resurrection spell and durable equipment.
+Prepare an exact bounded fixture and its restoration before requesting runtime
+approval if those prerequisites are absent. Account provisioning being disabled
+does not authorize granting spells or adding items. A reference target must
+actually provide the expected action before its capture is accepted.
+
+Read-only fixture facts from 2026-10-24: the installed enUS effect row for
+Redemption (`7328`, effect record `685420`, difficulty 0) is effect 113 with
+base 64, die sides 1 and mana 120: the basic offer is 65 health / 120 mana.
+This is a candidate spell, not proof that TESTBOT2 knows or can cast it.
+Spirit Healer entry 6491 has map-0 spawn rows 9008549 and 9008781 at
+(-8946.23, -183.477, 79.9953), and 9008741 at (-9340.7, 165.021, 61.6412).
+The Orc-side candidate is spawn 9008633 near (240.765, -4791, 10.256).
+Discover the live NPC identity and visibility; do not assume a database spawn
+counter is the runtime GUID or change the duplicate data for this test.
+The production DB2 reader's 2026-10-28 focused probe verified items 2121 and
+17030 after correcting ItemSparse's signed AllowableClass field to target
+field 46. Both allow class mask `-1`; item 2121 is cloth chest equipment with
+maximum durability 40, and reagent 17030 stacks to 10. This is data-reader
+evidence, not an equipped-item or live durability pass. Use target-version slot
+constants: backpack starts at 35 and equipped bag slots are 30 through 33
+(`Player.h:671–683`), not the 3.3.5 inventory layout.
+The raw ItemEffect inventory of 86 positive OnPickup rows and 39 charged parent
+items is not proof that any chosen item is reachable in the required inventory
+state. Validate the real pickup/load/cast path and charge semantics before
+selecting the obtain-spell fixture; do not manufacture reachability with SQL.
+
+Read-only World data inspection on 2026-10-25 found a creature-damage
+candidate: Kobold Vermin entry 6, faction 25, unit_flags 0, with difficulty-0
+MinLevel 1 / MaxLevel 2 in creature_template_difficulty. Existing spawn
+9005000 is on map 0 near (-8783.05, -161.565, 82.0352). Discover its live GUID
+and current health; neither this SQL row nor proximity proves retaliation.
+The driver may provoke it with the existing bot's packed-target
+CMSG_ATTACK_SWING (0x3255). It must fail if the victim kills the creature or
+no actual creature damage and Player death occur. These existing World rows
+are not fixture-owned and must not be modified or removed to obtain a pass.
+
+For a scripted fall, use a non-instance map and a character without GM mode,
+flight, fall immunity or safe-fall auras. Pin the initial position and report the
+sent height/landing sequence; a client-position update alone is not proof of
+damage. `MovementPackets.cpp:104–179` owns the fall-data presence bit and payload,
+and `Player::HandleFall` owns damage admission. The driver must fail if lethal
+damage and the ensuing death state are not observed.
+
+Protocol anchors for the driver: `MiscPackets.cpp:266–301` (packed corpse GUID,
+one-bit RepopRequest and resurrection response), `MovementPackets.cpp:705–728`
+(MoveTeleport) and `800–815` (teleport ACK versus MovementAck). Movement ACKs
+carry **MovementInfo then AckIndex**; a teleport ACK carries **MoverGUID,
+AckIndex, MoveTime**. Do not treat them as the same packet shape.
+
 ## Bounded normal save/relogin check (#578)
 
 With explicit approval to swap/restart `world-server` and use existing
@@ -203,6 +452,27 @@ explicit recovery. Recovery refuses to start a non-original executable or overwr
 an online character. `test_session_transfer_qa.py` exercises the recovery policy
 without DB/service access. Do not use this wrapper concurrently with manual play.
 
+## Login chat phase (#1444 H5)
+
+In login-only mode, after the login streams drain, the bot can say chat lines
+and assert what the server sent back. Every `SMSG_CHAT` read during login, the
+drain and this phase is decoded and recorded in the report as `chat_received`
+(type, sender, text). The phase runs when any of these is set (`|` separates
+entries):
+
+- `WOW_BOT_CHAT_SAY`: lines sent as `CMSG_CHAT_MESSAGE_SAY` that must come back
+  as a say echo (C++ `Player::Say` echoes an allowed line to its sender);
+- `WOW_BOT_CHAT_SAY_BLOCKED`: lines sent first that must never be echoed, for a
+  module's `chat.message` `Deny`;
+- `WOW_BOT_EXPECT_SYSTEM_CHAT`: substrings that must each appear in a system
+  message received since login, such as a module greeting;
+- `WOW_BOT_CHAT_LANGUAGE`: the `LANG_*` id to say in (default 7).
+
+Each line is observed for three seconds. The report's `chat_say` holds the
+evidence, and a failed assertion fails the run. `qa-runtime.sh login` passes
+these variables through to the bot. Saying a line is a normal chat action: it
+writes nothing to the databases.
+
 ## What was adapted
 
 - `--login-only`: verifies world entry and drains the login streams.
@@ -271,12 +541,14 @@ migration gate until the server-side LFG port is explicitly ready.
 
 ## Personal bank persistence smoke
 
-Use the live low counter announced for the selected neutral banker; it is not
-the persistent `world.creature.guid` spawn id:
+After each login the bot sends `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` and
+discovers the selected neutral banker's live ObjectGuid (not the persistent
+`world.creature.guid` spawn id) in `SMSG_UPDATE_OBJECT` near its SQL position.
+Setup refuses a banker whose movement radius overlaps another same-entry spawn.
+`WOW_BOT_BANK_RUNTIME_COUNTER=<live-banker-counter>` remains an optional override:
 
 ```bash
 WOW_BOT_BANK_SMOKE=1 \
-WOW_BOT_BANK_RUNTIME_COUNTER=<live-banker-counter> \
 ./run_rustycore_login_smoke.sh
 ```
 
@@ -345,6 +617,81 @@ C++ and Rust issue-#20 contrast produced the same block SHA-256:
 Setup and cleanup are restricted to `@bot.local` accounts.
 `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults `2589`/`2592`) and
 `WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS` are optional.
+
+## Vendor sell persistence smoke
+
+```bash
+WOW_BOT_VENDOR_SELL_SMOKE=1 \
+./run_rustycore_login_smoke.sh
+```
+
+Setup is restricted to an offline `@bot.local` character with no item of the
+fixture entry (default `2589`). It seeds one item into an empty backpack slot
+and relocates beside the default vendor spawn (`18525`/`96654`, the same SQL
+spawn selection and ambiguity guard as the buy smoke). The pass requires the
+live vendor GUID discovered from `SMSG_UPDATE_OBJECT`, `CMSG_SELL_ITEM`, no
+`SMSG_SELL_RESPONSE` (C++ only sends it as an error, realm-routed), and after
+the routed logout: no `character_inventory`/`item_instance` row for the item
+(C++ `Player::_SaveInventory` deletes buyback-slot items) and a money gain,
+equal to `WOW_BOT_VENDOR_SELL_EXPECTED_MONEY` when set. A fresh relogin must
+see the same state. Cleanup restores the original money and position.
+`WOW_BOT_VENDOR_SELL_ITEM_ENTRY`, `WOW_BOT_VENDOR_ENTRY`,
+`WOW_BOT_VENDOR_SPAWN_GUID`, `WOW_BOT_VENDOR_RUNTIME_COUNTER` and
+`WOW_BOT_VENDOR_TIMEOUT_SECS` are optional.
+
+## Basic movement persistence smoke
+
+```bash
+WOW_BOT_MOVEMENT_SMOKE=1 \
+./run_rustycore_login_smoke.sh
+```
+
+Use an offline `@bot.local` character on open, flat ground; the bot does not
+relocate it. On the instance socket it sends `CMSG_MOVE_START_FORWARD`, two
+forward `CMSG_MOVE_HEARTBEAT`s and `CMSG_MOVE_STOP` (C++ `MovementInfo` layout,
+7 yd/s, 200 ms steps, 4.2 yards along the login facing, login Z kept). The pass
+requires `characters.map/position_x/y/z` within 0.1 yards of the final sent
+position after the routed logout, and the relogin `SMSG_LOGIN_VERIFY_WORLD`
+publishing the same position. Cleanup restores the original position after the
+character is offline.
+
+## Two-session player trade smoke (#38)
+
+```bash
+WOW_BOT_TRADE_SMOKE=1 WOW_BOT_ACK_DISPOSABLE_TRADE=1 \
+WOW_BOT_FIXTURE_JOURNAL="$(mktemp -d)/trade.journal" \
+./run_rustycore_login_smoke.sh
+```
+
+Guarded through the build swap: `./tools/qa-runtime.sh --allow-runtime-qa
+--ack-disposable-trade --world-exec target/release/world-server --report
+/tmp/trade-qa.json trade` (evidence JSON in the printed `rustycore-trade-qa.*`
+directory).
+
+Accounts A/B default to `TESTBOT1@bot.local`/`TESTBOT2@bot.local`
+(`WOW_BOT_TRADE_ACCOUNT_A/B`); both must be offline, alive, same team, and own
+no item of the trade entry (default 2589 Linen Cloth). While both are offline the
+bot writes the recovery journal first, then in one transaction: inserts one
+isolated `item_instance` (guid = MAX+10000) plus a `character_inventory` row in
+A's first free backpack slot (35..50), sets A's money to 10000 and B's to 500,
+and moves B 1.5 yd beside A (A must stand on an open-world continent).
+
+Wire sequence (instance socket, C++ `TradeHandler.cpp`): A `CMSG_INITIATE_TRADE`
+-> B `TRADE_STATUS PROPOSED` (Partner = A) -> B `CMSG_BEGIN_TRADE` -> both
+`INITIATED` -> A `CMSG_SET_TRADE_ITEM(0, 255, slot)` + `CMSG_SET_TRADE_GOLD(3000)`
+-> B `TRADE_UPDATED(WhichPlayer=1)` with the item and gold -> B
+`CMSG_ACCEPT_TRADE(A's CurrentStateIndex)` -> A `ACCEPTED` -> A
+`CMSG_ACCEPT_TRADE(B's index, 1 unless updated)` -> both `COMPLETE`. A trade
+packet on the realm socket, or any other status, fails the run.
+
+The pass requires the characters DB to show the item owned by and inventoried
+under B only, A = 7000 and B = 3500 copper: once while both are still online
+(C++ commits `SaveInventoryAndGoldToDB` before `COMPLETE`), again after the
+routed logout, and again after a clean relog of both. Cleanup always waits for
+both characters to be offline, deletes the item rows and restores both money
+and positions exactly, then marks the journal complete. A journal left by an
+interrupted run is restored with `--recover-trade-fixture` (same
+`WOW_BOT_FIXTURE_JOURNAL`). Report fields: `trade_*`.
 
 ## Rested XP accrual and consumption smoke
 
@@ -590,6 +937,19 @@ WOW_BOT_PASSWORD='local-password' \
 ./run_rustycore_login_smoke.sh
 ```
 
+When relocation or a race/class/level override is used, the bot snapshots those
+`characters` columns (and whether the expected quest's status row existed)
+before writing them, reports the snapshot as `quest_character_before`, and after
+logout restores them (`quest_character_restored`, `quest_restore_failure`). A
+quest status row the run created is removed only if none existed before. State
+the server derives during the mutated session (spells/skills learned for the
+temporary race/class) is not reverted, so use a disposable bot character.
+The restore runs on every exit after the setup, including a failed setup and
+early errors (world auth, character enumeration, login verification): those
+paths drop the world connection, wait for the disconnect save, restore, and
+return the original error. `quest_character_restored=false` fails the run (exit
+status non-zero) and the wrapper prints the restore fields for quest mode.
+
 For objective load/save QA, seed an active quest with objective counters, then
 force a real logout and compare `character_queststatus_objectives` after the
 server save:
@@ -609,7 +969,7 @@ Useful quest overrides:
 
 - `WOW_BOT_QUEST_CREATURE_ENTRY`: required creature template entry.
 - `WOW_BOT_QUEST_CREATURE_GUID`: optional exact `world.creature.guid` spawn.
-- `WOW_BOT_QUEST_GUID_COUNTER`: optional live `ObjectGuid` low counter. C++ `Creature::LoadFromDB` uses a map-generated lowguid for the live creature and keeps the DB spawn guid separately.
+- `WOW_BOT_QUEST_RUNTIME_COUNTER`: optional live `ObjectGuid` low counter. C++ `Creature::LoadFromDB` uses a map-generated lowguid for the live creature and keeps the DB spawn guid separately. Without it the bot sends `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` after login and discovers the questgiver's live ObjectGuid near its SQL position (refusing a spawn whose movement radius overlaps another same-entry spawn).
 - `WOW_BOT_QUEST_MAP_ID`: optional map override used for GUID construction.
 - `WOW_BOT_QUEST_EXPECT_ID`: require this quest id in list/details.
 - `WOW_BOT_QUEST_FORBID_ID`: fail if this quest id is offered.
@@ -666,3 +1026,76 @@ the two identities are interchangeable.
   C++ notes saying realm-socket-only are stale for this tree.
 - Keep raw tickets/session keys out of chat and commit messages. Use the report
   booleans and sanitized log grep lines for status.
+
+## Guarded death lifecycle captures
+
+`tools/qa-death-runtime.sh` runs one named disposable death scenario under the
+host lock and the existing capture/fixture cleanup protocol. Set
+`RUSTYCORE_DEATH_SCENARIO` to exactly one of `fall-release`, `reclaim`,
+`healer`, `wisp`, `reincarnation`, `mob`, `automatic-release`, `offer`,
+`recovery-dead`, `recovery-ghost`, `stuck-death`, or `stuck-home`. The fixture
+adds only known-spell seeds 7355 and 8690 to the existing Qadeathcast seed list;
+the journal remains the source of that actor's GUID. Do not invoke
+`tools/qa/death_scenario.py` directly: the outer wrapper supplies the prepared
+journal, canonical private bot/world configs, capture identity and epoch number.
+
+Use one runner path for one capture epoch and repeat it twice for scenarios
+with a restart/relogin boundary (`healer`, `wisp`, `offer`, `recovery-dead`,
+`recovery-ghost`, `stuck-death`). `stuck-death` casts seeded Hearthstone 8690
+normally in epoch 1, records SpellGo, its saved native cooldown, and the
+completed teleport ACK, waits two seconds past its 1500ms GCD, then casts 7355
+once and waits for movement root before logout. After the wrapper restarts the
+server and relogs the same dead actor,
+epoch 2 casts 7355 once to repop at Alliance graveyard 106 on map 0
+`(-9339.72, 170.2, 61.5622)`, then logs out. The saved position must be within
+0.25 yards and the capture must retain teleport ACK or DeathReleaseLoc evidence;
+the actor's homebind is only about 2.6 yards away, so a wider proximity check
+would not prove repop. Neither epoch releases spirit or resurrects the actor.
+The death case requires the existing `DurabilityLoss.OnDeath = 10` guard and
+`DurabilityLoss.InPvP = 0`; it expects no death durability packet. `stuck-home`
+is one fresh-actor epoch: cast 7355 once, observe its teleport ACK, and verify
+positive health with no ghost, corpse, or saved/event Hearthstone cooldown.
+
+The wrapper requires a fresh canonical mode-0700 output
+directory outside the checkout, explicit runtime and disposable-fixture
+acknowledgements, the server executable and SHA-256 pin, and the selected
+backend. For example, after choosing the local executable, its verified hash,
+and a fresh output directory:
+
+```bash
+RUSTYCORE_DEATH_SCENARIO=healer ./tools/qa-death-runtime.sh \
+  --allow-runtime-qa --ack-disposable-death-fixture \
+  --backend rust --world-exec /absolute/path/to/world-server \
+  --candidate-sha256 VERIFIED_SERVER_SHA256 \
+  --output-dir /absolute/private/path/death-healer-2026-10-28 \
+  --scenario-runner /home/server/rustycore/tools/qa/death_scenario.py \
+  --scenario-runner /home/server/rustycore/tools/qa/death_scenario.py
+```
+
+The wrapper owns stopping/preparing the fixture, candidate capture epochs,
+offline polling, snapshots, restore, and service recovery. Each bot pass waits
+for `CAST_LIFECYCLE_READY`; the offer caster starts only after the victim is
+ready. Plans use the existing exact packet expectations and action reports.
+The bounded windows are about 10 seconds for fall/healer/relogin setup, 45
+seconds for reclaim, 30 seconds for mob and offer, 78 seconds for the Wisp
+expiry relog after its 75-second wait, and up to 390 seconds for automatic
+release, plus normal logout completion. Observer captures stay explicitly
+`observe_only` and never report a scenario pass.
+
+For the additional last-Ankh Reincarnation case, pass
+`--reincarnation-ankh-count 1` to the wrapper. The default is 10; these are the
+only supported initial counts. The fixture journal records the selected count,
+and older journals retain the original default of 10. This variant uses the same
+owned actors and item identities in one extra epoch per backend. After the
+duplicate self-resurrection request and logout, the standard case must retain
+nine Ankhs; the last-Ankh case must have neither the reserved item instance nor
+its inventory link. Both cases retain the spell and saved cooldown checks.
+
+Reports separate scenario observations from native collection and cleanup.
+They set `parity_assessed` to `false`; collected packets do not establish
+Rust/C++ parity or full death-issue acceptance. Review paired exact captures
+for packet bytes/order and compare retained AuraUpdate/UpdateObject evidence
+for Wisp behavior. Aura rows are checked only where the actual saved sickness
+row is required; ghost spell persistence and full aura application are not
+inferred from them. These bounded cases do not exercise adversarial C++
+decline-after-accepted-ack timing or general unknown-commit fault injection.

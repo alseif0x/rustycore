@@ -39,6 +39,13 @@ pub struct UiMapXMapArtHotfixRowLikeCpp {
     pub ui_map_id: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChrCustomizationDisplayInfoHotfixRow {
+    pub id: u32,
+    pub shapeshift_form_id: i32,
+    pub display_id: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SpellEnchantProcPersistenceRowLikeCpp {
     pub enchant_id: u32,
@@ -79,6 +86,13 @@ pub trait StaticDataOverlayPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<
         '_,
         StaticDataRowsLoadOutcomeLikeCpp<Vec<UiMapXMapArtHotfixRowLikeCpp>>,
+    >;
+
+    fn load_chr_customization_display_info_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        StaticDataRowsLoadOutcomeLikeCpp<Vec<ChrCustomizationDisplayInfoHotfixRow>>,
     >;
 
     fn load_spell_enchant_proc_rows_like_cpp(

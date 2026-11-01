@@ -335,6 +335,7 @@ pub struct AccountInfo {
     pub timezone_offset: i32,
     pub battlenet_account_id: u32,
     pub security: u8,
+    pub instant_logout_permission: bool,
     pub is_banned_bnet: bool,
     pub is_banned_account: bool,
     /// Build-specific Win64 auth seed (16 bytes, from `build_info` table).

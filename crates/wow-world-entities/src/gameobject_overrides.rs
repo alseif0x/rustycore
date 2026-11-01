@@ -1,0 +1,151 @@
+use wow_core::ObjectGuid;
+use wow_entities::PhaseShift;
+use wow_world_core::session::HubMut;
+
+use crate::WorldEntitiesState;
+
+impl WorldEntitiesState {
+    #[allow(dead_code)]
+    pub fn record_represented_gameobject_zone_area_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        zone_id: u32,
+        area_id: u32,
+    ) {
+        let state = self
+            .represented_gameobject_use_states
+            .entry(guid)
+            .or_default();
+        state.zone_id = Some(zone_id);
+        state.area_id = Some(area_id);
+    }
+
+    pub fn record_represented_gameobject_lock_id_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        lock_id: u32,
+    ) {
+        self.represented_gameobject_use_states
+            .entry(guid)
+            .or_default()
+            .lock_id = (lock_id != 0).then_some(lock_id);
+    }
+
+    pub fn record_represented_gameobject_override_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        flags: u32,
+        faction_template: u32,
+        override_source_known: bool,
+    ) {
+        let state = self
+            .represented_gameobject_use_states
+            .entry(guid)
+            .or_default();
+        state.gameobject_flags = flags;
+        state.gameobject_override_flags = override_source_known.then_some(flags);
+        state.faction_template = Some(faction_template);
+    }
+
+    pub fn record_represented_gameobject_display_model_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        display_id: u32,
+        scale: f32,
+        rotation: [f32; 4],
+    ) {
+        let state = self
+            .represented_gameobject_use_states
+            .entry(guid)
+            .or_default();
+        state.display_id = (display_id != 0).then_some(display_id);
+        state.scale = scale;
+        state.rotation = rotation;
+    }
+
+    pub fn record_represented_gameobject_anim_progress_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        anim_progress: u8,
+    ) {
+        self.represented_gameobject_use_states
+            .entry(guid)
+            .or_default()
+            .go_anim_progress = anim_progress;
+    }
+
+    #[allow(dead_code)]
+    pub fn record_represented_gameobject_owner_guid_like_cpp(
+        &mut self,
+        hub: &mut HubMut<'_>,
+        guid: ObjectGuid,
+        owner_guid: ObjectGuid,
+    ) {
+        let owner_guid = (!owner_guid.is_empty()).then_some(owner_guid);
+        self.represented_gameobject_use_states
+            .entry(guid)
+            .or_default()
+            .owner_guid = owner_guid;
+
+        let Some(owner_guid) = owner_guid else {
+            return;
+        };
+        let Some(map_key) = hub
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(hub.core.player_map_id_like_cpp()))
+        else {
+            return;
+        };
+        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
+            return;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return;
+        };
+        let Some(map) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
+            return;
+        };
+        if let Some(game_object) = map.map_mut().get_typed_game_object_mut(guid) {
+            game_object.set_created_by(owner_guid);
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn record_represented_gameobject_spell_id_like_cpp(
+        &mut self,
+        hub: &mut HubMut<'_>,
+        guid: ObjectGuid,
+        spell_id: u32,
+    ) {
+        self.set_canonical_gameobject_spell_id_like_cpp(hub, guid, spell_id);
+    }
+
+    pub fn record_represented_gameobject_db_phase_shift_like_cpp(
+        &mut self,
+        hub: &mut HubMut<'_>,
+        guid: ObjectGuid,
+        map_id: u16,
+        phase_use_flags: u8,
+        phase_id: u16,
+        phase_group_id: u32,
+        terrain_swap_map: i32,
+    ) {
+        let (phase_shift, _) = hub.catalogs.db_spawn_phase_shift_like_cpp(
+            map_id,
+            phase_use_flags,
+            phase_id,
+            phase_group_id,
+            terrain_swap_map,
+        );
+        self.record_represented_gameobject_phase_shift_like_cpp(guid, phase_shift);
+    }
+
+    pub fn record_represented_gameobject_phase_shift_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        phase_shift: PhaseShift,
+    ) {
+        self.represented_gameobject_phase_shifts
+            .insert(guid, phase_shift);
+    }
+}

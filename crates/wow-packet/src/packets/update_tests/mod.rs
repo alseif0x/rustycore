@@ -125,6 +125,7 @@ fn set_active_player_bit(data: &mut ActivePlayerDataValuesUpdate, bit: usize) {
 fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerCreateData {
     PlayerCreateData {
         guid: ObjectGuid::create_player(1, 42),
+        summon: ObjectGuid::EMPTY,
         wow_account: ObjectGuid::EMPTY,
         bnet_account: ObjectGuid::EMPTY,
         race: 1,
@@ -135,6 +136,8 @@ fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerC
         native_display_id: 49,
         health: 100,
         max_health: 100,
+        aura_state: 0,
+        unit_flags2: 0,
         faction_template: PlayerCreateData::faction_for_race(1),
         current_area_id: 12,
         player_flags: 0,
@@ -207,6 +210,8 @@ fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerC
         heirloom_flags: Vec::new(),
         toys: Vec::new(),
         transmog: Vec::new(),
+        self_res_spells: Vec::new(),
+        no_reagent_cost_mask: [0; 4],
         trait_configs: Vec::new(),
     }
 }
@@ -216,3 +221,4 @@ mod scenarios_2;
 mod scenarios_3;
 mod scenarios_4;
 mod scenarios_5;
+mod self_res;

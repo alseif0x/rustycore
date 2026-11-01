@@ -1,0 +1,14 @@
+{
+ "slice": "#1363 slice 12d (the quest-status authority reset -> a provided QuestSessionHostLikeCpp method in wow-world-quest; the active trade partner projection -> wow-world-social trade_handlers.rs over the core and social state)",
+ "base": "4cf327c8c",
+ "moved": ["invalidate_player_quest_status_authority_like_cpp", "resolved_represented_active_trade_partner_like_cpp"],
+ "comment": "The quest reset becomes the trait's provided method (the World impl that forwarded to the inherent retires). The trade projection inlines the World player_trade_state_snapshot_like_cpp forward, whose body is wow_world_social::player_trade_state_snapshot_like_cpp(&self.core, &self.social) (verified).",
+ "rules": [
+  ["pub\\(crate\\) fn invalidate_player_quest_status_authority_like_cpp\\(&mut self\\)", "fn invalidate_player_quest_status_authority_like_cpp(&mut self)"],
+  ["crate::session::split_quest_state_mut\\(self\\)", "self.split_quest_state_mut()"],
+  ["wow_world_quest::mutate_player_quest_gameplay_like_cpp\\(", "crate::mutate_player_quest_gameplay_like_cpp("],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "self.core()."],
+  ["pub\\(crate\\) fn resolved_represented_active_trade_partner_like_cpp\\(\\s*&self,?\\s*\\)", "pub fn resolved_represented_active_trade_partner_like_cpp(core: &SessionCore, social: &SessionSocialLimits)"],
+  ["self\\.player_trade_state_snapshot_like_cpp\\(\\)", "player_trade_state_snapshot_like_cpp(core, social)"]
+ ]
+}

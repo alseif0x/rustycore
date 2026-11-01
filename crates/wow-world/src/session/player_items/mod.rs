@@ -9,16 +9,18 @@ mod bank;
 mod catalog;
 mod durability;
 mod enchantment;
-mod equipment;
 mod equipment_sets;
-mod equipment_slots;
 mod items;
 mod modifiers;
-mod offhand;
 mod persistence;
-mod persistence_load;
 mod publication;
 mod storage;
-mod storage_bags;
+mod storage_move_host;
 mod storage_slots;
+#[cfg(test)]
+pub(crate) mod test_fixtures;
 mod valuation;
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/equipment/f3_shims.rs"]
+mod equipment_f3_shims;

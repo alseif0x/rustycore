@@ -324,6 +324,12 @@ pub(crate) struct BotRunResult {
     pub(crate) vendor_item_push_seen: bool,
     pub(crate) vendor_relogin_verified: bool,
     pub(crate) vendor_failure: Option<String>,
+    #[serde(flatten)]
+    pub(crate) vendor_sell: VendorSellEvidence,
+    #[serde(flatten)]
+    pub(crate) movement: MovementSmokeEvidence,
+    #[serde(flatten)]
+    pub(crate) trade: TradeSmokeEvidence,
     pub(crate) equipment_set_smoke: bool,
     pub(crate) equipment_set_smoke_passed: Option<bool>,
     pub(crate) equipment_set_type: Option<i32>,
@@ -454,12 +460,19 @@ pub(crate) struct BotRunResult {
     pub(crate) quest_objective_db_before: Vec<QuestObjectiveDbRow>,
     pub(crate) quest_objective_db_after: Vec<QuestObjectiveDbRow>,
     pub(crate) quest_objective_db_verified: bool,
+    /// Character columns before the quest smoke's own pre-login writes.
+    pub(crate) quest_character_before: Option<QuestCharacterSnapshot>,
+    pub(crate) quest_character_restored: Option<bool>,
+    pub(crate) quest_restore_failure: Option<String>,
     pub(crate) quest_objective_update_seen: bool,
     pub(crate) quest_objective_update_has_expected: bool,
     pub(crate) quest_ids_seen: Vec<u32>,
     pub(crate) quest_titles_seen: Vec<String>,
     pub(crate) quest_failure: Option<String>,
     pub(crate) seen_opcodes: Vec<String>,
+    /// Every `SMSG_CHAT` the login and chat phases read (#1444 H5).
+    pub(crate) chat_received: Vec<crate::chat_say::ChatSeen>,
+    pub(crate) chat_say: Option<crate::chat_say::Evidence>,
 }
 impl BotRunResult {
     pub(crate) fn success(
@@ -478,7 +491,9 @@ impl BotRunResult {
             return self.world_auth
                 && self.enum_characters
                 && self.player_login_verified
-                && self.quest_smoke_passed.unwrap_or(false);
+                && self.quest_smoke_passed.unwrap_or(false)
+                // A mutated bot that was not put back fails the run loudly.
+                && self.quest_character_restored != Some(false);
         }
         if self.bank_smoke {
             return self.world_auth
@@ -528,6 +543,24 @@ impl BotRunResult {
                 && self.player_login_verified
                 && self.vendor_smoke_passed.unwrap_or(false)
                 && self.vendor_relogin_verified;
+        }
+        if self.vendor_sell.vendor_sell_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.vendor_sell.passed();
+        }
+        if self.movement.movement_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.movement.passed();
+        }
+        if self.trade.trade_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.trade.passed();
         }
         if self.equipment_set_smoke {
             return self.world_auth
@@ -625,6 +658,9 @@ pub(crate) struct RunReport {
     pub(crate) homebind_smoke: bool,
     pub(crate) inventory_swap_smoke: bool,
     pub(crate) vendor_smoke: bool,
+    pub(crate) vendor_sell_smoke: bool,
+    pub(crate) movement_smoke: bool,
+    pub(crate) trade_smoke: bool,
     pub(crate) equipment_set_race_smoke: bool,
     pub(crate) rested_xp_smoke: bool,
     pub(crate) detour_chase_capture: bool,
@@ -734,13 +770,15 @@ pub(crate) struct VoidStorageDbState {
 pub(crate) struct BankSmokeOptions {
     pub(crate) phase: BankSmokePhase,
     pub(crate) banker: ResolvedCreatureTarget,
+    /// Position match radius used when `banker.guid_counter` is 0 (discover).
+    pub(crate) target_match_radius: f32,
     pub(crate) item_guid: u64,
     pub(crate) item_entry: u32,
     pub(crate) inventory_slot: u8,
     pub(crate) bank_slot: u8,
     pub(crate) timeout_secs: u64,
 }
-#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, serde::Deserialize)]
 pub(crate) struct CharacterPositionSnapshot {
     pub(crate) map_id: u32,
     pub(crate) zone_id: u32,

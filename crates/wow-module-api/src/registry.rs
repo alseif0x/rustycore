@@ -7,9 +7,28 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
-use crate::effect::PlayerLoginEffects;
+use crate::chat::{ChatMessageSnapshot, ChatModule, ChatOutcome};
+use crate::creature::{CreatureAddedToWorldSnapshot, CreatureDiedSnapshot, CreatureModule};
+use crate::decision::ChatDecision;
+use crate::effect::{
+    EffectBatch, HookOutcome, ModuleEffectError, NotificationEffect, PlayerLoginEffects,
+    ScopedEffects, validated,
+};
 use crate::hook::{PlayerLoginModule, PlayerLoginSnapshot};
+use crate::player::{
+    CreatureKillSnapshot, ItemEquippedSnapshot, LootItemSnapshot, LootMoneySnapshot, PlayerHook,
+    PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule, PlayerMoneyChangedSnapshot,
+    QuestAcceptedSnapshot, QuestRewardedSnapshot, SpellCastSnapshot,
+};
+use crate::world::{
+    ConfigLoadedSnapshot, WorldEffect, WorldEffects, WorldModule, WorldShutdownSnapshot,
+    WorldStartupSnapshot, WorldUpdateSnapshot,
+};
 
 /// A validated module identifier.
 ///
@@ -105,6 +124,7 @@ impl ModuleDescriptor {
 
 /// Why a registration was refused.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ModuleRegistrationError {
     InvalidId {
         id: String,
@@ -115,6 +135,10 @@ pub enum ModuleRegistrationError {
         reason: &'static str,
     },
     DuplicateId {
+        id: String,
+    },
+    /// A module offered no hook family, so it could never be called.
+    NoHooks {
         id: String,
     },
     /// A module refused its configuration, so it never registered.
@@ -135,6 +159,7 @@ impl fmt::Display for ModuleRegistrationError {
                 write!(f, "invalid descriptor for module {id}: {reason}")
             }
             Self::DuplicateId { id } => write!(f, "module {id} is already registered"),
+            Self::NoHooks { id } => write!(f, "module {id} registered no hook family"),
             Self::Configuration(error) => write!(f, "{error}"),
         }
     }
@@ -142,14 +167,182 @@ impl fmt::Display for ModuleRegistrationError {
 
 impl std::error::Error for ModuleRegistrationError {}
 
+thread_local! {
+    /// Set while this thread runs a module callback under its `catch_unwind`.
+    static IN_MODULE_CALLBACK: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether the current thread is inside a linked-module callback.
+///
+/// A panic there is caught at the module boundary and only disables that
+/// module, so the process panic hook can report it as contained instead of
+/// fatal (`world-server` wires this into `wow-logging`'s hook). Host plumbing,
+/// not part of the module-facing contract.
+#[doc(hidden)]
+#[must_use]
+pub fn module_callback_in_progress() -> bool {
+    IN_MODULE_CALLBACK.with(std::cell::Cell::get)
+}
+
+/// Marks the callback scope; cleared on return and on unwind alike.
+struct CallbackScope;
+
+impl CallbackScope {
+    fn enter() -> Self {
+        IN_MODULE_CALLBACK.with(|flag| flag.set(true));
+        Self
+    }
+}
+
+impl Drop for CallbackScope {
+    fn drop(&mut self) {
+        IN_MODULE_CALLBACK.with(|flag| flag.set(false));
+    }
+}
+
+/// A hook family: one capability a module may offer.
+///
+/// The registry is indexed by capability, not by a single trait: a module
+/// declares exactly the families it implements through [`ModuleHooks`], and a
+/// dispatch only visits the modules that offered that family. Families mirror
+/// AzerothCore's script classes (`ScriptDefines/*.h`) one group at a time.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[non_exhaustive]
+pub enum HookFamily {
+    /// `player.login`, source API 1. AzerothCore `PlayerScript::OnPlayerLogin`
+    /// (`PlayerScript.h:332`); TrinityCore `PlayerScript::OnLogin`.
+    PlayerLogin,
+    /// The `player.*` notifications of [`PlayerModule`] (#1444): logout,
+    /// level, money and quest progress. AzerothCore `PlayerScript`.
+    Player,
+    /// The `world.*` notifications of [`WorldModule`] (#1444): configuration,
+    /// startup, shutdown and the world tick. AzerothCore `WorldScript`.
+    World,
+    /// The `chat.*` pre-decision of [`ChatModule`] (#1444 H4). AzerothCore
+    /// `PlayerScript::OnPlayerCanUseChat`. A family of its own so a server
+    /// whose modules ignore chat builds no snapshot per message.
+    Chat,
+    /// The `creature.*` notifications of [`CreatureModule`] (#1444 H3b):
+    /// added to the world and died. AzerothCore `AllCreatureScript` and
+    /// `UnitScript`.
+    Creature,
+}
+
+/// The hook families one module offers (source API 2).
+///
+/// Each entry is an `Arc`, so one module value can serve several families and
+/// keep a single state between them. A family left empty is never called.
+#[derive(Clone, Default)]
+pub struct ModuleHooks {
+    player_login: Option<Arc<dyn PlayerLoginModule>>,
+    player: Option<Arc<dyn PlayerModule>>,
+    /// The `player.*` hooks `player` enabled ([`PlayerModule::enabled_hooks`]).
+    player_hooks: u32,
+    world: Option<Arc<dyn WorldModule>>,
+    chat: Option<Arc<dyn ChatModule>>,
+    creature: Option<Arc<dyn CreatureModule>>,
+}
+
+impl ModuleHooks {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Offer the `player.login` family.
+    #[must_use]
+    pub fn player_login(mut self, module: Arc<dyn PlayerLoginModule>) -> Self {
+        self.player_login = Some(module);
+        self
+    }
+
+    /// Offer the `player.*` family.
+    #[must_use]
+    pub fn player(mut self, module: Arc<dyn PlayerModule>) -> Self {
+        self.player_hooks = PlayerHook::mask(module.enabled_hooks());
+        self.player = Some(module);
+        self
+    }
+
+    /// Offer the `world.*` family.
+    #[must_use]
+    pub fn world(mut self, module: Arc<dyn WorldModule>) -> Self {
+        self.world = Some(module);
+        self
+    }
+
+    /// Offer the `chat.*` family.
+    #[must_use]
+    pub fn chat(mut self, module: Arc<dyn ChatModule>) -> Self {
+        self.chat = Some(module);
+        self
+    }
+
+    /// Offer the `creature.*` family.
+    #[must_use]
+    pub fn creature(mut self, module: Arc<dyn CreatureModule>) -> Self {
+        self.creature = Some(module);
+        self
+    }
+
+    /// Whether this set offers `family`.
+    #[must_use]
+    pub fn offers(&self, family: HookFamily) -> bool {
+        match family {
+            HookFamily::PlayerLogin => self.player_login.is_some(),
+            HookFamily::Player => self.player.is_some(),
+            HookFamily::World => self.world.is_some(),
+            HookFamily::Chat => self.chat.is_some(),
+            HookFamily::Creature => self.creature.is_some(),
+        }
+    }
+
+    /// Whether this set offers the `player.*` family with `hook` enabled.
+    #[must_use]
+    pub fn offers_player_hook(&self, hook: PlayerHook) -> bool {
+        self.player_for(hook).is_some()
+    }
+
+    /// The `player.*` module, when it enabled `hook`.
+    fn player_for(&self, hook: PlayerHook) -> Option<&Arc<dyn PlayerModule>> {
+        self.player
+            .as_ref()
+            .filter(|_| self.player_hooks & hook.bit() != 0)
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.player_login.is_none()
+            && self.player.is_none()
+            && self.world.is_none()
+            && self.chat.is_none()
+            && self.creature.is_none()
+    }
+}
+
+/// One registered module and its process-lifetime health.
+struct RegisteredModule {
+    descriptor: ModuleDescriptor,
+    hooks: ModuleHooks,
+    /// Set once, when a callback panics. A disabled module is skipped by every
+    /// later dispatch of every family for the rest of the process.
+    disabled: AtomicBool,
+}
+
 /// The registered trusted modules.
 ///
 /// Ordering is deterministic: modules run in `ModuleId` order, never in
 /// registration order, so a build that links the same set always dispatches
-/// the same sequence.
+/// the same sequence. This is distinct from the compositor's registration
+/// order (`order`, then id, recorded in `modules.lock.toml`), which only
+/// decides the order registrars run in.
+///
+/// The registry is built once by the compositor, then shared immutably for
+/// the life of the process. The only state that changes afterwards is the
+/// per-module disabled flag a panicking callback sets.
 #[derive(Default)]
 pub struct ModuleRegistry {
-    modules: BTreeMap<ModuleId, (ModuleDescriptor, Box<dyn PlayerLoginModule>)>,
+    modules: BTreeMap<ModuleId, RegisteredModule>,
 }
 
 impl ModuleRegistry {
@@ -158,19 +351,44 @@ impl ModuleRegistry {
         Self::default()
     }
 
-    pub fn register_player_login_module(
+    /// Register a module with the hook families it offers (source API 2).
+    pub fn register_module(
         &mut self,
         descriptor: ModuleDescriptor,
-        module: Box<dyn PlayerLoginModule>,
+        hooks: ModuleHooks,
     ) -> Result<(), ModuleRegistrationError> {
         if self.modules.contains_key(&descriptor.id) {
             return Err(ModuleRegistrationError::DuplicateId {
                 id: descriptor.id.to_string(),
             });
         }
-        self.modules
-            .insert(descriptor.id.clone(), (descriptor, module));
+        if hooks.is_empty() {
+            return Err(ModuleRegistrationError::NoHooks {
+                id: descriptor.id.to_string(),
+            });
+        }
+        self.modules.insert(
+            descriptor.id.clone(),
+            RegisteredModule {
+                descriptor,
+                hooks,
+                disabled: AtomicBool::new(false),
+            },
+        );
         Ok(())
+    }
+
+    /// Register a login-only module. Source API 1's registrar, kept unchanged:
+    /// it is [`Self::register_module`] with only the `player.login` family.
+    pub fn register_player_login_module(
+        &mut self,
+        descriptor: ModuleDescriptor,
+        module: Box<dyn PlayerLoginModule>,
+    ) -> Result<(), ModuleRegistrationError> {
+        self.register_module(
+            descriptor,
+            ModuleHooks::new().player_login(Arc::from(module)),
+        )
     }
 
     #[must_use]
@@ -178,9 +396,36 @@ impl ModuleRegistry {
         self.modules.is_empty()
     }
 
+    /// Whether any enabled module offers `family`. Owners check this before
+    /// building a snapshot, so a family nobody uses costs nothing.
+    #[must_use]
+    pub fn handles(&self, family: HookFamily) -> bool {
+        self.modules
+            .values()
+            .any(|m| !m.disabled.load(Ordering::Acquire) && m.hooks.offers(family))
+    }
+
+    /// Whether any enabled module enabled the `player.*` hook `hook`: the
+    /// per-hook interest query (AzerothCore `CALL_ENABLED_HOOKS`). Owners ask
+    /// it before building that hook's snapshot.
+    #[must_use]
+    pub fn handles_player_hook(&self, hook: PlayerHook) -> bool {
+        self.modules
+            .values()
+            .any(|m| !m.disabled.load(Ordering::Acquire) && m.hooks.offers_player_hook(hook))
+    }
+
+    /// Whether a panic disabled `id`. Unknown ids are not disabled.
+    #[must_use]
+    pub fn is_disabled(&self, id: &ModuleId) -> bool {
+        self.modules
+            .get(id)
+            .is_some_and(|m| m.disabled.load(Ordering::Acquire))
+    }
+
     #[must_use]
     pub fn descriptors(&self) -> Vec<&ModuleDescriptor> {
-        self.modules.values().map(|(d, _)| d).collect()
+        self.modules.values().map(|m| &m.descriptor).collect()
     }
 
     /// Run every registered login module and return the validated batch.
@@ -189,15 +434,333 @@ impl ModuleRegistry {
     /// so an invalid effect from one module discards the entire login batch
     /// rather than leaving a partial result. With no modules registered this
     /// allocates nothing observable and returns an empty batch, which is the
-    /// zero-module no-op path.
+    /// zero-module no-op path. Source API 1's form of
+    /// [`Self::dispatch_player_login_outcome`].
     pub fn dispatch_player_login(
         &self,
         snapshot: &PlayerLoginSnapshot,
-    ) -> Result<PlayerLoginEffects, crate::effect::ModuleEffectError> {
-        let mut effects = PlayerLoginEffects::default();
-        for (id, (_, module)) in &self.modules {
-            module.on_player_login(snapshot, &mut effects.scoped_for(id.clone()));
+    ) -> Result<PlayerLoginEffects, ModuleEffectError> {
+        self.dispatch_player_login_outcome(snapshot).effects
+    }
+
+    /// `player.login`, reporting which modules a panic disabled.
+    pub fn dispatch_player_login_outcome(
+        &self,
+        snapshot: &PlayerLoginSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_login.as_ref(),
+            |module, effects| module.on_player_login(snapshot, effects),
+        )
+    }
+
+    /// `player.logout`. Observation only: the outcome never carries effects.
+    pub fn dispatch_player_logout(
+        &self,
+        snapshot: &PlayerLogoutSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::Logout),
+            |module, _effects| module.on_logout(snapshot),
+        )
+    }
+
+    /// `player.level_changed`.
+    pub fn dispatch_player_level_changed(
+        &self,
+        snapshot: &PlayerLevelChangedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::LevelChanged),
+            |module, effects| module.on_level_changed(snapshot, effects),
+        )
+    }
+
+    /// `player.money_changed`.
+    pub fn dispatch_player_money_changed(
+        &self,
+        snapshot: &PlayerMoneyChangedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::MoneyChanged),
+            |module, effects| module.on_money_changed(snapshot, effects),
+        )
+    }
+
+    /// `player.quest_accepted`.
+    pub fn dispatch_quest_accepted(
+        &self,
+        snapshot: &QuestAcceptedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::QuestAccepted),
+            |module, effects| module.on_quest_accepted(snapshot, effects),
+        )
+    }
+
+    /// `player.quest_rewarded`.
+    pub fn dispatch_quest_rewarded(
+        &self,
+        snapshot: &QuestRewardedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::QuestRewarded),
+            |module, effects| module.on_quest_rewarded(snapshot, effects),
+        )
+    }
+
+    /// `world.config_loaded`.
+    pub fn dispatch_config_loaded(
+        &self,
+        snapshot: &ConfigLoadedSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_world(|module, effects| module.on_config_loaded(snapshot, effects))
+    }
+
+    /// `world.startup`.
+    pub fn dispatch_world_startup(
+        &self,
+        snapshot: &WorldStartupSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_world(|module, effects| module.on_startup(snapshot, effects))
+    }
+
+    /// `world.shutdown`.
+    pub fn dispatch_world_shutdown(
+        &self,
+        snapshot: &WorldShutdownSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_world(|module, effects| module.on_shutdown(snapshot, effects))
+    }
+
+    /// `world.update`.
+    pub fn dispatch_world_update(
+        &self,
+        snapshot: &WorldUpdateSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_world(|module, effects| module.on_update(snapshot, effects))
+    }
+
+    /// `world.update`, also reporting how long each module's callback ran,
+    /// in dispatch order. The host uses it for the per-module tick budget and
+    /// metric; effect application is not included.
+    pub fn dispatch_world_update_timed(
+        &self,
+        snapshot: &WorldUpdateSnapshot,
+    ) -> (HookOutcome<WorldEffect>, Vec<(ModuleId, Duration)>) {
+        let mut timings = Vec::new();
+        let outcome = self.dispatch_family(
+            |hooks| hooks.world.as_ref(),
+            |module, batch, id| module.on_update(snapshot, &mut WorldEffects::new(batch, id)),
+            Some(&mut timings),
+        );
+        (outcome, timings)
+    }
+
+    /// `player.creature_kill`.
+    pub fn dispatch_creature_kill(
+        &self,
+        snapshot: &CreatureKillSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::CreatureKill),
+            |module, effects| module.on_creature_kill(snapshot, effects),
+        )
+    }
+
+    /// `player.spell_cast`.
+    pub fn dispatch_spell_cast(
+        &self,
+        snapshot: &SpellCastSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::SpellCast),
+            |module, effects| module.on_spell_cast(snapshot, effects),
+        )
+    }
+
+    /// `item.equipped`.
+    pub fn dispatch_item_equipped(
+        &self,
+        snapshot: &ItemEquippedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::ItemEquipped),
+            |module, effects| module.on_equip(snapshot, effects),
+        )
+    }
+
+    /// `player.loot_item`.
+    pub fn dispatch_loot_item(
+        &self,
+        snapshot: &LootItemSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::LootItem),
+            |module, effects| module.on_loot_item(snapshot, effects),
+        )
+    }
+
+    /// `player.loot_money`.
+    pub fn dispatch_loot_money(
+        &self,
+        snapshot: &LootMoneySnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::LootMoney),
+            |module, effects| module.on_loot_money(snapshot, effects),
+        )
+    }
+
+    /// `chat.message`, a pre-decision composed in `ModuleId` order.
+    ///
+    /// Each module sees the text the previous ones left: a `ReplaceText`
+    /// feeds the next module, and the first `Deny` stops the dispatch and
+    /// drops the message. The outcome is `Allow` when no module changed
+    /// anything, otherwise `ReplaceText` with the final text. A callback that
+    /// panics is disabled and its decision discarded. The owner re-validates
+    /// a replaced text; this registry does not know the client-text rules.
+    pub fn dispatch_chat_message(&self, snapshot: &ChatMessageSnapshot) -> ChatOutcome {
+        let mut current = snapshot.clone();
+        let mut replaced = false;
+        let mut disabled = Vec::new();
+        for (id, entry) in &self.modules {
+            if entry.disabled.load(Ordering::Acquire) {
+                continue;
+            }
+            let Some(module) = entry.hooks.chat.as_ref() else {
+                continue;
+            };
+            let decided = catch_unwind(AssertUnwindSafe(|| {
+                let _scope = CallbackScope::enter();
+                module.on_chat_message(&current)
+            }));
+            match decided {
+                Err(_) => {
+                    entry.disabled.store(true, Ordering::Release);
+                    disabled.push(id.clone());
+                }
+                Ok(ChatDecision::Allow) => {}
+                Ok(ChatDecision::Deny) => {
+                    return ChatOutcome {
+                        decision: ChatDecision::Deny,
+                        denied_by: Some(id.clone()),
+                        disabled,
+                    };
+                }
+                Ok(ChatDecision::ReplaceText(text)) => {
+                    current.text = text;
+                    replaced = true;
+                }
+            }
         }
-        effects.validated()
+        ChatOutcome {
+            decision: if replaced {
+                ChatDecision::ReplaceText(current.text)
+            } else {
+                ChatDecision::Allow
+            },
+            denied_by: None,
+            disabled,
+        }
+    }
+
+    /// Visit, in `ModuleId` order, every enabled module offering one
+    /// notification family, then validate the batch as a whole.
+    ///
+    /// Each callback runs under its own `catch_unwind`. `AssertUnwindSafe` is
+    /// sound here because nothing a panicking callback could leave half-done
+    /// is observed again: the effects it queued are truncated away, and the
+    /// module is disabled so its own state is never read again. The other
+    /// modules and the owner only see the batch.
+    fn dispatch_notifications<M: ?Sized>(
+        &self,
+        family: impl Fn(&ModuleHooks) -> Option<&Arc<M>>,
+        call: impl Fn(&M, &mut ScopedEffects<'_>),
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_family(
+            family,
+            |module, batch, id| {
+                call(module, &mut ScopedEffects::new(batch, id));
+            },
+            None,
+        )
+    }
+
+    /// `creature.added_to_world`.
+    pub fn dispatch_creature_added_to_world(
+        &self,
+        snapshot: &CreatureAddedToWorldSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_family(
+            |hooks| hooks.creature.as_ref(),
+            |module, batch, id| {
+                module.on_added_to_world(snapshot, &mut WorldEffects::new(batch, id));
+            },
+            None,
+        )
+    }
+
+    /// `creature.died`.
+    pub fn dispatch_creature_died(
+        &self,
+        snapshot: &CreatureDiedSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_family(
+            |hooks| hooks.creature.as_ref(),
+            |module, batch, id| module.on_died(snapshot, &mut WorldEffects::new(batch, id)),
+            None,
+        )
+    }
+
+    /// [`Self::dispatch_notifications`] for the `world.*` effects.
+    fn dispatch_world(
+        &self,
+        call: impl Fn(&dyn WorldModule, &mut WorldEffects<'_>),
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_family(
+            |hooks| hooks.world.as_ref(),
+            |module, batch, id| call(module, &mut WorldEffects::new(batch, id)),
+            None,
+        )
+    }
+
+    /// The one dispatch loop every family shares: `ModuleId` order, one
+    /// `catch_unwind` per callback, then whole-batch validation. With
+    /// `timings`, each callback's duration is recorded under its module.
+    fn dispatch_family<M: ?Sized, E: crate::effect::ValidatedEffect>(
+        &self,
+        family: impl Fn(&ModuleHooks) -> Option<&Arc<M>>,
+        call: impl Fn(&M, &mut EffectBatch<E>, ModuleId),
+        mut timings: Option<&mut Vec<(ModuleId, Duration)>>,
+    ) -> HookOutcome<E> {
+        let mut batch = EffectBatch::default();
+        let mut disabled = Vec::new();
+        for (id, entry) in &self.modules {
+            if entry.disabled.load(Ordering::Acquire) {
+                continue;
+            }
+            let Some(module) = family(&entry.hooks) else {
+                continue;
+            };
+            let mark = batch.len();
+            let started = timings.is_some().then(Instant::now);
+            let completed = catch_unwind(AssertUnwindSafe(|| {
+                let _scope = CallbackScope::enter();
+                call(module, &mut batch, id.clone());
+            }));
+            if let (Some(timings), Some(started)) = (timings.as_deref_mut(), started) {
+                timings.push((id.clone(), started.elapsed()));
+            }
+            if completed.is_err() {
+                batch.truncate(mark);
+                entry.disabled.store(true, Ordering::Release);
+                disabled.push(id.clone());
+            }
+        }
+        HookOutcome {
+            effects: validated(batch),
+            disabled,
+        }
     }
 }

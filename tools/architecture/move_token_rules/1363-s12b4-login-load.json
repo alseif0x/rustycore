@@ -1,0 +1,91 @@
+{
+ "slice": "#1363 slice 12b4 (the trait-config authority load, the group membership and difficulty restore and the void-storage login load -> wow-world-character over CharacterLoginHostLikeCpp / SpellbookHostLikeCpp)",
+ "base": "ef33829da",
+ "moved": [
+  "begin_represented_trait_config_authority_load_like_cpp",
+  "complete_represented_trait_config_authority_load_like_cpp",
+  "mark_represented_void_storage_loaded_like_cpp",
+  "prepare_represented_void_storage_login_load_like_cpp",
+  "load_represented_void_storage_row_like_cpp",
+  "load_represented_group_difficulties_like_cpp",
+  "load_represented_group_by_db_store_id_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn begin_represented_trait_config_authority_load_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn begin_represented_trait_config_authority_load_like_cpp<H: SpellbookHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn complete_represented_trait_config_authority_load_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn complete_represented_trait_config_authority_load_like_cpp<H: SpellbookHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn mark_represented_void_storage_loaded_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn mark_represented_void_storage_loaded_like_cpp<H: CharacterLoginHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn prepare_represented_void_storage_login_load_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn prepare_represented_void_storage_login_load_like_cpp<H: CharacterLoginHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn load_represented_void_storage_row_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn load_represented_void_storage_row_like_cpp<H: CharacterLoginHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn load_represented_group_difficulties_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn load_represented_group_difficulties_like_cpp<H: CharacterLoginHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn load_represented_group_by_db_store_id_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn load_represented_group_by_db_store_id_like_cpp<H: CharacterLoginHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "crate::session::split_inventory_mut\\(self\\)",
+   "host.split_inventory_mut()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*clear_represented_void_storage_like_cpp\\(\\)",
+   "{ let (state, mut hub) = host.split_inventory_mut(); state.clear_represented_void_storage_like_cpp(&mut hub) }"
+  ],
+  [
+   "\\bself\\s*\\.\\s*mark_represented_void_storage_loaded_like_cpp\\(\\)",
+   "mark_represented_void_storage_loaded_like_cpp(host)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*load_represented_group_difficulties_like_cpp\\(\\)",
+   "load_represented_group_difficulties_like_cpp(host)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*item_storage_template\\(",
+   "host.hub_ref().catalogs.item_storage_template("
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*\\{\\s*if self\\s*\\.\\s*core\\s*\\.\\s*player_handle_like_cpp\\s*\\.\\s*is_none\\(\\)\\s*\\{\\s*self\\s*\\.\\s*inventory\\s*\\.",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] { if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none() { host.split_inventory_mut().0 ."
+  ],
+  [
+   "#\\[cfg\\(not\\(test\\)\\)\\]",
+   "#[cfg(not(any(test, feature = \"test-fixtures\")))]"
+  ],
+  [
+   "wow_world_inventory::add_item_appearance_for_item_like_cpp\\(self,",
+   "wow_world_inventory::add_item_appearance_for_item_like_cpp(host,"
+  ],
+  [
+   "wow_world_spell::begin_represented_trait_config_load_like_cpp\\(self\\)",
+   "wow_world_spell::begin_represented_trait_config_load_like_cpp(host)"
+  ],
+  [
+   "wow_world_spell::complete_represented_trait_config_rows_like_cpp\\(\\s*self,",
+   "wow_world_spell::complete_represented_trait_config_rows_like_cpp(host,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ]
+ ]
+}

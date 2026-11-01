@@ -28,4 +28,7 @@ fn fixture_manifest(migrations: Vec<Migration>) -> MigrationManifest {
     }
 }
 
+mod module_ops;
+mod module_sql;
+mod modules;
 mod scenarios;

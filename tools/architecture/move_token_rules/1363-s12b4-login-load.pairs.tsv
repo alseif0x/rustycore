@@ -1,0 +1,7 @@
+crates/wow-world/src/session/persistence/load_authority.rs	begin_represented_trait_config_authority_load_like_cpp	crates/wow-world-character/src/login_session/represented_load.rs
+crates/wow-world/src/session/persistence/load_authority.rs	complete_represented_trait_config_authority_load_like_cpp	crates/wow-world-character/src/login_session/represented_load.rs
+crates/wow-world/src/session/persistence/load.rs	mark_represented_void_storage_loaded_like_cpp	crates/wow-world-character/src/login_session/represented_load.rs
+crates/wow-world/src/session/persistence/load.rs	prepare_represented_void_storage_login_load_like_cpp	crates/wow-world-character/src/login_session/represented_load.rs
+crates/wow-world/src/session/persistence/load.rs	load_represented_void_storage_row_like_cpp	crates/wow-world-character/src/login_session/represented_load.rs
+crates/wow-world/src/session/persistence/load.rs	load_represented_group_difficulties_like_cpp	crates/wow-world-character/src/login_session/represented_load.rs
+crates/wow-world/src/session/persistence/load.rs	load_represented_group_by_db_store_id_like_cpp	crates/wow-world-character/src/login_session/represented_load.rs

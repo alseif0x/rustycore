@@ -21,7 +21,7 @@
 //! count and a worse boundary; the honest seam is the loot rail draining the way
 //! the command rails now do, which is loot's own work and not this issue's.
 
-use super::protocol::*;
+use super::SessionCommand;
 use crate::session::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 
 impl WorldSession {
@@ -33,61 +33,33 @@ impl WorldSession {
     /// `World::KickAll`; session state is still mutated only by the session
     /// task when it drains the channel.
     pub fn session_command_tx(&self) -> flume::Sender<SessionCommand> {
-        self.session_command_tx.clone()
-    }
-
-    pub(crate) fn drain_session_commands(&self) -> Vec<SessionCommand> {
-        let durable_commands = self
-            .durable_creature_runtime_commands_like_cpp
-            .lock()
-            .map(|mut pending| pending.drain_like_cpp())
-            .unwrap_or_default();
-        // Drain the bounded general rail before the first durable presentation
-        // packet so a pending visibility refresh can run first. The rails do
-        // not yet share an enqueue ordinal, so this is not a global cross-rail
-        // ordering guarantee. The spell pair itself still occupies one durable
-        // command and therefore cannot be split by this merge.
-        let first_visible = durable_commands
-            .iter()
-            .position(SessionCommand::is_visibility_gated_like_cpp)
-            .unwrap_or(durable_commands.len());
-        let mut commands = durable_commands;
-        let deferred_durable_suffix = commands.split_off(first_visible);
-        while let Ok(command) = self.session_command_rx.try_recv() {
-            commands.push(command);
-        }
-        commands.extend(deferred_durable_suffix);
-        commands
-    }
-
-    pub(crate) fn take_durable_creature_runtime_overflow_like_cpp(&self) -> bool {
-        self.durable_creature_runtime_commands_like_cpp
-            .lock()
-            .map(|mut pending| pending.take_overflowed_and_discard_like_cpp())
-            .unwrap_or(true)
+        self.core.session_command_tx.clone()
     }
 
     pub(crate) async fn process_represented_session_commands_with_catalogs_like_cpp(
         &mut self,
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) {
-        self.apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+        wow_world_loot_ops::apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+            self,
             catalogs.id_generators.item.as_ref(),
         )
         .await;
-        let creature_runtime_overflowed = self.take_durable_creature_runtime_overflow_like_cpp();
+        let creature_runtime_overflowed =
+            self.core.take_durable_creature_runtime_overflow_like_cpp();
         if creature_runtime_overflowed {
             self.kick(
                 "authoritative creature runtime command backlog overflowed; disconnecting desynchronized session",
             );
             return;
         }
-        let commands = self.drain_session_commands();
+        let commands = self.core.drain_session_commands();
         for command in commands {
             self.apply_session_command_with_catalogs_like_cpp(catalogs, command)
                 .await;
         }
-        self.flush_pending_visibility_refresh_with_catalogs_like_cpp(
+        wow_world_entities::flush_pending_visibility_refresh_with_catalogs_like_cpp(
+            self,
             catalogs.creature_spawns.as_ref(),
         )
         .await;

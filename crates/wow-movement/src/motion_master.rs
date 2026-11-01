@@ -131,6 +131,31 @@ impl fmt::Debug for MotionMaster {
     }
 }
 
+/// Equality over the persistent, observable parts of `Unit::i_motionMaster`.
+///
+/// The C++ owner holds live generator objects, so a full structural comparison
+/// is not available: the boxed `MovementGenerator`s and the delayed-action
+/// closures carry no structural equality. Two motion masters are therefore
+/// equal when the *selection state* the owner exposes is equal — the flags, the
+/// generator counts per slot, the selected kind, the base-unit-state references
+/// and the resolved delayed-action log. This keeps `#1263`'s canonical
+/// `Creature` equality well-defined without executing a generator step.
+impl PartialEq for MotionMaster {
+    fn eq(&self, other: &Self) -> bool {
+        self.flags == other.flags
+            && self.size() == other.size()
+            && self.delayed_action_count() == other.delayed_action_count()
+            && self.current_slot() == other.current_slot()
+            && self.current_kind() == other.current_kind()
+            && self.current_kind_for_slot(MovementSlot::Default)
+                == other.current_kind_for_slot(MovementSlot::Default)
+            && self.current_kind_for_slot(MovementSlot::Active)
+                == other.current_kind_for_slot(MovementSlot::Active)
+            && self.base_unit_state_refs == other.base_unit_state_refs
+            && self.last_resolved_delayed_actions == other.last_resolved_delayed_actions
+    }
+}
+
 impl MotionMaster {
     #[must_use]
     pub fn new(default_generator: Box<dyn MovementGenerator>) -> Self {

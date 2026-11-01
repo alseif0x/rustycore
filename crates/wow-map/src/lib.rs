@@ -1,5 +1,6 @@
 pub mod cell;
 pub mod coords;
+pub mod creature_respawn_queue;
 pub mod grid;
 pub mod grid_map;
 pub mod grid_unload;
@@ -42,6 +43,7 @@ pub use manager::{
     MapUpdater, PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp,
     PlayerVisibilityRefreshIntentLikeCpp,
 };
+mod player_corpse_types;
 pub use map::{
     AIRelocationPlan, ActiveObjectKind, AddToMapError, AddToMapOutcome,
     CheckRespawnCompositeOutcomeLikeCpp, CheckRespawnLinkedRespawnGuardOutcomeLikeCpp,
@@ -49,10 +51,11 @@ pub use map::{
     CreatureVisibilityDestroyRecipientsLikeCpp, DelayedCreatureRelocationContext,
     DelayedPlayerRelocationContext, DelayedUnitRelocationCellPlan,
     DelayedUnitRelocationForCellsPlan, DelayedUnitRelocationPlan,
-    DelayedUnitRelocationVisibilityPlans, GameEventNpcFlagValuesUpdateLikeCpp, GridLifecycle, Map,
-    MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
-    MapObjectCellMoveState, MapObjectMoveListEntry, MapObjectMoveListPlan,
-    MapObjectRelocationError, MapObjectRelocationOutcome, MapObjectStoreError,
+    DelayedUnitRelocationVisibilityPlans, GameEventNpcFlagValuesUpdateLikeCpp, GridLifecycle,
+    LentCreatureOriginLikeCpp, LentCreatureReturnLikeCpp, Map, MapCommandKindLikeCpp,
+    MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp, MapObjectCellMoveState,
+    MapObjectMoveListEntry, MapObjectMoveListPlan, MapObjectRelocationError,
+    MapObjectRelocationOutcome, MapObjectStoreError, MapPetCombatStopOutcomeLikeCpp,
     MapUpdatePlayerSources, MapUpdateVisitPlan, NearbyCellGuids, NearbyCellVisitCenter,
     NearbyCellVisitPlan, NoopGridLifecycle, NoopTerrainGridLoader, ObjectUpdatePlan,
     ObjectVisibilityDestroyRecipientsLikeCpp, PlayerDelayedRelocationVisibilityPlan,
@@ -69,6 +72,7 @@ pub use personal_phase::{
     MultiPersonalPhaseTracker, PERSONAL_PHASE_DELETE_TIME_DEFAULT_MS, PersonalPhaseSpawns,
     PhaseRef, PhaseShift, PlayerPersonalPhasesTracker,
 };
+pub use player_corpse_types::{CORPSE_FLAG_BONES_LIKE_CPP, ConvertCorpseToBonesOutcomeLikeCpp};
 pub use pool::{
     PoolDespawnObjectPlanLikeCpp, PoolDespawnPoolPlanLikeCpp, PoolGroupLikeCpp,
     PoolInitForMapErrorKindLikeCpp, PoolInitForMapErrorLikeCpp, PoolInitForMapPlanLikeCpp,

@@ -1,0 +1,571 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Quest item-objective progress (`Player::ItemAddedQuestCheck`,
+//! `ItemRemovedQuestCheck`, `SendQuestUpdateAddItem`), moved from the World
+//! `handlers/quest/objectives.rs` (#1363 slice 6b).
+
+use super::*;
+
+pub async fn apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp<
+    H: QuestItemStorageHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+) -> Vec<u32> {
+    apply_quest_item_added_objective_progress_filtered_like_cpp(
+        host,
+        item_guid_generator,
+        entry_id,
+        quest_log_item_id,
+        count,
+        Some(false),
+    )
+    .await
+}
+
+/// C++ `Player::ItemAddedQuestCheck(entry, count)` without a bound-item
+/// filter, as used by bank withdrawals after `StoreItem`.
+pub async fn apply_quest_item_added_objective_progress_with_generator_like_cpp<
+    H: QuestItemStorageHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+) -> Vec<u32> {
+    apply_quest_item_added_objective_progress_filtered_like_cpp(
+        host,
+        item_guid_generator,
+        entry_id,
+        quest_log_item_id,
+        count,
+        None,
+    )
+    .await
+}
+
+pub(crate) async fn apply_quest_item_added_objective_progress_filtered_like_cpp<
+    H: QuestItemStorageHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+    bound_item_requirement: Option<bool>,
+) -> Vec<u32> {
+    use wow_packet::packets::quest::QuestUpdateComplete;
+
+    let Some(quest_store) = host.hub_ref().catalogs.quests.store.clone() else {
+        return Vec::new();
+    };
+    let added_count = count;
+    let count = i32::try_from(count).unwrap_or(i32::MAX);
+    let entry_object_id = i32::try_from(entry_id).unwrap_or(i32::MAX);
+    let mut objective_ids = vec![entry_object_id];
+    let mut matching_entry_objectives = Vec::new();
+    let Some(state_snapshot) = host.player_quest_gameplay_snapshot_like_cpp() else {
+        return Vec::new();
+    };
+    'matching_entry: for status in state_snapshot.statuses_like_cpp().values() {
+        if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
+            continue;
+        }
+        let Some(quest) = quest_store.get(status.quest_id) else {
+            continue;
+        };
+        for (objective_index, objective) in quest.objectives.iter().enumerate() {
+            let is_bound =
+                (objective.flags2 & QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL) != 0;
+            let passes_filter =
+                bound_item_requirement.is_none_or(|required_bound| required_bound == is_bound);
+            let Ok(storage_index) = usize::try_from(objective.storage_index) else {
+                continue;
+            };
+            let current = status
+                .objective_counts
+                .get(storage_index)
+                .copied()
+                .unwrap_or(0);
+            if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL
+                || objective.object_id != entry_object_id
+                || !passes_filter
+                || current >= objective.amount
+                || !wow_entities::represented_quest_objective_completable_like_cpp(
+                    status,
+                    &quest.objective_rules_like_cpp(),
+                    objective_index,
+                )
+            {
+                continue;
+            }
+            matching_entry_objectives.push(is_bound);
+            if is_bound {
+                break 'matching_entry;
+            }
+        }
+    }
+    let should_update_quest_log_item = quest_log_item_id != 0
+        && (matching_entry_objectives.len() != 1 || !matching_entry_objectives[0]);
+    if should_update_quest_log_item {
+        objective_ids.push(i32::try_from(quest_log_item_id).unwrap_or(i32::MAX));
+    }
+
+    let Some(wow_entities::QuestItemObjectiveProgressLikeCpp {
+        changed_quest_ids,
+        quests_to_complete,
+        objective_updates,
+    }) = host.mutate_player_quest_gameplay_like_cpp(|state| {
+        state.apply_item_objective_progress_like_cpp(
+            |id| {
+                quest_store
+                    .get(id)
+                    .map(|quest| quest.objective_rules_like_cpp())
+            },
+            &objective_ids,
+            count,
+            bound_item_requirement,
+        )
+    })
+    else {
+        return Vec::new();
+    };
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &state_snapshot,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &changed_quest_ids,
+        );
+    }
+    for quest_id in quests_to_complete {
+        if let Some(quest) = quest_store.get(quest_id).cloned() {
+            let completed = complete_represented_quest_after_add_with_generator_like_cpp(
+                host,
+                item_guid_generator,
+                &quest,
+            )
+            .await;
+            if completed
+                && host
+                    .player_quest_gameplay_snapshot_like_cpp()
+                    .is_some_and(|state| {
+                        state
+                            .statuses_like_cpp()
+                            .get(&quest_id)
+                            .is_some_and(|status| status.status == QUEST_STATUS_COMPLETE_LIKE_CPP)
+                    })
+            {
+                host.send_packet(&QuestUpdateComplete { quest_id });
+            }
+        }
+    }
+    if objective_updates.len() == 1 && objective_updates[0].1 {
+        send_quest_bound_item_update_like_cpp(
+            host,
+            entry_id,
+            quest_log_item_id,
+            added_count,
+            u32::try_from(objective_updates[0].0.max(0)).unwrap_or(u32::MAX),
+        );
+    }
+    host.sync_player_registry_state_like_cpp();
+    changed_quest_ids
+}
+
+/// C++ `Player::SendQuestUpdateAddItem`: ITEM objectives never use
+/// `SMSG_QUEST_UPDATE_ADD_CREDIT`; a single quest-bound objective uses
+/// `SMSG_ITEM_PUSH_RESULT` display type 3 instead.
+pub(crate) fn send_quest_bound_item_update_like_cpp<H: QuestItemStorageHostLikeCpp>(
+    host: &H,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+    quantity_in_inventory: u32,
+) {
+    let Some(player_guid) = host.player_guid() else {
+        return;
+    };
+    let delivery = if host
+        .hub_ref()
+        .catalogs
+        .item_template_flags3(entry_id)
+        .is_some_and(|flags| (flags & ItemFlags3::DontReportLootLogToParty as u32) != 0)
+    {
+        SendNewItemDelivery::Direct
+    } else {
+        SendNewItemDelivery::GroupBroadcast
+    };
+
+    host.send_new_item_plan(&SendNewItemPlan {
+        player_guid,
+        item_guid: ObjectGuid::EMPTY,
+        item_entry: entry_id,
+        item_instance: SendNewItemInstancePlan {
+            item_id: entry_id,
+            random_properties_seed: 0,
+            random_properties_id: 0,
+            modifications: Vec::new(),
+        },
+        slot: u8::from(wow_entities::INVENTORY_SLOT_BAG_0),
+        slot_in_bag: 0,
+        quest_log_item_id,
+        quantity: count,
+        quantity_in_inventory,
+        dungeon_encounter_id: 0,
+        battle_pet_species_id: 0,
+        battle_pet_breed_id: 0,
+        battle_pet_breed_quality: 0,
+        battle_pet_level: 0,
+        pushed: false,
+        created: false,
+        is_encounter_loot: false,
+        display_text: SendNewItemDisplayText::QuestUpdateAddItem,
+        delivery,
+    });
+}
+
+/// C++ `Player::ItemRemovedQuestCheck`: after the inventory mutation,
+/// recompute matching item objectives from carried (non-bank) contents and
+/// move completed quests back to incomplete when the requirement is lost.
+pub fn apply_quest_item_removed_like_cpp<H: QuestItemStorageHostLikeCpp>(
+    host: &mut H,
+    entry_id: u32,
+) -> Option<Vec<u32>> {
+    host.invalidate_player_quest_status_authority_like_cpp();
+    let before = host.player_quest_gameplay_snapshot_like_cpp()?;
+    let Some(quest_store) = host.hub_ref().catalogs.quests.store.clone() else {
+        return Some(Vec::new());
+    };
+    let new_non_bank_item_count = host.represented_non_bank_item_count_like_cpp(entry_id)?;
+    let changed_quest_ids = host.mutate_player_quest_gameplay_like_cpp(|state| {
+        let mut statuses = state
+            .statuses_like_cpp()
+            .iter()
+            .map(|(&id, status)| (id, status.clone()))
+            .collect();
+        let changed = wow_entities::apply_quest_item_removed_to_statuses_like_cpp(
+            |id| {
+                quest_store
+                    .get(id)
+                    .map(|quest| quest.objective_rules_like_cpp())
+            },
+            &mut statuses,
+            entry_id,
+            new_non_bank_item_count,
+        );
+        state.replace_statuses_like_cpp(
+            statuses.into_iter().collect(),
+            state.status_authority_complete_like_cpp(),
+        );
+        changed
+    })?;
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &before,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &changed_quest_ids,
+        );
+    }
+    let _ = host.update_visible_gameobjects_or_spell_clicks_like_cpp();
+    host.sync_player_registry_state_like_cpp();
+    Some(changed_quest_ids)
+}
+
+pub fn apply_quest_item_added_non_bound_state_like_cpp<H: QuestSessionHostLikeCpp>(
+    host: &mut H,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+) -> Vec<u32> {
+    host.invalidate_player_quest_status_authority_like_cpp();
+    let Some(before) = host.player_quest_gameplay_snapshot_like_cpp() else {
+        return Vec::new();
+    };
+    let Some(quest_store) = host.hub_ref().catalogs.quests.store.clone() else {
+        return Vec::new();
+    };
+    let changed = host
+        .mutate_player_quest_gameplay_like_cpp(|state| {
+            let rewarded = state
+                .rewarded_quest_ids_like_cpp()
+                .iter()
+                .copied()
+                .collect();
+            let mut statuses = state
+                .statuses_like_cpp()
+                .iter()
+                .map(|(&id, status)| (id, status.clone()))
+                .collect();
+            let changed = wow_entities::apply_quest_item_added_non_bound_to_statuses_like_cpp(
+                |id| {
+                    quest_store
+                        .get(id)
+                        .map(|quest| quest.objective_rules_like_cpp())
+                },
+                &rewarded,
+                &mut statuses,
+                entry_id,
+                quest_log_item_id,
+                count,
+            );
+            state.replace_statuses_like_cpp(
+                statuses.into_iter().collect(),
+                state.status_authority_complete_like_cpp(),
+            );
+            changed
+        })
+        .unwrap_or_default();
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &before,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &changed,
+        );
+    }
+    changed
+}
+
+pub fn apply_quest_item_added_bound_state_like_cpp<H: QuestItemStorageHostLikeCpp>(
+    host: &mut H,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+) -> Vec<u32> {
+    host.invalidate_player_quest_status_authority_like_cpp();
+    let Some(before) = host.player_quest_gameplay_snapshot_like_cpp() else {
+        return Vec::new();
+    };
+    let Some(quest_store) = host.hub_ref().catalogs.quests.store.clone() else {
+        return Vec::new();
+    };
+    let Some(Some((quest_id, new_count))) = host.mutate_player_quest_gameplay_like_cpp(|state| {
+        let rewarded = state
+            .rewarded_quest_ids_like_cpp()
+            .iter()
+            .copied()
+            .collect();
+        let mut statuses = state
+            .statuses_like_cpp()
+            .iter()
+            .map(|(&id, status)| (id, status.clone()))
+            .collect();
+        let result = wow_entities::apply_quest_item_added_bound_to_statuses_like_cpp(
+            |id| {
+                quest_store
+                    .get(id)
+                    .map(|quest| quest.objective_rules_like_cpp())
+            },
+            &rewarded,
+            &mut statuses,
+            entry_id,
+            quest_log_item_id,
+            count,
+        );
+        state.replace_statuses_like_cpp(
+            statuses.into_iter().collect(),
+            state.status_authority_complete_like_cpp(),
+        );
+        result
+    }) else {
+        return Vec::new();
+    };
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &before,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &[quest_id],
+        );
+    }
+    send_quest_bound_item_update_like_cpp(
+        host,
+        entry_id,
+        quest_log_item_id,
+        count,
+        u32::try_from(new_count.max(0)).unwrap_or(u32::MAX),
+    );
+    vec![quest_id]
+}
+
+pub fn publish_quest_item_added_status_changes_like_cpp<H: QuestSessionHostLikeCpp>(
+    host: &mut H,
+    changed_quest_ids: &[u32],
+) {
+    use wow_packet::packets::quest::QuestUpdateComplete;
+
+    let Some(state) = host.player_quest_gameplay_snapshot_like_cpp() else {
+        return;
+    };
+    for &quest_id in changed_quest_ids {
+        if state
+            .statuses_like_cpp()
+            .get(&quest_id)
+            .is_some_and(|status| status.status == QUEST_STATUS_COMPLETE_LIKE_CPP)
+        {
+            host.send_packet(&QuestUpdateComplete { quest_id });
+        }
+    }
+    host.sync_player_registry_state_like_cpp();
+}
+
+pub async fn apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp<
+    H: QuestSessionHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    quest_store: &QuestStore,
+    object_id: i32,
+    count_i32: i32,
+) -> Vec<(u32, i32)> {
+    let Some(before) = host.player_quest_gameplay_snapshot_like_cpp() else {
+        return Vec::new();
+    };
+    let ordered_quest_ids = crate::quest_bound_item_objective_quest_order_like_cpp(host);
+    let Some(wow_entities::QuestBoundItemObjectiveProgressLikeCpp {
+        updated_counts,
+        quests_to_complete,
+    }) = host.mutate_player_quest_gameplay_like_cpp(|state| {
+        state.apply_bound_item_objective_progress_like_cpp(
+            |id| {
+                quest_store
+                    .get(id)
+                    .map(|quest| quest.objective_rules_like_cpp())
+            },
+            ordered_quest_ids,
+            object_id,
+            count_i32,
+        )
+    })
+    else {
+        return Vec::new();
+    };
+    // Player::ItemAddedQuestCheck leaves quest state unchanged when no bound
+    // objective matches (Player.cpp:16067). A no-op preflight must not discard
+    // loaded authority and prevent the next reagent in RemovePet's loop.
+    if !updated_counts.is_empty() {
+        host.invalidate_player_quest_status_authority_like_cpp();
+    }
+    let changed_quest_ids = updated_counts
+        .iter()
+        .map(|(quest_id, _)| *quest_id)
+        .collect::<Vec<_>>();
+    if let Some(after) = host.player_quest_gameplay_snapshot_like_cpp() {
+        let owner = host.core().quest_objective_access_like_cpp();
+        crate::apply_quest_log_status_delta_like_cpp(
+            &owner,
+            &before,
+            &after,
+            host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
+            &changed_quest_ids,
+        );
+    }
+
+    for quest_id in quests_to_complete {
+        if let Some(quest) = quest_store.get(quest_id).cloned() {
+            complete_represented_quest_after_add_with_generator_like_cpp(
+                host,
+                item_guid_generator,
+                &quest,
+            )
+            .await;
+        }
+    }
+
+    updated_counts
+}
+
+pub async fn apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp<
+    H: QuestItemStorageHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+) -> Option<QuestSourceItemBoundPreflightLikeCpp> {
+    let Some(_player_guid) = host.player_guid() else {
+        return None;
+    };
+    let Some(quest_store) = host.hub_ref().catalogs.quests.store.clone() else {
+        return None;
+    };
+    let count_i32 = i32::try_from(count).unwrap_or(i32::MAX);
+    let entry_object_id = i32::try_from(entry_id).unwrap_or(i32::MAX);
+    let mut updated_counts =
+        apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+            host,
+            item_guid_generator,
+            quest_store.as_ref(),
+            entry_object_id,
+            count_i32,
+        )
+        .await;
+
+    if quest_log_item_id != 0 && updated_counts.len() != 1 {
+        let quest_log_object_id = i32::try_from(quest_log_item_id).unwrap_or(i32::MAX);
+        updated_counts.extend(
+            apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+                host,
+                item_guid_generator,
+                quest_store.as_ref(),
+                quest_log_object_id,
+                count_i32,
+            )
+            .await,
+        );
+    }
+
+    if updated_counts.is_empty() {
+        return None;
+    }
+
+    host.sync_player_registry_state_like_cpp();
+    let mut changed_quest_ids = Vec::new();
+    for &(quest_id, _) in &updated_counts {
+        if !changed_quest_ids.contains(&quest_id) {
+            changed_quest_ids.push(quest_id);
+        }
+    }
+
+    if updated_counts.len() != 1 {
+        return Some(QuestSourceItemBoundPreflightLikeCpp {
+            no_grant: false,
+            changed_quest_ids,
+        });
+    }
+
+    send_quest_bound_item_update_like_cpp(
+        host,
+        entry_id,
+        quest_log_item_id,
+        count,
+        u32::try_from(updated_counts[0].1.max(0)).unwrap_or(u32::MAX),
+    );
+    Some(QuestSourceItemBoundPreflightLikeCpp {
+        no_grant: true,
+        changed_quest_ids,
+    })
+}

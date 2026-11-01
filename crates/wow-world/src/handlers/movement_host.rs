@@ -1,0 +1,167 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! World-side construction of the movement handler context (#1263 F5).
+//!
+//! The application crate owns the C++ `MovementHandler.cpp` and
+//! `VehicleHandler.cpp` bodies and their context; the session only lends its
+//! hub, so no session reference crosses into the handler. The validated-ACK
+//! steps stay here because they read the represented player shell the hub
+//! context does not reach.
+
+use wow_constants::ClientOpcodes;
+use wow_core::ObjectGuid;
+use wow_handler::HandlerFuture;
+use wow_packet::WorldPacket;
+use wow_packet::packets::movement::{
+    MoveSplineDone, MovementAck, MovementAckMessage, MovementForce, MovementSpeedAck,
+};
+use wow_world_core::session::SessionHubHostLikeCpp;
+use wow_world_entities::{MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp};
+
+use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
+
+impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+    fn movement_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        _catalogs: &'a SessionHandlerCatalogsLikeCpp,
+    ) -> MovementHandlerCxLikeCpp<'a> {
+        MovementHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+    }
+
+    fn apply_move_set_vehicle_rec_id_ack_like_cpp(&mut self, ack: &mut MovementAck) {
+        // C++ `HandleMoveSetVehicleRecAck` has no session-visible side effect,
+        // so the #142 wire-dispatch test counts this step to prove that the
+        // registered thunk reached the C++ body's dependency point.
+        #[cfg(test)]
+        crate::handlers::movement::record_move_set_vehicle_rec_id_ack_handler_call_for_test();
+        wow_world_entities::apply_move_set_vehicle_rec_id_ack_like_cpp(self, ack);
+    }
+
+    fn record_validated_movement_ack_like_cpp(
+        &mut self,
+        opcode: ClientOpcodes,
+        ack: &mut MovementAck,
+        speed: Option<f32>,
+    ) -> bool {
+        wow_world_entities::record_validated_movement_ack_like_cpp(self, opcode, ack, speed)
+    }
+
+    fn apply_knock_back_ack_like_cpp(
+        &mut self,
+        opcode: ClientOpcodes,
+        ack: &mut MovementAck,
+    ) -> bool {
+        wow_world_entities::apply_knock_back_ack_like_cpp(self, opcode, ack)
+    }
+
+    fn record_apply_movement_force_ack_like_cpp(
+        &mut self,
+        ack: &mut MovementAck,
+        force: &MovementForce,
+    ) -> bool {
+        wow_world_entities::record_apply_movement_force_ack_like_cpp(self, ack, force)
+    }
+
+    fn record_remove_movement_force_ack_like_cpp(
+        &mut self,
+        ack: &mut MovementAck,
+        force_id: ObjectGuid,
+    ) -> bool {
+        wow_world_entities::record_remove_movement_force_ack_like_cpp(self, ack, force_id)
+    }
+
+    fn handle_movement_force_mod_magnitude_ack_like_cpp(
+        &mut self,
+        opcode: ClientOpcodes,
+        ack: &mut MovementAck,
+        speed: f32,
+    ) -> bool {
+        wow_world_entities::handle_movement_force_mod_magnitude_ack_like_cpp(
+            self, opcode, ack, speed,
+        )
+    }
+
+    fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
+        wow_world_entities::apply_move_init_active_mover_complete_like_cpp(self, ticks)
+    }
+
+    fn handle_move_teleport_ack_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        mover_guid: ObjectGuid,
+        ack_index: i32,
+        move_time: i32,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            let action = wow_world_entities::handle_move_teleport_ack_like_cpp(
+                self, mover_guid, ack_index, move_time,
+            );
+            if action == wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp::Accepted {
+                let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+                    item_guid_generator: catalogs.id_generators.item.as_ref(),
+                    creature_spawns: catalogs.creature_spawns.as_ref(),
+                    graveyards: Some(catalogs.graveyards.as_ref()),
+                };
+                if wow_world_entities::mark_player_resurrection_teleport_completed(self) {
+                    let completed = wow_world_entities::process_represented_delayed_resurrection_after_teleport_like_cpp(
+                        self,
+                        resurrection_catalogs,
+                    )
+                    .await;
+                    if !completed
+                        && !wow_world_entities::player_resurrection_save_waiting_for_transfer(self)
+                    {
+                        self.core_mut()
+                            .kick("near-teleport resurrection continuation did not complete");
+                    }
+                }
+            }
+        })
+    }
+
+    fn handle_movement_opcode_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            wow_world_entities::handle_movement_with_catalogs_like_cpp(
+                self,
+                catalogs.area_triggers.as_ref(),
+                catalogs.creature_spawns.as_ref(),
+                catalogs.progression.as_ref(),
+                &catalogs.player_grid_loader,
+                pkt,
+                catalogs.id_generators.item.as_ref(),
+            )
+            .await
+        })
+    }
+
+    fn handle_movement_ack_message_like_cpp<'a>(
+        &'a mut self,
+        opcode: ClientOpcodes,
+        ack: MovementAckMessage,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(
+            async move { wow_world_entities::handle_movement_ack_message(self, opcode, ack).await },
+        )
+    }
+
+    fn handle_movement_speed_ack_like_cpp<'a>(
+        &'a mut self,
+        opcode: ClientOpcodes,
+        ack: MovementSpeedAck,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move { WorldSession::handle_movement_speed_ack(self, opcode, ack).await })
+    }
+
+    fn handle_move_spline_done_like_cpp<'a>(
+        &'a mut self,
+        done: MoveSplineDone,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move { wow_world_entities::handle_move_spline_done(self, done).await })
+    }
+}

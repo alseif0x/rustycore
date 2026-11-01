@@ -118,8 +118,12 @@ impl PlayerEquipmentSetsLikeCpp {
         true
     }
 
-    /// Assign one equipment set to a specialization, as the client's assign
-    /// request reaches `SetEquipmentSet`'s state rule for an existing row.
+    /// RustyCore's current assignment transition selects the first matching
+    /// equipment-set ID; the handler sends no response and the next full
+    /// player save persists the change. Target C++ `Opcodes.cpp:170` marks the
+    /// opcode `STATUS_UNHANDLED` and dispatches `Handle_NULL`; no active C++
+    /// `Player::AssignEquipmentSetToSpec` method is present. This version
+    /// difference requires F6 evidence before claiming parity.
     /// A transmog outfit is not an equipment set and is not matched.
     pub fn assign_set_to_spec_like_cpp(&mut self, set_id: u32, assigned_spec_index: i32) -> bool {
         let Some(equipment_set) = self.sets.values_mut().find(|equipment_set| {

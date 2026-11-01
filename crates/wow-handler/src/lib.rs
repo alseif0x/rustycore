@@ -9,14 +9,23 @@
 //! ([`PacketProcessing`]) and the shape of the future it returns
 //! ([`HandlerFuture`]).
 //!
-//! The registry itself lives beside the session it dispatches to
-//! (`wow_world::session::registry`, #359): an entry names the concrete
-//! session type in its handler thunk, and that type is defined in the crate
-//! that depends on this one.
+//! This crate defines the generic registry contract. The world adapter chooses
+//! the concrete session and catalog types (`WorldSession` and
+//! `SessionHandlerCatalogsLikeCpp`) and composes the world registrations; those
+//! concrete types and that composition remain outside this crate.
 
 mod processing;
+mod registry;
 
 pub use processing::{PacketUpdatePhase, PlayerPacketResidence};
+pub use registry::{
+    DuplicateHandlerRegistrationLikeCpp, PacketHandlerEntry, PacketHandlerFn,
+    PacketHandlerRegistry, RegistryBuilder,
+};
+
+#[cfg(test)]
+#[path = "../unit_tests/registry.rs"]
+mod registry_tests;
 
 /// Status requirements for a packet handler.
 ///

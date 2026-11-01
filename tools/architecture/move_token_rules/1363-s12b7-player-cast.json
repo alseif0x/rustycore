@@ -1,0 +1,87 @@
+{
+ "slice": "#1363 slice 12b7 (the player-cast pending request, its queue reads and the loot interrupt -> wow-world-application over wow_world_spell::SpellbookHostLikeCpp / PlayerCastHostLikeCpp)",
+ "base": "8d5cb55a0",
+ "moved": [
+  "interrupt_non_melee_spell_cast_for_loot_like_cpp",
+  "pending_spell_cast_snapshot_like_cpp",
+  "with_pending_spell_cast_owner_like_cpp",
+  "remaining_global_cooldown_ms_like_cpp",
+  "remaining_active_spell_cast_ms_like_cpp",
+  "request_represented_spell_cast_like_cpp",
+  "tick_pending_spell_cast_request_with_generator_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn interrupt_non_melee_spell_cast_for_loot_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn interrupt_non_melee_spell_cast_for_loot_like_cpp<H: wow_world_spell::SpellbookHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(in crate::session\\) fn pending_spell_cast_snapshot_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn pending_spell_cast_snapshot_like_cpp<H: wow_world_spell::SpellbookHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "fn with_pending_spell_cast_owner_like_cpp<R>\\(\\s*&mut self\\s*(,|\\))",
+   "fn with_pending_spell_cast_owner_like_cpp<H: wow_world_spell::SpellbookHostLikeCpp, R>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn remaining_global_cooldown_ms_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn remaining_global_cooldown_ms_like_cpp<H: wow_world_spell::SpellbookHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn remaining_active_spell_cast_ms_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn remaining_active_spell_cast_ms_like_cpp<H: wow_world_spell::SpellbookHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn request_represented_spell_cast_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn request_represented_spell_cast_like_cpp<H: wow_world_spell::SpellbookHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) async fn tick_pending_spell_cast_request_with_generator_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub async fn tick_pending_spell_cast_request_with_generator_like_cpp<H: wow_world_spell::PlayerCastHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*cancel_pending_spell_cast_request_like_cpp\\(\\s*\\)",
+   "{ let (state, mut hub) = host.split_spell_state_mut(); crate::cancel_pending_spell_cast_request_like_cpp(&mut hub, state) }"
+  ],
+  [
+   "\\bself\\s*\\.\\s*interrupt_player_cast_like_cpp\\(([^()]*)\\)",
+   "{ let (state, mut hub) = host.split_spell_state_mut(); crate::interrupt_player_cast_like_cpp(&mut hub, state, \\1) }"
+  ],
+  [
+   "\\bself\\s*\\.\\s*spell_state\\s*\\.",
+   "host.split_spell_state_mut().0 ."
+  ],
+  [
+   "\\bself\\s*\\.\\s*spell_store\\(\\)",
+   "host.hub_ref().catalogs.spell_store()"
+  ],
+  [
+   "crate::session::split_spell_state_ref\\(self\\)",
+   "host.split_spell_state_ref()"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "crate::player_cast::prepare\\(\\s*self\\s*,",
+   "wow_world_spell::player_cast::prepare(host,"
+  ],
+  [
+   "wow_world_spell::tick_active_spell_cast_with_generator_like_cpp\\(\\s*self\\s*,",
+   "wow_world_spell::tick_active_spell_cast_with_generator_like_cpp(host,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*{name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

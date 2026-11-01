@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use anyhow::{Context, Result as AnyResult};
+
 use wow_persistence::{
     PersistenceFutureLikeCpp, SpellAreaPersistenceRowLikeCpp, SpellGroupPersistenceRowLikeCpp,
     SpellGroupStackRulePersistenceRowLikeCpp, SpellLinkedPersistenceRowLikeCpp,
@@ -11,6 +13,7 @@ use wow_persistence::{
     SpellWorldCatalogLoadOutcomeLikeCpp, SpellWorldCatalogPersistencePortLikeCpp,
 };
 
+use crate::field_like_cpp::{FieldRowLikeCpp, NativeFieldLikeCpp};
 use crate::{DatabaseError, SqlResult, WorldDatabase, WorldStatements};
 
 const SPELL_WORLD_CATALOG_STATEMENTS_LIKE_CPP: [WorldStatements; 10] = [
@@ -142,27 +145,73 @@ fn target_position_row_like_cpp(
     }
 }
 
-fn proc_row_like_cpp(row: &SqlResult) -> SpellProcPersistenceRowLikeCpp {
-    SpellProcPersistenceRowLikeCpp {
-        spell_id: row.try_read(0).unwrap_or(0),
-        school_mask: row.try_read(1).unwrap_or(0),
-        spell_family_name: row.try_read(2).unwrap_or(0),
+fn proc_row_like_cpp(row: &[NativeFieldLikeCpp]) -> AnyResult<SpellProcPersistenceRowLikeCpp> {
+    Ok(SpellProcPersistenceRowLikeCpp {
+        spell_id: row.get_like_cpp(0, "spell_proc.SpellID")?,
+        school_mask: row.get_like_cpp(1, "spell_proc.SchoolMask")?,
+        spell_family_name: row.get_like_cpp(2, "spell_proc.SpellFamilyName")?,
         spell_family_mask: [
-            row.try_read(3).unwrap_or(0),
-            row.try_read(4).unwrap_or(0),
-            row.try_read(5).unwrap_or(0),
-            row.try_read(6).unwrap_or(0),
+            row.get_like_cpp(3, "spell_proc.SpellFamilyMask1")?,
+            row.get_like_cpp(4, "spell_proc.SpellFamilyMask2")?,
+            row.get_like_cpp(5, "spell_proc.SpellFamilyMask3")?,
+            row.get_like_cpp(6, "spell_proc.SpellFamilyMask4")?,
         ],
-        proc_flags: [row.try_read(7).unwrap_or(0), row.try_read(8).unwrap_or(0)],
-        spell_type_mask: row.try_read(9).unwrap_or(0),
-        spell_phase_mask: row.try_read(10).unwrap_or(0),
-        hit_mask: row.try_read(11).unwrap_or(0),
-        attributes_mask: row.try_read(12).unwrap_or(0),
-        disable_effects_mask: row.try_read(13).unwrap_or(0),
-        procs_per_minute: row.try_read(14).unwrap_or(0.0),
-        chance: row.try_read(15).unwrap_or(0.0),
-        cooldown_ms: row.try_read(16).unwrap_or(0),
-        charges: row.try_read(17).unwrap_or(0),
+        proc_flags: [
+            row.get_like_cpp(7, "spell_proc.ProcFlags")?,
+            row.get_like_cpp(8, "spell_proc.ProcFlags2")?,
+        ],
+        spell_type_mask: row.get_like_cpp(9, "spell_proc.SpellTypeMask")?,
+        spell_phase_mask: row.get_like_cpp(10, "spell_proc.SpellPhaseMask")?,
+        hit_mask: row.get_like_cpp(11, "spell_proc.HitMask")?,
+        attributes_mask: row.get_like_cpp(12, "spell_proc.AttributesMask")?,
+        disable_effects_mask: row.get_like_cpp(13, "spell_proc.DisableEffectsMask")?,
+        procs_per_minute: row.get_like_cpp(14, "spell_proc.ProcsPerMinute")?,
+        chance: row.get_like_cpp(15, "spell_proc.Chance")?,
+        cooldown_ms: row.get_like_cpp(16, "spell_proc.Cooldown")?,
+        charges: row.get_like_cpp(17, "spell_proc.Charges")?,
+    })
+}
+
+async fn query_checked_proc_rows(
+    db: &WorldDatabase,
+) -> AnyResult<Vec<SpellProcPersistenceRowLikeCpp>> {
+    let mut result = db
+        .query(&db.prepare(WorldStatements::SEL_SPELL_PROC))
+        .await
+        .context("query spell_proc")?;
+    let mut rows = Vec::with_capacity(result.count());
+    if result.is_empty() {
+        return Ok(rows);
+    }
+    let mut row_index = 0;
+    loop {
+        let native = result
+            .native_row_like_cpp()
+            .with_context(|| format!("spell_proc row {row_index} native fields"))?;
+        append_checked_proc(&mut rows, row_index, &native)?;
+        row_index += 1;
+        if !result.next_row() {
+            break;
+        }
+    }
+    Ok(rows)
+}
+
+fn append_checked_proc(
+    rows: &mut Vec<SpellProcPersistenceRowLikeCpp>,
+    row_index: usize,
+    native: &[NativeFieldLikeCpp],
+) -> AnyResult<()> {
+    rows.push(proc_row_like_cpp(native).with_context(|| format!("spell_proc row {row_index}"))?);
+    Ok(())
+}
+
+fn classify_checked_rows<T>(result: AnyResult<Vec<T>>) -> SpellWorldCatalogLoadOutcomeLikeCpp<T> {
+    match result {
+        Ok(rows) => SpellWorldCatalogLoadOutcomeLikeCpp::Loaded(rows),
+        Err(error) => SpellWorldCatalogLoadOutcomeLikeCpp::Failed {
+            reason: format!("{error:#}"),
+        },
     }
 }
 
@@ -242,16 +291,9 @@ impl SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersist
         '_,
         SpellWorldCatalogLoadOutcomeLikeCpp<SpellProcPersistenceRowLikeCpp>,
     > {
-        Box::pin(async move {
-            classify_rows_like_cpp(
-                query_rows_like_cpp(
-                    &self.world_db,
-                    SPELL_WORLD_CATALOG_STATEMENTS_LIKE_CPP[2],
-                    proc_row_like_cpp,
-                )
-                .await,
-            )
-        })
+        Box::pin(
+            async move { classify_checked_rows(query_checked_proc_rows(&self.world_db).await) },
+        )
     }
 
     fn load_spell_required_rows_like_cpp(
@@ -426,6 +468,7 @@ impl SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersist
 mod tests {
     use super::*;
     use crate::StatementDef;
+    use wow_persistence::SpellWorldCatalogLoadOutcomeLikeCpp;
 
     #[test]
     fn spell_world_catalog_statement_manifest_matches_cpp_queries() {
@@ -553,5 +596,71 @@ mod tests {
                 orientation: Some(4.0),
             }
         );
+    }
+
+    #[test]
+    fn proc_row_uses_exact_widths_and_preserves_full_payloads() {
+        let mut fields = vec![NativeFieldLikeCpp::UInt32(0); 18];
+        fields[0] = NativeFieldLikeCpp::Int32(-1);
+        fields[1] = NativeFieldLikeCpp::UInt8(u8::MAX);
+        fields[2] = NativeFieldLikeCpp::UInt16(u16::MAX);
+        fields[3] = NativeFieldLikeCpp::UInt32(u32::MAX);
+        fields[4] = NativeFieldLikeCpp::UInt32(0x8000_0000);
+        fields[5] = NativeFieldLikeCpp::UInt32(0x1234_5678);
+        fields[6] = NativeFieldLikeCpp::UInt32(0xABCD_EF01);
+        fields[7] = NativeFieldLikeCpp::UInt32(u32::MAX);
+        fields[8] = NativeFieldLikeCpp::UInt32(0x8000_0000);
+        fields[14] = NativeFieldLikeCpp::Float(1.25);
+        fields[15] = NativeFieldLikeCpp::Float(0.125);
+        fields[16] = NativeFieldLikeCpp::UInt32(u32::MAX);
+        fields[17] = NativeFieldLikeCpp::UInt8(u8::MAX);
+
+        let decoded = proc_row_like_cpp(&fields).unwrap();
+        assert_eq!(decoded.spell_id, -1);
+        assert_eq!(decoded.school_mask, u8::MAX);
+        assert_eq!(decoded.spell_family_name, u16::MAX);
+        assert_eq!(
+            decoded.spell_family_mask,
+            [u32::MAX, 0x8000_0000, 0x1234_5678, 0xABCD_EF01]
+        );
+        assert_eq!(decoded.proc_flags, [u32::MAX, 0x8000_0000]);
+        assert_eq!(decoded.procs_per_minute, 1.25);
+        assert_eq!(decoded.chance, 0.125);
+        assert_eq!(decoded.cooldown_ms, u32::MAX);
+        assert_eq!(decoded.charges, u8::MAX);
+
+        let null = proc_row_like_cpp(&vec![NativeFieldLikeCpp::Null; 18]).unwrap();
+        assert_eq!(null.spell_id, 0);
+        assert_eq!(null.spell_family_mask, [0; 4]);
+        assert_eq!(null.procs_per_minute, 0.0);
+        assert_eq!(null.charges, 0);
+
+        fields[2] = NativeFieldLikeCpp::UInt32(65_536);
+        assert!(proc_row_like_cpp(&fields).is_err());
+        fields[2] = NativeFieldLikeCpp::UInt16(0);
+        fields[17] = NativeFieldLikeCpp::UInt16(256);
+        assert!(proc_row_like_cpp(&fields).is_err());
+        fields[17] = NativeFieldLikeCpp::UInt8(0);
+        fields[0] = NativeFieldLikeCpp::UInt64(u64::from(u32::MAX));
+        assert!(proc_row_like_cpp(&fields).is_err());
+    }
+
+    #[test]
+    fn malformed_proc_row_fails_whole_batch_with_field_context() {
+        let valid = vec![NativeFieldLikeCpp::UInt32(0); 18];
+        let mut malformed = vec![NativeFieldLikeCpp::UInt32(0); 18];
+        malformed[17] = NativeFieldLikeCpp::UInt16(256);
+        let mut rows = Vec::new();
+        append_checked_proc(&mut rows, 0, &valid).unwrap();
+        let error = append_checked_proc(&mut rows, 1, &malformed).unwrap_err();
+        let reason = match classify_checked_rows::<SpellProcPersistenceRowLikeCpp>(Err(error)) {
+            SpellWorldCatalogLoadOutcomeLikeCpp::Failed { reason } => reason,
+            SpellWorldCatalogLoadOutcomeLikeCpp::Loaded(rows) => {
+                panic!("malformed proc row unexpectedly loaded {} rows", rows.len())
+            }
+        };
+        assert!(reason.contains("spell_proc row 1"), "{reason}");
+        assert!(reason.contains("spell_proc.Charges"), "{reason}");
+        assert!(reason.contains("GetUInt8"), "{reason}");
     }
 }

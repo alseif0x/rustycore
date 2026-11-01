@@ -410,7 +410,7 @@ fn spawn_group_condition_update_spawn_loads_loaded_grid_creature_without_respawn
     assert_ne!(creature.guid().counter(), spawn_id as i64);
 }
 #[test]
-fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like_cpp() {
+fn spawn_group_condition_update_tick_adds_loaded_grid_creature_like_cpp() {
     let spawn_id = 54_987;
     let entry = 42;
     let mut metadata =
@@ -437,7 +437,7 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             interaction_pause_timer_ms:
                 wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
-            string_id: "condition-spawn-caller-legacy-mirror".to_string(),
+            string_id: "condition-spawn-caller".to_string(),
             spawn_time_secs: 120,
         },
     )]));
@@ -447,8 +447,6 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
         variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp(
             entry, 0, 0,
         );
-    let legacy: wow_world::SharedMapManager =
-        Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
     let mut manager = wow_map::MapManager::new(60_000, 1);
     let group = metadata
         .spawn_group_templates()
@@ -463,7 +461,6 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        Some(&legacy),
         1,
         &mut scheduler,
         &metadata,
@@ -474,7 +471,6 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
     .expect("scheduler fires and condition spawn executes");
 
     assert_eq!(summary.condition_spawn_executed_loaded_grid_spawns, 1);
-    assert_eq!(summary.condition_spawn_legacy_creature_mirrors, 1);
     let creature = manager
         .find_map(571, 0)
         .expect("canonical map")
@@ -483,14 +479,6 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
         .expect("canonical loaded-grid creature");
     assert_eq!(creature.guid().counter(), 1);
     assert_ne!(creature.guid().counter(), spawn_id as i64);
-    assert!(
-        legacy
-            .read()
-            .unwrap()
-            .find_creature(571, 0, creature.guid())
-            .is_some(),
-        "C++ AddToMap has one live runtime; Rust split runtime must mirror internal wow-map loaded-grid inserts into legacy"
-    );
 }
 #[test]
 fn loaded_grid_creature_respawn_record_vehicle_template_uses_creature_low_vehicle_high_like_cpp() {
@@ -692,7 +680,7 @@ fn nearby_visible_filters_by_map_id_like_cpp() {
     registry.register_or_replace(guid, info, Default::default());
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 100.0, false);
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
@@ -711,7 +699,7 @@ fn nearby_visible_filters_by_instance_id_like_cpp() {
     registry.register_or_replace(guid, info, Default::default());
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 100.0, false);
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
@@ -730,7 +718,7 @@ fn nearby_visible_filters_is_in_world_like_cpp() {
     registry.register_or_replace(guid, info, Default::default());
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 100.0, false);
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
@@ -759,7 +747,7 @@ fn nearby_visible_uses_2d_distance_when_required_3d_false_like_cpp() {
 
     let source = Position::new(0.0, 0.0, 0.0, 0.0);
     let event = make_nearby_visible_event_like_cpp(571, 0, source, 100.0, false);
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
@@ -789,7 +777,7 @@ fn nearby_visible_uses_3d_distance_when_required_3d_true_like_cpp() {
 
     let source = Position::new(0.0, 0.0, 0.0, 0.0);
     let event = make_nearby_visible_event_like_cpp(571, 0, source, 10.0, true);
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
@@ -807,9 +795,9 @@ fn nearby_visible_durable_uses_committed_fifo_instead_of_bounded_queue() {
     let durable = Arc::clone(&info.durable_creature_runtime_commands_like_cpp);
     registry.register_or_replace(guid, info, Default::default());
 
-    let event = wow_world::map_manager::RuntimeEvent {
+    let event = wow_world::runtime_plan::RuntimeEvent {
         source_guid: make_source_guid(),
-        recipients: wow_world::map_manager::RecipientRule::NearbyVisibleDurable {
+        recipients: wow_world::runtime_plan::RecipientRule::NearbyVisibleDurable {
             source_guid: make_source_guid(),
             map_id: 571,
             instance_id: 0,
@@ -819,7 +807,7 @@ fn nearby_visible_durable_uses_committed_fifo_instead_of_bounded_queue() {
         },
         packet_bytes: vec![0xAA],
     };
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
@@ -1003,15 +991,15 @@ fn map_broadcast_visible_ignores_distance_but_respects_map_instance_in_world_lik
     let (no_world_info, no_world_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, false);
     registry.register_or_replace(no_world_guid, no_world_info, Default::default());
 
-    let event = wow_world::map_manager::RuntimeEvent {
+    let event = wow_world::runtime_plan::RuntimeEvent {
         source_guid: make_source_guid(),
-        recipients: wow_world::map_manager::RecipientRule::MapBroadcastVisible {
+        recipients: wow_world::runtime_plan::RecipientRule::MapBroadcastVisible {
             map_id: 571,
             instance_id: 0,
         },
         packet_bytes: vec![0xCC],
     };
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
@@ -1033,12 +1021,12 @@ fn explicit_player_routes_only_to_target_guid_like_cpp() {
     registry.register_or_replace(target_guid, target_info, Default::default());
     registry.register_or_replace(other_guid, other_info, Default::default());
 
-    let event = wow_world::map_manager::RuntimeEvent {
+    let event = wow_world::runtime_plan::RuntimeEvent {
         source_guid: make_source_guid(),
-        recipients: wow_world::map_manager::RecipientRule::ExplicitPlayer(target_guid),
+        recipients: wow_world::runtime_plan::RecipientRule::ExplicitPlayer(target_guid),
         packet_bytes: vec![0xDD],
     };
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
@@ -1090,12 +1078,12 @@ fn self_only_does_not_broadcast_to_any_session_like_cpp() {
     let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
     registry.register_or_replace(guid, info, Default::default());
 
-    let event = wow_world::map_manager::RuntimeEvent {
+    let event = wow_world::runtime_plan::RuntimeEvent {
         source_guid: make_source_guid(),
-        recipients: wow_world::map_manager::RecipientRule::SelfOnly,
+        recipients: wow_world::runtime_plan::RecipientRule::SelfOnly,
         packet_bytes: vec![0xEE],
     };
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
@@ -1131,7 +1119,7 @@ fn full_command_channel_increments_send_failed_and_does_not_block_like_cpp() {
     registry.register_or_replace(guid, info, Default::default());
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 1000.0, false);
-    let plan = wow_world::map_manager::RuntimePlan {
+    let plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![event],
     };
     let summary = deliver_runtime_plan_like_cpp(&plan, &registry);

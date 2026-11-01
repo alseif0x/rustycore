@@ -6,565 +6,54 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn represented_raid_difficulty_request_like_cpp(
-        &self,
-        difficulty_id: i32,
-        legacy: bool,
-    ) -> Option<u32> {
-        let difficulty_id = u32::try_from(difficulty_id).ok()?;
-        let entry = self
-            .difficulty_store()
-            .and_then(|store| store.get(difficulty_id))
-            .copied()?;
-        if entry.instance_type != MAP_RAID_LIKE_CPP {
-            return None;
-        }
-
-        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
-        if !flags.contains(DifficultyFlags::CAN_SELECT) {
-            return None;
-        }
-
-        (flags.contains(DifficultyFlags::LEGACY) == legacy).then_some(difficulty_id)
-    }
-    pub(crate) fn player_quest_gameplay_snapshot_like_cpp(
-        &self,
-    ) -> Option<PlayerQuestGameplayState> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.player_quest_gameplay_fixture_like_cpp());
-        }
-        self.with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
-    }
-    /// C++ `Player::SetQuestStatus` (`Player.cpp:15557`) installing one record.
-    pub(crate) fn insert_represented_quest_status_like_cpp(
+    /// Install the narrow loaded policy used by SetQuestStatus and `_SaveQuestStatus`.
+    pub fn set_quest_status_save_policy_like_cpp(
         &mut self,
-        quest_id: u32,
-        status: wow_entities::PlayerQuestStatusRecord,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.insert_status_like_cpp(quest_id, status);
-        })
-        .is_some()
+        ignore_auto_complete: bool,
+        keep_abandoned: Option<bool>,
+    ) {
+        self.config.quest_ignore_auto_complete_like_cpp = ignore_auto_complete;
+        self.config.quest_status_keep_abandoned_like_cpp = keep_abandoned;
     }
 
-    /// C++ `Player::RemoveActiveQuest` (`Player.cpp:15575`).
-    pub(crate) fn remove_represented_quest_status_like_cpp(&mut self, quest_id: u32) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.remove_status_like_cpp(quest_id);
-        })
-        .is_some()
-    }
-
-    /// C++ `Player::m_RewardedQuests` gaining or losing one quest.
-    pub(crate) fn set_represented_quest_rewarded_like_cpp(
-        &mut self,
-        quest_id: u32,
-        rewarded: bool,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.set_rewarded_like_cpp(quest_id, rewarded);
-        })
-        .is_some()
-    }
-
-    /// Settle one rewarded quest: C++ `Player::RewardQuest` removes the active
-    /// entry and records a non-repeatable quest as rewarded.
-    pub(crate) fn settle_represented_rewarded_quest_like_cpp(
-        &mut self,
-        quest_id: u32,
-        repeatable: bool,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.remove_status_like_cpp(quest_id);
-            if !repeatable {
-                state.set_rewarded_like_cpp(quest_id, true);
-            }
-        })
-        .is_some()
-    }
-
-    /// C++ `Player::CompleteQuest` moving one incomplete quest to complete and
-    /// reporting the status it replaced.
-    pub(crate) fn complete_represented_quest_status_like_cpp(
-        &mut self,
-        quest_id: u32,
-        incomplete_status: u8,
-        complete_status: u8,
-    ) -> Option<u8> {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            let status = state.status_mut_like_cpp(quest_id)?;
-            (status.status == incomplete_status).then(|| {
-                let old_status = status.status;
-                status.status = complete_status;
-                old_status
-            })
-        })
-        .flatten()
-    }
-
-    /// Clear one quest's timer, as C++ does when its timed window ends.
-    pub(crate) fn clear_represented_quest_end_time_like_cpp(&mut self, quest_id: u32) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            let Some(status) = state.status_mut_like_cpp(quest_id) else {
-                return false;
-            };
-            if status.end_time_secs <= 0 {
-                return false;
-            }
-            status.end_time_secs = 0;
-            true
-        })
-        .unwrap_or(false)
-    }
-
-    /// Mark one quest explored, reporting whether the record existed and
-    /// whether the client must be told.
-    pub(crate) fn mark_represented_quest_explored_like_cpp(
-        &mut self,
-        quest_id: u32,
-        failed_status: u8,
-    ) -> Option<(bool, bool)> {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            let Some(status) = state.status_mut_like_cpp(quest_id) else {
-                return (false, false);
-            };
-            let should_send = !status.explored && status.status != failed_status;
-            if should_send {
-                status.explored = true;
-            }
-            (true, should_send)
-        })
-    }
-
-    /// Ensure one seasonal event exists, without changing its quests.
-    pub(crate) fn ensure_represented_seasonal_event_like_cpp(&mut self, event_id: u16) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.ensure_seasonal_event_like_cpp(event_id);
-        })
-        .is_some()
-    }
-
-    /// C++ records a rewarded quest's recurrence under its own bucket
-    /// (`SetDailyQuestStatus` and its weekly/monthly/seasonal siblings).
-    pub(crate) fn record_represented_quest_recurrence_like_cpp(
-        &mut self,
-        recurrence: RepresentedQuestRecurrenceLikeCpp,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| match recurrence {
-            RepresentedQuestRecurrenceLikeCpp::Daily {
-                quest_id,
-                now_secs,
-                is_df_quest,
-            } => {
-                state.set_last_daily_quest_time_secs_like_cpp(now_secs);
-                if is_df_quest {
-                    state.set_df_quest_like_cpp(quest_id, true);
-                } else {
-                    state.set_daily_like_cpp(quest_id, true);
-                }
-            }
-            RepresentedQuestRecurrenceLikeCpp::Weekly { quest_id } => {
-                state.set_weekly_like_cpp(quest_id, true);
-            }
-            RepresentedQuestRecurrenceLikeCpp::Monthly { quest_id } => {
-                state.set_monthly_like_cpp(quest_id, true);
-            }
-            RepresentedQuestRecurrenceLikeCpp::Seasonal {
-                event_id,
-                quest_id,
-                completed_at,
-            } => {
-                state.set_seasonal_like_cpp(event_id, quest_id, completed_at);
-            }
-        })
-        .is_some()
-    }
-
-    /// Install the authoritative loaded quest statuses and rewarded sets
-    /// (`Player::_LoadQuestStatus` and `_LoadQuestStatusRewarded`).
-    pub(crate) fn install_represented_loaded_quest_statuses_like_cpp(
-        &mut self,
-        loaded: &wow_entities::PlayerQuestGameplayState,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.replace_statuses_like_cpp(
-                loaded.statuses_snapshot_like_cpp(),
-                loaded.status_authority_complete_like_cpp(),
-            );
-            state.replace_rewarded_quest_ids_like_cpp(loaded.rewarded_quest_ids_like_cpp().clone());
-            state.replace_rewarded_quest_rows_like_cpp(
-                loaded.rewarded_quest_rows_like_cpp().clone(),
-            );
-        })
-        .is_some()
-    }
-
-    /// Install the loaded daily bucket and its timestamp.
-    pub(crate) fn install_represented_loaded_daily_quests_like_cpp(
-        &mut self,
-        df_quest_ids: std::collections::BTreeSet<u32>,
-        daily_quest_ids: std::collections::BTreeSet<u32>,
-        last_daily_time_secs: i64,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.replace_df_quest_ids_like_cpp(df_quest_ids);
-            state.replace_daily_quest_ids_like_cpp(daily_quest_ids);
-            state.set_last_daily_quest_time_secs_like_cpp(last_daily_time_secs);
-        })
-        .is_some()
-    }
-
-    /// Install the loaded weekly bucket.
-    pub(crate) fn install_represented_loaded_weekly_quests_like_cpp(
-        &mut self,
-        weekly_quest_ids: std::collections::BTreeSet<u32>,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.replace_weekly_quest_ids_like_cpp(weekly_quest_ids);
-        })
-        .is_some()
-    }
-
-    /// Install the loaded monthly bucket.
-    pub(crate) fn install_represented_loaded_monthly_quests_like_cpp(
-        &mut self,
-        monthly_quest_ids: std::collections::BTreeSet<u32>,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.replace_monthly_quest_ids_like_cpp(monthly_quest_ids);
-        })
-        .is_some()
-    }
-
-    /// The retained projection.
-    ///
-    /// #756 moved the quest state and its invariants to the canonical Player
-    /// and replaced every single-transition caller with the named operations
-    /// above. What remains are the catalog-driven walks over the whole quest
-    /// log — objective progress and quest-slot compaction — which C++ performs
-    /// in `Player::AdjustQuestObjectiveProgress` (`Player.cpp:15874`) and
-    /// `SetQuestObjectiveData` (`:16426`) while holding the Player. Their rules
-    /// need quest templates and objectives, which may not enter `wow-entities`,
-    /// so they keep this borrow rather than gaining a differently named generic
-    /// closure. **Exit condition:** they retire with the objective-progress
-    /// operation contract of #41, which owns that complete operation.
-    pub(crate) fn mutate_player_quest_gameplay_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut PlayerQuestGameplayState) -> R,
-    ) -> Option<R> {
-        let mut mutate = Some(mutate);
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            let mut fixture = self.player_quest_gameplay_fixture_like_cpp();
-            let result = mutate.take().expect("test quest mutation executes once")(&mut fixture);
-            self.apply_player_quest_gameplay_fixture_like_cpp(fixture);
-            return Some(result);
-        }
-        let canonical = self.mutate_canonical_player_like_cpp(|player| {
-            mutate.take().expect("Player quest mutation executes once")(
-                &mut player.gameplay_state_mut().quests,
-            )
-        });
-        if canonical.is_some() {
-            #[cfg(test)]
-            if let Some(state) =
-                self.with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
-            {
-                self.apply_player_quest_core_compatibility_like_cpp(&state);
-            }
-            return canonical;
-        }
-        None
-    }
-    #[cfg(test)]
-    fn player_quest_gameplay_fixture_like_cpp(&self) -> PlayerQuestGameplayState {
-        let objective_counts_by_quest = self
-            .player_quests
-            .values()
-            .map(|status| (status.quest_id, status.objective_counts.clone()))
-            .collect();
-        let mut state = PlayerQuestGameplayState::default();
-        state.replace_statuses_like_cpp(
-            self.player_quests
-                .iter()
-                .map(|(&quest_id, status)| (quest_id, status.clone()))
-                .collect(),
-            self.player_quest_status_authority_complete_like_cpp,
-        );
-        state.replace_rewarded_quest_ids_like_cpp(self.rewarded_quests.iter().copied().collect());
-        state.replace_daily_quest_ids_like_cpp(
-            self.daily_quests_completed_like_cpp
-                .iter()
-                .copied()
-                .collect(),
-        );
-        state.replace_weekly_quest_ids_like_cpp(
-            self.weekly_quests_completed_like_cpp
-                .iter()
-                .copied()
-                .collect(),
-        );
-        state.replace_monthly_quest_ids_like_cpp(
-            self.monthly_quests_completed_like_cpp
-                .iter()
-                .copied()
-                .collect(),
-        );
-        state.replace_seasonal_quests_like_cpp(
-            self.seasonal_quests_like_cpp.clone(),
-            self.seasonal_quest_changed_like_cpp,
-        );
-        state.replace_df_quest_ids_like_cpp(self.df_quests_like_cpp.iter().copied().collect());
-        state.set_last_daily_quest_time_secs_like_cpp(self.last_daily_quest_time_like_cpp);
-        state.replace_rewarded_quest_rows_like_cpp(
-            self.represented_rewarded_quest_rows_like_cpp.clone(),
-        );
-        state.replace_objective_counts_by_quest_like_cpp(objective_counts_by_quest);
-        state
-    }
-    #[cfg(test)]
-    fn apply_player_quest_gameplay_fixture_like_cpp(&mut self, state: PlayerQuestGameplayState) {
-        self.apply_player_quest_core_compatibility_like_cpp(&state);
-        self.daily_quests_completed_like_cpp =
-            state.daily_quest_ids_like_cpp().iter().copied().collect();
-        self.weekly_quests_completed_like_cpp =
-            state.weekly_quest_ids_like_cpp().iter().copied().collect();
-        self.monthly_quests_completed_like_cpp =
-            state.monthly_quest_ids_like_cpp().iter().copied().collect();
-        self.seasonal_quests_like_cpp = state.seasonal_quests_snapshot_like_cpp();
-        self.df_quests_like_cpp = state.df_quest_ids_like_cpp().iter().copied().collect();
-        self.last_daily_quest_time_like_cpp = state.last_daily_quest_time_secs_like_cpp();
-        self.seasonal_quest_changed_like_cpp = state.seasonal_quest_changed_like_cpp();
-    }
-    #[cfg(test)]
-    fn apply_player_quest_core_compatibility_like_cpp(&mut self, state: &PlayerQuestGameplayState) {
-        self.player_quests = state
-            .statuses_like_cpp()
-            .iter()
-            .map(|(&quest_id, status)| (quest_id, status.clone()))
-            .collect();
-        self.rewarded_quests = state
-            .rewarded_quest_ids_like_cpp()
-            .iter()
-            .copied()
-            .collect();
-        self.player_quest_status_authority_complete_like_cpp =
-            state.status_authority_complete_like_cpp();
-        self.represented_rewarded_quest_rows_like_cpp =
-            state.rewarded_quest_rows_like_cpp().clone();
-    }
-    pub(in crate::session) fn represented_quest_login_aura_sources_are_hit_inert_like_cpp(
-        &self,
-        difficulty_id: u8,
-    ) -> bool {
-        let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
-            return false;
-        };
-        if !state.status_authority_complete_like_cpp() {
-            return false;
-        }
-        let Some(quests) = self.quests.store.as_ref() else {
-            return state.rewarded_quest_rows_like_cpp().is_empty()
-                && state.statuses_like_cpp().is_empty();
-        };
-
-        // C++ `_LoadQuestStatusRewarded` calls `LearnQuestRewardedSpells`
-        // before filtering special quests out of `m_RewardedQuests`. Keep the
-        // narrow TESTBOT proof to rows whose static reward spell is absent.
-        if state.rewarded_quest_rows_like_cpp().iter().any(|quest_id| {
-            quests
-                .get(*quest_id)
-                .is_none_or(|quest| quest.reward_spell != 0)
-        }) {
-            return false;
-        }
-
-        state.statuses_like_cpp().values().all(|status| {
-            let Some(quest) = quests.get(status.quest_id) else {
-                return false;
-            };
-            let recasts_accept_spell = quest.flags & QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP != 0
-                && quest.flags_ex & QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP != 0
-                && quest.source_spell_id != 0;
-            !recasts_accept_spell
-                || self
-                    .player_target_spell_is_hit_inert_like_cpp(quest.source_spell_id, difficulty_id)
-        })
-    }
-    /// C++ `Player::PushQuests` scans the complete global quest-template map
-    /// during login and area updates. `AddQuest` can cast an AUTO_PUSH quest's
-    /// SourceSpellID, so the narrow empty-source proof requires that the
-    /// authoritative store contain no such template at all.
-    pub(in crate::session) fn represented_auto_push_quest_aura_source_is_empty_like_cpp(
-        &self,
-    ) -> bool {
-        const QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP: u32 = 0x0400_0000;
-        self.quests.store.as_ref().is_some_and(|quests| {
-            quests
-                .quests_like_cpp()
-                .all(|quest| quest.flags_ex & QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP == 0)
-        })
-    }
-    pub(crate) fn spell_area_for_quest_map_bounds_like_cpp(
-        &self,
-        quest_id: u32,
-    ) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_catalogs
-            .spell_area_store
-            .as_ref()
-            .map(|store| store.spell_area_for_quest_map_bounds_like_cpp(quest_id))
-            .unwrap_or_default()
-    }
-    pub(crate) fn spell_area_for_quest_end_map_bounds_like_cpp(
-        &self,
-        quest_id: u32,
-    ) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_catalogs
-            .spell_area_store
-            .as_ref()
-            .map(|store| store.spell_area_for_quest_end_map_bounds_like_cpp(quest_id))
-            .unwrap_or_default()
-    }
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.quests.store = Some(store);
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.catalogs.quests.store = Some(store);
     }
     /// Set the QuestV2 store shared reference used for C++ quest unique-bit lookups.
     pub fn set_quest_v2_store(&mut self, store: Arc<QuestV2Store>) {
-        self.quests.v2_store = Some(store);
+        self.catalogs.quests.v2_store = Some(store);
     }
     /// Set the QuestInfo store used by C++ Quest::GetQuestTag/IsImportant.
     pub fn set_quest_info_store(&mut self, store: Arc<QuestInfoStore>) {
-        self.quests.info_store = Some(store);
+        self.catalogs.quests.info_store = Some(store);
     }
     /// Set C++ `CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF`.
     pub fn set_quest_low_level_hide_diff_like_cpp(&mut self, value: u32) {
-        self.quest_low_level_hide_diff_like_cpp = value;
+        self.quest_state
+            .set_quest_low_level_hide_diff_like_cpp(value);
     }
     /// Set C++ `CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF`.
     pub fn set_quest_high_level_hide_diff_like_cpp(&mut self, value: u32) {
-        self.quest_high_level_hide_diff_like_cpp = value;
+        self.quest_state
+            .set_quest_high_level_hide_diff_like_cpp(value);
     }
     /// Set the QuestXP store (loaded from QuestXP.db2).
     pub fn set_quest_xp_store(&mut self, store: Arc<wow_data::quest_xp::QuestXpStore>) {
-        self.quests.xp_store = Some(store);
+        self.catalogs.quests.xp_store = Some(store);
     }
     pub fn set_min_quest_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
-        self.min_quest_scaled_xp_ratio_like_cpp = if ratio > 100 { 0 } else { ratio };
-    }
-    /// C++ `Player::GetQuestLevel`.
-    pub(crate) fn player_quest_level_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> i32 {
-        if quest.quest_level > 0 {
-            quest.quest_level
-        } else {
-            i32::from(self.player_level_like_cpp()).min(quest.quest_max_scaling_level)
-        }
-    }
-    /// Calculate XP reward for a quest.
-    /// C++ `Quest::XPValue(player, questLevel, xpDifficulty, xpMultiplier)`.
-    pub(crate) fn calculate_quest_xp(
-        &self,
-        difficulty: u32,
-        quest_level: i32,
-        xp_multiplier: f32,
-    ) -> u32 {
-        if let Some(store) = &self.quests.xp_store {
-            store.calculate_xp(
-                quest_level,
-                self.player_level_like_cpp(),
-                difficulty,
-                xp_multiplier,
-                self.min_quest_scaled_xp_ratio_like_cpp,
-            )
-        } else {
-            const XP_TABLE: [u32; 10] = [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000];
-            XP_TABLE[difficulty.min(9) as usize]
-        }
-    }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_auction_replicate_request_like_cpp(
-        &mut self,
-        request: RepresentedAuctionReplicateRequestLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.represented_auction_replicate_requests_like_cpp
-            .push(request);
+        self.quest_state
+            .set_min_quest_scaled_xp_ratio_like_cpp(ratio);
     }
     #[cfg(test)]
     pub(crate) fn represented_auction_replicate_requests_like_cpp(
         &self,
     ) -> &[RepresentedAuctionReplicateRequestLikeCpp] {
-        &self.represented_auction_replicate_requests_like_cpp
-    }
-    pub(crate) fn request_represented_battleground_leave_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            self.represented_battleground_leave_requests_like_cpp = self
-                .represented_battleground_leave_requests_like_cpp
-                .saturating_add(1);
-        }
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_battleground_leave_requests_like_cpp(&self) -> u32 {
-        self.represented_battleground_leave_requests_like_cpp
-    }
-    pub(crate) fn set_represented_resurrection_request_like_cpp(
-        &mut self,
-        request: PlayerResurrectionRequestLikeCpp,
-    ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_resurrection_request_like_cpp(request)
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.represented_resurrection_request_like_cpp = Some(request);
-        }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
-    }
-    pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(Player::clear_resurrection_request_like_cpp)
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.represented_resurrection_request_like_cpp = None;
-        }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
-    }
-    pub(crate) fn represented_resurrection_requested_by_like_cpp(
-        &self,
-        resurrecter: ObjectGuid,
-    ) -> bool {
-        self.player_resurrection_state_snapshot_like_cpp()
-            .and_then(|state| state.request)
-            .is_some_and(|request| {
-                request.resurrecter != ObjectGuid::EMPTY && request.resurrecter == resurrecter
-            })
-    }
-    pub(crate) fn take_represented_resurrection_request_if_requested_by_like_cpp(
-        &mut self,
-        resurrecter: ObjectGuid,
-    ) -> Option<PlayerResurrectionRequestLikeCpp> {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.take_resurrection_request_if_requested_by_like_cpp(resurrecter)
-            })
-            .flatten();
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            if !self.represented_resurrection_requested_by_like_cpp(resurrecter) {
-                return None;
-            }
-            return self.represented_resurrection_request_like_cpp.take();
-        }
-        canonical
+        self.inventory
+            .represented_auction_replicate_requests_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_resurrection_request_like_cpp(
@@ -573,152 +62,54 @@ impl WorldSession {
         self.player_resurrection_state_snapshot_like_cpp()
             .and_then(|state| state.request)
     }
-    pub(crate) fn request_temporary_pet_unsummon_like_cpp(&mut self) {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        #[cfg(test)]
-        {
-            self.temporary_pet_unsummon_requests_like_cpp = self
-                .temporary_pet_unsummon_requests_like_cpp
-                .saturating_add(1);
-        }
-    }
-    #[cfg(test)]
-    pub(crate) fn temporary_pet_unsummon_requests_like_cpp(&self) -> u32 {
-        self.temporary_pet_unsummon_requests_like_cpp
-    }
-    pub(crate) fn request_jump_proc_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            self.movement_jump_proc_requests_like_cpp =
-                self.movement_jump_proc_requests_like_cpp.saturating_add(1);
-        }
-    }
-    #[cfg(test)]
-    pub(crate) fn movement_jump_proc_requests_like_cpp(&self) -> u32 {
-        self.movement_jump_proc_requests_like_cpp
-    }
     #[cfg(test)]
     pub(crate) fn represented_duel_requests_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
-        &self.represented_duel_requests_like_cpp
-    }
-    pub(crate) fn represented_request_vehicle_exit_like_cpp(&mut self) -> bool {
-        let Some(seat_flags) = self
-            .player_vehicle_seat_state_like_cpp()
-            .and_then(|(flags, _)| flags)
-        else {
-            return false;
-        };
-        if !wow_data::vehicle_seat_flags_can_enter_or_exit_like_cpp(seat_flags) {
-            return false;
-        }
-
-        if !self.set_player_vehicle_seat_state_like_cpp(None, None) {
-            return false;
-        }
-        self.sync_player_registry_state_like_cpp();
-        true
-    }
-    pub(crate) fn represented_request_adjacent_vehicle_seat_like_cpp(
-        &mut self,
-        next: bool,
-    ) -> bool {
-        match crate::handlers::vehicle::request_adjacent_vehicle_seat_action_like_cpp(
-            self.player_vehicle_seat_state_like_cpp()
-                .and_then(|(flags, _)| flags)
-                .is_some(),
-            self.represented_current_vehicle_seat_can_switch_from_like_cpp(),
-            next,
-        ) {
-            crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
-                #[cfg(test)]
-                self.represented_vehicle_seat_change_requests_like_cpp
-                    .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
-                #[cfg(not(test))]
-                let _ = (seat_id, next);
-                true
-            }
-            _ => false,
-        }
+        self.social.represented_duel_requests_for_test_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_vehicle_seat_change_requests_like_cpp(
         &self,
     ) -> &[RepresentedVehicleSeatChangeRequestLikeCpp] {
-        &self.represented_vehicle_seat_change_requests_like_cpp
+        &self
+            .fixtures
+            .vehicles
+            .represented_vehicle_seat_change_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_vehicle_seat_spell_click_requests_like_cpp(
         &self,
     ) -> &[RepresentedVehicleSeatSpellClickRequestLikeCpp] {
-        &self.represented_vehicle_seat_spell_click_requests_like_cpp
+        &self
+            .fixtures
+            .vehicles
+            .represented_vehicle_seat_spell_click_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_vehicle_enter_requests_like_cpp(
         &self,
     ) -> &[RepresentedVehicleEnterRequestLikeCpp] {
-        &self.represented_vehicle_enter_requests_like_cpp
-    }
-    pub(crate) fn represented_request_vehicle_switch_seat_like_cpp(
-        &mut self,
-        requested_vehicle: ObjectGuid,
-        seat_index: u8,
-    ) -> bool {
-        let Some(vehicle_base_guid) = self.represented_vehicle_base_guid_for_switch_like_cpp()
-        else {
-            return false;
-        };
-        let seat_id = seat_index as i8;
-        let requested_vehicle_exists_with_empty_seat = vehicle_base_guid != requested_vehicle
-            && self.represented_vehicle_seat_spell_click_plan_available_like_cpp(
-                requested_vehicle,
-                seat_id,
-            );
-        let action = crate::handlers::vehicle::request_vehicle_switch_seat_action_like_cpp(
-            true,
-            self.represented_current_vehicle_seat_can_switch_from_like_cpp(),
-            vehicle_base_guid,
-            requested_vehicle,
-            seat_index,
-            requested_vehicle_exists_with_empty_seat,
-        );
-        self.record_represented_vehicle_seat_action_like_cpp(action)
-    }
-    pub(in crate::session) async fn battle_pet_add_request_committed_like_cpp(
-        &self,
-        request_key: BattlePetAddRequestKeyLikeCpp,
-    ) -> Result<bool, BattlePetAddFailureLikeCpp> {
-        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
-            return Ok(false);
-        };
-        attachment
-            .owner_like_cpp()
-            .add_request_committed_like_cpp(request_key)
-            .await
-    }
-    #[cfg(test)]
-    pub(crate) fn movement_visibility_refresh_requests_like_cpp(&self) -> u32 {
-        self.movement_visibility_refresh_requests_like_cpp
-    }
-    pub(crate) fn consume_movement_visibility_refresh_request_like_cpp(&mut self) -> bool {
-        if self.movement_visibility_refresh_requests_like_cpp == 0 {
-            return false;
-        }
-        self.movement_visibility_refresh_requests_like_cpp = self
-            .movement_visibility_refresh_requests_like_cpp
-            .saturating_sub(1);
-        true
+        &self
+            .fixtures
+            .vehicles
+            .represented_vehicle_enter_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_activate_taxi_requests_like_cpp(
         &self,
-    ) -> &[RepresentedActivateTaxiLikeCpp] {
-        &self.represented_activate_taxi_requests_like_cpp
+    ) -> &[wow_world_core::session::RepresentedActivateTaxiLikeCpp] {
+        &self
+            .fixtures
+            .vehicles
+            .represented_activate_taxi_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_confirm_respec_wipe_requests_like_cpp(
         &self,
     ) -> &[RepresentedConfirmRespecWipeLikeCpp] {
-        &self.represented_confirm_respec_wipe_requests_like_cpp
+        &self
+            .fixtures
+            .progression
+            .represented_confirm_respec_wipe_requests_like_cpp
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_adventure_map_start_quest_like_cpp(
@@ -726,160 +117,18 @@ impl WorldSession {
         request: RepresentedAdventureMapStartQuestLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_adventure_map_start_quest_requests_like_cpp
-            .push(request);
+        self.instances
+            .record_represented_adventure_map_start_quest_for_test_like_cpp(request);
     }
     #[cfg(test)]
     pub(crate) fn represented_adventure_map_start_quest_requests_like_cpp(
         &self,
     ) -> &[RepresentedAdventureMapStartQuestLikeCpp] {
-        &self.represented_adventure_map_start_quest_requests_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn temporary_pet_resummon_requests_like_cpp(&self) -> u32 {
-        self.temporary_pet_resummon_requests_like_cpp
-    }
-    pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
-        &mut self,
-        sender_guid: ObjectGuid,
-        quest_id: u32,
-    ) {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_pending_quest_sharing_like_cpp =
-                Some(RepresentedPendingQuestSharingLikeCpp {
-                    sender_guid,
-                    quest_id,
-                });
-            self.sync_player_registry_state_like_cpp();
-            return;
-        }
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.set_pending_share_like_cpp(Some((sender_guid, quest_id)));
-        });
-        self.sync_player_registry_state_like_cpp();
-    }
-    pub(crate) fn clear_represented_pending_quest_sharing_like_cpp(&mut self) {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_pending_quest_sharing_like_cpp = None;
-            self.sync_player_registry_state_like_cpp();
-            return;
-        }
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.set_pending_share_like_cpp(None);
-        });
-        self.sync_player_registry_state_like_cpp();
-    }
-    pub(crate) fn represented_pending_quest_sharing_like_cpp(
-        &self,
-    ) -> Option<RepresentedPendingQuestSharingLikeCpp> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return self.represented_pending_quest_sharing_like_cpp;
-        }
-        self.player_quest_gameplay_snapshot_like_cpp()
-            .and_then(|state| state.pending_share_like_cpp())
-            .map(
-                |(sender_guid, quest_id)| RepresentedPendingQuestSharingLikeCpp {
-                    sender_guid,
-                    quest_id,
-                },
-            )
-    }
-    pub(crate) fn set_represented_df_quest_like_cpp_for_test(
-        &mut self,
-        quest_id: u32,
-        present: bool,
-    ) {
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            if present {
-                state.set_df_quest_like_cpp(quest_id, true);
-            } else {
-                state.set_df_quest_like_cpp(quest_id, false);
-            }
-        });
-        self.sync_player_registry_state_like_cpp();
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_timed_quest_removals_like_cpp(&self) -> &[u32] {
-        &self.represented_timed_quest_removals_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_push_result_responses_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestPushResultResponseLikeCpp] {
-        &self.represented_quest_push_result_responses_like_cpp
-    }
-    pub(crate) fn record_represented_quest_push_result_response_like_cpp(
-        &mut self,
-        response: RepresentedQuestPushResultResponseLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.represented_quest_push_result_responses_like_cpp
-            .push(response);
-        #[cfg(not(test))]
-        let _ = response;
-    }
-    pub(crate) fn record_represented_quest_push_result_sender_mismatch_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            self.represented_quest_push_result_sender_mismatch_count_like_cpp = self
-                .represented_quest_push_result_sender_mismatch_count_like_cpp
-                .saturating_add(1);
-        }
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_confirm_accepts_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestConfirmAcceptLikeCpp] {
-        &self.represented_quest_confirm_accepts_like_cpp
-    }
-    pub(crate) fn record_represented_quest_confirm_accept_like_cpp(
-        &mut self,
-        evidence: RepresentedQuestConfirmAcceptLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.represented_quest_confirm_accepts_like_cpp
-            .push(evidence);
-        #[cfg(not(test))]
-        let _ = evidence;
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_push_quest_to_party_outcomes_like_cpp(
-        &self,
-    ) -> &[RepresentedPushQuestToPartyOutcomeLikeCpp] {
-        &self.represented_push_quest_to_party_outcomes_like_cpp
-    }
-    pub(crate) fn record_represented_push_quest_to_party_outcome_like_cpp(
-        &mut self,
-        outcome: RepresentedPushQuestToPartyOutcomeLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.represented_push_quest_to_party_outcomes_like_cpp
-            .push(outcome);
-        #[cfg(not(test))]
-        let _ = outcome;
+        self.instances
+            .represented_adventure_map_start_quest_requests_for_test_like_cpp()
     }
 }
 
-/// Which recurrence bucket one rewarded quest belongs to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestRecurrenceLikeCpp {
-    Daily {
-        quest_id: u32,
-        now_secs: i64,
-        is_df_quest: bool,
-    },
-    Weekly {
-        quest_id: u32,
-    },
-    Monthly {
-        quest_id: u32,
-    },
-    Seasonal {
-        event_id: u16,
-        quest_id: u32,
-        completed_at: u64,
-    },
-}
+#[cfg(test)]
+#[path = "../../../unit_tests/session/quest/state/f3_shims.rs"]
+mod f3_shims;

@@ -1,0 +1,18 @@
+[package]
+name = "wow-progression"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+# Test-only helpers consumed by dependent crates' test builds.
+test-fixtures = []
+
+[dependencies]
+wow-constants = { workspace = true }
+wow-data = { workspace = true }
+wow-entities = { workspace = true }
+wow-packet = { workspace = true }
+
+[lints]
+workspace = true

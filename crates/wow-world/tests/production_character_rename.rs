@@ -37,6 +37,7 @@ fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Rec
         "esES".into(),
         packet_rx,
         send_tx,
+        wow_world::session::registry::build_dispatch_table(),
     );
     (session, send_rx)
 }

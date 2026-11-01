@@ -33,12 +33,12 @@ use super::{
     build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
     build_loaded_grid_gameobject_respawn_record_like_cpp, build_tap_group_index_like_cpp,
     canonical_map_update_tick_set_inactive_like_cpp, clear_online_accounts_sql_like_cpp,
-    collect_legacy_creature_aggro_candidates_like_cpp,
-    collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
+    collect_creature_aggro_candidates_like_cpp,
+    collect_creature_aggro_candidates_with_canonical_like_cpp,
     consume_game_event_live_update_side_effects_like_cpp, create_pid_file_like_cpp,
-    database_pool_size_like_cpp, db_keepalive_database_names_like_cpp,
-    db_keepalive_interval_minutes_like_cpp, db_keepalive_sql_like_cpp,
-    declined_names_used_for_realm_category_like_cpp,
+    creature_aggro_config_like_cpp, database_pool_size_like_cpp,
+    db_keepalive_database_names_like_cpp, db_keepalive_interval_minutes_like_cpp,
+    db_keepalive_sql_like_cpp, declined_names_used_for_realm_category_like_cpp,
     deliver_creature_attack_start_commands_like_cpp,
     deliver_creature_melee_damage_commands_like_cpp,
     deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
@@ -58,8 +58,7 @@ use super::{
     game_event_update_npc_vendor_like_cpp, game_event_update_world_states_like_cpp,
     get_address_for_client_with_local_networks, half_max_core_stuck_time_like_cpp,
     install_canonical_spawn_group_initializer_like_cpp, is_ffa_pvp_realm_type_like_cpp,
-    is_pvp_realm_type_like_cpp, kick_all_sessions_like_cpp, legacy_creature_aggro_config_like_cpp,
-    legacy_creature_global_runtime_enabled_from_config_like_cpp,
+    is_pvp_realm_type_like_cpp, kick_all_sessions_like_cpp,
     load_loaded_grid_area_triggers_like_cpp, load_world_config_from, loot_drop_rates_like_cpp,
     loot_quest_required_from_signed_db_like_cpp,
     materialize_game_event_quest_complete_db_bridge_like_cpp,
@@ -74,14 +73,10 @@ use super::{
     realm_id_like_cpp, realm_list_entry_from_row_like_cpp, repair_cost_rate_like_cpp,
     reputation_rates_like_cpp, reset_schedule_like_cpp, respawn_db_retry_delay,
     retain_committed_creature_combat_events_like_cpp,
-    run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
-    run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
-    run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
-    run_legacy_creature_runtime_tick_and_deliver_once_like_cpp,
     run_world_session_shutdown_finalize_step_like_cpp, set_realm_offline_sql_like_cpp,
-    set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
-    spawn_store_loader, stop_world_network_like_cpp, update_sessions_shutdown_flush_once_like_cpp,
-    world_config_bool, world_config_f32, world_config_u8, world_config_u16, world_config_u32,
+    set_realm_online_sql_like_cpp, spawn_store_loader, stop_world_network_like_cpp,
+    update_sessions_shutdown_flush_once_like_cpp, world_config_bool, world_config_f32,
+    world_config_u8, world_config_u16, world_config_u32,
     world_db_version_matches_required_like_cpp, world_db_version_mismatch_message_like_cpp,
     world_update_loop_step_like_cpp, worldserver_cli_help_like_cpp,
     worldserver_full_version_like_cpp, worldserver_revision_like_cpp,
@@ -90,7 +85,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use wow_constants::{ConditionSourceType, ConditionType, ServerOpcodes};
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
@@ -155,7 +150,7 @@ use wow_world::session::directory::{
 };
 use wow_world::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 
-fn legacy_runtime_world_map_store_like_cpp() -> wow_data::MapStore {
+fn runtime_world_map_store_like_cpp() -> wow_data::MapStore {
     wow_data::MapStore::from_entries([wow_data::MapEntry {
         id: 0,
         instance_type: wow_data::map::MAP_COMMON,
@@ -185,16 +180,18 @@ fn player_registration_fixture_like_cpp(
     player_name: &str,
 ) -> PlayerSessionRegistrationLikeCpp {
     PlayerSessionRegistrationLikeCpp {
-        identity: PlayerDirectoryIdentityLikeCpp {
-            player_name: player_name.to_string(),
-            account_id: 1,
-            battlenet_account_id: 0,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            active_expansion: 2,
-        },
+        identity: PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+            player_name,
+            1,
+            0,
+            0,
+            1,
+            1,
+            0,
+            2,
+            "enUS",
+            None,
+        ),
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
@@ -620,6 +617,7 @@ fn game_event_npc_flag_template_store_like_cpp() -> wow_data::CreatureTemplateLi
             flags_extra: wow_constants::creature::CreatureFlagsExtra::WORLDEVENT.bits(),
             string_id: String::new(),
             regen_health: true,
+            base_variance: 0.0,
             spells: [0; wow_data::MAX_CREATURE_SPELLS_LIKE_CPP],
             models: Vec::new(),
         },
@@ -1036,6 +1034,7 @@ fn variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_l
                     flags_extra: 0,
                     string_id: String::new(),
                     regen_health: true,
+                    base_variance: 0.0,
                     spells: [0; 8],
                     models: vec![wow_data::CreatureTemplateLifecycleModelLikeCpp {
                         creature_display_id: 111,
@@ -1293,10 +1292,10 @@ fn make_nearby_visible_event_like_cpp(
     source_position: Position,
     range: f32,
     required_3d: bool,
-) -> wow_world::map_manager::RuntimeEvent {
-    wow_world::map_manager::RuntimeEvent {
+) -> wow_world::runtime_plan::RuntimeEvent {
+    wow_world::runtime_plan::RuntimeEvent {
         source_guid: make_source_guid(),
-        recipients: wow_world::map_manager::RecipientRule::NearbyVisible {
+        recipients: wow_world::runtime_plan::RecipientRule::NearbyVisible {
             source_guid: make_source_guid(),
             map_id,
             instance_id,
@@ -1311,7 +1310,7 @@ fn make_nearby_visible_event_like_cpp(
 fn make_creature_spell_runtime_plan_like_cpp(
     target_guid: ObjectGuid,
 ) -> (
-    wow_world::map_manager::RuntimePlan,
+    wow_world::runtime_plan::RuntimePlan,
     Vec<u8>,
     Vec<u8>,
     Vec<u8>,
@@ -1372,10 +1371,10 @@ fn make_creature_spell_runtime_plan_like_cpp(
             cost: 0,
         }],
     });
-    let plan = wow_world::map_manager::RuntimePlan {
-        events: vec![wow_world::map_manager::RuntimeEvent {
+    let plan = wow_world::runtime_plan::RuntimePlan {
+        events: vec![wow_world::runtime_plan::RuntimeEvent {
             source_guid: caster_guid,
-            recipients: wow_world::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
+            recipients: wow_world::runtime_plan::RecipientRule::NearbyVisibleDurableSpellCast {
                 source_guid: caster_guid,
                 map_id: 571,
                 instance_id: 0,
@@ -1479,7 +1478,7 @@ fn mirror_canonical_melee_test_creature_like_cpp(
     guid: ObjectGuid,
     map_id: u32,
     instance_id: u32,
-) -> wow_world::map_manager::WorldCreature {
+) -> wow_entities::Creature {
     let mut creature = canonical
         .lock()
         .unwrap()
@@ -1499,9 +1498,9 @@ fn mirror_canonical_melee_test_creature_like_cpp(
         ai.min_damage = 3;
         ai.max_damage = 5;
     }
-    let create_data =
-        wow_world::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
-    wow_world::map_manager::WorldCreature::from_canonical(creature, create_data)
+    let create_data = wow_world::creature_projection::creature_create_data_like_cpp(&creature);
+    wow_world::creature_projection::install_creature_runtime_like_cpp(&mut creature, &create_data);
+    creature
 }
 
 #[path = "main_tests/scenarios_1.rs"]
@@ -1514,8 +1513,6 @@ mod scenarios_11;
 mod scenarios_12;
 #[path = "main_tests/scenarios_13.rs"]
 mod scenarios_13;
-#[path = "main_tests/scenarios_14.rs"]
-mod scenarios_14;
 #[path = "main_tests/scenarios_2.rs"]
 mod scenarios_2;
 #[path = "main_tests/scenarios_3.rs"]
@@ -1532,3 +1529,9 @@ mod scenarios_7;
 mod scenarios_8;
 #[path = "main_tests/scenarios_9.rs"]
 mod scenarios_9;
+// #1263 F6-8D2: the isolated admitted creature execution wiring.
+#[path = "main_tests/scenarios_15.rs"]
+mod scenarios_15;
+// #1263 F6-8D3b-1: the `RuntimeTickOwner::CanonicalMap` creature tick owner.
+#[path = "main_tests/scenarios_16.rs"]
+mod scenarios_16;

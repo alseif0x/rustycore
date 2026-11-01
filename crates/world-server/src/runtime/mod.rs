@@ -2,12 +2,21 @@
 
 use super::*;
 
+// #1263 F6-8D3b-1: the canonical map creature runtime (since F6-8E the only one).
+pub(crate) mod canonical_creature_runtime;
+pub(super) use canonical_creature_runtime::CanonicalCreatureRuntimeLikeCpp;
 mod deferred_visibility;
 mod delivery;
 mod game_events;
+// #1263 F6-8D2: the isolated admitted creature execution adapter. Deliberately
+// not re-exported into this module's glob: `lib.rs` re-exports its two entries
+// as composition API, and a glob here would collide with the private
+// `use runtime::*` at the crate root.
+pub(crate) mod isolated_creature_execution;
 mod map;
 mod map_session_pass;
 pub(crate) mod map_tick;
+mod native_player_death;
 mod tick_summary;
 mod world_session_pass;
 

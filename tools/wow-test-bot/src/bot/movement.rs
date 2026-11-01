@@ -211,12 +211,31 @@ pub(crate) fn build_move_heartbeat_payload(
     z: f32,
     orientation: f32,
 ) -> Vec<u8> {
+    build_client_movement_payload(player_low, player_high, 0, 0, x, y, z, orientation)
+}
+/// One `ClientPlayerMovement` body (`MovementPackets.cpp`
+/// `ClientPlayerMovement::Read` -> `operator>>(ByteBuffer&, MovementInfo&)`)
+/// with the given MovementFlags and client time; MovementFlags2/3, pitch,
+/// step-up elevation and every optional block stay zero/absent.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_client_movement_payload(
+    player_low: u64,
+    player_high: u64,
+    movement_flags: u32,
+    client_time: u32,
+    x: f32,
+    y: f32,
+    z: f32,
+    orientation: f32,
+) -> Vec<u8> {
     // C++ MovementInfo wire order, mirrored by wow-packet::MovementInfo::read.
     let mut data = build_packed_guid(player_low, player_high);
-    data.extend_from_slice(&0u32.to_le_bytes()); // MovementFlags
+    data.extend_from_slice(&movement_flags.to_le_bytes()); // MovementFlags
     data.extend_from_slice(&0u32.to_le_bytes()); // MovementFlags2
     data.extend_from_slice(&0u32.to_le_bytes()); // MovementFlags3
-    data.extend_from_slice(&0u32.to_le_bytes()); // client time; server uses its fallback clock
+                                                 // Client time; zero makes the server use its fallback clock
+                                                 // (MovementHandler.cpp AdjustClientMovementTime).
+    data.extend_from_slice(&client_time.to_le_bytes());
     data.extend_from_slice(&x.to_le_bytes());
     data.extend_from_slice(&y.to_le_bytes());
     data.extend_from_slice(&z.to_le_bytes());

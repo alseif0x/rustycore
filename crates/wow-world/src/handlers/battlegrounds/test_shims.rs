@@ -1,0 +1,165 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Test-only entry points for the arena-team handlers moved to
+//! `wow-world-social` and the battleground handlers moved to
+//! `wow-world-instances` (#1263 F5; #1363 slice A2).
+#![cfg(test)]
+use wow_constants::ClientOpcodes;
+use wow_packet::WorldPacket;
+use wow_world_instances::BattlegroundHandlerCxLikeCpp;
+use wow_world_social::ArenaTeamHandlerCxLikeCpp;
+
+use crate::session::WorldSession;
+
+/// Dispatches through the registered production thunk with the session's own
+/// request catalogs (the battlemaster list among them).
+async fn dispatch_registered_like_cpp(
+    session: &mut WorldSession,
+    opcode: ClientOpcodes,
+    pkt: WorldPacket,
+) {
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
+        .find(|entry| entry.opcode == opcode)
+        .expect("registered battleground handler");
+    let catalogs = session.session_handler_catalogs_for_test_like_cpp();
+    (entry.handler)(session, &catalogs, pkt).await;
+}
+
+impl WorldSession {
+    pub(crate) async fn handle_arena_team_roster(&mut self, pkt: WorldPacket) {
+        let (social, hub) = crate::session::split_social_mut(self);
+        ArenaTeamHandlerCxLikeCpp::new(hub, social)
+            .handle_arena_team_roster(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_arena_team_accept(&mut self, pkt: WorldPacket) {
+        let (social, hub) = crate::session::split_social_mut(self);
+        ArenaTeamHandlerCxLikeCpp::new(hub, social)
+            .handle_arena_team_accept(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_arena_team_decline(&mut self, pkt: WorldPacket) {
+        let (social, hub) = crate::session::split_social_mut(self);
+        ArenaTeamHandlerCxLikeCpp::new(hub, social)
+            .handle_arena_team_decline(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_arena_team_leave(&mut self, pkt: WorldPacket) {
+        let (social, hub) = crate::session::split_social_mut(self);
+        ArenaTeamHandlerCxLikeCpp::new(hub, social)
+            .handle_arena_team_leave(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_arena_team_remove(&mut self, pkt: WorldPacket) {
+        let (social, hub) = crate::session::split_social_mut(self);
+        ArenaTeamHandlerCxLikeCpp::new(hub, social)
+            .handle_arena_team_remove(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_arena_team_disband(&mut self, pkt: WorldPacket) {
+        let (social, hub) = crate::session::split_social_mut(self);
+        ArenaTeamHandlerCxLikeCpp::new(hub, social)
+            .handle_arena_team_disband(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_arena_team_leader(&mut self, pkt: WorldPacket) {
+        let (social, hub) = crate::session::split_social_mut(self);
+        ArenaTeamHandlerCxLikeCpp::new(hub, social)
+            .handle_arena_team_leader(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_query_arena_team(&mut self, pkt: WorldPacket) {
+        let (social, hub) = crate::session::split_social_mut(self);
+        ArenaTeamHandlerCxLikeCpp::new(hub, social)
+            .handle_query_arena_team(pkt)
+            .await;
+    }
+
+    fn battleground_test_cx_like_cpp(&mut self) -> BattlegroundHandlerCxLikeCpp<'_> {
+        let (world_entities, instances, social, hub) = crate::session::split_battleground_mut(self);
+        BattlegroundHandlerCxLikeCpp::new(hub, world_entities, instances, social, cfg!(test))
+    }
+
+    pub(crate) async fn handle_battlefield_port(&mut self, pkt: WorldPacket) {
+        self.battleground_test_cx_like_cpp()
+            .handle_battlefield_port(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_battlefield_leave(&mut self, pkt: WorldPacket) {
+        self.battleground_test_cx_like_cpp()
+            .handle_battlefield_leave(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_request_rated_pvp_info(&mut self, pkt: WorldPacket) {
+        self.battleground_test_cx_like_cpp()
+            .handle_request_rated_pvp_info(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_request_pvp_rewards(&mut self, pkt: WorldPacket) {
+        self.battleground_test_cx_like_cpp()
+            .handle_request_pvp_rewards(pkt)
+            .await;
+    }
+
+    pub(crate) fn apply_toggle_pvp_like_cpp(&mut self) {
+        let changed = self
+            .battleground_test_cx_like_cpp()
+            .apply_toggle_pvp_like_cpp();
+        if changed {
+            self.sync_player_registry_state_like_cpp();
+        }
+    }
+
+    pub(crate) fn apply_set_pvp_like_cpp(&mut self, enable_pvp: bool) {
+        let changed = self
+            .battleground_test_cx_like_cpp()
+            .apply_set_pvp_like_cpp(enable_pvp);
+        if changed {
+            self.sync_player_registry_state_like_cpp();
+        }
+    }
+
+    pub(crate) async fn handle_area_spirit_healer_query(&mut self, pkt: WorldPacket) {
+        self.battleground_test_cx_like_cpp()
+            .handle_area_spirit_healer_query(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_area_spirit_healer_queue(&mut self, pkt: WorldPacket) {
+        self.battleground_test_cx_like_cpp()
+            .handle_area_spirit_healer_queue(pkt)
+            .await;
+    }
+
+    pub(crate) async fn handle_request_battlefield_status(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::RequestBattlefieldStatus, pkt).await;
+    }
+
+    pub(crate) async fn handle_battlemaster_hello(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::BattlemasterHello, pkt).await;
+    }
+
+    pub(crate) async fn handle_battlefield_list(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::BattlefieldList, pkt).await;
+    }
+
+    pub(crate) async fn handle_battlemaster_join(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::BattlemasterJoin, pkt).await;
+    }
+
+    pub(crate) async fn handle_battlemaster_join_arena(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::BattlemasterJoinArena, pkt).await;
+    }
+}

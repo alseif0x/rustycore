@@ -3,7 +3,8 @@
 use super::{
     build_time_sync_response_payload, parse_time_sync_request_sequence, read_encrypted_packet,
     send_encrypted_packet, BotRunResult, EncryptedWorldConnection, ServerPacketInflater,
-    WorldCrypt, CMSG_TIME_SYNC_RESPONSE, SMSG_TIME_SYNC_REQUEST, SMSG_UPDATE_OBJECT,
+    WorldCrypt, CMSG_TIME_SYNC_RESPONSE, SMSG_ON_MONSTER_MOVE, SMSG_TIME_SYNC_REQUEST,
+    SMSG_UPDATE_OBJECT,
 };
 use anyhow::{bail, Context, Result};
 use std::time::Duration;
@@ -13,6 +14,17 @@ use tokio::net::TcpStream;
 /// Before redirection, the login loop still reads REALM and cannot grant this proof.
 pub(super) fn observe_login_packet(instance: bool, opcode: u16, result: &mut BotRunResult) {
     result.login_instance_object_update_seen |= instance && opcode == SMSG_UPDATE_OBJECT;
+}
+
+const LOGIN_DRAIN_QUIET: Duration = Duration::from_secs(1);
+
+/// Ongoing world traffic that is not part of the login publication. Near
+/// moving creatures C++ broadcasts their splines (`SMSG_ON_MONSTER_MOVE`)
+/// continuously once they are visible, so a populated spawn area never goes
+/// silent; such packets are still read and recorded but do not restart the
+/// quiet period.
+pub(super) fn login_drain_ignores_for_quiet(opcode: u16) -> bool {
+    opcode == SMSG_ON_MONSTER_MOVE
 }
 
 // C++ Map::AddPlayerToMap / SendInitSelf publishes UPDATE_OBJECT after
@@ -29,6 +41,7 @@ pub(super) async fn drain_login_streams(
         .as_mut()
         .context("login drain requires both sockets")?;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let mut last_significant = tokio::time::Instant::now();
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
@@ -37,7 +50,7 @@ pub(super) async fn drain_login_streams(
         let mut instance_peek = [0; 1];
         let mut realm_peek = [0; 1];
         // Peek is cancellation-safe: never race partial encrypted frame reads.
-        let ready = tokio::time::timeout(remaining.min(Duration::from_secs(1)), async {
+        let ready = tokio::time::timeout(remaining.min(LOGIN_DRAIN_QUIET), async {
             tokio::select! {
                 bytes = stream.peek(&mut instance_peek) => {
                     if bytes? == 0 { bail!("instance closed during login drain"); }
@@ -53,8 +66,7 @@ pub(super) async fn drain_login_streams(
         let instance = match ready {
             Ok(ready) => ready?,
             Err(_)
-                if result.login_instance_object_update_seen
-                    && remaining >= Duration::from_secs(1) =>
+                if result.login_instance_object_update_seen && remaining >= LOGIN_DRAIN_QUIET =>
             {
                 result.login_stream_drained = true;
                 return Ok(());
@@ -73,6 +85,18 @@ pub(super) async fn drain_login_streams(
         .context("login drain frame deadline exceeded")??;
         result.seen_opcodes.push(format!("0x{opcode:04X}"));
         observe_login_packet(instance, opcode, result);
+        if opcode == crate::chat_say::SMSG_CHAT {
+            crate::chat_say::record(0, &payload, result);
+        }
+        if !login_drain_ignores_for_quiet(opcode) {
+            last_significant = tokio::time::Instant::now();
+        } else if result.login_instance_object_update_seen
+            && last_significant.elapsed() >= LOGIN_DRAIN_QUIET
+            && deadline.saturating_duration_since(tokio::time::Instant::now()) >= LOGIN_DRAIN_QUIET
+        {
+            result.login_stream_drained = true;
+            return Ok(());
+        }
         if opcode == SMSG_TIME_SYNC_REQUEST {
             // MiscPackets.cpp TimeSyncRequest::Write / TimeSyncResponse::Read.
             let sequence = parse_time_sync_request_sequence(&payload)?;

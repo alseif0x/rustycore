@@ -18,15 +18,44 @@ mod cfg_context;
 mod glob_context;
 mod scope;
 mod source_graph;
-use scope::{LocalBinding, ModuleScope, collect_scope, collect_use_specs};
+mod type_identity;
+use scope::{LocalBinding, ModuleScope, collect_use_specs};
 pub(super) use source_graph::ModuleIndex;
+#[cfg(test)]
+pub(crate) use type_identity::resolve_supplied_type_identity;
+pub(crate) use type_identity::{
+    SuppliedTypeIdentity, TypeIdentityError, TypeIdentityKind, TypeIdentityQuery,
+    resolve_supplied_type_identities,
+};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ResolverMode {
+    Bridge,
+    TypeIdentity,
+}
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Provenance {
     Authority(BTreeSet<BridgeSide>),
-    Module(String),
+    Module(ModuleIdentity),
+    Nominal(type_identity::NominalProvider),
     NonAuthority,
     Unknown,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct ModuleIdentity {
+    package: String,
+    module: String,
+}
+
+impl ModuleIdentity {
+    fn new(package: &str, module: &str) -> Self {
+        Self {
+            package: package.to_owned(),
+            module: module.to_owned(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -68,6 +97,7 @@ type ResolutionKey = (usize, String, Vec<String>);
 struct Resolver<'a> {
     index: &'a ModuleIndex,
     scopes: Vec<ModuleScope>,
+    mode: ResolverMode,
     memo: BTreeMap<ResolutionKey, Resolution>,
     active: BTreeSet<ResolutionKey>,
 }
@@ -144,19 +174,6 @@ fn uncovered_cfg(context: &[String], guards: &[Vec<String>]) -> Option<Vec<Strin
 }
 
 impl<'a> Resolver<'a> {
-    fn new(index: &'a ModuleIndex, errors: &mut Vec<String>) -> Self {
-        Self {
-            index,
-            scopes: index
-                .modules
-                .iter()
-                .map(|module| collect_scope(module, errors))
-                .collect(),
-            memo: BTreeMap::new(),
-            active: BTreeSet::new(),
-        }
-    }
-
     fn diagnostic(&self, node: usize, name: &str, reason: &str) -> String {
         let module = &self.index.modules[node];
         format!(
@@ -178,7 +195,8 @@ impl<'a> Resolver<'a> {
         // A parent may re-export a child that imports super::*. That ordinary
         // glob graph is cyclic, but it is not an alias cycle for every
         // unrelated identifier in the program.
-        if !known_authority_name(name)
+        if self.mode == ResolverMode::Bridge
+            && !known_authority_name(name)
             && !self.has_visible_binding(node, name, &mut BTreeSet::new())
         {
             return Resolution::default();
@@ -213,10 +231,60 @@ impl<'a> Resolver<'a> {
                 LocalBinding::Authority(side) => {
                     Resolution::one(Provenance::Authority(BTreeSet::from([*side])), &branch_cfg)
                 }
-                LocalBinding::Module(module) => {
-                    Resolution::one(Provenance::Module(module.clone()), &branch_cfg)
-                }
-                LocalBinding::Alias(ty) => self.resolve_type(node, ty, &branch_cfg),
+                LocalBinding::Module(module) => Resolution::one(
+                    Provenance::Module(ModuleIdentity::new(
+                        &self.index.modules[node].package,
+                        module,
+                    )),
+                    &branch_cfg,
+                ),
+                LocalBinding::Alias {
+                    ty,
+                    generic,
+                    legacy_authority,
+                } => match (self.mode, legacy_authority) {
+                    (ResolverMode::Bridge, Some(side)) => {
+                        Resolution::one(Provenance::Authority(BTreeSet::from([*side])), &branch_cfg)
+                    }
+                    (ResolverMode::TypeIdentity, _) if *generic => self.unresolved(
+                        node,
+                        name,
+                        &branch_cfg,
+                        "unsupported generic type alias in nominal identity query",
+                    ),
+                    _ => self.resolve_type(node, ty, &branch_cfg),
+                },
+                LocalBinding::Nominal {
+                    kind,
+                    generic,
+                    declaration_index,
+                    legacy_authority,
+                } => match self.mode {
+                    ResolverMode::Bridge => match legacy_authority {
+                        Some(side) => Resolution::one(
+                            Provenance::Authority(BTreeSet::from([*side])),
+                            &branch_cfg,
+                        ),
+                        None => Resolution::one(Provenance::NonAuthority, &branch_cfg),
+                    },
+                    ResolverMode::TypeIdentity if *generic => self.unresolved(
+                        node,
+                        name,
+                        &branch_cfg,
+                        "unsupported generic nominal type in identity query",
+                    ),
+                    ResolverMode::TypeIdentity => Resolution::one(
+                        Provenance::Nominal(type_identity::NominalProvider {
+                            package: self.index.modules[node].package.clone(),
+                            module: self.index.modules[node].module.clone(),
+                            symbol: name.to_owned(),
+                            kind: *kind,
+                            source_path: self.index.modules[node].source_path.clone(),
+                            declaration_index: *declaration_index,
+                        }),
+                        &branch_cfg,
+                    ),
+                },
             };
             result.append(resolved);
         }
@@ -238,6 +306,10 @@ impl<'a> Resolver<'a> {
                             .unwrap_or(Provenance::NonAuthority),
                         &branch_cfg,
                     )
+                } else if let Some(resolved) =
+                    self.resolve_type_self_import(node, name, &import.path, &branch_cfg)
+                {
+                    resolved
                 } else {
                     self.resolve_path(node, &import.path, &branch_cfg)
                 };
@@ -269,6 +341,13 @@ impl<'a> Resolver<'a> {
                             if self.active.iter().any(|(active_node, active_name, _)| {
                                 *active_node == target && active_name == name
                             }) {
+                                if extracted_application_name(name) {
+                                    glob_result.append(Resolution::one(
+                                        Provenance::NonAuthority,
+                                        &branch_cfg,
+                                    ));
+                                    continue;
+                                }
                                 // Glob re-export loops are ordinary Rust module
                                 // wiring. An explicit import/alias edge still
                                 // enters resolve_name and diagnoses its cycle.
@@ -283,7 +362,7 @@ impl<'a> Resolver<'a> {
                         }
                     }
                 }
-                if glob_result.candidates.is_empty() {
+                if self.mode == ResolverMode::Bridge && glob_result.candidates.is_empty() {
                     if let Some(side) = scope.builtins.get(name) {
                         glob_result = Resolution::one(
                             Provenance::Authority(BTreeSet::from([*side])),
@@ -313,24 +392,10 @@ impl<'a> Resolver<'a> {
         result
     }
 
-    fn has_visible_binding(&self, node: usize, name: &str, active: &mut BTreeSet<usize>) -> bool {
-        if !active.insert(node) {
-            return false;
-        }
-        let scope = &self.scopes[node];
-        let found = scope.declarations.contains_key(name)
-            || scope.explicit.contains_key(name)
-            || scope.builtins.contains_key(name)
-            || scope.globs.iter().any(|glob| {
-                self.module_targets(node, &glob.path)
-                    .into_iter()
-                    .any(|target| self.has_visible_binding(target, name, active))
-            });
-        active.remove(&node);
-        found
-    }
-
     fn resolve_type(&mut self, node: usize, ty: &Type, cfg: &[String]) -> Resolution {
+        if self.mode == ResolverMode::TypeIdentity {
+            return self.resolve_nominal_type(node, ty, cfg);
+        }
         let mut collector = PathCollector::default();
         collector.visit_type(ty);
         // Type components coexist, whereas import candidates are alternatives.
@@ -392,6 +457,7 @@ impl<'a> Resolver<'a> {
                     "relative path escapes crate root",
                 );
             };
+            let base = ModuleIdentity::new(&self.index.modules[node].package, &base);
             return self.resolve_from_module(node, &base, rest, cfg);
         }
         // A local module/import named like an external crate takes lexical
@@ -401,11 +467,24 @@ impl<'a> Resolver<'a> {
             return self.follow_resolution(node, local, &segments[1..], cfg);
         }
         let module = format!("{}::{first}", self.index.modules[node].module);
-        if !self.module_ids(node, &module).is_empty() {
+        let module = ModuleIdentity::new(&self.index.modules[node].package, &module);
+        if !self.module_ids(&module).is_empty() {
             return self.resolve_from_module(node, &module, &segments[1..], cfg);
         }
+        if let Some(resolution) = self.resolve_type_external_path(node, segments, cfg) {
+            return resolution;
+        }
+        if first == "wow_world_core" {
+            let core_root = ModuleIdentity::new("wow-world-core", "crate");
+            return self.resolve_from_module(node, &core_root, &segments[1..], cfg);
+        }
         if let Some(provenance) = recognized_absolute_provenance(segments) {
-            return Resolution::one(provenance, cfg);
+            return self.follow_resolution(
+                node,
+                Resolution::one(provenance, cfg),
+                &segments[1..],
+                cfg,
+            );
         }
         if segments.len() > 1 {
             // An explicit ordinary external import or enum/DTO path is known
@@ -434,6 +513,17 @@ impl<'a> Resolver<'a> {
                     continue;
                 }
             }
+            if self.mode == ResolverMode::TypeIdentity
+                && matches!(&candidate.provenance, Provenance::Nominal(_))
+                && !rest.is_empty()
+            {
+                result.issues.insert(self.diagnostic(
+                    node,
+                    &rest.join("::"),
+                    "unsupported associated path after nominal type",
+                ));
+                continue;
+            }
             result.candidates.push(candidate);
         }
         let _ = cfg;
@@ -443,17 +533,35 @@ impl<'a> Resolver<'a> {
     fn resolve_from_module(
         &mut self,
         node: usize,
-        module: &str,
+        module: &ModuleIdentity,
         rest: &[String],
         cfg: &[String],
     ) -> Resolution {
-        let targets = self.module_ids(node, module);
+        let targets = self.module_ids(module);
         if targets.is_empty() {
             return self.unresolved(
                 node,
-                &format!("{module}::{}", rest.join("::")),
+                &format!("{}::{}", module.module, rest.join("::")),
                 cfg,
                 "relative module or authority declaration is unavailable",
+            );
+        }
+        if module.package == "wow-world-core"
+            && targets.iter().enumerate().any(|(index, left)| {
+                targets.iter().skip(index + 1).any(|right| {
+                    combine_cfg(cfg, &self.index.modules[*left].cfg)
+                        .and_then(|left_cfg| {
+                            combine_cfg(&left_cfg, &self.index.modules[*right].cfg)
+                        })
+                        .is_some()
+                })
+            })
+        {
+            return self.unresolved(
+                node,
+                &format!("{}::{}", module.module, rest.join("::")),
+                cfg,
+                "Core module has ambiguous supplied source providers",
             );
         }
         let mut result = Resolution::default();
@@ -463,7 +571,7 @@ impl<'a> Resolver<'a> {
             };
             if rest.is_empty() {
                 result.append(Resolution::one(
-                    Provenance::Module(module.to_owned()),
+                    Provenance::Module(module.clone()),
                     &branch_cfg,
                 ));
             } else {
@@ -473,8 +581,13 @@ impl<'a> Resolver<'a> {
                     && resolved.issues.is_empty()
                     && resolved.cycles.is_empty()
                 {
-                    let child = format!("{module}::{name}");
-                    if !self.module_ids(node, &child).is_empty() {
+                    if extracted_application_name(name) {
+                        result.append(Resolution::one(Provenance::NonAuthority, &branch_cfg));
+                        continue;
+                    }
+                    let child =
+                        ModuleIdentity::new(&module.package, &format!("{}::{name}", module.module));
+                    if !self.module_ids(&child).is_empty() {
                         result.append(self.resolve_from_module(
                             node,
                             &child,
@@ -501,7 +614,7 @@ impl<'a> Resolver<'a> {
         {
             return self.unresolved(
                 node,
-                &format!("{module}::{}", rest.join("::")),
+                &format!("{}::{}", module.module, rest.join("::")),
                 cfg,
                 "relative declaration is unavailable under the enclosing cfg context",
             );
@@ -556,7 +669,41 @@ impl<'a> Resolver<'a> {
         } else {
             format!("{}::{}", self.index.modules[node].module, path.join("::"))
         };
-        let mut targets = self.module_ids(node, &module);
+        let module = ModuleIdentity::new(&self.index.modules[node].package, &module);
+        let mut targets = self.module_ids(&module);
+        if targets.is_empty()
+            && !path
+                .first()
+                .is_some_and(|s| matches!(s.as_str(), "crate" | "self" | "super"))
+            && let Some(first) = path.first()
+            && let Some(package) = self.package_for_crate_root(first)
+        {
+            // `wow_world_spell::melee_damage` names a sibling workspace package's
+            // module, not a `crate::wow_world_spell` child. The index is keyed by
+            // package, so resolve the tail against that package's crate root. This
+            // is only reached when the current-package reading found nothing, so an
+            // existing resolution is never displaced.
+            let sibling_module = if path.len() == 1 {
+                "crate".to_owned()
+            } else {
+                format!("crate::{}", path[1..].join("::"))
+            };
+            targets = self.module_ids(&ModuleIdentity::new(package, &sibling_module));
+        }
+        if targets.is_empty()
+            && path.first().is_some_and(|first| first == "wow_world_core")
+            && !self.scopes[node]
+                .declarations
+                .contains_key("wow_world_core")
+            && !self.scopes[node].explicit.contains_key("wow_world_core")
+        {
+            let core_module = if path.len() == 1 {
+                "crate".to_owned()
+            } else {
+                format!("crate::{}", path[1..].join("::"))
+            };
+            targets = self.module_ids(&ModuleIdentity::new("wow-world-core", &core_module));
+        }
         if targets.is_empty()
             && let Some(first) = path.first()
             && let Some(imports) = self.scopes[node].explicit.get(first)
@@ -573,10 +720,23 @@ impl<'a> Resolver<'a> {
         targets
     }
 
-    fn module_ids(&self, node: usize, module: &str) -> Vec<usize> {
+    /// The workspace package whose crate root is named `ident`.
+    ///
+    /// A path that starts with a dependency's crate name (`wow_world_spell::…`) is
+    /// absolute: its tail hangs off that package's crate root, not off the module
+    /// that wrote the path.
+    fn package_for_crate_root(&self, ident: &str) -> Option<&str> {
+        self.index
+            .modules
+            .iter()
+            .find(|module| module.module == "crate" && module.package.replace('-', "_") == ident)
+            .map(|module| module.package.as_str())
+    }
+
+    fn module_ids(&self, module: &ModuleIdentity) -> Vec<usize> {
         self.index
             .by_module
-            .get(&(self.index.modules[node].package.clone(), module.to_owned()))
+            .get(&(module.package.clone(), module.module.clone()))
             .cloned()
             .unwrap_or_default()
     }
@@ -780,8 +940,34 @@ fn known_authority_name(name: &str) -> bool {
     )
 }
 
+fn extracted_application_name(name: &str) -> bool {
+    name.starts_with("QUEST_STATUS_")
+        || name.starts_with("SpellAcquisition")
+        || name.starts_with("PlayerAcquisition")
+        || name.starts_with("PlayerSpellAcquisition")
+        || name.starts_with("PlayerFuture")
+        || name.starts_with("PlayerSkillPersistence")
+        || name.starts_with("PlayerSpellPersistence")
+}
+
 fn recognized_absolute_provenance(segments: &[String]) -> Option<Provenance> {
     let first = segments.first()?.as_str();
+    // Application/domain crates provide rule/value or domain vocabulary, not
+    // a canonical or legacy runtime owner. Treat those imports as non-authority
+    // so aliases do not manufacture bridge debt or masquerade as Core.
+    if matches!(
+        first,
+        "wow_conditions"
+            | "wow_spell_acquisition"
+            | "wow_world_social"
+            | "wow_world_spell"
+            | "wow_world_interaction"
+            | "wow_world_instances"
+            | "wow_world_visibility"
+    ) || (first == "crate" && segments.get(1).is_some_and(|s| s == "spell_acquisition"))
+    {
+        return Some(Provenance::NonAuthority);
+    }
     let canonical_map = segments
         .get(1)
         .is_some_and(|s| matches!(s.as_str(), "MapManager" | "ManagedMap" | "Map"))

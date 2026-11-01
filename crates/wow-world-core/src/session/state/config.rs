@@ -1,0 +1,219 @@
+// Copyright (c) 2026 alseif0x
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Shared immutable world configuration consumed by the World session shell.
+
+use crate::session::MMapRuntimeConfigLikeCpp;
+use crate::session::creature_aggro_contracts::CreatureAggroConfigLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::session_policy::{
+    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
+};
+use crate::session_policy::{LootDropRatesLikeCpp, ReputationRatesLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_data::CreatureClassificationHealthRatesLikeCpp;
+use wow_data::StatsLimitsLikeCpp;
+use wow_instances::ResetSchedule;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+use std::sync::Arc;
+
+/// C++ `World::LoadConfigSettings` death policy (`World.cpp:1306-1310`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeathPolicyLikeCpp {
+    /// `CONFIG_DURABILITY_LOSS_IN_PVP` (`DurabilityLoss.InPvP`).
+    pub durability_loss_in_pvp: bool,
+    /// `CONFIG_DEATH_SICKNESS_LEVEL` (`Death.SicknessLevel`).
+    pub sickness_level: i32,
+    /// `CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP` (`Death.CorpseReclaimDelay.PvP`).
+    pub corpse_reclaim_delay_pvp: bool,
+    /// `CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVE` (`Death.CorpseReclaimDelay.PvE`).
+    pub corpse_reclaim_delay_pve: bool,
+    /// `CONFIG_DEATH_BONES_WORLD` (`Death.Bones.World`).
+    pub bones_world: bool,
+    /// `CONFIG_DEATH_BONES_BG_OR_ARENA` (`Death.Bones.BattlegroundOrArena`).
+    pub bones_bg_or_arena: bool,
+}
+
+impl Default for DeathPolicyLikeCpp {
+    /// The C++ `GetIntDefault`/`GetBoolDefault` fallbacks.
+    fn default() -> Self {
+        Self {
+            durability_loss_in_pvp: false,
+            sickness_level: 11,
+            corpse_reclaim_delay_pvp: true,
+            corpse_reclaim_delay_pve: true,
+            bones_world: true,
+            bones_bg_or_arena: true,
+        }
+    }
+}
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub type GivePlayerXpScriptDispatcherLikeCpp =
+    Arc<dyn Fn(wow_script::player::GivePlayerXpContextLikeCpp, &mut u32) + Send + Sync>;
+
+/// Immutable world configuration and rate values (C++ `sWorld` config subsets) and the script
+/// dispatchers injected at composition.
+pub struct SessionWorldConfig {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub characters_per_realm_like_cpp: u32,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub declined_names_used_like_cpp: bool,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub feature_system_bpay_store_enabled_like_cpp: bool,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub feature_system_character_undelete_enabled_like_cpp: bool,
+
+    pub creature_aggro_config_like_cpp: CreatureAggroConfigLikeCpp,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub give_player_xp_script_dispatcher_like_cpp: Option<GivePlayerXpScriptDispatcherLikeCpp>,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp,
+
+    // Characters confirmed for this account
+
+    // Pending async packets to process
+
+    // ── ConnectTo flow ──────────────────────────────────────────
+
+    // ── Logout ──────────────────────────────────────────────────────
+    /// C++ `CONFIG_MAX_PLAYER_LEVEL`. `RestMgr::SetRestBonus` reads this value
+    /// directly; `Player::IsMaxLevel` reads the expansion-bounded active field.
+    pub max_player_level_config_like_cpp: u32,
+    /// C++ `CONFIG_MAX_PRIMARY_TRADE_SKILL`, kept independent from talent
+    /// `CharacterPoints` and from the two physical profession associations.
+    pub max_primary_trade_skills_like_cpp: u8,
+    /// C++ `CONFIG_QUEST_IGNORE_AUTO_COMPLETE` used by `Quest::IsTurnIn`.
+    pub quest_ignore_auto_complete_like_cpp: bool,
+    /// Resolved Source `_SaveQuestStatus` keep-abandoned policy. `None` means
+    /// enabled cleaner state is not represented and a dirty NONE row cannot be captured.
+    pub quest_status_keep_abandoned_like_cpp: Option<bool>,
+    /// C++ `CONFIG_CAST_UNSTUCK` immutable world policy injected into spell effects.
+    pub represented_cast_unstuck_enabled_like_cpp: bool,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub exploration_xp_rate_like_cpp: f32,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub min_discovered_scaled_xp_ratio_like_cpp: u32,
+    /// C++ `sWorld->getRate(...)` subset used by represented loot generation.
+    pub loot_drop_rates: LootDropRatesLikeCpp,
+    /// C++ `sWorld->getRate(...)` subset used by represented reputation gain.
+    pub reputation_rates: ReputationRatesLikeCpp,
+    /// C++ `sWorld->getRate(RATE_REPAIRCOST)` represented value.
+    pub repair_cost_rate_like_cpp: f32,
+    /// C++ `sWorld->getRate(RATE_DURABILITY_LOSS_ON_DEATH)` fraction
+    /// (`DurabilityLoss.OnDeath / 100`).
+    pub durability_loss_on_death_rate_like_cpp: f32,
+    /// C++ `CONFIG_DEATH_*` policy read by the death/corpse lifecycle (#43).
+    pub death_policy_like_cpp: DeathPolicyLikeCpp,
+    /// C++ `CONFIG_GROUP_VISIBILITY` used by the Ghost visibility Player bypass.
+    pub group_visibility_mode: i32,
+    /// C++ `CONFIG_STATS_LIMITS_*` subset consumed by the represented
+    /// `Player::UpdateBlockPercentage`/`UpdateDodgePercentage`/
+    /// `UpdateParryPercentage`/`UpdateCritPercentage` caps.
+    pub stats_limits_like_cpp: StatsLimitsLikeCpp,
+    /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` consumed by `InstanceLockMgr::GetNextResetTime`.
+    pub reset_schedule_like_cpp: ResetSchedule,
+
+    /// C++ `CONFIG_VMAP_INDOOR_CHECK` represented switch.
+    pub vmap_indoor_check_like_cpp: bool,
+    /// C++ `CONFIG_ENABLE_AE_LOOT` represented switch.
+    pub enable_ae_loot_like_cpp: bool,
+    /// C++ `CONFIG_ADDON_CHANNEL` represented switch.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub addon_channel_like_cpp: bool,
+    /// C++ `CONFIG_CHAT_FAKE_MESSAGE_PREVENTING` represented switch for chat validation.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub chat_fake_message_preventing_like_cpp: bool,
+    /// C++ `CONFIG_CHAT_PARTY_RAID_WARNINGS` represented switch.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub party_raid_warnings_like_cpp: bool,
+    /// C++ `CONFIG_ALLOW_GM_GROUP` represented switch.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub allow_gm_group_like_cpp: bool,
+    /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` represented switch.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub allow_two_side_interaction_group_like_cpp: bool,
+    /// C++ `CONFIG_PARTY_LEVEL_REQ` represented gate.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub party_level_req_like_cpp: u32,
+    /// C++ `CONFIG_CHAT_STRICT_LINK_CHECKING_KICK` represented switch.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub chat_strict_link_checking_kick_like_cpp: bool,
+    /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
+    /// C++ `CONFIG_LISTEN_RANGE_*` represented nearby-chat ranges.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp,
+    /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub chat_flood_config_like_cpp: ChatFloodConfigLikeCpp,
+    /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
+    pub mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,
+}
+
+impl Default for SessionWorldConfig {
+    fn default() -> Self {
+        Self {
+            #[cfg(any(test, feature = "test-fixtures"))]
+            characters_per_realm_like_cpp: 60,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            declined_names_used_like_cpp: false,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            feature_system_bpay_store_enabled_like_cpp: false,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            feature_system_character_undelete_enabled_like_cpp: false,
+
+            creature_aggro_config_like_cpp: CreatureAggroConfigLikeCpp::default(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            give_player_xp_script_dispatcher_like_cpp: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp::default(),
+
+            max_player_level_config_like_cpp: 80,
+            max_primary_trade_skills_like_cpp:
+                wow_config::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
+            quest_ignore_auto_complete_like_cpp: false,
+            quest_status_keep_abandoned_like_cpp: Some(true),
+            represented_cast_unstuck_enabled_like_cpp: true,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            exploration_xp_rate_like_cpp: 1.0,
+
+            #[cfg(any(test, feature = "test-fixtures"))]
+            min_discovered_scaled_xp_ratio_like_cpp: 0,
+            loot_drop_rates: LootDropRatesLikeCpp::default(),
+            reputation_rates: ReputationRatesLikeCpp::default(),
+            repair_cost_rate_like_cpp: 1.0,
+            durability_loss_on_death_rate_like_cpp: 0.1,
+            death_policy_like_cpp: DeathPolicyLikeCpp::default(),
+            group_visibility_mode: 1,
+            stats_limits_like_cpp: StatsLimitsLikeCpp::default(),
+            reset_schedule_like_cpp: ResetSchedule::default(),
+
+            vmap_indoor_check_like_cpp: false,
+            enable_ae_loot_like_cpp: false,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            addon_channel_like_cpp: true,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            chat_fake_message_preventing_like_cpp: false,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            party_raid_warnings_like_cpp: false,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            allow_gm_group_like_cpp: false,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            allow_two_side_interaction_group_like_cpp: false,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            party_level_req_like_cpp: 1,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            chat_strict_link_checking_kick_like_cpp: false,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp::default(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp::default(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            chat_flood_config_like_cpp: ChatFloodConfigLikeCpp::default(),
+            mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
+        }
+    }
+}

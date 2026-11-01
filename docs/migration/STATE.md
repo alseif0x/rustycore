@@ -1,5 +1,8301 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## Forever modular integration accepted — 2026-11-01
+
+Code candidate `1d5dd370cf5d337f606263b20bda92a38e8913d8` replays all 49 non-merge
+Forever commits onto `origin/3.4.3` at `a680ab4328fab903bff5cd17cabd750d3ff716b3`.
+The legacy modular owners remain intact: navigation and terrain adapters live in
+`wow-world-core`, shared handler vocabulary stays in `wow-handler`, and Forever's
+six account-phase handlers use one explicit static registration list without
+`inventory`. Package admission remains available for v23, v56 and v57.
+
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings --logs`
+passed on Linux x86_64 and its manifest was verified green for the final profile:
+`target/validation-v2/manifests/20261101T155505.499900Z-759752-final.json`.
+Focused checks also passed: 12 navigation tests, three terrain tests, one
+feature-disabled regression, 57 Python protocol tests, 460 active `wow-database`
+tests, and 464 handler-contract tests. The timing-sensitive split-death case
+passed independently. The reviewed architecture, net-move and test-census gates
+are green; the 449 new source-local tests remain explicit placement debt, not a
+completed test migration.
+
+This is local structural and synthetic acceptance, not a fresh real-client,
+full-world or extractor-completion claim. No live runtime was activated and no
+private client-data probes were run during this integration.
+
+## #54 closure execution plan — 2026-10-31
+
+Branch `54-c-character2-complete-logout-admission-countdown-and-cancellation`;
+baseline `a97b4da29e701e97bb3bc5915f7daf21a2cd28df` after merged #43.
+The operator selected #54. This section supersedes the issue's stale pending list,
+not its acceptance requirements. Documentation and new explanatory comments remain
+in English.
+
+### Audited starting point
+
+Admission denial order, instant/taxi/resting/default-GM behavior, the 20-second
+timer, sit/root/stun, cancel restoration, loot prelude, packet registration and
+durable finalization are already production-integrated. Do not reimplement them.
+Target `Handlers/MiscHandler.cpp:238-311` and the current Rust owners were reviewed;
+no `InstantLogout` configuration key exists in the target, so RBAC permission 1 is
+the actual contract. Three bounded residuals remain:
+
+1. Missing/unresolvable canonical Player currently grants instant logout, and a
+   stale GUID can receive LogoutCancelAck. C++ only dispatches these LoggedIn
+   operations with a real Player; make both paths fail closed without response,
+   countdown, finalization, ACK or movement mutation.
+2. `security > 0` approximates `RBAC_PERM_INSTANT_LOGOUT`. Load account-specific
+   grants and denials through the existing RBAC query and compose them with the
+   default role permissions in C++ order, preserving default staff behavior while
+   honoring explicit player grant and staff revoke.
+3. Socket loss during an active countdown finalizes immediately. C++ evaluates
+   the 20-second deadline before the 60-second lost-socket cleanup; preserve that
+   timing without weakening the existing disconnect/save/finalization fences.
+
+### Ordered work and exit conditions
+
+1. Close the no-Player fail-open paths with focused stale/missing-owner tests.
+2. Implement account-specific RBAC at the actual login/session owner, with grant,
+   revoke, default and query-failure tests. No second permission mirror.
+3. Repair countdown/disconnect timing and prove before-due, due and post-due
+   behavior, including no LogoutComplete on disconnect and correct relogin timing.
+4. Complete the live matrix: combat/fall/duel denials, delayed movement, instant
+   resting/taxi/staff, cancel restoration, successful timed completion, repeated
+   requests and disconnect timing. Assert packets, state and real persistence;
+   compare action-specific C++/Rust captures without claiming ambient-stream parity.
+5. Run affected acceptance, production integration, exhaustive persistence and
+   origin publication final. Record exact SHAs, durations and remaining boundaries.
+6. Publish and close under the established conditional authorization; no permanent
+   deployment and no broad rewrite of already integrated logout behavior.
+
+Residual 1 is implemented at `ba31915ca`: missing/stale canonical Player now
+closes request and cancel before any publication or state mutation; two tests
+and the 147-case lifecycle suite passed. Residual 2 is implemented and reviewed:
+the existing RBAC query feeds SessionAccountState, direct/linked grants and
+revokes compose deny-last with default security, and no SessionCore field was
+added. Seven core RBAC tests and 148 lifecycle tests passed; syntax ownership
+changes only the reviewed create_session fingerprint. These are focused checks,
+not live or final acceptance. Residual 3 is implemented: an active countdown
+now defers only disconnect finalization before its deadline, while due/post-due
+returns the existing disconnect work and an ordinary disconnect stays immediate.
+Three production-phase tests and 151 lifecycle tests passed; syntax ownership
+remains green.
+
+### Live and paired-capture evidence at `508acacda` — 2026-11-01
+
+All ten Rust scenarios passed with native captures, real DB persistence and fixture/runtime
+restoration: combat/fall/freeze denial, cancel, timed, disconnect/relogin, repeated,
+RBAC grant/revoke and resting. Timed completed in 19,437.337 ms. Disconnect remained
+online at 2.000 s, went offline at 20.009 s and relogged successfully. Grant/resting
+completed instantly; revoke retained the countdown and cancellation restored movement.
+No RBAC fixture rows remained and the stable server executable was restored as
+`290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`.
+
+The same ten scenarios also passed against the pinned derived C++ R6 executable
+`80f143841b5a7b443022480500760ce336dc83052f05ddd7e3b7be6a6605b02a`, source
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. C++ timed completed in 19,605.807 ms
+and disconnect/relogin, persistence and cleanup passed. Resting's native PKT contains
+the exact instant LogoutResponse even though the client did not receive it before the
+instance EOF; this is recorded as `native-cpp-pkt`, without inventing cross-socket order.
+The action comparison is CLEAN for all 51 strict packet checks and all eight stun
+comparisons, with independent deadline checks on each backend:
+`/tmp/rustycore54-capture-comparison-508acacda/record.json`. Ambient streams are not
+claimed equal.
+
+The QA harness now drains instance bursts at 1 ms, handles only the demonstrated
+logout EOF/cross-socket races and skips the observer after confirmed completion.
+Twelve packet-wait tests and 34 hermetic logout-runner tests passed. These harness
+fixes do not change server gameplay behavior.
+
+### Completed-delivery acceptance at `b454197f7` — 2026-11-01
+
+Candidate `b454197f7a1f00802e5abb66570714e96b677c3c` passed
+`final --architecture --timings --logs` and exact manifest verification in 219.982
+seconds on aarch64 with a clean tree. The ordinary campaign additionally passed 260
+bot tests, 34 runner tests, 643 world-server tests and 42 production-login tests.
+The complete ordinary campaign at `59cb66403` took 744.683 seconds, exceeding the
+600-second performance target; final alone took 232.913 seconds on that earlier
+code-equivalent candidate. R5 remains 1,238 production methods and one thunk;
+`world-server/src/lib.rs` is now 1,995 lines and `account_lookup.rs` 173.
+
+The exhaustive persistence check passed 8,196 production and 2,681 test-fixture rows
+with 1,094 semantic groups (`/tmp/rustycore54-persistence-b454197f7.log`). Its delta
+was reviewed as exactly 15 moved account-lookup rows and 10 RBAC rows; annotations
+and generated policy preserve the root workflows and add the new module only.
+Exhaustive checking took 1,070.417 seconds, separately from the ordinary target.
+
+Final live smoke with debug world-server SHA-256
+`4ca0f2c967241346ac1963aa1bb305b8ad7f39e65195b58d2905931f5a6edd95`
+passed timed in 19,325.465 ms and RBAC revoke with `variant_fixture_restored=true`.
+No RBAC rows remained and the stable runtime was restored. Local acceptance is
+complete; publication, merge and issue closure remain the only outstanding steps.
+
+## #43 closure execution plan — 2026-10-29
+
+The operator resumed implementation after reviewing the two live failures and
+requested this complete plan. Baseline: `d9d4364309be3739d1faf9fc77d99bc71945b430`,
+branch `43-spirit-healer`; issue #43 remains OPEN and unpublished. This section
+supersedes the older current-summary wording below, not its dated evidence.
+Documentation and new explanatory comments remain in English.
+
+### Verified starting point and decisions
+
+- Affected local acceptance at `d9d436430` passed in 294.215 seconds on aarch64:
+  `/tmp/rustycore43-affected-d9d436-4t50qh5a/record.json`. This is not full
+  publication or live acceptance. The corrected mob plan is locally tested,
+  but has no successful live run yet.
+- The existing healer diagnostic identified the exact rejection:
+  `Selected aura may have applicable class-mask SpellMods`. The selected-aura
+  admission rejects potential class-mask modifiers without evaluating their
+  applicability. C++ `Aura::CalcMaxCharges` and `SpellInfo::IsAffectedBySpellMod`
+  are the contract; do not bypass charges or special-case spell 15007 blindly.
+- Reincarnation rejects before resource debit because populated login lacks
+  complete item-save authority. The loader omits values that full Item saves
+  overwrite. Complete the existing load/save projection and its native auxiliary
+  checks; retain the existing transaction and acknowledgement owners. Do not
+  grant authority from topology alone or add a second Ankh-specific save path.
+- The diagnostic is failed evidence, not healer acceptance. A read-only check
+  after it confirmed the active server executable matches original stable SHA
+  `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`.
+
+### Ordered work and exit conditions
+
+1. **Resolve selected-aura modifier admission.** Compare exact native modifier
+   family/mask/label/operation and caster rules with the loaded effective data.
+   Implement the smallest faithful calculation or demonstrated absence proof
+   for the operation. Preserve unknown-metadata rejection. Add a reproduction
+   using nonzero class flags and negative applicable/unknown modifier cases;
+   exercise the production sickness consumer. No new generic spell framework.
+2. **Complete populated item hydration.** Extend the existing equipment and bag
+   projections, decoder and canonical Item hydration with creator/gift creator,
+   text, battle-pet modifiers, transmog and native soulbound-trade validation.
+   Missing or malformed data must not become known zero. Grant the existing
+   authority only after both loads, coherent topology, payload and auxiliary
+   checks succeed for the same Player incarnation. Preserve failed/partial load
+   behavior and existing persistence fences. SQL/DTO work may proceed while the
+   parent settles step 1; no dependent authority is enabled early.
+3. **Prove the integrated repair.** Test load/save round trips with nonzero
+   metadata, partial-load rejection, reagent stack decrement and last-item
+   deletion, duplicate/stale self-resurrection and existing rollback,
+   unknown-COMMIT/cancellation/acknowledgement contracts. Add or adapt tests in
+   existing owners; do not build a second lifecycle or persistence mechanism.
+   Review the actual diff and consumers against pinned C++ `a5f8da2eb`.
+4. **Freeze and validate the repair candidate.** Commit coherent implementation;
+   execute one scheduled affected acceptance including real production-login
+   integration, required QA/bot checks and debug artifacts. Credit suites
+   already run by final. Record exact SHA, commands, exits and complete duration;
+   the ordinary warm campaign target remains 600 seconds. Fix grouped findings
+   and rerun affected evidence only. Worker feedback is not acceptance.
+5. **Exercise the known failures first.** Use the existing guarded fixture and
+   runtime driver, serially: healer with relog, Reincarnation with durable debit,
+   and the corrected native/Rust mob case. Include last-Ankh coverage in the
+   owned fixture/QA mechanism without increasing actor scope. Preserve snapshots,
+   actual failed attempts, capture provenance, cleanup and stable restoration.
+   A new failure must produce a bounded cause and repair before another retry.
+6. **Finish the scenario matrix and comparisons below.** Reuse exact unchanged
+   reference evidence; assess invalidation explicitly after shared hydration or
+   aura changes. Compare action bytes, metadata, connection and observable order.
+   Retain timed/ambient differences as boundaries, never silently normalize them
+   into a whole-stream pass. Resolve any action-relevant mismatch before closure.
+7. **Final delivery gate.** Once all required scenarios pass, execute the scoped
+   exhaustive terminal check and origin/3.4.3 publication final with architecture,
+   manifest verification and uncovered production integration. Plan coverage
+   once; reuse eligible unchanged evidence under the validation guide, preserving
+   actual tested SHAs. Record live/exhaustive costs separately from ordinary
+   acceptance. Update this owning record and the existing issue checkpoint.
+8. **Publish and close under the recovered conditional authorization.** Push the
+   validated issue branch, create/update one PR targeting `3.4.3` with `Closes #43`,
+   resolve actionable findings and required checks, then merge and verify issue
+   closure. Do not publish an incomplete candidate or permanently deploy it.
+
+### Required live matrix (12 responsibilities, 18 standard epochs per backend)
+
+| Scenario | Epochs | Existing evidence / remaining work |
+|---|---:|---|
+| fall-release | 1 | Native and earlier Rust pass; rerun Rust after shared inventory/aura changes |
+| reclaim | 1 | Native and earlier Rust pass; rerun Rust and retain timed Mana boundary |
+| healer | 2 | Rust `ee8ef17fd` passed both functional epochs; SpellGo target-mask repair and actor-field comparison remain |
+| wisp | 2 | Native reference exists; Rust pending |
+| reincarnation | 1 | Rust `ee8ef17fd` passed durable 10-to-9 debit; SpellGo hit-list repair and last-Ankh live comparison remain |
+| mob | 1 | Corrected native attempt 3 passed; Rust attempt 1 failed waiting for death after its first exchange |
+| automatic-release | 1 | Native reference exists; Rust pending |
+| offer | 2 | Corrected native pass; Rust pending |
+| recovery-dead | 2 | Native reference exists; Rust pending |
+| recovery-ghost | 2 | Native reference exists; Rust pending |
+| stuck-death | 2 | Corrected native pass; Rust pending |
+| stuck-home | 1 | Corrected native pass; Rust pending |
+
+Reuse decision: the twelve successful native scenario reports all pin the same
+R6 executable (`80f143841b…`) and restored cleanup. Their standard fixtures and
+reference behavior remain unchanged by the Rust repairs. Keep those reference
+captures at their actual provenance; native mob attempt 3 and the last-Ankh
+variant have now passed, as recorded below. Shared inventory/aura changes invalidate reuse of the two previous
+Rust passes as final-candidate acceptance, so rerun fall-release and reclaim too.
+
+Step 1 implementation contract: retain the metadata-only absence fast path;
+when it cannot exclude modifiers, a self-cast may consult the complete,
+untombstoned canonical Player aura applications. Resolve active source effects
+at their own selected difficulty and check `ProcCharges` (operation 4), native
+family/mask matching (107/108), and label matching (218). Family matching reads
+the modifier spell at the target SpellInfo difficulty (`SpellInfo.cpp:1794`);
+its active mask/operation still come from the source aura. Area-aura effects
+are not excluded merely because their effect opcode is not APPLY_AURA. Only demonstrated
+absence admits the existing charge calculation. Matching modifiers, unknown
+source effects, incomplete authority and an unresolved foreign caster remain
+explicit errors; do not use the target's applications as a foreign caster's.
+Sources: `SpellAuras.cpp:965–976`, `SpellAuraEffects.cpp:885–925`,
+`SpellInfo.cpp:1784–1818`, `Player.cpp:21361–21600`. A targeted source search
+found no CalcSpellMod hook registration in the pinned reference's scripts.
+This extends a bounded absence proof; it does not claim the general SpellMod
+engine is implemented. Required live cases must establish whether any further
+applicable modifier is an actual dependency of this lifecycle.
+
+Step 1 passed the affected local acceptance recorded below. The caller consults
+the existing canonical Player aura snapshot only after a potential-modifier
+rejection. Unit cases cover applicable flat/percent/label and area-aura modifiers,
+irrelevant operations/masks/families, source/target difficulty differences and
+unknown or incomplete authority. The production sickness test now casts without
+the ignore-modifiers attribute and retains original-key charges on refresh.
+Parent diff review corrected test aura-type constants before execution. The
+expanded charge-test file remains below 2,000 lines; its next natural split is
+the active-modifier fixtures/cases if that responsibility grows further.
+
+Step 2 passed the affected local acceptance recorded below: equipment and bag queries
+append the missing item payload; both decode through existing native-width
+field getters. Missing/malformed fields retain incomplete authority. Four new
+decoder/projection tests passed with the Database suite. Canonical hydration covers
+both row families, including native refund/BOP ordering, tradeable registration
+and final create flags. Authority is granted only at the successful final load
+proof. Invalid context/high-bit gem representations, unavailable effective
+catalogs and failed/unknown repairs retain partial authority. An unknown BOP
+template preserves its existing flag. Integrated tests are recorded below.
+The parent corrected an owned-string lifetime in
+the SQL projection test during diff review, before any compiler run.
+
+Step 2 hydration contract: materialize the appended payload on each existing
+canonical Item before collection hooks, visible-field derivation and insertion;
+retain native creator GUID kind and all distinct modifiers. Reuse the existing
+refund decision/repair path for bag rows as well as top-level rows. Validate BOP
+trade data with the native refundable/BOP branch order and register valid
+tradeable items with the existing Player owner. Grant full item authority only
+after both successful row families, complete payloads/effective item catalogs,
+successful required load repairs, coherent carried topology and unchanged Player
+incarnation. Empty equipment alone is insufficient when the bag load failed.
+Partial loads retain their existing bounded durability path. No change to
+resource-debit ordering, full-save SQL/transaction or acknowledgement semantics
+is authorized by this hydration unit.
+
+Explicit load/save contract for one reference defect: pinned
+`CharacterDatabase.cpp:30` selects primary `itemModifiedAppearanceSpec5` twice,
+while `Item.cpp:694` loads the last value as secondary appearance and the schema
+and save statement have `secondaryItemModifiedAppearanceSpec5`. Rust reads the
+actual secondary column and preserves all eighteen stored modifiers. This is an
+intentional, bounded departure from that erroneous SELECT, required to avoid
+corrupting unrelated item metadata when enabling complete saves. It is not
+claimed as byte parity for that divergent transmog case or as completion of the
+transmog product. Distinct primary/secondary values are retained by the decoder
+test and must survive the integrated load/save round-trip test.
+
+Step 3 regression tests passed affected local acceptance: five new World cases exercise
+production login through canonical debit/full-save capture and acknowledgement,
+distinct nonzero item metadata in backpack and bag contents, Ankh counts 10/1
+under Applied/Failed/Unknown outcomes, incomplete inputs, refund ordering and
+BOP registration. The existing carried-readiness case now covers empty equipment
+with a failed bag query. The existing partial-durability test remains unchanged.
+Parent review replaced a wire-only count mutation in the round-trip fixture with
+the canonical debit operation and supplied the preceding login backpack capacity.
+Existing SelfRes/recovery and save-receipt suites retain packet, cancellation and
+incarnation coverage; their owning suites passed in the complete affected campaign.
+
+Status: steps 1–4 and the last-Ankh QA variant have passed affected local
+acceptance at `ee8ef17fd6deb3d599b4d02049899a84c3f2a533`; live matrix and
+publication/terminal acceptance remain open.
+The wrapper/fixture accepts initial Ankh counts 1 or 10, records the count in
+the existing journal, and retains default 10 for legacy journals. Scenario
+checks require the exact owned reserved row/link at count 9 or their complete
+absence at count 0, plus the existing spell/cooldown proof. Snapshots include
+reserved item identities even if their owner changes, so orphan rows cannot
+silently disappear from this evidence. Cleanup remains identity-bound. Parent
+review corrected strict integer checks and a test's allocated owner ID. New
+hermetic cases cover both variants, journal drift, cleanup and row/link failures.
+Live follow-up at the same accepted code: healer attempt 3 passed both epochs in
+561.087 seconds, including sickness, durability, restart/relog, capture collection
+and stable restoration. Reincarnation attempt 2 passed in 312.060 seconds:
+durable Ankh count 10 to 9, no duplicate debit, saved cooldown and restored runtime.
+Records remain under `/tmp/rustycore43-live-20261029-iua0lcwr/cases/`.
+These are functional passes, not completed packet acceptance. Rust last-Ankh
+attempt 3 also passed in 312.968 seconds, including exact reserved row/link
+deletion, capture collection and stable restoration. Native last-Ankh attempt 2
+passed in 138.030 seconds with collection/restoration. Native mob attempt 3
+passed the corrected combat-observation plan in 238.748 seconds, with capture
+collection and stable restoration. All twelve standard native references now
+exist, plus last-Ankh. Rust mob attempt 1 at accepted `ee8ef17fd` failed in
+373.567 seconds: the bot observed one creature-to-Player hit (health 10), one
+Player-to-creature hit and the Player's AttackStop, then timed out waiting for
+the death/root packet. Stable runtime and owned fixture cleanup were restored.
+This is not live acceptance. The cause remains under investigation; the
+canonical AttackStop operation itself retains combat references, so its
+directory reconciliation argument is not evidence that it clears combat.
+Do not retry unchanged or lengthen the wait without establishing the cause.
+Read-only follow-up excludes a globally stalled world loop: the candidate's
+journal advances from tick epoch 131 at login to 8462 at logout during the
+90-second observation. Entry 6 has a 2,000-ms base attack time; its selected
+SmartAI database row only talks on aggro. These observations do not yet identify
+the rejection. The next diagnostic must observe the existing creature melee
+selection, local timer and validation result, retaining the unchanged scenario
+and deadline. No combat behavior change is justified by the timeout alone.
+
+The next bounded repair groups two observed SpellGo defects in the existing
+spell execution owner. Sickness 15007 omits the native UNIT target flag despite
+an empty explicit Unit GUID (`Spell.cpp:747–755`, implicit caster target type in
+`SpellInfo.cpp:244`). Reincarnation 21169 incorrectly appends the Player to the
+hit list; native SELF_RESURRECT executes on the caster in HANDLE_HIT and has no
+effect-type implicit target (`SpellEffects.cpp:3757–3765`, `SpellInfo.cpp:920`,
+`Spell.cpp:2008–2052`). STUCK shares that bounded effect-mode contract. Derive
+the correction from effective target metadata, preserve mixed/other target
+cases, and add actual publication regression coverage. Do not introduce a
+general targeting framework. Preserve raw mismatches and actual tested SHAs;
+rerun affected acceptance and fresh action captures after the grouped repair.
+The healer actor UpdateObject review also found action-relevant stat differences:
+native mainhand damage 0.25–0.5 versus Rust 1–1, native offhand 0–0 versus Rust
+1–1, plus missing recalculated stat leaves. `effective_weapon_damage_ranges_like_cpp`
+clamps to 1, although native `Player::CalculateMinMaxDamage` and
+`Object::SetUpdateFieldStatValue` permit nonnegative fractional values. Native
+`ModifyValue` marks leaves before value equality is checked; the Rust derived
+snapshot setter only marks numerically changed leaves. Resolve these bounded
+calculation/publication findings before the grouped acceptance. Retain the
+actual field decode in `comparison-healer-ee8ef17fd/epoch1-actor-stat-values.json`.
+The reviewed setter contract treats `StatAura.stat_mask == 0` as all five stats.
+Offhand damage also needs the native operation phase: the initial multiplier is
+0.5, while a physical damage-percent aura invokes `UpdateDamagePctDoneMods`,
+whose pinned target implementation multiplies the offhand factor by the summed
+type-122 modifier (zero when absent). Preserve the existing canonical multiplier
+between those operations; do not replace the target's sum with the complementary
+core's multiplier or add another mutable stat authority. Application, removal
+and an unrelated later recalculation must retain this phase distinction.
+
+The grouped SpellGo/stat repair is implemented as an UNVALIDATED local candidate.
+The SpellGo worker passed two target-resolution tests and one production
+publication test each for sickness and self-resurrection. The stat worker passed
+27 focused tests: one weapon-range case, one entity footprint case, seven Core
+application cases, five weapon-offense cases, six lifecycle-stat cases and seven
+selected-stat cases. Its sequential check of Data, Entities, Core, Inventory and
+Application passed, as did scoped rustfmt and `git diff --check`. Aura 79 selects
+the all-attacks operation, aura 122 selects offhand-only, and StatAura carries
+that operation when both families share one application. Unrelated calculations
+copy the existing canonical offhand multiplier instead of recomputing it. These
+are worker feedback results, not affected acceptance, live acceptance or a new
+tested code SHA. The diagnostic-only world-server trace is also implemented:
+the existing tick log now includes the melee selection/rejection/hit counters,
+and `RUSTYCORE_CREATURE_MELEE_TRACE` logs fighting-creature timer, target, AI and
+victim-health snapshots without changing combat. Its world-server check and the
+focused chase and native-death tests passed (one each); an initial bin-target
+zero-test filter was discarded. Because the outcome does not expose the original
+admission object list, the trace reconstructs selection from the same tick plan;
+that diagnostic approximation is not a behavior contract or a combat repair.
+
+The first affected campaign at `e4131ac8a18d664ad131e8b0bc4ec4d9fd78605f`
+finished FAILED in **1,560.146 seconds** on aarch64 with one Cargo job; the
+ordinary 600-second target was not met after retiring superseded incremental
+variants. Record: `/tmp/rustycore43-repair-e4131ac8-_c2epdxj/record.json`.
+The cleanup retained current-day artifacts and freed 19.5 GiB:
+`/tmp/rustycore43-inactive-incremental-e4131ac8.json`. QA passed 47 tests with
+one optional skip. Final's compilation and all affected library suites passed:
+world-server 642/1 ignored, Data 844/5, Database 430/9, Entities 1,066,
+Persistence 36, World 4,156/1, Application 31, Character 3, Core 282,
+Inventory 36 and Spell 188. Only architecture hotspots and the World census
+failed: the reviewed implementation added 55 diagnostic production lines, 165
+Player footprint production lines and one World identity with 275 net test
+lines. The exact ceilings and census ledger have now been reviewed, and their
+two focused checks pass. Production-login integration, bot tests and debug
+builds were not reached by this failed campaign. An earlier launcher attempt
+passed the same 47 QA tests but failed recording the completed process; its
+0.326-second record is not validation or a repeated code failure.
+
+The accepted affected campaign at `31078d818be95b0ae6ac9e1d72c3eb74b8e4e628`
+passed all seven commands in **607.510 seconds**, exceeding the ordinary target
+by 7.510 seconds rather than hiding the overrun. Record:
+`/tmp/rustycore43-repair-31078d818-4t_9wph3/record.json`. Final with architecture
+and manifest verification, 47 QA tests with one optional skip, 42 production-login
+integration tests, 253 bot tests and both debug builds passed. The affected
+library totals remain those in the preceding failed-campaign paragraph. The
+pinned world executable is `f25ac626e4d51f546fc68365e50b4f53a0fd61b8d9d02e7972f348738b773cec`;
+the bot remains `1690d9b93ac36f4791a262a367adf31e8844f9c6d77b0704ef6d94e1fcac7947`.
+
+Live campaign `/tmp/rustycore43-live-31078d818-5pg153ni/campaign.json` then passed
+healer (two epochs), Reincarnation and last-Ankh with collection and restoration.
+Their decoded SpellGo comparisons pass every action-relevant field, including the
+sickness UNIT target and empty Reincarnation hit list; only CastID/cast-time
+variables differ. Mob failed earlier than the prior attempt, waiting for
+ATTACKER_STATE_UPDATE, and restored the stable runtime. The requested trace did
+not reach the candidate because the capture wrapper's closed systemd environment
+forwarded only the packet-dump variable. No unchanged retry or combat conclusion
+is allowed from that run.
+
+The actor comparison also matched mainhand 0.25–0.5 and every other common Unit
+value, but Rust omitted offhand fields 54/55. This exposed an incorrect login
+`AllAttacks` operation: C++ calls that operation from aura 79, not generally at
+login. Login now preserves the initial 0.5 offhand multiplier so sickness emits
+the native 0.5-to-zero transition and its leaves. The existing lifecycle identity
+calls the real login method and passes with six lifecycle and five weapon-offense
+cases. The QA wrapper now validates and forwards the optional trace through its
+drop-in, checks unit/process presence or absence and rejects restoration leakage;
+its 225 fake checks and 47 death QA tests pass. These repairs and their updated
+ceilings are a new UNVALIDATED candidate until the next affected campaign and
+fresh captures. ActivePlayer mask shapes in this comparison are not aligned
+well enough to exclude other action differences; the strict stream remains open.
+
+The next affected campaign at `ed955c62221e3e2e6f6f6d8660e3557f29b8bf28`
+passed all eight commands in **506.840 seconds** on aarch64 with one Cargo job,
+meeting the 600-second target. Record:
+`/tmp/rustycore43-repair-ed955c622-g8r03g8k/record.json`. It adds the 243-check
+runtime-wrapper self-test to the previous green evidence. World SHA-256:
+`5e7eff2484303f915ef19c9158a7323f9e4a127cfb091bc589ba49b871daa98b`.
+
+Live `/tmp/rustycore43-live-ed955c622-6_wm67d2/campaign.json` then passed healer,
+Reincarnation, last-Ankh and mob with collection/restoration. SpellGo fields pass
+and the actor comparison now includes offhand 54/55=0 with every common Unit value
+matching; only the timed Mana field 137 and unaligned Active mask shapes remain
+as boundaries. The death-timer trace reached the candidate and mob passed in
+409.171 seconds. A second campaign `/tmp/rustycore43-live-ed955c622-n6s7ypbu/campaign.json`
+passed fall-release, reclaim and both wisp epochs, then automatic-release failed:
+no PRE_RESURRECT or DEATH_RELEASE_LOC appeared by the 370-second observation
+deadline. The world advanced about 100 ticks/second. Offline finalization later
+teleported the actor and created the corpse, so this is not evidence that the
+six-minute timer never armed. It remains unproven whether a timer gate refused
+or BuildPlayerRepop found an existing continuation.
+
+A new UNVALIDATED diagnostic candidate adds an env-gated final-ten-second timer
+trace for remaining/diff, map/aura gates and delayed operation/phase, plus its
+closed-systemd passthrough. The focused automatic-release test, 243 wrapper
+checks and 47 death QA tests pass. No behavior or scenario deadline changed;
+the next automatic-release attempt must identify the gate before a repair.
+
+The diagnostic campaign at `ba9d9ea9497d8e7e06715d026db2900beb890537`
+passed all eight commands in **297.552 seconds**. Record:
+`/tmp/rustycore43-repair-ba9d9ea94-86gnzc_s/record.json`. An earlier attempt
+failed in 590.012 seconds only on two timing-sensitive split-death world-server
+tests; both passed when rerun together in a focused nonzero filter before the
+green campaign. Live `/tmp/rustycore43-live-ba9d9ea94-og6_nh49/campaign.json`
+then reproduced automatic-release with trace: map is non-instanceable, no
+prevent-resurrection effects and no delayed continuation exist. At the
+370-second timeout, `remaining_ms` was 4,973 rather than zero. The timer started
+immediately after MOVE_ROOT and advanced normally, so no repop gate is at fault.
+The follow-up at `d4190d5022ff97bbb38623d480f514c819b652b6` passed affected
+acceptance in 266.270 seconds. Its live counters show every admitted Recovery
+request completed, with no revocation, refusal or send failure; this disproves
+the earlier missing-admission hypothesis. Recovery `diff_ms` still trails the
+wall clock, and a later timer sample continues below three seconds. The next
+UNVALIDATED trace also records values at or above 350,000 so the exact arming
+or reset value is visible. No scheduler or timer behavior changes until that
+measurement identifies the lost time.
+
+The arming campaign at `524f7a4ae69fce682e07dc10a024019490a50b67` passed all
+eight commands in 688.912 seconds, exceeding the ordinary target by 88.912
+seconds. Record: `/tmp/rustycore43-repair-524f7a4ae-we07k4ta/record.json`.
+Its trace proves an exact 360,000-ms arm, with no reset, no revocation and no
+gate refusal. The accumulated effective diff still loses about twelve seconds
+over the six-minute observation. The next diagnostic also records raw loop diff
+beside the plan's effective value to isolate where those milliseconds vanish.
+
+The raw/effective comparison at `fc07acd4b1468487cf77eb8f1f1e7c02d8dc60f1`
+passed affected acceptance in 258.918 seconds. The raw loop diff accumulates
+attempts while the plan's effective diff accumulates admitted ticks, so their
+difference alone is not a defect. Recovery replies are still all requested and
+completed, but completed can also mean PlayerLeft. The next trace exposes every
+non-Completed reply's existing status/outcome before any clock decision.
+
+The reply-state campaign at `b7f9bfc1cc2e0aedd70cac8774ff8c822700ba41`
+passed affected acceptance in 265.366 seconds. No PlayerLeft or Unavailable
+replies occurred. The next UNVALIDATED trace covers the remaining early skips:
+selected Unit errors and strict-in-world rejection, both able to leave a
+Completed reply while omitting the timer update.
+
+The early-skip campaign at `c5b605821ffdae4aa868e82206c00645b4a51d73`
+passed affected acceptance in 524.381 seconds. Neither selected Unit errors nor
+strict-in-world rejection occurred. The next trace records every positive
+remaining value to locate the exact countdown divergence without changing it.
+
+The full-countdown campaign at `7645f70ab68565d2337295bdb3fe3772efe2c6b8`
+passed all eight commands in 697.228 seconds, exceeding the ordinary target by
+97.228 seconds. Record: `/tmp/rustycore43-repair-7645f70ab-yxobs_8n/record.json`.
+The exact 360,000-ms arm never resets and the decrement is internally coherent,
+but it trails the wall clock by about fourteen seconds. Recovery and timer diffs
+match each other, so the next diagnostic also records the real tick-start
+timestamp to isolate raw-loop versus Map-timer time loss.
+
+The timestamp comparison at `aba1c1dd603b3369ae52e776fef8edd0aaef771a`
+passed affected acceptance in 233.642 seconds. It confirms that the effective
+diff trails the real tick-start intervals while every Recovery reply completes.
+An earlier campaign failed only on the already timing-sensitive split-death
+case, which passed again in isolation before the green retry.
+
+The intentional bounded clock contract is now implemented: `kill_player_like_cpp`
+arms a monotonic `Instant` deadline for the same 360,000 ms, and the death-timer
+tick uses that deadline when present. `death_timer_remaining_ms` remains the
+projection, while loaded and fixture states without a deadline retain the exact
+existing diff fallback. Expiry, repop and native resurrection clear the deadline;
+`death_expire_time`, persistence and BuildPlayerRepop -> RepopAtGraveyard order
+are unchanged. This is an explicit adaptation to proven async Recovery time
+loss, not a longer timeout or a claim that the underlying diff issue is fixed.
+Focused checks pass: eight death-timer, one automatic-release and 33 recovery-
+timer tests. The 30 ms regression ignores an oversized 360,000-ms early diff,
+then expires and creates the corpse/ghost/repop path. Live six-minute evidence
+is still required.
+
+The monotonic candidate at `d8f6998626c1efeff99bbb6c6a465efd219749e7`
+passed affected acceptance in 441.957 seconds. Its live automatic-release now
+emits PRE_RESURRECT and DEATH_RELEASE_LOC with `clock="monotonic"`, passes
+collection/restoration and matches the native packet bodies and connections.
+Offer and both recovery scenarios also pass. Stuck-death then failed its
+Hearthstone teleport with SPELL_FAILED reason 2; the next trace exposes the
+exact EffectStuck error before any behavior change.
+
+The error-tracing candidate at `f592ba63dd1d05b08b04137722dac9ca3312dee3`
+passed affected acceptance in 428.730 seconds. Stuck-death still emits
+SPELL_FAILED reason 2 without an EffectStuck error log, so the failure is either
+an early execution rejection or an Ok branch that skips teleport. The next
+trace records entry config, flight, life, timer, cooldown and homebind state.
+
+The branch-tracing candidate at `f67aa668872e418ee93e7d867d1baff1b7c072d1`
+passed affected acceptance in 429.763 seconds. No apply_stuck entry appears in
+the live log, so the next trace instruments the direct SPELL_EFFECT_STUCK match
+before and after the host call to locate the earlier rejection.
+
+The direct-match candidate at `532341a6620fa0e83da5ee07bb5aaa98fe5c3ee7`
+passed affected acceptance in 545.509 seconds. The direct STUCK match is not
+reached in the live log, so the next trace exposes the existing
+server_normal_pre_go failure variant that publishes CastFailed first.
+
+The pre-GO candidate at `24208898c91996d485e5b75f5b9af3da81602dd2` passed
+all eight affected commands in 547.159 seconds. Record:
+`/tmp/rustycore43-repair-24208898c-n7wevng7/record.json`. Its live Stuck-death
+attempt failed both epochs and restored the stable runtime. The epoch-one journal
+shows `normal cast contains an unimplemented spell effect` before the pre-GO hook;
+the numeric reason 2 is the driver's generic fallback, not evidence of a full-health
+check. Real enUS `SpellEffect.db2` (SHA-256
+`c786e3f82d69f6a2675cdcc7a0a6c48a2684044fb23344bd488425d982b525f8`) contains
+8690 difficulty-0 rows 686507 (index 0, effect 5, targets 1/9) and 686508
+(index 1, effect 77, targets 1/0). The old Hearthstone test represented only the
+first row. C++ `SpellEffects.cpp:2990–3138` has no hardcoded 8690 case and calls
+`ScriptsStart` for the second row; the effective `world.spell_scripts` lookup for
+8690 and 16785906 returned no rows.
+
+The bounded Hearthstone repair is implemented as an UNVALIDATED local candidate.
+The exact 8690/77/index-1 row is SourceInert only when the existing complete
+runtime-hook authority proves absence; preparation, server-normal validation and
+execution use the same proof. Missing authority, a present hook, another spell or
+index, and primary-only SCRIPT_EFFECT remain rejected. No general script no-op,
+new state, persistence, cost, cooldown or target redesign was added. Worker checks
+passed sequentially: Spell and World checks, four route tests and three real-row
+Hearthstone tests. The positive test covers UNIT|DEST_LOCATION with an empty Unit,
+home teleport and native completion packets; both negative fixtures reject without
+SpellGo or teleport. These are coding results, not affected or live acceptance.
+
+The first affected campaign at `4e806cc9fc4ec519424786f7b7a7c235912efcf3`
+finished FAILED in 587.167 seconds, within the 600-second ordinary target but not
+accepted. Record: `/tmp/rustycore43-repair-4e806cc9f-6gvslhof/record.json`.
+Final with keep-going failed only the reviewed architecture surfaces: Session
+production/test/total ceilings (+4/+112/+116), one SpellExecutionHost method and
+one World test identity (+112 lines). Production-login integration, bot checks and
+debug artifacts were not reached, so no live binary was used. The exact ceiling,
+policy and census deltas have been reviewed; architecture, syntax-ownership and
+census checks now pass. A new candidate still requires the complete affected run.
+
+The complete affected campaign at `b50aefd9fb5ba4479bc23a0e7bb71acf416f31f3`
+passed all eight commands in 362.421 seconds. Record:
+`/tmp/rustycore43-repair-b50aefd9f-nj7s85jd/record.json`. Its live Stuck-death
+attempt still emitted SpellStart 8690 and then rejected before SpellGo with the
+same unimplemented-effect error; both epochs failed and stable runtime was
+restored. The accepted local result therefore does not establish the live repair.
+Effective data has no spell script binding, linked spell or SkillLineAbility row
+for 8690 and rank diagnostics are empty, so the next bounded diagnostic exposes
+every existing runtime-authority condition instead of weakening it blindly.
+
+The diagnostic candidate at `e9e128d5b60e1743a7f50590c5a750b90de0d94a`
+passed affected acceptance in 620.217 seconds, exceeding the ordinary target by
+20.217 seconds. Record: `/tmp/rustycore43-repair-e9e128d5b-3wp1kq4o/record.json`.
+Live epoch one still rejected before GO, but the trace proves `result=true` with
+all six sources present, first rank 8690, no exact/all-rank/legacy/rejected-linked
+membership, no chain diagnostics and no Cast/Hit/Aura/Remove link. The rejection
+therefore comes from the exact effect row or classifier input, not missing hook
+authority. The next diagnostic logs only that rejected row and its call path;
+behavior remains unchanged and stable runtime was restored.
+
+The row-tracing candidate at `2111993b77ce455d2eb514b1662abd9ff8b2d095`
+passed affected acceptance in 544.749 seconds. Record:
+`/tmp/rustycore43-repair-2111993b7-krn23b3v/record.json`. Its live trace isolates
+`rejection="row_loop"`, `primary_effect_type=5`, `effect_type=5`, `effect_index=0`,
+`effects_len=2` and hook authority `true`. C++ `SharedDefines.h:1151,1398` defines
+TELEPORT_UNITS_OLD=5 and TELEPORT_UNITS=252, and `SpellEffects.cpp:93,340` sends
+both to EffectTeleportUnits. Rust admitted only 252 in its PostGo and execution
+routes. The bounded repair adds OLD=5 to those same routes and cross-map DB
+destination admission, retains the 77/index-1 absence proof, and changes the two
+real 8690 fixtures to the actual OLD row while preserving existing 252 coverage.
+This is implemented pending focused checks, affected acceptance and live proof.
+
+The first `d358dc04249c7b2b8c3033263ad614b9ce28d03a` campaign failed in
+686.120 seconds only on the recurring timing-sensitive split-death test; the
+zero-test bin-target diagnostic was discarded, then the real library filter passed
+one test with 642 filtered out. The complete retry passed all eight commands in
+322.760 seconds. Records: `/tmp/rustycore43-repair-d358dc042-2322x9ky/record.json`
+and `/tmp/rustycore43-repair-d358dc042-s0y5zqp3/record.json`.
+Live epoch one now completes Hearthstone SpellGo/MoveTeleport and the 7355
+KillPlayer/root path; epoch two completes the dead-without-timer repop and
+DeathReleaseLoc. The remaining failure is wire-only: both 7355 SpellStart and Go
+retain the client's self Unit target. C++ `Spell.cpp:637-705` removes it during
+InitExplicitTargets because STUCK has EFFECT_IMPLICIT_TARGET_NONE
+(`SpellInfo.cpp:910`). One shared normalization must clear the explicit target for
+caster-only STUCK before WorldSession Start and execution/Go, preserving mixed
+spells, SELF_RESURRECT and the empty hit list. This is a publication repair, not a
+change to the now-demonstrated kill/repop mechanics; Stuck-home remains unrun.
+
+The `e432e118fa6a4536831972271c94555e1b121e9f` affected campaign passed in
+548.269 seconds. Record: `/tmp/rustycore43-repair-e432e118f-t1bxvdzr/record.json`.
+Live now shows default targets on both 7355 packets, but epoch one exposes the same
+explicit-target phase distinction on 8690: Rust Start carries self, and Go carries
+self as its Unit GUID. Native Start is empty, while Go has UNIT|DEST_LOCATION with
+an empty Unit and retains self in the hit list. The bounded follow-up clears Start
+completely for 8690 and clears only Go's Unit GUID before home-destination
+resolution, without applying Stuck's full erasure or emptying Hearthstone's hit
+list. Tests must supply self explicitly so the previous empty-fixture shortcut
+cannot hide this defect. Affected acceptance and another live run remain required.
+
+The `e051cede632c610a5075d9dfb12b807cc27a2086` affected campaign passed in
+583.689 seconds. Record: `/tmp/rustycore43-repair-e051cede6-ttdstkhp/record.json`.
+Live now matches the required Start and Go target phases and completes both Stuck
+epochs, but final validation rejects persisted cooldown metadata: Rust saves 8690
+with categoryId/categoryEnd zero, whereas native retains categoryId 1176 and a
+positive categoryEnd. Real SpellCategories row 72843 and SpellCooldowns row 54105
+have category 1176 and 1,800,000 ms respectively, with no SQL overlay. The next
+bounded diagnostic records the actual cooldown plan and final SpellHistory entry
+in one live epoch, without another full diagnostic campaign. Stuck-home remains
+unrun and no cooldown behavior is changed by that measurement.
+
+The one-epoch diagnostics confirm that the wrong category already exists in the
+fixture, while Hearthstone publishes CooldownEvent without invoking the pre-GO
+plan. The actual client path is `complete_spell_execution_like_cpp` calling
+`record_cast_character_spell_cooldown_like_cpp`, which wrote zero category fields.
+The implemented repair passes the selected difficulty and resolves both category
+and recovery from the existing effective SpellStore, preserving the spell deadline
+and rounding category recovery upward by seconds. Missing difficulty/key/catalogs
+do not write a new entry; a legitimate empty category catalog remains category zero.
+CooldownEvent and the pre-GO route are unchanged. Four new completion tests passed,
+plus 42 other focused spell checks, proving category 1176 and its index, native zero
+and fail-closed cases. This is an UNVALIDATED candidate pending affected and live
+acceptance. The four new World identities add 259 reviewed test lines.
+
+The affected campaign at `5b38f370d82eef3681a9ba8c9194e2fe10d592cc` passed
+in 852.554 seconds, exceeding the ordinary target by 252.554 seconds with two
+jobs. Record: `/tmp/rustycore43-repair-5b38f370d-vqy_m0ny/record.json`.
+Live then saved no new 8690 cooldown because the real client metadata has no
+selected difficulty, so the new fail-closed guard returns before recording.
+Completion now falls back to the map's actual difficulty, matching C++
+GetCastDifficulty, while absence of that authority remains fail-closed. The
+focused completion tests are being updated to prove the fallback; affected and
+live acceptance must be repeated. Stuck-home remains unrun.
+
+The first `227a8cb3675dc91670dc3ad815630df6958d3649` campaign failed only
+because the four new fallback assertions exceeded the existing World test-line
+ceiling; the exact +4-line/no-new-identity review was committed as `f7decf430`.
+Its complete one-job affected campaign passed in 308.442 seconds on aarch64,
+within the 600-second target. Record:
+`/tmp/rustycore43-repair-227a8cb36-hp443gk5/record.json`; World SHA-256 is
+`309f5c92b99f5d8aa888db5309b3dbd77949d1f706ed2b14b5fe339dcbaeeb1a`.
+Live `stuck-death` epoch two passed and epoch one persisted the correct native
+8690 row (`categoryId=1176`, positive `categoryEnd=time`), but final evidence
+validation rejected an unexpected 8690 CooldownEvent. Offline replay of the
+private artifacts isolated that exact check; the same Rust capture also emits
+7355 CooldownEvent, while the successful native reference emits neither.
+C++ `Spell::SendSpellCooldown` reaches `HandleCooldowns`/`StartCooldown`
+(`Spell.cpp:4195-4203`, `SpellHistory.cpp:252-277,406-527`), not the distinct
+explicit `SendCooldownEvent` operation (`SpellHistory.cpp:529-552`). Remove the
+unconditional completion event without changing the now-proven persistence or
+selected-aura skip. Stuck-home remains unrun and the failed campaign is retained
+at `/tmp/rustycore43-live-227a8cb36-8q7n0dwt/campaign.json`; stable runtime was
+restored to SHA-256 `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`.
+
+Commit `6a9d5f4e3` removes that unconditional completion publication and updates
+37 existing test files without changing test count; the census records one
+fallback-test rename and tightens 287 removed expectation lines. Worker checks
+passed, including three completion tests and 415 spell-state scenarios, and the
+parent-reviewed complete World library suite passed 4,164 tests with one ignored.
+The same committed debug binary (`a3e91e2cdfc9c1582a260e82289ecd015003bec4766a63adb3e9420192d4f102`)
+then passed both `stuck-death` epochs and `stuck-home` in one guarded serial
+diagnostic. Reports: `/tmp/rustycore43-stuck-death-6a9d5f4e3/death-runtime-report.json`
+and `/tmp/rustycore43-stuck-home-6a9d5f4e3/death-runtime-report.json`; cleanup
+restored the stable runtime hash above. All twelve bounded scenario
+responsibilities now have successful live observations. This is not grouped
+local acceptance, action-capture parity or issue closure; those gates remain.
+Four action projections now match the successful native Stuck references with
+no action-relevant field difference: Hearthstone 8690 and lethal 7355 in death
+epoch one, repop 7355 in death epoch two, and home 7355. Only cast IDs/timing
+vary. Evidence is under `/tmp/rustycore43-stuck-comparison-6a9d5f4e3`; these
+projections do not assert complete-stream parity.
+
+Fresh raw comparisons were recomputed against the successful native references:
+fall-release attempt 2, reclaim 1, wisp 2, mob 3, offer 3, recovery-dead 2 and
+recovery-ghost 1. Earlier ad-hoc comparisons against failed native attempt-1
+captures are retained under `invalid-native-attempt1-*` names and are not evidence.
+Offer's death and request/response bodies mostly match, but both offers currently
+show cross-session SpellGo/ResurrectRequest delivery-order differences. Native
+accept also has a second MoveTeleport/CancelCombat transition absent from Rust.
+Recovery release/repop ordering differs, native logout emits CancelCombat packets
+not captured from Rust, and one recovery-dead unit update has native Unit blocks
+0x19/Power[0]=50 versus Rust 0x01 without that power block. These remain bounded
+action investigations, not global combat/scheduler work or a clean-stream claim.
+C++ `Unit::CombatStop` sends CancelCombat unconditionally to a Player and logout
+calls it before BuildPlayerRepop; any repair must retain the real publication owner.
+
+Capture review resolved the cross-socket SpellGo/ResurrectRequest inversion as a
+non-ordering boundary: C++ sends GO before effects and Rust execution retains that
+order (`Spell.cpp:3842–3868`, `execution.rs:304–373,434–455`). Do not golden the
+merge order across independent sessions. Two native acceptances before the first
+ACK are a real missing operation: C++ retains `_resurrectionData` and repeats only
+TeleportTo/CombatStop, then executes the post-ACK resurrection once. Rust currently
+takes the request and rejects the second acceptance. The bounded repair may restart
+only TeleportInFlight/AwaitingTeleport; later phases and alive Players stay closed.
+The implemented canonical and fixture paths now retain the request, reset only
+matching pre-ACK RequestData continuations, and reject later phases, other
+operations and inconsistent continuation/resurrecter identity without mutation.
+The end-to-end test proves two teleports (counters/wire indices 1,2 and 0,1),
+two CancelCombat packets, rejection after TeleportCompleted, then exactly one
+resurrection and no alive repeat. Focused checks passed: 12 entity resurrection
+tests and five World response tests. Census: +136 lines/+1 W test and one rename.
+This unit is locally reviewed pending grouped acceptance and fresh offer capture.
+
+The two final native CancelCombat packets are also real: CleanupsBeforeDelete and
+RemovePlayerFromMap each call CombatStop before LogoutComplete
+(`WorldSession.cpp:659–676`, `Unit.cpp:9536–9565`, `Map.cpp:907–930`). Add those
+existing operations at their real owners; do not add an intermediate release cancel
+or publish on Disconnecting sockets. Retirement now invokes the existing combat-stop
+capability twice after trade cleanup and before visibility/map removal. Active-timer
+logout proves five total cancels with the exact final CancelCombat/CancelCombat/
+LogoutComplete suffix; timer-zero alive logout proves exactly those three packets,
+and disconnect remains silent. Five focused tests passed. Census: +44 lines/+1 W
+test. Grouped acceptance and recovery captures remain required.
+Recovery-dead 0x19/Power[0]=50 is instead a pre-death regeneration/timing boundary,
+not a death packet to copy.
+
+Mob decoding separates correct dodge behavior from two repairs. Rust
+`damage=0/original=4/over=-1/VictimState=2` is a native dodge, not overkill or RNG
+damage drift (`Unit.cpp:1333–1343,1390–1396,5469–5472`). Native AttackerStateUpdate
+uses the Unit/Unit fallback and default ContentTuning tail Type/TargetLevel/
+Expansion=0 and Flags=3; Rust incorrectly serializes real levels/expansion with
+flags zero. The packet no longer accepts misleading level/expansion inputs and
+now writes the complete default 30-byte tail with Flags=3; all three production
+constructors are updated and three packet tests plus both downstream crate checks
+passed. Native creature damage 2 versus Rust 1 also exposed omission of
+`(AttackPower / 14) * BaseVariance` from the float min/max damage calculation before
+its existing truncation (`StatSystem.cpp:1004–1022`, `Unit.cpp:2427–2433`).
+BaseVariance is now decoded from the actual lifecycle SQL query as column 31,
+propagated through the existing persistence/template records and applied as
+`(baseDamage + (attackPower / 14) * baseVariance) * damageModifier` before the
+existing final truncation. No second runtime damage record was added. SQL decode,
+template retention and 12 loaded-grid tests passed, including variance 1 => 2/3
+and variance 0.5 => float 1.5/2.25 with final AI bounds 1/2; downstream World
+check passed. Census adds only two existing-fixture lines. Grouped acceptance
+and a fresh mob capture remain required.
+
+The first grouped `cae50ae826a965c16a92005a2f213a2a97e0fb75` campaign
+completed all tests but failed in 1,521.897 seconds solely because the physical
+2,000-line ceiling caught `corpse.rs` at 2,051 lines; the ordinary target was
+exceeded and no candidate binary was accepted. Record:
+`/tmp/rustycore43-repair-cae50ae82-y6s12jhv/record.json`. Move exactly the five
+resurrect-response tests into one cohesive child module without changing their
+bodies or the helpers shared by later tests, then rerun affected acceptance on
+the reviewed candidate; do not raise the physical ceiling.
+The move-only split is complete: parent 1,663 lines, child 390 lines, all five
+test bodies unchanged and all five executed successfully in the new module.
+Physical source policy and the census pass; the ledger records only the mount/
+import +2 lines and five file-path relocations, with no test/class/ignored change.
+
+The `a2f08bbb7155d55cd46db828dbb2b7c261b52037` retry again passed its tests
+but failed in 348.855 seconds on the logical hotspot ratchet. Record:
+`/tmp/rustycore43-repair-a2f08bbb7-2p509l8b/record.json`. The three measured
+rows were reviewed rather than blanket-regenerated: character +1 fixture line;
+World Server +2 production/+101 tests for BaseVariance; Player -53 production/
++94 pre-ACK tests. `python3 tools/architecture/check_architecture.py check
+--self-test` now passes physical, dependency, ownership and hotspot checks;
+Player's production ceiling tightened to 20,205.
+
+The `ac68d469bedc044e59e9545b895ca9b260a7b253` campaign passed final and
+manifest verification in 207.432 seconds, then exceeded the driver's one-hour
+limit in production-login integration: one exact opcode vector still expected
+no final combat stops, and the saturated-channel test drained too late for the
+two new sends. Record: `/tmp/rustycore43-repair-ac68d469b-x06zsiou/record.json`.
+Only those integration expectations changed: the successful vector now includes
+two CancelCombat before LogoutComplete, and saturation uses six fillers, proves
+two pending polls and drains exactly two cancels after cancellation. The complete
+production-login target passes 42/42; no production change was made for either
+finding. A fresh committed-candidate campaign is still required.
+
+The corrected `c59fa7d91c3f9c7473eba2230f3c9f210f5c3e78` candidate passed
+its complete affected campaign in 591.171 seconds on aarch64 with one job,
+8.829 seconds inside the ordinary target. Final took 211.550 seconds and the
+World debug build 341.715 seconds. Record and manifest:
+`/tmp/rustycore43-repair-c59fa7d91-5pubzdug/record.json`; World SHA-256 is
+`bc4f55e369890230a1a4a425d70c92e15de3057f4e65c136d8605ac745294103`.
+The same binary then passed offer (704.984s), recovery-dead (539.486s),
+recovery-ghost (545.060s) and mob (413.512s), with fixture cleanup and stable
+runtime restoration. Live record:
+`/tmp/rustycore43-live-cae50ae82-psimp8n2/campaign.json`.
+
+Fresh strict action comparisons passed 34 checks. Twenty other requested
+boundaries were absent in the successful native epochs and are recorded as
+not-applicable, not failures or invented packets. Both offer SpellGo instances
+match every stable action field; only cast IDs/timing and the timed second-cast
+mana value (95 native, 83 Rust) differ. All mob ContentTuning tails are exactly
+the native 30 bytes with Flags=3. Real level-1/2 stats with BaseVariance=1 make
+Rust damage 1 a valid post-truncation result (level-2 float min 1.0745), so a
+same-damage assertion across different level/RNG samples is not valid. Ghost
+8326 before DeathReleaseLoc follows C++ BuildPlayerRepop -> RepopAtGraveyard;
+arrival order across independent realm/instance sockets is not an execution
+ordering contract. Full streams remain non-clean and no global parity is claimed.
+Evidence: `/tmp/rustycore43-capture-comparison-c59fa7d91/action-diffs/record.json`,
+`offer-epoch2-spell-go-occurrences.json` and the complete diff logs beside them.
+
+Global `physical-files --terminal` rejects 12 pre-existing migration rows;
+`/tmp/rustycore43-terminal-31333844c-7myjp2qx/record.json` preserves that boundary
+and #584 C4 tracks them in comment 6547611650. It is not relabeled as #43 work or
+as a passing terminal check. The exhaustive persistence snapshot was regenerated
+outside the tree and reviewed as exactly five additions/two replacements for the
+complete-item payload and BaseVariance query/fixtures. The subsequent exhaustive
+check passes 8,186 production and 2,681 test-fixture rows with 1,093 semantic
+groups. Log: `/tmp/rustycore43-persistence-check-31333844c.log`; checker SHA-256
+`8a90b5b92e3d1cebd42e2745b1fb502860d06f4d37c4fcdb368efeba4491e236`.
+
+The reversed order of the two independent item durability blocks is a separate
+source-proven ordering boundary: native `Map.h:801` stores pending objects in
+`std::unordered_set<Object*>`, drained by `Map.cpp:1929–1946`. Both GUIDs and
+durability values match. Do not imitate one native allocator order or normalize
+the surrounding lifecycle sequence. Other NPC bundle alignments remain unresolved.
+The strict complete stream remains non-clean and is not being relabeled as a pass.
+
+The current accepted local evidence follows.
+The complete retry passed in **574.965 seconds** (600-second target met),
+22:31:04–22:40:39 UTC on 2026-10-29, aarch64, two Cargo jobs after observing a
+5,225,368 KiB peak child RSS and at least 16 GiB available memory in the prior
+run. Record: `/tmp/rustycore43-repair-ee8ef17fd-gmn9jm8d/record.json`, with
+`final-manifest.json` and command logs beside it. All seven commands passed:
+47 QA tests; affected final with architecture (173.992 seconds) and manifest
+verification; 42 production-login integration tests; 253 bot tests; bot and
+World debug builds. The six library suites passed: Database 430/9 ignored,
+Persistence 36, World 4,155/1 ignored, Character 3, Core 279, Spell 186.
+World executable SHA-256:
+`57d4e4bcc5dd2b31e466334812d1e57fa816d72ed8347f125f4a503d346eb1c6`;
+bot SHA-256:
+`1690d9b93ac36f4791a262a367adf31e8844f9c6d77b0704ef6d94e1fcac7947`.
+Both artifacts are pinned to the tested code SHA. This is affected local
+acceptance, not origin-base publication or exhaustive terminal acceptance.
+Affected campaign at `f355af6d82ccb1eac0d59dd0c39619e0bbc0d03e` finished
+FAILED in 1,233.546 seconds on aarch64 with one Cargo job (600-second target
+not met). Record: `/tmp/rustycore43-repair-f355af6d8-o590lpa9/record.json`.
+QA passed 47/47 with no skips; downstream compilation passed in 745.226 seconds.
+Library results: Database 430 passed/9 ignored, Persistence 36 passed, World
+4,155 passed/1 ignored, Character 3 passed, Spell 186 passed; Core 278 passed
+and one failed. Syntax ownership, physical files and the test census passed.
+The failures are the Session test-line ceiling (+1,061 reviewed composition
+fixture/test lines, production unchanged) and the existing Core LocalFlags byte
+oracle. C++ `UpdateFields.h:687` selects parent38/field69; `UpdateFields.cpp:
+3151–3158,3725–3727` serializes only nonzero mask words. The oracle incorrectly
+includes word0; production correctly emits block-presence 6 and two mask words.
+The accepted retry above corrects only that oracle and the reviewed test
+ceiling. This failed run did not reach production-login integration or debug
+builds; its artifacts were not used as a live candidate.
+Acceptance preparation formatted the changed Rust files and reviewed the test
+census delta: 4,151 → 4,156 identities, one ignored unchanged; five added login
+composition tests and one selected-charge test rename, with no other identity or
+classification change. The reviewed unit-test line ceiling is 277,723. The new
+1,023-line complete-item-save suite is cohesive around production login through
+save acknowledgement; if it grows, its natural split is auxiliary refund/BOP
+cases from payload/debit cases. This census update is not test execution.
+One bounded worker at a time; the parent owns decisions, review, Git and all
+heavy/runtime scheduling. No broad inventory/spell rewrite, unrelated architecture
+audit, extra macro-issues or repeated unchanged campaigns are part of this plan.
+
+Acceptance preparation reclaimed 10,312 MiB from 93 superseded pre-October-29
+incremental variants for six crates rebuilt by the current accepted campaigns.
+Every current-day variant, binary, dependency artifact, capture and manifest was
+preserved. The exclusive host lock and process/open-descriptor checks preceded
+cleanup. Free space increased to 12.75 GiB; recheck before building. Record:
+`/tmp/rustycore43-inactive-incremental-02acjlep.json`.
+
+**#43 current summary — 2026-10-29, branch `43-spirit-healer`:**
+Latest accepted local code candidate: `6dc547c98`. Rust fall/release attempt 8
+and reclaim attempt 5 complete their functional, DB, capture and restoration
+checks. The selected fall actor bodies and all 24 controls match native bytes
+without normalization. Reclaim fixes LocalFlags and retains the recorded timed
+Mana publication differences. C++ offer attempt 3 and both corrected Stuck
+references pass. Mob attempt 2 is a failed fixture: it finishes while the actor
+is still alive, and its post-validator correctly rejects the logout root.
+The bounded bot/plan correction is UNVALIDATED. Rust healer attempt 1 exposes
+a real sickness-cast failure despite successful resurrection, durability and
+corpse cleanup. Its exact trigger error needs diagnosis; Reincarnation is being
+exercised independently at the accepted code candidate. Ten Rust scenario
+responsibilities, remaining comparisons and full publication/terminal acceptance
+remain unfinished.
+No publication or issue closure.
+
+The affected campaign at `6dc547c98` passed in 252.968 seconds on aarch64 with
+two Cargo jobs: QA Python 42 tests (one optional skip), Entities 1,065/1,065,
+World 4,150 passed/one ignored, World Entities 2/2, World Instances 1/1,
+production login 42/42, bot 252/252, both debug builds, final and manifest
+verification. The 600-second ordinary target is met. The exact record is
+`/tmp/rustycore43-affected-6dc547-w4wsd6zi/{record.json,final-manifest.json}`.
+Architecture/syntax evidence retains its passing SHA `3350a552d`, followed by
+the reviewed qualified-path and fixture-only corrections. This is affected local
+acceptance, not the origin-base publication or exhaustive terminal campaign.
+
+Rust fall/release attempt 8 passed/restored in 314.237 seconds. Native frames
+653/662/674 and Rust sequences 142/148/161 have identical 133/166/55-byte full
+bodies and original connection 1. All 24 selected controls match order and full
+bodies on both original connections, without CastID/time normalization. The
+review is `comparison-fall-release-6dc547/capture-review.json` under the live
+campaign. Ambient movement and non-actor out-of-range traffic still differ;
+this is not a clean full-stream verdict.
+
+Rust reclaim attempt 5 passed/restored in 352.902 seconds. Parent-recomputed
+`comparison-reclaim-6dc547/{actor-controls.json,core-full-bodies.json,reclaim-values-field-review.json}`
+confirms exact 133/166/55/166-byte death, corpse, release and bones bodies.
+All 30 control opcodes retain per-connection order; 29 full bodies match and
+one Ghost AuraUpdate differs only in the previously source-proven NORMAL CastID
+low-40 counter. Post-reclaim health 210, AuraState/PvP/PlayerFlags zero and Active
+bits 0/12/38/69 match, including LocalFlags tail `0000000008800000`. The owner
+packet remains 90 C++ versus 98 Rust bytes: Rust includes timed Power137=13456.
+Later health 221/232 matches while Mana field publication differs across the
+native two-second window. No regen arithmetic/clock redesign or full-stream
+parity is inferred from these observations.
+
+C++ offer attempt 3 passed both epochs/restoration in 338.911 seconds with the
+accepted full-Mana fixture; both ordinary casts and all seven caster rules pass.
+C++ Stuck-death attempt 2 passed both epochs/restoration in 257.998 seconds and
+Stuck-home attempt 1 passed/restored in 166.692 seconds. Native references exist
+for all twelve responsibilities, preserving mob's failed-wrapper boundary.
+The additional mob attempt 2 failed/restored in 161.005 seconds: actor 21 saved
+alive at 20 HP with no corpse; its only root trace 2758 follows finish trace
+2751. The fixed 30-second wait is not death evidence. The selected correction
+uses native empty AttackStop (`Opcodes.h:71`, `CombatPackets.h:53–59`,
+`CombatHandler.cpp:63–66`, `Unit.cpp:5756–5785`) and waits for actual death before
+finish, preserving the opposing creature's attack and all persistence checks.
+
+Rust healer attempt 1 failed/restored in 562.958 seconds using the isolated
+clean accepted QA checkout. The first bot plan passes, actor 20 saves alive
+at 385 HP with no ghost/corpse, and chest/backpack durability is correctly 19/25.
+No Aura 15007 is saved. SpellGo 15007 reports actor 20 as a hit, but captured
+PID 2353215 logs `Resurrection sickness triggered cast failed`. The current
+corpse host erases the static execution error through `is_ok()`; preserve that
+reason for the next diagnostic instead of guessing or weakening the sickness
+requirement. The existing generic failed report is not a pass.
+
+The next QA/diagnostic candidate is frozen, UNVALIDATED. The bot adds the
+native typed empty AttackStop request, its literal opcode/serialization test,
+and an observed combat/stop/root plan with positive and negative phase checks.
+The corpse host retains the existing boolean result and logs only the static
+trigger error, account ID and spell ID before `is_ok()`. This is diagnostic
+visibility, not a sickness gameplay repair. Server sources otherwise retain
+the accepted `6dc547c98` behavior. The independent Reincarnation attempt uses
+that exact older code and immutable binaries from the clean isolated checkout;
+it does not execute these unvalidated edits.
+
+The complete affected local campaign at `63d8c8f2e` passed in 447.907 seconds
+(aarch64, two Cargo jobs, ordinary 600-second target met). Production login passed
+42/42, the standalone bot passed 252/252, both debug executables built, and the
+affected final passed, including all 4,149 active World tests (one ignored).
+The exact record is
+`/tmp/rustycore43-accepted-delivery-63d8-1eebzoea/{record.json,final-manifest.json}`.
+Architecture evidence remains at `bc0e863d2`; production library evidence at
+`dd54ae2cd` is retained at its tested SHA. This is not the origin-base publication
+campaign or terminal/live completion.
+
+Rust reclaim attempt 4 passed in 351.609 seconds and restored the stable server.
+Its final DB state is alive, 402 HP, no ghost and no owned corpse. All 30 selected
+actor controls have native per-connection opcode order; 29 full bodies match and
+the remaining Ghost AuraUpdate differs only in its source-proven NORMAL CastID
+low-40 counter. Corpse and bones births and the release owner block match native
+full bodies. Raw comparisons are retained under the live campaign's
+`comparison-reclaim-63d8/`; strict whole-stream comparisons still fail and are not
+relabeled as parity. The captured VALUE differences expose excess Object update
+admission on no-op forced fields and a redundant unchanged movement zone update.
+Their repairs are implemented, UNVALIDATED. The native disabled-war-mode zone
+tail also marks LocalFlags (69), absent from Rust's post-reclaim mask; its bounded
+participant is under repair. Immediate restored Mana is 13,455; final Mana is
+13,652 C++ versus 13,653 Rust, with identical final HP. The first VALUES Power[0]
+mask differs across the regen publication window (`Player.cpp:1818–1826`);
+no regeneration arithmetic change is justified by that timed observation.
+
+The native field/zone repairs are frozen, UNVALIDATED: preserve dirty masks on
+no-op assignments without newly admitting the existing Object update queue;
+use exact Unit PvP bits 64/78 and Player LocalFlags bits 38/69; skip unchanged
+normal-movement zone updates while retaining explicit teleport/resurrection
+updates; run the native disabled War Mode tail before zone hostility. The enabled
+War Mode product is unchanged and is not established by this default recovery
+participant (`Player.cpp:7394,28934–28966`, `UpdateField.h:105,262`). No state,
+clock, lock, task or public API is added. The census adds one World composition
+identity and removes none; all prior rows are unchanged. The reviewed totals are
+276,643 unit-test lines, 4,129 unit-test identities and 22 source tests. Session
+logical growth is 124 test lines; Player growth is 22 production and 96 test
+lines, retaining the existing #584 exits. Ordinary cohesion review retains the
+1,094-line Unit value helper file, 1,084-line movement fixture group and 1,025-line
+zone/criteria fixture group below the 2,000-line terminal budget. Their next
+natural splits remain value-family operations and domain-host zone/movement
+fixtures under the existing #584 programme; this correctness repair adds no
+separate decomposition delivery or general size allowance.
+
+The first affected campaign at `3350a552d` failed in 253.403 seconds, within
+the ordinary time target but without completing acceptance. Python death tests
+and architecture/syntax checks passed. Both Rust commands stopped at the same
+E0433: the new zone tail qualified `UnitPvpFlags` through `wow_entities`, which
+does not re-export it. The correction uses its existing defining dependency,
+`wow_constants`; it adds no API or behavior. No Rust suite, production integration
+or executable build is credited from this failed run. Its exact record is
+`/tmp/rustycore43-affected-3350-4xo8k8mj/{record.json,final-manifest.json}`.
+The corrected candidate remains UNVALIDATED; the unchanged architecture evidence
+retains its actual SHA and the qualified-path-only delta is reviewed separately.
+
+The corrected campaign at `2f6574782` failed in 254.083 seconds. Compilation
+passed; Entities passed 1,065/1,065, World Entities 2/2 and World Instances 1/1.
+World passed 4,148 with two failures and one ignored test. The same-area
+sanctuary fixture still expected Object queue admission for its no-op case;
+the new disabled-zone fixture inserted applications without the SpellInfo
+authority required by the existing Aura removal path. Both fixture repairs
+preserve native dirty bits, exact changed-value packets and all selected aura
+removal assertions. Production integration, bot/build and live acceptance did
+not run. The failed record is
+`/tmp/rustycore43-affected-2f657-hntbb8x5/{record.json,final-manifest.json}`.
+
+The fixture-only correction is frozen, UNVALIDATED: 19 lines supply the
+canonical keys and inert active-effect rows for the existing zone test, and
+three lines make the existing sanctuary no-op packet diagnostics explicit.
+The initial focused worker run still failed before the active-effect rows were
+supplied; it is not passing evidence. The final diff retains every assertion
+about selected removals, preserved flags and changed-value payloads. The reviewed
+census has 276,665 lines and identical test rows, classes, destinations and
+ignored states. Session test growth is 19 lines and Character handler test
+growth is three, with unchanged production counts and #584 exits. The zone
+fixture group is now 1,044 lines; its existing cohesion review and terminal
+budget remain applicable. No production code changes follow from these fixtures.
+
+Reference recovery-dead attempt 2 and recovery-ghost attempt 1 now pass both
+epochs, capture and restoration in 249.420 and 253.117 seconds respectively.
+Reference offer attempt 2 fails/restores in 250.717 seconds: the corpse target
+now reaches normal cast cost checking, which returns NO_POWER (108). Its native
+caster CREATE records current/maximum Mana 1,000/6,100 (packet 75, body offset
+1103); `caster-resource-review.json` retains the source/hash/field evidence.
+The fixture now supplies 6,100 Mana and permits natural regeneration before the
+second ordinary Redemption cast, retaining normal costs and all response cases.
+The bounded 70-second interval and matching offer/finish deadlines are implemented,
+UNVALIDATED. No failed run is relabeled. Native reference acceptance remains
+pending for offer and both Stuck scenarios; ten other Rust scenarios, fresh
+last-candidate comparisons and final/terminal acceptance remain outstanding.
+
+Affected final acceptance at `bc0e863d2` passed in 543.665 seconds, based on
+`dd54ae2cd`, with architecture policy/fixtures, syntax ownership, census,
+downstream test compilation and the complete World suite (4,149 passed, one
+ignored). This includes the corrected closed-self Wisp case. Evidence is
+`/tmp/rustycore43-affected-bc0e-d7pzfyki/{final-manifest.json,record.json}`.
+The following production-login target ran 42 tests: 41 passed and one failed
+because its retained-transfer logout oracle omitted the native zero-Mana
+PowerUpdate introduced by the earlier SetPower repair. The observed sequence
+contains that packet before LogoutComplete, as required by
+`Player.cpp:24909–24932` and `Unit.cpp:9287–9306`. The strict sequence and exact
+power payload oracle now require that update; this repair is UNVALIDATED.
+This fixture deliberately cancels login at PetStable before the class-power
+hydration, retaining Unit's initial Mana mapping. The complete-login class-1
+Rage mapping is not reached. No production change follows from this finding.
+The complete attempted campaign stopped at 557.226 seconds,
+within the time target but FAILED; standalone bot tests/build and the debug World
+build did not run. This affected final is not a publication or live acceptance.
+
+The next affected final at `8417affcf` passed in 85.507 seconds, but its
+production integration again passed only 41/42: the newly strict payload
+expectation incorrectly used the class-1 Rage type despite the interrupted-login
+fixture. The actual packet has zero Mana (power type 0); the full opcode order
+already matches. The harness cancels at PetStable
+(`production_login_player_owner.rs:374–384,520–551`) before
+`login_sequence.rs:521` replaces Unit's initial mapping. The corrected oracle
+must bind its Mana/unsupported-Rage preconditions to the actual canonical Player.
+The attempted campaign stopped FAILED after 95.742 seconds; no bot tests/build
+or debug World build ran. Evidence is
+`/tmp/rustycore43-affected-8417-gggm0h0k/{final-manifest.json,record.json}`.
+
+At `2d4c816d4`, affected final failed only rustfmt (83.171 seconds); compilation,
+policy and all 4,149 active World tests passed. The two new power-index assertions
+need rustfmt's method-chain layout. No integration/bot/build step ran. The failed
+record is `/tmp/rustycore43-affected-2d4c-68m9uj4o/record.json` (83.200 seconds).
+
+The second combined acceptance at `dd54ae2cd` also failed: final took 976.424
+seconds and the complete attempted ordinary campaign took 977.780 seconds,
+again exceeding the 600-second target. Evidence is retained in
+`/tmp/rustycore43-combined-final-repair-l_o9v_3e/{final-manifest.json,record.json}`.
+QA Python passed 42 tests with one skipped. Workspace/all-target compilation,
+independent domains, production SQL composition, standalone bot formatting/check,
+the test census and physical-file policy passed. Entities passed all 1,061 tests;
+World passed 4,148 with one failed and one ignored. Other selected suites passed.
+Production-login execution, full standalone-bot tests/build and the debug World
+build did not run because final failed.
+
+The remaining World failure is the closed-self logout fixture: peer registration
+and CombatStop registry synchronization both hydrate canonical known spells from
+the test-only legacy input, which did not contain racial 20585. Reordering only
+the canonical seed was insufficient: the focused feedback executed exactly one
+test and failed, retaining Ghost 8326 with one saved aura and Wisp 20584 with none
+(`/tmp/rustycore43-logout-wisp-feedback-0pQKft/`, 370.376 seconds including
+compilation). Native CombatStop before BuildPlayerRepop and both strict saved-aura
+assertions remain required (`WorldSession.cpp:558–565`, `Player.cpp:4269–4272`).
+The fixture-input repair is implemented, UNVALIDATED. Its census delta adds 26
+lines to that existing test, retaining all 4,150 identities, class/destination
+assignments and ignored states; the reviewed line count is 276,444.
+Architecture repairs sort two
+reviewed registry accesses without changing their values and record the exact
+reviewed Session/Map/Character/Player aggregate growth; existing owners and #584
+retirement conditions remain unchanged. No whole-port completion follows from
+these metadata repairs.
+
+Combined acceptance at `2bea1d3c8` failed: the final runner took 1,321.374 seconds,
+and the complete attempted ordinary campaign took 1,344.580 seconds, exceeding
+the 600-second target. The exact manifest and record are
+`/tmp/rustycore43-combined-final-22apo_50/{final-manifest.json,record.json}`.
+QA Python passed 42 tests with one skipped. Workspace/all-target and independent
+domain compilation passed. Entities passed 1,060 with one failure; World passed
+4,146 with three failures and one ignored. Other selected library suites passed,
+including Packet 776, Core 279 and Application 31. Production-login execution,
+full standalone-bot tests/build and the debug World build did not run.
+
+The failed campaign exposed one native sanctuary dirty-mask bug: calling the
+ordinary setter marked Unit bit 0 before 64/78, adding an unwanted four-byte mask
+word. The repair assigns the same canonical byte and unconditionally marks only
+64/78, retaining the strict ten-byte oracle (`UpdateFields.h:278`,
+`Player.cpp:7327–7333`). Two fixture repairs supply the positive logout test's
+missing DifficultyStore and run the native caster health-state phase before
+Drain Soul (`Unit.cpp:469–476,6765–6768`); its expected 700 HP is preserved.
+SQL composition additionally caught a production compile error hidden by the
+workspace's unified test-fixtures feature: the existing power sender was
+re-exported only for tests. Its two existing re-export levels are now available
+to the production trait adapter, without changing the sender or other API gates.
+Standalone bot formatting uses its own edition 2021. These repairs are implemented,
+UNVALIDATED, pending the corrected-candidate acceptance.
+
+The acceptance metadata is reviewed against the actual source delta: three thin
+trait adapters, one test-only eleven-argument Session factory site, and two
+private corpse-publication registry accesses. The Player root grows only two
+lines for the immutable LocalFlags snapshot; the existing #584 C4 exit remains.
+The census adds 30 integration identities and removes none; all prior classes,
+destinations and ignored states are retained. The shared fixture/native power
+adapter changes derived blockers in 136 prior rows, with 43 owner-vote changes;
+these are not test moves or domain-completion claims. The exact reviewed delta is
+`/tmp/rustycore43-census-review-yitp1lcs/record.json`. That repair's bounded ceiling recorded
+276,418 unit-test lines, 4,128 unit-test identities and 22 source tests, including
+the required catalog and phase fixture repairs. No acceptance baseline is claimed
+green until the corrected policy and source pass together.
+
+Earlier candidate `b0f2dadd6` passed the complete World library suite (4,130
+passed, one ignored) and built the debug server in a 328.993-second affected
+campaign (`/tmp/rustycore43-native-death-publication-acceptance-9lh5imhg/record.json`).
+Rust fall/release attempt 6 then failed its new real-DB assertion: equipped
+durability remains 40 although its Item VALUES packet correctly sends 34.
+The corpse birth and post-release owner packets now match R6 exactly; the
+death packet differs only by omitted zero Power[0] and its mask bits 116/137
+(`Unit.cpp:8565,9287–9300`). The retained comparison is
+`comparison-fall-release-b0/` under the live campaign. This failed run took
+314.518 seconds and restored the stable runtime and disposable fixture.
+C++ reclaim attempt 1 passed in 173.685 seconds with health 402, no ghost or
+corpse, durability 34/40, native collection and verified restoration. Repair
+the two observed Rust findings, then continue the remaining paired scenarios;
+full final and terminal acceptance still require the last code candidate.
+The durability failure is a capture gate, not an overwritten SQL value:
+populated login leaves whole-inventory authority incomplete
+(`inventory_load.rs:74,265,284`), suppressing both save groups. Existing owned
+partial durability SQL can save each proven existing Changed item without
+authorizing a full inventory rewrite. Preserve that full-inventory gate and
+other dirty fields; no completed durability acceptance is claimed yet.
+Both repairs are implemented, UNVALIDATED: the native death power assignment
+marks its mapped element even at zero; partial capture selects only existing
+owned Changed items. Regression coverage runs the populated production load,
+loss, Map publication and normal save, including rollback, concurrent changes
+and retention of unrelated dirty fields. New, traded, buyback, foreign-owned
+and invalid-identity objects are excluded; full inventory authority is unchanged.
+Affected acceptance at `1dde03c7a` passed Entities (1,055), Application (31)
+and Core (276). World passed 4,130 with one failure and one ignored; the new
+populated-login/Map/save regression passed. The remaining failure is the
+existing full-save projection equivalence case: an incomplete inventory with
+no eligible items now returns `Some(empty)` instead of its prior `None`.
+Preserve that absent-group contract while retaining nonempty partial capture.
+The 147.030-second failed campaign is
+`/tmp/rustycore43-persisted-death-acceptance-cajvlcgl/record.json`; production
+login-owner acceptance and the debug build did not run.
+The corrected candidate `abba63ce7` passed World (4,131, one ignored), Core
+(276), production login-owner (41) and the debug build in 185.582 seconds;
+unchanged Entities/Application retain their `1dde03c7a` results. The record is
+`/tmp/rustycore43-persisted-death-acceptance-uypa03_1/record.json`.
+Rust fall/release attempt 7 passed in 314.052 seconds with real durability
+34/40, health-one ghost, one corpse and graveyard 106. Its full corpse birth
+(166 bytes), death Item/Player delta (133) and release Player delta (55) match
+R6 exactly. All 24 selected control packets also match their complete bodies
+and order per connection. Ghost8326 differs only in its source-proven NORMAL
+CastID low-40-bit counter and CastTime; all remaining raw bytes match.
+`comparison-fall-release-abba/` retains these contracts and unchanged raw
+pairs; strict full-stream/window diffs remain non-clean, including unrelated
+NPC visibility/movement and the explicit L18 achievement boundary. No baseline
+or comparator was weakened, and no whole-stream parity is claimed.
+
+Rust reclaim attempt 1 then failed: the actor remains a ghost, with correct
+durability 34/40. The packet reader incorrectly requires a raw 16-byte GUID;
+the real R6 packets carry packed 2/5-byte GUIDs. `MiscPackets.cpp:274` invokes
+`ObjectGuid.cpp:779–785`, which reads the two masks and packed values. The
+existing packet test and World helper reproduce the same unsupported raw
+assumption and must be corrected with the reader.
+That run also exposed `jq`'s per-argument size limit while writing the native
+artifact inventory. No native report was installed, and the outer guard held
+fixture cleanup. Original runtime/config restoration had completed; scoped
+recovery reused the maintained cleanup functions, restored the journal and
+verified the original stable SHA with no packet dump. The failed 319.585-second
+run, original held report and separate `fixture-cleanup-recovery.json` remain
+under `cases/rust-reclaim-attempt1/`. Empty-epoch "observed/collected" defaults
+are not acceptance evidence. The working QA repair streams the inventory from
+a private file, preserves every artifact/hash and defers status until an epoch
+is actually recorded; its large-inventory/guard regressions are UNVALIDATED.
+The working reclaim repair now uses the existing packed-GUID reader. Packet
+coverage pins both captured request bodies and truncated input; the shared
+World builder now uses the real wire layout. A registered-dispatch regression
+checks ignored GUID hints, range rejection, half-health resurrection, one-time
+corpse deletion and replay rejection. These changes remain UNVALIDATED until
+the committed affected campaign and fresh reclaim run complete.
+Affected acceptance at `bd79e14b3` passed the 215 runtime-guard checks,
+Packet (775), World (4,132, one ignored) and the debug build in 185.668 seconds
+(`/tmp/rustycore43-reclaim-wire-acceptance-pt8wsx2w/record.json`). Rust reclaim
+attempt 2 then reached native resurrection with no GUID parse failures, but
+held at `CastAllObtainSpells`: populated login never proves the backpack/bag
+positions to that reader. The exact native error is "complete backpack and
+bag inventory authority unavailable". The 378.926-second failed run installed
+its complete 752-artifact report and restored the runtime and fixture normally.
+
+The working repair now proves carried positions only after both successful,
+coherent queries and current canonical identity/placement checks. Its one
+Player-owned load-proof flag admits only the three obtain-position readers;
+full Item persistence authority remains unchanged. The adjacent save receipt
+also needs a bounded proof for reclaim/healer with no pickup effects and
+durability covered by the same transaction. This proof must never acknowledge
+whole Item rows or bypass missing currency receipts, new/removed/traded items,
+unknown metadata, dangling positions or incarnation/continuation fences.
+Both parts and their regression coverage remain UNVALIDATED in the working tree.
+The implemented receipt proof is limited to reclaim/healer, a successful
+carried load with every live position resolving, a known no-pickup ItemEffect
+catalog, and every Changed item covered by the same absolute-durability request.
+It rejects new/removed/traded, invalid-identity and uncovered items. Confirmed
+currency coverage and the exact incarnation/continuation remain mandatory;
+full Item acknowledgement remains false and preserves other dirty fields.
+Native placement follows `Player.cpp:11277,11535` and the obtain scan follows
+`Player.cpp:8034–8081` at the pinned target source. This is a repair of the
+observed operation's admission/receipt, not full inventory port acceptance.
+
+The committed repair at `5f9caf658` passed affected acceptance in 414.962 seconds
+on this aarch64 host: Entities 1,056, World 4,133 with one ignored, Character 3,
+Core 277, Inventory 36, Spell 181 and production login-owner 41; the debug server
+also built. The record is
+`/tmp/rustycore43-carried-recovery-acceptance-6gzce5_z/record.json`.
+Rust reclaim attempt 3 then passed in 348.848 seconds with durability 34/40,
+no ghost or corpse, native collection and verified restoration. Both C++ and
+Rust initially expose maximum health 420 and immediately restore health 210.
+The final saved health difference (402 versus 385) is one additional C++
+regeneration tick, not a different resurrection fraction. All 30 selected
+actor controls have identical opcode order per original connection; 29 have
+identical full bodies and the ghost AuraUpdate differs only in its NORMAL
+CastID counter. Power publication still has a concrete finding: both initial
+CREATEs expose maximum mana 26,910, but C++ immediately publishes 13,455 after
+reclaim while Rust first publishes the later regeneration value 13,460.
+`Player.cpp:4354` calls `Unit::SetPower`, whose in-world publication is explicit
+at `Unit.cpp:9300–9306`; the Rust resurrection path currently only stores the
+value. Restore that action publication before accepting reclaim packet parity.
+Full UpdateObject/strict-stream comparison also remains bounded; this does not
+claim full-stream parity.
+The retained comparison is `comparison-reclaim-5f9/` in the live campaign.
+
+C++ healer attempt 1 took 208.030 seconds and restored the fixture/runtime.
+Its second epoch passed, retaining equipment/backpack durability 19/25 and
+resurrection sickness 15007 after login. Its first epoch failed because the bot
+treated instance EOF as fatal before observing the real realm LogoutComplete;
+the native capture contains that acknowledgement. At pinned target source
+`WorldSession.cpp:676,687`, logout sends the realm acknowledgement and then
+closes the instance socket. Those independent connections can deliver EOF
+first. The bot repair must continue bounded realm observation after that
+specific finish-stage EOF, still require the actual acknowledgement, and retain
+failures for missing acknowledgement, realm EOF and action-stage disconnects.
+The healer pair requires a fresh run after that repair.
+The bot repair is implemented, UNVALIDATED: only finish-logout collection
+tolerates frame-boundary instance EOF; it disables that socket and waits for
+the real realm acknowledgement within the unchanged deadline. Transport
+regressions retain missing-acknowledgement, realm-EOF, malformed/truncated-frame
+and action-stage EOF failures. Resurrection power publication remains to repair.
+Affected bot acceptance at `a6f8172d5` is now green: all 251 tests passed and
+the debug bot built in 47.370 seconds. The record is
+`/tmp/rustycore43-logout-bot-acceptance-2ym_z55y/record.json`; the healer replay
+still requires the repaired bot. Reclaim's owner VALUES comparison also shows
+missing AuraState/PvpFlags publication (C++ Unit mask bits 44/78, Rust neither).
+Trace their health-transition/UpdateArea sources before accepting that packet;
+do not normalize those fields or attribute them to ambient NPC traffic.
+The immediate power repair is implemented, UNVALIDATED. Reclaim/healer,
+accepted requests and self-resurrection use the native forced dirty assignment
+and publish each supported, clamped power on the existing realm owner/observer
+route after releasing the Player guard. Ordinary setters and regeneration
+suppression retain their behavior. Regressions pin the captured half-mana value,
+supported zero, unsupported mappings, clamping, world admission and one-shot
+execution; the owner VALUES findings remain separate and unresolved.
+Affected acceptance at `bc20c9641` stopped at compilation after 125.464 seconds:
+two new observer assertions used `session::SessionCommand` instead of the
+existing `session::mailbox::SessionCommand` re-export. No suite execution,
+production integration or debug build is claimed from that failed run
+(`/tmp/rustycore43-resurrection-power-acceptance-zcib7hnz/record.json`). The two
+test paths are corrected; the affected batch requires a fresh committed run.
+The corrected `ca113f530` batch compiled and completed all selected suites in
+79.904 seconds: Entities 1,056, Application 31, Character 3, Core 277, World
+Entities 2, Inventory 36 and Spell 181 passed. World passed 4,128 with five
+failures and one ignored. Four exact publication assertions still omit the
+new native PowerUpdate; the new out-of-world test incorrectly expects the
+one-shot wrapper to pass its existing residence fence. Preserve that fence and
+assert the rejected continuation plus suppressed power publication. The failed
+record is `/tmp/rustycore43-resurrection-power-acceptance-9l_eswzl/record.json`;
+production login-owner and the debug build did not run.
+Read-only source review also confirms that bones conversion discards its new
+bones GUID and falls back to ordinary Create1 discovery instead of immediate
+object-only Create2. The repair must retain the deletion commit and residence
+fences, publish only bones and handle same-GUID removal/recreation. AuraState,
+sanctuary and bones publication are the remaining demonstrated packet findings;
+finish those coherent repairs before the next affected acceptance/build.
+The sanctuary repair is implemented, UNVALIDATED: a known AreaTable result
+sets or clears only the native sanctuary bit and always marks nested Unit
+bits 64/78, including same-area reentry. Missing rows in an available catalog
+clear it; an unavailable catalog does not authorize clearing. The general PvP
+setter and the other native flags remain unchanged. Coverage includes exact
+Map-published mask/value, same-area, missing-row and missing-catalog cases.
+The initial reclaim CREATE comparison additionally confirms AuraState zero in
+C++ (packet 73, body offset 1897), versus Rust's recalculated `0x00901022`
+(sequence 64). The native snapshot must supply that value; deriving it again
+from current health changes the observed phase. At offset 1889, C++ Flags2 is
+`0x800` and Rust is zero; target `Player.cpp:470,2507` explicitly assigns
+`UNIT_FLAG2_REGENERATE_POWER`. This existing CREATE/default finding remains
+separate from the in-progress health-state operation; no full CREATE parity is
+claimed from the matched initial health or mana values.
+For bones, `Map.cpp:3757` calls `CommitTransaction` before adding the object,
+but `DatabaseWorkerPool.cpp:302–325` enqueues that transaction asynchronously.
+The source does not prove a synchronous commit acknowledgement before birth.
+Retain Rust's existing confirmed-delete completion fence and unknown-outcome
+hold; distinguish it from C++ call order when reviewing the publication repair.
+The health AuraState repair is implemented, UNVALIDATED. The existing admitted
+Unit phase maintains the six native health bits while alive, preserves them
+while dead, invalidates cached aura authority on changes and marks Unit 32/44.
+VALUES and login/teleport/nearby-player CREATE freeze/project that canonical
+state; per-caster states 14/16 remain viewer-dependent. Aura removal preserves
+unrelated native states. No extra clock, mutable state mirror or lock is added.
+Source review and the new phase/threshold/frozen-wire regressions still require
+the next combined affected acceptance after the bones repair.
+
+Bones comparison now pins the full 166-byte pair: C++ packet 1486 and Rust
+sequence 364 differ only at type byte 11 (Create2 versus Create1) and scale
+bytes 56/57 (zero versus one). C++ orders destroy 1485, birth 1486, actor 1487;
+Rust orders destroy 354, actor 355, birth 364. The selected repair is immediate
+object-only destroy/recreate publication outside the Map borrow, using existing
+canonical bones and new-object state. It preserves the existing awaited-delete
+completion fence; current Map conversion already exposes in-world bones before
+that await. Native CREATE is not a durable completion receipt. Hidden staging,
+a new DB task and a second publication scheduler are unnecessary here.
+C++ healer attempt 2 now passes both epochs with the repaired bot: real realm
+logout acknowledgement, persisted sickness/durability, native collection and
+verified restoration in 209.087 seconds. It runs from the clean detached QA
+checkout `/tmp/rustycore43-cpp-capture-c70b662a8`, using the unchanged pinned R6
+binary and bot compiled at `a6f8172d5`; this is reference-only evidence, not a
+claim that the unvalidated Rust candidate passed healer. The isolated checkout
+keeps the QA source fixed while Rust-only implementation proceeds separately.
+The reference driver is continuing the remaining C++ scenarios under the same
+exclusive runtime/build lock and disposable-fixture/restoration guards.
+The bones repair is implemented, UNVALIDATED: it consumes only the replaced
+corpse's destroy intent, enqueues out-of-range before object-only Create2,
+assigns the source/capture-proven zero scale and ends its native new-object
+scope after fanout. Existing deletion acknowledgement, exact continuation and
+residence checks still gate completion. Coverage includes observer delivery,
+same-GUID rediscovery, gated deletion, failed publication and stale residence.
+
+C++ wisp attempt 1 stopped after 215.877 seconds and restored the runtime and
+fixture. Both bot logouts passed. Epoch 1 persisted ghost auras 8326/20584;
+epoch 2 saved sickness with maximum duration 600,000 and remaining time 35,098.
+The harness wrongly requires a persisted 20585 row after healer and a 60,000
+maximum duration. Target `Player.cpp:4269` requires runtime HasSpell(20585),
+not that database row: `AddSpell:2813–2819` and `_SaveSpells:20405–20419` can
+delete a changed dependent row without reinserting it. Keep the legal fixture
+seed and prove the racial operation with the actual ghost aura. At
+`Player.cpp:4394–4402`, level 11 changes only remaining duration to 60,000;
+the spell's maximum stays 600,000. The existing Rust sickness path already
+applies total duration then remaining duration; no new production change is
+justified by this reference failure. Correct the two QA assertions and retain
+the required 75-second expiry/relogin and observer checks for the fresh run.
+C++ reincarnation attempt 1 passes its real resource/cooldown scenario,
+collection and restoration in 136.909 seconds. C++ mob attempt 1 stopped in
+157.205 seconds with normal restoration, despite a passing bot: the actor is
+correctly saved as health-one ghost with one corpse. The trace places death
+root at 2416, finish-logout at 3033, PreResurrect at 4118 and LogoutComplete at
+4127. Target `WorldSession.cpp:558–565` releases a running death timer during
+logout before saving. The harness's post-logout unreleased-health-zero
+expectation is unsupported; death-before-finish and shutdown persistence need
+separate assertions. This also applies to offer/dead-recovery/Stuck teardown.
+
+QA acceptance at `4c80164bd` passes 39 tests with one skipped in 0.220 seconds
+(`/tmp/rustycore43-death-shutdown-qa-acceptance-n9gmdjvg/record.json`). The
+retained mob action has a separate read-only review at
+`cases/cpp-mob-attempt1/post-capture-contract-review-4c80164bd.json` (under the
+live campaign): the complete native PKT has 4,144 frames, its artifact inventory
+is preserved, death precedes logout and the final native logout ghost/corpse
+state passes the corrected contract. Original exit 1, collection exit 70 and
+failed wrapper status remain recorded; this review does not claim stream parity.
+C++ wisp attempt 2 passes both epochs including the 75-second sickness expiry
+and observer check in 360.352 seconds. Automatic release passes the real native
+death timer in 516.516 seconds. Both collect their captures and verify restoration.
+Offer attempt 1 then fails in 215.600 seconds: epoch 1 passes, but epoch 2's
+7328 casts return native BAD_TARGETS (13), so the victim receives no request.
+Its fixture/runtime restoration is verified. Diagnose the target operation
+before attributing that reference failure to Rust or changing its parity contract.
+
+Native logout death release is implemented, UNVALIDATED. The existing finalization
+ledger now orders one DeathRelease obligation after loot and before CharacterSave,
+using the existing canonical death timer, BuildPlayerRepop and graveyard operation
+(`WorldSession.cpp:550–565`, `Player.cpp:4262–4316,4743–4790` at `a5f8da2e`).
+The existing logout save context prevents an extra intermediate Player save;
+far graveyard transfers complete through native logout recovery without a client
+ACK. Ownership/residence and unresolved-operation fences still gate the final
+save and retirement. Closed self sockets do not prevent canonical ghost/Wisp
+state or peer corpse delivery. Tests cover all three logout modes, missing
+capabilities, not-due logout, already-released ghosts, far transfer, publication,
+failure, unknown outcome and cancellation without replay; none has executed yet.
+
+Inspected inactive artifacts were retired to recover 898.5 MiB before the next
+build; current runtime binaries, reference captures and the active incremental
+cache are preserved. Exact sizes/hashes and unused-file checks are recorded at
+`/tmp/rustycore43-storage-retirement-0_6mhuhz/record.json`.
+
+The Flags2 repair is implemented, UNVALIDATED. At the existing canonical login
+load boundary, before rest/skills/auras, it preserves unrelated Flags2 bits and
+assigns REGENERATE_POWER (`Player.cpp:2507,17687–17695`). Login, teleport and
+nearby-player CREATE snapshots then carry the actual canonical scalar, including
+later aura removal; packet construction does not recreate the login default.
+Packet, production-login, travel and nearby-visibility regressions still need
+the combined final campaign. The fresh Player/bootstrap defaults are unchanged.
+
+C++ recovery-dead attempt 1 fails its wrapper in 247.327 seconds and restores
+normally. Both bot passes succeed, and epoch 2 proves the persisted ghost/corpse
+input and output; epoch 1 never writes its post-disconnect snapshot. The QA
+offline poll allows only 60 seconds, while target `WorldSession.cpp:137,514–537`
+retains a lost-socket session for 60 seconds before deletion/logout and saving.
+The poll requires a bounded margin beyond that native grace. Do not credit a
+post-restart snapshot as proof that the failed pre-restart poll completed.
+The two recovery cases require the corrected QA wait and fresh captures.
+
+A second inspected artifact retirement recovered 9.010 GiB from four obsolete
+World compilation hashes with no executable/rlib/rmeta output: only unused,
+single-link DWO/object files were removed. Current binaries, captures and the
+active incremental cache remain intact. The exact file/stat inventory is
+`/tmp/rustycore43-obsolete-debuginfo-retirement-c9zfsywi/record.json`.
+
+The next QA repair is implemented, UNVALIDATED. Offer now performs one bounded
+caster observation, freezes the unique nearby stationary Corpse CREATE with the
+exact journal owner/map and retained packet hash, then targets that actual GUID
+with CORPSE_ALLY. The target source rejects ordinary spells cast at a ghost Player
+(`SpellInfo.cpp:2150–2185`); `SpellEffects.cpp:3599–3627` resolves the corpse owner
+and creates the aura-zero request. Existing ordinary and explicit-empty target
+bytes and the strict event matcher remain unchanged. The offline poll is bounded
+at 90 seconds to include the source's 60-second socket-loss grace and save drain.
+
+C++ Stuck-death attempt 1 fails in 209.773 seconds and restores normally. Its
+first epoch executes native Prepare/Start/Go for both 8690 and 7355, but the plan
+expects only Go with a self Unit target. Native InitExplicitTargets removes that
+explicit target; Hearthstone Go has flags `0x42`, empty Unit and the home destination,
+while Stuck Start/Go have empty targets. The second epoch allows only 10 seconds,
+equal to native 7355's 10,000-ms cast time, and ends before Go. The repaired plans
+require the complete ordered lifecycle and actual targets, verify Hearthstone's
+home destination, and allow a bounded 15 seconds for the second epoch. No native
+Stuck/cooldown behavior or comparator is changed. Fresh reference captures remain
+required after the combined QA/bot acceptance. Between cases the stable runtime
+is verified at PID 2173833, SHA `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`,
+with no packet dump enabled.
+
+The aura-zero RequestData save-receipt repair is implemented, UNVALIDATED.
+Production populated login keeps full Item authority incomplete, so the existing
+scoped proof previously admitted reclaim/healer but held accepted requests at
+SavingPlayer after corpse conversion. The same carried-load, coherent-position,
+known no-pickup ItemEffect and same-transaction absolute-durability proof now also
+admits RequestData only when its additional aura is zero (`Player.cpp:24897–24940`,
+`SpellEffects.cpp:3599–3627`). Full Item acknowledgement remains false; committed
+currency coverage, exact continuation/incarnation and all failure/unknown fences
+are preserved. Requests with nonzero aura and SelfRes remain excluded. Existing
+core/entity tables and the populated production-load/save regression cover that
+operation, rollback and concurrent dirty fields without duplicating its fixture.
+All known repairs are now implemented; freeze the committed candidate for one
+combined final/architecture, QA/bot, production-login and debug-build campaign.
+The required exhaustive terminal audit and remaining live pairs are separate
+costs and still outstanding.
+The QA repair now preserves strict pre-finish root/no-release/no-PreResurrect
+evidence and requires the subsequent saved ghost/corpse, with a distinct
+pre-login snapshot for reload epochs. It does not claim unreleased-dead DB
+durability from graceful logout. Its combined hermetic checks remain UNRUN.
+Current Rust finalization also omits that native logout release between loot
+settlement and the character save; integrate that exact participant before
+running the completed Rust candidate. No other logout redesign is required.
+
+Earlier repair evidence and findings follow; their stated unvalidated status
+belongs to the candidate at that point, not to later passing evidence.
+
+The first real fall/release pair completed successfully at `313cb2e3f`:
+Rust attempt 4 and derived R6 attempt 2 observed the scenario, collected native
+captures and restored the stable server and disposable data. They took 312.489
+and 137.351 seconds. This establishes functional observation, not packet parity
+or issue completion. The scoped comparison found a concrete corpse CREATE
+difference: C++ sends one 155-byte CREATE2 block, while Rust's forced whole-Player
+visibility refresh includes unrelated creates/removals and uses CREATE1. The
+corpse's equipped chest appearance also differs. The next repair is limited to
+object-specific birth publication and canonical equipped Item appearance;
+ordinary rediscovery retains CREATE1. Eleven other paired scenarios remain.
+
+The follow-up implementation now snapshots corpse-only owner/peer/shared-vision
+recipients under MapManager and enqueues after unlocking. Discovery is recorded
+only after a successful enqueue; full visibility scans reject a stale ledger
+snapshot and request the existing retry. It adds no state authority or lock.
+Equipment reads canonical Item instances and follows `Player.cpp:4481–4491`
+and `Item.cpp:1985,2048–2072`, including missing-transmog-display fallback.
+Birth serialization follows `Object.cpp:130`, `Map.cpp:573–575` and
+`GridNotifiers.cpp:91–121`. This follow-up and its authored regression tests
+are UNVALIDATED until their committed candidate campaign runs.
+The first affected campaign at `127954f60` stopped during World test compilation:
+the new peer fixture imported a private registry re-export and supplied ambiguous
+`set_name(...into())` arguments. No library suite or candidate build ran. Its
+162.438-second failure is retained in
+`/tmp/rustycore43-corpse-birth-acceptance-0afb_n9w/record.json`; the correction
+uses the existing public registry path and direct string arguments.
+The corrected candidate `d0ebc34ad` compiled and passed Entities (1,049),
+Map (767, one ignored), Packet (775), Application (31), Core (269),
+World-Entities (2) and Spell (181). World reported 4,125 passed, one failed
+and one ignored: the new peer-publication test did not observe its expected
+MoveUpdate. The complete 91.730-second record is
+`/tmp/rustycore43-corpse-birth-acceptance-jzk4_t5s/record.json`. This is a
+failed campaign; the candidate build did not run. `Unit.cpp:12718–12748`
+requires that observer packet, so the assertion must not be removed to obtain
+a pass; inspect the existing mailbox delivery before changing production.
+The fixture now drains the peer's established Session mailbox before inspecting
+its output; production already queues the required MoveUpdate there. The exact
+owner VALUES comparison also found equal health (1) and GHOST flags, but C++
+publishes Unit Flags=`PLAYER_CONTROLLED` while Rust omits that unchanged field.
+The eight-byte delta is one mask word plus Flags. `Player.cpp:4304`,
+`Unit.h:812` and `UpdateField.h:262` require no-op SKINNABLE removal to dirty
+the field. A native Unit removal operation now preserves that contract only at
+the selected release call; the ordinary changed-value setter is unchanged.
+Its authored coverage and fixture correction remain UNVALIDATED. The decoded
+source/hash record is `comparison-fall-release-repaired/owner-values-diagnostic/decoded-contract.json`
+under the private live campaign.
+
+Affected acceptance at `f2039b498` passed Entities (1,050), World (4,126,
+one ignored) and World-Entities (2), then built the debug server. The run took
+271.303 seconds; its record and artifact pins are under
+`/tmp/rustycore43-corpse-birth-acceptance-fanzvczw/`. Unchanged earlier suites
+retain their actual SHAs. This is affected evidence, not a new full final.
+Rust fall/release attempt 5 then completed in 315.817 seconds with native
+collection and stable/fixture restoration. Its complete 166-byte corpse birth
+packet matches the unchanged R6 capture exactly. The full strict comparison is
+still non-clean; results remain in `comparison-fall-release-f203/`.
+
+The fresh post-release VALUES is 51 rather than C++'s 55 bytes: Flags41 was
+marked without its required parent32, so its value was omitted. The follow-up
+fix uses the existing nested mask operation and adds serialized-byte coverage.
+KillPlayer's canonical LocalFlags mutation also had no dirty ActivePlayerData
+projection; the follow-up carries the same gameplay value into an immutable
+delta and marks parent38/LocalFlags69. Its authored coverage preserves the
+transport-time bit and exercises world/instance/prevent-resurrection cases.
+These follow-up edits remain UNVALIDATED.
+
+Real DB comparison found a separate required failure: Rust retains item 2121
+durability 40 after the fall, while C++ saves 34 (backpack remains 40).
+The generic loss helper omits C++'s `SetState(ITEM_CHANGED)` at
+`Player.cpp:4616`. The effective maximum also differs: R6's initial Item CREATE
+(packet 73) sends maximum durability 60, although the raw ItemSparse field is
+40. The reader is correct; `ObjectMgr.cpp:2978–3063,3265` computes the effective
+template maximum before `Item.cpp:650` uses it. The captured value, source
+anchors and hashes are in `effective-item-durability-contract.json` under the
+new comparison. Existing healer QA expectations 26/30 came from the raw value;
+60 implies 19/25 after fall plus healer, still awaiting live healer observation.
+Fix effective-template selection, item persistence and its native publication
+before claiming durability acceptance. Eleven other paired scenarios remain.
+The effective-template and save-state repair is now implemented, UNVALIDATED:
+the exact f32 `FillMaxDurability` tables feed the existing catalog accessor and
+concrete vendor creation/list consumers. Raw Sparse data remains unchanged.
+Incomplete legacy catalogs retain their existing raw compatibility value;
+complete production inputs use the computed value, including a computed zero.
+Durability loss marks the canonical item Changed together with its new value.
+QA now requires the real fall/recovery equipment/backpack values 34/40 and
+the source-derived healer values 19/25. Native item publication is the remaining
+part of this repair; no new direct UI packet was added at the mutation site.
+Native durability publication is now implemented, also UNVALIDATED. A private
+GUID queue in the canonical Player inventory records only pending publication
+work, without copying durability values or adding a runtime owner or lock.
+The existing Map VALUES snapshot reads the current Item value and the viewer
+adapter batches owner-only Item blocks before the Player block. Removed,
+replaced or foreign-owned items cannot redirect a queued update; repeated loss
+coalesces to the latest value. Unrelated Item dirty fields and the existing
+repair publication path are preserved. The native healer's separate immediate
+Item send is retired to avoid duplicate publication. Source anchors are
+`Item.cpp:1315–1320,1419–1426` and `Map.cpp:1930–1948`; authored regression
+coverage includes owner/peer filtering, exact mask0/12, batching, item-only
+updates and one-time consumption on the existing Map rail.
+The remaining captured zero-value omissions are now implemented without
+changing the ordinary scalar setters: KillPlayer forces DynamicFlags dirty;
+the admitted empty controlled-unit cleanup removes PET_IN_COMBAT through the
+native flag operation (`Unit.cpp:6394–6420`); JUST_DIED resets and marks the
+stand/emote fields (`Unit.cpp:8566–8570`). Native SetDrunkValue always marks
+Inebriation (`Player.cpp:874–905`). The three in-scope normal-height, graveyard
+and resurrection removals mark PlayerFlags even when OUT_OF_BOUNDS is absent
+(`MovementHandler.cpp:458`, `Player.cpp:4790,4331`). Controlled-unit and current
+owner fences remain explicit. Authored coverage checks exact serialized masks
+and the combined Object/Unit/Player/ActivePlayer death delta. This completed
+repair batch still needs its committed-candidate acceptance and fresh capture.
+
+Before that campaign, seven completed inactive changed-suite executables were
+hashed, checked unused and retired (439.6 MiB). Libraries, current incremental
+caches, Packet's unchanged test executable and all runtime/reference artifacts
+were preserved. The retirement record is
+`/tmp/rustycore43-corpse-birth-acceptance-fanzvczw/completed-inactive-suite-executable-retirement.json`.
+Available space was 2.8 GiB; the documented 30-GiB aim remains unmet.
+The completed-batch campaign at `1d73abacd` passed QA Python (36) and runtime
+guard fakes (202), then stopped during World test compilation. Two new item
+fixtures called the CharacterLoginHost aura-authority method without bringing
+that trait into scope. No library suite or debug build ran. The 203.997-second
+failure is retained in
+`/tmp/rustycore43-native-death-publication-acceptance-p7ampbxf/record.json`.
+The correction uses the existing generation-checked Player operation in those fixtures;
+it does not add a Session thunk or change production authority.
+At `178d83330`, the retry compiled and passed Data (844, five ignored),
+Entities (1,054), Map (768, one ignored), Application (31), Core (274),
+World-Entities (2), Inventory (36) and Visibility (3). World reported 4,126
+passed, four failed and one ignored. The failures are the prior healer test's
+immediate-publication expectation and three repair fixtures whose intended
+instance maxima were previously supplied by raw template data. The correction
+keeps their assertions: healer consumes the native Map envelope; repair-cost
+fixtures explicitly supply their intended maxima 50/13. No production code
+changed in this correction. The failed 118.751-second campaign is
+`/tmp/rustycore43-native-death-publication-acceptance-u1qb068q/record.json`;
+the debug build did not run.
+
+Before resuming, six inspected obsolete World archives from October 24–28
+(561.2 MiB) and eight completed, unused green-suite executables were retired.
+The four active October 29 World archive variants and all incremental caches,
+runtime binaries, captures and evidence remain. Both retirement records are
+under the same campaign directory. The storage aim is still unmet.
+
+Affected acceptance at `313cb2e3f` passed Packet (774), World (4,123, one
+ignored), Application (31), Entities (2), Spell (181), bot (248), production
+registry (8) and production login-owner (41). The record is
+`/tmp/rustycore43-live-repair-acceptance-fyik1fp_/record.json`. Its debug server
+build then failed with ENOSPC; the 673.601-second run missed the 600-second
+performance target. After retiring only inspected obsolete build configurations,
+the pending server and bot builds passed in 29.777 seconds, recorded separately
+in `/tmp/rustycore43-candidate-build-recovery-n_fiqmdu/record.json`. Current
+incremental caches were preserved. These results do not validate subsequent
+corpse-publication edits. Read-only runtime verification at 11:05 UTC confirmed
+the original stable binary SHA-256 `290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`
+serving again, with no packet dump enabled.
+
+Local code and metadata acceptance is green at `00fb8a12c` on aarch64. Final
+passed all 21 library suites (World: 4,119 passed, zero failed, one ignored),
+464 checker cases, architecture/syntax/census, workspace compilation and SQL
+composition. Its verified manifest is
+`target/validation-v2/manifests/20261029T042616.588250Z-1738805-final.json`.
+Production registry (8), login-owner (41), bot (247), QA Python (34) and runtime
+guard fake (195) evidence retain their actual tested SHAs and reviewed unchanged
+inputs in `/tmp/rustycore43-final-20261029-rwx0b22r/record.json`.
+
+Fresh exhaustive ownership also passed at that SHA: 8,185 production plus
+2,679 test-fixture persistence rows, 1,093 semantic groups, and no bridge rows.
+It took 1,054.291 seconds, recorded separately in
+`/tmp/rustycore43-terminal-20261029-l58vq99w/record.json`. The closing ordinary
+campaign ran for 371.408 seconds and credits 185.378 seconds of unchanged
+required evidence (556.664 command seconds total). Earlier failed/slow campaigns,
+the ENOSPC build and storage repair remain recorded below at their actual
+boundaries; this does not erase their cost.
+
+The documentation delta and committed-head debug artifact pins are bound in
+`/tmp/rustycore43-local-closeout-ready-vnd8r0ak/record.json`. The user then
+explicitly authorized the scoped Rust/R6 swaps, restarts, captures and disposable
+fixture writes. The live campaign is
+`/tmp/rustycore43-live-20261029-iua0lcwr/campaign.json`: 12 paired scenarios,
+18 epochs per backend and five new actors on accounts 9/10/12, followed by
+verified stable-server restoration and owned-data cleanup.
+
+The first two debug Rust attempts expired before the runner began. The default
+60-second and then 180-second startup allowances were insufficient: the second
+journal shows 123 seconds in spell-proc loading alone. With the existing
+`QA_READY_TIMEOUT_SECONDS=600` setting, the third attempt reached the real
+fall/release scenario and collected 162 packet pairs at `d47829662` before the
+bot rejected MoveTeleport. The paired R6 run also collected its native PKT and
+failed at that control packet. These are failed observations, not acceptance.
+Diagnostic comparisons retain their nonzero strict-diff exits under
+`comparison-first-finding/`. The stable binary/config were restored; the five
+fixture actors were removed after each run. C++ generated achievement-13 reward
+mail for actor 20 (mail 1, item 2000129/41426, sender 16128). The helper held its
+unsupported-row fence. The parent verified the exact World reward and
+`AchievementMgr.cpp:510–549` provenance, journaled those rows, removed only that
+owned reward under the stopped-service guard, then completed normal fixture
+cleanup and verified the stable server serving again at 09:01 UTC.
+
+The observed repair uses packed mover/transport GUIDs in MoveTeleport and the
+engaged empty transport optional emitted by `Unit::SendTeleportPacket`
+(`MovementPackets.cpp:705`, `ObjectGuid.cpp:758`, `Unit.cpp:12227`). The bot
+accepts that empty optional while continuing to reject actual transport or
+vehicle payloads. The level-80 fixtures seed their already-earned achievement
+13 to isolate death from unrelated first-login reward mail; generic unsupported
+mail cleanup remains forbidden. The cleanup trap now records failed restore
+outcomes even when its snapshot helper re-enables shell errexit.
+
+The observed publication findings are also implemented: CancelCombat uses the
+realm channel; KillPlayer and BuildPlayerRepop send mirror-stop types 0/1/2 at
+their C++ phases (`Player.cpp:609,711`). CORPSE and DEAD reuse the existing
+Application combat/cast/death-Aura cleanup (`Unit.cpp:8527`) through one thin
+CorpseHost callback. Committed corpse insertion now forces its visibility before
+DEAD cleanup, health 1 and ghost movement (`Map.cpp:530`), with canonical owner
+and continuation checks retained. The native Map visibility branch returns
+before the legacy database fallback awaits; no artificial suspension hook was
+added for that path.
+
+Selected FULL self-aura Go metadata now uses effective cooldown data and the
+IGNORE_COOLDOWN bit, preserving an explicitly empty OriginalCastID. Only spell
+8326 receives the UNIT/empty target shape observed in the R6 packet; this is
+not inferred as a generic target rule. Its independent decoded wire contract
+is `observed-ghost-go-contract.json`, reference PKT SHA-256
+`116b724cafe4639647d5b2814ba4074a53c2bfc045205d4721b0498556a22f11`.
+The diagnostic missing CriteriaUpdate packets retain their existing progression
+owner, PORT_PLAN L18; the previously recorded achievement exclusion remains
+explicit and no achievement parity is claimed.
+
+Affected acceptance at `edfdc75ad` did not pass. Python (34) and runtime guard
+fakes (202) passed; Packet (774), Application (31), Entities (2) and Spell (181)
+passed. World compiled but reported 4,015 passed, 108 failed and one ignored.
+The run stopped before bot tests, production integration or candidate builds,
+after 246.508 seconds; its record is
+`/tmp/rustycore43-live-repair-acceptance-__32zdmq/record.json`.
+The shared release fixture inserted Ghost/Wisp attributes without loaded Misc
+authority, so the newly reused strict death cleanup correctly held the release.
+The timer-prevention fixture also lacked a canonical key and loaded attributes.
+The repair hydrates their complete existing rows and updates two separate
+CancelCombat routing oracles. Production admission guards remain intact.
+The first fixture-repair check at `2d48f71c3` stopped after 13.419 seconds:
+SpellMiscStore is not Clone. Its two fixture views now use the same cloned
+entry rows; the failed record remains under `live-repair-acceptance-koltvl5b`.
+Eight inspected inactive pre-repair executables were retired (973.3 MiB), with
+fingerprints and hashes in `stale-artifact-cleanup.json`; active incremental,
+fresh test outputs, server/bot/capture and runtime recovery binaries were kept.
+The next check at `b7cd2dead` compiled and observed 4,122 World passes plus one
+ignored case, without a failed assertion. The remaining merged-order test
+blocked because its 16-slot fixture queue held more than 16 packets before
+draining. The parent interrupted only that verified owned test process; the
+run remains failed/interrupted after 237.452 seconds, recorded under
+`/tmp/rustycore43-live-repair-acceptance-lwknhudf/`. That one fixture now uses
+64 slots; all other callers retain 16 and the full ordered assertions remain.
+Another 14 inactive test executables with changed direct dependencies were
+retired (678.9 MiB), recorded in `inactive-dependent-test-cleanup.json`, while
+preserving incremental and runtime recovery artifacts.
+
+The fixture repairs and remaining affected acceptance are UNVALIDATED; no earlier
+green result is relabelled. No live parity, real durability,
+manual-test readiness or issue completion is claimed. The issue remains open;
+these changes have not been pushed or merged, and the original stable build is
+restored rather than permanently deploying the test candidate.
+
+**Earlier preparation and acceptance evidence, retained at its actual SHAs:**
+
+Earlier closeout preparation included native capture collection under the
+existing systemd swap/restore guard (`645499a92`), observed NPC and in-memory
+character selection (`603e911c5`), disposable fixture preparation/recovery
+(`56a9a802a`) and packet-driven action sequencing (`8a5f498a0`). The latter's
+focused coding feedback passed 42 cases before subsequent formatting; it is
+not a committed-candidate final verdict. Affected acceptance at `1c0a2418c`
+passed all 25 Python fixture/scenario tests, including the pinned C++
+character-schema check and ASCII-case identity regressions, plus all 195
+runtime-guard fake checks (22.328 seconds combined command time).
+Logs and exact command timings are retained under
+`/tmp/rustycore43-repair-evidence-56qnmiik/`.
+No new fixture rows, live captures or real service operations were performed.
+
+The first final campaign at `d795b7496` did not pass. Its manifest is
+`target/validation-v2/manifests/20261028T212816.755377Z-1468914-final.json`.
+Architecture reported seven unreviewed logical-owner count deltas, an unresolved
+test import provenance and one unclassified construction-time policy setter.
+The full workspace/all-targets check then reached its 900-second timeout while
+checking the world-server test target, without a compiler error being reported.
+The complete attempt, including the guard suite, took 1,048.717 seconds on this
+aarch64 host with one Cargo job; the ordinary 600-second target was not met.
+Library execution, production integration and candidate builds had not started.
+The next candidate explicitly binds the test crate alias, classifies the
+two-field configuration installer in the existing construction API and records
+only the seven reviewed #43 owner deltas with their #584 retirement conditions
+intact. These repairs still require renewed final evidence; no failed manifest
+is relabelled as passing.
+
+The follow-up final at `e91fab1cc` also failed. Its manifest is
+`target/validation-v2/manifests/20261028T214951.143007Z-1477475-final.json`.
+All 17 independently selected `wow-world-*` crate test-target checks passed,
+but the workspace check found two inaccessible calls to the unchanged shared
+corpse-driver test helper. Architecture also found the undeclared Application
+`rand` dependency and stale exact syntax inventories. After collecting the
+independent checks, the parent interrupted library compilation to repair these
+known findings; no library test execution or final pass is claimed. The runner
+recorded 829.778 seconds and exit 130; the ordinary 600-second target was not met.
+
+The current repair moves that helper unchanged into its common test parent.
+It declares `rand` only as the algorithm library already used by native SelfRes
+selection and transform display selection (`Player::InitializeSelfResurrectionSpells`,
+`ObjectMgr::ChooseDisplayId` and `AuraEffect::HandleAuraTransform` at the pinned
+C++ revision). The syntax review changes nine exact inventory sections:
+50 added/21 retired WorldSession item surfaces, one Core admission impl and
+six added/one retired Core item surfaces, the catalog-bearing factory/helper
+fingerprints, one AuraUpdate command/payload/derive, and 40 added/two retired
+directory-access rows. WorldSession fields, impl owners, SessionResources,
+Core fields/bindings and bridge rows are unchanged. The reviewed methods borrow
+existing canonical owners and immutable catalogs; phase/residence/generation
+checks and the established publication rails remain authoritative. This is an
+inventory reconciliation, not completion of #584 or new parity evidence.
+The fixture preflight also confirmed the exact designated account IDs but found
+lowercase DB email storage. Plan and restore now normalize ASCII email case
+while retaining exact ID/email bindings and offline/ownership checks. These
+repairs remain unvalidated until the renewed committed-candidate acceptance.
+
+The exhaustive repair inventory at clean `1c0a2418c` completed in 986.790
+seconds on this aarch64 host, recorded separately from ordinary warm acceptance:
+`/tmp/rustycore43-persistence-reconcile-udlawsx_/timing.json`. It collected
+10,864 exact rows (8,185 production and 2,679 test-fixture), adding 741 and
+retiring 217 stale identities. Review confines production changes to 15
+database-adapter sources plus existing app startup composition, and test changes
+to five adapter fixture sources. No new direct persistence edge enters
+Application or a World domain. The annotations now cover all 1,090 production
+workflows exactly; the derived policy has 1,093 groups, with 44 added adapter
+groups, eight retired helper groups and six reviewed existing-group deltas.
+Character save and each pet-save request retain their existing transaction
+owners, statement order and definite-rollback/unknown-COMMIT outcomes. Pure
+bindings and decoders acquire no connection. The by-spell lifecycle-aura deletes
+are described with their real player/spell keys; obsolete claims that these
+particular deletes preserve foreign-caster rows are removed. Unrelated owners,
+issue-linked retirement conditions and the generated-input count are retained.
+Rendering that policy from the saved snapshot passed; exhaustive comparison
+and final acceptance on the resulting committed candidate remain required.
+Read-only fixture planning also passed at `1c0a2418c`, proposing five new actors
+with GUIDs 20–24 on accounts 9/10/12 while preserving their original offline
+characters (`/tmp/rustycore43-readonly-plan-ajtjl7tx/`). No proposed rows were
+created. Final Rust suites, production-linked tests, candidate artifacts and
+authorized paired captures/DB/restart/relogin acceptance remain outstanding.
+
+The final campaign at clean `0200e83d4` also failed. Its manifest is
+`target/validation-v2/manifests/issue43-0200e83d4-20261028T223011-final.json`;
+the runner took 1,137.730 seconds (22:30:11–22:49:09 UTC), exceeding the
+ordinary 600-second target. Syntax ownership and all 17 selected standalone
+domain test-target checks passed. Architecture found one unclassified existing
+`SendPlayerAuraUpdate` command, and the workspace check reached the compiler's
+query-depth limit in `production_login_player_owner`. Seventeen library suites
+passed; Server, Data, Entities and World did not. The World process was stopped
+only after identifying its blocked synchronous receive in
+`scenarios_world_entities_1/durable_runtime_rail.rs:55`; the exact process,
+signal and reason are recorded in
+`/tmp/rustycore43-final-20261028-3x6ujald/world-test-termination.json`.
+No complete World-suite verdict, production integration, candidate build or
+final pass is claimed. Replaying the 183 already-failed World identities against
+that same binary reproduced them in 0.37 seconds; its exact arguments, binary
+hash and diagnostics are under
+`/tmp/rustycore43-world-failure-diagnostic-66x8v912/`.
+
+The current repair classifies that command under the existing Map delivery
+owner and raises only the affected integration test crate's query-depth limit.
+Three foundation test fixtures now reflect the pinned C++ contracts: GCD remains
+separate from recovery time (`SpellInfo.cpp:1261–1265`), zero-duration cooldowns
+are not inserted even on hold (`SpellHistory.cpp:406–428,503–513`), and durability
+mutation is explicitly marked persistent before save acknowledgement
+(`Player.cpp:4610–4616`, `Item.cpp:843` onward). The worker reported passing
+focused feedback for those three cases; a separate retained log was not located,
+so the final suites remain their required acceptance evidence. Server's empty
+tick and completed-tick clock cases passed in the 23:01:55–23:05:52 UTC feedback
+run; its capability test then exposed an obsolete ban on the now-required
+serverside spell catalog. After correcting that single test contract, its
+23:06:46–23:07:08 UTC focused rerun passed. Logs are
+`/tmp/rustycore43-server3-20261028-230155.log` and
+`/tmp/rustycore43-20261028-230646-scenario4.log`. These runs used dirty trees
+based on `0200e83d4`, not a committed final candidate. World failures remain
+under review. In particular, 90 World diagnostics reject missing exact aura
+SpellInfo keys; fixture repair must preserve the production catalog guard and
+the negative cases that deliberately omit a key. These are repair findings,
+not new accepted evidence or additional gameplay scope.
+
+Two demonstrated production defects are now repaired locally, still without
+renewed acceptance. Release no longer sends an immediate HealthUpdate(1):
+`Player::BuildPlayerRepop` uses SetHealth (`Player.cpp:4295`), whose native
+field update is distinct from ModifyHealth's nonlethal-damage packet
+(`Unit.cpp:9214`, `8115–8154`). The existing field publisher retains that
+health change. Sickness save capture now preserves persisted rows if no exact
+selected-spell key exists at any difficulty, including an empty application
+set; it does not require a difficulty-zero key. Active applications retain
+their existing difficulty, attributes and indexed-effect checks. The durable
+mailbox fixture now tests a committed nonlethal presentation with bounded
+packet reads; the lethal replay fixture expects only its attacker-state packet.
+Native death integration owns the death body and durability penalty. The
+previous blocking receive therefore cannot conceal another failed suite run.
+These four source/test edits have been reviewed against the pinned reference;
+their affected tests and final acceptance have not yet been rerun.
+
+The positive Aura-fixture repair now covers 47 World test sources based on
+`413d6ce05`, fingerprint
+`ce77e0328324080057e3945097ca6add9b9aff8535f2132d625d165667a599ba`.
+It seeds explicit exact keys through the existing canonical loader fixture
+and retains the supplied indexed effects, attributes and difficulty inputs.
+Movement/removal fixtures also retain their actual effect payloads; a key alone
+cannot validate an active effect mask. The synthetic presence-only spell uses
+an explicit DUMMY effect. Shared sickness and Ghost/Wisp builders preserve
+their selected and additional spell keys. The production catalog guards and
+deliberate missing-key constructors are unchanged. Static review preserved all
+47 files' function identities and assertion counts; one assertion now reads
+the canonical Aura owner. The reviewed patch and input hashes are retained in
+`/tmp/rustycore43-catalog-review-g3n0frj_/`. This is unvalidated fixture repair,
+not a passing rerun of the 90 original missing-key diagnostics. Required forced
+visibility and remaining consumer/fixture repairs precede the next acceptance.
+
+The forced-visibility repair now follows `Player::UpdateObjectVisibility(true)`
+at the pinned C++ revision (`Player.h:2461`, `Player.cpp:23322–23343`): nearby
+sessions are notified before the current Player's forced diff, while an
+out-of-world Player is a no-op. `KillPlayer` awaits it after reclaim delay;
+resurrection awaits it before obtain spells (`Player.cpp:4437,4373–4376`).
+The existing generation/residence fences remain checked across that await.
+Three new, unrun tests cover stationary death, real Ghost removal on
+resurrection and an out-of-world no-op, with visibility caches already at the
+current positions. Native health/power fields retain Map-tail publication.
+This reviewed implementation is unvalidated and does not establish capture parity.
+
+The next reviewed, unvalidated fixture repair covers 25 World test sources at
+`eac4704dd`; its patch, source hashes and preserved function identities are in
+`/tmp/rustycore43-consumer-fixture-review-zc79ry20/`. Quest fields are observed at
+Map-tail publication (`Player.cpp:14756`, `Map.cpp:777,1929`); native death packet
+prefixes precede the environmental log (`Player.cpp:621–681`). Player handles,
+reciprocal combat references, known-empty faction/inventory data and physical
+item counts now satisfy the operations being tested. Full inventory saves and
+partial durability saves are asserted disjoint. Unsupported mixed Aura casts
+must reject without packets or a partial application. No tests were executed
+for this repair. The remaining loot-money/Aura fixtures and the real Stuck
+death/recovery consumer still precede completed-delivery acceptance.
+
+That Stuck consumer is now implemented locally. One boxed World callback delegates
+the cross-domain operation to Application: native SpellHistory selects KillSelf,
+dead-without-timer calls the real graveyard operation, and home teleport retains
+`TELE_TO_SPELL` (`SpellEffects.cpp:3263–3303`, `SpellHistory.cpp:670–692`,
+`Player.cpp:1426`). KillSelf admits death before changing native-width health;
+intentional teleports retain the Player incarnation without requiring its former
+residence. The temporary FULLMASK Hearthstone cast adds no cooldown
+(`Spell.cpp:4195–4203,8034–8038`, `SpellHistory.cpp:252–257`). The existing
+immutable graveyard catalog is now required inside the same World capability
+bundle; all eight outer bundles remain mandatory. The direct Map dependency
+names the existing generation/residence types and adds no mutable owner.
+The reviewed 18-path patch and source hashes are under
+`/tmp/rustycore43-stuck-review-wuci2kua/`. Application-only coding feedback first
+failed on a private visibility-helper export (00:24:28–00:24:39 UTC, exit 101).
+After repair, `cargo check -p wow-world-application --locked` passed at dirty
+`e13430771` (00:27:54–00:28:28 UTC; log
+`/tmp/rustycore43-stuck-app-check-20261029-002754.log`). That feedback did not
+check World/Server or execute the branch regressions. It is not final acceptance.
+
+The remaining Aura/interrupt/mount and loot-money fixture repair now covers 13
+World test sources at `d440e0c02`. Static review retains their function identities;
+the patch and hashes are in `/tmp/rustycore43-aura-fixture-review-jpjwlbkh/`.
+Inert active Auras use APPLY_AURA/DUMMY rows, and far teleport checks the same
+three applications and their applied-index projections. Negative cancellation
+and unknown-metadata cases remain. The worker started an unplanned World
+check/focused-test wrapper at 00:46:59 UTC despite the scheduling instruction;
+it was interrupted with exit 130. No individual test result was retained, and
+no acceptance pass is claimed (`/tmp/rustycore-aura-interrupt-loot-feedback-20261029.log`).
+
+Read-only inspection through unchanged production DB2 readers confirms that
+installed spell 7355 allows casting while dead and has a 1,500 ms cooldown;
+8690 uses category 1176 with a 1,800,000 ms category cooldown. The three input
+file hashes, reader-library hash and command results are retained under
+`/tmp/rustycore43-stuck-data-c2miecxc/`. No local scalar override or matching
+hotfix-removal record was found for those selected rows. Fresh action captures
+remain required; this data inspection is not runtime acceptance.
+
+The 2026-10-29 candidate review records only six measured logical-owner deltas,
+the two added/two retired callback identities, and startup composition's one
+additional graveyard-catalog line (5,709 lines). Existing owners and #584
+retirement conditions are preserved. All 47 Rust formatting changes are exact
+rustfmt transformations of `580414a07`; their source comparison, measurements
+and reviewed policy patches are retained under
+`/tmp/rustycore43-candidate-reconcile-5t9qvhyx/`. This is implementation review,
+not acceptance. No new architecture scope or runtime authority is implied.
+
+The existing death QA runner now includes two unvalidated Stuck cases, bringing
+the bounded set to 12 scenarios and 18 epochs. Only Qadeathcast gains known
+spells 7355/8690. Normal Hearthstone supplies the death case's cooldown; both
+logout/relogin epochs require its persisted category 1176 row. Dead repop must
+reach graveyard 106 within 0.25 yards, while home Stuck requires a completed
+teleport ACK and no Hearthstone cooldown. No fixture, capture or runtime action
+has been executed. Hermetic tests and the full committed-candidate campaign
+remain required before any accepted result is recorded.
+
+Acceptance at `10a1da1eb` stopped before any heavy check: one of 34 Python tests
+raised a missing `tempfile` import (0.226 seconds for the attempt). The log is
+`/tmp/rustycore43-final-20261029-ynb9_t0o/qa-python.log`. The import repair and
+renewed candidate acceptance remain required; no Rust or runtime result is claimed.
+
+At `39dc59c78`, all 34 Python tests and 195 runtime-guard fake checks passed.
+Architecture policy and exact Session syntax passed (70.623 and 55.988 seconds).
+The census then reported stale rows/ceilings; workspace test compilation found
+two u32/i32 mismatches in the home Stuck fixture. The parent stopped that owned
+runner before another compilation of the known failure. The attempt took
+287.701 seconds and ended 130; its manifest is
+`target/validation-v2/manifests/20261029T011021.172635Z-1574992-final.json` and
+logs/termination identity are in `/tmp/rustycore43-final-20261029-hh8e6i2n/`.
+It is not a final pass. The repair uses checked protocol-ID conversions and
+records the reviewed census as 4,120 tests (same one ignored): four added cases,
+one existing Stuck rename, and 87 derived owner/blocker rows. The only class
+change is one W-to-H pet test after fake Spell host setters were removed.
+The exact census review is under the candidate-reconcile directory above;
+no test coverage was deleted and #584's outstanding boundaries are retained.
+
+The next attempt at `50d97fb6e` passed architecture, exact Session syntax and
+the repaired census, then found a missing production graveyard setter while
+checking Server. The parent stopped the known-failing candidate after 280.744
+seconds (exit 130); logs are in `/tmp/rustycore43-final-20261029-mefn75xl/` and
+the manifest is
+`target/validation-v2/manifests/20261029T011633.592037Z-1577058-final.json`.
+The repair promotes the existing three-line catalog setter, removes its
+four-line test shim, and updates only that method's cfg/source classification
+and the exact logical counts. The census has identical identities/classes and
+272,491 unit-test lines. This closes a production composition omission, not a
+new gameplay operation. Renewed Rust execution evidence is still required.
+
+The full final campaign at clean `04efcb2da` ended 101 after 1,335.240
+seconds (01:23:17–01:45:33 UTC), exceeding the ordinary 600-second target.
+Manifest:
+`target/validation-v2/manifests/20261029T012317.975844Z-1579088-final.json`.
+Architecture, Session syntax, census, workspace/all-targets compilation, all
+17 standalone domain checks, SQL composition and the bot compile check passed.
+Twenty of 21 library suites passed; World completed with 4,074 passing,
+45 failing and one ignored case. The checker suite passed 463 cases and failed
+its repository source guard on three local dirty-bit macros and a private
+`inventory` module name. Exact failure sections are retained in
+`/tmp/rustycore43-final-20261029-yhm_ktm6/world-failures.json` and
+`all-failures.json`. Bot execution, production-linked tests and candidate builds
+did not start. The unchanged Python/guard evidence remains at `39dc59c78`.
+These failures require repair and renewed candidate acceptance; no runtime,
+publication or parity completion is claimed.
+
+The source-guard repair expands exactly 13 Unit, two active-field and 19
+active-section dirty-bit macros, retaining their comparisons, order, marks
+and `active_changed` writes. The existing array macro is unchanged. A static
+token comparison confirms equivalence; this is not execution evidence.
+The private save helper is now named `item_capture`, with the same physical
+`inventory.rs` source and two callers. No persistence statement or owner changed.
+This repair remains unvalidated; exact policy/count reconciliation is deferred
+until the remaining World fixtures are repaired together.
+
+The seven-case visibility repair now gives the Ghost source and map peer
+native cell membership, retains exact Player handles and clears the replaced
+bootstrap identity. Exit cleanup reuses its registry's MapManager. SelfRes
+checks completed forced scanning rather than the non-forced notification bit;
+the Ghost discovery ledger excludes self. Stationary recipient obligations,
+both peer GUID assertions, real Ghost removal and deferred native VALUES remain
+asserted. Anchors: `Player.cpp:23322–23343,23029`, `Map.cpp:427,450,777,1929`.
+These five test-source edits are unvalidated; no production behavior changed.
+
+The nine Character interaction cases now construct native Player inputs with
+their existing health/faction/gold and adopt before seeding provenance. The
+trainer-only case retains its distinct menu-then-Feign-then-selection sequence.
+The binder negative uses the same native Feign application; invalid sources
+still preserve Aura and trainer provenance without packets. Anchors:
+`Player.cpp:1929`, `BankHandler.cpp:60`, `NPCHandler.cpp:250,373`.
+These six fixture-source edits remain unvalidated, with test identities and
+exact protocol assertions preserved.
+
+The test-only disconnect adapter now supplies the same existing resurrection
+catalogs as production finalization; its former legacy `None` path correctly
+held the two live worldport continuations. The public legacy entry and its
+missing-authority contract are retained (`WorldSession.cpp:544–551`). This
+test-adapter repair is unvalidated. Remaining native-consumer findings are
+known-empty currency authority for the corpse-save receipt and effective
+SpellMisc payload authority for lethal SpellClick; neither permits a weaker
+production guard.
+
+Two further native-consumer fixtures are repaired, still unvalidated. The
+corpse-transfer save declares its new Player's known-empty currency state, so
+the recording receipt can acknowledge that group (`Player.cpp:4509–4515,
+19632–19654`). SpellClick 914 now hydrates effective Misc attributes and its
+index-zero school-damage row (nine damage), rather than manually inserting an
+attribute map without loaded authority (`Unit.cpp:11912`, `SpellInfo.cpp:1167–1173`).
+Its nonlethal and lethal caster/target, packet and native-state assertions remain.
+
+The next nine-case fixture repair supplies exact scale/speed catalog keys,
+matches Aura duration's effect mask, and installs penalty metadata before
+application. Inert presence fixtures declare DUMMY explicitly; flagstand
+fixtures declare matching stealth/invisibility effects. The sickness fallback
+keeps its valid effect-bit masks and amounts, adding the missing known target
+difficulty. Listed SelfRes now has complete empty Aura authority and effective
+ALLOW_CAST_WHILE_DEAD/normal-cast inputs while preserving unlisted and missing
+metadata rejection (`SpellHandler.cpp:331–354,416–429`, `Spell.cpp:5643`).
+These eight fixture-source edits are unvalidated; no production guard changed.
+
+The remaining eight Aura consumer cases now provide the required positive
+inputs: living native looter, talent identity before configuration, Feign
+metadata for repair, exact indoor/outdoor/standing/mount keys and effects, and
+the creature-cast Player's current handle. Standing tests retain both graphs,
+difficulty overlays and resolved interrupt snapshots; existing before/after,
+channel cancellation and packet fanout assertions are unchanged. These seven
+fixture-source edits remain unvalidated and add no production behavior.
+
+Four quest/money consumer cases now flush setup fields separately and assert
+one action-derived Map-tail VALUES packet after the exact immediate quest/cast
+packets. Native dirty fields and canonical quest removal/reward remain checked;
+the goober case replaces only its obsolete fixture-state reader. Anchors remain
+`Player.cpp:14756` and `Map.cpp:777,1929`. These three test-source edits are
+unvalidated and do not change production publication.
+
+The last four recorded World failures now have fixture/oracle repairs:
+worldport retains its eleven exact initialization/resurrection packets;
+far-transfer combat uses an adopted Player and reciprocal native references;
+the delayed request proves combat remains active until Player update; and
+same-map revival proves native vitals remain dirty until one Map-tail VALUES
+packet after teleport. Anchors: `Player.cpp:1328–1332,1494` and
+`Map.cpp:777,1929`. These three test-source edits are unvalidated.
+All 45 recorded World failures and the checker source-guard finding now have
+reviewed local repairs. This is implementation completion only: formatting,
+exact metadata reconciliation and renewed committed-candidate acceptance remain.
+
+Completed-repair formatting and authoring review are retained in
+`/tmp/rustycore43-closeout-reconcile-yhzmen3e/`. Four logical rows now match the
+measured candidate: Session 14,638 production-column/162,721 test lines,
+Character 1,799/18,927, Loot 884/19,202 and Player 19,908/16,551. Session's
+eight added source-tree lines are a cfg(test) adapter; Player's 62 lines are
+the equivalent dirty-bit expansion. Existing #584 owners/exits are retained.
+The census remains 4,120 tests with one ignored and identical classes and
+destinations; 87 derived rows change only blocker lists and owner votes.
+Unit-test physical lines are 272,822. Six affected files above the 1,000-line
+soft target have specific cohesion/next-split reviews and remain below 2,000;
+no physical exception is added. This is reviewed implementation, not a pass.
+Only abandoned `*-working` compiler temporaries were removed (136.8 MiB);
+completed incremental caches, binaries and evidence remain. Free disk is about
+6.6 GiB, below the operations guide's 30 GiB headroom aim; acceptance must retain
+the actual resource/time outcome and pause additional builds if space runs out.
+
+Final at `997e6cd44` passed architecture, exact Session syntax, census and all
+17 standalone domain checks, but workspace test compilation rejected a
+Character fixture's call to a Session-private shim (E0624). The parent stopped
+the owned runner before repeating that known error in library compilation;
+the attempt ended 130 after 380.792 seconds. Manifest:
+`target/validation-v2/manifests/20261029T022800.757180Z-1615615-final.json`.
+The one-call repair uses the existing crate-visible canonical accessor with
+the same read-only assertion; no API visibility or fixture state is changed.
+The corrected committed candidate still requires final execution evidence.
+
+Final at `b0305c1d6` completed in 538.223 seconds (02:36:29–02:45:27 UTC),
+ending 101. All planned controls except World passed, including all-targets
+compilation, the other 20 library suites, all 464 checker tests and SQL
+composition. World passed 4,114 cases, failed five and ignored one; additional
+integration tests and candidate builds did not start. The manifest is
+`target/validation-v2/manifests/20261029T023629.229499Z-1623237-final.json`;
+exact World failures are in `/tmp/rustycore43-final-20261029-qrwxst5z/`.
+This partial campaign is not a completed ordinary acceptance budget result.
+
+Those five failures now have reviewed, unvalidated fixture repairs. Four menu
+inputs use the existing canonical replacement, retaining source/menu rejection
+and Feign assertions; the GO boundary loop also reaches its intended checks.
+The looter and dead target share Map 571, with an explicit lookup precondition.
+The tracking quest records its now-native field publication as represented.
+Anchors: `NPCHandler.cpp:250–289`, `Player.cpp:13665–13689,14496,15983`,
+`LootHandler.cpp:218–234`. Four test files change by three net lines; the census
+ledger, identities, classes and destinations are identical. Exact reviewed
+counts are Character 1,799/18,923, Loot 884/19,209 and 272,825 unit-test lines,
+with existing retirement conditions retained. Review:
+`/tmp/rustycore43-five-fixture-review-q1im7i13/`. Renewed acceptance is required.
+
+Final at `ecd7574ab` passed architecture, Session syntax, census, all-targets
+compilation and standalone domain checks. Canonical menus exposed a production
+deadlock: GO interaction held the MapManager mutex while the Player phase
+query reacquired it. Three GO gossip tests remained blocked beyond 60 seconds;
+the parent terminated only their owned test binary after verifying its runner
+ancestry. No complete World verdict is claimed. The attempt ended 101 after
+371.056 seconds; manifest:
+`target/validation-v2/manifests/20261029T024944.790196Z-1641559-final.json`.
+Exact binary hash, PID, signal and cause are retained in
+`/tmp/rustycore43-final-20261029-xtnwsq9l/world-test-termination.json`.
+
+The bounded production repair snapshots only the selected immutable GO phase
+under the existing guard, then releases that guard before querying Player
+phase. It preserves represented-phase precedence and every source, in-world,
+phase and distance rejection before Feign removal. Pinned anchors:
+`Player.cpp:1983–2006`, `Object.cpp:1153–1155`, `NPCHandler.cpp:250–289`.
+The existing three canonical GO tests are the regression cases. This repair
+is unvalidated until renewed final execution; no other state, lock or runtime
+owner is added and no baseline is regenerated to excuse the blocked run.
+
+At clean `1f0585636`, the complete final runner passed in 537.996 seconds:
+all 21 library suites, World 4,119 passed/zero failed/one ignored, all 464
+checker tests, architecture/syntax/census and SQL composition. Manifest:
+`target/validation-v2/manifests/20261029T025711.366659Z-1654005-final.json`.
+The wrapper also passed 247 bot tests and eight production handler-registry
+cases. Login-owner integration then passed 34 and failed seven; the campaign
+ended 101 after 928.644 seconds, exceeding the ordinary 600-second target.
+Actual commands and diagnostics are under
+`/tmp/rustycore43-final-20261029-b44iziwr/`; candidate builds had not started.
+
+The integration repair supplies explicit operation catalogs and known-complete
+carried inventory only to positive RequestData fixtures; partial login remains
+partial. Exact explicit-logout packets include native resurrection before
+LogoutComplete. Terminal source-save coverage is retained without a live
+resurrection obligation, alongside the held/no-save case with that obligation.
+Stale retirement now expects the existing preflight's Unavailable outcome while
+retaining every replacement-preservation assertion. No production guard changes.
+These integration repairs are unvalidated. Four inspected static-library cache
+files from the inactive `rustycore-1241` target freed 510.6 MiB; the active cache,
+binaries and evidence remain. Record:
+`/tmp/rustycore43-inactive-cache-cleanup-dut3rpm3/record.json`. Free space is
+about 2.3 GiB, still below the headroom aim; additional builds remain monitored.
+
+At `ad9692ee2`, final passed again in 356.869 seconds; manifest:
+`target/validation-v2/manifests/20261029T032359.766239Z-1684948-final.json`.
+Login-owner integration completed 38 cases, then three positive disconnect
+cases blocked on saturated output. The parent terminated only that owned test
+binary; its PID, hash, verified parent/lock ownership and signal are recorded
+in `/tmp/rustycore43-final-20261029-875r9cyr/production-login-test-termination.json`.
+No complete integration verdict is claimed. The attempt took 512.068 seconds;
+323.062 seconds of unchanged required evidence were credited separately, so
+the complete ordinary acceptance budget is not met. Candidate builds did not run.
+
+The new finding is production send admission: native resurrection reaches a
+blocking realm enqueue after disconnect. C++ closes both sockets on Kick
+(`WorldSession.cpp:698–710`) and rejects a closed socket before enqueue
+(`WorldSocket.cpp:526–534`), while completing native logout work. The bounded
+repair uses the existing Disconnecting state at the five typed/raw client-send
+entries and admits Disconnect mode before its native-transfer step. Connected
+explicit/timed logout, packet bytes/routes, backpressure and peer publication
+retain their contracts. Three native movement self-enqueues now use that same
+guarded raw API; flags, movement counters and peer fanout remain ordered.
+A Core regression uses empty/full separate output queues
+and bounded completion; the three existing integration cases retain saturated
+output. This repair still requires complete committed-candidate acceptance.
+
+At clean `d005b5b36`, final passed in 727.636 seconds, with all 21 library
+suites, World 4,119/zero failed/one ignored, the bounded Core send regression,
+all 464 checker cases and SQL composition. Both production integrations passed:
+eight registry and 41 login-owner cases. Manifest:
+`target/validation-v2/manifests/20261029T033752.546554Z-1699889-final.json`.
+Candidate construction first failed with ENOSPC; it resumed only the missing
+builds after inspected cache cleanup, without repeating green gates.
+Debug server, bot and capture-diff then built and final verification passed.
+Artifact hashes and command records are in
+`/tmp/rustycore43-build-continuation-jobzh9ur/`. Successful required command
+time, including unchanged credited evidence, is 1,202.476 seconds; the ordinary
+600-second target is not met. The failed build's 68.933 seconds and its storage
+repair remain separately recorded. No runtime or DB mutation was performed.
+
+Fresh exhaustive ownership at that same SHA failed after 1,142.076 seconds.
+The complete semantic delta is six composition rows for Application's already
+implemented `graveyards: Arc::clone(&graveyard_store)` at `app.rs:5049`:
+five literal fingerprints gain that one field, and the existing graveyard
+clone's multiplicity changes one to two. Distinct rows remain 10,864; no DB
+API, operation, owner or transaction is added. Deriving policy from the reviewed
+snapshot produces the identical semantic policy and workflow annotations.
+Exact comparison against all reported actual fingerprints and the one-line
+source diff is retained under
+`/tmp/rustycore43-world-catalog-inventory-review-wymfwvww/`. Only those six
+snapshot fields change; renewed final and exhaustive comparison remain required.
+
+Storage repair preserved current tested artifacts, all server/rollback builds,
+captures, manifests and the active incremental cache. It retired inspected
+inactive tool executables and obsolete unit-test variants, then eight inactive
+C++ precompiled headers (1,903.18 MiB). The R6 reference binary's SHA-256 is
+unchanged before/after cleanup; its objects, libraries, source and configuration
+remain. Cleanup records are linked from the build continuation and
+`/tmp/rustycore43-inactive-cpp-pch-cleanup-7p9esgjx/record.json`.
+Free space is about 2.66 GiB, still below the headroom aim.
+
+The closeout physical review retains four unchanged death-driver tests in a
+private child and moves four unchanged obtain-item readers out of storage.
+That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The
+reviewed policy records exact composition/state-definition and test-adapter
+deltas with their existing #584 C4 split exits; it does not declare that
+architecture programme complete. Candidate formatting and module wiring refine
+the World test-line count to 270,837, including the explicit provenance import,
+without adding or removing tests. This earlier count excludes the unvalidated
+acceptance-fixture repairs above; final formatting and physical review remain due.
+
+The macro remains open and has not passed final acceptance. Changes remain
+local to `43-spirit-healer`; this candidate has not been published or deployed.
+Native death now fences canonical save capture, Map retirement and same-GUID
+replacement while its Player-owned operation is Ready or InFlight. Application
+cleanup checks that fence before unpublishing the Player or releasing the login
+claim; logout checks it before admitting each finalization step. The existing
+deferred-save intent retains save requests across those phases, including a
+newer request that must survive an older save acknowledgement. These
+guards are committed at `7b09213ca`. The subsequent native-death integration
+is checkpointed locally at `8eb73d12a` (**UNVALIDATED**). Its focused coding
+feedback preceded that commit; no committed-candidate final campaign or live
+acceptance has run.
+Application now admits lethal damage before writing zero health and runs the
+ordered Player death body, including SelfRes initialization and no-death quest
+failure. Fall, void, environmental spell damage, PowerBurn and creature
+spell-click use that operation. Nonlethal damage preserves native-width health
+and sends HealthUpdate; lethal health uses the existing Map field publisher.
+The Map combat integration now awaits a required death continuation on the
+existing Session phase rail before proceeding to the next swing or tick tail.
+Admission binds the exact Player, registration, residence, Map incarnation,
+tick and operation identity. A failed or revoked native operation retains its
+Player-owned fence; the producer does not run another tick over that obligation.
+The new Map composition has focused production-linked feedback. The
+2026-10-27 21:00:50–21:06:09 UTC sweep passed `cargo check -p world-server`
+and 15 focused cases on this aarch64 host with one Cargo job: Creature's
+`native_combat` (2), World's `native_death_rail_` (5), `native_damage_` (3)
+and `native_death_auras_` (2), and Server's `native_map_combat_` (3).
+The Server cases execute the actual producer and Session consumer, including
+body failure and a pre-existing unresolved operation. The sweep used the dirty
+tree based at `7b09213ca`, fingerprint
+`fd2f50945f9a54ce963d2d5fcf97b84c49e2e9aa0f8ee6048e8edf22c9b4b9ce`;
+its commands, exits, timings and logs are retained under
+`/tmp/rustycore43-native-feedback-20261027/`. This is coding feedback for
+that tree, not committed-candidate final acceptance or live evidence.
+Primary creature melee now also awaits its nonlethal/absorbed-hit presentation
+on that rail before the next swing, so an earlier hit cannot remain in the
+ordinary mailbox behind a later native death. The native initializer and
+selected Aura cleanup still do not claim unimplemented script callbacks.
+
+Focused coding feedback before the latest rail/Aura changes passed Application
+compilation, three `native_damage_` World cases (including lethal fall followed
+by real release/corpse creation), the Inventory retirement-during-commit World
+case, six Quest failure cases, and the affected Inventory filters. These were
+dirty-tree checks, not evidence for the later changes or a committed final
+candidate. Final acceptance, action captures and authorized live DB/relogin
+evidence remain outstanding.
+
+**Earlier slice context:** The following summaries describe their own
+checkpoints. Statements about a missing death caller at those checkpoints are
+superseded by the native integration checkpoint above; they are not another task list.
+The working release path now invokes Application's pet-removal operation.
+Its absent-Pet branch resolves only the current Map, retains stale GUIDs,
+returns temporary-pet reagents once, and resets the stable selection. The live
+route now submits the native state and pet-row transactions separately before
+unlinking the Pet and queueing Map removal. Its current admission requires
+known-empty loaded and native aura state, empty combat/cast participants,
+no summon spell, no group and no secondary controlled minion. The remaining
+live-Pet cases still stop release before corpse creation; complete live-Pet
+support is not claimed. Its save projection has six passing focused tests,
+and all five handler cases pass after correcting their fixture setup. The
+owner's minion GUID now has one native `UnitData::Summon` authority, projected
+to VALUES and self/observer CREATE. Focused native-field, bridge, byte,
+resummon and observer consumer tests pass. This is coding feedback, not final
+acceptance or general Pet lifecycle parity.
+Earlier focused coding feedback
+passed three absent-Pet cases and 75 `release_` cases, including preservation
+of an active Pet when removal cannot complete. The cancellation fence now
+starts before the first potentially mutating reagent callback, after read-only
+admission; Application compilation and 16 `pet_re` cases passed after that
+correction. Native lethal-death integration, final acceptance
+and authorized live DB/relogin evidence also remain outstanding.
+Recent checkpoints add canonical stats, reconciliation of all selected aura
+keys, selected load and refresh, signed durations, and an expiration executor
+driven by the admitted diff. 9i3C2 connects that executor, selected publication,
+and exact snapshots to PlayerRecovery. Its focused coding checks passed;
+this does not establish final acceptance or complete AuraUpdate metadata.
+The Map recovery pass now connects regeneration, KillPlayer, periodic save,
+deathTimer, and delayed teleport through the existing Session rail. Both its
+World consumer and Server coordinator have focused coding feedback.
+9i3C3c connects the scalar wire projection to pending deltas and initial full
+updates, including rejection in login/worldport callers when preparation fails.
+9i3C3d3b connects creation flags for fresh selected auras and preserves refresh
+provenance when creation-only facts are unavailable. 9i3C3d3c connects canonical
+foreign-caster reaction to that constructor and has focused consumer feedback.
+9i3C3d4a retains complete indexed effect rows and shares their resolver from Data.
+9i3C3d4b connects selected save effects and attributes to that resolver and
+uses each application's eligibility flags. 9i3C3d4c connects selected execution
+effects, sickness stat readers, and selected initial effect snapshots. 9i3C3d4d
+connects selected completion polarity and exact initial-threat attributes, with
+required metadata checked before cast preparation. 9i3C3d4e connects selected
+load effects, whole-spell offline polarity, full-width charge normalization,
+and the shared fresh constructor. 9i3C3d4f adds effective condition-row presence
+and its startup/session composition. 9i3C3d4g adds exact visual metadata,
+complete effect/visual file loading, override-potential queries, and server
+catalog composition. 9i3C3d4h connects those visuals to fresh selected Aura
+construction and loading, including canonical preworld owner context and
+preservation of signed wire bits. 9i3C3d4i connects selected self-cast visuals
+before execution preparation. Subsequent charge and effective scalar work is
+recorded below; ordinary client cast preparation remains pending.
+9i3C3d4j1 prepares complete/effective loading and SQL-free row types for the
+four scalar catalogs.
+9i3C3d4j2 normalizes source difficulty before regular/server effect indexing
+and preserves canonical server effect slots and duplicate-parent semantics.
+9i3C3d4j3 adds the four scalar Hotfix SQL methods and checked native decoding
+for all 23 core catalog projections. 9i3C3d4j4 connects those four scalar stores
+to their existing startup positions and immutable owners.
+9i3C3d4k adds checked key/server/proc/Difficulty inputs and effective PPM loading.
+9i3C3d4l1 normalizes canonical server effect base points and preserves full-width
+native proc-family metadata.
+9i3C3d4l2a shares the existing AuraOptions and regular-family readers from Data,
+retaining the World aliases and their previous behavior.
+9i3C3d4l2b prepares exact regular/server proc sources and connects the fallible
+builder to startup; its focused coding feedback is green. 9i3C3d4m2b connects
+its selected fresh and refresh charge consumers.
+9i3C3d4m1 prepares selected charge calculation and modifier admission as pure
+readers; 9i3C3d4m2b connects their selected consumers.
+9i3C3d4m2a shares the existing key-difficulty reader from Data and prepares
+loader-backed canonical keys in selected World fixtures. Its initially
+deferred compilation and identity test are covered by 9i3C3d4m2b feedback.
+9i3C3d4m2b connects fresh and existing-aura charge consumers, canonical key
+admission, the bounded nonzero-only selected FULL projection, and its cooldown
+correction. Production compilation and 50 distinct World cases have focused
+coding feedback. Original refresh policy, duration and Ghost/Wisp effect
+properties are corrected by 9i3C3d4m3, with production compilation, 54 World
+cases and four Core duration cases. The selected stat-view integration now
+uses the Aura's actual difficulty key and indexed effect rows; its focused
+coding feedback and remaining boundary are recorded below. None of this
+establishes final acceptance.
+The ordered SelfRes field now has one native Player owner and both CREATE and
+VALUES consumers, with production compilation and 19 distinct focused cases.
+Death-time initialization and the ordinary SelfRes cast contract remain open.
+The native initializer participant is now prepared with 39 distinct focused
+cases across Spell, Data and shared fixtures. Its required Application death
+caller and the real gameplay producers remain open; this is not production
+SelfRes integration or final acceptance.
+Ghost/Wisp now use original Aura keys in loaded effects, transform ownership,
+removal and full-save capture. The selected loader no longer requires a
+legacy difficulty-zero payload. The scoped checkpoint records 54 passing
+World cases, including a genuine nonzero-only save/load roundtrip; this is
+coding feedback, not final macro or live acceptance.
+The existing Player Unit pass now maintains its native SpellHistory using a
+single frozen system-clock observation. The scoped history checkpoint records
+94 distinct cases; this does not complete SelfRes or final macro acceptance.
+The integration adds neither another clock nor another Player authority.
+Native resurrection errors now stop dependent reclaim, spirit-healer and
+login work, and the actual Character login consumer aborts on that error.
+The scoped checkpoint below records production compilation and 31 distinct
+World cases. A subsequent recovery integration retains the native operation
+through corpse deletion, save acknowledgement, login and transfer completion,
+and prevents retirement while recovery is unresolved. Its scoped feedback
+covers 77 distinct World cases, including 33 new recovery cases, and the
+Server composition compiles. Normal Player casts now connect pre-GO costs,
+native cooldowns and physical-item consumption to the existing save owners;
+45 distinct focused cases and Server compilation provide coding feedback.
+Common resurrection obtain calls now use live inventory and checked normal
+cast outcomes. The selected sickness constructor/refresh now retains its
+physical cast-item provenance and passes the restored real regression.
+The affected healer, recovery, resurrection, corpse-login and repop groups
+now have green scoped feedback covering 148 distinct identities. The stack
+abort was corrected in a test fixture. This is coding evidence, not final
+macro acceptance. The sickness full-save path now resolves each active Aura's
+actual SpellInfo key without a difficulty-zero prerequisite; its 35-case
+save/load group has green scoped feedback. The SelfRes effect now uses the
+same Player-owned native recovery continuation, including corpse deletion,
+save acknowledgement and cancellation retention. Its focused feedback covers
+37 Spell and 11 World cases. The shared CheckCast path now rejects ordinary
+dead/ghost casters before cooldowns and launch, with 39 scoped cases passing.
+Native recovery fields now use the existing Map publication owner and native
+visibility notification; its affected groups have green scoped feedback
+covering 165 distinct identities. Four registered SelfRes composition cases
+now prove the normal cost/cooldown, native revival and conditional full-save
+path locally with a genuine nonzero-only key. Its remaining admission/timing
+cases, native death, QA and final acceptance remain open.
+The native SetDrunkValue participant now serves the existing EffectInebriate
+consumer, and Player update-field changes now enter the existing Map queue.
+Its scoped feedback covers 26 relevant cases plus one matched duration
+regression. The native-death caller is still absent. Normal casts now clear
+exhausted cast-item provenance at the Source phase and propagate unavailable
+consumption; seven distinct cases provide scoped feedback for that repair.
+The cast dispatcher now reports unimplemented effects and unsupported Player
+Aura grouping before START/GO instead of silently succeeding. Its scoped
+feedback covers 33 distinct cases. This is a failure-contract repair, not a
+port of those effects or proof of full parity for every known handler.
+
+**Closure direction reset — 2026-10-27, reviewed at `e26551b0d`:**
+The user requested an overengineering review, then authorized continuing to
+issue closure. The 92 local commits since `origin/43-spirit-healer` are not
+completion evidence. Stop selecting work from an open-ended dependency list;
+each additional change must address a concrete failure in the acceptance rows
+below. Preserve useful existing work and its regression coverage. Do not require
+completion of the general spell, quest, pet, battleground or architecture
+programmes to finish this issue.
+
+| Issue #43 criterion | Current evidence and remaining closure blocker |
+| --- | --- |
+| Lethal damage and native death | The working Application body and five Session damage routes now use Player-owned native operations. The working Map composition awaits the same body on the existing rail before its tail, with pre-Kill creature melee presentation and native durability applied once. Fifteen earlier focused cases cover the selected composition, ordering/failure boundaries and Aura cleanup. The awaited split/share correction has three passing production-linked Server scenarios; connection routing now has separate-channel coding feedback. Exercise the complete death/release/recovery cycle and final candidate. This row is not accepted yet. |
+| Release, ghost, corpse and graveyard | Release invokes pet removal for absent/temporarily unsummoned pets and now has a bounded quiescent live-Pet save/removal continuation. Exercise the complete in-scope path from an actual lethal producer, including ghost restrictions and corpse publication. Nonempty Pet Aura, combat, summon-spell, group and secondary-minion continuations remain explicit Pet-domain boundaries; the issue does not require completing the general Pet programme. A demonstrated lifecycle failure in a required scenario must still be repaired. Helper tests alone do not close this row. |
+| Reclaim, healer and accepted resurrection | Production recovery continuations exist. Verify the registered paths, penalties, corpse cleanup and pending/transfer recovery together on the final candidate. |
+| Persistence and failure recovery | The dirty quest-status full-save projection and commit acknowledgement have focused passing feedback, including concurrent native objective changes and failed/unknown commits. The working native death body now invokes ordered FailQuest and quest-item destruction. Save/retirement fences and these callbacks still need final-candidate and complete-cycle evidence; mocked outcomes do not close runtime persistence acceptance. |
+| Local acceptance | Define one committed candidate after implementation, run final plus missing scope-specific integration evidence once, repair actual findings, and retain the real SHA and complete timings. |
+| Live acceptance | Required action captures and real DB/restart/relogin evidence remain outstanding. Prepare the exact target and scenarios before requesting the separate runtime authority; no deployment, restart or data mutation is inferred from local implementation authority. |
+
+Read-only runtime preflight on 2026-10-27 at 22:03 UTC used
+`./tools/qa-runtime.sh snapshot` (exit 0). The serving target was systemd
+`world-server`, PID `3094551`, executable
+`/home/server/rustycore/target/deploy/live/world-server`, SHA-256
+`290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`,
+with no configured packet dump. This identifies the existing build for the
+later authorized swap/restore; it is not execution evidence for this candidate.
+
+Read-only fixture preflight at 22:59 UTC used a read-only transaction against
+the configured reference schemas. Characters 15/16/18 remained offline;
+their levels were 80/80/3. None of the four proposed `Qadeath*` names in
+`tools/wow-test-bot/RUSTYCORE_SMOKE.md` existed. The listed healer and Kobold
+spawn rows were still present. No account, character, item or runtime state
+was changed. Recheck those conditions before any authorized preparation;
+these reads do not establish a playable fixture or action acceptance.
+
+The 2026-10-28 read-only name recheck also found no `Qadeathcast` collision;
+characters 15/16/18 remained offline at levels 80/80/3. The prepared campaign
+now uses five new disposable characters, including a Human Paladin caster,
+instead of adding a spell or changing the existing character 15. No fixture
+rows were allocated. The current-host capture decision reuses the systemd
+runtime guard and the existing comparator's raw-pair mode; it retains both
+native server captures and the client's action trace, without inventing PM2
+provenance or expanding the general capture-import programme.
+
+The reference runtime is available at
+`/home/server/woltk-trinity-legacy/build-r6/src/server/worldserver/worldserver`.
+Its SHA-256 is
+`80f143841b5a7b443022480500760ce336dc83052f05ddd7e3b7be6a6605b02a`;
+the read-only `--version` probe exited 0 and reported `a5f8da2ebf54+`.
+This is the derived R6 build recorded in
+[the reference preparation](../architecture/captures/1263-r6-paired-2026-10-10.md),
+not an unmodified upstream executable. Current checksums of all three local
+patches match that record: the LFG logging macro correction, explicit
+`Spell::SearchTargets` instantiations, and the specialization-index startup
+guard. Retain that derivation in later capture provenance. Its existing
+specialization/loot limits remain; these death scenarios must not establish
+loot or specialization parity from this build. No reference service was started.
+
+The native integration preserves the target C++ contracts at source
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Player.cpp:1158–1200` (Player death order), `14928–14997` (quest failure),
+`15626–15672` (quest SpellArea updates), `11784–12035` (quest item destruction),
+`Unit.cpp:8527–8585` (Unit death order), `3432–3524,3583–3602,4308–4328`
+(applied and owned Aura removal), `1015–1022,8115–8154,9214–9243`
+(nonlethal HealthUpdate versus lethal SetHealth), `10632–10650` (PvP death
+and durability), `1958–2015` (split damage), `833–856` (shared damage),
+and `Object.cpp:2254–2260` (controlling Player lookup).
+The scope is the #43 lifecycle, not full Unit::Kill/proc/script, Pet, vehicle,
+Battleground or Aura parity. Unsupported vehicle/secondary-controlled and
+health/power-trigger Aura participants stop the native operation explicitly.
+At the start of this review, the Map route rejected split/share damage before
+its old scalar writers, also disabling existing nonlethal secondary damage.
+The working correction removes that rejection and uses shared per-entry
+calculations from the synchronous compatibility loop and the admitted async
+future. Each secondary Player death is awaited before the next Aura entry or
+primary health mutation; the current application and amount are reread per
+entry. Absorb callbacks precede split, each split death precedes its own
+non-melee log, and the primary AttackerState packet precedes shared damage.
+Both secondary calls retain the reference's `durabilityLoss = false`.
+Five new focused Creature cases pass, covering preserved nonlethal damage,
+admission before zero health, source identity and same-GUID record replacement.
+Three multi-session Server scenarios now pass: both secondary split deaths
+finish before their logs and the primary hit, a failed secondary death fences
+the next Aura and primary mutation, and lethal self-share runs one death body
+after AttackerStateUpdate. The passing commands explicitly select the Server
+library; `TEST-15R.log`, `TEST-16.log` and `TEST-17.log` record real exit 0,
+from 23:02:46 through 23:06:55 UTC. This is dirty-tree coding feedback, not
+final acceptance or general split/share script parity. Those logs and the
+earlier failed attempts are retained under
+`/tmp/rustycore43-secondary-native-feedback/`.
+
+The bot's existing scripted runner now has typed death/recovery requests,
+raw gameplay evidence with authentication-body redaction, exact packet/route
+expectations and distinct logout/disconnect outcomes. It is checkpointed at
+`befc96261` (**UNVALIDATED**). Its 27 focused tests passed on the preceding
+dirty tree. The initial standalone dependency preparation cost 8m 01s for
+`cargo check` and 6m 47s for the focused test build; these are coding/bootstrap
+costs, not the ordinary warm final campaign. Logs are under
+`/tmp/rustycore43-death-driver-feedback/`.
+The subsequent client controller now retains the authenticated login burst,
+initializes its actual mover/position, and owns root, water-walk, run/swim speed,
+near-teleport and suspend/worldport acknowledgements. Worldport response and
+renewed visibility initialization use the same instance socket to preserve
+their order. Root clears incompatible movement/fall flags; unsupported
+transport/vehicle and other unhandled controls fail explicitly. Initial control,
+read, known-spell decode and auth-handoff failures retain their observed evidence
+while closing both sockets. The repaired dirty tree passed 34 focused bot cases
+(204 filtered), exit 0, at 18:56:25–18:56:35 UTC on 2026-10-28. The scoped patch
+fingerprint was `33bfb13b2d4255259d6a7e8cffad4e0597944a0c891beaf12ffc8a3feb5f36fd`;
+logs are under `/tmp/rustycore43-movement-feedback/`. The parent then formatted
+the owned files. This is coding feedback, not committed-candidate final evidence.
+The subsequent observed-target and in-memory character selection passed 40
+focused bot cases (204 filtered), exit 0; the final coding-feedback command
+ended at 19:50:17 UTC on 2026-10-28. The log
+`/tmp/rustycore43-target-selection-feedback` retains the initial test-local
+shadowing error, repair and actual repeated command results; they are not
+additional distinct test identities. The tracked patch fingerprint was
+`636ccd8b67cf4f53d87148ec9837b497f495eda7291ef7091d47238366a4d23d`, and
+the new target resolver's SHA-256 was
+`120e8edd97366d62ca8ddf3a75e73d6f0624b2c40ec2453cfcee524113568752`.
+It resolves only from observed object updates after the current map barrier
+and records the chosen GUID's source event. Character overrides happen before
+failure-report identity capture, without rewriting credentials. The preceding
+private test split retained all seven movement cases; its 535-line moved body
+was unchanged, with one surrounding blank line removed. These remain coding
+and source-review evidence. Fixture/scenario integration, final and live
+lifecycle acceptance remain outstanding.
+
+The current-host native capture collector is now implemented in
+`tools/qa-runtime.sh capture`, reusing the existing systemd identity,
+stop/swap/restore and exclusive-lock guard. It records native Rust dumps or
+C++ PKT, candidate/runner/bot hashes, listener identities, selected-config
+digests and restoration outcomes. Its private file helper journals and fsyncs
+recovery before configuration mutation; drift or a missing armed journal holds
+the service stopped. Fake-service cases are written but have not run, and no
+syntax, final, service, database-write or live capture acceptance ran for this
+unit. Collection does not establish lifecycle acceptance. The reference source
+HEAD, three local patch paths and R6 executable SHA were rechecked unchanged
+on 2026-10-28; the reference was not started.
+
+An additional read-only installed-data probe found male models 1/3/7
+(display IDs 49/51/55) for Human/Orc/Night Elf; all select sickness spell
+15007. Items 2121 and 17030 have no ItemEffect rows. This probe reused the
+existing reader artifact for unchanged race/model/effect loaders, not the
+subsequently corrected class-mask field. Its compile/run exited 0 in 3.438 s;
+the result is `/tmp/rustycore43-fixture-reader-preflight/result.json`. The
+selected Kobold's actual World data has one SmartAI AGGRO/TALK row with 30%
+chance, not an empty script set. Retain that fact in action-capture analysis;
+no NPC row has been changed and none of these reads proves a live fixture.
+
+Final-acceptance preparation reconciles the World test ledger to the real suite:
+4,094 mounted `unit_tests` cases and 22 source cases, with the existing ignored
+case preserved. The identity delta adds 363 and retires 12 renamed/replaced
+cases; all added cases classify as composition tests. Nine existing cases now
+classify as domain-movable after their actual forwarding changes. The reviewed
+ceiling records exactly 270,614 physical `unit_tests` lines with no headroom.
+This metadata update does not claim the suite has passed final acceptance.
+
+The selected ItemSparse class-mask correction now reads target field 46,
+not field 48 (`RandomSelect`). A portable sparse WDC4 fixture passed through
+the production loader with distinct neighboring fields, positive and negative
+signed masks, durability, flags and stack size. The same focused test's
+explicit opt-in data probe read class mask `-1` for installed items 2121 and
+17030; the Mage bit 128 is permitted. Item 2121 has durability 40 and reagent
+17030 has stack size 10. The one test passed with 846 filtered; its log is
+`/tmp/rustycore43-item-class-feedback/focused-test.log`. This fixes selected
+fixture admission metadata; it does not prove runtime equipment, creation or
+durability persistence. No fixture or runtime mutation has been performed.
+
+Cohesion review: `crates/wow-world-creature/src/admitted_creature_execution/native_combat.rs`
+has 1,368 lines, including its tests. It owns one admitted combat future and
+the identity checks needed across its callbacks; split/share arithmetic already
+lives in the shared per-entry helpers. It remains below the 2,000-line closeout
+ceiling. The existing private test module is the next independent navigation
+boundary if this file grows; this review does not require another runtime owner
+or a restructuring of the ordered operation.
+
+The Server scenario exposed a publication boundary: ordinary mailbox delivery
+allowed a later priority-rail melee stage to overtake split logs. The working
+Server publisher now queues this required pure packet output at its actual
+combat call point, including the observer attack prelude. It retains canonical
+receiver identity, residence and native source visibility selection, with no
+Map guard during delivery. Player-source combat logs keep their direct self
+copy separately from observer selection. It reuses the existing connection
+writers and does not drain arbitrary Session commands. A separate source
+review also found that the affected native
+death paths use instance-channel helpers for several realm-channel packets.
+Pinned `Opcodes.cpp` assigns HealthUpdate (`1564`), PowerUpdate (`1911`),
+StandStateUpdate (`2131`), DurabilityDamageDeath (`1362`) and
+EnvironmentalDamageLog (`1373`) to realm; AttackerStateUpdate (`1087`),
+SpellAbsorbLog (`2102`), SpellMissLog (`2123`) and SpellNonMeleeDamageLog
+(`2124`) use instance. The working owners now use those connections. World
+`native_damage_` passed four cases after the owner correction, including
+exact nonlethal health bytes and a real native Creature-kill body with one
+realm wear message normally and none in battleground context. The absorption
+case verifies instance combat-log observer commands and realm power output;
+the queued-melee case verifies presentation does not apply another death
+penalty. Inventory retains its shared wear calculation, called by Application;
+the uncalled queued-melee wear publisher and its host hook were retired.
+The legacy test is now named
+`apply_creature_melee_damage_command_defers_lethal_durability_to_native_body_like_cpp`;
+the native Creature-kill test carries the positive policy coverage.
+The Server's disconnected-observer case also passed: closing a selected
+observer's packet receiver does not cancel the primary death. Pure packet
+queue failures skip that receiver, following C++ `WorldSession::SendPacket`;
+required native body/phase failures still retain their operation fence.
+The seven focused cases and failed attempts are recorded under
+`/tmp/rustycore43-socket-routing-feedback/`. This is dirty-tree coding feedback,
+not final or live connection acceptance. The combined-sender Server fixture
+proves call/enqueue order, not network order across the two sockets.
+
+The dirty-save stabilization and native death integration now have focused
+coding feedback. Completion still requires the complete recovery acceptance,
+including prepared action captures and real DB/restart/relogin evidence.
+Before the subsequent integration, the 2026-10-27 caller check found
+`begin_native_death_operation`, `claim_native_death_operation` and
+`complete_native_death_operation` only in their owner and tests. The working
+Application and Map callers above supersede that finding.
+`has_unresolved_native_death_operation` protects production save capture,
+logout and retirement; those fences alone do not complete the lifecycle.
+Fence coding feedback on the dirty `d603dbce6` base, aarch64, 2026-10-27:
+`cargo check -p wow-map`, `-p wow-world-core`, `-p wow-world-lifecycle` and
+`-p wow-entities` each exited 0. Focused tests passed:
+`cargo test -p wow-map native_death` (3),
+`cargo test -p wow-world-core full_save_capture` (2),
+`cargo test -p wow-entities native_death` (1), and
+`cargo test -p wow-world native_death_fences_logout_and_cleanup_until_the_operation_completes --lib`
+(1). The World case exercises the real save entry, lower unregister, logout
+step admission, cleanup and retained login claim in Ready/InFlight, then
+permits cleanup after Complete. An initial Lifecycle test fixture could not
+compile with that crate's test dependencies; its assertion moved into the
+World integration case. The first World build exposed a wrong HighGuid import,
+which was corrected before the passing run. All commands used the declared
+PROTOC, one job and this checkout's `target/`. This is seven distinct focused
+tests, not committed-candidate final acceptance, native death execution or live
+DB/capture evidence. Inspection of Server's existing
+`session_factory/finalization.rs:126–144` confirms unresolved finalization feeds
+its task-owned fail-stop retention; no additional retention task was added.
+The pet-save persistence participant now accepts the two independent native
+transactions and preserves their statement order and exact bindings. The
+parent reviewed `Pet.cpp:452–546,1129–1176,1288–1347`,
+`SpellHistory.cpp:182–218`, and `CharacterDatabase.cpp:664–686` at the pinned
+target SHA. On the dirty tree based at `4ba72acbe`, aarch64, the worker ran
+`cargo check -p wow-database` (exit 0) and
+`cargo test -p wow-database pet_save --lib` (2 passed, exit 0 after repairing
+a missing test import). Both used the declared PROTOC, one job and this
+checkout's target directory. Subsequent changes only format those files and
+add license headers. This is coding feedback; no live transaction or final
+acceptance ran. At that checkpoint the production RemovePet caller, canonical
+aura save capture, reagent refund and failure/cancellation continuation were
+unfinished. The current integration boundary is recorded above.
+Production pet resummoning now retains the loaded aura's cast difficulty and
+indexed base amounts in its existing canonical loaded state, including their
+removal lifetime. On the dirty tree based at `ebcb57e15`,
+`cargo check -p wow-world-lifecycle` passed and the World
+`resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp` test
+passed (1 test; 5m 14s compilation). The same one-job environment applied.
+This establishes data retention, not full Pet aura eligibility/application or
+production save capture. The metadata is not a second aura owner.
+The next local draft composes reagent grants from canonical inventory, quest,
+obtain-spell and collection operations, with ordinary Player full-save ownership.
+It reuses `Player::send_new_item_plan`, checks new-slot/GUID collisions before
+insertion, and derives stack changes under one canonical Player mutation.
+A bound-quest preflight which updates no objective now preserves loaded quest
+authority, so a subsequent reagent is not rejected solely by that no-op.
+The draft still rejects bag placement and equipment, container, timed or charged
+item creation. Those are explicit unfinished boundaries, not successful refunds;
+the production RemovePet caller and its cancellation fence were absent at
+that checkpoint and are now connected for the absent-Pet branch described above.
+The empty PetSpells packet matches the pinned default writer's 65-byte body and
+opcode `0x2c22`; `cargo test -p wow-packet clear_pet_spells --lib` passed one
+case on the dirty tree based at `df4339f3e`. Application compilation also passed
+before the subsequent notification/merge refinements. The final focused coding
+run, `cargo test -p wow-world pet_reagent --lib`, compiled those refinements and
+passed both cases: new item followed by merge with retained quest authority,
+and a maximum-count rejection with unchanged storage and no error/push packet.
+The preceding post-addition filter selected only the positive case; the final
+filter selected both. All runs used aarch64, one job, the declared PROTOC and
+this checkout's target directory. These are coding checks, not live captures
+or final acceptance. The current absent-Pet removal path now calls the refund
+helper. At that checkpoint the clear-PetSpells packet still awaited a live-Pet
+caller; the current bounded continuation now sends it after both saves.
+The release integration and its current-Map lookup follow
+`Player.cpp:20839–20962`; refund suppression reads the native battleground
+instance (`Player.h:2335–2337`), not the older represented type-only helper.
+On the dirty tree based at `faafebe89`, aarch64, the worker ran
+`cargo check -p wow-map` and `cargo test -p wow-map pet_combat --lib`
+(4 passed), followed by `cargo check -p wow-world-application`,
+`cargo test -p wow-world pet_removal --lib` (3 passed) and
+`cargo test -p wow-world release_ --lib` (75 passed), all with exit 0.
+An initial World compilation failed on a fixture tuple type mismatch before
+running tests; the corrected runs above are the successful evidence.
+The worker repeated one Application check after losing its prior command
+handle; only the recovered exit-0 result is credited. These commands used
+the declared PROTOC, one job and this checkout's target directory.
+At that checkpoint the Map participant had no production caller. The current
+quiescent live-Pet branch calls it only after proving its combat participants
+empty. It can unlink indexed attack, combat and threat references and return
+owned effects; native combat-exit
+aura/engagement callbacks, the master's pet-combat flag and AI continuations
+are not implemented by that helper. It is not complete `CombatStop` evidence.
+After the refund-fence correction, `cargo check -p wow-world-application`
+and `cargo test -p wow-world pet_re --lib` passed (exit 0; 16 tests, including
+all six removal/reagent cases) on the same dirty base and host. Missing
+ItemEffect metadata now fails without changing pet markers, inventory or the
+persistence tracker. A prior successful grant retains the enclosing fence
+through subsequent grants and marker updates. A pending-addon-read
+cancellation case was not executed; the available fixture resolves immediately.
+Map and release suites were not duplicated after this scoped correction.
+No final campaign, live capture, DB/restart/relogin run or publication is
+established by these coding checks.
+On the dirty tree based at `c6e8c6147`, aarch64, the next worker feedback ran
+`cargo check -p wow-world-application` (exit 0),
+`cargo test -p wow-world-application prepare_pet_save` (6 passed, exit 0),
+and `cargo test -p wow-world resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp --lib`
+(1 passed, exit 0). The latter covers restored Hunter rename eligibility from
+`Pet.cpp:298`, so a subsequent save preserves `WasRenamed`. The first
+`cargo test -p wow-world live_pet_release --lib` run failed all five cases
+before handler entry: the fixture set its Map after adding the object to the
+world. After correcting that order and connecting the native Summon field,
+the same filter passed all five cases (exit 0). `cargo check -p wow-world`
+also passed. The native minion setter, Core bridge and packet CREATE/VALUES
+filters each passed one case; their byte assertions pin CREATE offset 46 and
+the VALUES mask plus populated/empty packed GUID. Exact successful commands:
+`cargo test -p wow-entities minion_guid --lib`,
+`cargo test -p wow-world-core bridges_canonical_unit_minion_guid_and_empty_clear --lib`,
+and `cargo test -p wow-packet player_create_and_unit_values_publish_summon_and_empty_clear_like_cpp --lib`.
+The resummon fixture initially failed after adding native-owner assertions:
+its setup lacked the adopted handle/map catalog, then still seeded the
+fixture-only temporary marker and left canonical health at zero. The corrected
+setup installs the canonical owner, temporary marker and living vitals;
+`cargo test -p wow-world resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp --lib`
+then passed one case (exit 0), including rename flags and native control links.
+`cargo test -p wow-world player_visibility_create_uses_live_stats_and_customizations_like_cpp --lib`
+also passed one case (exit 0), covering the non-owner CREATE consumer. These
+runs used the declared PROTOC, one job and this checkout's absolute `target/`.
+They ran on the dirty `c6e8c6147` base; no later commit is relabelled as tested.
+The new save projection follows `Pet.cpp:452–562,1129–1176` and
+`SpellHistory.cpp:182–218`. The removal continuation awaits the two transactions
+separately, revalidates the canonical Player and captured Pet after each wait,
+and retains the Pet plus the existing persistence fence on failure, unknown
+commit, cancellation or intervening mutation. These are implementation and
+mocked-port contracts, not real DB/relogin evidence. The required owner field
+is `UnitData::Summon` (`Unit.h:1139–1140`, `UpdateFields.h:210`); the repair
+replaces the old control-only field with that native authority and connects
+both CREATE and VALUES consumers. Observer snapshots capture it under the same
+canonical Player read as their other presentation facts. The existing loader
+now attaches its native control links after inserting the Pet; this does not
+complete general `SetMinion`, Pet AI or Pet aura loading.
+Any newly discovered prerequisite must name the failing scenario and the
+smallest repair. A generic domain defect is not automatically a #43 blocker.
+In particular, the reagent-return composition reuses native inventory, quest,
+obtain-spell and collection operations; it does not start a general achievement
+engine. `StoreNewItem`'s `ObtainAnyItem`/`AcquireItem` criterion emission remains
+the progression responsibility in PORT_PLAN L18, as the existing D-C8 vendor
+acceptance already records. Preserve that gap explicitly: neither reagent
+return nor #43 acceptance may claim achievement parity. Actual item ownership,
+refund quantity, callbacks, persistence and notifications remain in scope.
+
+Coding feedback on 2026-10-27, dirty working tree based at `e26551b0d`, aarch64:
+`cargo test -p wow-world-core session::player_save_owner::quest_status --lib`
+passed 4 cases; Database `player::lifecycle_adapter::tests::save_order` passed 6;
+World `lifecycle_persistence::save_interleaving` passed 13 after repairing two
+old durability fixtures to supply ItemEffectStore and inspect full Item rows.
+`cargo test -p wow-entities quest --lib` passed all 62 matches, including the
+native quest-log, dirty-status and save-ack cases. Creature
+`player_melee_application::death_tests` passed 3 cases, including PvP policy;
+the two affected World PowerBurn/spell-click cases passed lethal and nonlethal
+paths. Scalar death anchors are pinned Unit.cpp:10457,10611,10635; these tests
+do not establish the complete Player death operation. The initial Server
+configuration command mistakenly selected `--bin world-server` and ran zero
+tests; it establishes compilation only. The corrected command,
+`cargo test -p world-server --lib quest_status_cleaner_policy_keeps_only_source_proven_modes`,
+passed its one test after fixing the missing import in the inherited test.
+All Cargo runs used one job, the local
+`target/` and the declared PROTOC. This is coding feedback, not final acceptance,
+a live action capture, publication or issue completion.
+
+Focused feedback below does not replace these requirements. Dated checkpoints
+and source comparisons remain below; the initial World timer decisions are
+historical context for the Map cut selected later.
+
+Native-death caller review at `1d9946d0e`, 2026-10-26: the shared damage method
+is on HubMut and already has immutable catalog access. Its five current caller
+paths coexist with direct Map-owned melee writers. In particular,
+world-creature/player_melee_application.rs:161–187 subtracts Player-victim health
+without setting JUST_DIED; player_tick.rs:489 consumes that path. Creature
+melee, share, and split set only the bare Unit death state. Unit::set_health
+does not promote zero health into death, and a later stats synchronization
+must not substitute CORPSE for the missing transition. Source Unit.cpp:1016,
+10457–10614,8527–8585 and Player.cpp:1158–1200 require the native operation at
+the admitted mutation point. Include all these writers in the same integration,
+with owned publication after the Map guard; no Session mailbox cleanup after
+P3 or parallel Player owner. This is source/caller inspection, not executed
+death acceptance or a report that this participant is implemented.
+
+Read-only participant refinement at `31e8f06d0`: the stats bridge already has
+an actor-borrowed input, `PlayerStatFacts::from_player`, a pure
+`wow_world_inventory::plan_player_stats`, the existing `PlayerStatCalculator`
+function type, and Core's synchronous `apply_player_stat_computation`.
+They can support the native death operation without looking up or cloning a
+second Player. Do not call the Session owner-locking wrapper while Map is
+already borrowed. The complete choreography will belong to Application,
+which already composes Spell, Inventory, Quest and Lifecycle. Core will retain
+only the shared request/result contract needed by the lower callers; moving
+the pure stats planner or adding an Inventory dependency to WorldEntities is
+not selected. These available functions do not by themselves make aura
+removal complete.
+The death transport remains a required Application operation at each existing
+damage admission. Session callers reach it through required methods on the
+existing movement and spell-click host contracts (the spell-effect host already
+inherits the latter). Shared request/result types belong to Core. The original
+synchronous borrowed-manager candidate is superseded: source review at
+`d63c12ce0` found that `FailQuest` calls `SetQuestStatus` and `SendQuestUpdate`
+(Player.cpp:14942,15557–15672), which can execute FULL casts from effective
+SpellArea rows before the next quest slot is read. The Source loader does not
+limit those rows to aura-only spells. The existing asynchronous executor
+re-resolves the canonical manager, so calling it under the proposed held Map
+guard would relock that manager. A frozen batch or post-death mailbox would
+also lose the required live phase order.
+
+Selected replacement at `1e8a06cc2`, 2026-10-27: preserve one Player-owned
+Application death continuation and suspend the admitted combat cursor at its
+required death step. Release the Map guard, deliver the already produced
+combat packet prefix, and drive that same operation through the existing
+Session phase rail before resuming the same admitted cursor. Do not consume
+damage, attack RNG or a phase twice. This is a dedicated required phase step,
+not a command-mailbox callback or another PlayerRecovery timer pass. Reuse the
+rail's claim/revoke permit and exact Player incarnation, registration, Map
+incarnation and tick admission. A started unresolved operation blocks the
+remaining tick and retirement; revocation before start does not erase native
+work already admitted to the Player. Disconnect finalization must complete
+ready work or retain that owner under the existing fail-stop contract before
+logout save and retirement. Read each live quest slot only after its preceding
+callbacks finish. No Player clone, second clock/task, packet delivery or await
+under a Map guard is selected. Exact cursor/phase signatures and complete
+participants still need implementation and acceptance before enabling lethal
+callers. Server currently runs all admitted combat phases under its canonical
+guard (`runtime/canonical_creature_runtime.rs:117–180` and
+`runtime/map/update_loop.rs:373–427`); this replacement is not installed.
+Implementation simplification selected in the closure review at `e26551b0d`:
+retain the admitted combat call as an awaited Rust future, using its local
+variables for the current swing, calculated damage and already-consumed RNG.
+Do not add a second handwritten combat-cursor state machine. Scope each Map
+guard to synchronous mutation/read sections and await the required native
+death operation between those sections, before the same call proceeds. The
+existing Player operation identity and Session permit still fence cancellation
+and retirement; an abandoned future is not completion evidence. This is an
+implementation decision, not a claim that the async combat path is installed.
+The current `runtime/map_tick.rs:252–300` callback runs before MapManager's
+resume, while the same admitted plan remains AwaitingSessions. The selected
+cursor can therefore release guards and retain that plan without adding a
+second clock or a new Map coordination state. Multiple native deaths within
+one tick require operation-ID admission, rather than reusing the once-per-tick
+PlayerRecovery authority check. The asynchronous Application body can reuse
+existing native Inventory/stat/Aura owners after releasing the outer Map
+guard; a new borrowed durability engine is not required merely by the earlier
+synchronous candidate. The native penalty must still run at its Source phase,
+before the tick resumes, independently of presentation-command admission.
+The later selected stat-view integration resolves actual SpellInfo keys and
+indexed effects in `canonical_access/player_stats/aura_view.rs`; the dated
+checkpoint below records that bounded fix. It does not complete generic aura
+or native-death participants. No runtime callback has been installed here.
+
+Durability participant review at `04583b7d3`, 2026-10-26: the current
+WorldEntities combat command first admits Session state, Player/map identity
+and health revision, then calls Inventory's
+`publish_creature_melee_death_durability_loss_like_cpp`. Despite its name,
+that function mutates item durability before sending the death-loss message.
+Consequently, rejecting a presentation command can also skip the native
+penalty. The complete death operation must apply that penalty at the admitted
+Map mutation and return owned publication; it must not depend on Session
+delivery or call the owner-locking inventory/modifier accessors under that
+Map guard. Native Player inventory update and item-modifier action methods
+already exist, as do the borrowed stat planner and synchronous application
+described above. Their existence does not establish a complete borrowed
+durability participant or its persistence/publication integration.
+Pinned source Unit.cpp:10632–10652 sets PvP death before the penalty and
+selects PvE or the configured PvP branch. World.cpp:761 loads
+`DurabilityLoss.InPvP`; no corresponding Rust consumer was found in the
+inspected Server, Core or World domains. Player.cpp:4522–4562,4590–4620
+requires equipment-slot order, the aura multiplier, removal of broken-item
+mods before writing zero durability, and `ITEM_CHANGED`. The fall caller
+has a distinct source order and message percentage at Player.cpp:655–673;
+preserve it instead of applying the creature-kill message formula to all
+deaths. This is source/caller inspection only. No durability change, new
+acceptance result or runtime authority is claimed here.
+
+Pet participant review at `ce61305e3`, 2026-10-27: pinned
+Player.cpp:20839–20962 resolves a live typed Pet before removing it; a
+missing Pet does not clear a stale GUID. Reagent return also covers a
+temporarily unsummoned Pet and precedes the no-Pet return. The live path
+stops combat, saves, resets the stable slot, unlinks the minion, queues
+deferred removal, then publishes controlled-Pet removal. Pet.cpp:452–546
+saves auras before cleanup in its first transaction and the character_pet
+row in a second transaction. Existing Entity save plans and Database
+statements have no complete runtime executor in the inspected paths.
+Core's talent-oriented represented removal skips those operations and
+removes the object immediately; it is not a faithful death participant.
+This bounded integration must not become a requirement to complete the
+whole Pet product, nor may missing loaded-aura metadata justify replacing
+persisted pet auras with an empty set. No Pet mutation or acceptance was
+performed by this review.
+
+NoDeath quest failure is also an operation, not just a status assignment.
+Pinned Player.cpp:14928–14989 selects quest-log slots, accepts incomplete
+quests or the source's specific completed timed case, updates status/log and
+timer, publishes the appropriate failure, and destroys quest-bound objective
+and quest-drop items. Existing Player quest status and inventory destruction
+planners are available; no complete native FailQuest consumer was found.
+Source Player.cpp:1182–1191 orders SelfRes initialization before that failure
+and criteria updates, with Unit aura removal afterward. Preserve that order
+and the inventory/aura consequences in the native integration. The existing
+inebriation owner is PlayerData::Inebriation with a dirty writer; reuse that
+canonical field rather than adding a second drunkenness state.
+These are integration findings, not additional accepted gameplay evidence.
+
+The required native FailQuest persistence must also retain a dirty quest
+status until its actual save acknowledgement. Current
+`player_save_owner.rs` explicitly omits the QuestStatus group because there
+is no coherent dirty-set seam; PlayerCharacterSaveRequestLikeCpp has no
+quest-status group. Existing immediate quest writes do not establish this
+Source death-time participant's later `_SaveQuestStatus` behavior. Preserve
+per-quest writes and unrelated rows; this finding does not justify replacing
+the whole quest table or claiming that the current full save deletes it.
+
+Further NoDeath ordering review at `c7829b4f9`, 2026-10-26: on the pinned
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` source, `FailQuest`
+(`Player.cpp:14928–14989`) calls `SetQuestStatus` before setting the quest-log
+failure flag, clearing the timer and sending the failure packet. That setter
+(`:15557–15573`) invokes both quest-status script callbacks and
+`SendQuestUpdate` (`:15624–15678`). The latter evaluates quest-bound spell-area
+requirements, resolves conflicting cast/remove sets, casts missing eligible
+auras before removing rejected ones, and refreshes visible gameobjects or
+spell-click eligibility. These consequences occur before failed-quest item
+destruction and before Unit death-aura removal. A native implementation must
+preserve this operation and order; assigning FAILED and deleting items alone
+does not implement it. The inspected Player, Unit and SpellHandler source
+files have no local changes at that pin. No native death integration or new
+acceptance run is claimed by this review.
+The current Spell `aura_session/sources.rs` predicate only proves whether an
+unrepresented autocast could exist; Quest's completion record still marks
+spell-area execution and status scripts as unrepresented. Neither is an
+executor for this transition. In particular, the source's ordered `if` /
+`else if` in SendQuestUpdate checks fit for AUTOREMOVE, then selects AUTOCAST
+unless IGNORE_AUTOCAST_ON_QUEST_STATUS_CHANGE is set. Preserve that exact
+branching, including an AUTOCAST-only row, rather than substituting the
+conservative absence predicate as the execution rule.
+
+Quest-log authority refinement at `740b21234`, 2026-10-26: pinned
+Player.cpp:15983–15995 sets and removes individual `QuestLog::StateFlags`
+bits; it does not recompute them from `QuestStatusData::Status`.
+`CompleteQuest` (:14496–14505) sets COMPLETE, while `FailQuest`
+(:14928–14959) subsequently adds FAIL. The permitted completed timed quest
+with no objectives therefore retains both bits during that live transition.
+The current Rust `quest_log_create_entries_like_cpp` derives exactly one of
+those bits from status, and `PlayerQuestStatusRecord` has no independent
+quest-log flag authority. That projection cannot establish this death
+participant's parity. Preserve the distinct native field and its writers
+when implementing failure; do not repair this by inventing a status value or
+discarding COMPLETE. Reconnect the existing CREATE and VALUES readers to
+that same authority. Source `_LoadQuestStatus` (:18680–18706) initializes the
+log from durable status on login, and `_LoadQuestStatusObjectives`
+(:18709–18748) then restores objective flag bits; live flag retention must
+not accidentally become a new database persistence contract. This is
+read-only source and consumer review, not an implemented quest-log change
+or executed death acceptance.
+
+Quest-log lifetime refinement at `b18321dad`, 2026-10-27: pinned
+`RemoveActiveQuest` (Player.cpp:15575–15593) erases status/objective entries
+and may call SendQuestUpdate, but does not clear the QuestLog update fields.
+Callers clear their slot separately. `SetQuestSlot` (:15964–15974) resets
+QuestID, flags, end time and objective counters independently. Keeping the
+new live flags inside PlayerQuestStatusRecord would therefore give them the
+wrong lifetime. The native QuestLog slot must own its actual update-field
+values and masks; this is semantically required state rather than another
+mutable wire projection of status. Source UpdateFields.h:350–359 declares
+int64 EndTime, int32 QuestID, uint32 StateFlags and 24 uint16 objective values,
+with 29 change bits per row. SetQuestSlotEndTime casts to uint32 before its
+int64 assignment (:16000), which is separate from the field's wire width.
+The required integration must connect coherent live writers, CREATE and
+Map-owned VALUES to that authority, while preserving durable quest-status
+and objective data as distinct Source responsibilities. The existing status
+record's slot is not the authority for live UF occupancy. This finding
+selects the required owner; it adds no native QuestLog implementation, SQL
+column, acceptance evidence or gameplay completion.
+
+The same Source also keeps QuestStatusData::Slot and Timer
+(QuestDef.h:826–833), with Slot initially MAX_QUEST_LOG_SIZE and Timer zero.
+Preserve those actual status fields: a separate QuestLog owner does not
+justify deleting or renaming Slot as though it were an accidental mirror.
+Status-slot attribution and live UF occupancy have different readers and
+lifetimes. `_LoadQuestStatus` (Player.cpp:18673–18695) assigns the status slot
+and writes the UF slot separately; live GetQuestSlot/first-free queries must
+read UF QuestIDs, while status/objective operations retain their Source slot
+contract. Likewise, durable endTime is not a substitute for native Timer.
+The new UF must preserve nested row masks and receiver filtering: QuestLog
+is PartyMember-visible (UpdateFields.cpp:1791–1797), and
+Player::GetUpdateFieldFlagsFor (:3610–3617) uses IsInSameRaidWith, which is
+true for self even without a group (:2139–2142). The current VALUES consumer
+passes only OWNER for self; new native QuestLog delivery must include the
+required PartyMember flag and the actual group-registry authority for other
+receivers, without treating a stale Player group snapshot as membership proof.
+These are required integration contracts, not new implementation evidence.
+
+Native QuestLog local implementation, 2026-10-27, working tree based on
+`ce61305e3` (**UNVALIDATED**): PlayerData now owns the 25 independent rows and
+their nested masks; status removal retains them until an explicit slot clear.
+CREATE and Map-owned VALUES read those rows. The current group registry and
+the source Player's current group determine PartyMember delivery, including
+self without a group and current instance groups. Live accept, shared accept,
+completion, objective updates, reward, abandon and login-load consumers now
+use that owner. The directory's existing objective-count projection reads
+the canonical status records instead of an unmaintained parallel collection;
+this does not establish complete native objective-reader parity. This does
+not implement NoDeath failure,
+native Timer, quest dirty-set persistence or the Application death participant.
+
+The worker's final World `quest` coding-feedback run for this unit was
+2026-10-27 09:45:20.703–09:46:54.656 UTC: 459 passed, zero failed, exit 0.
+The separate directory projection case passed at 09:47:04.446–09:47:04.705
+UTC, exit 0, giving 460 distinct World cases. Earlier runs failed, including
+450/458 and 457/459; the later repaired run supersedes those results without
+removing their logs. Review corrected the unmaintained projection, incomplete
+native test actors and status-slot objective writers; a mismatch case now
+distinguishes those writers from live QuestID lookup readers. Positive native
+field assertions and actual Map publication tests remain in the suite.
+
+Coding-feedback commands used `CARGO_BUILD_JOBS=1`,
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc` and
+`CARGO_TARGET_DIR=/home/server/rustycore/target` on this aarch64 host:
+
+- `cargo check -p wow-world`: exit 0, 09:39:36.534–09:40:02.201 UTC.
+- `cargo test -p wow-world quest --lib`: 459 passed, as timed above.
+- `cargo test -p wow-world player_registry_publishes_loot_condition_state_like_cpp --lib`:
+  one passed, as timed above.
+- `cargo test -p wow-entities player::quest_log --lib`: four passed,
+  08:34:12–08:34:20 UTC; the original metadata's count of five included the
+  result header and must not be used as a test identity.
+- `cargo test -p wow-world-core group_owner::tests --lib`: two passed,
+  07:57:14–07:58:30 UTC.
+- `cargo test -p wow-world-visibility object_updates::tests --lib`: three
+  passed, 07:58:36–07:58:56 UTC.
+
+Logs, commands, environment and test identities are under
+`/tmp/rustycore-native-quest-log-logs/` (runs 05, 06, 11, 24, 27 and 28).
+These are focused coding checks of the dirty working tree, not a final
+campaign or evidence at a later commit. The macro remains UNVALIDATED;
+no final acceptance, fresh captures, runtime QA, deployment or durable
+DB/restart/relogin evidence is established by this unit.
+
+Parent integration review matched all 54 Rust inputs to the worker's
+`final-rust-input-sha256.txt` without mismatches. The native implementation,
+new World scenarios and shared native fixtures occupy separate leaves.
+`crates/wow-world/unit_tests/handlers/quest_tests.rs` grows 978→1019 lines;
+its remaining shared catalog and packet builders are the next natural split
+if that root grows again. This meets the ordinary cohesion review required
+above 1000 lines; it is not a terminal large-file exemption.
+`crates/wow-entities/src/player/mod.rs` grows 4777→4785 for the private module
+mount, two immutable re-exports, row/mask declarations and defaults, immutable
+update snapshot member and reset call. The operations and tests live in
+`player/quest_log.rs` and `player_tests/quest_log.rs`. Keep the data-shape and
+constructor wiring beside the existing PlayerData declarations for this
+unit: splitting only this array would obscure that layout. The parent reviews
+the bounded ceiling as 4785 through #43 final acceptance, superseding the
+earlier 4777 ceiling for this eight-line delta only. That acceptance must
+revisit the PlayerData/default-construction split under the existing
+distribution retirement owner; further growth requires a fresh review.
+No physical-policy baseline was regenerated.
+
+Native quest-save source refinement, 2026-10-27, at
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` (the inspected Source files remain
+clean): `_SaveQuestStatus` (Player.cpp:20138–20205) visits the dirty map,
+reads EndTime and objectives through the status slot, and replaces objective
+rows for that quest only. Its flag getter, `GetQuestSlotObjectiveData`
+(:15929–15948), literally evaluates `StateFlags & objective.StorageIndex`;
+the flag writer (:16469–16476) uses `256 << StorageIndex`. That asymmetry is
+a suspect pinned-source behavior. The bounded native save must retain the
+literal getter result, with index-zero and COMPLETE/FAIL interaction cases;
+a gameplay repair needs separate version/capture evidence and an explicit
+contract. This review establishes no fresh action capture or runtime result.
+
+The effective `IsTurnIn` gate is `!CONFIG_QUEST_IGNORE_AUTO_COMPLETE` and
+the turn-in quest type (QuestDef.cpp:505–508). The existing config registry
+already loads `Quests.IgnoreAutoComplete`, `CleanCharacterDB` and
+`PersistentCharacterCleanFlags`; production consumers still need the narrow
+resolved policy. World.cpp:170 initializes cleaning flags to zero.
+CharacterDatabaseCleaner.cpp:30–62 leaves them there when cleaning is
+disabled; its enabled branch reads `PersistentCharacterCleanFlags` from
+`world_variable`, performs cleanup, masks the flags by configured persistent
+flags and publishes the result. An enabled-cleaner execution is not established
+in Rust. Preserve that uncertainty when an actual dirty NONE-status row needs
+the keep-abandoned decision. Non-NONE saves and explicit per-quest deletions
+do not depend on that flag. No database cleaner execution or live SQL is
+authorized or claimed by this source review.
+
+The bounded death integration does not require a new quest-script extension
+API: at the pinned Source, ScriptMgr.cpp:2092–2095,2329–2335 dispatches the
+two status callbacks, whose default bodies (:3002,3201) are empty. A search
+of `src/server/scripts` for `OnQuestStatusChange` finds the command-side
+invocations in `Commands/cs_quest.cpp:142–143`, but no overriding script body.
+This proves that those callbacks have no gameplay body in that checkout;
+it does not make `SendQuestUpdate` inert. Its loaded spell-area rows, casts,
+removals and visibility refresh remain required participants. New native or
+Wasm extension hooks retain their separate #583 contract. This is source
+review, not implemented death or acceptance evidence.
+
+Selected resurrection consumer review at `740b21234`, 2026-10-26: the
+earlier sparse-key expiration case covers sickness, not both ghost auras.
+Application's `apply_loaded_ghost_wisp_aura` and
+`prepare_ghost_wisp_removal` still require the legacy difficulty-zero
+`SpellStore::get` payload. Those readers must use the active Aura's original
+difficulty, actual SpellInfo key and indexed effects before claiming
+nonzero-only Ghost/Wisp load and removal. The existing loader records a
+selected-effect restoration error as incomplete aura authority; that is a
+failure boundary, not successful restoration.
+Also, `resurrect_player_like_cpp` currently returns unit after logging a
+native error. Its reclaim and spirit-healer consumers then continue to bones
+or durability loss without a success result. The request continuation already
+holds `ResurrectPlayerInFlight` on that error; extend truthful failure
+propagation to the other consumers and the login caller. Preserve source
+`LoadCorpse`'s bones-before-revive order (Player.cpp:18157–18180), rather than
+inventing rollback for an earlier completed phase. Source resurrection order
+remains Player.cpp:4320–4403 and NPCHandler.cpp:347–370 at the pinned C++ SHA.
+These were inspected consumer gaps at this review point. The later Ghost/Wisp
+checkpoint records its focused repair; the later native-error checkpoint
+records the dependent consumer repair.
+This review itself claimed no new test or runtime acceptance.
+The failure signal also exists for corpse conversion:
+`spawn_corpse_bones_like_cpp` returns false for unavailable/unconfirmed deletion
+or an unapplied Player save, but direct reclaim, healer and login callers
+currently discard it. Request resurrection already retains the single native
+continuation through `BonesInFlight` and save admission; the handler disconnects
+on an unresolved result. Core save capture and `Player::defer_save_if_transfer_pending_like_cpp`
+both read that same continuation. Extend that owner to the remaining recovery
+operations when completing their persistence/cancellation contract. A native
+error return alone does not establish confirmed corpse deletion, a safe retry
+after unknown COMMIT, or complete recovery acceptance. Preserve source
+Player.cpp:4509–4515 and its existing deletion-before-save order; do not add a
+second pending-deletion flag or turn an empty Map after conversion into proof
+that an uncertain database deletion succeeded.
+The selected native-error repair is to return the existing native error from
+`resurrect_player_like_cpp`, stop reclaim before bones and healer before
+durability/bones/teleport, and return failure from login corpse restoration
+before clearing AT_LOGIN_RESURRECT. The existing Character login consumer
+must then abort its partially completed login instead of publishing completion.
+Keep ordinary triggered-cast failure semantics distinct: source
+ResurrectPlayer ignores the sickness CastSpell return, and login continues
+after its ghost-cast attempts. Do not turn those cast results into an invented
+rollback of an already completed Alive transition. The native-error checkpoint
+below records this implementation; the separate corpse-conversion fence above
+remains open.
+The concrete Ghost/Wisp regression run on `59f28568d`'s working candidate
+exposed two further metadata consumers. The first suite returned 46 passed
+and five new cases failed, exit 101 (2026-10-26, 15:18:52–15:23:34 UTC;
+`/tmp/rustycore-ghost-original-metadata-logs/cargo-test.log`). Four failures
+reached Wisp's transform owner, which still required legacy difficulty-zero
+effect/polarity data. The conflicting-difficulty fixture also incorrectly
+invalidated difficulty three as well as zero; correct that fixture error
+without weakening the real metadata case. A narrow canonical Wisp transform
+participant will reuse exact whole-spell polarity and the existing native
+transform mutation. Source SpellAuraEffects.cpp:1944 resolves the current
+transform at the new Aura's stored cast difficulty, rather than the target's
+current Map difficulty. Keep that distinction in the implementation and tests.
+The actual loader path has another unconditional legacy `get` gate at
+`aura_session/aura_state.rs:220`, before its selected metadata resolver. Remove
+that gate for selected auras using the already fallible actual-key resolver;
+keep it for the existing nonselected legacy path. Source Player.cpp:18085–18098
+requires the actual SpellInfo and preserves the nonzero raw-difficulty
+validity check. A real nonzero-only persisted-row roundtrip must exercise the
+corrected entry and callbacks. The earlier component checks do not prove this
+whole load path. The repairs had not passed their focused rerun at this review
+point; the later integration checkpoint records the completed coding feedback.
+Cohesion review for this working repair: `wow-world-application/src/aura_removal/ghost_wisp.rs`
+grows from 986 to 1042 lines. It still owns the selected Ghost/Wisp fresh,
+loaded and removal effects with their display-restoration decisions. The new
+canonical transform query/mutation lives separately in Spell; the Application
+file only wires the participant. The next natural structural cut is the
+existing display/model-selection group, not another mutable aura owner.
+Recheck the actual size and cohesion at #43 completed-delivery acceptance;
+no numeric baseline or blanket legacy exception was changed by this review.
+
+Selected stat-view decision at `c88cf6e87`, 2026-10-26: the application already
+selects sickness's stat cause from exact effects, but Inventory's pure planner
+then calls PlayerStatAuraView, whose effect queries and stat multipliers still
+use the legacy difficulty-zero payload. Correct that borrowed view before
+claiming nonzero-only sickness penalties complete. Resolve an active Aura's
+stored raw difficulty to its actual SpellInfo key and then its indexed effect
+rows; retain the canonical represented amount for each active effect. All
+stat multiplier, weapon-damage percentage and per-school damage percentage
+queries must use the same selection. Preserve group rules and existing
+arithmetic; no new Player, amount cache, mutable Aura mirror or general
+modifier engine is required.
+
+The view will validate required immutable reads at construction so its
+existing Option-returning owner adapters can reject missing keys or unresolved
+difficulty/effects before applying stats. G/W and every configured race
+sickness spell require canonical keys, even if a legacy payload exists.
+Other auras with canonical keys use the same exact component reader;
+keyless legacy consumers retain their existing bounded behavior without
+acquiring a parity claim. Borrow Difficulty and race metadata from existing
+catalogs; catalog unavailability is not proof that a custom spell is absent.
+The selected sickness cast already requires the race catalog before admission.
+Keep these facts borrowed and repeat only invariant-checked reads, rather than
+adding a persistent cache. The source anchors are Unit.cpp:4818–4875,
+9033–9073 and SpellAuraEffects.cpp:3566–3604,4525–4548 at the pinned target.
+The actual caller chain reaches Inventory stat_planning/projection.rs,
+equipment.rs and spell_bonus.rs, then the existing native effective-stat
+snapshot used by damage. Its implementation and scoped coding evidence are
+recorded in the selected stat-view checkpoint below; this is not a rewrite
+of all generic aura queries or final macro acceptance.
+
+Native SpellHistory prerequisite review at `09600e731`, 2026-10-26: Player
+already owns the live history at `Unit.subsystems.spells.history`; the Session
+cooldown adapter projects that same owner. No second Player history is needed.
+At that base, the existing native `SpellHistory::update` had no discovered
+production Player caller. Pinned `Unit.cpp:418–432,2836–2838` runs maintenance in
+`_UpdateSpells`, before later Unit work. `SpellHistory.cpp:220–244` removes
+cooldowns with end strictly before the captured system-clock time and elapsed
+charges with end at or before it. The existing Player Unit pass is the required
+integration point, before selected Aura lifetimes, through its current phase
+rail and admission. The implementation and scoped coding evidence are now
+recorded in the native history checkpoint below; live acceptance is pending.
+
+The coordinated pass will carry one immutable epoch-nanosecond observation
+captured beside the producer's existing pre-World-pass Instant, without adding
+a scheduler, clock owner or mutable cache. `GameTime.cpp:103–107` captures the
+full system-clock time point. Flooring that observation to milliseconds loses
+the strict cooldown boundary when now is an aligned deadline plus one
+nanosecond. Existing native deadlines remain epoch milliseconds and compare
+after lossless u128 scaling; the legacy millisecond update entry delegates to
+the same algorithm. The Creature logical clock and movement's wrapping
+timestamp must not be substituted. Standalone execution retains its existing
+Unit pass and uses the same system-clock domain. Admission facts must be
+rechecked under the guard that mutates history. This also matters for the
+pending SelfRes initializer: Source `SpellHistory::HasCooldown`
+(`SpellHistory.cpp:670–693`) tests spell/category membership and an applicable
+ignore-cooldown aura, rather than expiring entries inside that query. The
+initializer must not silently replace that predicate with the legacy native
+remaining-time helper or treat a missing load as an empty history.
+
+Source refinement during that implementation: an on-hold cooldown has a month
+deadline (`SpellHistory.cpp:35,424–428`), not a permanent exemption from
+`Update`. Its elapsed deadline still expires in the source's comparison loop.
+The native updater's old unconditional on-hold exemption is therefore part of
+the correction, with representative future-held and elapsed-held tests. This
+is an intentional behavior repair in the first production Player integration,
+not a move-only refactor or a claim that the earlier focused run tested it.
+
+**#43, contexto y evidencia previos — corte 2026-10-25, 06:47 UTC:**
+movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
+y productor desde hechizos están escritos y tienen feedback focalizado;
+**no hay aceptación final de este candidato**. El cálculo básico del productor
+tiene contraste de datos registrado abajo; Ghost/Wisp tiene feedback focalizado
+tras reparar compilación, restauración de display y publicación de su visual.
+El recast de la misma aura/caster también tiene reparación y feedback focalizado.
+Las consultas de visibilidad de criaturas y Players tienen feedback focalizado;
+la publicación delta/removal a observadores tiene feedback focalizado, y 9c4G
+conecta los pendientes permanentes al tick Map con feedback de composición.
+Faltan la integración finita de sickness,
+participantes de limpieza al morir/resucitar, fallos de las otras operaciones
+del ciclo y capturas/QA viva. El usuario autoriza
+continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
+La revisión previa a la campaña detectó brechas en las llamadas de movimiento
+de muerte/release/resurrección/login y en las respuestas de resurrección inmediata
+y diferida. Los checkpoints `d69c0860e` y `89645b0e6` contienen sus reparaciones,
+todavía sin aceptación final. La limpieza al morir sigue sin conectar todos
+los participantes existentes. Anclas del mismo C++
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player.cpp:1158–1198`,
+`4262–4441`, `24897–24937`, `Unit.cpp:12718–12757` y
+`CharacterHandler.cpp:1227–1241`. Se completarán las rutas afectadas antes de
+la campaña; no se presenta la inspección como prueba ejecutada.
+La inspección del único caller de `kill_player_like_cpp` detecta además que
+solo se ejecutaba al recibir RepopRequest y que `death_timer_active` no tenía
+cuenta atrás. Decisión de integración: reutilizar el pase existente que llama
+a `tick_player_regeneration_like_cpp` en `session/driver/mod.rs`, con KillPlayer
+después de regeneración y antes del timer de guardado, y la expiración antes
+del teleport diferido. C++: `Player.cpp:1053–1054,1101–1111`. El Player canónico
+conservará los milisegundos restantes, sustituyendo el booleano de producción;
+las consultas de actividad se derivarán de `remaining > 0`. No se crea otro
+reloj, tarea ni propietario. Se preserva la cuenta en mapas instanceables y
+con PREVENT_RESURRECTION; la expiración pone cero antes de BuildPlayerRepop y
+RepopAtGraveyard. Es una reparación de comportamiento, no un refactor ni prueba
+de que se haya completado la migración global de fases de runtime de #584.
+El worker reanudado ejecutó esta auditoría con Astra (informado por el runtime),
+sin nuevas ediciones ni Cargo; se cerró y se abrió un worker `luna_worker`
+explícito para implementar la unidad de movimiento. No se atribuye esa revisión
+a Luna. El padre conserva integración, políticas y aceptación.
+Plan de evidencia: candidato local revisado, una ejecución `final --architecture
+--timings --logs --base origin/3.4.3`, los objetivos de integración que no
+ejecute ese perfil y revisión exhaustiva del delta de persistencia requerido
+por los nuevos accesos SQL. El inventario exhaustivo tiene coste separado;
+se registrarán duración total, reparaciones y cualquier incumplimiento de 600 s.
+La comprobación de solo lectura `./tools/qa-runtime.sh snapshot` identifica
+el proceso 3094551, binario `target/deploy/live/world-server`, SHA-256
+`290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`,
+cero reinicios y sin packet dump activo. No es el candidato nuevo ni prueba viva
+de #43. Capturas de la acción y DB/reinicio/relogin conservan su aceptación
+propia y autorización de runtime; no se ha publicado, desplegado ni cerrado #43.
+
+Visibilidad de criaturas (9c2b): la consulta productiva usa el Player canónico
+con generación/residencia activa, las celdas del viewpoint y el cadáver del
+jugador resuelto una sola vez bajo el guard. Conserva las diferencias entre
+distancia desde el cuerpo al cadáver y distancia normal desde farsight, y
+la admisión del vehículo antes del bypass GM. Anclas C++ del mismo `a5f8da2`:
+`Object.cpp:1517–1627`, `Player.cpp:23337`, `CellImpl.h:62–66` y
+`Unit.cpp:11335`. No se amplía la consulta a todo el mapa ni se implementa
+el cinematic flyby ausente. Feedback del worker sobre `e113e657e` más el delta
+local, aarch64/jobs=1, no aceptación del candidato: siete casos pasaron en
+`/tmp/rustycore-43-9c2b-creature-visibility-indexed-fixture-20261024T205050Z.log`;
+la regresión `visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
+pasó en `/tmp/rustycore-43-9c2b-existing-creature-query-20261024T205130Z.log`;
+`cargo check -p wow-world-entities --no-default-features` terminó exit 0 en
+`/tmp/rustycore-43-9c2b-entities-no-default-20261024T205138Z.log`.
+El primer filtro falló sus siete casos por fixtures sin inserción en celdas;
+se reparó la preparación mediante el helper indexado existente, sin debilitar
+el predicado. Siguen pendientes la consulta de Players/grupos y la publicación
+delta/removal de Ghost/Wisp a observadores.
+9c2c conecta la consulta de Players a sus celdas/viewpoint canónicos y al
+mismo predicado, con GroupMode firmado desde la configuración productiva:
+0/desconocido exige subgrupo, 1 grupo/raid, 2 equipo canónico y 3 desactiva
+esa excepción (`Player.cpp:2121–2143`, `World.cpp:1167`). El snapshot HOME
+del grupo requiere membresía actual; no se introduce un owner de grupos BG.
+La proyección CREATE del directorio conserva presencia, registro, handle y
+revisión de residencia, incluso al salir y volver al mismo mapa, y se ejecuta
+fuera del guard de selección. Se actualizaron solo las dos filas de inventario
+de CONFIG_GROUP_VISIBILITY/Visibility.GroupMode como represented_partial.
+Feedback del worker sobre base `bdfa32edb` más el delta local, aarch64/jobs=1:
+`cargo test -p wow-world --lib scenarios_visibility_2 -- --nocapture`,
+28 passed/exit 0 en
+`/tmp/rustycore-43-9c2c-world-tests-repaired-20261024T211129Z-3599528.log`.
+La primera ejecución terminó exit 101 por un nombre de método inexistente
+en el fixture del cadáver; se corrigió usando el insertor existente.
+`cargo check -p wow-world-entities --no-default-features` y
+`cargo check -p world-server` terminaron exit 0, logs
+`/tmp/rustycore-43-9c2c-entities-check-20261024T210933Z-3595883.log` y
+`/tmp/rustycore-43-9c2c-world-server-check-20261024T211347Z-3600372.log`.
+No es aceptación final ni evidencia de runtime del commit resultante.
+La revisión de esa publicación fija la selección de destinatarios en el
+momento de emitir el aura: `Player.cpp:6141–6149` y
+`GridNotifiersImpl.h:38–103` / `GridNotifiers.h:157–194` seleccionan fase,
+distancia, shared vision y HaveAtClient antes de SendPacket. El precedente
+Rust de `SendPlayerSpellIfVisibleLikeCpp` ya conserva esa decisión en la
+cola duradera existente. La entrega de Ghost/Wisp debe conservarla también,
+con protección de encarnación/residencia del receptor, sin recalcular
+HaveAtClient ni descartar una actualización comprometida porque el emisor
+haya salido después. El handle/residencia del emisor se comprueba al publicar.
+Esta decisión está implementada en 9c3 con el feedback descrito abajo;
+no constituye aceptación final.
+La cola necesita conservar además el prefijo de auras ya emitidas cuando
+combina refrescos de visibilidad: `mailbox/durable.rs` y `mailbox/pump.rs`
+insertan esos refrescos antes del primer paquete marcado como gated. Aplicar
+esa regla sin adaptación a un AuraUpdate comprometido podría emitir un
+DESTROY antes de su actualización. 9c3 conservará ese prefijo en ambos puntos
+de mezcla, manteniendo el comportamiento anterior cuando no haya esas auras,
+con pruebas del orden en cola. No se añade otra cola ni se promete atomicidad
+global entre productores/socket. La entrega propia de un Player canónico
+Detached se conserva sin fanout espacial; Detached no equivale a ausente.
+
+9c3 selecciona los observadores en celdas WORLD y conserva shared vision de
+Player/Creature, caster de DynamicObject y la ruta de Player en vehículo.
+La entrega usa la cola duradera existente con barreras de handle, GUID,
+residencia activa, estado LoggedIn, asignación de visibilidad y opcode.
+Feedback sobre `4f7fb9628` más el delta local, aarch64/jobs=1:
+`cargo check -p wow-world` terminó exit 0 en
+`/tmp/rustycore-43-9c3-cargo-check-wow-world-20261024T214030Z.log`;
+los filtros `scenarios_spell_state_27::ghost_wisp` y `deferred_visibility`
+pasaron 13 casos cada uno, exit 0, en
+`/tmp/rustycore-43-9c3-cargo-test-world-ghost-wisp-20261024T214031Z.log` y
+`/tmp/rustycore-43-9c3-cargo-test-world-deferred-visibility-20261024T214311Z.log`.
+El log `/tmp/rustycore-43-9c3-cargo-test-wow-map-aura-observers-20261024T214323Z.log`
+registra 2 passed para `selected_aura_observers`; el worker no recuperó el
+código de salida del proceso y no se presenta como exit 0 verificado.
+El intento inicial de World terminó exit 101 por un re-export faltante;
+se reparó antes de los resultados anteriores. La ruta inicial completa
+`send_initial_player_auras_like_cpp` sigue llamada por
+`wow-world-character/src/login_session/initial_packets.rs` y no se modificó;
+la afirmación del handoff de que no existía emisor productivo era incorrecta.
+Faltan la integración de la fase de actualización seleccionada y su evidencia,
+la aceptación del candidato comprometido, capturas y QA viva.
+
+Decisión de persistencia seleccionada (9d, pendiente de implementación):
+reutilizar DTOs y pasos SQL de familia de aura, conservando el campo de
+sickness y su comportamiento. Añadir una captura opcional de las dos familias
+8326/20584 del propio caster y item vacío en la transacción completa existente.
+Una familia conocida y vacía limpia sus filas; autoridad/catálogos insuficientes
+producen None y conservan la DB. No se amplía al borrado de todas las auras.
+Las auras permanentes nuevas usan -1/-1 en SQL; Ghost tiene recalculateMask 7
+y Wisp 3, conservando metadata cargada. El loader recalcula los efectos
+seleccionados 95/31/58 desde baseAmount y dieSides con stack, y conserva el
+amount guardado de Transform. Anclas del C++ `a5f8da2`:
+`Player.cpp:19811–19865`, `SpellAuras.cpp:1134–1172,1218` y
+`SpellAuraEffects.cpp:619–626,679`. La prueba requerida une productor real,
+captura, binds de SavePlan y carga; no sustituye DB/reinicio/relogin reales.
+9d0 prepara esa unión con DTOs `PlayerLifecycleAura*` y el módulo privado
+`save_steps/lifecycle_auras.rs`, sin cambiar el campo resurrection_sickness,
+los binds SQL ni el orden transaccional. Feedback del worker sobre
+`e92832cac` más el delta local, aarch64/jobs=1: `cargo check -p wow-database`
+terminó exit 0, log `/tmp/rustycore-9d0-check-wow-database.XFfVvk`;
+`cargo test -p wow-database lifecycle_aura_family -- --nocapture` pasó dos
+casos, exit 0, log `/tmp/rustycore-9d0-test-wow-database.NBRdxq`.
+9d1 implementa la captura del caster propio/item vacío y reutiliza esos pasos
+en la transacción completa de PlayerSave. El loader recalcula los bits 7/3,
+conserva Transform y los metadatos cargados y permite una nueva captura.
+Feedback sobre `7dc335021` más el delta local, aarch64/jobs=1:
+`cargo test -p wow-world ghost_wisp_persistence -- --nocapture` pasó cinco
+casos, exit 0, log `/tmp/rustycore-9d1-world-ghost-wisp.log`; los dos binarios
+de integración del mismo comando seleccionaron cero tests y no son evidencia
+de integración. El filtro DB `ghost_wisp_lifecycle_aura_families` pasó un caso,
+exit 0, log `/tmp/rustycore-9d1-database-aura-families.log`;
+`cargo check -p wow-world-core` terminó exit 0, log
+`/tmp/rustycore-9d1-core-check.log`. No es aceptación final ni durabilidad viva.
+La revisión de la operación completa añade un límite que debe cerrarse antes
+de aceptar ese guardado: `ResurrectPlayer` retira Ghost/Wisp de todos los
+casters, mientras una captura restringida al propio caster conservaría filas
+ajenas y podría reaplicarlas al relog. `Aura::CanBeSaved` no excluye por sí
+solo todo caster ajeno: las condiciones de single target/área son explícitas
+(`SpellAuras.cpp:1142–1155`, `SpellInfo.cpp:1861`). Los datos instalados tienen
+Attributes[5]=0 y target self. El paso 9d1 conserva el corte de implementación
+ya asignado; el cierre de la familia seleccionada debe reconciliar también
+esas claves válidas y las aplicaciones retiradas, sin borrar otras auras.
+No se aceptará el roundtrip del caster propio como prueba de ese límite.
+9d2 cierra ese límite de implementación: la captura incluye caster/item y
+una instantánea conocida reescribe exclusivamente 8326/20584 por guid+spell,
+insertando las aplicaciones válidas restantes con su clave completa.
+La enfermedad conserva su clave de item vacío y sus consultas anteriores.
+El cambio no escribe familias ajenas a esos dos IDs; None conserva los datos.
+Feedback sobre `95115552d` más el delta local, aarch64/jobs=1, 2026-10-25:
+el filtro World `ghost_wisp_persistence` pasó siete casos, exit 0, log
+`/tmp/rustycore-9d2-wow-world-ghost-wisp-persistence-20261025T0004Z.log`;
+el filtro DB `lifecycle_aura` pasó tres casos, exit 0, log final
+`/tmp/rustycore-9d2-wow-database-lifecycle-aura-final-20261025T000615Z.log`.
+Los checks de World y Database terminaron exit 0, logs
+`/tmp/rustycore-9d2-wow-world-check-20261025T000235Z.log` y
+`/tmp/rustycore-9d2-wow-database-check-final-20261025T000614Z.log`.
+Se retiró una variable sin uso del test DB antes de repetir su filtro.
+La prueba World recorre la resurrección nativa y después la captura/carga;
+la prueba DB comprueba los binds de SavePlan por separado. No se ha probado
+todavía su unión mediante DB real, reinicio y relog. La elegibilidad de los
+dos spells conserva la comprobación de LiquidType de SpellMgr.cpp:3329
+como evidencia de datos pendiente para la campaña, sin declararla probada.
+
+Antes de 9c4G, el pase de Session
+llamaba `tick_auras` cada cuatro ticks antes de los pases MapSession;
+el C++ consume `m_visibleAurasToUpdate` en `Unit::_UpdateSpells`
+(`Unit.cpp:2872–2875`), después de MapSession y dentro del Player update
+(`Map.cpp:669–717`). `MapUpdatePlan.player_update_guids` es una selección,
+no un consumidor ejecutado. La reparación debe reutilizar el tick admitido,
+consumir solo Ghost/Wisp una vez bajo la admisión del MapTickPlan, conservar
+salidas efímeras y entregarlas fuera del guard antes del refresco de visibilidad.
+No añade reloj ni completa la convergencia general de #584.
+El corte revisado usa `canonical_map_tick_resume_with_creature_owner_like_cpp`
+después de respawns y antes del callback opcional de criaturas: el plan Map
+es consumible y no Clone/Copy (`manager/state_2.rs:969`), y el guard conserva
+época e incarnación durante la selección. No debe depender de la lease de
+criaturas, porque su rechazo o la ausencia de ese runtime no anula el update
+de los Players. Se retirará el consumo de Session desde la primera admisión
+World coordinada; el modo sin coordinador conserva un único fallback. 9c4G
+implementa ese corte para Ghost/Wisp; su aceptación final sigue pendiente.
+La inspección del consumidor coordinado confirma que el primer pase World
+marca `map_phase_coordinated_like_cpp` antes de `update`; no hace falta otro
+watermark ni esperar al primer pase Map para retirar el drenaje de Session.
+El worker tiene asignada esa conexión Ghost/Wisp y una prueba de composición
+world-server que recorre el resume real sin runtime opcional de criaturas.
+El feedback focalizado de esa conexión se registra a continuación.
+El target correcto es `world-server --lib`: main.rs solo delega en
+`world_server::run`, y lib.rs incluye runtime y main_tests. La indicación
+previa del padre de usar `--bin world-server` fue incorrecta: el filtro
+ejecutó cero tests tras 9m24s de compilación y no aporta evidencia de fase.
+Se registra como coste de feedback, fuera de la campaña final aún no iniciada.
+La campaña seleccionará también el target real de static_data_overlay.
+9c4G, sobre `1d2c7c691` más el delta local, aarch64/jobs=1: los checks de
+wow-map, wow-world-core, wow-world-spell, wow-world y world-server terminaron
+exit 0 (`/tmp/9c4g-check-*.log`). El filtro World
+`coordinated_world_tick_leaves_selected_delta_for_map_owned_delivery` pasó
+un caso, exit 0 (`/tmp/9c4g-test-wow-world-coordinated-aura-rerun2.log`).
+Sus intentos anteriores fallaron por el sender de entrada descartado por el
+fixture: update pasaba a Disconnecting y el receptor rechazaba correctamente
+la entrega. Se conserva el canal y una aserción LoggedIn, sin rebajar el gate;
+el primer archivo de fallo fue sobrescrito en una repetición, y su salida
+permanece en el transcript. `selected_publication` de Spell pasó tres casos,
+exit 0 (`/tmp/9c4g-test-wow-world-spell-selected-final.log`): todos los Players,
+consumo único y rechazo de época/incarnación preservando pending.
+El resume real con Creature=None pasó un caso, exit 0, en world-server --lib
+(`/tmp/9c4g-test-world-server-lib-map-tick-aura-rerun1.log`). Su primer intento
+lib terminó exit 101 al compilar tres fixtures de nuestro `09451333d` que
+usaban un constructor default inexistente. Se corrigieron a from_entries([])
+sin cambiar aserciones; static_data_overlay::tests pasó seis casos, exit 0
+(`/tmp/9c4g-test-world-server-lib-static-data-overlay.log`). La entrega ocurre
+fuera de los guards y antes de salidas Creature/visibilidad/VALUES; no se
+presenta ese feedback como campaña final ni como aceptación de sickness.
+La revisión del caller de visibilidad de resurrección confirma otro residuo
+de la operación: finish_resurrection_visibility llama al adaptador de
+movimiento, cuyo update_visibility_with_catalogs vuelve sin actualizar si el
+Player se ha movido menos de 50 yardas. C++ llama UpdateObjectVisibility()
+con forced=true por defecto (Player.h:2461, Player.cpp:23322–23337 y
+4373); actualiza a los demás y al propio Player. El setter Ghost Rust solo
+cambia flags/máscaras de detección, sin forzar ese refresh. KillPlayer también
+llama UpdateObjectVisibility en Player.cpp:4437, ausente en el helper actual.
+La reparación del ciclo usará la entrada forzada existente para esos puntos,
+con binding comprobado tras await; no se desactiva el umbral normal de
+movimiento ni se presenta la consulta aislada de 9c2 como prueba del caller.
+Inspección del productor actual, sin nueva prueba ejecutada: update_loop.rs
+espera el pase World quiescente antes de admitir Map, y
+map_session_pass.rs ejecuta las sesiones de cada mapa en serie. Un permiso
+iniciado sin resultado retiene la barrera; el timeout no autoriza el tail.
+Por ello no se abre otro lock/owner para una supuesta publicación Map de
+bones durante el await de esas operaciones admitidas. LoadCorpse después de
+map-add también coincide con CharacterHandler.cpp:1202–1241. Los stamps de
+identidad/residencia y las continuaciones tras cancelación siguen siendo
+necesarios; esta inspección no prueba DB/reinicio ni completa #584.
+La revisión del orden detecta también un paquete extra de release:
+`player_release.rs::publish_ghost_side_effects` emite HealthUpdate(1), pero
+`BuildPlayerRepop` usa SetHealth(1), que solo ensucia los update fields
+(`Player.cpp:4297`, `Unit.cpp:9214`). El emisor C++ de HealthUpdate está en
+ModifyHealth para daño no mortal (`Unit.cpp:8127–8154`); DealDamage llama
+Kill para el mortal y ModifyHealth solo en la otra rama (`Unit.cpp:1016–1022`).
+Los callers Rust de caída/under-map también necesitan ese contraste. La
+conexión de HealthUpdate es REALM (`Opcodes.cpp:1564`), conservando su layout
+GUID/int64. Se revisará junto al orden de VALUES de resurrección y la fase
+seleccionada; todavía no se ha reparado ni capturado esa diferencia.
+Contraste adicional del mismo registro (05:07 UTC): EnvironmentalDamageLog
+y DurabilityDamageDeath también usan REALM (`Opcodes.cpp:1373,1362`). No se
+debe deducir Instance del hecho de que se produzcan en una simulación Map.
+RuntimeEvent solo transporta bytes/distribución; la conexión debe llegar al
+emisor reutilizando los rails realm existentes, con identidad/residencia
+congeladas para los nuevos outputs Player y sin hacer I/O bajo el guard.
+El daño ambiental publica su log después de la limpieza mortal síncrona;
+la penalización específica de caída viene después (`Player.cpp:621–675`).
+Sigue pendiente esa integración y su prueba de conexión/orden; no se toma la
+inspección del registro como captura ni como cambio ya implementado.
+
+Contraste pendiente del sanador: `Aura::SetDuration` solo marca actualización
+(`SpellAuras.cpp:897–907`), mientras el adaptador Rust de duración publica
+inmediatamente y solo al propio Player. El recast de sickness debe renovar
+amounts, basepoints, duración máxima y cargas sobre la misma aplicación,
+conservando slot/procedencia (`Unit.cpp:3224–3283`,
+`SpellAuras.cpp:933–953,1021–1096`). El ajuste corto por nivel sí selecciona
+el caster propio (`Player.cpp:4397`); no se presume un defecto de caster
+extranjero. La publicación inmediata de estadísticas de Inventory también
+necesita un corte seleccionado para que no adelante al AuraUpdate diferido.
+La proyección `PlayerEffectiveCombatStatsLikeCpp` no ensucia campos de red
+y el Player VALUES actual no la transporta: suprimir el envío sintético por
+sí solo perdería estadísticas. El diseño común debe reutilizar las fórmulas
+y las consultas puras existentes, aplicar el resultado al Player canónico
+antes del snapshot Map y entregar fuera del guard, sin Session ficticia,
+clonar/reemplazar Player ni una segunda autoridad mutable. Sigue pendiente
+el corte exacto de hechos/catálogos y la implementación; no se declara una
+convergencia general de estadísticas ni de #584.
+Decisión del integrador tras inspección de consumers (02:10 UTC): primero
+extraer PlayerStatAuraView y sus cuatro catálogos prestados en Core; los
+adapters actuales conservan API/fallback y delegan las fórmulas a esa vista.
+Después, hechos mínimos de Player/armas/bonus y un planner Inventory puro,
+con aplicación sobre el mismo &mut Player. No se convierte el acceso de
+Session en un enum universal. Para publicación se reutilizarán las máscaras
+Unit/ActivePlayer ya existentes: values_update captura el snapshot derivado
+inmutable y el bridge copia sus campos faltantes con las mismas máscaras,
+sin otra autoridad ni otra máscara mutable paralela. Los vitales siguen en
+Unit y no se sobrescriben desde el snapshot derivado. La visibilidad por
+owner conserva UpdateFields.cpp:850–874 y el filtro actual de observadores.
+9h1 extrae la vista y sus cuatro catálogos prestados, y mantiene los adapters
+actuales con los mismos fallbacks y la conversión i32→f32→i32 de resistencias.
+`cargo check -p wow-world-core` terminó exit 0, aarch64/jobs=1, sobre
+`e6bd4342c` más el delta local (`/tmp/rustycore-43-9h1-core-check-final-20261025.log`).
+No se ejecutaron tests de esta extracción ni otra campaña. El planner común,
+su aplicación al Player y la publicación derivada siguen sin implementar;
+esta extracción no representa avance de gameplay ni aceptación productiva.
+Tras ese check se eliminaron tres getters nuevos sin consumer, sin cambiar
+consultas; no se etiqueta el check anterior como prueba de un SHA posterior.
+9h2A añade PlayerStatFacts/PlayerStatWeaponFacts y PlayerStatCatalogs, con
+entrada directa desde &Player o refs explícitas, sin owner lookup ni lock.
+La selección de arma y encantamientos conserva el comportamiento existente;
+los constructores de fixture son cfg(test/test-fixtures). El último
+`cargo check -p wow-world-core --features test-fixtures` sobre `24a1b4968`
+más delta terminó exit 0, aarch64/jobs=1
+(`/tmp/rustycore-9h2a-core-check-refs-20261025a.log`). No se ejecutaron tests
+ni se conectó aún el planner de Inventory; sigue siendo preparación estructural.
+9h2B conecta un único planner puro Inventory a los consumidores de stats y
+login. Core presta hechos/catálogos al callback de cálculo y recibe un
+resultado inmutable con gear/projection/effective; no hay Session ni lock
+dentro del planner. Se preservan la API de proyección explícita de creación,
+su None sin Player canónico, los fallbacks de fixture solo sin handle y las
+diferencias legacy de fórmula ya señaladas. No cambia todavía el setter de
+salud ni la publicación sintética de estadísticas. El filtro
+`cargo test -p wow-world --lib scenarios_player_items_12` pasó 18 casos,
+exit 0, sobre `c1c67cdf7` más delta local, aarch64/jobs=1
+(`/tmp/rustycore-9h2b-scenarios_player_items_12-run3.log`); compiló también
+los consumidores Core/Inventory/Character/World, sin ejecutar todos sus tests.
+Los dos intentos anteriores terminaron exit 101 por mutabilidad del array
+fixture y una vida de referencia sin nombrar; los logs run1/run2 se conservan.
+Se revisaron además seis archivos con formato incidental del mismo macro.
+No hay check adicional, campaña final ni evidencia de runtime de esta unidad.
+El contraste del aplicador pendiente añade dos límites de fuente (03:06 UTC,
+sin nueva prueba): en el C++ objetivo, UpdateStats para INTELLECT no llama
+UpdateMaxPower, mientras UpdateAllStats sí lo hace para todos los poderes
+(`Entities/Unit/StatSystem.cpp:105–152,199–230,315–338`). AzerothCore sí
+actualiza el máximo de maná en ese primer camino; se conserva la operación
+del objetivo 3.4.3. Por tanto, el efecto 80 de sickness no debe aplicar sin
+distinción todos los máximos del planner de equipo. El resultado puro común
+no autoriza por sí solo esas mutaciones. Además, UpdateManaRegen solo escribe
+PowerRegenFlatModifier y PowerRegenInterruptedFlatModifier
+(`StatSystem.cpp:799–833`). La etiqueta legacy mana_regen_mp5 no demuestra un
+productor de ModPowerRegen: el campo figura para expansion < 2 en
+`UpdateFields.h:319`, sin escritor de gameplay encontrado. El nuevo transporte
+opt-in no ensuciará ese campo a partir de MP5. El brief inicial del integrador
+incluía ese mapeo erróneo; se corrigió antes de su integración y aceptación.
+9h2C añade el setter opt-in replace_effective_combat_stats_for_values y una
+proyección inmutable en PlayerValuesUpdate. Usa las máscaras Unit/ActivePlayer
+existentes y encola también el cambio exclusivo de ActivePlayerData. El bridge
+completa las secciones ya presentes, conserva los vitales de Unit y congela
+el índice de maná durante el seal Map; no escribe ModPowerRegen ni LocalFlags.
+El setter legacy no cambia, para evitar duplicar sus publicaciones antes de
+migrar los consumidores seleccionados. Feedback sobre `95cbf02a5` más delta,
+aarch64/jobs=1: `cargo test -p wow-entities --lib derived_stat` pasó tres casos,
+Core uno, Map uno y Visibility uno, con el mismo filtro y objetivo `--lib`.
+Logs finales `/tmp/rustycore-9h2c-wow-entities-derived-stat-r2.log`,
+`/tmp/rustycore-9h2c-wow-world-core-derived-stat-r2.log`,
+`/tmp/rustycore-9h2c-wow-map-derived-stat-r1.log` y
+`/tmp/rustycore-9h2c-wow-world-visibility-derived-stat-r2.log`, exit 0.
+Core ejercita Map → captura/clear → bridge/codificación y conserva los bytes
+tras mutar el Player; Visibility conserva Health público y retira los campos
+privados del observador. Los primeros intentos Entities fallaron por tipos
+mezclados en una macro y un fixture fuera de world; Visibility falló por Health
+sin cambio efectivo. Se corrigieron esos fixtures/código y se conservaron los
+logs fallidos. El worker también hizo checks separados de Entities y Core,
+exit 0, antes del feedback focalizado; no son una campaña adicional ni prueba
+del macro completo. La aplicación seleccionada de stats y sickness sigue
+pendiente; no se habilita una publicación global ni se declara aceptación final.
+9h2D conecta la aplicación pura del cálculo al Player canónico y opta por
+VALUES solo para sickness de ChrRaces, Players no vivos o con continuación
+de resurrección. Las otras auras Alive conservan su publicación legacy.
+Las causas distinguen AllStats, stats seleccionados y daño: stamina puede
+recalcular salud, pero solo AllStats modifica el slot de maná ya existente;
+no cambia display power, índices ni BaseMana. La habilidad 137 conserva el
+porcentaje antes del clamp. Unit::set_health fuerza 1 para Player DEAD,
+sin convertir Alive con salud cero en otro estado; no cambia Creature DEAD.
+Anclas del mismo C++: StatSystem.cpp:105–152,199–230, Unit.cpp:9214–9268
+y SpellAuraEffects.cpp:3566–3602,3656–3705. El nuevo camino no repara todavía
+el sync legacy que cambia implícitamente DeathState ni la operación completa.
+La retirada de ese sync debe migrar conjuntamente login y Hearth. En el C++
+objetivo, LoadFromDB establece DEAD después de cargar auras si Ghost está
+activo (`Player.cpp:17720–17722`), y después savedHealth==0 establece CORPSE,
+antes de limpieza por muerte y UpdateAllStats (`17776–17790`). La secuencia
+Rust llama al sync de salud en login_sequence.rs:515 sin esas decisiones
+explícitas; restore_player_corpse_after_login decide más tarde a partir de
+Unit::is_alive. No se puede retirar el cambio implícito y conservar ese
+caller sin migrar. El nuevo contrato deriva Ghost de la aura cargada, no de
+flags antiguos de SQL, y conserva la precedencia del cero guardado. Hearth
+debe usar BuildPlayerRepop → ResurrectPlayer(1) → homebind, tras los gates de
+vuelo/área (`BattleGroundHandler.cpp:703–725`), sin añadir gate dead-only ni
+bones explícitos. Los callers de stats/level-up/scaling deberán publicar los
+vitales realmente aplicados, incluidos CORPSE=0 y DEAD=1. Sigue siendo una
+decisión previa a implementación y a la prueba real de relog.
+Feedback del worker sobre `85ee6e345` más delta, aarch64/jobs=1:
+`cargo test -p wow-entities --lib lifecycle_stat` pasó dos casos y Core cuatro
+(`/tmp/rustycore-43-9h2d-entities-lifecycle-stat-20261025T0330Z.log`,
+`/tmp/rustycore-43-9h2d-core-lifecycle-stat-20261025T0330Z.log`). World pasó
+tres tras corregir la selección de publicación
+(`/tmp/rustycore-43-9h2d-world-lifecycle-stat-r3-20261025T0400Z.log`);
+el r2 verde precedía esa corrección y no prueba el resultado final. El primer
+intento World falló por dos tipos en fixtures. Un check World adicional
+terminó exit 0 antes de la corrección; tampoco se presenta como aceptación.
+El feedback suplementario `cargo test -p wow-world --lib spirit_healer`
+pasó 15 casos, incluidos propietario obsoleto, Map seal/bridge, retirada y
+duración por nivel/raza, en
+`/tmp/rustycore-43-9h2d-stale-fixture-world-spirit-healer-r5-20261025T0403Z.log`.
+Los r2/r3/r4 de ese prefijo fallaron 13/15: el setup sustituía SpellStore
+y perdía Ghost/Wisp necesarios para NativeRes. Se conservaron esas entradas
+y atributos, y se añadieron Stats/ChrClasses con la clave canónica. Los
+intentos fallidos se conservan; el caso sin catálogo lo elimina explícitamente.
+Se movieron helpers privados del fixture a spirit_healer/setup.rs sin cambiar
+las identidades de tests. No hay campaña final, capturas ni QA viva. Si falla
+el planner, el error se propaga y stats quedan intactos, pero la aura ya puede
+estar instalada/publicada: el preflight y la valla de la operación completa
+siguen pendientes, junto con refresh, persistencia all-key y duración finita.
+9h3A implementa la persistencia all-key de sickness seleccionada por ChrRaces:
+el snapshot por spell contiene todas sus familias caster/item; None conserva
+SQL y una lista completa vacía autoriza retirar solo ese spell. El plan usa
+los borrados BySpell ya existentes, una vez antes de inserts con las claves
+reales, y no cambia la transacción ni sus resultados de COMMIT. La captura
+valida los tres tipos 80/79/159 y su subconjunto activo, conserva importes/base,
+recalc y procedencia de item, e incluye caster ajeno e item finito. La exclusión
+de item permanente se aplica según la convención canónica existente
+duration_total=0; C++ representa permanente como -1. No se declara una solución
+general a la representación de duraciones ni a CustomCannotSave, cargas
+dependientes de AuraOptions o single-target runtime. Todavía se conserva
+elapsed en la captura: countdown y snapshot cambiarán conjuntamente con el
+pase seleccionado, sin habilitar ahora otro dueño de duración.
+Feedback sobre `d413567d4` más delta, aarch64/jobs=1:
+`cargo test -p wow-database --lib lifecycle_aura` pasó tres casos, exit 0,
+(`/tmp/rustycore-9h3a-db-lifecycle-aura-20261025T0414Z.log`), y
+`cargo test -p wow-world --lib sickness` pasó 15, exit 0,
+(`/tmp/rustycore-9h3a-world-sickness-20261025T0419Z-r3.log`). El primer World
+falló por un helper que usaba un shim privado; r2 pasó 14/15 y descubrió un
+fixture expirado sin snapshot de efectos. Se corrigió su preparación y se
+conservó la validación de datos incompletos. Los logs previos 0415Z y
+0417Z-r2 se conservan. Después se aplicó rustfmt solo a las ocho rutas Rust
+propias, sin otro Cargo; el feedback anterior no se relabela como aceptación
+del commit posterior. Se revisó el wrapping incidental de un export vecino.
+Los helpers privados de save_snapshot_owner se extrajeron con mount explícito;
+dos tests renombrados distinguen all-key y duración permanente malformada,
+sin retirar casos. Carga TryCreate, refresh y clock seleccionados siguen
+pendientes; estos tests no prueban DB/relogin/restart reales ni aceptación final.
+9h3B aplica a sickness la misma secuencia seleccionada de _LoadAuras que
+Ghost/Wisp: conserva la clave SQL original para relacionar efectos, usa el
+subconjunto activo 111, normaliza cargas con AuraOptions y asigna CastID antes
+de la ausencia por máscara vacía. Cada fila crea un candidato nuevo; la
+retirada de anteriores del mismo spell precede CanBeSaved y SetLoadedState.
+La validación de item usa la duración base: un item con base finita puede
+cargar aunque el máximo guardado sea permanente, y el snapshot posterior lo
+omite según el máximo restaurado. Wisp conserva su regla particular de recalc
+para transform. La duración cero no representable aún retiene autoridad
+incompleta; no se presenta esa retención como paridad de la fila C++.
+Feedback sobre `55a5b307b` más delta, aarch64/jobs=1:
+`cargo test -p wow-world --lib sickness` pasó 22 casos, exit 0,
+(`/tmp/rustycore-9h3b-sickness-r2.log`), y el filtro `ghost_wisp` pasó 39,
+exit 0 (`/tmp/rustycore-9h3b-ghost-wisp-r1.log`). El primer sickness pasó 21/22;
+una aserción nueva confundía filas instaladas (dos) con la aplicación final
+tras reemplazo (una). Se corrigió el fixture, no el contador productivo,
+y se conservó `/tmp/rustycore-9h3b-sickness-r1.log`. El worker ejecutó además
+un `cargo check -p wow-world`, exit 0, 40,79 s
+(`/tmp/rustycore-9h3b-check-r1.log`). Corrección del integrador a las 04:56:
+el brief excluía ese check, pero .codex/agents/luna-worker.toml lo exige en
+developer_instructions junto con los tests focalizados. No se atribuye al worker
+incumplimiento de esa instrucción superior; se conserva su coste como feedback
+de implementación y se adapta la coordinación a la ruta efectiva.
+Los siete casos nuevos viven en sickness_loading/selected_restore.rs; los
+filtros anteriores ejecutaron casos reales y el formato precede al r2 verde.
+No se cambia countdown, refresh ni orden Map, y no hay aceptación final.
+9h3C migra los mismos dos campos de duración de AuraApplication a i32,
+sin otra autoridad paralela. El adapter comprobado conserva la convención
+de los callers legacy; selected Load retiene ahora los valores SQL firmados,
+incluido máximo cero. Se retira su hold de representación de 9h3B: el loader
+puede tener autoridad completa aunque el snapshot de guardado todavía
+conserve un hold para ese borde. La captura sigue usando elapsed para las
+duraciones positivas hasta conectar conjuntamente countdown/snapshot exacto.
+SetDuration(0) permanece literal cero y no se convierte en permanente.
+AuraDataInfo usa Optional<i32>, como SpellPackets.h:170–171; el transporte
+conserva los 32 bits y ambos campos si el máximo se muestra, incluso remaining
+cero o -1. El barrido legacy conserva su gate de máximo finito. Se revisaron
+sus consumidores y fixtures, incluidos refresh Ghost/Wisp y WorldServer;
+ese target WorldServer todavía no se ha compilado para este delta.
+Feedback sobre `519cec5e8` más delta, aarch64/jobs=1: Entities
+`canonical_duration` pasó dos casos; World `aura_duration` uno, `sickness` 22
+y `ghost_wisp` 39, todos exit 0. Logs finales
+`/tmp/rustycore-9h3c-entities-canonical-duration-r1.log`,
+`/tmp/rustycore-9h3c-world-aura-duration-r2.log`,
+`/tmp/rustycore-9h3c-world-sickness-r1.log`,
+`/tmp/rustycore-9h3c-world-ghost-wisp-r1.log`.
+El check World r1 falló por adaptar dos veces Taunt, y r2 terminó exit 0;
+el primer test World falló por comparar el valor firmado con bits u32 en un
+fixture. Se corrigieron los tipos, conservando los logs fallidos.
+La revisión detectó que Taunt permanente, fuera de las tres familias,
+cambiaba sus dos optional de FFFFFFFF a ausentes. Se conserva expresamente
+su metadata legacy en el adapter, sin declarar que eso sea paridad C++.
+Un test real de Taunt ejercita ahora ambos subcasos, finito y permanente,
+con el mismo nombre anterior: exit 0 en
+`/tmp/rustycore-9h3c-taunt-world-test-r4.log`. R1 tuvo un error de tipos al
+confundir AuraRef de Creature con AuraApplication; r2 repitió ese supuesto
+como aserción y falló; r3 pasó solo el caso permanente, antes de restaurar
+también la cobertura finita en r4. Check previo del código productivo: exit 0,
+8,5 s (`/tmp/rustycore-9h3c-taunt-world-check-r1.log`); después solo cambió
+ese test. No se repitieron los cuatro filtros disjuntos por esa corrección
+de adapter. Todo sigue sin aceptación final ni prueba viva del countdown.
+
+9h3D añade el refresh compartido de las tres familias, la aplicación de Stats
+tras refrescar sickness y su preflight antes de cambiar o retirar el Aura.
+El refresh recalcula todos los amounts desde sus bases aunque el bit de
+recálculo esté apagado; conserva esos bits y Transform los apaga. Esto es
+distinto de RecalculateAmount durante Load, que sí respeta el bit apagado
+(`SpellAuras.cpp:1021–1040`, `SpellAuraEffects.cpp:658–680`). La retirada
+acepta también las máscaras activas parciales válidas del loader.
+Feedback del worker sobre `476b00394` más delta, aarch64/jobs=1:
+World `sickness` pasó 25 casos y `ghost_wisp` 39, exit 0, logs
+`/tmp/rustycore-9h3d-sickness-r2-20261025.log` y
+`/tmp/rustycore-9h3d-ghost-wisp-r2-20261025.log`; check World r4 exit 0.
+El primer check falló por un import; el primer sickness tuvo tres
+expectativas incorrectas. Se conservaron los logs previos. Una aserción
+amplia contra cualquier UpdateObject confundía la publicación propia de
+ResurrectPlayer con Stats; la prueba causal de Stats conserva su prohibición
+de publicación inmediata.
+La revisión posterior de `SpellAuras.cpp:1078–1094` detecta un error en el
+contrato del integrador: al pasar de tres stacks cargados a uno, la condición
+`stackAmount >= GetStackAmount()` es falsa. Se recalculan amounts, pero
+RefreshTimers y SetCharges no se ejecutan. La llamada posterior explícita a
+SetDuration de sickness cambia solo remaining. Se corrigen código y pruebas
+antes de incorporar este delta; los 64 verdes anteriores no prueban esa
+corrección. El ejecutor seleccionado por diff (9h3E) se escribe por separado
+y aún no tiene caller productivo: barrido legacy y snapshot con elapsed
+permanecen hasta conectar conjuntamente el pase Map de recuperación.
+La misma corrección respeta que Player.cpp:4396–4403 solo llama SetDuration
+para los niveles con acortamiento; sin esa petición no se fuerza remaining
+al máximo para obtener una publicación. En el borde aritmético del nuevo
+ejecutor se conserva también la resta uint32 y conversión a int32 de
+SpellAuras.cpp:818 antes del clamp de negativos. No se cambia silenciosamente
+ese comportamiento por una resta i64: con remaining=5 y diff=UINT32_MAX la
+fuente obtiene 6, mientras un overrun normal expira en cero. El primer
+contrato del integrador proponía i64 y se corrigió durante la revisión.
+Corrección D y ejecutor E terminados localmente sobre `476b00394` más delta:
+check World exit 0 (`/tmp/rustycore-9h3e-check-final-20261025.log`);
+`cargo test -p wow-world --lib sickness`, 27 passed, exit 0
+(`/tmp/rustycore-9h3e-sickness-r3-20261025.log`);
+`--lib ghost_wisp`, 42 passed, exit 0
+(`/tmp/rustycore-9h3e-ghost-wisp-r2-20261025.log`);
+`--lib selected_lifetime`, 4 passed, exit 0
+(`/tmp/rustycore-9h3e-selected-lifetime-20261025.log`). Los cuatro últimos
+casos ya pertenecen a los otros dos filtros: 69 identidades distintas,
+no 73. Se ejecutaron secuencialmente, aarch64/jobs=1, con target local y
+PROTOC declarado. Los intentos anteriores conservan dos checks fallidos por
+referencia aritmética y exports; sickness primero falló al compilar una
+fixture y luego tuvo 19 passed/8 failed por faltar AuraOptions antes de
+release. Se añadió el catálogo vacío conocido a esa preparación, sin dar
+por conocido un catálogo ausente en producción. Ghost/Wisp tuvo 41 passed
+y un fallo en la expectativa de applied_at del stack 3; se corrigió según
+el predicado de refresh de la fuente. No hubo aceptación final ni QA viva.
+El ejecutor E usa el dueño canónico en mundo, valida el orden de spell y
+aplicación, modifica remaining y retira por los participantes existentes;
+el host todavía no representa AURA_REMOVE_BY_EXPIRE. No tiene caller
+productivo en este checkpoint. La publicación seleccionada aún requiere
+resolver su metadata pendiente: nivel capturado del caster, aplicaciones
+por stacks/cargas, CastUnit no Unit y flags de caster extranjero. En
+particular, sickness conserva el literal 0x15 al crear y debe derivar
+NOCASTER de la identidad real, incluida la procedencia original ahora
+resuelta; no se acepta ese literal desde los tests verdes anteriores.
+Consulta adicional de solo lectura a las 06:19: `world.spell_group` no
+contiene filas con spell_id 15007, 8326 o 20584. Esto acota el contraste de
+CanStackWith para esos datos, no prueba cualquier overlay futuro.
+9i1 extrae sin cambios de comportamiento el cuerpo LoggedIn del driver a
+`driver/player_recovery.rs`, conservando su guard, traza, orden y awaits.
+Sobre `ae26ef615` más ese delta: check World exit 0; `--lib map_phase_pass`
+pasó 18 casos y `--lib death_timer` cuatro, exit 0, logs
+`/tmp/rustycore-9i1-check-20261025.log`,
+`/tmp/rustycore-9i1-map-phase-pass-20261025.log` y
+`/tmp/rustycore-9i1-death-timer-20261025.log`. Es preparación estructural
+para el corte admitido; no activa el ejecutor seleccionado ni demuestra
+aceptación del nuevo orden productivo.
+9i2 separa el prelude de respawns y su continuación en un DTO propietario
+de plan y resumen. El wrapper existente sigue llamando ambos inmediatamente:
+no hay aún una espera de recuperación ni cambia el orden de DB/publicación.
+Sobre `70c89baac` más delta, `cargo test -p world-server --lib map_tick`
+pasó seis casos, exit 0, con salida real retenida en
+`/tmp/rustycore-9i2-map-tick-rc-20261025.log`. El primer run también mostró
+seis verdes, pero su pipeline tee no retenía el exit de Cargo y no se usó
+como evidencia numérica. El check previo a renombrar los helpers termina
+en Finished dev (4 min 22 s), sin exit numérico retenido ni prueba del
+source renombrado; se conserva ese límite. El filtro adicional death_timer
+pasó uno, exit 0, ya incluido entre los seis; no añade otra identidad.
+Logs `/tmp/rustycore-9i2-check-20261025.log`,
+`/tmp/rustycore-9i2-map-tick-20261025.log` y
+`/tmp/rustycore-9i2-death-timer-20261025.log`. Todo es feedback de
+implementación, sin campaña final, runtime ni escrituras de DB.
+9i3A mueve la validación de identidad Map a Core, conserva sus criterios
+previos y añade PlayerRecoveryAdmission con epochs separados. El guard de
+autoridad rechaza coordinadores retirados y epochs anteriores entre pases,
+permitiendo el mismo epoch una vez por kind. La nueva validación exige
+LoggedIn, registro/handle actuales, residencia e incarnación activas y el
+plan Map todavía admitido. No hay aún un request Recovery ni otro reloj.
+Sobre `f78641ac0` más delta, check World exit 0 y
+`cargo test -p wow-world --lib map_phase_pass` pasó 25 casos, exit 0;
+logs `/tmp/rustycore-9i3a-world-check-20261025.log` y
+`/tmp/rustycore-9i3a-map-phase-pass-20261025.log`. Incluye los 18 casos
+previos y siete nuevos; no es aceptación del candidato completo.
+
+9i3B connects PlayerRecovery requests to the production coordinator after the
+respawn prelude and before Creature/P3, including ticks without a Creature
+executor. Selection preserves Player reference order and intersects the
+objects reached by the current plan; C++ calls Player::Update in that order
+(`Map.cpp:704–708`). This does not resolve the remaining #584 interleaving.
+The producer submits prelude DB intents once under the existing ordering gate
+before releasing it to await Session. Creature inputs are captured after
+Recovery. Coordinated timers leave World; their consumer shares its body with
+standalone mode, saves before advancing deathTimer, and checks the binding
+after awaits.
+The same atomic permit retains a CompletedUnavailable terminal state: the
+pass has stopped executing, but this tick's tail must be abandoned even if
+the reply is lost. Running or Interrupted permits retain the barrier across
+ticks; a reply alone is not completion proof. A terminal reply with invalid
+lineage also abandons the tick without pretending effects are still running.
+On `a66cf242a` plus the local delta, the World filters `recovery_timer` and
+`death_timer` each passed four cases, exit 0. Server `map_session_pass` passed
+17 cases, including prelude DB submission without replay; the exact
+post-respawn participant filter passed one more, both exit 0. These four
+filters cover 26 distinct test identities. Server check exited 0. Final
+focused-feedback logs:
+`/tmp/rustycore-9i3b-check-world-server-r3.log`,
+`/tmp/rustycore-9i3b-test-world-recovery-timer-r3.log`,
+`/tmp/rustycore-9i3b-test-world-death-timer-r2.log`,
+`/tmp/rustycore-9i3b-test-world-server-map-session-pass-r2.log` and
+`/tmp/rustycore-9i3b-test-world-server-post-respawn-participants.log`.
+Environment: aarch64, jobs=1, checkout-local target, and local PROTOC. Failed
+attempts remain in their logs: summary mutability, transport peers dropped by
+the fixture, and incorrect module paths/types in Server tests. The initial
+World `player_recovery` filter passed seven 9i3A admission cases but did not
+reach the new driver; it is not counted as evidence for that driver.
+An existing test was corrected: a terminal permit with a reply for another
+epoch proves quiescence but blocks the tail. Its coverage is retained under
+`a_wrong_tick_terminal_reply_abandons_this_tick_without_live_effects`.
+The controlled Save case exercises Applied and Unknown: deathTimer does not
+advance during the await; Unknown also preserves a teleport intent added
+during that await. Neither final acceptance nor live QA has been run.
+
+9i3C1 prepares selected AuraUpdates for one canonical Player. It resolves
+sickness from the current ChrRaces row, prepares every selected frame before
+clearing its pending slot, and preserves unrelated pending entries. Missing
+catalogs are unavailable when classification is required; a current Player
+with no pending entries needs no race lookup. The prepared publisher checks
+GUID, handle, residence, and active map identity again, drops the manager
+guard, sends directly to self, and then hands frozen observer candidates to
+the existing durable rail. Valid detached sources retain their existing
+self-only publication behavior. The global Ghost/Wisp collector and legacy
+expiry remain active until the next atomic countdown/snapshot integration.
+On code base `d494db074`, with documentation-only HEAD `891a734e5` plus the
+local delta, Spell check exited 0, Spell `selected_publication` passed eight
+cases, and Core `selected_aura` passed four, both exit 0. The eight Spell
+cases include three existing global-collector cases and five new cases.
+All commands ran sequentially on aarch64 with jobs=1 and the checkout target;
+logs are `/tmp/rustycore-9i3c1-check-spell-r1.log`,
+`/tmp/rustycore-9i3c1-test-spell-selected-publication-r1.log`, and
+`/tmp/rustycore-9i3c1-test-core-selected-aura-r1.log`. No retry, final campaign,
+runtime operation, or DB mutation was performed for this unit. The resumed
+worker reported `gpt-6.1-sol`, with effort not exposed; C1 is not attributed
+to Luna. The next implementation worker must use a fresh fixed Luna role.
+
+9i3C2 activates the selected Unit step in the existing PlayerRecovery pass,
+before regeneration, KillPlayer, periodic save, deathTimer, and delayed
+teleport. It uses the admitted Map diff and the same body in standalone mode.
+The canDelayTeleport window closes on success and failure. Selected-step
+failure abandons this tick's tail through the existing permit; a retired
+binding remains PlayerLeft. C++ anchors at
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are Player.cpp:935–942,
+1053–1066,1101–1111 and Unit.cpp:2854–2877.
+
+Selected countdowns leave the legacy Player wall-clock sweep, while unrelated
+Player expiry and the Creature sweep retain their cadence. Pending additions,
+refreshes, and SetDuration changes publish once in slot order at the Unit point,
+directly to self and through the existing observer rail. Automatic release
+creates Ghost/Wisp after that point, so they wait for the next Recovery. The
+global post-Creature collector, summary field, and delivery call are removed.
+The general aura application and threat-hydration consumers now preserve the
+complete selected sickness effect snapshot; an unknown race lookup must not
+rebuild it as known absence. Sickness removal publishes before its effect/stat
+handlers. Fresh and refreshed selected auras do not send an immediate duplicate.
+
+Both selected PlayerSaveOwner captures now retain exact signed maximum and
+remaining durations, including zero on a still-present application. They do
+not subtract Instant or infer expired absence: Unit removal owns that change.
+Source: Player::_SaveAuras, Player.cpp:19811–19865. A stale applied_at value
+therefore cannot change the DTO. Selected refresh and SetDuration preserve
+the application timestamp and mark the existing pending slot.
+
+On base `8b4fba80c` plus the reviewed local delta, all commands below exited 0,
+sequentially on aarch64 with jobs=1, checkout-local target, and local PROTOC:
+
+- World check: `/tmp/rustycore-9i3c2-check-wow-world-c2-final2.log`.
+- World selected_recovery, excluding ghost_wisp and sickness: 2 cases,
+  `/tmp/rustycore-9i3c2-test-selected-recovery-c2-final.log`.
+- World sickness: 28 cases,
+  `/tmp/rustycore-9i3c2-test-sickness-c2-final4.log`.
+- World ghost_wisp: 45 cases,
+  `/tmp/rustycore-9i3c2-test-ghost-wisp-c2-recheck.log`.
+- World aura_duration, excluding sickness: 2 cases,
+  `/tmp/rustycore-9i3c2-test-aura-duration-c2-final.log`.
+- World save_snapshot_owner, excluding sickness: 12 cases,
+  `/tmp/rustycore-9i3c2-test-save-snapshot-owner-c2-corpse-recheck.log`.
+- Spell selected_publication: 5 cases,
+  `/tmp/rustycore-9i3c2-test-spell-selected-publication-c2-final.log`.
+- Server selected_recovery: 1 real root/Session case,
+  `/tmp/rustycore-9i3c2-test-server-selected-recovery-c2-final.log`.
+
+These filters cover 95 distinct test identities; retries add no identities.
+The Server build took 6m01s of coding feedback, not a final warm acceptance
+campaign. The root case observes publication before the map tail and a second
+Recovery without a duplicate frame. The periodic-save case records the actual
+DTO before deathTimer advances. The generic sickness case also runs the real
+hydration consumer before Recovery and then checks canonical stats/P3.
+
+Retired global-collector coverage is mapped to per-Player independence and
+current binding checks in Spell, epoch/registration/residence rejection in
+player_recovery_admission, and the real Server root case without a Creature
+executor. The old global-only restriction that excluded sickness is intentionally
+retired. Prelude/continuation rejection coverage remains in map_tick_tests;
+the root's next epoch also proves continuation without the former global flush.
+
+Failed attempts included an unqualified debug macro, fixture imports/types,
+stale immediate-publication and duration expectations, missing race metadata,
+and map destruction before detaching its Player. The snapshot fixture now sets
+Corpse before SetHealth(0); the production setter correctly keeps Dead at one HP
+and was not changed. Available failed runs remain in the named C2 log family;
+the original Spell compiler-error log was overwritten by a later green run and
+is not claimed as retained. A fresh fixed luna_worker role was successfully
+spawned; the worker reported GPT-6 without exposing a variant or effort setting.
+No final campaign, capture, DB mutation, runtime swap, deployment, or whole-#584
+closure is established. Scalar metadata and the other macro requirements remain.
+
+9i3C3a adds a private selected_wire projection without changing production
+callers or the legacy builder yet. It derives duration presence, original caster
+level or item level, stack/charge applications, raw-caster wire projection, and
+sparse effect-indexed Points from explicit canonical facts. It rejects incomplete
+identity, flag, mask, or effect coverage before producing AuraInfo. No Session,
+catalog, clock, pending-set, packet DTO, or publication owner is added.
+On `d5d15a018` plus the local delta, Spell check and the six selected_wire
+serialization cases passed, exit 0. Logs:
+`/tmp/rustycore-9i3c3a-cargo-check-run2.log` and
+`/tmp/rustycore-9i3c3a-cargo-test-selected_wire-run2.log`.
+The first focused run passed one and failed five because the test decoder did
+not consume the CastUnit presence bit and sparse fixture amounts occupied the
+wrong tuple column; its log remains at
+`/tmp/rustycore-9i3c3a-cargo-test-selected_wire-run1.log`.
+The two new files were formatted. The temporary dead-code warnings are explicit:
+the next integration must capture caster level at creation and connect delta and
+initial full publication. Constructor flags/friendly-caster resolution and final
+acceptance remain open. The fresh fixed worker role reported GPT-6, with its
+variant and effort not exposed. These are focused aarch64/jobs=1 results only.
+
+9i3C3b captures optional caster_level in the existing Aura cast provenance.
+Legacy unrepresented origins retain None. Fresh selected casts and selected
+login loads capture the actual resolved Unit level, or the known SpellLevel
+when no Unit resolves; refresh preserves the old origin. This adds no SQL field
+or second mutable level authority. The private resolver borrows MapManager,
+accepts the detached self fast path, and does not require the lookup owner to be
+in world. Foreign Players must be in world on the same physical map; Creature
+and Pet lookup uses that map's canonical container. Inconsistent backing state
+is unavailable, distinct from a known absent caster. Missing level catalogs
+remain unknown; known empty data yields Source's zero default. Difficulty
+fallback and highest RecordID selection follow SpellMgr.cpp:2558,2610–2688.
+Other source anchors are SpellAuras.cpp:398–410,463–468 and
+ObjectAccessor.cpp:206–239 at the same pinned C++ SHA.
+
+Caller review corrected an initial parent assumption: sickness's visible caster
+may be self while execution.rs preserves a resolved foreign original Aura caster.
+That existing path is retained and captures the foreign level. The existing
+Ghost/Wisp self-caster restriction is unchanged. Tests cover the real sickness
+execution with original caster level 44, a refreshed Aura retaining level 11
+after its target becomes level 12, and new load-time origin capture. The latter
+healer refresh legitimately changes its requested duration from 60,000 to
+120,000 ms (Player.cpp:4381–4404); this does not replace the Aura's captured level.
+
+On `375eba176` plus the reviewed local delta, World check exited 0. Spell
+selected_caster passed ten cases, World sickness thirty, and World ghost_wisp
+forty-five, all exit 0: 85 distinct identities, with retries counted once.
+Logs are `/tmp/rustycore-9i3c3b-check-wow-world-attempt2.log`,
+`/tmp/rustycore-9i3c3b-test-selected-caster-attempt4.log`,
+`/tmp/rustycore-9i3c3b-test-sickness-attempt4.log`, and
+`/tmp/rustycore-9i3c3b-test-ghost-wisp-attempt1.log`.
+All ran sequentially on aarch64 with jobs=1, local PROTOC, and the checkout target.
+Earlier attempts retain visibility/type and fixture errors plus the stale
+one-minute post-level-change expectation in their separate attempt logs.
+The first worker turn stopped without edits because its generic GPT-6 self-label
+did not expose a variant. The parent supplied the successful enforced fixed-role
+spawn trace (gpt-6-luna/max); the same worker then continued, with no model/API
+fallback. Self-exposed effort remained unavailable. Selected wire production
+integration, constructor flags, and final acceptance remain unexecuted.
+
+9i3C3c connects selected_wire to the existing per-Player pending collector and
+the initial full AuraUpdate. A borrowed four-store catalog view resolves exact
+attributes and AuraOptions through the known difficulty chain. Known missing
+Difficulty rows stop fallback; an unavailable required store or an unknown
+SpellInfo key holds preparation. A known exact SpellInfo key without Misc
+retains Source's zero attributes. SpellStore now exposes an exact attributes
+reader and hydrates attributes in ascending RecordID order, correcting the
+previous HashMap-order overwrite. Source anchors at the pinned SHA are
+SpellMgr.cpp:2558–2562,2610–2688, SpellInfo.cpp:1167–1195, and
+SpellInfo.h:331–345. This does not repair every other DB2 contributor.
+
+Delta preparation freezes the application, original level/visual/cast identity,
+effect snapshot, and persistence metadata under the existing Manager owner.
+Every frame is prepared before any selected pending slot is cleared. Initial
+publication validates the same selected application facts and builds the whole
+full frame before sending it. Missing canonical backing never uses a handleless
+test fixture as a replacement. Legacy entries retain the old scalar builder.
+Initial full publication preserves pending deltas, following
+Player.cpp:24015–24035; the next admitted Unit update may legitimately send them.
+No new Player authority, packet DTO, persistence field, lock, or clock is added.
+
+Post-add initialization reports failure to its existing login and worldport
+callers. Login invokes the existing partial-login retirement and kick before
+corpse restoration or LoggedIn publication. Worldport retains its post-add and
+accepted-resurrection fences and stops before native completion/deferred save.
+The valid ACK still advances AwaitingTeleport to TeleportCompleted before that
+publication point; the new failure test must preserve that legitimate progress,
+not freeze the earlier phase. Its real handler test checks retained continuation
+and deferred save, unchanged pre-native health/death state, and no pet resummon,
+scaling, or LoggedIn transition. The separate login case exercises post-add
+rejection plus the existing abort policy; it is not full-login execution evidence.
+
+On `515acbb19` plus the reviewed local delta, focused aarch64/jobs=1 coding
+feedback passed: World check, Data selected_misc_attributes (one active case),
+Spell selected_publication (twelve), World sickness (thirty-five, including
+the five selected_initial cases), ghost_wisp (forty-five), selected_recovery
+excluding those two families (two), initial_aura_failure (two), and Server
+`--lib selected_recovery` (one): 98 distinct active test identities. Successful
+logs are `/tmp/rustycore-9i3c3c-04-check-wow-world.log`,
+`-07-test-wow-data-selected-misc.log`,
+`-08-test-wow-world-spell-selected-publication.log`,
+`-12-test-wow-world-sickness.log`, `-14-test-wow-world-ghost-wisp.log`,
+`-16-test-wow-world-selected-recovery.log`,
+`-19-test-wow-world-initial-aura-failure.log`, and
+`-20-test-world-server-selected-recovery.log`, all with the same
+`/tmp/rustycore-9i3c3c` prefix. The Server test executes the real root callback
+before the Map tail, including a coordinator without a Creature owner. Its
+6 min 12 s compilation is coding feedback cost, not the ordinary final campaign.
+The separate selected_initial command was not repeated because sickness already
+executed those identities. A transient inline sorting-only test was retired;
+the retained Data test checks the actual attributes selected by the loader.
+
+Failed attempts remain under the same prefix: 01/02 (visibility and syntax),
+06/09 (test imports/private helper access), 10/11 (incomplete fixture creation
+facts, stack/charge setup, lost catalogs, and missing level-20 stat data),
+13/15 (missing race/options/origin metadata), and 17 (the stale pre-ACK phase
+expectation). Repairs preserve the Source operation: no production metadata or
+stat fallback was added to make fixtures pass. The fresh enforced luna_worker
+role has a successful spawn trace for gpt-6-luna/max; the worker self-reported
+GPT-6 without exposing variant or effort. Its handoff shortened several log
+names incorrectly; the paths above were checked against the actual files.
+The known-key/no-Misc wire branch has no dedicated test in this checkpoint;
+the Data exact-key reader assertion is separate and is not claimed as that test.
+No final campaign, packet capture, live runtime/DB operation, restart/relogin,
+publication, or issue completion is established by this checkpoint. Constructor
+flags and all remaining macro requirements above still apply.
+
+9i3C3d1 provides one Core faction-reaction rule over transient catalog references
+and distinct borrowed source/target reputation owners. Existing NPC capabilities
+use that rule through one synchronous canonical-owner callback; the selected
+Spell constructor is not connected yet. The old NPC reputation clone is retired.
+The controlled-player reputation branch now reads the source affecting Player's
+contested flag; the lower faction rule retains the target flag. Known missing
+templates remain distinct from unknown catalogs, and known empty friendship
+reactions use ordinary reputation thresholds. Trainer-price logic and the separate
+pre-existing Hub reputation helper are unchanged. Source anchors remain
+Object.cpp:2709–2864 and ReputationMgr.cpp:75–83,181–198 at the pinned SHA.
+
+Review corrected an intermediate adapter regression: the lower API must invoke
+the lower rule directly, preserving both-template admission and contested-before-
+forced ordering. Encoding it as an upper-reaction request changed that order.
+A World regression for contested plus forced rank and a missing target template
+is authored but not executed. Opcode registration, packets, persistence, runtime
+ownership, and clocks are unchanged. Source/target reputation is not copied or
+stored as another mutable authority.
+
+On `40afdb711` plus the reviewed delta, sequential aarch64/jobs=1 Core feedback
+passed: `cargo check -p wow-world-core` and `cargo test -p wow-world-core --lib
+faction_reaction` (seven cases). Logs:
+`/tmp/rustycore-9i3c3d1-check-wow-world-core-review-fix.log` and
+`/tmp/rustycore-9i3c3d1-test-faction-reaction-review-fix.log`, both exit 0.
+Earlier green runs preceded the adapter correction and are not counted twice.
+World adapter regressions and downstream Quest/Spell checks remain deferred to
+the single completed-delivery acceptance. The fresh fixed-role spawn succeeded;
+the worker self-reported GPT-6 with effort unavailable. This is an explicit
+behavior repair and shared rule boundary, not a move-only refactor or final
+acceptance. Selected metadata/polarity, constructor connection, and the remaining
+macro blocks above are still open.
+
+9i3C3d2a retains the four raw inputs needed by selected effect polarity inside
+the existing SpellEffectInfo, as optional SpellEffectPolarityMetadata. DB2
+conversion supplies Some with exact attribute bits, RealPointsPerLevel,
+Coefficient, and Variance; legacy/synthetic effects retain None. An actual
+all-zero row is therefore distinguishable from unavailable metadata. No second
+store, cache, runtime authority, packet field, or SQL schema is added. The only
+production conversion into this model is the existing DB2 converter; server-side
+effect conversion uses a separate existing model. Source anchors are
+SpellInfo.cpp:430–444,496–623,4518–4541 at the same pinned SHA.
+
+On `bf140daa2` plus the reviewed four-file delta, sequential aarch64/jobs=1 Data
+check and `--lib selected_effect_polarity_metadata` passed, exit 0, one consumer
+case. Logs are `/tmp/rustycore-9i3c3d2a-check.VgCDA5.log` and
+`/tmp/rustycore-9i3c3d2a-test.Hj9U9m.log`. The case reads converted base and exact
+difficulty rows and preserves existing amounts/targets. The fixed worker role
+spawn succeeded; the worker exposed no actual model/effort telemetry. Downstream
+builds, classifier/constructor activation, and final acceptance remain unexecuted.
+
+9i3C3d2b adds private pure selected-polarity and application-flag rules, without
+activating production callers. The classifier preserves pre-existing negativity,
+Source passive/debuff/buff/harmful/family/mechanic precedence, the seven selected
+aura types, and Transform's later-effect postpass. Whole-spell positivity is
+separate from the active application mask. Optional family/mechanic inputs and
+unknown effect metadata are required only when their Source branch needs them.
+Known enemy target 6 is backed by SpellInfo.cpp:249 and SharedDefines.h:2634;
+this is not the complete implicit-target engine.
+
+Stable signed CalcValue intervals preserve Source's int32-to-float-to-rounded
+base conversion. Required ambiguous, nonfinite, or out-of-range facts remain
+unavailable; no per-application polarity roll or new negativity cache is added.
+Transform checks implicit holes only within the source effect-vector bound,
+using their default targets. The complete _isPositiveTarget helper returns true
+for inactive effects (SpellInfo.cpp:4508–4514); an intermediate parent inference
+from the AURA_UNIQUE caller alone was corrected before accepting the rule.
+The flags builder implements self/nonfriendly ALL versus friendly ANY, uniform
+active-mask decisions without an unnecessary relationship lookup, and the exact
+NoCaster/cancelable/passive/scalable bits. Duration remains a wire projection.
+
+On `3cfd23d8e` plus the reviewed local delta, aarch64/jobs=1 Spell check and
+`--lib selected_flags` passed, exit 0, fifteen cases. Logs are
+`/tmp/rustycore-9i3c3d2b-check-retry2.log` and
+`/tmp/rustycore-9i3c3d2b-test-retry1.log`. Earlier check/test failures are retained
+in `-check.log` (postpass borrow) and `-test.log` (fixture GUID helper type), with
+the same prefix. The two new files were formatted; their unsuppressed unused
+private API warnings remain until integration. The fixed worker spawn succeeded;
+the worker reported GPT-6 without variant/effort telemetry. No existing producer,
+load, or publication caller uses these rules yet. Metadata resolver corrections,
+canonical caster connection, full acceptance, and the rest of #43 remain open.
+
+9i3C3d2c connects the wire attributes/options adapter and caster-level fallback
+to one private selected catalog resolver. Exact rows decide before consulting
+the difficulty graph. A needed fallback follows actual known Difficulty rows,
+including zero; a known missing row stops, an unknown required store holds,
+and a needed cycle is rejected. A concrete metadata store with no row for this
+spell proves its Source default without requiring an irrelevant graph. Options,
+Levels, and raw Misc select the highest RecordID. Wire zero attributes require
+a reachable regular SpellInfo key when no Misc attributes resolve. Raw cast
+difficulty and existing canonical caster admission remain unchanged. Source:
+SpellMgr.cpp:675–693,2614–2687 at the same pinned SHA.
+
+On `fb241ddee` plus the reviewed seven-file delta, sequential aarch64/jobs=1
+Spell check and focused tests passed: `--lib selected_catalog` ran thirteen
+cases and `--lib selected_caster` ran ten, all exit 0. Logs are
+`/tmp/rustycore-9i3c3d2c-cargo-check-rerun.log`,
+`/tmp/rustycore-9i3c3d2c-test-selected-catalog-rerun.log`, and
+`/tmp/rustycore-9i3c3d2c-test-selected-caster.log`. The first catalog test
+compilation failed on a missing fixture import and ran zero cases; its log
+without `-rerun` is retained. Key-chain traversal uses explicit pure lookup
+inputs in tests; the positive known-key/no-Misc wire branch still has no
+dedicated consumer test. The unused raw Misc reader is reserved for the next
+duration consumer. The fixed worker role ran successfully; self-reported
+variant/effort telemetry was unavailable. This is focused coding feedback,
+not candidate final acceptance. Constructor activation, remaining cast/load
+metadata consumers, and all four macro blocks above remain open.
+
+9i3C3d3a resolves effective attributes, family, and spell mechanic into the
+existing pure polarity classifier. The new Data reader distinguishes an exact
+category value of zero from a missing row. ClassOptions is available at Source
+difficulty zero and selects the highest RecordID; Categories follows its own
+field chain. Known missing fields use actual Source defaults. Unknown family
+or mechanic facts are required only if classification reaches their branches.
+The pinned spell-61882 effect-2 negativity preset is preserved. No constructor,
+load, wire consumer, or general spell-fix engine is activated by this adapter.
+Anchors: SpellMgr.cpp:2540–2544,2614–2687,4766–4769 and
+SpellInfo.cpp:1240–1258,4517–5000 at the pinned SHA.
+
+On `a069f9a36` plus the reviewed seven-code-file delta, sequential aarch64/jobs=1
+Data and Spell checks passed. Focused tests ran one `selected_spell_mechanic`,
+eight `selected_metadata`, and thirteen `selected_catalog` cases, all exit 0.
+Logs under `/tmp/rustycore-9i3c3d3a-` are `data-check.log`,
+`data-test-selected_spell_mechanic.log`, `spell-check-retry1.log`,
+`spell-test-selected_metadata.log`, and `spell-test-selected_catalog.log`.
+The initial `spell-check.log` retains an import/type failure, corrected before
+the green feedback. Tests exercise the actual seven effect types across all
+three selected families, including unavailable or irrelevant cyclic inputs.
+The regular-key/no-Misc positive consumer remains deferred. The worker's fixed
+role spawn succeeded; self-reported variant/effort telemetry was unavailable.
+This is coding feedback, not final acceptance. Actual creation, refresh, load,
+charge, and canonical friendly-caster consumers remain work in this macro.
+
+9i3C3d3b activates selected metadata and flags in the actual Ghost/Wisp and
+race-selected sickness producers. The existing Spell host and Application CX
+carry an owned creation Result; a matching full-mask refresh retains its
+original flags, captured level, and provenance without consuming that result.
+Fresh application requires success before replacement or insertion. Canonical
+stock self-cast base flags are 0x11; finite sickness projects 0x15 on the wire.
+NeedSend and application consult the same precise selected Misc resolver.
+The current legacy charge calculation is retained for its separate correction.
+Mixed foreign polarity remains unavailable until the canonical reaction
+adapter is connected. Load deliberately retains its old Wisp 0x101 path and
+is not claimed as constructor parity by the fresh-cast regressions.
+
+On `79346ee82` plus the reviewed local delta, sequential aarch64/jobs=1 World
+check and focused feedback passed, exit 0: selected_creation (3), ghost_wisp
+(45), sickness (37), and represented_faction_reaction_adapter_preserves_lower_rule_order
+(1). There are 84 distinct passing identities; sickness repeats two of the
+new creation cases. Logs under `/tmp/rustycore-9i3c3d3b-` are
+`check-wow-world-final.log`, `test-selected_creation-final.log`,
+`test-ghost_wisp-corrected.log`, `test-sickness-corrected.log`, and
+`test-represented_faction_reaction_adapter_preserves_lower_rule_order.log`.
+Their filename suffixes do not denote the final acceptance profile.
+
+Review caught and removed an unsupported SpellStore clone in a fixture and a
+premature loader expectation change. The C3d1 World regression had placed the
+contested-guard flag in the helper's faction-group argument; the actual flags
+field is now assigned and that previously deferred regression ran successfully.
+Initial compiler failures remain in the earlier logs, including redundant
+filters attempted before the shared libtest error was repaired. The corrected
+creation run first passed two cases and failed publication because its packet
+peer was closed; the final run keeps that peer alive and retains the wire
+assertion. An incoherent manual partial-mask fixture was removed rather than
+claimed as evidence. An unrelated generic fixture delta was retired during
+integration. The fixed worker role spawn succeeded; the worker self-reported
+GPT-6 without exact variant/effort telemetry. Source SHA and affected reference
+files were rechecked unchanged. No final campaign, live/DB action, capture,
+publication, deployment, or #43 completion is established by this checkpoint.
+
+9i3C3d3c connects the canonical foreign-caster reaction to selected construction.
+Player, Creature, and Pet reads remain borrowed under the existing manager
+guard; source and target affecting Players supply their own reputation facts.
+Level and relationship preparation share that guard and return owned values.
+The shared Core algorithm now accepts a lazy raid fact at its original branch;
+its existing API supplies the existing known boolean. Forced reaction and duel
+can therefore decide before an unavailable later raid fact. No new Session,
+Player clone, directory lookup, lock, or mutable reaction authority is added.
+
+Self level and non-Unit fallback do not require map assignment. A known
+out-of-world foreign Player is absent before map-consistency checks; an
+inconsistent in-world body holds. Pet control selects a nonempty charmer before
+checking the owner branch, including an otherwise conflicting unused Pet owner.
+The inherited raid wrapper compares current groups, helpful-raid Creature flags,
+or raw Creature faction-template values as appropriate. These are explicit
+source-order and lookup corrections, not a move-only change. Source anchors at
+the pinned SHA are Object.cpp:2230–2275,2709–2864; ObjectAccessor.cpp:206–239;
+Unit.cpp:11401–11419; Unit.h:834,1160–1165; and Player.cpp:2139.
+
+On `b28bf8038` plus the reviewed delta, sequential aarch64/jobs=1 worker feedback
+passed Core and Spell checks and 31 focused cases: Core faction_reaction (8),
+Spell selected_caster (12), Spell selected_reaction (10), and World
+selected_caster_reaction (1). The World case runs the actual selected producer,
+Session recovery, and AuraUpdate serializer: friendly group base/wire flags
+0x102/0x106, hostile duel 0x10/0x14, and captured caster level 44. It also
+refreshes after relationship data becomes unavailable and retains the original
+application flags and provenance. This is not a Server-coordinator or live test.
+Logs under `/tmp/rustycore-9i3c3d3c-` are `core-check.log`,
+`core-faction-reaction.log`, `spell-check-final.log`,
+`spell-selected-caster-retry2.log`, `spell-selected-reaction-final2.log`, and
+`world-selected-caster-reaction-final.log`, all exit 0. Filename suffixes do not
+denote the final acceptance profile. Earlier compilation and fixture failures
+required repairs; the first World execution failed its retained wire assertion.
+The corrected World fixture preserves Ghost/Wisp metadata alongside sickness
+and keeps its SpellStore and raw Misc attributes consistent. Those repairs
+were made together; no isolated cause for the missing packet was established.
+The original failed Spell check log was overwritten, so it is not retained
+evidence. The failed Spell test compilation and World retry2 logs remain.
+The fixed worker-role spawn succeeded; exact variant/effort self-telemetry was
+unavailable. Load, indexed metadata, charge consumers, and the other macro
+requirements remain open. No final campaign, capture, runtime/DB mutation,
+publication, deployment, or issue completion is established by this checkpoint.
+
+9i3C3d4a moves the shared exact-first difficulty traversal and attribute reader
+to Data, retaining Spell's existing private names as aliases. The existing
+effect collection now keeps the highest surviving RecordID per difficulty and
+slot, including explicit inert rows. The indexed resolver inherits each slot
+independently and returns borrowed rows in index order. It retains needed-cycle
+and unknown-catalog errors, actual zero-difficulty fallback, and malformed
+dynamic-vector rejection. Invalid raw indexes retain their bits and are rejected
+by exact resolution instead of becoming missing effects or index zero.
+The borrowed legacy projection exposes its active prefix and continues its
+previous fallback for inert-only buckets. No additional mutable catalog is added.
+Source: DB2Store.h:83–87; DBStorageIterator.h:35–55;
+SpellMgr.cpp:2500–2508,2638–2640; and SpellInfo.cpp:1144–1163 at the pinned SHA.
+
+On `ca4973b37` plus the reviewed local delta, the worker reported sequential
+aarch64/jobs=1 checks for Data and Spell and 26 passing focused cases, all
+exit 0: Data effect_resolution (11),
+effective_effect_store_is_the_only_difficulty_zero_effect_authority_like_cpp (1),
+selected_effect_polarity_metadata_preserves_raw_db2_inputs_and_unknown_legacy_state
+(1), and Spell selected_catalog (13). The surviving-lower-ID regression starts
+from the effective input after removal; it is not a live hotfix mutation test.
+The command/result record is
+`/tmp/rustycore-43-C3d4a-feedback-20261025T163021Z.summary.log`;
+it is a manually recorded summary, not captured raw command output. The worker
+reported no failed or repeated green commands. Parent review corrected the
+initial raw-index filtering and the exact-reader fixture's storage-order
+expectation before feedback. The fixed worker-role spawn succeeded, while
+precise runtime variant/effort self-telemetry was unavailable. These are coding
+checks on the local delta, not final acceptance. Core save and Spell execution,
+load, and completion consumers remain pending. No live/DB/capture, publication,
+deployment, or #43 completion is established by this checkpoint.
+
+9i3C3d4b connects Core's selected Ghost/Wisp and race-selected sickness save
+adapters to Data's exact indexed effects and attribute resolver. Each
+application's passive/channelled attributes now skip it before effect-shape
+validation, preserving Aura::CanBeSaved's order. Global base passive/channelled
+flags no longer reject an active application at another difficulty. Complete
+aura authority and known selected-base catalog/shape guards still protect empty
+deletion. Saved difficulty, signed duration, charges, family identity, and exact
+snapshot amounts retain their existing authority. This intentionally corrects
+metadata selection and eligibility; it is not a move-only refactor or general
+CanBeSaved completion. Source at the pinned SHA: SpellAuras.cpp:1134–1174
+and Player.cpp:19811–19865.
+
+Worker feedback on `4f43bfeb7` plus the reviewed local delta passed sequentially
+on aarch64/jobs=1: `cargo check -p wow-world-core` and
+`cargo test -p wow-world save_snapshot_owner -- --nocapture` (21 library cases).
+That suite includes five new indexed consumer cases. After adding final Wisp
+assertions to the existing grouped case, `cargo test -p wow-world
+selected_aura_indexed -- --nocapture` passed those five again; the other sixteen
+cases were not rerun after that test-only change. The filtered binary targets
+ran zero cases and are not counted. Logs are
+`/tmp/rustycore-c3d4b-cargo-check-wow-world-core-20261025.log`,
+`/tmp/rustycore-c3d4b-cargo-test-wow-world-save-snapshot-owner-20261025.log`,
+and `/tmp/rustycore-c3d4b-cargo-test-wow-world-selected-aura-indexed-v2-20261025.log`,
+all exit 0. The initial focused log without `-v2` also remains; compilation
+cost was 4m56s there and 1m19s for the changed test, not final campaign timing.
+Parent review renamed one test from unknown to missing fallback: its absent
+Difficulty row is known absence, not an unknown store. Feedback preceded this
+name-only correction. The fixed worker-role spawn succeeded; precise runtime
+variant/effort self-telemetry was unavailable. Creation/load/completion consumers,
+charges, native lifecycle work, and macro acceptance remain pending. No final
+campaign, capture, live/DB mutation, publication, or deployment is established.
+
+9i3C3d4c resolves selected execution effects before cast preparation and SpellGo,
+and completion keeps that owned vector instead of replacing it with a legacy
+whole-difficulty vector. Sickness application, refresh, removal, and stat-cause
+selection use exact selected effects and attributes. The selected initial aura
+snapshot also uses indexed rows; unrelated snapshot callers explicitly retain
+their legacy path. Inert rows are not activated by their aura-type field.
+Missing required selected attributes remain unavailable. No mutable catalog,
+Session method, or second aura authority is added.
+
+Refresh keeps its original Aura difficulty and effect properties, replacing
+base points and recalculating through those original properties. Source anchors
+at the pinned SHA are Unit.cpp:3224–3280, SpellMgr.cpp:2500–2508,2638–2640,
+SpellInfo.cpp:1144–1163, and SpellAuras.cpp:496–510. An explicit inert row reaches
+the existing unsupported sickness-shape error after SpellGo and creates no
+sickness Aura; that regression proves no active-base fallback, not a general
+partial-metadata aura implementation. Ghost/Wisp-specific execution regressions
+remain deferred; the actual new consumer tests exercise sickness.
+
+On `af58258f6` plus the reviewed delta, sequential aarch64/jobs=1 worker feedback
+passed Spell check and nine distinct World library cases: selected_execution_effects
+(5) and selected_creation (4). The new cases cover actual canonical Map difficulty
+4→3→0, actual 0→3 fallback, pre-SpellGo rejection of needed unknown/cyclic or
+malformed metadata, the inert-row hold, and cross-difficulty refresh through
+Session recovery and AuraUpdate. After the last test-only change, the focused
+refresh case passed again with new-row DieSides=1 and original DieSides=0, so
+using the wrong calculation properties would change the asserted amount.
+Other unchanged passing cases were not rerun after that fixture strengthening.
+Logs under `/tmp/rustycore-43-c3d4c-` are
+`wow-world-spell-check-20261026-004543.log`,
+`wow-world-selected-execution-effects-20261026-005135.log`,
+`wow-world-selected-creation-20261026-005053.log`, and
+`wow-world-refresh-original-properties-20261026-005305.log`, all exit 0.
+Earlier compile and failing consumer runs remain under the same prefix.
+
+The first World compilation used a nonexistent fixture spawn-mode method.
+The initial consumer run then passed one and failed three; it exposed real
+base-only stat/snapshot readers and an unsupported-shape fixture expectation.
+Repairs preserved the canonical snapshot consistency checks. Parent review also
+corrected missing-row versus unknown-store test inputs and added a real zero
+fallback scenario. The fixed worker-role spawn succeeded; exact variant/effort
+self-telemetry was unavailable. Relevant C++ files and SHA were rechecked clean.
+These are coding checks on the local delta, not a final campaign. Load/visual,
+charges, completion polarity/admission, native lifecycle, casts, QA, and the
+remaining macro requirements are not completed by this checkpoint. No runtime,
+DB, capture, publication, deployment, or #43 completion is established.
+
+9i3C3d4d prepares a transient selected cast-threat decision before cast
+preparation and SpellGo. Empty or unavailable required selected effects are
+rejected there. Exact attributes can exclude initial threat without demanding
+unneeded polarity facts; otherwise the shared complete-spell polarity and
+attributes are carried through completion. The shared initial-threat algorithm
+uses those attributes for NO_HELPFUL_THREAT and unconditionally honors
+NO_HARMFUL_THREAT for both polarities. Amount calculation remains after effects.
+There is no new mutable authority, Session method, queue, or lock.
+
+Source anchors at `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+SpellInfo.cpp:1721–1724,4518–4541 and Spell.cpp:5558–5625,8067–8070.
+The selected direct lifecycle casts have no triggering Aura. This checkpoint
+does not establish the additional triggering-Aura polarity rule for general
+Aura-triggered casts, or replace unrelated legacy metadata consumers.
+
+On `f3b69e930` plus the reviewed local delta, sequential aarch64/jobs=1 worker
+feedback passed `cargo check -p wow-world-spell` and eight distinct World library
+cases: `selected_cast_threat` (6), `legacy_initial_threat_no_harmful` (1), and
+`selected_caster_reaction_uses_actual_foreign_group_and_duel` (1). The six new
+consumer cases cover DEBUFF versus positive effect amounts, a positive assisting
+counterfactual, exact 0→3 NO_HELPFUL_THREAT fallback, actual first creation then
+matching refresh after class metadata becomes unavailable, a required-polarity
+hold with a known nonzero threat entry, and missing requested difficulty despite
+known base effects. The shared gate case exercises both polarities. The existing
+foreign-caster case additionally retains its refresh after group/faction data
+loss; it is not the class-metadata-loss case.
+
+Raw exit-0 feedback is retained at:
+
+- `/tmp/rustycore-43-c3d4d-feedback-20261026T011148Z/spell-check.stdout.log`
+  and `spell-check.stderr.log` (Spell check).
+- `/tmp/rustycore-43-c3d4-polarity-proof-20261026T/1792977934450565938/`
+  (final six-case consumer run, `stdout.log`, `stderr.log`, `status.txt`).
+- `/tmp/rustycore-43-c3d4-focused-20261026T/1792977602206539795/`
+  (`case-2.stdout.log`, `case-2.stderr.log`, `status.txt`, shared gate case).
+- `/tmp/rustycore-43-c3d4-mixed-caster-20261026T/1792978159001387499/`
+  (existing foreign-caster case, `stdout.log`, `stderr.log`, `status.txt`).
+
+The initial compilation failed on fixture/API errors, and the first consumer
+execution passed five and failed one. Those runs are retained separately under
+the same feedback prefixes. Subsequent fixture changes strengthened actual
+creation, source-valid refresh flags, nonzero threat, and exact fallback proofs;
+their repeated executions are counted once. The assigned fixed worker-role spawn
+succeeded; exact model variant/effort self-telemetry was unavailable. The parent
+reviewed the code and final fixtures without another Cargo run. This is a local
+UNVALIDATED checkpoint with coding feedback, not candidate final acceptance.
+Load/visual/charge consumers, native lifecycle, normal casts, QA, and the macro's
+remaining acceptance are still pending. No live/DB mutation, capture, publication,
+deployment, or issue completion is established.
+
+9i3C3d4e connects the selected persisted-aura loader to indexed effects and exact
+metadata. The private `selected_load` module owns the bounded family shape,
+metadata, recalculation, and save-eligibility rules. Each component follows its
+own difficulty chain, including an actual Difficulty(0) fallback. The Aura keeps
+its saved raw difficulty and joins effect rows using the original SQL mask.
+Inactive saved effect rows remain ignored after mask normalization.
+
+Offline expiration uses complete-spell polarity and resolved EXPIRES_OFFLINE
+attributes before asking for live caster facts. Load charge normalization tests
+the full uint32 ProcCharges value, then truncates only when filling an empty
+saved count. A nonzero saved count remains unchanged when full ProcCharges is
+nonzero, including 256; signed -1 converts to 255 when filling an empty count.
+This is the load contract, not fresh/refresh CalcMaxCharges or caster modifiers.
+
+Execution and loading now share private Aura constructor preparation through
+the existing SessionHubHostLikeCpp bound. Load passes saved difficulty, resolves
+flags/level/relation before conflict removal, and still removes conflicts before
+CanBeSaved. Missing required constructor facts preserve the previous Aura. The
+legacy active-effect positivity helper is retired. Source DEBUFF Wisp loads with
+base flags 0x11; duration is a publication flag, so the existing finite sickness
+packet remains 0x15. Source anchors at the unchanged pinned SHA are
+Player.cpp:18035–18154, SpellAuras.cpp:110–161,398–410,463–468,1134–1174,
+SpellInfo.cpp:4518–4541, and SpellMgr.cpp:2500–2508,2638–2640. Relevant files and
+the reference HEAD were rechecked clean on 2026-10-26.
+
+On `b25bed7da` plus the reviewed local delta, sequential aarch64/jobs=1 worker
+feedback passed `cargo check -p wow-world-spell`,
+`cargo test -p wow-world --lib sickness_loading` (29 cases, including eight new
+consumer cases), and `cargo test -p wow-world --lib selected_creation` (4 cases).
+The 33 distinct cases cover indexed 4→3→0 and 0→3 load consumers, missing requested
+difficulty/cycles/malformed metadata, whole-spell DEBUFF expiration with positive
+effect metadata and an unavailable caster, full-width charges, pre-removal holds,
+conflict-removal order, Wisp provenance, canonical friendly foreign-caster mixed
+polarity, and the preserved execution constructor/refresh consumer. Existing
+mask/CastId and initial wire assertions remain exercised by these suites.
+
+Raw logs and exit files are under
+`/tmp/rustycore-43-selected-load-20261026-59iniw/`:
+`cargo-check-wow-world-spell-final2.{log,exit}`,
+`cargo-test-wow-world-sickness-loading-final.{log,exit}`, and
+`cargo-test-wow-world-selected-creation.{log,exit}`, all exit 0. Initial Spell
+compilation failed on extraction visibility; initial World test compilation
+failed on test-helper visibility. The first actual load suite passed 28 and
+failed one stale base-duration-flag assertion. The corrected assertion retains
+the actual packet duration-bit proof. Parent review also removed an overstrict
+inactive saved-row guard and strengthened the expiration counterfactual before
+the final run. Repeated runs are counted once. The parent reviewed the final
+consumer diff without a duplicate Cargo campaign.
+
+Physical review: `aura_state.rs` is 764 lines, selected load rules 252, and
+shared constructor preparation 103. The existing `sickness_loading.rs` root is
+1,022 lines and retains its shared fixture setup and earlier integration cases;
+the eight new consumer cases live in a separate 801-line child. Further growth
+of the root should extract its existing fixture setup rather than append another
+scenario group. No production visibility was widened for tests; three existing
+test helpers use parent-module visibility for their concrete sibling consumer.
+The fixed worker-role spawn succeeded; runtime model/effort self-telemetry was
+unavailable.
+
+The shared constructor and load metadata are implemented with focused coding
+feedback; this remains a local UNVALIDATED checkpoint. Visual selection still
+uses the previous loader helper and has not acquired caster/override/condition
+parity. Fresh/refresh charges, remaining native lifecycle operations, normal
+casts, QA, and macro acceptance remain pending. The preserved narrow family
+contract is not a general aura engine. No runtime, DB, capture, publication,
+deployment, or #43 completion is established by these checks.
+
+9i3C3d4f implements the effective condition-record presence required by selected
+visual lookup. Data loads both complete WDC4 ID sets before SQL, retains each
+actual table hash, unions official/custom IDs, then applies final table-scoped
+removals. Unresolved WDC4 copy sources withhold complete presence instead of
+silently creating absence. The existing file-only ID loader retains its previous
+behavior. A final immutable catalog exposes player/unit presence, including ID
+zero; an explicit effective-ID constructor supports already-composed inputs.
+
+One SQLx-free condition-presence port supplies both ID sets. Its MariaDB adapter
+uses the two ID-only queries in official/custom order and the established
+native-width uint32 round-trip conversion. For example, Int32(-1) retains its
+bits while Int64(-1) cannot round-trip and is rejected. Missing/NULL/non-integer
+IDs do not become zero. Startup propagates file/query/decode failures before
+publishing an Arc. The existing Player catalog capability installs it through
+one free World composition function; there is no new WorldSession method,
+general mutable-catalog accessor, or gameplay authority. Typed PlayerCondition
+payloads remain file-only and are not relabelled SQL-effective predicates.
+
+Source anchors at `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are DB2Store.cpp:127–134,
+DB2DatabaseLoader.cpp:28–32, DB2Stores.cpp:555, HotfixDatabase.cpp:1192 onward and
+:1853–1857, SpellInfo.cpp:4446–4464, Field.cpp:62–67, and
+FieldValueConverters.h:62–70. The unchanged DB2Stores anchor was verified against
+the pinned version despite its unrelated local change described below.
+
+On `0f29c68f9` plus the reviewed local delta, sequential aarch64/jobs=1 worker
+coding feedback passed `cargo check -p world-server --lib` and eleven distinct
+cases: Data `condition_presence` (3), Data `db2_id_store` (2), Database
+`condition_presence` (2), Server `condition_presence` (3), and the explicitly
+executed ignored Data installed-files diagnostic (1). The normal Data presence
+filter reported that diagnostic as ignored; its separate execution is the sole
+basis for counting it as passed. No initial compilation or test failures occurred.
+The first check took 4m35s; a post-edit check took 7.43s. Server test compilation
+took 6m28s. These are coding costs, not a timed ordinary final-acceptance campaign.
+
+Raw exit-0 logs use prefix `/tmp/rustycore-43-condition-presence-`:
+`cargo-check-world-server-post-edit.log`,
+`cargo-test-wow-data-condition-presence.log`,
+`cargo-test-wow-data-db2-id-store.log`, `cargo-test-wow-database.log`,
+`cargo-test-world-server.log`, and `installed-files.log`. The earlier successful
+check is retained as `cargo-check-world-server.log`. The fixed worker-role spawn
+succeeded; runtime model/effort self-telemetry was unavailable. Its initial
+read-only handoff exposed the private WorldSession catalog boundary. The parent
+settled the narrow free composition adapter and resumed implementation without
+widening that field or requesting a new approval.
+
+With `RUSTYCORE_CONDITION_DATA_DIR=/home/server/woltk-server-core/Data` and locale
+enUS, the diagnostic loaded 123 PlayerCondition IDs and 482 UnitCondition IDs;
+neither file contained ID zero. Post-diagnostic SHA-256 identities were:
+
+- `PlayerCondition.db2`:
+  `bd415ca301849bbfcde4ee1de765088d76d435cb1f2656b3c21332871e989e67`.
+- `UnitCondition.db2`:
+  `95e3a382588a6934ca33c134eec31bb777046f273ac7b855c844da2dda15b7e2`.
+
+Those are file-phase facts, not effective SQL/removal dataset proof. The actual
+visual consumer, required predicates/active overrides, and scoped capture/live
+evidence remain pending. New SQL also retains its required completed-delivery
+persistence-inventory review; the parent did not run another coding campaign.
+
+Physical review: the new Data catalog is 82 lines, SQL adapter 143, and Server
+loader 29. `world-server/src/app.rs` remains the existing startup coordinator at
+5,664 lines after twelve lines of bounded composition wiring; the new loader's
+logic is private outside it. Temporary ceiling 5,664, owner #43 integration,
+expires at the #43 final architecture review: splitting unrelated startup
+dependencies during this catalog repair would broaden the current operation.
+That review must resolve or explicitly renew the file-specific exception before
+macro closeout. No architecture baseline was regenerated here.
+
+This is another local UNVALIDATED checkpoint with focused feedback. No selected
+visual parity, final acceptance, runtime/DB mutation, capture, publication,
+deployment, or issue completion is established by it.
+
+9i3C3d4g adds the Data visual relation resolver and selector. Resolution inherits
+the first nonempty whole vector through the exact difficulty chain, including
+a real zero fallback, and orders rows by descending caster-player-condition ID
+then descending RecordID. Selection uses effective condition-row presence,
+including ID zero. Caster-incompatible constraints skip a row; a needed unknown
+predicate errors before a lower candidate rather than silently choosing it.
+Known absence of all visual rows returns zero without irrelevant catalog facts.
+
+SpellStore retains potential override targets from canonical full-domain raw
+effect slots before its existing i32-spell/u8-difficulty projection. Highest
+RecordID wins, including explicit inert winners. Queries also inspect retained
+canonical projected rows and dynamic/corrected payloads. That prevents a false
+absence when a second hydration retains a nonbase slot. A legacy primary
+override without explicit effect metadata remains conservative potential.
+The server-side query uses accepted SpellInfo effect payloads, not orphan rows.
+Persistent-area and all Source unit-owned Aura carriers are included. These
+are absence-supporting metadata queries, not active-Aura authority.
+
+Effective SpellEffect and SpellXSpellVisual loaders now use one checked reader
+pass and reject unresolved WDC4 copy sources before SQL overlays/removals.
+Their existing file-only load methods retain legacy behavior. The already-loaded
+server-side Arc is installed through the existing Spell capability and a narrow
+free composition adapter. No WorldSession method, broad mutable accessor, new
+gameplay owner, or general predicate/override engine is added.
+
+Source anchors at `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+SpellMgr.cpp:2498–2508,2594–2606,2614–2688, SpellInfo.cpp:461–492,4446–4464,
+Unit.cpp:13548–13563, and SpellAuraEffects.h:56–57. The existing server-effect
+admission uses regular SpellInfo keys while parent spell rows use SpellName
+(SpellMgr.cpp:2753–2760,2859–2866). The added regression preserves that
+asymmetry; there is no new production admission change in this checkpoint.
+
+On `40b6d47d4` plus the reviewed delta, sequential aarch64/jobs=1 worker feedback
+passed Data `visual_metadata` (10), existing `effect_resolution` (11), and the
+explicit ignored `visual_file_diagnostic` (1): 22 distinct cases. They cover
+exact vector inheritance/order, condition presence and caster kind, necessary
+predicate errors, full-domain and dynamic override potential, inert winners,
+accepted versus orphan server effects, retained nonbase hydration, and complete
+loader failure before overlays. The first test compilation missed a test import;
+the next run passed nine and failed one server fixture. Both were corrected
+before the final focused run. Repeated cases are counted once.
+
+Raw logs use prefix `/tmp/rustycore-43-visual-metadata-`:
+`focused-tests-rerun2.log`, `effect-resolution.log`, and `file-diagnostic.log`,
+with corresponding exit files recording zero. The initial World Server check
+printed successful completion in 4m10s but lost its final shell status. Its
+session 37028 and exec cell 77 were authoritatively unavailable; it is not
+counted as retained exit evidence. One approved warm recovery
+`cargo check -p world-server --lib` then exited zero in 0.24s, recorded in
+`world-server-check-recovery.{stdout.log,stderr.log,exit}`. The parent reviewed
+the actual diff and did not launch a duplicate campaign. The fixed worker-role
+spawn succeeded; exact runtime variant/effort self-telemetry was unavailable.
+
+With `RUSTYCORE_VISUAL_DATA_DIR=/home/server/woltk-server-core/Data`, enUS,
+the complete FILE diagnostic loaded 69,504 SpellEffect and 33,467
+SpellXSpellVisual rows. It found no Aura 403 rows in the file, and file-only
+override potential was false for 8326, 20584, and 15007. Ghost's visual relation
+was RecordID 241720 and sickness's 245039, both difficulty zero with zero caster
+condition IDs. Wisp had no visual rows. The stored SpellVisualIDs (886 and 69)
+are distinct from those relation RecordIDs; Source returns the relation ID.
+Post-diagnostic SHA-256 identities were:
+
+- `SpellEffect.db2`:
+  `c786e3f82d69f6a2675cdcc7a0a6c48a2684044fb23344bd488425d982b525f8`.
+- `SpellXSpellVisual.db2`:
+  `893b2141d6250684968cccd76fb365b548177327f2fad508131fe46050276e86`.
+
+SQL additions/removals and accepted server-side rows were not part of that
+diagnostic. It does not prove the effective runtime dataset or actual cast/Aura
+visual parity. Those consumers and required evidence remain pending, along with
+the separately identified scalar/charge and lifecycle work. Physical review:
+the new Data metadata module is 133 lines and its main test child 509;
+spell_db2/state_2.rs is 902 after sharing the row decoder. App wiring adds one
+line to the existing startup coordinator, updating its temporary reviewed
+ceiling from 5,664 to 5,665 with the same #43 final-architecture review expiry.
+No architecture baseline was regenerated. This remains a local UNVALIDATED
+checkpoint, not final acceptance or authorization for runtime/publication.
+
+9i3C3d4h connects the selected Aura constructor and persisted load to exact visual
+selection. It resolves the raw caster through the canonical Player/assigned Map,
+keeps physical Player versus Creature/Pet condition semantics, and checks both
+regular and accepted server-side override potential for a resolved caster.
+Needed unknown predicates or active override ordering remain unavailable.
+NoCaster skips Unit override checks; known empty visual rows yield zero.
+Flags, caster level, and visual leave one existing MapManager guard as owned
+values, without packet delivery or await under that guard. The Aura independently
+selects its visual instead of copying the supplied cast visual, retaining every
+uint32 bit in its signed provenance and AuraUpdate field. Matching refresh keeps
+the original provenance even when fresh-constructor facts are unavailable.
+Selected load prepares these facts before conflict removal; offline expiry
+still precedes caster/visual requirements. The legacy caster-free visual helper
+now belongs only to the nonselected load branch.
+
+Canonical detached targets with an assigned existing Map can resolve a foreign
+caster before admission. An active target outside the world retains its existing
+positive lookup case when its canonical Map member and assignment agree.
+Explicit residence diagnostics distinguish these cases from inconsistent bodies;
+there is no full-map scan or change to cast-identity admission. Source anchors
+at the pinned reference are SpellAuras.cpp:110–161,398–410,463–468,
+ObjectAccessor.cpp:206–213,236–238, Object.h:604, Unit.cpp:13548–13563,
+SpellInfo.cpp:4446–4464 and Spell.cpp:9283–9286. Ghost/Wisp fixture expectations
+now retain Source's DEBUFF precedence, including an inactive Ghost effect;
+this corrects stale tests rather than introducing another polarity rule.
+
+On `8d0fe9b4a` plus the reviewed delta, sequential aarch64/jobs=1 worker coding
+feedback passed `cargo check -p wow-world-spell` and 121 distinct cases:
+Spell library filters `selected_caster` (14), `selected_visual` (8), and World
+library filters `sickness_loading` (32), `selected_creation` (5),
+`selected_execution_effects` (5), `selected_cast_threat` (6), `ghost_wisp` (46),
+and the affected corpse fixture's `reclaim_corpse` (5).
+Tests used `cargo test -p <crate> --lib <filter>`, the checkout-local target,
+and the configured local PROTOC. New coverage includes raw-difficulty fallback,
+priority, real condition ID zero, known absence versus unknown catalogs,
+override holds before removal, detached foreign casters, constructor independence,
+high visual bits in actual AuraUpdate, and refresh provenance.
+
+Raw logs and actual exit files use `/tmp/rustycore-43-aura-visual-` with final
+suffixes `cargo-check-wow-world-spell-repair-3`,
+`test-wow-world-spell-selected-caster-repair-3`,
+`test-wow-world-spell-selected-visual-final-1`,
+`test-wow-world-sickness-loading-final-3`,
+`test-wow-world-selected-creation-1`,
+`test-wow-world-selected-execution-effects-1`,
+`test-wow-world-selected-cast-threat-1`, `test-wow-world-ghost-wisp-final-2`,
+and `test-wow-world-reclaim-corpse-1`.
+All record exit zero. Earlier logs retain the owner-context and group-fixture
+failures, two fixture type errors, a missing visual fixture, and stale Ghost/Wisp
+expectations. These coding/repair costs are not a final acceptance campaign.
+The parent reviewed the actual diff and retained the original preworld positive
+test. Worker-role spawn evidence is retained; exact runtime variant/effort
+self-telemetry remains unavailable.
+
+Physical review: the private visual consumer is 88 lines, its Spell tests 414,
+and new World test children 162 and 117. The existing load-test root is 1,043
+after bounded catalog-fixture/registration changes; the new scenarios remain
+in children. Cast visual preparation, effective scalar/charge inputs, native
+lifecycle work, normal casts, QA and macro acceptance remain required. This is
+a local UNVALIDATED checkpoint, with no runtime/capture or publication claim.
+
+9i3C3d4i connects the selected self-cast execution boundary to the same visual
+resolver. It replaces a supplied visual before preparation, power consumption,
+or publication. Native server-triggered allocation consumes the existing Map
+CastID before visual resolution, with no second allocation. Wisp now consults
+effective rows instead of returning a constant zero; known empty rows still
+allow the existing client-log predicate to suppress SpellGo. The sickness
+visual no longer uses the creature-only helper. Its existing cast-flag
+preparation is separate and retains its current behavior for the later normal
+cast work. The Aura constructor remains independent, so refresh can publish a
+new SpellGo visual while preserving the existing Aura's original provenance.
+
+The visual helper resolves the canonical active Map and its difficulty under
+one existing MapManager guard. Review caught and removed a draft nested-lock
+call to Core's difficulty getter before it was executed. No guard crosses
+packet delivery or await. This reuses the existing cast-admission gate without
+changing the Aura/load preworld cases. Source at the pinned reference remains
+Spell.cpp:580–583,8072–8077,9283–9286, SpellInfo.cpp:4446–4464,
+Unit.cpp:13548–13563 and SpellAuras.cpp:463–468. The separate ScriptVisualID
+field is already ignored by the 3.4.3 wire; this change does not alter that layout.
+
+On `1d9946d0e` plus the reviewed delta, sequential aarch64/jobs=1 coding
+feedback passed `cargo check -p wow-world-spell` and World library filters
+`selected_cast_visual` (2), `selected_visual` (7), `selected_creation` (4),
+`selected_execution_effects` (5), `selected_cast_threat` (6), and `ghost_wisp`
+(46). One case is shared by two filters: the union is 69 distinct passing
+cases, not 70. Commands used `cargo test -p wow-world --lib <filter>`, the local
+PROTOC and checkout-local target. They cover actual SpellGo relation IDs and
+high bits, difficulty/vector priority, Wisp's empty/nonempty visual rows,
+missing or override-potential metadata before power/publication, one native
+CastID allocation on rejection, and refresh's independent cast/Aura visuals.
+
+Retained raw logs and actual zero exit files use `/tmp/rustycore-c3d4i-`:
+`01-check-wow-world-spell`, `04-world-selected_cast_visual`,
+`05-world-selected_visual`, `06-world-selected_creation`,
+`08-world-selected_execution_effects`, `09-world-selected_cast_threat`, and
+`10-world-ghost_wisp`. Earlier attempts `02`, `03`, and `07` retain their 101
+exits: a test assumed an unsupported SpellInfo Default, a fallback fixture
+lacked required class facts, and an effect-negative case needed an exact
+visual row to reach its intended failure. The parent reviewed the actual diff
+and exits; no final campaign ran. The worker reported GPT-6 with unavailable
+effort telemetry, alongside the retained fixed-role spawn evidence.
+
+Physical review: the private cast helper is 48 lines and the two affected
+visual test children are 472 and 111. Ordinary client SpellStart visual
+preparation, foreign-caster lifetime, active override source/order, effective
+scalar/charge inputs, native lifecycle, QA, captures, and final acceptance
+remain required. This is another local UNVALIDATED checkpoint.
+
+9i3C3d4j1 adds complete/effective loaders for AuraOptions, ClassOptions, Labels,
+and Levels. Each shares its typed decoder with the unchanged legacy file loader,
+requires all declared WDC4 rows before applying overlays, replaces RecordIDs
+in supplied official/custom order, and applies final removals using the file's
+table hash and full RecordID bits. Four SQL-free persistence DTOs retain the
+source getter widths, including signed class masks before later Data bit
+conversion. No required port method, SQL adapter, or startup call changes here;
+the four production stores still read files alone until that integration.
+
+Source anchors remain the four DB2LoadInfo definitions and HotfixDatabase
+queries recorded below, plus DB2Store.cpp:127–134 and
+DB2DatabaseLoader.cpp:28–32 for official/custom order. On `9d15f0308` plus the
+reviewed delta, sequential aarch64/jobs=1 coding feedback passed
+`cargo check -p wow-data` (7.22s), `cargo check -p wow-persistence` (2.24s),
+`cargo test -p wow-data --lib scalar_catalog_loading` (5 cases), and the
+affected existing `visual_metadata_loaders_require_complete_copy_resolution_before_overlays`
+case (1). The six distinct cases exercise actual public loaders with modeled
+fixed-record/empty files, overlay replacement, additions, scoped removals,
+high-bit and signed payloads, and missing/malformed/unresolved-copy failure.
+They do not establish installed file or SQL dataset contents.
+
+Logs and actual exit files are under `/tmp/rustycore-c3d4j1-logs/`: final
+`01-cargo-check-wow-data`, `02-cargo-check-wow-persistence`,
+`08-cargo-test-scalar-catalog-loading`, and
+`09-cargo-test-visual-metadata-regression` all record zero. `03` retains the
+initial fixture expectation failure (101); intermediate successes and the
+subsequently removed unused fixture wrapper warning are retained. The commands
+used local PROTOC, the checkout-local target and one Cargo job. The parent
+reviewed the diff; exact worker effort telemetry was unavailable.
+
+Physical review: the private scalar loader module is 124 lines, its test child
+528, and the shared test fixture child 211. Existing lookup/charge consumers
+are unchanged. SQL failure propagation, source difficulty normalization,
+remaining scalar composition, charges, native lifecycle and macro acceptance
+remain required. This is a local UNVALIDATED checkpoint, not final acceptance.
+
+9i3C3d4j2 implements the target's uint8 Difficulty conversion at regular effect,
+hit-mechanic, server-effect and server-parent indexing boundaries. Aliased
+regular rows compete for the same slot by surviving RecordID, including inert
+winners. Server effects validate the normalized difficulty and join their
+normalized parent; their accepted vector applies the last input row per index
+and retains blank slots. A duplicate parent keeps its first name/effects while
+later input rows update scalars. Raw orphan effects still contribute no visual
+override potential. The existing uint8 regular key authority is unchanged.
+
+Source anchors at the pinned target are DBCEnums.h:833,
+SpellMgr.cpp:2508,2732,2772,2859,2870–2946 and
+SpellInfo.cpp:398–405,1337–1353. The explicit defensive negative-index contract
+recorded below is implemented with the existing range-error outcome before
+vector construction; it does not emulate or claim parity for undefined legacy
+input. The radius-warning fixture now uses a valid effect index so it isolates
+that existing behavior.
+
+On `71676ce68` plus the reviewed delta, aarch64/jobs=1 coding feedback passed
+`cargo check -p wow-data` (3.32s) and Data library filters
+`difficulty_normalization` (5), `effect_resolution` (11), `visual_metadata`
+(10), and `serverside_spell` (14): 40 distinct cases. The new cases cover
+regular 256/0 slot collisions, signed -1/255, mechanics and inert visual
+winners, server 256/0 and 999/231 joins, validation after conversion, ordered
+replacement, blank slots, first-name/last-scalar parents, orphans and invalid
+negative indices. They are modeled catalog evidence, not installed SQL or
+runtime data evidence.
+
+Raw logs and actual exit files are in `/tmp/rustycore-c3d4j2-logs/`: final `01`,
+`02`, `03`, `04`, and `06` record zero; `05` retains a temporary fixture-length
+expectation failure (101). Commands used the local PROTOC, checkout-local
+target and one job, with `cargo test -p wow-data --lib <filter>`. The parent
+reviewed the actual diff and retained raw results; worker effort telemetry was
+unavailable. Physical review: corrections.rs is 772 lines, and the new private
+test child is 345. SQL decoder failure propagation, four scalar startup
+consumers, proc/charge preparation, native lifecycle, normal casts, QA and final
+acceptance remain required. This remains a local UNVALIDATED checkpoint.
+
+9i3C3d4j3 extends the existing core Hotfix persistence port with required
+AuraOptions, ClassOptions, Label and Levels row methods. Their adapter uses
+the target projections and reads official rows before custom rows. All 19
+previous core projections now also decode through the existing native Field
+getters. A query or conversion error fails the whole load; accepted earlier
+rows cannot become a partial successful result. SQL NULL still becomes
+numeric zero or an empty string. Error reasons retain table, row and field
+context. The existing documented rejection of text/DECIMAL numeric columns
+remains stricter than C++; no actual schema mismatch was observed or repaired.
+
+At target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, source anchors are
+HotfixDatabase.cpp:1412–1416,1443–1446,1504–1506,1513–1516,
+DB2LoadInfo.h:4655,4759,4984,5009, DB2Stores.cpp:555 and
+FieldValueConverters.h:62–70 / Field.cpp:62–76. Getter widths follow the
+existing DTOs except SpellEffect's four masks, which use GetInt32 before
+preserving their bits in uint32 fields. ClassOptions masks remain signed
+until composition. Levels retains signed int16 fields; no key authority or
+Difficulty enum width changes.
+
+On `c96f3c64c` plus this delta, aarch64/jobs=1 coding feedback passed
+`cargo check -p wow-database` (8.12s) and database library filters
+`core_db2_hotfix_adapter` (8) and `field_like_cpp` (4): 12 distinct cases.
+The adapter cases distinguish signed getters using int64 -1 and unsigned
+wide values, preserve high bits, reject narrow-field overflow, check visual
+condition positions, retain NULL defaults, and reject an entire malformed
+batch with its diagnostic context. They also pin the four SQL projections.
+These are modeled native-row tests, not real SQL dataset or runtime evidence.
+
+Raw logs and actual exit files are in `/tmp/rustycore-c3d4j3-logs/`: `01`,
+`03`, and `04` record zero. `02` retains a test-only missing-import compile
+failure (101); the import was fixed before the successful retry. Commands used
+the local PROTOC, checkout-local target and one job. The parent reviewed the
+diff and raw results without running another campaign. Physical review:
+the adapter root is 736 lines, its private decoder 396, and decoder tests 286.
+The four startup consumers, key/server/proc SQL guards, exact proc/charge
+preparation, native lifecycle, normal casts, QA and final acceptance remain
+required. This is a local UNVALIDATED checkpoint, not final acceptance.
+
+9i3C3d4j4 connects AuraOptions, ClassOptions, Label and Levels to the existing
+core-spell composition. A private child awaits the four existing port methods,
+converts their payloads, and calls the complete/effective Data loaders. Signed
+ClassOptions masks retain every bit in the existing uint32 Data fields; signed
+Levels and full-width AuraOptions payloads remain intact. The same four Arc
+owners are installed at their previous startup positions. Only construction of
+the existing Core adapter moves immediately before SpellLevels, so that its
+first new consumer can use it. SQL errors still stop composition through the
+existing Failed-to-Err boundary. No second catalog, port or runtime owner is
+introduced.
+
+The mapping retains DB2LoadInfo.h:4655–4673,4759–4775,4984–4994,5009–5024
+at the pinned target; ordered overlays and final removals use the Data loading
+contract reviewed in j1 and the SQL contract reviewed in j3. On `4217cb194`
+plus this delta, aarch64/jobs=1 coding feedback passed
+`cargo check -p world-server --lib` and library filters `selected_scalars`
+(1 case covering all four payloads) and
+`empty_and_failure_remain_distinct_before_publication` (2 cases: core and
+key composition). Three distinct cases passed. No Data suite was rerun.
+
+Raw logs and actual exit files are in `/tmp/rustycore-c3d4j4-logs/`, `01`–`03`,
+all zero. Cargo reported 4m24s for check, 6m43s for the test-profile build, and
+0.24s for the second filter. Those coding commands alone total approximately
+667 seconds; they are not the completed-candidate acceptance campaign and do
+not demonstrate its 600-second target. The parent reviewed the actual diff
+and raw results without another Cargo run. The worker-role execution reported
+GPT-6 with no exact effort telemetry.
+
+Physical review: the new private composition child is 120 lines and its tests
+84. The existing core composition root is 1,119 lines after seven declaration
+and re-export lines; production mapping stays in the cohesive child. App grows
+5,665 to 5,689 (+24) for four asynchronous capability calls at required startup
+positions, with no gameplay logic moved into it. The temporary reviewed app
+ceiling is 5,689, owned by #43 integration and expiring at the same #43 final
+architecture review. The tracked physical policy has not been regenerated or
+claimed passing. Key/server/proc and Difficulty input guards, effective PPM,
+exact proc/charge preparation, native lifecycle, normal casts, QA and final
+acceptance remain required. This remains a local UNVALIDATED checkpoint.
+
+9i3C3d4k replaces width-erasing key and Difficulty SQL reads and the selected
+server/proc defaulting decoders with the existing native Field getters. The
+twenty key contributors retain their order, with PowerDifficulty read after
+Power, and official rows before custom rows. Seven signed SpellID contributors
+use GetInt32 before preserving the bits in uint32 keys. SpellEffect difficulty
+uses GetInt32 before the uint8 enum conversion; the nine byte-difficulty
+contributors and PowerDifficulty use checked GetUInt8. No key authority or DTO
+difficulty is widened. Row failures preserve table/row/field context and fail
+the whole load rather than exposing earlier accepted rows.
+
+Server effect Aura/target fields use GetInt16 before widening to the existing
+DTOs; their masks retain signed getters, and SQL base points remain raw float.
+The server parent's full uint32 proc/family fields remain intact. Proc SQL
+retains its narrower uint16 family and uint8 charges. This is decoder work,
+not the pending server effect quantization or joint proc-source preparation.
+Seven acquisition Option hotfix source families and nine other World catalogs
+retain their prior behavior; this unit does not claim them repaired.
+
+Difficulty composition now requires complete FILE copy resolution before
+querying its existing overlay port. Its legacy file-only load mode remains
+available. PPM adds one SQL-free DTO and required method on the existing Core
+port, checked official/custom SQL, complete/effective Data loading with final
+removals, and the existing WorldServer Arc at the same startup position. Its
+legacy and complete loaders share one typed decoder. PPM modifiers are not
+needed for the ProcBasePPM presence predicate and are outside this operation.
+
+Source anchors at the pinned target are DB2LoadInfo.h's contributor definitions,
+Difficulty :1534–1555 and PPM :5109–5118; HotfixDatabase.cpp:519–521,1542;
+SpellMgr.cpp:1500–1548,2727–2766,2852–2946; and
+SpellInfo.cpp:1213–1216. The lookup/presence dependency remains
+SpellMgr.cpp:490–509,1873–1888 and SpellAuras.cpp:965–976. Native getter
+strictness for text/DECIMAL numeric columns remains the existing documented
+departure from C++; no actual SQL schema mismatch was demonstrated.
+
+The actual parent-verified base is `3c41e8b80` plus the reviewed delta. The
+worker's handoff named an older base; it does not replace Git identity. On
+aarch64/jobs=1, coding feedback passed the WorldServer library check and 39
+distinct cases: database `spell::` (23), database `hotfix::difficulty_adapter`
+(3), Data `scalar_catalog_loading` (8), WorldServer selected scalars (2), and
+WorldServer `hotfix::difficulty` (3). The key getter tests freeze independent
+seven-signed/nine-byte matrices. They distinguish native widths, enum folding,
+NULL defaults, overflow and whole-load failure. Other cases cover server
+payloads, fractional raw SQL base points, proc limits, complete PPM replacement
+and removals, incomplete copies, and composition.
+
+Raw logs and exit files are `/tmp/rustycore-c3d4k-logs/01`–`09` with their full
+command names. Final `01/03/04/06/07/08/09` exit zero. `02` retains a missing
+column diagnostic failure (22/23); `05` retains a test-only trait-method compile
+failure. A private field-context helper repairs the first; removing the
+redundant test assertion repairs the second. Database `08` repeats the same
+23 cases after narrowing the two server decoders to private visibility; it
+adds no distinct cases. The initial WorldServer check (4m17s) predates those
+private diagnostic/visibility changes; subsequent database and WorldServer
+tests compile them. It is not relabeled as final committed-candidate evidence.
+Reported completed commands alone total over 654 seconds, excluding the failed
+Data compile; this is coding feedback, not proof of the ordinary acceptance
+campaign's 600-second target. No duplicate parent campaign was run.
+
+The parent inspected the actual diff, raw outcomes and all twenty code-file
+hashes. The new server decoder/test children are 219/113 lines; key and World
+adapters are 624/666, Data loading tests 636, and World scalar composition/tests
+144/97. The existing Core composition root remains 1,119. App grows 5,689 to
+5,695 (+6) for the required asynchronous PPM call; temporary reviewed ceiling
+5,695 retains #43 integration ownership and the same final architecture review
+expiry. No architecture baseline was regenerated. Exact joint proc preparation,
+charge consumers, native lifecycle, normal casts, QA and final acceptance remain
+required. These modeled fixtures are not real SQL/runtime/capture evidence.
+This remains a local UNVALIDATED checkpoint.
+
+9i3C3d4l1 makes canonical server-effect base points int32, retaining raw float
+in the input row and SQL DTO. Fallible row conversion truncates valid fractions
+toward zero before the accepted effect vector is built; blank slots retain
+integer zero. Nonfinite values and values outside [-2147483648,2147483648)
+return the original row with BasePointsOutOfRange. This is an explicit defensive
+valid-input boundary for legacy undefined float-to-int conversions, not claimed
+parity for those invalid inputs. Radius warnings retain the raw row. Existing
+difficulty normalization, input order and duplicate-parent rules are unchanged.
+
+Native ProcEntry, ProcEventSpellInfo, ProcSource and ImplicitProcSource family
+fields and matching arguments are now uint32. SQL proc rows and their DTO remain
+uint16; entry construction widens their values without changing them. Regular
+ClassOptions class-set fields remain uint8. Source anchors at the pinned target
+are SpellMgr.cpp:2755, DB2Structure.h:3514, SpellInfo.cpp:407–435,
+SpellInfo.h:409,514, SpellMgr.h:317 and SpellMgr.cpp:1533. The parent reviewed
+those scalar boundaries and the actual Rust callers; no SQL or WorldServer
+consumer change is needed by this unit.
+
+On `21ae4503d` plus the reviewed delta, aarch64/jobs=1 coding feedback passed
+`cargo check -p wow-data` and library filters `serverside_effect_base_points`
+(3), `serverside_spell_effect_store_` (3), `spell_family_name_` (2), and
+`spell_proc_source_builds_from_loaded_spell_and_db2_stores_like_cpp` (1).
+These are nine distinct cases, including fractional signs, representable
+boundaries, NaN/infinity rejection, raw diagnostics, dense blank slots,
+full-family generated matching and unchanged SQL-family widening.
+
+Raw logs, real exit files, timings and the final patch are in
+`/tmp/rustycore-c3d4l1-logs/`. The five `*-candidate` check/filter logs exit
+zero; their Cargo-reported durations are 0.11s, 15.72s, 0.11s, 0.13s and 0.10s.
+The initial `test-serverside-effect-base-points` compile failure (101) is retained:
+a test moved its captured source from an FnMut closure, corrected before the
+passing candidate. Earlier successful working iterations are retained separately
+and add no distinct cases or acceptance verdict. The parent reviewed the diff,
+outcomes and all five code-file hashes without another Cargo run. Worker model
+and effort telemetry were unavailable. Physical review: corrections.rs is 792
+lines, catalog.rs 862, state_2.rs 699, the adjusted alias fixture 345, and spell_6
+tests 875. Exact joint proc preparation, charge consumers and the other macro
+blocks remain required. This is a local UNVALIDATED checkpoint, not final or
+runtime acceptance.
+
+9i3C3d4l2a moves exactly two existing scalar readers into Data's private
+resolution module and exposes them through the existing spell exports.
+World retains its selected_aura_options_entry and selected_spell_family names
+as crate-private aliases. The parent reviewed identical bodies and argument /
+result types apart from the equivalent error alias and cross-crate visibility.
+The regular-family helper retains uint16 because its ClassSet input is uint8;
+native proc metadata still widens that value into uint32. Mechanic, level and
+raw-Misc readers remain in World. This structural move precedes the separate
+semantic proc-source correction; existing source anchors and behavior contracts
+remain unchanged. On base `4b3e10f4c`, no Cargo or validation was run under the
+explicit level-1 deferral. The files are 198 and 109 lines respectively. The
+next completed implementation will compile its consumers and exercise affected
+reader cases. No new trait, context, crate or mutable authority is introduced.
+This is a local UNVALIDATED structural checkpoint, not accepted evidence.
+
+9i3C3d4l2b replaces the payload-only/difficulty-zero proc projection with
+the existing exact regular SpellInfo keys and accepted server-side sources.
+One temporary source map supplies explicit SQL/rank lookup through the known
+difficulty-zero fallback and implicit generation at every actual key. A second
+temporary key lookup records only calls the row loader can reach, respecting
+non-first all-ranks rejection and duplicate-entry stops. It holds no runtime
+authority. Known total absence avoids irrelevant graph cycles; required cycles
+and producer overlap fail construction before the canonical proc Arc is
+installed. Errors retain the affected exact key or SQL/rank lookup context.
+
+Regular sources use the shared effective AuraOptions/family readers and the
+SpellStore's canonical attributes and indexed effects, without a separate raw
+Misc snapshot. Key-only SpellInfos retain source defaults. Effect vectors are
+dense through the highest resolved slot, with zero holes and explicit inert
+fallback stoppers. The two relevant effect/attribute hydration sites preserve
+uint32 SpellID key bits through signed storage. TriggerSpell also preserves
+its signed-input bits when projected into uint32. Other legacy high-ID
+hydration sites are not claimed repaired. Accepted server sources retain their
+full-width proc/family fields, canonical int32 base points, and Attr3 word.
+Negative raw server effect types are rejected: C++ assigns GetInt32 into the
+unsigned Effect field before its upper-bound check. Source anchors at the
+pinned target are SpellMgr.cpp:490–509,1500–1634,1730–1888,2500–2665,2735,
+2786–2792 and SpellInfo.cpp:407–435,1148–1164,1337–1353. This is metadata and
+entry-presence preparation, not general CalcValue/scaling/proc-runtime parity.
+
+On base `9d8b22194` plus the reviewed delta, aarch64/jobs=1 coding feedback
+passed `cargo check -p world-server --lib` and 33 distinct cases: Data
+`proc_source_preparation` (13), the existing loaded-source and invalid-server
+effect cases (one each), four existing SQL/rank/implicit regressions, and
+WorldSpell `selected_catalog` (13, including five publication-reader cases),
+and its separate family-alias case (one). These exercise the l2a consumers.
+Full command logs, real exits
+and timings remain in `/tmp/rustycore-c3d4l2b-logs/`. The initial successful
+server check (224.93 seconds) preceded the shared-resolver correction. Its
+rerun retained a missing-macro-import failure (101), then passed in 34.59
+seconds. Data retained two fixture type errors (101), then a 12/13 run whose
+incorrect expected family mask was repaired from SpellMgr.cpp:1811–1815:
+implicit masks come from effect SpellClassMask. The final 13/13 run passed in
+9.18 seconds; the WorldSpell filter passed in 81.53 seconds. These are coding
+feedback, not a completed-candidate campaign or proof of its 600-second target.
+No positive WorldServer proc-composition test was found or claimed.
+The worker reported generic GPT-6 identity without effort telemetry; the exact
+runtime variant/effort is unavailable.
+
+The parent reviewed the actual diff, callers, source anchors, raw outcomes and
+all thirteen code-file hashes without a duplicate Cargo run. The new private
+preparation/test children are 264/760 lines; catalog.rs is 897 and the adjusted
+existing proc tests are 907. App grows 5,695 to 5,696 (+1) for the two joint
+source arguments replacing raw Misc at the same startup call. Temporary
+reviewed ceiling 5,696 retains #43 integration ownership and expires at the
+same final architecture review; no baseline was regenerated. The charge
+consumers and remaining macro blocks are still required. This is a local
+UNVALIDATED checkpoint, not final, SQL, runtime or capture acceptance.
+
+9i3C3d4m1 adds pure selected max-charge calculation and a separate fresh
+self-caster modifier-admission proof in WorldSpell. The caller must supply
+the actual resolved SpellInfo difficulty, not raw Aura/map difficulty.
+AuraOptions preserves its full signed-input uint32 bits; the canonical proc
+entry at that key or its guarded fallback overrides the value even when zero.
+Only the final result converts to uint8. Required stores remain unavailable
+when absent; known empty effective catalogs avoid irrelevant graph traversal.
+Fresh admission uses exact Attr3 IGNORE_CASTER_MODIFIERS or known zero family
+flags plus an empty inherited label list, including LabelID zero. A known
+finite chain ending before the base row keeps source defaults; an unavailable
+graph or required cycle remains an error. ClassOptions signed keys preserve
+high-bit uint32 identities. Possible class-mask/label modifiers remain a
+preparation error until their canonical runtime owner exists. Source anchors
+are SpellAuras.cpp:965–976,1088–1090, SpellMgr.cpp:490–509,2555–2556,2649–2650,
+SpellInfo.cpp:1784–1817, and Object.cpp:2274 at the pinned target.
+
+On base `4f3841423` plus the reviewed three-file delta, aarch64/jobs=1 worker
+feedback ran `cargo test -p wow-world-spell --lib selected_charges`: the final
+run passed all ten cases, exit zero, in 5.188 seconds. Its exact command,
+timestamps, exit and raw output are in
+`/tmp/rustycore-c3d4m1-logs/focused-selected-charges-final-fixture-rerun.{txt,log}`.
+The first attempt retains a moved FnMut test capture failure (101). After an
+earlier 10/10 pass, parent review strengthened the generated-zero fixture so
+the exact zero and nonzero fallback coexist, and added an unreachable nonzero
+class-row case. That correction retains a test-only name-shadowing failure
+(101) before the final green run. Earlier green iterations add no distinct
+cases. The parent reviewed all code, corrected known-absence/high-ID rules,
+and verified all three hashes without another Cargo run. Production and test
+children are 150/547 lines. The worker reported generic GPT-6 without effort
+telemetry; the exact runtime variant/effort is unavailable.
+
+These helpers have no production caller yet; their module exports and unused
+warnings do not establish application integration. Root export, actual-key
+resolution, fresh creation and existing-aura refresh consumers, their fixtures,
+and the recorded original-refresh findings still need implementation. Saved
+load normalization remains unchanged. No workspace check, final campaign or
+runtime/SQL/capture evidence was run. This is a local UNVALIDATED checkpoint.
+
+9i3C3d4m2a moves the existing selected key-difficulty reader to Data as
+resolve_spell_info_key_difficulty, retaining World's previous name as an
+alias. The parent reviewed the same argument/result types and body, apart
+from equivalent shared resolver/error names. The exact-key authority and
+GetSpellInfo fallback contract remain unchanged; existing source anchors
+continue to apply. The next App consumer will use the same reader instead
+of inventing another key cache or treating hydrated payload as existence.
+
+Selected World fixtures now prepare keys through the existing production
+seed loader. A private test helper supplies complete empty WDC4 contributors,
+ordered Hotfix input batches, effective SpellNames and explicit keys; it
+does not fabricate a payload or expose a new Data setter. The new identity
+case asserts nonzero-only and high-bit keys, absent difficulty zero and no
+hydrated payload. It has not been executed. Positive release/sickness/mixed
+fixtures preserve their keys while replacing payload, and effect fixtures
+normalize difficulty before contributing keys. Parent inspection caught and
+removed a borrowed iterator across the moved effect vector, without a Cargo
+search loop. The unrelated inert-aura test retains its original store setup.
+
+Base is `dbc933d37` plus the reviewed ten-code-file delta. No Cargo, metadata,
+formatting or validation command was run under the explicit level-1 deferral.
+The parent reviewed actual diffs, consumers and all ten file hashes; the new
+fixture is 155 lines, Data resolution 220 and the World alias module 90.
+The existing corpse/lifecycle fixture files are 1,887/1,046 lines. Their
+cohesion review retains the current selected lifecycle groups; release-cast
+fixtures and provenance/stat subgroups are the next natural splits if needed
+at the macro's final physical review. No baseline was regenerated. The worker
+reported generic GPT-6 identity with no effort telemetry. Root exports,
+production charge admission/application and completed-consumer feedback remain
+pending; this is a local UNVALIDATED preparatory checkpoint.
+
+Independent read-only QA review also pins the bot's returned bytes to the
+logical decrypted/uncompressed capture-diff model. The operation guide records
+that client arrival order is not server cross-socket enqueue order; the bot
+trace does not replace required server captures and provenance. Reference
+WorldSocket.cpp:526–532 was clean relative to the pinned target in that file's
+scope. No bot, server, SQL, capture or restart operation was executed.
+
+9i3C3d4m2b wires the selected charge readers into fresh creation and existing
+timer refresh. Fresh preparation returns flags, provenance and charges as one
+fallible result; a matching refresh still ignores fresh-only failures. Refresh
+charges resolve the stored raw difficulty to the existing SpellInfo key and
+use CalcMaxCharges without a caster. Non-timer refresh preserves charges
+without querying the proc catalog. The Core refresh witness now checks raw
+difficulty before mutation. Shared persisted-load construction is unchanged.
+The modifier-absence proof is caster-independent, preserving the supported
+foreign-original-caster sickness operation. Immutable catalog references flow
+through the existing application context and both trainer constructors.
+
+The actual-key requirement precedes execution publication. Positive sparse
+fixtures retain genuinely nonzero-only keys; the transient selected FULL
+projection and explicit completion cooldown gate implement the bounded
+contract recorded below. They do not complete ordinary sparse cast metadata
+or the general FULL-mask engine. Source remains the pinned target
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, with anchors recorded in that
+contract and the charge decision. The parent reviewed the actual application,
+Core, spell, World and fixture diffs and their consumers. The execution file
+is 1,178 lines; its selected projection is a separate 220-line module. New
+charge tests are 789 lines. No physical baseline or ownership ceiling changed.
+
+Focused worker feedback used base HEAD
+`e005b5fc897706b3b91518d4e52ddd7a11f963b5` plus the reviewed uncommitted
+sources, on this aarch64 host, sequentially with PROTOC set, one Cargo job
+and this checkout's target directory. Final commands and raw logs under
+`/tmp/rustycore-c3d4m2b-logs/` are:
+
+- `cargo check -p world-server --lib`: exit 0, 47.85 seconds,
+  `world-server-check-completion-final.log`, 10:23:05–10:23:53 UTC.
+- `cargo test -p wow-world --lib spirit_healer`: exit 0, 48 passed,
+  `world-spirit-healer-cooldown-final.log`, 10:24:04–10:25:57 UTC.
+- `cargo test -p wow-world --lib selected_charge_fixture_preserves_exact_canonical_spell_info_keys_without_payloads`:
+  exit 0, one passed,
+  `world-selected-charge-fixture-final.log`, completed 10:26:08 UTC.
+- `cargo test -p wow-world --lib repop_request_creates_saved_corpse_and_releases_to_graveyard_like_cpp`:
+  exit 0, one passed,
+  `world-corpse-final.log`, completed 10:26:19 UTC.
+
+These are 50 distinct World cases, not 50 new cases or a final campaign.
+Earlier wrapper/compile failures, the ten initial integration findings and
+the later foreign-caster fixture failure remain in the same log directory.
+Repairs include real nonzero keys and projection, generated-proc flags,
+preserving the proc store while dropping only ClassOptions, and attaching the
+foreign Player to the owner's actual map instance. The final healer run also
+covers Base0 and sparse selected FULL cooldown behavior, preserving existing
+history and emitting no CooldownEvent. Coding and repair time is not evidence
+for the 600-second ordinary acceptance budget. The worker reports generic
+GPT-6 with effort telemetry unavailable. No parent Cargo, final campaign,
+runtime, SQL or capture operation was performed. This remains UNVALIDATED at
+macro level; original refresh findings and the other three blocks stay open.
+
+9i3C3d4m3 corrects the original selected Aura refresh findings. The pure
+selected_aura_refresh_policy reader resolves the stored raw difficulty to
+the original SpellInfo key before reading its stack policy, attributes and
+duration. Both application consumers use those old facts and the old actual
+key for charges and effects. Ghost/Wisp now copies only incoming base points
+into the original effect rows, retaining their DieSides, aura type and misc
+data. The slot, raw difficulty, provenance, indexed amounts and recalculation
+mask remain canonical. Fresh-only stack and duration checks follow the
+matching refresh branch. Existing no-timer application refreshes do not read
+unused duration or proc catalogs; the complete cast still retains its own
+admission requirements.
+
+Core computes the refreshed lifetime under the canonical mutation borrow,
+using its current remaining duration before changing any state. Attr13's
+extension uses the source's f32 percentage and truncation, with a checked
+addition; overflow leaves the Aura and effect metadata unchanged. A normal
+refresh accepts signed remaining values such as -1 and restores the old base
+duration. Invalid duration INT_MIN is rejected instead of saturating its
+absolute value. The selected sickness removal guard now resolves the Aura's
+actual key instead of requiring a legacy difficulty-zero payload. A positive
+nonzero-only expiry and a keyless negative removal case cover that consumer.
+
+Source is pinned target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Unit.cpp:3244–3278, SpellAuras.cpp:869–895,933–952,1021–1094,
+SpellInfo.cpp:3905–3910, common/Utilities/Util.h:72–75 and
+Miscellaneous/SharedDefines.h:932. No new modifier engine, cumulative stacking
+implementation, stored SpellInfo mirror, Player owner, lock or clock was
+introduced. The existing general MaxAuraStacks and effect modifier boundaries
+remain; this checkpoint does not retire them or establish capture parity.
+
+Worker coding feedback on this aarch64 host used HEAD `31e8f06d0` plus the
+reviewed uncommitted source delta, PROTOC set, one Cargo job and this checkout's
+target directory. Raw logs are in `/tmp/rustycore-c3d4m3-logs/`:
+
+- `cargo check -p world-server --lib`: exit 0, 3 minutes 51 seconds,
+  `01-world-server-check.log`, 10:55:14–10:59:05 UTC.
+- `cargo test -p wow-world --lib spirit_healer`: exit 0, 54 passed,
+  `02-world-spirit-healer-tests.log`, 10:59:14–11:02:37 UTC.
+- `cargo test -p wow-world-core --lib selected_duration_tests`: exit 0,
+  four passed, `04-world-core-selected-duration-tests.log`,
+  11:03:37 UTC. The preceding `selected_refresh_duration` filter ran zero
+  tests in `03-world-core-selected-refresh-duration.log` and proves nothing.
+
+These are 58 distinct focused cases, including six new World cases and four
+new Core cases. The unit's 10:55:14–11:03:37 feedback interval is not a final
+campaign or evidence that the complete ordinary acceptance fits 600 seconds.
+Parent review corrected arithmetic oracles, signed-remaining handling and
+INT_MIN admission before the feedback, made effect-property fixtures
+deterministic, and kept the keyless fixture's fabricated base payload strictly
+inside its negative case. The policy reader, Core implementation, mirrored
+duration tests and new World refresh tests are 104/534/39/740 lines;
+Ghost/Wisp is 986 lines. Physical baselines remain unchanged. No parent Cargo,
+runtime, SQL, capture or restart operation was executed. This is an UNVALIDATED
+local macro checkpoint; native death, recovery, normal casts, QA and final
+acceptance remain open.
+
+The worker reported generic GPT-6 with effort telemetry unavailable. Its
+recursive rustfmt invocation also touched earlier #43 modules outside M3.
+After the feedback and the worker's ownership confirmation, the parent removed
+those formatter-only file deltas, retaining the sibling charge-test helper
+visibility changes and formatting in semantic M3 files. The source behavior
+and new test bodies are unchanged; the earlier feedback is not relabelled as
+a final run at the subsequent commit. The parent reviewed the actual M3 diffs
+and retained hashes for the policy, Core, application and test files.
+
+Selected stat-view integration, 2026-10-26, base `c7829b4f9`: the borrowed
+`PlayerStatAuraView` now resolves an existing Aura's stored raw difficulty to
+its actual SpellInfo key and indexed effect rows. Its four effect-query
+delegates and stat multipliers share active-mask selection and prefer the
+canonical represented amount for each effect index. The existing no-caster
+CalcValue fallback remains for the fresh calculation before selected metadata
+initialization; this is not a new general modifier engine or amount authority.
+Original effect properties remain selected across a refresh from another map
+difficulty. Group rules, arithmetic and traversal policy are preserved.
+
+Construction is fallible through the four existing Option-returning adapters.
+G/W and every nonzero sickness spell configured by any race require real keys,
+including a sickness spell carried by a Player of another race. Other known
+canonical keys use the exact reader too. An unresolved key, graph or active
+effect rejects the calculation before native stats change. A missing race
+catalog is unknown, so a keyless application cannot silently enter the legacy
+path; an authoritative race catalog can prove it is an ordinary keyless aura.
+No production setter, mutable Aura mirror, Player clone, lock or clock is added.
+
+The new mirrored World test module exercises a true difficulty-three-only
+fresh cast, original properties with incoming amounts on refresh, expiry,
+represented amounts distinct from base points, required keyless rejection,
+unresolvable difficulty, fixed G/W keys, missing race authority and ordinary
+same-effect grouping. Fresh/refresh/expiry assertions read the resulting
+native stats immediately, without a later forced stat update repairing the
+operation. Five existing positive legacy fixtures now install an authoritative
+empty race catalog; their expected health, amount and selector behavior is
+unchanged, and the generic session fixture still has no fabricated authority.
+
+Source anchors at `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+`Unit.cpp:4818–4875,9033–9073` and
+`SpellAuraEffects.cpp:3566–3604,4525–4548`. The test oracles also retain
+`SpellInfo.cpp:495–524` (DieSides zero adds nothing) and source f32 operation
+order, rather than replacing `1 - 60 / 100` with the differently rounded
+literal `0.4`. The inspected source files have no local changes at this pin.
+
+Worker coding feedback used `c7829b4f94e110f5ffbebf039f6bccaf694d4bc2`
+plus the reviewed source delta on this aarch64 host, with PROTOC set, one
+Cargo job and `/home/server/rustycore/target`. Raw commands, UTC times and
+real exits are retained in `/tmp/rustycore-selected-stat-view-logs/`:
+
+- `cargo check -p world-server --lib`: exit 0, 39.77 seconds,
+  `cargo-check-world-server-lib.log`, 12:19:42–12:20:21 UTC.
+- `cargo test -p wow-world --lib selected_stats`: exit 0, seven passed,
+  `cargo-test-wow-world-selected-stats-attempt6.log`, 12:32:46–12:34:03 UTC.
+- `cargo test -p wow-world --lib total_stat_percentage`: exit 0, five passed,
+  `cargo-test-wow-world-total-stat-percentage-attempt2.log`,
+  12:35:55–12:37:06 UTC.
+- `cargo test -p wow-world --lib spell_group_stack_rule`: exit 0, two passed,
+  `cargo-test-wow-world-spell-group-stack-rule.log`, 12:37:12–12:37:13 UTC.
+- The focused native Map VALUES sickness case passed at 12:39:44 UTC in
+  `cargo-test-wow-world-spirit-healer-lifecycle-stat.log`; it is also covered
+  by the final Spirit Healer filter below and is not counted twice.
+- After shared-fixture repair, `cargo check -p wow-world --lib`: exit 0,
+  `cargo-check-wow-world-after-ghost-fixture-preservation.log`,
+  12:47:52–12:48:57 UTC.
+- `cargo test -p wow-world --lib spirit_healer`: exit 0, 61 passed,
+  `cargo-test-wow-world-spirit-healer-after-ghost-fixture-preservation.log`,
+  12:49:08–12:50:34 UTC. This includes the seven new cases.
+
+The union is 68 distinct World cases, seven new. Earlier failures are retained:
+test tuple arity; an incomplete fixture reset leaving stale same-slot effect
+snapshots; DieSides/f32 oracle errors; missing race authority in five legacy
+fixtures; and 19 failures in the broader Spirit Healer filter. The last group
+came from preserving released Ghost/Wisp keys while dropping their original
+payload/effect data when rebuilding the selected fixture's store. That fixture
+now restores only its original G/W payloads and attributes under already
+loader-proven zero keys. The positive nonzero-only sickness fixture still has
+no zero key or legacy sickness payload. Production rejection was not weakened.
+
+The Core view and new World tests are 518 and 574 lines. The existing Data
+character-progression file is 1040 lines after its nine-line predicate; the
+predicate belongs to its existing ChrRacesStore implementation and adds no
+new owner. The repaired shared World fixture is 802 lines. No physical
+baseline was regenerated. The worker-owned patch hash is
+`7333ec7fb9c4f4ed9b0ee610a99b72bad80fb6e32d87e5e6e086d93c85413232`;
+the view and new test hashes are respectively
+`43d82fc0e27f5faebe58bfed92fe8823e257bf6e4c7499f02949ddd3c7d5287f`
+and `5de9d5a57256973988cab809bb5421727fcf2613bf62458f226bb56d4a1da493`.
+The parent reviewed the actual production, fixture and test changes. The
+worker reports that effective model/effort metadata is unavailable; the
+configured route is not claimed as observed execution telemetry.
+
+The 12:19:42–12:50:34 interval is 1852 seconds of coding, repair and focused
+feedback, not a final campaign or proof of the 600-second ordinary acceptance
+target. No parent Cargo, runtime, SQL, capture, restart or publication was
+performed. This is an UNVALIDATED local macro checkpoint, not final acceptance
+at a later commit. Native death, recovery, normal casts, QA and the complete
+candidate acceptance remain open.
+
+Ghost/Wisp original-metadata integration, 2026-10-26, base `59f28568d`:
+Application's loaded-effect and removal readers resolve each Aura's stored
+raw difficulty to its actual canonical SpellInfo key and then its indexed
+effects. The narrow Spell Wisp transform participant reuses whole-spell
+polarity, resolves the current transform at the incoming Aura's cast difficulty,
+and invokes the existing native transform operation. Difficulty errors remain
+errors; they do not become evidence that the current transform is absent.
+A positive Wisp does not overwrite a negative current transform or its display.
+Class-options input is borrowed through the existing Application catalogs and
+all three concrete constructors; generic transform behavior remains bounded
+by its existing consumers.
+
+The selected loader now uses its fallible selected metadata instead of requiring
+`SpellStore::get` at difficulty zero before that resolver can run. Nonselected
+legacy admission and all raw-difficulty, effect, charge, caster and duration
+checks remain in place. Full-save Ghost/Wisp capture also no longer requires
+zero-difficulty payloads: canonical family keys establish known families,
+known-empty families need no unrelated zero-difficulty attributes/effects,
+and each active Aura resolves its own actual key before eligibility and effect
+capture. Transaction, item/caster key, tombstone and publication semantics
+were not replaced. The existing indexed-save fixture now supplies real canonical
+keys rather than treating payload hydration as key authority.
+
+The tests exercise native capture, persisted-row conversion and the actual
+loader with both selected spells having only difficulty-three keys and no
+legacy payload. They verify complete aura authority, flags, visibility, speeds
+and Wisp display without repairing those values after loading. Additional cases
+cover conflicting zero-difficulty metadata, current-transform polarity at the
+incoming cast difficulty, retained negative-transform display, malformed graphs,
+missing active effects, missing keys and known-empty families.
+
+Source anchors at target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Player.cpp:18034–18140,19811–19851; SpellMgr.cpp:675–693;
+SpellAuras.cpp:1134–1195; SpellAuraEffects.cpp:1718–1742,1935–1951,
+3159–3174,3210–3218; Unit.cpp:10038–10100,11763–11870.
+
+Sequential worker coding feedback used the checkout's `target`, local PROTOC
+and one Cargo job. Raw commands, UTC times and actual exits are retained in
+`/tmp/rustycore-ghost-original-metadata-logs`:
+
+- Final production check: `cargo check -p wow-world-application --lib`,
+  exit 0, 16:11:32–16:11:52.
+- Final World feedback: `cargo test -p wow-world --lib ghost_wisp`,
+  54 passed, exit 0, 16:16:55–16:18:20. This is 46 existing and eight new cases.
+- The first World run failed with 46 passed/five failed, exit 101,
+  15:18:52–15:23:34. After the transform and loader changes, the next run
+  failed with 50 passed/three failed, exit 101, 15:59:18–16:01:32.
+  Native capture then exposed the remaining save entry gate. Its repair
+  produced 53 passed/one existing fixture failed, exit 101, 16:11:58–16:14:14;
+  that fixture gained canonical keys before the final passing run.
+
+The parent reviewed the production changes, actual callers, fixtures, test
+cases and raw results, and verified all 14 implementation file hashes in
+`owned-files-20261026T1618.sha256`, manifest SHA-256
+`c5d6604e304a6ea25edaf2a3496936f23e12abe9660d7f3fed5ec1e18a98cfe8`.
+This identifies the tested dirty working inputs at the stated base, not final
+acceptance at a later commit. Effective worker model/effort telemetry remains
+unavailable. The 15:18:24–16:18:20 feedback/repair interval is 3596 seconds of
+coding feedback, not the completed-delivery campaign or proof of its 600-second
+ordinary performance target. The Application file's 986→1042-line cohesion
+review is recorded above; the new test leaf is 822 lines. No numeric baseline
+was regenerated.
+
+This is an UNVALIDATED local macro checkpoint. Native-error propagation,
+remaining recovery continuations, the sibling sickness full-save entry gate,
+native-death integration, normal casts, QA and complete candidate acceptance
+remain open. The sickness save gate was inspected but was not changed by this
+Ghost/Wisp unit. No parent Cargo, runtime, SQL, restart, capture or publication
+was performed.
+
+Recovery failure, receipt and retirement integration, 2026-10-26,
+base `1e2b1799315662eb0b1ad6cea328d4b932e845d1`:
+the existing Player resurrection continuation now owns complete reclaim,
+spirit-healer, login-corpse and forced-graveyard recovery operations. Private
+WorldEntities modules separate their phase execution without creating another
+Player, pending-deletion authority, clock, task or mutable save mirror.
+An absent corpse is not confirmation of an earlier uncertain deletion: failed
+or cancelled deletion retains its nonreplayable phase. A genuine no-corpse
+entry preserves the source's no-delete/no-save behavior. Login retains
+triggerSave=false, fresh post-deletion alive/AT_LOGIN_RESURRECT reads, the
+default applySickness=false, and its subsequent ghost restoration. Forced
+recovery waits for confirmed deletion/save before graveyard selection,
+countdown stop and teleport, rereading the current map and position.
+
+The incarnation-bound native save receipt promotes only its captured, matching
+SavingPlayer continuation to PlayerSaveApplied. It does not clear remaining
+post-save work. The admitted PlayerRecovery rail resumes confirmed work before
+Unit timers, rechecks admission after awaits and preserves Unavailable when an
+unresolved phase disconnects the session. Failed, unknown or cancelled
+pre-ACK saves cannot be retried as confirmed work. Spirit-healer durability
+and its cached corpse graveyard survive deferred saves without reapplication.
+A returned healer TeleportTo hands ACK ownership to the native transfer;
+cancellation before that return retains the in-flight operation. A registered
+worldport ACK leaves a newly admitted far transfer for its own ACK, while
+disconnect finalization finishes successive native transfers before saving.
+Application and lower lifecycle cleanup retain the exact Player incarnation
+and login claim while recovery remains unresolved. The existing Server
+finalization retention path remains the owner of an unresolved session.
+
+Source anchors at pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+Player.cpp:4262–4403,4509–4515,4743–4795,18157–18180,
+Player.h:2117, NPCHandler.cpp:347–370, MiscHandler.cpp:416–445,
+CharacterHandler.cpp:1227–1243, MovementHandler.cpp:234 and
+WorldSession.cpp:547,602. The retained failure phases describe the explicit
+async recovery contract; local controlled ports do not prove real database
+durability or restart recovery. Existing repop tests now use complete native
+fixtures and distinguish ResurrectPlayer's exact cleared DeathReleaseLoc from
+a graveyard-destination packet. The reclaim no-replay test inspects the real
+full-save health snapshot before worldport's final stat recalculation.
+
+Scoped coding feedback used PROTOC=/home/ubuntu/.local/protoc/bin/protoc,
+CARGO_BUILD_JOBS=1 and CARGO_TARGET_DIR=/home/server/rustycore/target:
+
+- `cargo check -p wow-world-application --lib`: exit 0, 18:46:49–18:47:21 UTC.
+- `cargo test -p wow-world --lib recovery_fences`: 33 passed, exit 0,
+  19:20:04–19:21:22; repeated after the repop fixture repairs at
+  19:25:47–19:25:48, again 33 passed, exit 0.
+- `cargo test -p wow-world --lib resurrection`: 25 passed, exit 0, 19:21:30.
+- `cargo test -p wow-world --lib corpse_login`: 13 passed, exit 0, 19:21:34.
+- `cargo test -p wow-world --lib repop`: 18 passed, exit 0, 19:24:30–19:25:43.
+- `cargo check -p world-server --bin world-server`: exit 0, 19:25:57–19:30:33.
+
+The four filters cover 77 distinct World test identities, including 33 new
+recovery cases. Logs and the deduplicated identities are retained in
+`/tmp/rustycore-recovery-fences-logs`. Initial compilation and fixture failures
+remain recorded. Run 08 ended with Cargo exit 101 after SIGTERM of the owned
+stalled test: 31 cases had passed, one failed and one was blocked. The parent
+stack trace proved a bounded fixture packet-channel send in CancelCombat,
+not a persistence or map-lock wait. The test now captures activation output
+and concurrently collects ACK output; production transport is unchanged.
+
+The parent reviewed the production consumers, failure contracts, fixtures and
+raw results, and verified all 77 hashes in `final-owned-files.sha256`, digest
+`260c9493ac665ffa120551a9559af59cf36ffbf3810f8afb17143d1c1064acb6`.
+Those hashes include 55 changed Rust inputs and 22 restored/unchanged files;
+the 55-input parent snapshot has digest
+`062fba4f72da8d09caca741f6acc2100ed94df5510c0f8a05a9651a3a218f86f`.
+They identify tested working inputs at the stated base, not final acceptance
+at a later commit. Effective worker effort telemetry remains unavailable.
+The 18:35:40–19:30:33 feedback/repair interval is 3293 seconds of coding
+feedback, not the completed-delivery campaign or proof of its 600-second
+ordinary performance target.
+
+This is an UNVALIDATED local macro checkpoint. The sibling sickness full-save
+entry gate, native-death integration, normal SelfRes/obtain casts, QA and
+complete candidate acceptance remain open. No runtime installation, SQL,
+restart, fresh capture, publication or issue closure was performed.
+
+Native dead-caster CheckCast, 2026-10-27, base
+`c7a30f42a27ff9057bfe5cb4941b33c25dddeaab` plus 11 Rust working inputs:
+the shared gate reads the actual typed Unit caster, including Vehicle GUIDs,
+and Unit::is_alive rather than the convenience health predicate. Native
+Alive/zero-health casts during resurrection are admitted. Source disabled and
+busy checks retain priority; death precedes cooldowns, GCD, power and effects
+in client/server preparation and is rechecked before launch. Passive,
+AllowCastWhileDead and the currently represented direct FULL-mask triggers
+remain exemptions. Attribute reads retain actual SpellInfo key selection,
+loaded-empty Misc defaults and unavailable-source errors. Signed internal
+SpellID storage preserves the Source uint32 bits.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are
+Spell.cpp:3453–3467,5643–5644,8031–8034; SharedDefines.h:437,454;
+SpellInfo.h:331 and SpellInfo.cpp:1144–1195. Existing nonzero trigger-flag
+writers are direct corpse/login casts; this does not establish an AuraEffect
+trigger-origin executor. The current normal-client payload path is also not
+upgraded into a general nonzero-only SpellInfo engine by this gate. Complete
+registered SelfRes integration must still prove its actual server-normal
+nonzero-only source without a synthetic base payload.
+
+Sequential coding feedback used PROTOC=/home/ubuntu/.local/protoc/bin/protoc,
+CARGO_BUILD_JOBS=1 and CARGO_TARGET_DIR=/home/server/rustycore/target:
+
+| Cargo command | UTC interval | Result |
+| --- | --- | --- |
+| `check -p wow-world-spell` | 02:44:24–02:44:26 | exit 0 |
+| `check -p wow-world` | 02:51:59 | exit 0 |
+| `test -p wow-world-spell caster` | 02:44:48–02:44:56 | 23 passed |
+| `test -p wow-world dead_caster` | 02:52:05–02:52:36 | 5 passed |
+| `test -p wow-world self_resurrect` | 02:53:10–02:54:05 | 11 passed |
+
+The parent verified 39 distinct target-qualified library identities; zero-test
+integration targets are not credited. The Source EffectThreat dead-caster
+regression now supplies AllowCastWhileDead and its selected key before
+exercising the effect's own alive guard (SpellEffects.cpp:2864–2880).
+Existing SelfRes cancellation, corpse-save and fail-stop tests remain green.
+Logs in `/tmp/rustycore-dead-cast-admission-logs` preserve the mutable-metadata
+compile error, test compilation failures, the 3/2 and 4/1 World results, and
+the 10/1 SelfRes result before repair. In particular, the Creature fixture's
+map/NPC-flag argument order was corrected; typed caster lookup was retained.
+The 02:18:41–02:54:05 implementation/feedback interval is 2124 seconds, not
+the final campaign or proof of its ordinary 600-second performance target.
+
+All 11 inputs match `changed-inputs.json`, digest
+`73275c71adaee934d45bf0c8af850432cb8e478cef33ea4d61c15883adcb8fc2`;
+the tracked Rust diff digest is
+`8bf0fa75cbfa438284e1bec6b134b4aea7f0e194017b3c38f147716cf92041bd`.
+These identify working inputs at the stated base with parent-owned State text
+also dirty, not a test of the later commit. The worker declared GPT-6 from
+runtime instructions; specific model/effort telemetry is unavailable.
+The new private test leaf has 568 lines. The pre-existing cast-lifecycle
+parent grows only by its three-line mount, 1052→1055; its reviewed ceiling is
+1055 through #43 acceptance, when its identity/publication split must be
+reviewed before further growth. This remains an UNVALIDATED macro checkpoint.
+Registered SelfRes, native publication/death, QA, final and authorized live
+evidence remain required.
+
+Native recovery publication review at `c7a30f42a`, 2026-10-27: the scoped
+packet vectors above are not Source cadence evidence. Pinned
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` Player.cpp:4320–4403,23322–23343
+calls default, deferred UpdateObjectVisibility; Unit.cpp:9214–9231 marks
+health fields. Map.cpp:777,1929–1948 owns SendObjectUpdates. Rust already has
+the corresponding native visibility notification and
+`wow-map/src/map/send_object_updates.rs` owner, with post-guard Server fanout
+in `runtime/map/update_loop.rs:495–505`. Selected sickness stat application
+already uses the native VALUES path; its unrelated legacy path is separate.
+The remaining mismatch is concrete: native resurrection, request-value
+application and SelfRes-value application send immediate self VALUES, and
+resurrection also invokes the position-threshold visibility scanner directly.
+Those snapshots neither consume native masks nor replace the later Map flush.
+In SelfRes they expose the intermediate Alive/zero-health state before obtain
+and the caller's restored values. The selected correction is to retain these
+native dirty fields for the existing Map publication owner and request native
+VISIBILITY_CHANGED notification, then test that actual phase and its typed
+snapshot. The correction below installs that ownership; fresh paired action
+captures and final acceptance remain required.
+
+Native recovery publication correction, 2026-10-27, base
+`4ca41413441f66c5a4c1b898c659addd618bbd6e` plus nine Rust working inputs:
+native resurrection, request-data restoration and SelfRes restoration now
+retain dirty native fields for Map::SendObjectUpdates. Resurrection queues
+VISIBILITY_CHANGED on the actual in-world Object instead of invoking the
+position-threshold scanner. Existing immediate movement, aura, corpse and
+spell packets and the operation's ownership/save fences remain in place.
+The source anchors and existing post-guard Server consumer are those above.
+Tests drive the real Map owner and World consumer, check final health/powers
+and the cleared SelfRes field using native power indices, and verify one-time
+mask consumption and delivery. The out-of-world SelfRes effect remains a
+no-op without a visibility notification; the one-shot helper does not gain
+permission to complete without an active residence.
+
+Sequential coding feedback on the aarch64 host used
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc, CARGO_BUILD_JOBS=1 and
+CARGO_TARGET_DIR=/home/server/rustycore/target:
+
+| Cargo command | UTC interval | Result |
+| --- | --- | --- |
+| `check -p wow-world-entities` | 03:13:11–03:13:13 | exit 0 |
+| `check -p wow-world` | 03:13:18–03:13:35 | exit 0 |
+| `test -p wow-world resurrect` | 03:30:52–03:32:26 | 55 library + 2 production integration cases passed |
+| `test -p wow-world recovery_fences` | 03:24:13 | 35 passed |
+| `test -p wow-world reclaim` | 03:24:20 | 16 passed |
+| `test -p wow-world spirit_healer` | 03:32:55–03:34:26 | 83 passed |
+| `test -p wow-world corpse_login` | 03:24:45 | 13 passed |
+
+The parent verified 165 distinct successful target-qualified identities and
+all nine input hashes. Logs in
+`/tmp/rustycore-native-recovery-publication-logs` preserve the initial test
+compilation error, the 53/3 and 53/2 resurrection failures, and the 79/4 healer
+result. Repairs declare the request fixture's known-empty inventory, configure
+its native powers, and restore the visual/threat fixtures' Player to Alive
+before ordinary sickness casts. They do not bypass CheckCast. An invalid new
+one-shot out-of-world success test was removed; the actual effect's no-op
+case remains. The shared setup stays in the existing 724-line fixture file;
+the 1251-line healer parent is unchanged. The legacy corpse test file grows
+2004→2012 only for inventory setup and failure diagnostics; its bounded ceiling
+is 2012 through #43 acceptance, with a split review before further growth.
+
+`changed-inputs.json` has digest
+`3f97ba8c5fa5e6a7b346b58fddfa17c5837c565584e0c50e1a939eae54dabc29`;
+the tracked Rust diff digest is
+`6688b08d2ae13ddbdcca8e0fcc40b3a59f285b8664c3213c78163f7640e14e45`.
+These identify tested working inputs at the stated base, not a test of the
+later commit. Runtime declares GPT-6; specific model/effort telemetry is
+unavailable. The 03:13:11–03:34:26 feedback/repair interval is 1275 seconds,
+with implementation before it; this is not the completed-delivery campaign
+or evidence for its ordinary 600-second performance target. This remains an
+UNVALIDATED macro checkpoint. Registered SelfRes composition, native death,
+QA, final acceptance and authorized live/capture/durability evidence remain
+open. No push, installation, SQL or restart was performed.
+
+Cast dispatch and grouping availability, 2026-10-27, base
+`7583d94c8034dfa8055d4f88519cc5f10085a27e` plus 13 Rust working inputs:
+one private Spell classifier identifies the actual direct, post-GO, Aura and
+Source-inert routes. Unknown effects and unsupported generic Player Aura
+groups now report unavailable. The normal prepare path checks this after
+ordinary busy/death/cooldown/precondition/cost rejection and before native
+cooldown/START publication or active-cast installation. This includes timed
+casts, which previously could return Started before their skipped effects
+became visible. Execution also checks availability before power debit and
+GO, and retains explicit drift guards at direct and special-Aura fallthroughs.
+The legacy primary fallback no longer logs unknown work and returns success.
+Actual post-GO handlers and selected sickness/Ghost/Wisp constructors remain
+recognized by the shared route facts. No additional task or mutable owner
+was introduced.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are the
+SpellEffects.cpp:88–403 dispatch table, :406–414 NULL/Unused handlers,
+:1389–1396 CreateItem and its DoCreateItem operation. Type 24 is a real
+mutation, not a Source-inert effect; this change does not implement it.
+The positive carried-item case uses the Source-disabled AddComboPoints body
+(:3164–3181), whose mutation is commented out in this target. DUMMY remains
+script-driven and is not treated as an unconditional no-op. Existing
+ordinary gameplay rejection stays distinct from unavailable implementation.
+
+On the aarch64 host, sequential one-job coding feedback used the same PROTOC
+and checkout-local target environment above. `cargo check -p wow-world`
+passed at 06:36:48.077–06:37:17.043 UTC (28.966 seconds). The final
+`cargo test -p wow-world-spell execution_support --lib` passed three cases,
+including real AuraType constants and a native Player GUID. The affected
+`player_cast::lifecycle::tests` filter passed 18, including instant and timed
+unimplemented-route rejection before installation and publication. World's
+`registered_self_res` filter covers ten distinct cases: its seven existing
+cases passed unchanged; the three new OnPickup cases passed after fixture
+repair in `registered_self_res::onpickup --lib`. The selected sickness and
+Ghost/Wisp filters each passed one. Parent review recomputed 33 distinct
+passing identities from the logs; reruns are not added to that count.
+
+The real registered SelfRes case has exact difficulty-three outer and inner
+spell keys, a physical OnPickup item with loaded level 50, separate cooldown
+categories and a valid nonzero CreateItem output item. An unsupported timed
+obtain cast retains native Alive/zero-health recovery at ObtainSpellsInFlight,
+without inner START/GO, corpse deletion or save. A separate fresh Alive/zero
+fixture calls the real obtain pipeline and checks the specific unavailable
+effect reason. A Source-inert obtain cast instead completes native revival,
+bones and one full-save request. These are controlled persistence-port cases,
+not real database/restart evidence.
+
+Logs and machine-readable argv/UTC/monotonic-time/exit records are under
+`/tmp/rustycore-cast-execution-availability-logs`. The first World run and
+first OnPickup rerun exited 101. Repairs replaced the legacy HP-sensitive
+alive facade with native Unit-state assertions, read all four SpellGo GUIDs,
+and distinguished the outer SelfRes START from the forbidden inner START.
+The final OnPickup run passed three at 06:45:56.560–06:47:19.649 UTC
+(83.089 seconds); only the changed Spell test leaf was then rerun, passing
+three at 06:47:26.390–06:47:32.327 (5.938 seconds). No production input
+changed after the green check. This coding and fixture-repair interval is
+separate from the unstarted final campaign and its 600-second ordinary target.
+
+Parent review matched all 13 Rust hashes to `coding-feedback-inputs.json`,
+digest `e5182b811fe2d084058affe5bc6f1ffc71c21523833eef1ddd9fd0475673f39b`.
+The tracked Rust diff digest is
+`2816108af4ac815d18d3fc3a815412e6da95c03cb994a1b8c234b0022034861f`;
+the input record includes all three new leaves. The production classifier
+is 333 lines and the new World test leaf 589; runtime turn-context telemetry
+confirms Luna max, including the same open worker's feedback turn. This is
+an UNVALIDATED macro checkpoint at the working base and inputs, not evidence
+for its later commit. It proves bounded dispatch/grouping availability and
+error propagation, not full parity of known effect handlers, all Aura
+execution, scripting or new gameplay-effect support. Native death, remaining
+SelfRes admission/timing cases, QA and authorized live/capture/DB/relogin
+acceptance remain open. No push, installation, SQL or restart was performed.
+
+Normal cast-item lifetime and failure propagation, 2026-10-27, base
+`b18321dad32f4915f58f62f5bf7023e86c6200a6` plus six Rust working inputs:
+Application's existing TakeCastItem owner now returns updated execution
+metadata or an explicit unavailable error. Its Spell host and World adapter
+retain that distinction; both executor sites assign the returned metadata
+and propagate errors. Consuming an expendable item clears only the logical
+cast-item GUID and entry, including when one unit remains in the physical
+stack. The cached item level and all other metadata remain unchanged.
+No-item, ignored-item and non-expendable use preserve the logical pointer.
+This corrects the upstream provenance gap recorded by the preceding native
+drunkenness checkpoint without adding per-effect item-existence guesses.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` Source anchors are
+Spell.cpp:3842–3854,4025,5310–5380. GO precedes TakeCastItem; delayed
+nonchannel spells take it before effects and immediate spells afterward.
+The Source clears its logical item pointer after charge exhaustion even when
+DestroyItemCount leaves a surviving stack. TakeReagents' earlier clear was
+already represented and was preserved. These tests establish execution-phase
+ordering, not an implementation of projectile travel timing.
+
+One-job aarch64 feedback used the same PROTOC and checkout-local target
+environment as above. `cargo check -p wow-world` passed at
+05:35:38.763–05:36:23.426 UTC, instrumented 44.662 seconds. Four existing
+registered SelfRes cases and one new real-Application owner case passed in
+the focused `registered_self_res --lib` runs. The new owner case checks a
+surviving stack, unchanged cached metadata, ordinary no-item/ignore and
+non-expendable paths, and missing physical item/entry errors.
+
+The two executor cases initially exposed incomplete fixture item catalogs,
+then missing prepared residence stamps. An interim seven-case pass after
+removing GO assertions is superseded for those two cases and earns no final
+credit for them. Parent review required actual canonical cast IDs and
+residence stamps and restored GO assertions. The final
+`cargo test -p wow-world normal_cast_execution --lib` passed both corrected
+cases at 05:43:51.983–05:45:08.026 UTC, instrumented 76.043 seconds.
+They execute through the real World host with normal-cast metadata, distinct
+physical reagents and cast items, selected difficulty-three hit-delay data
+and Realm threshold packets. They are executor cases, not two additional
+registered-opcode cases. Combined evidence covers seven distinct cases
+across runs; only the two changed cases were rerun after that last fixture
+repair, and no production inputs changed after the check.
+
+Per-command argv, UTC bounds, monotonic durations, exits and retained failure
+logs are in `/tmp/rustycore-cast-item-lifetime-logs`. Parent review verified
+all six final Rust file hashes. The tracked Rust diff digest is
+`fd66468b537857db91ef81fac01d7b80ef92e2a1b7cff5d8b71ed2e7184e895b`;
+the new test leaf digest is
+`84d5b3bb1e3f058354fa0387ed1dfcad415d458df5d5e868805fffa5a45586bc`.
+The shared test fixture is 596 lines and its new private leaf is 469 lines.
+Runtime turn-context telemetry confirms the fresh worker used Luna max.
+This remains an UNVALIDATED macro checkpoint at the stated working base and
+inputs, not evidence for its later commit. Implementation and repair time
+are separate from the unstarted final acceptance campaign and its ordinary
+600-second target. Unknown mutating-effect execution, native death, remaining
+SelfRes admission/timing cases, QA and authorized runtime/capture/DB/relogin
+evidence remain open. No push, installation, SQL or restart was performed.
+
+Native SetDrunkValue and Player field publication, 2026-10-27, base
+`3f354d8f02999d03c0bd35b61a6b9ffb80c36e46` plus 21 Rust working inputs:
+the private Entity participant reuses PlayerData::Inebriation, applies the
+Source detection flags/value and sobering-counter reset, and requests native
+in-world visibility notification. Application reads actual indexed fake-Aura
+amounts and mutates the same Player under one MapManager guard. The exact
+integer query preserves first-rank groups, absolute-magnitude selection,
+newest-registration-first ties and unavailable/known-empty distinctions.
+An unavailable amount or undefined integer arithmetic stops before mutation.
+The existing EffectInebriate host now invokes this participant even when its
+stored value is unchanged. Threshold packets use the existing Realm connection,
+self first and then frozen visible observers, outside the Map guard. Existing
+Instance AuraUpdate delivery retains its durable command rail.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors:
+Player.cpp:863–910; Unit.cpp:3567–3579,4818–4843,4904;
+SpellMgr.cpp:400–432; SpellEffects.cpp:3464–3482;
+MiscPackets.cpp:686–693, MiscPackets.h:846–858; and
+Opcodes.cpp:1328 (`CONNECTION_TYPE_REALM`). The byte vector is derived from
+these sources; it is not an action capture. ItemID retains all uint32 bits.
+
+The real Map publication test exposed an additional defect: Player's five
+canonical dirty helpers marked their masks without queueing the native Object.
+Map::SendObjectUpdates only collects queued objects, so an isolated PlayerData
+or ActivePlayerData change could remain unpublished. Those helpers now use
+the same Object queue primitive as Unit. Source Object.h:270–276,295–323 and
+Object.cpp:791–806 establish the changed-value/dynamic-field queue operation,
+its in-world guard and mask clearing. No new publisher, state mirror or scan
+was added. The World case now verifies the final Inebriation field and mask,
+one Map-owned snapshot, one consumer send and no repeated send.
+
+On the aarch64 host, one-job coding feedback used
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc` and
+`CARGO_TARGET_DIR=/home/server/rustycore/target`:
+`cargo check -p wow-entities` passed; the final
+`cargo test -p wow-entities player::inebriation::tests` passed six cases;
+`cargo test -p wow-world-core fake_inebriation` passed six;
+`cargo test -p wow-world-core selected_aura` passed six publication cases
+and one unrelated duration regression; the packet threshold filter passed
+one; and `cargo test -p wow-world scenarios_spell_state_12::inebriate`
+passed seven. Its two integration targets matched zero cases and receive no
+credit. The earlier World production check preceded the dirty-helper repair;
+the final World test compiled that final production path. Logs retain the
+initial shadowed helper, missing canonical metadata, wrong GUID integer type
+and missing Map-queue failures, followed by their affected passing runs.
+Parent review then found that the nonzero-key case checked only catalog
+existence. Its corrected body now constructs a difficulty-three Aura, resolves
+its actual indexed 304 effect and reads amount 17 despite base points 99,
+with neither a zero key nor a legacy payload. Only
+`cargo test -p wow-world-core genuine_nonzero_difficulty_key --lib` was rerun
+for that changed case: one passed, exit 0, at
+05:20:24.997–05:20:45.267 UTC (instrumented 20.269 seconds). The other five
+Core cases and all other Rust inputs were unchanged.
+
+Evidence is in `/tmp/rustycore-native-drunk-transition-logs`. The final World
+log interval is 05:11:28.933–05:13:41.558 UTC; the final Entity test log interval
+is 05:15:25.899–05:15:32.003 UTC. These are log birth/last-write observations,
+not independently instrumented command start/end times. Parent review matched
+all 21 modified/new Rust paths to `changed-rust-sha256.txt`, digest
+`7d66370da2ac1db9a8f1430d3b0787612ba4a264a3051faa995eeb5b5fb732ba`.
+The tracked Rust diff digest is
+`8ba06f9ea2594331ae2ae08da2cc20511548185872f319fe09d8d7c08240bc27`;
+untracked leaves are covered by the per-path manifest. The legacy Player root
+grows 4753→4777 for one native field/mount/default and the five queue calls.
+This reviewed bounded ceiling is 4777 through #43 acceptance; review further
+growth before editing, and retain the existing distribution retirement owner.
+No physical-policy baseline was regenerated. Runtime turn-context telemetry
+confirms Luna max for the implementation and main feedback. Reopening that
+worker for the last test correction unexpectedly selected Sol high; its
+05:19:17 turn context records that route change. The parent disclosed it and
+closed the worker; future units use a fresh assigned-role worker.
+
+This remains an UNVALIDATED macro checkpoint at the working base and inputs,
+not evidence for the later commit. Drunken Vomit, foreign-player effect
+transport and the sobering tick executor are not implemented here. Native
+death invocation remains open. A separate upstream normal-cast gap also
+remains: Source Spell.cpp:3842–3854,5310–5380 clears m_CastItem/GUID/entry when
+an expendable item exhausts its charge, even if its stack survives. The Rust
+TakeCastItem adapter returns an ignored boolean and does not update execution
+metadata after pre-effect consumption. This checkpoint therefore does not
+prove ItemID provenance for that path. Correct it in the existing cast-item
+owner; do not reinterpret physical-item existence as Source pointer lifetime.
+The approximately 04:49–05:20 coding-feedback period and earlier implementation are separate
+from the unstarted final campaign and its 600-second ordinary-run target.
+No push, installation, SQL, restart, capture or live acceptance was performed.
+
+Canonical native-death operation ownership, 2026-10-27, base
+`04486d4e4836694101e34223496d946a02bfc9aa` plus four Rust working inputs:
+the Player now privately retains one operation context, a checked local ID
+and Ready/InFlight/Complete state. Begin and claim read native IsAlive and
+full-width nonzero health. Duplicate or wrong-ID calls cannot replace or
+replay owned work; completion requires a claim, and retirement requires exact
+completion. ID exhaustion cannot wrap. IDs must be bound to the actual Player
+handle in the future transport; this owner does not establish that binding.
+The existing resurrection continuation, SelfRes list and vitals are preserved.
+These Rust phases preserve a future asynchronous operation; they are not
+claimed to exist in synchronous C++ Unit::Kill. Source anchors remain
+Unit.cpp:10457–10652,8527–8585 and Player.cpp:1158–1200 at the pinned SHA.
+
+On the aarch64 host, sequential `cargo check -p wow-entities`
+(04:07:49–04:07:54 UTC) and `cargo test -p wow-entities death_operation`
+(04:07:57–04:08:09 UTC) passed, with ten distinct owner cases. They used the
+same PROTOC, one-job and checkout-local target environment above. Logs in
+`/tmp/rustycore-native-death-owner-logs` retain the test-only DeathState import
+failure before repair. Parent review verified all eight final recorded input
+hashes, including the four changed Rust files, against the final block of
+`inputs.log`, whose digest is
+`7580966b074103e21a3bc79a4d6bb00b09bbea49fd3249287eb77f36d410ac89`.
+The private production/test leaves are 191/240 lines. The legacy Player root
+grows only 4746→4753 for its mount, exports, field and default; its bounded
+ceiling is 4753 through #43 acceptance, with a split review before further
+growth. No policy baseline was regenerated.
+
+This is an UNVALIDATED owner-only checkpoint at the stated working base, not
+a test of the later commit or of real async cancellation. Application death
+execution, required Session phase delivery, retained Map cursor, finalization
+fences and lethal callers remain unconnected. No new death behavior is
+enabled. Runtime declares GPT-6; specific model/effort telemetry is unavailable.
+The 04:06:06–04:08:09 feedback interval is 123 seconds, with implementation
+before it; it is not the final campaign or its ordinary performance result.
+
+Native-death callback reentrance review at `7583d94c8`, 2026-10-27:
+Player::setDeathState runs NoDeath quest callbacks before its final
+Unit::setDeathState call (Player.cpp:1187–1198). SendQuestUpdate can issue
+FULL casts from effective SpellArea rows. A Source-valid nested InstaKill
+can therefore still see an alive, positive-health Player: its guard checks
+IsAlive and then invokes Unit::Kill (SpellEffects.cpp:444–465), whose entry
+only rejects zero health (Unit.cpp:10457–10461). A blanket refusal of every
+InFlight death invocation would lose this synchronous Source call chain.
+The required Application body must distinguish duplicate external admission
+from a nested call made by its own awaited callback chain. Keep one claimed
+canonical root operation and its existing claim/revoke fence; execute nested
+Source frames inside that body, with their own call arguments and Source
+order, without replacing the root context, claiming another root or starting
+another task. Verify the exact same-Session/Player-handle ownership proof
+and cancellation fence when implementing this route. This does not authorize
+replaying an interrupted InFlight operation. No nested-death executor or
+regression evidence is implemented by this read-only review.
+
+Registered SelfRes normal-cast composition, 2026-10-27, base
+`b11b70973930b3ce2ddbd0ec3a8f73a838b7b732` plus two Rust test inputs:
+four cases dispatch CMSG_SELF_RES through its actual registration and thunk.
+The synthetic spell 61043 exists only at actual Map difficulty 3: neither a
+difficulty-zero existence key nor a legacy payload is installed. Its 20-percent
+effect and ten-second cooldown are fixture data, not evidence for the real
+21169 catalog. Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are
+SpellHandler.cpp:416–429, SpellEffects.cpp:3757–3791,
+SpellInfo.cpp:495–525 and Player.cpp:4509–4515; the normal cast-cost source
+contract is retained from the earlier pre-GO checkpoint.
+
+The positive case consumes the physical reagent before native revival and
+captures its Removed row, restored health/mana and active cooldown in the same
+full-save request. A controlled save ACK retains the native item tombstone
+until acknowledgement, then retires it and completes the same resurrection
+operation. Missing reagent and active cooldown produce Reagents and NotReady
+respectively, without GO/effects/save, and consume the listed request. Without
+a corpse, revival succeeds and costs/history remain dirty without an immediate
+save. This is controlled-port evidence, not real database durability.
+
+`cargo test -p wow-world registered_self_res --lib`, started at 03:57:32 UTC,
+passed all four distinct cases with exit 0, using the same PROTOC, one-job and
+checkout-local target environment above. Its exact end UTC was not recorded.
+The earlier `cargo check -p wow-world` at 03:47:13 passed before final test
+edits; it does not compile cfg(test) and is not credited for those edits.
+Logs in `/tmp/rustycore-registered-selfres-pipeline-logs` retain fixture compile
+errors, the confirmed recursive-lock run stopped only through its own session
+(exit 130), and the initial 0/4 result. Parent review removed a legacy payload
+seed, fixed the fixture lock lifetime and retained its packet peer. Known-empty
+visual/serverside catalogs and explicit DB2 base points 20 then exercise the
+actual path; no production guard or arithmetic was weakened.
+
+Both inputs match `final-input-sha256.txt`, digest
+`ccd9b997501a13937c444f4db501bda1cf91e9404913b1e504bd665b2fcf8263`.
+The new 574-line leaf has digest
+`a0a1ee27995569ad5fbea6ca2be2942b24c2889bac739eda513a9c28e56e197c`;
+its parent grows only 606→609 for the private mount. These identify tested
+working inputs, not the later commit. Runtime declares GPT-6; specific
+model/effort telemetry is unavailable. This remains an UNVALIDATED macro
+checkpoint, not the final campaign or its 600-second performance result.
+Silent admission, duplicate/timed/nested cast cases, native death, integrated
+QA and final/live acceptance remain open. No production code, runtime,
+database or publication changed in this checkpoint.
+
+Native SelfRes effect and recovery ownership, 2026-10-27, base
+`1e8a06cc21da8dd31c27b5520f7bfe66fb8edb33` plus 17 Rust working inputs:
+the effect's direct revival is replaced by the existing Player-owned recovery
+operation. It verifies the actual caster and native IsInWorld, freezes health
+and mana before resurrection, then performs native revival, visibility and
+obtain spells before applying the current native setters, including Focus=0.
+Corpse conversion and its conditional full save use the existing delete/ACK
+fences. No corpse means no immediate Player save. Unavailable work disconnects
+and retains the exact operation; the timed cast driver suppresses its synthetic
+NotKnown error after that fail-stop.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are
+SpellEffects.cpp:3757–3791, Unit.h:766, Util.h:72–75, Player.h:2117 and
+Player.cpp:4320–4403,4509–4515. Percentage calculation uses Source f32 and
+full u64 health before u32 narrowing; flat mana preserves the signed bit
+conversion. Undefined Source integer-negation/float-cast inputs are reported
+as unavailable before revival, rather than assigned invented saturation.
+The registry's permissive in-world fallback is not the caster's native
+IsInWorld. Alive with zero health during ResurrectPlayer(0.0) is also distinct
+from the legacy convenience vitals predicate; the failure test reads Unit state.
+
+Sequential coding feedback used PROTOC=/home/ubuntu/.local/protoc/bin/protoc,
+CARGO_BUILD_JOBS=1 and CARGO_TARGET_DIR=/home/server/rustycore/target:
+
+| Cargo command | UTC interval | Result |
+| --- | --- | --- |
+| `check -p wow-world-spell` | 02:01:54–02:01:55 | exit 0 |
+| `test -p wow-world-spell self_resurrection --lib` | 02:02:03–02:02:11 | 37 passed |
+| `check -p wow-world` | 02:02:19–02:02:31 | exit 0 |
+| `test -p wow-world self_resurrect --lib` | 02:10:03–02:11:37 | 11 passed |
+
+The parent verified 48 distinct target-qualified identities. The World cases
+include actual effect execution, a real map corpse and captured Player-save
+DTO, unavailable-owner/native-phase failures, and cancellation at a controlled
+corpse-delete persistence future. After cancellation, admitted recovery retains
+the same Player at RecoveryCorpseBonesInFlight with one delete and no save.
+This is not cancellation during obtain or real database durability evidence.
+Logs in `/tmp/rustycore-native-selfres-effect-logs` preserve the initial four
+fixture compilation errors and the 3/6 failed World run, then 9, 10 and 11
+passing runs. The earlier Entities check passed, but its original exact UTC
+times are unavailable; it was not rerun to manufacture metadata. File names
+containing final do not establish a validation-v2 final campaign. The
+01:31:16–02:11:37 implementation/feedback interval is 2421 seconds, not
+the ordinary completed-delivery campaign or its 600-second performance target.
+
+The parent reviewed all 17 changed Rust inputs and verified
+`parent-reviewed-inputs.sha256`, digest
+`2a36ce635f9ebce3678a6418f1f1235e5bb7dfc285e2a61c420723e619a655b2`;
+the tracked Rust diff digest is
+`f8616c5c734d5c806aaf71fb499bdd563c858b8155debdb28d1686ff2533e74a`.
+These identify working inputs at the stated base; parent-owned State text
+was also dirty. They do not relabel that run as testing a later commit.
+The three original spell_self_resurrect_* tests moved under the private
+scenarios_spell_state_13::self_resurrection module. The parent/child files
+are now 709/533 lines, and the recovery fixture is 606 lines. Effective worker
+model/effort telemetry is unavailable.
+
+This remains an UNVALIDATED local macro checkpoint. Packet vectors establish
+the tested Rust participant order, not Source enqueue cadence or byte parity.
+Registered CMSG_SELF_RES, native CheckCast, production death participants,
+generic obtain execution boundaries, QA, final and authorized live evidence
+remain required. The separate death-transport decision above is not installed.
+
+Sickness original-key full-save capture, 2026-10-27, base
+`54fb1f2e13edf4886656b6b964b07b6134fa220b` plus five Rust working inputs:
+Core no longer requires a race-wide difficulty-zero payload, attributes or
+effects before inspecting actual sickness applications. Each active Aura's
+SpellInfo key supplies its component reads; the saved difficulty remains the
+original cast difficulty. Complete empty families remain capturable, while
+unavailable source metadata for an active Aura holds that save group.
+Existing passive, channel, foreign single-target and effect-mask policies
+remain in place. No payload-only fallback substitutes for exact key authority.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` Player.cpp:18085–18130,
+19811–19866 and SpellAuras.cpp:463–465 distinguish the actual SpellInfo from
+the original cast difficulty and persist the active Aura's native metadata.
+The new loader-backed fixture has only a real difficulty-3 key, explicitly
+no key or payload at zero. Typed load, full Player-save DTO capture and reload
+retain item GUID/entry/signed level, durations, charges and effect/base amounts.
+Existing fixtures now seed explicit source keys. The missing-attributes
+negative contains an active Aura; empty authoritative state is not an error.
+
+Sequential coding feedback used PROTOC=/home/ubuntu/.local/protoc/bin/protoc,
+CARGO_BUILD_JOBS=1 and CARGO_TARGET_DIR=/home/server/rustycore/target:
+`cargo check -p wow-world-core` exited 0 at 01:26:29–01:26:31 UTC;
+`cargo test -p wow-world sickness_loading` exited 0 at 01:26:36–01:28:56,
+with 35 distinct library cases, including all three new cases. Zero-test
+targets are not credited. Logs in
+`/tmp/rustycore-sickness-original-save-key-logs` preserve three failed test
+iterations: private fixture helpers, incomplete key fixtures (21/14), and
+a fixture borrow/move error. The 01:17:32–01:28:56 feedback/repair interval
+is 684 seconds of coding feedback, not a final campaign or its 600-second
+performance target.
+
+The parent reviewed the complete diff and verified all five changed-input
+hashes. `changed-inputs.sha256` digest is
+`476927c7a4f8438dae1f5e2c1d011187cb455de8c80d25c4482f2f798559844b`;
+the candidate diff digest is
+`3aa72813c6c5a8744f7ec93548d0dedc743d24f3cbcf5c70021bececa0af7d76`.
+These identify working inputs at the stated base, not testing at a later
+commit. Effective worker model/effort telemetry is unavailable. This is an
+UNVALIDATED local macro checkpoint. Complete SelfRes, native death, QA,
+final acceptance and authorized live evidence remain open.
+
+Obtain ordering and recovery fixture contract, 2026-10-27, base
+`ad78f38716f850e77fa0c2be24386f551d3feb34` plus 14 working Rust inputs:
+the physical item's entry is now read without calculating level. LEGACY,
+known empty pickup lists and already-present auras do not demand cast-level
+facts; those are read only immediately before an actual normal cast.
+Player.cpp:8054–8079 and Spell.cpp:3416–3421 at pinned
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` establish that order. A real
+World test deliberately supplies no item-level rows for no-pickup/LEGACY
+items. Missing catalogs still hold when the operation actually needs them.
+
+Recovery fixtures now provide known canonical inventory topology and empty
+currency loads through existing load-complete APIs. Top-level and bag-child
+rows populate the actual inventory positions. Deliberately incomplete inputs
+remain separate. The dungeon case verifies active residence before/after its
+accepted ACK. The healer test verifies captured item identities, entries,
+slots, pre-ACK Changed/New states and durability 0/75/75, then acknowledges
+their Unchanged states; untouched bank rows remain 100 and are not dirty save
+rows. Item.cpp:383–579 ends SaveToDB with ITEM_UNCHANGED. No production
+persistence or residence fence was weakened. Boxing the large test-owned
+WorldSession in the refresh fixture removes the reproduced isolated stack
+overflow without a global RUST_MIN_STACK override or runtime ownership change.
+
+Sequential feedback used PROTOC, one Cargo job and the checkout target:
+
+| Cargo command | UTC interval | Result |
+| --- | --- | --- |
+| `check -p wow-world` | 00:58:29–00:58:43 | exit 0 |
+| `test -p wow-world spirit_healer` | 01:03:28–01:05:03 | 83 passed |
+| `test -p wow-world recovery_fences` | 01:06:14–01:07:42 | 33 passed |
+| `test -p wow-world resurrection` | 01:07:47 | 26 library + 2 integration passed |
+| `test -p wow-world corpse_login` | 01:07:51 | 13 passed |
+| `test -p wow-world repop` | 01:07:54–01:07:55 | 18 passed |
+
+The parent deduplicated 148 target-qualified identities, including the two
+production-linked disconnect/near-resurrection integration cases. Zero-test
+targets are not credited. Logs in
+`/tmp/rustycore-recovery-fixture-contract-logs` preserve the initial isolated
+stack abort, both failed healer fixture attempts, the 82/1 healer result and
+the 31/2 recovery result. The initial pandemic log's stale b545 header remains
+with an explicit correction; its actual run followed the ad78 commit, whose
+Rust inputs match the preceding dirty origin candidate. New receipts use the
+actual HEAD. File names containing final do not mean validation-v2 final.
+The 00:38:22–01:07:55 diagnostic/repair interval is 1773 seconds, not a final
+campaign or evidence of the ordinary 600-second target.
+
+All 14 changed inputs match `changed-input-sha256.txt`, digest
+`fba60ae6afea6ee6113082203267d1e8b2144e6dd607dc33b5027de08770dac9`;
+the tracked diff digest is
+`62a00ac2a4abb76c299531792c3714d18dcfdf2aab6013ce5c66d18a008fc161`.
+These describe working inputs at ad78, not testing at a later commit. The
+worker reported GPT-6; specific model/effort remain unavailable. This remains
+an UNVALIDATED local macro checkpoint. The original-key sickness save gate,
+complete SelfRes, native death, QA, final and authorized live evidence remain.
+
+Selected sickness cast-item origin, 2026-10-27, base
+`b545669132cb191ca5abaecf3dcaaa52dfb729df` plus 14 Rust working inputs:
+the existing SpellCastMetadata now reaches the sickness constructor. Fresh
+AuraPersistenceMetadata retains physical GUID, entry and level, including
+explicit retained level with an empty GUID. The existing ephemeral
+SelectedAuraRefresh carries those inputs; its canonical operation updates
+all three only when GUID changes. Same-GUID refresh retains old ID/level;
+ordinary no-item refresh clears them after a physical GUID. Ghost/Wisp
+callers preserve their empty defaults. No second canonical item owner or
+post-cast stamping pass was introduced.
+
+Source anchors at pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Object.cpp:2898–2940; Spell.cpp:3416–3421; SpellAuras.cpp:464–465,1218;
+Unit.cpp:3265–3272; Player.cpp:19811–19866. The parent reviewed the actual
+constructor, refresh and direct signature consumers. All 14 input hashes
+match `exact-changed-input-sha256.txt` under
+`/tmp/rustycore-aura-cast-item-origin-logs`, manifest digest
+`d542d5a1e85ff4aeb32efa0d0495b0b5bef52f9f2f5c0b6803155cdfe14cd402`.
+The tracked diff digest is
+`fb0da73daf9517e453633014e698c00944ed5967665be602fd068902dda707c8`.
+
+Sequential feedback used the same PROTOC, one Cargo job and checkout target
+as the preceding checkpoint. `cargo check -p wow-world` exited 0 at
+00:23:27–00:23:51 UTC. The restored real reclaim/obtain regression passed
+at 00:24:01–00:26:26; `cargo test -p wow-world sickness_cast_item_origin`
+passed two cases at 00:26:30–00:26:31. They exercise constructor and refresh
+with same/new/empty GUIDs and retained level. Zero-test targets are not proof.
+
+The broader current candidate is red: `spirit_healer` exited 101 after
+44 passes and 15 reported failures, then a stack overflow in the pandemic
+refresh test aborted its process (00:26:37–00:26:38). `recovery_fences`
+passed 15/failed 18; `resurrection` passed 19/failed 7; `corpse_login` passed
+11/failed 2; `repop` passed 16/failed 2 (00:27:12–00:27:29). These overlapping
+counts are not a completion total. Their current causes require grouped
+review: many stop at the new obtain phase with incomplete inventory fixtures,
+and the remaining save/residence and stack failures are not yet classified.
+Baseline status was not rerun or assumed. Full stdout/stderr, UTC and exit
+receipts remain in the named log directory. The 242-second interval is
+coding feedback, not final acceptance or proof of its performance target.
+The worker reported the GPT-6 family; specific model/effort are unavailable.
+
+This remains an UNVALIDATED local checkpoint. Fix the affected regression
+inputs and any demonstrated production findings, then rerun affected evidence.
+The sibling sickness original-key save gate, complete SelfRes, native death,
+QA, final acceptance and authorized live evidence remain open.
+
+Live common resurrection obtain integration, 2026-10-26/27, base
+`d63c12ce0eb8e6136225f6a43c4e9eba06ce831d` plus 20 working Rust inputs:
+backpack end is read once; each equipped bag is resolved when reached, and
+each contained position, HasAura and physical item's current entry/level is
+read at its Source phase. Player incarnation and residence are checked
+between effects and across awaits. Canonical reclaim, healer, login and
+request continuations retain ObtainSpellsInFlight on error without replay or
+dependent bones/save. The public one-shot resurrection wrapper currently has
+only test/helper callers and is not cancellation-safe production evidence.
+
+Normal preparation distinguishes known absent SpellInfo from unavailable
+catalogs/ownership. Ordinary rejection continues the obtain scan; unavailable
+preparation or pre-GO authority holds it. Pre-GO failure keeps its specific
+frames and propagates the error without another generic NotKnown frame.
+Anchors at pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+Player.cpp:4320–4403,8034–8079; Object.cpp:2898–2940; Spell.cpp:3416–3421.
+
+Worker feedback used `PROTOC=/home/ubuntu/.local/protoc/bin/protoc`,
+`CARGO_BUILD_JOBS=1`, `CARGO_TARGET_DIR=/home/server/rustycore/target`.
+`cargo check -p wow-entities`, `-p wow-world-spell`, `-p wow-world-entities`
+and `-p wow-world` exited 0. Focused `cargo test -p wow-entities cast_all_obtain`
+passed 1 case; `cargo test -p wow-world-spell normal_prepare` passed 4;
+`cargo test -p wow-world-spell normal_pre_go` passed 1. Exact commands, base,
+UTC and exits remain in `/tmp/rustycore-common-resurrection-obtain-logs`.
+The first check started at 2026-10-26 23:40:08 UTC. Root test compilation first
+failed; obtain repairs 1–4 retained 4,3,3,3 failing cases respectively. The
+fixtures were corrected for canonical topology, hydrated exact-key payloads,
+native history and complete authority, rather than weakening admission.
+
+Repair5 of `cargo test -p wow-world obtain` at 2026-10-27 00:03:59–00:05:25
+exited 101: 5 passed and the real Aura item-GUID assertion failed (EMPTY
+instead of the physical item). Repairs6/7 exited 0 with 6/7 cases while that
+assertion was absent. The parent required its restoration, including GUID,
+entry and level checks. The current candidate was not rerun and those green
+runs do not validate it. Repair7 includes one unrelated currency-objective
+case, which is not obtain/resurrection coverage. The grouped recovery,
+resurrection, corpse-login and repop regressions were deferred until the
+constructor fix. Literal cancellation after an obtain effect was not
+exercised; the real partial-authority/no-replay case is a different scenario.
+Some `.log` files contain receipt headers only; matching `.output` files
+retain Cargo diagnostics and test identities. All failed runs remain intact.
+The feedback/repair interval ended at 2026-10-27 00:11:12 UTC (1864 seconds),
+not a final campaign or evidence for its 600-second ordinary target.
+
+The parent verified all 20 changed Rust inputs; the snapshot
+`parent-owned-inputs.sha256`, digest
+`c39fe55bd3547776cef15d3a7fab932fbf016e73aa0484340dd065acfba36c6a`,
+identifies the restored current candidate,
+not a candidate proven green. Effective model/effort telemetry is unavailable.
+This is an UNVALIDATED intermediate checkpoint. The next required correction
+must thread cast-item input through Aura construction and refresh into the
+existing AuraPersistenceMetadata authority (SpellAuras.cpp:464–465;
+Unit.cpp:3265–3272). Refresh changes item ID/level only when GUID changes;
+adding duplicate canonical item fields or stamping matching auras after the
+cast is not selected. Common obtain acceptance, sickness's original-key save
+gate, SelfRes, native death, QA and final/live acceptance remain open.
+
+Normal Player cast pre-GO participants, 2026-10-26, base
+`4ef33343d954860996c0f86751bbde3384db0bf8` plus working inputs:
+Application owns resource/cooldown choreography before GO; Spell retains pure
+policy and Entities retains canonical inventory, currency and SpellHistory.
+Physical-item charges are consumed at the Source hit-delay/channel phase,
+with live facts read again there. Consumed New and persisted items remain
+Removed until the existing save/delete acknowledgement permits retirement.
+The same full-save DTO and transaction carry costs, currencies and charges.
+Native cooldown timestamps use the persisted Unix clock domain. Default
+StartCooldown publication is distinct from SendCooldownEvent. Cast-item GUID
+and actor CasterUnit remain distinct, and normal OriginalCastId is empty.
+
+NoReagentCostMask has one native owner, owner update projection and aura-256
+apply/remove/load consumers. Item destruction removes obtain spell families
+and the first OnLooted spell for that physical item. ItemEffect iteration and
+first-match cooldown lookup follow ascending DB2 record ID, not legacy slot
+or HashMap order. Normal and selected FULL trigger contracts remain separate.
+
+Source anchors at pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Spell.cpp:3819–3842,5310–5380,5504–5556,7306–7376,8857;
+SpellHistory.cpp:279,504–525,529,670–689 and SpellHistory.h:49;
+Player.cpp:8503–8520,11712,24706–24724;
+SpellAuraEffects.cpp:4628–4643; SpellDefines.h:479;
+DB2Stores.cpp:1193–1194, DB2Store.h:86, DBStorageIterator.h:49–58 and
+ObjectMgr.cpp:3331–3333. SpellInfo.h:389–390 and SpellInfo.cpp:1144–1195,1726
+establish known absent Misc defaults, separately from unavailable catalogs.
+Production owners include Application `player_spell_costs`, Spell
+`player_cast/normal_costs` and execution hooks, Entities item/save owners,
+Persistence DTOs, Database save plans and Server acquisition composition.
+
+Sequential worker coding feedback used `PROTOC=/home/ubuntu/.local/protoc/bin/protoc`,
+`CARGO_BUILD_JOBS=1`, `CARGO_TARGET_DIR=/home/server/rustycore/target`:
+
+| Cargo command | Log prefix | UTC interval | Result |
+| --- | --- | --- | --- |
+| `check -p wow-entities --lib` | 02 | 22:30:08–22:30:15 | exit 0 |
+| `test -p wow-entities normal_` | 04 | 22:30:55–22:31:16 | 6 relevant + 1 unrelated, exit 0 |
+| `test -p wow-entities consumed_new_item_survives_inflight_insert_until_delete_acknowledges` | 05 | 22:31:21–22:31:22 | 1 passed |
+| `test -p wow-data category_tests` | 10 | 22:33:51–22:34:47 | 11 passed |
+| `test -p wow-data payload_tests` | 11 | 22:35:20–22:35:21 | 6 passed |
+| `check -p wow-data --lib` | 27 | 22:57:42–22:57:46 | exit 0 |
+| `test -p wow-data item_effect_views_preserve_record_order_for_first_matching_spell` | 28 | 22:57:50–22:58:35 | 1 passed |
+| `check -p wow-world-spell --lib` | 30 | 22:59:25–22:59:27 | exit 0 |
+| `test -p wow-world-spell normal_` | 31 | 22:59:31–23:00:20 | 14 passed |
+| `test -p wow-world-spell item_spell_removal_selects_only_the_matching_spell_and_physical_item` | 32 | 23:00:28 | 1 passed |
+| `check -p wow-world-application --lib` | 33 | 23:00:40–23:00:50 | exit 0 |
+| `test -p wow-world-application item_removal_` | 34 | 23:00:53–23:01:13 | 3 passed |
+| `check -p wow-world --lib` | 35 | 23:01:24–23:01:27 | exit 0 |
+| `test -p wow-world server_normal_` | 36 | 23:01:31–23:05:46 | 2 passed |
+| `check -p world-server --bin world-server` | 37 | 23:08:43–23:13:28 | exit 0 |
+
+Logs remain in `/tmp/rustycore-normal-resurrection-casts-logs`. The parent
+verified 45 distinct relevant identities: Entities 7, Data 18, Spell 15,
+Application 3, World 2. Zero-test targets and the unrelated creature case are
+not credited. Failed iterations 01,03,06,08,09,12,14,15,16,18,20,21,23,24,26,29
+retain exit 101 and their actual failures; repeated passes are not added.
+The 22:29:16–23:13:28 coding/repair interval is 2652 seconds, not final
+acceptance or evidence of the ordinary 600-second campaign target.
+
+The parent verified all 114 changed inputs (102 tracked, 12 new), without
+uncovered or unchanged paths. `owned-inputs.sha256` digest is
+`e3194ac05f34b2a61e7f4c55a0e2cfb91c7cbbc3f99db922826a8c5771e9d060`;
+the tracked binary diff digest is
+`c613324452ea12389e920d74af30c24891782f7b6d5420bfabfdce2f496818cf`.
+These identify working inputs at the stated base, not testing of a later
+commit. Effective model/effort telemetry is unavailable.
+
+This is an UNVALIDATED local macro checkpoint. Full common resurrection
+obtain integration, SelfRes execution, native-death participants, the sibling
+sickness save gate, QA and final acceptance remain open. No real DB durability,
+runtime, fresh capture, publication or issue completion is established.
+
+Native resurrection error consumers, 2026-10-26, base `04583b7d3`:
+`resurrect_player_like_cpp` now returns the error already produced by the
+native phase. Reclaim returns false before bones on that error, and the
+spirit healer returns before durability loss, graveyard lookup, bones or
+teleport. Login corpse restoration returns an error before clearing
+AT_LOGIN_RESURRECT or restoring ghost auras; the actual Character login
+sequence invokes its existing partial-login abort and returns false.
+Missing canonical ownership is also reported by corpse restoration.
+The successful paths retain their previous order. Ordinary sickness and
+login ghost-cast failure remain ignored as in the source; no rollback of an
+already completed Alive transition is introduced. Login preserves the
+source's earlier bones-before-revive phase even when native revival fails.
+Request resurrection retains its existing nonreplayable native continuation.
+
+Source anchors are Player.cpp:4320–4403,18157–18180,
+NPCHandler.cpp:347–370, MiscHandler.cpp:416–445 and
+CharacterHandler.cpp:1227–1243 at pinned
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. These source functions assume
+available native authority; this change propagates the port's existing
+explicit failure rather than claiming that C++ returns the same Result.
+The parent rechecked the affected Player, Unit, NPC and World source files;
+those files have no local changes at that pin.
+
+Focused coding feedback on this aarch64 host used
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc`, `CARGO_BUILD_JOBS=1` and
+`CARGO_TARGET_DIR=/home/server/rustycore/target`, sequentially:
+
+- `cargo check -p wow-world-character --lib`: exit 0,
+  16:34:16–16:34:24 UTC; the final production check also returned 0 at
+  16:46:36. This includes the actual Character login consumer.
+- `cargo test -p wow-world --lib resurrection`: exit 0,
+  17:01:09–17:02:33 UTC, 24 passed and no failures.
+- `cargo test -p wow-world --lib corpse_login`: exit 0,
+  17:02:48–17:02:49 UTC, seven passed and no failures.
+
+The two filters cover 31 distinct cases, including seven new native-outcome
+cases. They exercise failure and success through real canonical Player,
+corpse and inventory state, the login flag, and the existing request replay
+and save fences. The actual complete Character login failure sequence was
+compiled and reviewed, not exercised through a full login fixture or client.
+
+Raw evidence is retained in
+`/tmp/rustycore-resurrection-native-outcome-logs`. The first resurrection run
+and its rerun exited 101 after bounded SIGTERM of their verified test child;
+they were not passing runs. The first also exposed two new fixture mistakes:
+an Orc Ghost fixture incorrectly expected Wisp, and the healer's graveyard
+precondition resolved the default instead of the intended distinct grave.
+Those fixture corrections did not change production behavior. The remaining
+existing failed-bones case blocked synchronously before corpse deletion.
+The parent's detached GDB trace in `parent-gdb-stack.log` identifies
+`flume::Sender::send` from `SessionCore::send_packet`, reached through
+`resurrection_request::set_request_values`. Its unconsumed instance test
+channel had capacity 16. The test now captures its completed repop/ACK
+packet burst before handling resurrection, retaining every original failure,
+disconnect, owner-retention, duplicate-response and save-fence assertion.
+Production transport and persistence were unchanged. Temporary diagnostic
+markers and the diagnostic timeout/early return were removed before the
+passing run. GDB and its missing libraries were extracted under `/tmp` for
+this test inspection; no system package installation or live server action
+was performed.
+
+The parent reviewed the final production diff, callers and cases, and verified
+all nine implementation hashes in `sha256-manifest.txt`, manifest SHA-256
+`53af6724063da29757f82397c29d63106055090960567b3ed22f8c5e73ac47e0`.
+This binds the tested dirty inputs at the stated base; it does not relabel
+them as final evidence at a later committed SHA. The configured worker role
+was `luna_worker`; reported model telemetry identifies only GPT-6, with effort
+and effective role unavailable. No effective Luna claim is made. The 16:34:16–17:02:49
+feedback/repair interval is 1713 seconds, not a final acceptance campaign or
+proof of its 600-second ordinary performance target. The new test leaf has
+384 lines. This remains an UNVALIDATED local macro checkpoint. Unconfirmed
+corpse deletion/save, cancellation and transfer continuations, native death,
+normal casts, remaining selected metadata, QA and full final/live acceptance
+remain open. No runtime, SQL, restart, client capture, publication or merge
+was authorized or performed by this unit.
+
+Native SelfRes initializer participant, 2026-10-26, base `740b21234`:
+`wow-world-spell::initialize_self_resurrection_spells` borrows the canonical
+Player, checks immutable inputs before clear or RNG, and rebuilds the existing
+ordered native field. It scans active indexed DUMMY effects, preserves the
+Soulstone/Nether else-if and every eligible ten-percent roll, then appends
+3026, 23700 and 21169 in source order. Identical roll probabilities and constant
+assignments permit counting every Nether roll without another ordering owner.
+Zero active masks contribute nothing; unknown aura authority, missing active
+rows and non-aura active bits reject before list or dirty-mask mutation.
+`HasSpell(20608)` reads the native row, accepts inactive rows and rejects
+disabled/Removed rows; incomplete absence remains unknown.
+
+Regular and server keys share exact-before-fallback lookup at each difficulty.
+Original Aura difficulty and current-map Reincarnation difficulty stay distinct.
+Regular effects/family use the existing Data readers; server effects, category
+and full-width family use their canonical payload. The cooldown predicate
+checks Aura 383 first, including generic-family and same-family zero-mask
+wildcards and all 128 mask bits. A matching ignore aura makes Reincarnation
+eligible. Otherwise it reads direct/category membership without expiration
+arithmetic; the existing Unit pass owns that maintenance. Unused catalogs do
+not become prerequisites for an unrelated candidate.
+
+Data now distinguishes a completely hydrated empty SpellCategories component
+from an unhydrated SpellStore. Only the complete typed hydrator establishes
+that provenance; an individual hit-metadata insertion does not. The category
+index producer preserves high unsigned spell IDs instead of dropping them at
+an `i32::try_from` conversion. Exact zero stops fallback and the highest record
+ID still wins. The session-free canonical key fixture moved to the existing
+dev-only test-support crate, with the old World alias retained. Its existing
+test identity moved from `wow-world:selected_spell_fixtures` to
+`wow-world-test-support:spell_catalog::selected_keys`, with the same function
+name, test configuration and non-ignored state.
+
+The source is target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Player.cpp:24757–24780,3764–3771; SpellHistory.cpp:670–693,1000–1043;
+SpellInfo.cpp:461–492,1770–1782; SpellMgr.cpp:675–693,2850–2880,2938–2939;
+SpellAuras.cpp:69–99,163–185 and Unit.cpp:3567–3580,4671–4679.
+`CooldownAuraSpellId` defaults to zero (SpellInfo.h:371); the inspected pinned
+server source has no assignment to activate that branch. This is a bounded
+base-server finding, not a new external-module contract.
+
+Worker coding feedback on this dirty working candidate, aarch64, used
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc`, `CARGO_BUILD_JOBS=1` and
+`CARGO_TARGET_DIR=/home/server/rustycore/target`, sequentially. Raw commands,
+UTC times and real exits are in `/tmp/rustycore-self-res-initializer-logs`:
+
+- `cargo check -p wow-world-spell --lib`: exit 0, 14:51:15–14:51:18.
+- `cargo test -p wow-world-spell --lib self_resurrection`: 32 passed,
+  exit 0, 14:53:21–14:53:34.
+- `cargo test -p wow-data --lib category_`: six passed, exit 0,
+  14:53:54–14:54:49, including five new category-reader cases.
+- `cargo test -p wow-world-test-support --lib selected_charge_fixture_preserves_exact_canonical_spell_info_keys_without_payloads`:
+  one passed, exit 0, 14:55:01–14:55:38.
+
+These are 39 distinct cases, 37 new and two existing. The first production
+check failed with an Option-closure typing error (exit 101, 14:49:51–14:50:36);
+the first test build failed on imports without executing tests (exit 101,
+14:51:29–14:52:58). Those logs are retained. Parent source review also corrected
+the initial ignore-cooldown inverse and its test oracles, unknown-empty aura
+admission, and the missing persistent-area effect kind before green feedback.
+The 14:49:51–14:55:38 feedback/repair interval is 347 seconds, not a final
+campaign or evidence that the ordinary 600-second macro acceptance target is met.
+The parent reviewed the actual production changes, consumers, moved fixture,
+test cases and raw results. The 20 implementation files predate their passing
+checks; their reviewed content manifest is
+`/tmp/rustycore-self-res-initializer-logs/parent-reviewed-files.sha256`, SHA-256
+`d6d3349945f3a5a07033902025ea19ce6eb7177511b14a5bee549aa58fc73075`.
+This identifies the working inputs, not final acceptance at a later commit.
+Effective worker model/effort telemetry is unavailable; the configured role
+is not reported as observed model execution.
+
+This is an UNVALIDATED local macro checkpoint. No native-death caller was
+enabled: Application still owns the complete preamble before NoDeath failure
+and Unit aura removal. Actual Soulstone/Nether producers, normal SelfRes cast
+preparation, physical-item/reagent handling, the other recovery consumers and
+complete candidate acceptance remain open. The existing persisted-aura marker
+does not prove every upstream producer. No runtime, SQL, restart, capture or
+publication was performed.
+
+Native Player SpellHistory integration, 2026-10-26, base `09600e731`: the
+existing coordinated producer captures one Unix-nanosecond observation beside
+its pre-World-pass Instant and forwards it unchanged through every
+PlayerRecoveryAdmission in that tick. Standalone execution samples the same
+system-clock domain once for its existing Unit pass. The native Spell helper
+checks handle, active residence, map incarnation, GUID and world binding under
+the manager guard that reaches the canonical Player. It updates the existing
+Unit SpellHistory before selected Aura lifetimes and releases the guard before
+Aura work, delivery or await. There is no new scheduler, clock owner, mutable
+history mirror or config callback.
+
+The existing millisecond update entry delegates to one precise algorithm.
+Native u64 millisecond deadlines scale losslessly to u128 nanoseconds, preserving
+source cooldown/category strict-before and charge at-or-before comparisons.
+An elapsed held deadline expires too; the source's +MONTH representation is
+not a permanent exemption. The loaded-row adapter now installs its nonzero
+category index with direct assignment semantics, including a shorter replacement
+deadline, and reset clears both cooldown maps. This is an intentional source
+behavior correction, not structural movement.
+
+Seven new World cases exercise actual admitted recovery, loaded-row projection
+and reset, exact and fractional timestamp boundaries, a completed history update
+before later Aura refusal, stale handle/map/residence, and replay with a later
+timestamp that would otherwise expire another entry. One new Server case
+checks identical full-precision forwarding to two participants; one Entity case
+covers strict equality, a one-nanosecond advance, charges and elapsed +MONTH.
+The later Aura refusal remains an unavailable overall recovery outcome; it is
+not reported as a completed whole operation merely because history advanced.
+
+Pinned source `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are
+Unit.cpp:418–432,2836–2845; SpellHistory.cpp:153–164,220–244,424–428 and
+SpellHistory.h:49,185; GameTime.cpp:103–107; Duration.h:42. The initializer's
+remaining dependency is Player.cpp:24757–24780. The inspected history/time
+source files have no local changes at this pin.
+
+Worker feedback used the base SHA plus the reviewed delta on aarch64, PROTOC
+set, one Cargo job and `/home/server/rustycore/target`. Full commands, source
+hashes, UTC times, exits and identities are in
+`/tmp/rustycore-player-history-unit-logs/`. Corrected-candidate evidence:
+
+- `cargo check -p world-server --lib`: exit 0, 13:41:24–13:42:56 UTC,
+  `04-world-server-check.log`.
+- `cargo test -p wow-entities --lib spell_history`: exit 0, six passed,
+  13:52:36–13:52:46 UTC, `10-wow-entities-spell-history-test.log`.
+- `cargo test -p world-server --lib recovery`: exit 0, eleven passed,
+  13:48:35–13:51:01 UTC, `08-world-server-recovery-test.log`.
+- `cargo test -p wow-world --lib recovery`: exit 0, 33 passed,
+  13:59:32–14:00:46 UTC, `11-wow-world-recovery-fixture-rerun.log`.
+- `cargo test -p wow-world --lib ghost_wisp`: exit 0, 46 passed,
+  14:02:38–14:03:36 UTC, `12-wow-world-ghost-wisp-test.log`.
+
+The identity union is 94, with two World recovery cases shared between filters;
+there are nine new cases. Earlier millisecond greens are superseded, not
+precision evidence. The interrupted narrow World command retained exit 130
+before any test ran when the requested filter changed. The earlier corrected
+recovery run retained exit 101, 30 passed and three failed, exposing older
+fixtures without sickness attributes or complete G/W key/catalog inputs.
+Their positive inputs were repaired without changing production gates; the
+later full G/W run also repaired its positive mask fixture. Deliberately empty
+negative catalogs remain. The first broad Entity run preceded a test-only
+correction to use the source +MONTH deadline; its repeated cases are not counted
+again.
+
+The native helper, World test leaf, Entity test leaf and Server forwarding leaf
+are 49/376/69/38 lines; the existing Server fixture root is 862 lines. Physical
+baselines are unchanged. The parent reviewed the source and fixture deltas and
+verified all 21 file hashes against the worker content manifest, whose hash is
+`8006586521161c7ca121ee041495d460b04e7b9243ed05ef224d4a152a2f00ba`.
+The helper hash is
+`339af8b19211e0c82e6bd922aaf4ea74755682f2b8c30edbd8be19906fbe67d7`;
+the precise native algorithm file hash is
+`77775a15d908178e38d73deffd90537fff01e83516f5a90da8e05217ca0e485f`.
+Effective worker model/effort telemetry was unavailable and is not inferred.
+
+The 13:21:20–14:03:36 feedback/repair interval is 2536 seconds, with earlier
+implementation time separate. It is not a final campaign or evidence that the
+complete ordinary acceptance meets 600 seconds. No parent Cargo, runtime, DB,
+capture, restart or publication occurred. This remains an UNVALIDATED macro
+checkpoint. The native death choreography, SelfRes initialization and ordinary
+casts, recovery failures/durability, QA and full candidate acceptance remain open.
+
+SelfRes field integration, 2026-10-26, base `c88cf6e87`: the live BTreeSet has
+been removed from PlayerResurrectionState. Player::active_data now owns the
+ordered i32 vector and its nested update mask. Named Player operations append
+duplicates, remove the first matching value while marking shifted indices,
+and clear the field even when already empty. Publication resets nested mask
+bits without making the next append resend old values. Signed IDs and mask
+boundaries above 32 entries are retained. Handle-less test fixtures use the
+same ordered semantics; production and stale-handle paths do not fall back to
+them. No second live list or stored snapshot was introduced.
+
+Membership, removal, both represented revival consumers, and resurrection
+snapshots use the new owner. The VALUES bridge copies the native vector and
+mask. The owner CREATE serializer writes its real size and ordered payload;
+both login_sequence and worldport self_create read that same native list.
+The non-owner path does not expose it. The production-linked login case
+seeds the canonical list through the existing fake persistence fixture,
+observes the actual CREATE packet, and verifies the getter did not reinitialize
+the list. This fixture performs no database integration or runtime operation.
+
+Pinned target source `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Player.h:2738–2745; Player.cpp:1196–1198; UpdateField.h:143–205,806–905;
+UpdateField.cpp:21–41; UpdateFields.h:637; and
+UpdateFields.cpp:3042,3096–3098,3153–3160,3327–3329,3476–3480.
+The VALUES oracle preserves little-endian scalar fields and MSB-first packed
+mask/size bits, followed by selected little-endian i32 values. The parent
+checked that byte derivation against C++, rather than treating an earlier
+incorrect test expectation or the Rust writer as proof.
+
+Focused worker feedback ran sequentially on aarch64 with PROTOC set,
+CARGO_BUILD_JOBS=1 and this checkout's absolute target directory. Logs and
+command/start/exit/end metadata are in `/tmp/rustycore-self-res-list-logs/`:
+
+- `cargo check -p world-server --lib`: final exit 0, 47 seconds,
+  11:38:18–11:39:05 UTC, `world-server-check-reexport.{log,meta}`. The preceding
+  corrected check also passed before the required field-bit re-export.
+- `cargo test -p wow-entities self_res`: exit 0, three passed,
+  `wow-entities-self-res.{log,meta}`, 11:29:36–11:29:56 UTC.
+- `cargo test -p wow-packet self_res`: final exit 0, four passed,
+  `wow-packet-self-res-mounted.{log,meta}`, 11:37:45–11:37:54 UTC. The rerun
+  verifies the three new cases after their private module relocation.
+- `cargo test -p wow-world-core self_res`: final exit 0, two passed,
+  `wow-world-core-self-res-final.{log,meta}`, 11:32:32–11:32:58 UTC.
+- `cargo test -p wow-world self_res`: exit 0, eight passed,
+  `wow-world-self-res.{log,meta}`, 11:33:04–11:37:02 UTC. This includes the real
+  worldport CREATE consumer and retains the original XP assertions.
+- `cargo test -p wow-world --test production_login_player_owner production_login_create_projects_ordered_self_res_spells`:
+  final exit 0, one passed, `wow-world-production-login-self-res-final.{log,meta}`,
+  11:45:05–11:45:14 UTC. Zero-test integration targets in the broader filtered
+  command are not additional evidence.
+- The exact World library case
+  `session::tests::scenarios_misc_5::canonical_player_resurrection_follows_active_detached_and_stale_ownership_like_cpp`
+  passed once, exit 0, 11:56:39–11:57:53 UTC,
+  `wow-world-canonical-resurrection-ownership.{log,meta}`. This restores the
+  native list assertions removed from the old lifecycle-state snapshot and
+  checks active, detached and stale/replacement ownership directly.
+
+These are 19 distinct cases, including nine new cases. The earlier import
+failure, Core test re-export failure, incorrect packet oracle and skipped
+login-fixture seed remain in their raw failure logs. The coding/repair
+feedback interval, including final review and its ownership correction, was
+11:25:23–11:57:53 UTC (1,950 seconds); this is not the
+complete ordinary final campaign or evidence that it meets the 600-second
+target. The initial worker reports generic GPT-6 with effort telemetry
+unavailable. Its resumed ownership correction instead reports gpt-6.1-sol;
+the tool's fixed luna_worker route and that report disagree, so the effective
+variant/effort is not claimed. The parent reviewed the correction and its raw
+one-case result independently, then closed that worker.
+No parent Cargo, workspace/architecture/final campaign, runtime, SQL, capture
+or restart operation was run.
+
+The new Entity and Packet test modules are 79/81 lines; the native operations
+remain in the 220-line resurrection module. The bridge fixture is 956 lines,
+and the login integration fixture/root are 339/533. The Player root grew seven
+field/default/mask lines to 4,737, with its coherent methods kept outside it.
+Review ceiling 4,737 expires at #43 final physical review; the next natural
+cut is its ActivePlayerData value and mask responsibility under #584. No
+physical baseline was regenerated. The parent reviewed the actual consumers,
+diffs and retained file hashes. This is an UNVALIDATED local macro checkpoint;
+ordinary cast admission/attempt timing, death-time Soulstone/Twisting Nether/
+Reincarnation initialization, native death and the other #43 blocks remain
+required. The field work alone is not complete SelfRes behavior.
+
+La duración finita seleccionada requiere el mismo dueño: C++ descuenta
+`diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
+(`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
+Instant cada 200 ms y los snapshots de guardado descuentan ese tiempo de
+pared. Antes de aceptar sickness, su countdown/expiry y su guardado deben
+usar una única duración canónica del tick admitido, sin doble descuento ni
+publicar estadísticas un pase después de la expiración. La reparación
+seleccionada conserva fuera de alcance los relojes de las demás auras.
+Decisión de representación previa a ese countdown: AuraApplication conserva
+dos u32 con 0/0 como permanente; eso no distingue los valores C++ -1/-1 de
+SetDuration(0) o del máximo cero cargado. Se migrarán esos mismos dos campos
+a i32, con adaptación explícita de los callers legacy, sin otra duración
+seleccionada paralela. Los consumidores no seleccionados conservarán su
+comportamiento existente en ese adapter. Anclas: SpellAuras.h:176–177 separa
+IsExpired (remaining==0, sin drop event) de IsPermanent (max==-1);
+SpellAuras.cpp:818 descuenta diff solo con remaining>0. Un máximo permanente
+no exime un remaining cero de expirar. _SaveAuras guarda los valores reales
+y no filtra IsExpired: el pase Unit retira antes del save periódico, pero
+otro punto de guardado puede observar cero legítimamente. Por tanto, la
+captura seleccionada debe dejar de descontar Instant y de convertir una
+aura todavía presente en ausencia por sí sola. Esta decisión no está
+aceptada en la campaña final; 9h3C implementa la representación y retira el
+hold del loader, conservando el del snapshot hasta su siguiente reparación.
+El transporte debe conservar ambos valores cuando
+el flag de duración lo exige, incluso remaining cero o -1.
+Decisión del integrador para esa reparación (2026-10-25, antes de habilitarla):
+reutilizar el rail y los permisos de Session en un pase interno de recuperación
+admitido por Map, después de respawns y antes de Creature/P3. No se añade otro
+reloj ni una fase de opcodes: World/Map conservan su registro. El pase usará el
+diff del plan, expirará las auras seleccionadas antes de regeneración y
+publicará sus pendientes en el punto Unit, antes de KillPlayer y deathTimer.
+Así, Ghost creado por automatic release después de ese punto esperará al
+siguiente pase, como en C++. El barrido legacy de las demás auras conserva su
+cadencia y se excluirán de él las familias con duración canónica seleccionada.
+La alternativa de mantenerlo en World conserva el orden/diff incorrectos; un
+segundo ejecutor nativo de todos esos participantes duplicaría dueños existentes.
+El nuevo corte debe soltar todos los guards antes de solicitar el pase y volver
+a comprobar generación, residencia, encarnación, epoch y permiso. Respawns
+ya aplicados conservarán sus intenciones DB: se enviarán una vez, bajo el gate
+de orden existente, antes del await; los intents de visibilidad siguen en Map
+hasta el tail legítimo. Cancelar el pase no autoriza perder ni repetir esos
+efectos. Los tests de composición deben probar esa frontera, también sin lease
+Creature. La inspección detectó además que SaveTimer solo marca un pendiente:
+el consumidor actual lo guarda después de deathTimer/dispatch, mientras C++
+guarda antes (`Player.cpp:1055–1066,1101`). El pase seleccionado consumirá ese
+save en su punto, reutilizando el owner/fences actuales y comprobando el binding
+tras await; no continuará recovery después de quarantine/desconexión. Las
+fronteras aún incompletas de melee/intercalado por Player de #584 permanecen
+explícitas. Esta decisión no es implementación ni aceptación de ese pase.
+
+La carga de efectos seleccionados tiene una corrección en curso (9g):
+`Aura::TryCreate` descarta máscara vacía y aplica solo el subconjunto activo
+(`SpellAuras.cpp:384–394,494–502`). La restauración Rust aplica Ghost y la
+selección de transform de Wisp sin consultar esos bits, y su retirada exige
+siempre los tres efectos. Se debe admitir el subconjunto válido de 8326/20584,
+sin activar 95/56 ausentes. La frontera canónica rechaza bits desconocidos;
+el loader debe seguir la normalización previa de C++ descrita a continuación.
+El worker ha escrito la reparación; todavía no hay aceptación del candidato.
+El contraste completo de `_LoadAuras` añade una corrección al contrato anterior:
+`TryCreate` intersecta la máscara SQL con los efectos soportados, pero los
+amounts/basepoints se buscan por la clave SQL original. Un subconjunto vacío
+no instala aura. Además, `_LoadAuras` llama `CanBeSaved` ANTES de
+`SetLoadedState` (`Player.cpp:18117–18145`, `SpellAuras.cpp:398–441,479–480`).
+Por tanto, un Ghost/Wisp con item GUID no vacío se considera permanente por
+su duración base y se descarta al cargar, aunque la fila guarde duración finita.
+La captura finita con item de 9d2 sigue siendo válida para Save, pero su test
+de roundtrip no demuestra fidelidad de Load y debe corregirse expresamente.
+La revisión de la operación completa corrige también la premisa de 9b2 de
+conservar otro caster al crear una aplicación nueva del mismo Ghost/Wisp:
+`Unit::_AddAura` ejecuta `_RemoveNoStackAurasDueToAura` antes de la aplicación
+(`Unit.cpp:3285–3289,3547–3564`); `Aura::CanStackWith` rechaza el mismo spell
+salvo sus excepciones (`SpellAuras.cpp:1593–1731`). Los datos seleccionados
+no tienen DOT_STACKING_RULE (attr3 0x80), ni son auras periódicas/multislot.
+Un refresh de la aplicación existente sigue siendo una ruta distinta que
+conserva identidad/procedencia. La corrección debe cubrir nueva aplicación,
+mask distinta y carga de varias filas, preservando orden de retirada antes
+de los efectos. En Load, la construcción y esa retirada preceden a
+CanBeSaved: una fila ligada a item puede retirar la anterior y luego ser
+descartada ella misma. No se atribuye fidelidad a los tests anteriores que
+esperaban conservar ambos casters. La reparación local 9g sustituye esas
+expectativas; no convierte su feedback en aceptación final.
+La consulta SQL de solo lectura a las 01:18 UTC no encuentra membresía de
+8326/20584 en world.spell_group (287 filas globales; diez stack rules).
+No se usa ese resultado para declarar implementado el motor general de
+acumulación ni sus reglas para otros spells/datasets.
+La revisión del primer filtro verde de 9g (37 casos) rechazó un supuesto
+incorrecto del propio contrato: con Wisp transform y recalculateMask bit 2
+activo, SetLoadedState activa CanBeRecalculated y llama RecalculateAmount
+(`SpellAuras.cpp:1239–1255`, `SpellAuraEffects.h:74–77`). CalculateAmount
+calcula desde baseAmount, desactiva ese indicador para TRANSFORM y devuelve
+la cantidad nueva (`SpellAuraEffects.cpp:658–680,718–724`). Solo con el bit
+inactivo se conserva el amount SQL. Se corrigen loader y pruebas para ambos
+casos y para la recaptura sin ese bit; aquel verde no prueba este contrato.
+El diagnóstico ampliado de datos instalados (solo DB2, sin overlays SQL)
+identifica 21/21 ChrRaces con sickness 15007 y 26 LiquidType sin referencias
+a 8326/20584. ItemEffect tiene 24 713 filas y 86 con trigger 5 y SpellID > 0;
+85 tienen Item/ItemSparse y no llevan LEGACY, incluidas 39 con cargas no cero.
+Esto no prueba que estén en un inventario ni que sus spells estén portados,
+pero impide omitir CastItem/consumo alegando ausencia de datos alcanzables.
+RequiredLevel no se expone en el reader actual; no se inventa ese filtro.
+Log acotado: `/tmp/9g-data-ghost-wisp-load-boundary-items.log` (un diagnóstico
+real, no cero tests). Hashes de tabla: ChrRaces 0x53F1783C, LiquidType
+0x6613BED3, ItemEffect 0x4002A5B1, Item 0x50238EC2, ItemSparse 0x919BE54E.
+Sickness 15007 tiene efectos 80/79/159, basepoints -76/-76/-1 y dieSides 1;
+su duración 427 guarda -600000/60000/600000 (GetDuration toma el absoluto).
+Ghost, Wisp y sickness carecen de fila SpellAuraOptions en estos datos.
+El primer diagnóstico usó un filtro OR demasiado amplio; se corrigió a
+trigger 5 AND SpellID > 0 antes de usar estos conteos. No son capturas vivas.
+Selected AuraUpdate metadata remains unfinished. The source contract reviewed
+on 2026-10-25 is `SpellAuras.cpp:249–289` at the pinned C++ SHA above:
+Applications is the actual stack count when IsUsingStacks (catalog StackAmount
+or runtime stack greater than one), otherwise the canonical charge count.
+CastLevel is captured once by the Aura constructor from its resolved caster,
+or SpellLevel when none resolves (`:398–410,463–468`); target level changes and
+refreshes must not replace it. Attr11 SCALES_WITH_ITEM_LEVEL selects the cast
+item level converted to uint16 instead. Preserve this origin in existing Aura
+provenance, with no second mutable charge, stack, or wire-count authority.
+The existing Core spell catalog already supplies SpellLevelsStore.
+
+The wire Duration flag and optional pair are derived from current maximum
+duration greater than zero and absence of Attr5 DO_NOT_DISPLAY_DURATION
+(`SharedDefines.h:626`, bit `0x400`), preserving exact signed remaining values.
+Scalable Points uses effect indexes, including zero-filled holes: active mask
+`0b101` produces three entries, not two. The selected effect types do not
+produce EstimatedPoints (`SpellAuraEffects.cpp:727–751`); this is not a claim
+about the complete aura engine. A non-Unit raw caster projects an empty CastUnit
+on the wire while its original GUID remains canonical provenance.
+
+The flag contract is `_InitFlags` (`SpellAuras.cpp:110–161`), including its
+any-positive branch for a resolved friendly foreign caster. Self, missing, and
+hostile casters use the all-positive branch. These base flags are established
+at application creation, not recomputed from later friendship at publication.
+Caster resolution must preserve
+the self-owner fast path before world admission. A foreign Player must be in
+world and on the owner's map (`ObjectAccessor.cpp:206–239`); do not substitute
+the target's reputation for that caster's owner or acquire the Session directory
+under a map guard. Delta and initial full updates must share the selected
+projection. The checkpoints above distinguish the implemented consumers from
+the remaining canonical friendly-caster and load work.
+
+The existing installed-data diagnostic provides a concrete constructor check:
+SpellMisc records 320590/329372/325284 for 8326/20584/15007 all contain
+Attr0 AURA_IS_DEBUFF (`0x04000000`). They are not passive. Source therefore
+marks every effect negative before its per-aura-type or target checks
+(SpellInfo.cpp:4518–4541; SharedDefines.h:437,457). In particular, a selected
+partial mask does not make stock Ghost or sickness positive, and stock Wisp
+does not become cancelable from its speed effects. Both friendship branches
+produce negative flags for this known uniform polarity. Preserve the general
+mixed-polarity constructor contract; do not pretend an unresolved caster is
+hostile to obtain the uniform result. Evidence is the existing file-data log
+`/tmp/9g-data-ghost-wisp-load-boundary-items.log:248–250`, not a new effective
+SQL-overlay run or a client capture. Fresh construction is repaired by
+9i3C3d3b, and mixed foreign-caster construction is connected by 9i3C3d3c.
+The load constructor remains pending.
+
+Constructor reaction decision, 2026-10-25: reuse the existing Core faction
+reaction algorithm through a transient borrowed input, rather than copying it
+into Spell or constructing a Session for the foreign caster. Each affecting
+Player supplies its own canonical reputation, race, and class. Existing NPC,
+quest, and spell-click adapters remain consumers of that one algorithm.
+Self, absent-caster, and already-decided reaction branches must not require
+unrelated faction catalogs. A catalog needed by an undecided branch must be
+known; a known missing row follows Source, whereas an absent store remains
+unavailable for selected construction. No Player or reputation clone, storage
+mirror, directory lookup under the Map guard, or new mutable owner is needed.
+
+The source comparison found a specific existing defect: the controlled-player
+reputation branch tests the source affecting Player's contested-PvP flag,
+while the previous Rust input used the target flag. The lower faction branch
+correctly tests the target flag. 9i3C3d1 repaired these separately named facts
+in the shared algorithm; this is an intentional behavior correction,
+not a move-only refactor. Anchors at the same pinned SHA are Object.cpp:
+2709–2864 and ReputationMgr.cpp:75–83,181–198. Friendship thresholds are needed
+only when the reached faction has a nonzero FriendshipRepID; a known store
+without reactions uses ordinary thresholds. Do not interpret an unavailable
+friendship store as that known absence.
+
+Owner resolution follows Object.cpp:2230–2275: direct resolved charmer/owner
+for the shared-owner comparison, and the bounded GetAffectingPlayer chain for
+reputation. It is not an arbitrary recursive ancestor search. The raid check
+first calls inherited Unit::IsInRaidWith (Unit.cpp:11401–11419): compare the
+affecting Players' direct resolved charmer/owner-or-self Units, then their
+shared identity, Player group relation, helpful-raid Creature static flag,
+or Creature faction equality, in that order. Its Player comparison uses
+IsInSameRaidWith and current Group identity (Player.cpp:2139), not OriginalGroup.
+Calling only the Player helper would omit the represented control branches.
+The final Creature/Creature comparison uses raw FactionTemplate values:
+Unit.h:834 defines GetFaction as that uint32 field, not the faction joined
+through FactionTemplateEntry. It requires no faction catalog. Preserve the
+stored field's bits when forming reaction inputs. Canonical owner identity
+validation precedes self lookup, but self level and non-Unit fallback must not
+require map facts; known out-of-world foreign Players are absent before any
+map-assignment comparison (ObjectAccessor.cpp:233–239).
+
+The adapter must also preserve forced-reaction and duel decisions before the
+inherited raid lookup. The selected control graph can be unavailable at that
+later lookup. Keep one Core algorithm and provide a narrow lazy raid-fact
+callback at its existing raid branch; the legacy entry supplies its existing
+known boolean. A needed unknown raid fact holds, while an earlier forced,
+same-owner, or duel decision does not request it. 9i3C3d3c connects this callback
+inside the current macro, without a second reaction algorithm or authority.
+The selected effect polarity remains a separate SpellInfo decision from
+friendly-caster application flags. The connected canonical adapter and its
+checkpointed fresh consumer feedback do not complete the
+general faction, summon, or aura engines.
+
+Selected metadata follow-up, 2026-10-25: keep cast difficulty distinct from the
+resolved SpellInfo key. Spell.cpp:7916–7919 returns the caster Map difficulty,
+AuraCreateInfo retains it (SpellAuras.cpp:59–60,463), and Player.cpp:19839 saves
+GetCastDifficulty; the loader passes the saved difficulty back at :18122.
+Do not rewrite that field to the difficulty of an inherited metadata row.
+SpellMgr.cpp:675–692 resolves the key separately, while :2610–2688 fills each
+missing metadata component along its own chain. Its loop does not special-case
+zero: a known Difficulty(0) overlay may provide a real fallback. Selected
+lookups must preserve that case, distinguish a known absent row from an unknown
+store, and reject a needed cycle instead of hanging or inventing a base row.
+A known metadata store without any row for the spell can still prove its
+Source default independently of the chain. The selected readers corrected in
+9i3C3d2c/9i3C3d3a follow this contract; the general legacy helpers retain their
+separate boundaries. Indexed inheritance is available from 9i3C3d4a, while
+its remaining execution/load consumers are identified below.
+
+Effect-field follow-up: execution now replaces selected effects before preparing
+the cast; 9i3C3d4e also replaces the selected loader's whole legacy effect vector.
+Source fills each effect index independently along its difficulty chain
+(SpellMgr.cpp:2500–2508,2638–2640; SpellInfo.cpp:1144–1163). 9i3C3d4a repairs
+the former Data loss of explicit Effect=0 rows and duplicate slot selection.
+It retains complete indexed rows and a shared resolver in the existing catalog,
+with a separate active legacy projection. 9i3C3d4b connects the save adapters
+and 9i3C3d4c connects execution and sickness application/stat/snapshot readers.
+9i3C3d4e connects loading to indexed effects and exact selected metadata; visual
+and remaining charge consumers still require completion before macro acceptance.
+
+9i3C3d4d replaces the selected completion consumer's legacy represented positivity
+helper with the shared whole-spell decision. That helper read effect types and
+amounts but ignored attributes such as AURA_IS_DEBUFF, so positive effect amounts
+could disagree with Source polarity despite correct indexed selection. Required
+selected effects, attributes, and polarity are now prepared before cast
+preparation and SpellGo. Source no-initial-aggro attributes bypass unnecessary
+polarity requirements, preserving matching refresh when creation-only facts are
+unavailable. Completion retains the prepared decision and samples threat amounts
+after effects, at the existing threat boundary (Spell.cpp:5558–5625).
+Spell::IsPositive also checks the triggering aura when one exists
+(Spell.cpp:8067–8070). The direct lifecycle casts have no such trigger; their
+whole-spell decision must not be advertised as general triggered-spell parity.
+HasInitialAggro unconditionally excludes NO_HARMFUL_THREAT, in addition to
+NO_THREAT and NO_INITIAL_THREAT (SpellInfo.cpp:1721–1724). The shared threat
+algorithm now preserves that unconditional gate for both selected and legacy
+callers; its positive and negative regressions passed in worker coding feedback.
+
+Resolver ownership decision, implemented by 9i3C3d4a/b: shared spell difficulty
+traversal, exact attributes, and indexed effect resolution belong to Data;
+Spell retains private aliases and Core save adapters consume Data directly.
+Core must not depend on Spell for catalog facts. The existing per-difficulty
+collection retains inert winning rows, with an active prefix for its borrowed
+legacy projection.
+An inert-only bucket must continue the legacy getter's existing fallback,
+because that bucket was previously absent after filtering. The new exact
+resolver instead retains the inert slot as an explicit inheritance override.
+Highest-RecordID slot selection is an explicit common metadata correction,
+not a behavior-preserving move. No additional mutable effect catalog is needed.
+Dynamic base payloads may supply their existing explicit effect vector only
+when no raw per-difficulty rows for that spell exist; they must not mask a
+known missing or inert raw row. A malformed duplicate/index in a dynamic vector
+must remain unavailable rather than becoming a newly accepted selected Aura.
+Malformed raw effect indexes must likewise remain detectable by the exact
+resolver, rather than being discarded into apparent absence or rewritten to zero.
+Loading and remaining source-identity/polarity consumers still need integration
+and evidence after the Data/save/execution cuts. The connected selected save adapters
+derive passive/channelled eligibility from each application's resolved
+attributes. A global base SpellInfo flag must not reject a valid application
+at another difficulty. Existing complete-
+authority and supported-family absence checks remain required for deletion.
+
+Constructor integration cut, connected by 9i3C3d3b: Spell computes flags from selected
+metadata and canonical caster facts; the existing application capability consumes
+them. The fixed sickness `0x15` in Application is retired through the existing
+host/CX call chain, without coupling Application to the classifier. The retained aura's original
+flags and captured level remain authoritative on refresh. Source
+Unit.cpp:3224–3280 and SpellAuras.cpp:341–383 refresh before creating a new Aura;
+do not introduce new friendship/level lookups as a prerequisite to refreshing an
+already matching application. 9i3C3d3c connects the canonical foreign relationship
+through the same creation/refresh boundary.
+
+Refresh/creation boundary decision: carry selected creation preparation as an
+owned Result of computed flags and the existing AuraCastProvenance through the
+current Spell host and Application capability. This result has no side effects,
+canonical storage, or new lifetime authority. The existing same-caster/full-mask
+refresh branch does not consume it and retains the old flags and provenance.
+Only the fresh branch requires success, before replacement/removal or insertion.
+An unavailable fresh caster or polarity fact must therefore reject fresh creation
+without rejecting a valid refresh or removing its previous application. This
+avoids a separate preflight query whose refresh decision could become stale
+between canonical borrows. Application receives primitive computed flags and
+existing provenance; it does not depend on Spell's classifier. Caster level
+is captured under one borrowed manager guard. The connected foreign relationship
+adapter captures its facts in that same guard; all guards must be released
+before publication. The boundary is covered by 9i3C3d3b and its foreign
+relationship consumer by 9i3C3d3c. 9i3C3d4e shares the fresh constructor with load
+through Aura's private module, using the existing SessionHubHostLikeCpp bound
+already inherited by both caller hosts. It receives raw cast difficulty
+explicitly: current Map difficulty for execution, saved row difficulty for
+loading. Load classifies whole-spell offline expiration before requesting live
+caster facts, then prepares fresh flags and level before removing an existing
+application. It still removes conflicts before CanBeSaved, as Source does.
+This placement adds neither a new host trait nor a WorldSession method.
+Load visual selection is also pending: Aura's constructor calls the resolved
+Unit caster's visual method when available and uses the caster-free SpellInfo
+method otherwise (SpellAuras.cpp:463–468). Self resolution still supplies that
+caster before world admission. Unit.cpp:13548–13563 applies active visual
+overrides first; SpellInfo.cpp:4446–4464 checks conditions only when their
+catalog rows exist. The current loader always chooses its caster-free helper.
+Precise visual inheritance and needed caster/condition facts must be resolved
+before replacement; missing facts must not be relabelled as visual zero.
+Visual absence proof must cover complete effective regular and server-side
+effect metadata. Misc values are static SpellEffectInfo properties
+(SpellAuraEffects.h:56–57), so a proven absence of any matching visual-override
+effect can avoid an unrelated runtime-aura completeness requirement. If a
+potential override exists, its active source and order still require resolution;
+catalog potential alone is not proof that it is active. Condition-row presence
+also needs an effective catalog, including Hotfix additions and removals.
+An ID-only UnitCondition catalog is sufficient for known absence and for
+caster-free rejection of existing conditions; it does not evaluate a needed
+Unit condition. Neither condition ID zero nor an unavailable store by itself
+proves that no constraint exists. These catalog/visual connections remain pending.
+
+Condition-presence implementation decision, 2026-10-26: reuse Data's ID-store
+model for a dedicated effective PlayerCondition/UnitCondition presence catalog,
+combining file IDs, official/custom SQL additions, and final table-hash/record-ID
+removals. The existing typed PlayerCondition payload is file-only and cannot
+prove SQL-effective predicate values. A single condition-presence persistence
+capability can supply both ID sets without introducing a predicate engine or
+putting SQL in Data. Source DB2Store.cpp:127–134 loads official then custom;
+DB2DatabaseLoader.cpp:28–32 inverts its `custom` argument for VerifiedBuild.
+HotfixDatabase.cpp:1192 onward and :1853–1857 own the two table queries. Needed
+file/query/decode failures remain unavailable. WDC4 `iter_records` includes only
+copies whose source resolves in its direct-ID index; compare its observed count
+to `total_count` before claiming complete ID absence. An unresolved copy must
+withhold that proof rather than silently becoming a missing condition row.
+9i3C3d4f implements that effective presence catalog and composes it at startup
+and into sessions. Its free composition adapter installs only this immutable
+capability, without exposing mutable catalogs or adding a WorldSession method.
+Visual selection and predicate evaluation are separate pending consumers;
+neither the catalog nor its coding feedback establishes macro acceptance.
+
+Visual-consumer review, 2026-10-26: a complete static override-absence proof must
+not inspect only SpellStore's narrowed i32-spell/u8-difficulty effect projection.
+Its hydration skips rows outside those domains, while an otherwise valid
+uint32 spell can carry an override targeting a selected lifecycle spell. Retain
+potential override targets from the complete effective regular effect domain
+before narrowing, and include existing dynamic payloads and the accepted
+server-side SpellInfo effects. A Data-owned derived metadata index is sufficient;
+it is not an active-Aura authority. The already-loaded server-side catalog needs
+production session composition before its absence can be consumed. An available
+potential override still requires its active source/order, not an assumption
+that it is active. Source anchors remain Unit.cpp:13548–13563 and
+SpellAuraEffects.h:56–57. The consumer and actual effective-data proof are pending.
+
+The same review identifies an owner-context correction for that constructor
+consumer. `selected_owner_map` currently requires the owner to be a physical Map
+member. Source Aura::Create can resolve a foreign caster against a target whose
+Map is already assigned before world admission: ObjectAccessor.cpp:206–213,
+236–238 calls the target's GetMap, and Object.h:604 requires that pointer rather
+than world/container membership. Accept the canonical detached target's valid
+assigned Map while preserving handle, residence, map, and active-member
+consistency checks. Self and non-Unit caster fast paths stay independent of Map
+membership. Add actual detached-owner/foreign-caster tests before claiming this
+load path complete; the earlier active-owner tests do not establish it.
+The existing active-owner test also preserves foreign-caster lookup while the
+requester is out of world but still has its canonical Map member and assignment.
+Do not replace its positive expectation with an execution-admission rejection.
+Both residence-query APIs apply world-admission checks; use their explicit
+diagnostics with the borrowed canonical body and assigned Map to distinguish
+that case from an inconsistent active key or a detached assigned target.
+This metadata read needs neither a new residence API nor a scan of every Map.
+
+The visual consumer includes execution as well as loading. Spell.cpp:583 obtains
+the cast visual from the caster; Aura's constructor independently obtains its
+visual at SpellAuras.cpp:465. A supplied cast visual is therefore not creation
+proof for a fresh selected Aura. The current Ghost/Wisp overload also returns
+zero for Wisp without consulting effective visual rows, and the sickness
+overload uses the bounded creature helper. Connect the exact selected resolver
+at the cast boundary and the shared fresh constructor, preserving refresh's
+original Aura provenance. Preserve all uint32 visual-ID bits when projecting
+into the signed wire field (Spell.cpp:9283–9286), rather than clamping to
+INT32_MAX. Known absence of visual rows returns Source zero; unavailable needed
+metadata must remain an error. These consumers remain pending.
+
+Reference provenance for these metadata/visual reviews: the pinned HEAD remains
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, but the reference checkout is not wholly
+clean. DB2Stores.cpp has a pre-existing specialization-bounds change after the
+unchanged LoadFromDB anchor. Spell.cpp has pre-existing template instantiations
+appended after the unchanged constructor/visual-conversion anchors. Those anchors
+were checked against `git show` at the pinned SHA. A separate LFGList.cpp change
+is outside this review. All three local changes are preserved. A future paired
+runtime/build record must retain the actual reference candidate and dirty state;
+these source reads are not evidence of a new reference build or capture.
+
+Selected charge consumer review: the legacy AuraOptions helper clamps signed
+ProcCharges into u8, whereas Source preserves its uint32 assignment and final
+uint8 conversion. Fresh Aura::CalcMaxCharges also consults SpellProcEntry and
+the resolved caster's applicable spell modifiers; refresh calls CalcMaxCharges
+without a caster (SpellAuras.cpp:965–976,1090). Load normalization instead tests
+the full SpellInfo ProcCharges value before converting an empty saved charge
+count, and preserves an already nonzero saved count (Player.cpp:18108–18118).
+The selected producer/load consumers must use those distinct contracts; changing
+the general legacy helper is not required. Known absence must come from the
+effective catalogs, not from an unavailable proc/modifier source. The existing
+file diagnostic found no AuraOptions rows for 8326/20584/15007, but does not
+prove absence of SQL overrides or matching runtime modifiers. 9i3C3d4e connects
+the selected loader's full-width normalization, including preservation of
+nonzero saved charges. Fresh and refresh CalcMaxCharges consumers remain
+pending and are not claimed by scalar projection or metadata lookup tests.
+
+Production-input review, 2026-10-26, identified file-only AuraOptions,
+ClassOptions, Levels and Label calls in world-server/app.rs. Exact in-memory
+lookup could not supply missing SQL payload overlays. j1/j3/j4 now connect
+these four stores through the existing core-spell Hotfix port, official/custom
+replacement and final removals, preserving their Data and immutable session
+owners. Source HotfixDatabase.cpp:1412–1416,1443–1446,1504–1506,1513–1516 owns
+their queries. This closes those composition gaps; it is not actual SQL data
+or runtime evidence for selected polarity, fallback caster levels, stack/charge
+limits or absence of eligible label modifiers.
+
+The SQL decoder widths are fixed by DB2LoadInfo.h:4655–4673,4759–4775,
+4984–4994,5009–5024 at the pinned reference SHA. AuraOptions keeps signed
+32-bit recovery, charges, and proc masks; Levels keeps signed 16-bit base,
+maximum, and spell levels. ClassOptions reads its four class masks through
+signed 32-bit getters, then preserves those bits in the existing unsigned
+Data fields. Its SpellID is also signed; Label fields are unsigned 32-bit.
+Reuse the existing native-width Field getters and round-trip checks. Do not
+silently drop malformed rows or substitute zero for a failed conversion.
+The implementation must preserve C++ NULL-to-zero behavior separately from
+conversion failure, and fail startup before installing a partial catalog.
+
+Refresh charge calculation also belongs to the existing Aura's SpellInfo:
+SpellAuras.cpp:1088–1090 calls CalcMaxCharges without a caster on that Aura.
+Resolve its original difficulty and key, rather than using the new cast's
+difficulty. Fresh creation can require caster-modifier eligibility facts that
+this refresh does not need. Required scalar metadata must remain unavailable
+when unknown; creation-only modifier failures must not reject an otherwise
+valid matching refresh. The no-eligible-modifier proof requires effective
+family flags and labels, or IGNORE_CASTER_MODIFIERS; zero family flags alone
+do not exclude label modifiers (SpellInfo.cpp:1784–1813).
+
+Charge lookup must distinguish the raw Aura cast difficulty from the resolved
+SpellInfo key: GetSpellProcEntry starts at SpellInfo::Difficulty
+(SpellMgr.cpp:490–509), then follows its chain. SQL proc rows are keyed using an
+already resolved SpellInfo (SpellMgr.cpp:1511–1517,1632); they do not contribute
+new SpellInfo keys. Fresh and refresh calculations consult that
+entry, including an explicit zero; saved-charge normalization does not.
+The existing canonical proc store can supply exact entries without using its
+legacy unguarded fallback loop.
+
+Selected charge integration decision, 2026-10-26: keep fresh-only charge
+preparation outside the shared constructor used by persisted aura loading.
+The application selects a matching full-mask aura before observing any fresh
+creation failure. A timer-refreshing match reads charges from its existing
+SpellInfo difficulty with no caster; a non-refreshing match does not request
+charge metadata. Fresh self-casts may bypass modifier lookup only when Attr3
+IGNORE_CASTER_MODIFIERS (`0x20000000`) applies, or effective family flags are
+all zero and the effective label list is empty. Every label row counts,
+including LabelID zero; labels are inherited as a list when the difficulty
+chain reaches their difficulty-zero source. Missing effective catalogs are
+not known absence. A known missing difficulty node instead terminates a
+finite chain and preserves default family flags and an empty label list;
+do not reinterpret that proven absence as an unavailable catalog. Signed
+ClassOptions SpellID storage preserves uint32 identity bits. The selected
+paths have no canonical SpellMod registry
+from which to calculate an otherwise eligible modifier, so that case remains
+a preparation error before conflicting auras are removed. This does not
+retire the broader modifier owner or claim its implementation. Reuse immutable
+catalog borrows and the existing canonical proc store; introduce no charge
+cache, extra Player, operation lock or scheduling owner. The source anchors
+are SpellAuras.cpp:965–976,1078–1094, SpellInfo.cpp:1784–1817,
+SpellMgr.cpp:2555–2556,2649–2650, and Object.cpp:2274–2295 at the pinned target.
+This records the next consumer contract, not executed consumer acceptance.
+
+Consumer admission must preserve the already-supported sickness path with a
+resolved foreign original caster. The no-eligible-modifier predicate is also
+sufficient there: SpellInfo.cpp:1784–1817 returns false for every class-mask
+or label modifier under those facts, independently of which caster owns the
+modifier registry. Generalize the helper's self-caster naming/contract when
+wiring that path; do not introduce a self-only rejection or claim a general
+modifier engine. Separately, require the selected cast's actual SpellInfo key
+before execution publication. Missing cast existence is an admission failure,
+not a fresh-only constructor error that a matching refresh may ignore. Keep
+fresh-only modifier failures separate from that all-cast key requirement.
+
+The m2b feedback exposed a distinct production projection gap: a selected
+nonzero-only SpellInfo can have exact effects/attributes and a canonical key
+while the legacy base-payload getter is empty. Execution and sickness admission
+must not reinterpret that as missing SpellInfo, or manufacture a difficulty-zero
+key in a positive fixture. The settled correction permits a transient existing
+SpellInfo carrier only in the selected server-triggered FULL path, after exact
+key resolution, no difficulty-zero key, the supported three-effect Aura shape
+and known non-channelled attributes. No carrier is installed in the catalog.
+Under a complete exact key authority, absence of zero also excludes the
+zero-only CastingRequirements contributor, so focus is zero. The selected FULL
+direct path does not consume the otherwise unused cast-time or client
+power-debit fields. The reader audit also found unconditional cooldown
+bookkeeping/event publication in Rust completion: pass the existing explicit
+selected-FULL decision to completion and skip that cooldown block, preserving
+any existing cooldown. Spell.cpp:4195–4203,8036–8039 and
+SpellHistory.cpp:252–255 return before handling cooldowns under the FULL
+IGNORE_SPELL_AND_CATEGORY_CD flag. This is a required selected-path behavior
+correction, not a structural move or general FULL-engine completion. Canonical
+effects and the separate exact Aura metadata readers remain authoritative.
+SpellDefines.h:244–261,446 and Spell.cpp:3540,3816,5977 establish the other
+parts of that bounded contract. Ordinary client,
+channelled and general sparse-payload cast preparation remain required in their
+existing normal-cast owner; this is not general scalar/periodic-cost parity.
+9i3C3d4m2b implements these repairs and records the affected green feedback
+above. They are not final accepted production or runtime evidence.
+
+The original selected refresh finding, corrected by 9i3C3d4m3, requires the
+original SpellInfo's timer policy and duration, not just its proc difficulty. Unit.cpp:3244–3278
+copies new base points into existing effects; SpellAuras.cpp:1021–1094 then
+uses the existing Aura for stack policy, recalculation and timer refresh.
+RefreshTimers at :933–952 calculates the original maximum without a caster
+and applies Attr13 PERIODIC_REFRESH_EXTENDS_DURATION when set. At that review,
+sickness refresh already preserved original effect properties, while its
+policy/duration arguments came from the new cast; Ghost/Wisp also recalculated
+from new effect properties. 9i3C3d4m3 corrects these consumers with focused
+feedback above; it does not establish complete selected metadata acceptance. Preserve
+raw cast difficulty on the canonical application, resolve its actual SpellInfo
+key through the immutable catalogs, and validate the snapshot's difficulty
+when committing the existing-slot mutation. No new stored SpellInfo mirror
+is needed. Complete these findings within #43 after charge calculation and
+its consumer wiring.
+
+Its production preparation also needs correction before selected charge
+acceptance. SpellProcStore::from_rows_and_stores currently projects every
+SpellStore payload as difficulty zero and builds its explicit-row lookup by
+spell ID alone. Source loads explicit SQL rows through GetSpellInfo(id,0),
+which can return a different key through a real zero fallback, and generates
+implicit rows for each actual SpellInfo key. Build those two views from the
+existing key authority and exact component readers, with the known Difficulty
+store; keep one canonical proc store. A missing entry in the current base-only
+projection is not proof of Source absence. Implicit charges equal the selected
+SpellInfo ProcCharges (SpellMgr.cpp:1871), but that equality does not repair an
+explicit row assigned to the wrong key. This is metadata preparation for the
+selected charge consumer, not a claim to have completed the general proc engine.
+
+The equality of implicit Charges and SpellInfo ProcCharges is only an exact-key
+fact, not permission to skip implicit-entry presence. GetSpellProcEntry follows
+the difficulty fallback when the exact entry is absent (:490–509). A generated
+zero-charge entry can stop that search; suppressing it can expose a fallback
+entry with nonzero charges. Source's infinite-loop guard (:1873–1888) depends
+on ProcBasePPM when charges are zero, so file-only PPM could not establish
+effective entry presence. C3d4k now connects its complete FILE loading,
+official/custom SQL overlays and final removals; the joint proc preparation and
+charge lookup still need to consume that input correctly. HotfixDatabase.cpp:1542 and
+DB2LoadInfo.h:5109–5118 specify uint32 ID, float BaseProcRate and uint8 Flags.
+This is a dependency of the selected charge lookup, not a general proc-runtime
+completion claim. No new parallel charge store is required.
+
+The source views also include accepted server-side SpellInfo rows: explicit SQL
+resolves against the joint map (SpellMgr.cpp:675–693,1511–1517), and implicit
+generation traverses that same map (:1742–1752). Reuse the already-loaded
+server-side catalog, including its direct full-width proc fields
+(:2916–2921), rather than projecting regular spells alone. Preserve admitted
+server keys; orphan effect rows remain excluded. Its
+SQL float base points first enter the signed int32 SpellEffectEntry field
+(:2755; DB2Structure.h:3504 onward), before SpellEffectInfo calculations.
+Do not round that assignment or silently narrow server spell-family metadata:
+SpellInfo.h:409 and SpellMgr.h:317 retain uint32 family names even though the
+explicit proc SQL field itself uses GetUInt16 (:1533).
+
+Further input review, 2026-10-26: all nineteen existing core Hotfix DTO numeric
+widths match DB2LoadInfo; the four SpellEffect class masks intentionally keep
+the signed getter's bits in unsigned Data fields. Their adapter substituted
+defaults or dropped rows after failed SQL decoding; j3 replaces that behavior
+with the existing native Field getters and whole-load failure. C3d4k applies
+that boundary to the key adapter's consumed fields as well. Source NULL-to-zero
+remains distinct from conversion failure. These input repairs do not establish
+the actual effective dataset or complete selected proc/charge consumers.
+FieldValueConverters.h:62–70 and Field.cpp:62–67 own this contract. No installed
+SQL schema drift or affected runtime row was demonstrated by this source review.
+
+The production Difficulty composition already applies SQL overlays and final
+removals; it is not a file-only store. Its former adapter erased native width
+before checking an i128 range, admitting int64 -1 as uint8 255 where Source's
+round-trip rejects it and treating SQL NULL as failure rather than zero.
+C3d4k now uses native getters for the consumed fields (projection columns
+0/2/5/8/10; DB2LoadInfo.h:1534–1555, HotfixDatabase.cpp:519–521). Its production
+FILE reader also rejects unresolved copy rows, preserving the current store,
+port, startup position and overlay/removal order. No second graph is added.
+This is modeled input-repair evidence, not a report of an affected installed
+SQL row or actual fallback lifecycle acceptance.
+
+Difficulty normalization has a separate source rule: DBCEnums.h:833 declares
+`Difficulty : uint8`. Regular SpellEffect rows cast their int32 difficulty into
+that enum before indexing (SpellMgr.cpp:2508); server effects and parent rows
+cast their SQL uint32 values before validation/keying (:2732,2772,2859).
+Do not widen the canonical key authority to raw uint32 difficulty or confuse
+the raw getter width with the enum conversion. Existing regular key folding is
+intentional. j2 now normalizes the regular payload and server-model boundaries
+and preserves ordered row winners, so aliased effects join their admitted
+parent. Its focused alias regressions are recorded above; orphan effects stay
+excluded. This does not replace effective SQL inputs or actual dataset evidence
+before accepting visual/proc absence.
+Server SpellInfo construction also assigns effects by slot in query order,
+with the last row winning and empty slots retained (SpellInfo.cpp:1337–1353).
+Duplicate parent keys retain the first constructed name/effects while later
+rows overwrite scalar fields (SpellMgr.cpp:2870 onward). Preserve that sequence
+after normalization. Negative effect indices reach undefined vector access in
+the legacy constructor; the selected valid-input contract rejects them with
+the existing range error before slot construction. This explicit defensive
+boundary does not claim parity for the legacy undefined-input case.
+
+Zero family flags alone do not prove that caster modifiers are irrelevant.
+SpellInfo.cpp:1784–1813 supports both class-mask and label modifiers.
+Known IGNORE_CASTER_MODIFIERS, or known zero family flags together with known
+empty resolved labels, can prove no applicable modifier without a second
+runtime modifier store. SpellMgr.cpp:2555–2556,2649–2650 assigns labels at zero
+and inherits them along the metadata chain. The current file diagnostic does
+not establish label absence. Needed unknown facts remain unavailable; this is
+a pending selected-consumer contract, not a general spell-modifier engine.
+
+9g escrito y revisado sobre `a6da440dac37aa377c23c71fb084accff3fa1764`
+más delta local: máscaras normalizadas con lookup SQL original, efectos
+activos, CastId antes del skip vacío y sustitución del mismo spell antes de
+CanBeSaved. Load usa TryCreate incluso con caster/máscara iguales; el refresh
+de cast propio conserva identidad. Wisp recalc activo recalcula desde base
+y limpia su bit; inactivo conserva el amount guardado. Cargas se normalizan
+desde el catálogo explícito; los datos seleccionados tienen cero. La fila
+de item finito se guarda pero no sobrevive a la carga permanente, como fuente.
+No generaliza runtime SingleTarget, custom cannot-save, áreas ni stacking.
+La preparación de fixtures quedó privada en setup.rs (raíz 851 líneas).
+Feedback aarch64/jobs=1, no aceptación final: `cargo test -p wow-world
+--lib ghost_wisp` terminó exit 0, 39 passed/0 failed, en
+`/tmp/9g-test-wow-world-ghost-wisp-rerun6.log`. Incluye los dos caminos de
+Wisp y rechazo de target de área antes de retirar la aplicación anterior.
+El diagnóstico opt-in `wow-data::spell_db2::tests::resurrection_effect_data::
+ghost_wisp_spell_data` con RUSTYCORE_RESURRECTION_DATA_DIR instalado terminó
+exit 0, un caso real (`/tmp/9g-data-ghost-wisp-load-boundary-items.log`).
+Los checks Core/Spell/World en `/tmp/9g-check-*-rerun2.log` terminaron exit 0
+antes de la última reparación; no se atribuyen al delta posterior. El filtro
+World posterior sí compiló esos consumidores. Se preservan los fallos previos:
+primer intento de compilación y rerun1/rerun2 con fixtures/expectativas por
+corregir; rerun3 verde rechazado en revisión; rerun4 exit 101 por tupla de
+fixture y rerun5 exit 130 interrumpido antes de tests para corregir la
+expectativa numérica (base -1 + dieSides 1 = 0). No hay campaña final ni prueba
+durable en DB/reinicio/relogin de este candidato.
+Inspección adicional, solo lectura (02:14 UTC): la consulta
+`SELECT entry, attributes FROM world.spell_custom_attr WHERE entry IN
+(8326,20584,15007)` dentro de START TRANSACTION READ ONLY / ROLLBACK no
+devuelve filas. SpellMgr.cpp:3026–3043,3278–3280,3325–3329 deriva
+CU_AURA_CANNOT_BE_SAVED de ciertos tipos, LeaveWorld y líquidos; los tipos
+seleccionados y el diagnóstico DB2 anterior no activan esas ramas. Esto
+acota los datos actuales, no implementa el motor general de custom flags ni
+garantiza overlays futuros. En construcción, Unit.cpp:3294 fija SingleTarget
+desde caster && SpellInfo::IsSingleTarget; SpellInfo.cpp:1861–1868 solo
+consulta Attr5 LIMIT_N en esta referencia. Los cambios posteriores de una
+aura por otros productores conservan su propio contrato.
+
+Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
+del worker (aarch64, un job; no aceptación del SHA ni campaña final):
+`cargo test -p wow-world --lib scenarios_spell_state_27 -- --nocapture`
+terminó con 12 passed en
+`/tmp/rustycore-unit9b-test-wow-world-spell-state-27-20261024T194007Z-RxgHes.log`.
+La primera ejecución conjunta tuvo 9 passed y 3 failed: la publicación perdía
+la procedencia visual del aura, la consulta de Glyph of Stars no incluía su
+aplicación runtime y el test de login confundía los dos paquetes de velocidad
+con el paquete completo de auras. Se corrigieron y se repitió el grupo afectado.
+El filtro `reclaim_corpse_in_range_resurrects_half_and_spawns_bones_like_cpp`
+pasó un caso, log
+`/tmp/rustycore-unit9b-test-wow-world-release-reclaim-20261024T193910Z-e1I5Uf.log`.
+Los tres casos de selección/restauración de display de Application pasaron en
+`/tmp/rustycore-unit9b-test-wow-world-application-ghost-wisp-20261024T193633Z-lMk7Ew.log`.
+La revisión posterior detectó que el insertor genérico siempre elige un slot
+libre: falta cerrar la renovación de Ghost/Wisp del mismo caster sin duplicar
+la aplicación, conforme a `Unit.cpp:3224–3288` y `SpellAuras.cpp:1021–1096`.
+La publicación delta/removal a observadores queda con la integración de
+visibilidad; los tests de carga con recalc cero no prueban el guardado real:
+la continuación debe cubrir Ghost recalc 7 y Wisp recalc 3, duración SQL -1,
+en la transacción existente de PlayerSave y en su loader productivo.
+El handoff de las 19:50 confirma exit 0 para esos filtros y los checks de
+Application, Spell y World; el recast no se implementó en este checkpoint.
+`ghost_wisp_spell_data` pasó un diagnóstico adicional en
+`/tmp/rustycore-unit9b-ghost-wisp-data-20261024T194400Z-aOe5Fc.log`:
+SpellAuraOptions (TableHash `0xF42FC065`) no selecciona filas para ambos
+spells en dificultad 0; la consulta SQL de solo lectura por sus SpellIDs
+en `hotfixes.spell_aura_options` devolvió COUNT 0 a las 19:45 UTC.
+Esto respalda stack máximo por defecto, sin sustituir la selección de
+catálogos del código. La renovación debe preservar slot/procedencia y no
+reaplicar ghost/transform (`SpellAuraEffects.cpp:923–964,1718,1935`).
+Checkpoint local de esos participantes: `09451333d`, marcado UNVALIDATED.
+La revisión del consumidor encuentra además que
+`handlers/entities/corpse/host.rs::remove_auras_due_to_spell_like_cpp`
+descarta errores de eliminación y devuelve el número de slots intentados.
+Con las validaciones de display de Wisp, `resurrect_player_native` podría
+pasar a Alive conservando un aura cuya eliminación falló. La reparación de
+los fences de resurrección debe propagar ese fallo antes de Alive,
+visibilidad, bones y guardado, con un caso negativo de catálogo incompleto.
+No se presenta el feedback positivo anterior como cobertura de ese fallo.
+La inspección de `resurrection_request::process_after_teleport` añade que
+`ResurrectPlayerInFlight` todavía permite volver a llamar al tramo nativo:
+conservar ese nombre de fase no garantiza por sí solo no repetir efectos.
+El cierre debe distinguir preparación de ejecución iniciada y probar que un
+fallo parcial no repite publicaciones ni avanza a bones/guardado al reentrar.
+La misma revisión fija el orden de retirada seleccionada: C++
+`Unit::_UnapplyAura` llama `AuraApplication::_Remove` (AuraUpdate de retirada)
+antes de deshacer los efectos (`Unit.cpp:3479–3487`, `SpellAuras.cpp:100–107`).
+Application emitía Ghost/Wisp después de los cambios de velocidad; el arreglo
+seleccionado publicará una sola retirada tras la eliminación inicial validada
+y antes de sus efectos. No se extiende ese cambio a todo el motor de auras.
+9e implementa ese cambio y propaga los errores de retirada. La consulta de
+orden/completitud pertenece a AuraSubsystem; el adaptador World elimina los
+slots confirmados. Las continuaciones de request y teleport-revive distinguen
+Ready de InFlight y no repiten el tramo nativo iniciado tras un fallo.
+Feedback sobre `41674dddb` más el delta local, aarch64/jobs=1, 2026-10-25:
+`cargo test -p wow-world --lib ghost_wisp::resurrection` pasó cuatro casos,
+exit 0, log `/tmp/rustycore-9e-world-ghost-wisp-resurrection-final.log`;
+`resurrect_response` pasó otros cuatro, exit 0, log
+`/tmp/rustycore-9e-world-resurrect-response.log`.
+Los checks de wow-entities y wow-world-entities sin features por defecto,
+Application y World terminaron exit 0; logs `/tmp/rustycore-9e-*-check*.log`.
+El caso positivo nuevo falló dos veces por max_health=0 en el fixture;
+se inicializó a 1.000 y se repitió todo el grupo afectado, incluyendo
+aserciones de DeathState canónico en los casos de fallo. No se rebajó la
+aserción positiva. Esta evidencia no cubre aún las operaciones completas
+reclaim/healer/login ni DB/reinicio/relogin o aceptación final.
+The pending SelfRes participant must retain one ordered list. C++ appends
+Soulstone 3026, Twisting Nether 23700 and Reincarnation 21169 in that order
+(`Player.cpp:24757–24780`); Add permits duplicates and Remove erases the first
+match (`Player.h:2738–2745`). Move authority from the current BTreeSet to
+Player's ActivePlayerData SelfResSpells dynamic field (bit 12, parent 0),
+with named Player operations and its nested change mask. Do not retain a
+second mutable list in PlayerResurrectionState. Clear marks the field even
+when empty. UpdateField.h:186–205 shifts values on removal and marks shifted
+indices; clear empties both values and nested mask. Initialization checks
+HasSpell(20608) and cooldown 21169 before death removes auras. This remains
+an initialization obligation. The SelfRes field integration checkpoint above
+implements the ordered list contract and its wire consumers; it does not
+complete death-time initialization or the ordinary cast operation.
+
+The 2026-10-26 consumer review at `31e8f06d0` also identifies both wire paths:
+entity_update_bridge/state_2.rs must project the native list and nested mask
+for VALUES, and PlayerCreateData/state_2.rs must write its real size and
+ordered payload for self CREATE. At that review CREATE hardcoded size zero. Connect
+both login_sequence and worldport self_create to the same live list; never
+initialize SelfRes merely because login loads a dead Player. Pinned
+UpdateFields.cpp:3042,3096–3098,3327–3329,3476–3480 and
+UpdateFields.h:637 establish the layouts. SpellHandler.cpp:416–429 first
+requires membership, resolvable SpellInfo, and no preventing aura unless
+Attr7 permits bypass. It then calls ordinary CastSpell and removes the first
+match after the attempt, including a failed cast. Rust currently removes
+only after success and omits that aura admission check. These remain required
+consumer fixes alongside ordinary cast preparation and reagents; correcting
+the list alone must not be reported as complete SelfRes behavior.
+
+Renovación Ghost/Wisp, 20:08 UTC, sobre `09451333d` más el delta local:
+se reutilizan slot, procedencia y aplicación canónica del mismo spell/caster,
+incluso sin slots libres. Se recalculan los tres amounts, sus índices y los
+basepoints de metadatos cargados; se preservan otras fuentes y no se reaplican
+ghost/transform ni se emite velocidad cuando no cambia su valor. La lista de
+efectos por tipo refleja la nueva prioridad de registro de C++
+(`Unit.cpp:3567–3580`), sin usar otro reloj ni una copia mutable de autoridad.
+Los tests nuevos viven en `scenarios_spell_state_27/ghost_wisp/recast.rs`.
+`cargo check -p wow-world-application` pasó en 12.61 s, log
+`/tmp/rustycore-unit9b2-check-wow-world-application-20261024T195959Z-K4bOWd.log`.
+El grupo de hechizos ejecutó 13 passed y 1 failed en
+`/tmp/rustycore-unit9b2-test-scenarios-spell-state-27-20261024T200320Z-EtJsDs.log`;
+el fallo comparaba toda la aplicación de Wisp, incluidos los amounts que el
+refresh debe renovar. Corregida esa expectativa, solo su caso afectado pasó
+en `/tmp/rustycore-unit9b2-test-wisp-recast-20261024T200622Z-Kzesgz.log`
+(1 passed; compilación 1m14s). No se presenta como un run único de 14 verdes.
+El intento intermedio `200523Z-VGmTdK` fue interrumpido al acotar el filtro:
+no aporta evidencia. Los fallos previos de inferencia y montaje del submódulo
+también se repararon; ninguna de estas ejecuciones es aceptación final.
+
+Máscaras de criaturas, 2026-10-24, 20:27 UTC: el delta sobre `2fbb6e587`
+aplica `VISIBLE_TO_GHOSTS` antes del addon y después la prioridad de las
+NPC flags efectivas de sanador/área o `GHOST_VISIBILITY`, tanto en creación
+nativa como en registro compatible. Anclas C++ del mismo `a5f8da2e`:
+`Creature.cpp:1104–1106,1148–1152`. La creación nativa recibe las flags de
+la dificultad en `world-server/src/creature_loaded_grid.rs:524`; el
+materializador compatible ahora conserva esa selección y su fallback.
+Los tests cubren criaturas normales, visibles en ambos estados, sanadores,
+flag extra y su prioridad; el caso de materialización recorre la función real
+mediante un adaptador disponible solo con fixtures. No se amplía su API de
+producción. Las consultas de visibilidad de Players/cadáver y la publicación
+de auras a observadores siguen pendientes; estas máscaras no las sustituyen.
+Feedback del worker (aarch64, un job, no aceptación final): check
+`wow-world-entities --no-default-features`, exit 0, log
+`/tmp/rustycore-unit9c1-check-wow-world-entities-20261024T202316Z.log`;
+filtro `ghost_visibility` de wow-entities, 1 passed, log
+`/tmp/rustycore-unit9c1-test-wow-entities-ghost-visibility-20261024T202323Z.log`;
+el mismo filtro de `wow-world --lib`, 2 passed, log
+`/tmp/rustycore-unit9c1-test-wow-world-ghost-visibility-20261024T202513Z.log`.
+Ambos tests salieron 0. Los intentos `202232Z` y `202345Z` fallaron al
+compilar fixtures (GUID y referencias) y se corrigieron. Tras el feedback
+se restauró el `type_flags = 0x20` del fixture general: la tabla nueva
+sobrescribe ese campo en cada caso; no se atribuye a la corrida un SHA posterior.
+
+Predicado de visibilidad, 20:35 UTC, sobre `089a606ae` más el delta local:
+`UnitVisibilityContext` aporta resultados efímeros de distancia, cadáver y
+grupo; la distancia se comprueba antes de GM y las excepciones solo afectan
+al filtro ghost. La de cadáver exige un Player observador y la de grupo
+exige dos Players. Se retiró el campo mutable de grupo, cuyo único productor
+era un test. Se conserva el orden de fase, privacidad, condiciones, despawn,
+invisibilidad y sigilo (`Object.cpp:1517–1627`). Feedback focal del worker:
+6 passed en `unit::tests::visibility_context` y 1 passed en el test existente
+`can_see_or_detect_unit_like_cpp_applies_ghost_despawn_and_always_detectable_gates`,
+ambos exit 0. Logs `/tmp/rustycore-9c2a-visibility-context-20261024TIfvuo5.log`
+y `/tmp/rustycore-9c2a-existing-visibility-20261024TqnlmEM.log`.
+En el checkpoint 9c2a todavía faltaba el cálculo desde Map/Player/cadáver.
+9c2b lo conecta a la consulta productiva de criaturas, con el feedback descrito
+arriba; 9c2c añade Player/grupos. Sigue pendiente la publicación a observadores
+y no hay aceptación final de visibilidad.
+La revisión de los participantes de muerte añade dos consumidores a cerrar:
+`canonical_access/player_stats.rs::sync_canonical_player_health_like_cpp`
+cambia el estado de muerte al recalcular salud, aunque `Unit.cpp:9214–9266`
+lo conserva; esto puede adelantar JustDied a Corpse durante la retirada de
+auras. El setter nativo tampoco aplica aún la salud 1 del Player en DEAD.
+La reparación debe distinguir carga, estadísticas y resurrección, y conservar
+el valor canónico al publicar. Además, el camino existente de
+`login_session/lifecycle.rs::handle_hearth_and_resurrect` solo repone salud:
+`BattleGroundHandler.cpp:703–725` exige BuildPlayerRepop, ResurrectPlayer y
+después teleport. Se conectará ese consumidor existente, sin implementar
+el administrador completo de Battlefield ni ampliar a todo Stuck.
+Ese consumidor debe distinguir el retorno conocido de BuildPlayerRepop por
+cadáver ya presente (`Player.cpp:4285`) de un resultado incierto de los awaits:
+el C++ continúa con ResurrectPlayer después del primero. No se debe convertir
+el booleano actual en una nueva denegación ni continuar tras SQL incierto.
+La composición utilizará la continuación existente para toda la operación,
+sin instalar propietarios anidados para release y resurrección.
+La inicialización de autorresurrección también debe conservar el orden:
+`Player.cpp:24757–24784` añade Soulstone, Twisting Nether y Reincarnation
+en ese orden, y `Player.h:2738–2745` usa una lista dinámica con eliminación
+del primer elemento coincidente. El `BTreeSet` canónico actual alteraría ese
+orden al proyectarlo al cliente. El cierre de ese participante utilizará una
+sola colección ordenada y la codificación dinámica SelfResSpells existente,
+incluida su limpieza al volver a Alive; todavía no está implementado.
+Para la limpieza nativa no basta con encolar trabajo de auras hasta el siguiente
+pase de Session: el mapa podría capturar VALUES con salud cero y máximos u
+otros efectos antiguos. El corte debe conservar la mutación canónica antes
+de SendObjectUpdates y diferir solo la entrega fuera del guard. Inventory ya
+construye `PlayerStatSystemInput` para un cálculo puro; se estudiará una sola
+aplicación común sobre hechos inmutables de estadísticas y catálogos acotados,
+usada tanto desde Session como desde el mapa. No se ha aprobado aún su corte
+de funciones ni implementado otra copia del cálculo. Las listas canónicas
+`AuraSubsystem.applied_auras/owned_auras` son Vec y conservan la inserción;
+permiten el orden estable por SpellID de `Unit.cpp:3350,4308` sin otro contador.
+
+Contraste de datos del productor, 2026-10-24: el diagnóstico opt-in mantenido
+`wow-data::spell_db2::tests::resurrection_effect_data` leyó el DataDir instalado
+`/home/server/woltk-server-core/Data`, locale enUS, con lectores productivos.
+`SpellEffect.db2` SHA-256
+`c786e3f82d69f6a2675cdcc7a0a6c48a2684044fb23344bd488425d982b525f8`:
+50 filas (18: 11; 113: 39; 172: 0), sin términos no cero de nivel, recursos,
+coeficiente o varianza. Las consultas SQL de solo lectura por los 50 SpellIDs
+y por tipos 18/113/172 no encontraron reemplazos en `hotfixes.spell_effect`
+ni `world.serverside_spell_effect`, ni estados de hotfix para sus RecordIDs
+y TableHash `0xF04238A5`. Las 50 filas correspondientes de SpellMisc tampoco
+tienen overlays ni estados de hotfix (TableHash `0xC603EE28`). Ninguna activa
+IGNORE_CASTER_MODIFIERS: esto NO exime el cálculo de modificadores del caster
+(`SpellInfo.cpp:1784–1816`). El motor general de modificadores y scripts de clase
+sigue en #32/#34; esta evidencia solo delimita la aritmética básica con estos
+datos, no declara paridad completa de `CalcValue` ni cubre otros datasets.
+Sobre base `5a8d500f3` más el delta de tests, el worker ejecutó
+`cargo test -p wow-data resurrection_effect_data -- --ignored --nocapture`
+con `RUSTYCORE_RESURRECTION_DATA_DIR` (1 passed) y
+`cargo test -p wow-world --lib scenarios_spell_state_27 -- --nocapture`
+(7 passed, incluido efecto 113: base 31 + dado 1 → salud 32, maná 17).
+Ambos salieron 0; también los checks de wow-data y wow-world. Logs:
+`/tmp/rustycore-unit6-resurrection-effect-data-20261024T155438186674823.log`
+y `/tmp/rustycore-unit6-spell-state-27-20261024T155512887112188.log`.
+Es feedback de implementación en aarch64, no aceptación final del candidato.
+
+Avance local, 14:41 UTC: el codec `ResurrectRequest` reproduce
+`SpellPackets.h:825–839` y `SpellPackets.cpp:852–866` del mismo C++ fijado:
+GUID empaquetado, realm virtual, pet number, spell ID y longitud UTF-8 de once
+bits con flags de timer/sickness. `cargo test -p wow-packet resurrect_request`
+ejecutó tres tests (exit 0, 42.34 s de Cargo); `cargo check -p wow-packet`
+terminó con exit 0 (20.62 s). Es feedback del worker sobre los archivos locales
+posteriores a `89645b0e6`, no evidencia de aceptación de ese SHA ni captura viva.
+El productor desde hechizos sigue pendiente. La revisión de muerte identificó
+además que el daño de spell-click usa directamente `Corpse`; deberá entrar por
+la transición `JustDied` con los participantes existentes, en lugar de eludir
+KillPlayer y su timer. No se da esa corrección por implementada.
+
+Revisión del productor de ofertas, 15:04 UTC: `afa4681c8` conserva el codec
+como checkpoint **UNVALIDATED**; la integración de efectos 18/113/172 está en
+curso. `EffectResurrect`/`EffectResurrectNew` resuelven el dueño de un cadáver
+con `ObjectAccessor::FindPlayer`, aunque ya esté en otro mapa; 172 requiere
+un Player como unitTarget. La admisión se comprueba en el Player canónico y
+el envío queda ligado a la generación del registro y al mismo PlayerHandle.
+El locale pertenece a la identidad inmutable de la conexión; una consulta
+acotada evita copiarlo en cada snapshot espacial. El nombre localizado usa
+solo una traducción no vacía; sin ella conserva el nombre real de la criatura
+(`Creature.cpp:3109–3118`), también para mascotas con nombre propio. Los
+catálogos siguen siendo de proceso, sin nuevos campos de catálogo en Session.
+El cálculo provisional del productor usa el helper existente de base/dados;
+no prueba el `CalcValue` con caster de `SpellInfo.cpp:495–560`. El modelo DB2
+conserva escalado/varianza/recursos que la conversión al efecto runtime omite.
+La consulta de solo lectura a `hotfixes.spell_effect` y
+`world.serverside_spell_effect` no encontró filas de esos tres efectos; esto
+no sustituye inspeccionar las filas efectivas procedentes de DB2.
+
+La revisión de participantes corrige una premisa de los comentarios actuales:
+hay flags canónicos del Player/Object, identidad de reclutamiento y un helper
+productivo de efectos de objetos adquiridos. Sobre `97d4d45c3` más el delta local
+se conectaron limpiar OUT_OF_BOUNDS (0x4000), restaurar REFER_A_FRIEND (0x80)
+cuando corresponde y limpiar la lista canónica de autorresurrección al pasar
+de muerto a vivo (`Player.cpp:4320–4356,1158–1198`). Movimiento bajo el mapa y
+RepopAtGraveyard escriben/limpian el mismo flag (`MovementHandler.cpp:437–467`,
+`Player.cpp:4790`). Check de wow-world-entities: exit 0, 1 s; filtros de
+wow-world `spirit_healer`: 11 passed, 114 s; `movement_under_map`: 2 passed,
+1 s; `repop_request_creates_saved_corpse_and_releases_to_graveyard_like_cpp`:
+1 passed, menos de 1 s. Logs `/tmp/rustycore-u7-*-20261024T161*.log`;
+el primer wrapper falló con exit 127 antes de Cargo por ausencia de
+`/usr/bin/time`; se corrigió el wrapper. Es feedback, no aceptación final.
+La lista SelfResSpells carece aún de proyección productiva hacia el campo
+dinámico del paquete: el test prueba el estado de admisión canónico, no la UI.
+Falta `CastAllObtainSpells` sobre mochila y contenido de bolsas
+(`Player.cpp:8034–8076`), además de los participantes de muerte pendientes.
+El tratamiento de fallos de release/reclaim/healer/login reutilizará la
+continuación canónica existente: un resultado SQL incierto o un await cancelado
+no permite repetir efectos ni capturar un guardado completo. C++ encola
+`Corpse::SaveToDB` (`Corpse.cpp:104–146`); la espera de confirmación del puerto
+Rust y su retención ante incertidumbre son un contrato explícito de durabilidad
+asíncrona, no una afirmación de que C++ espere ese mismo resultado.
+Decisión para el siguiente bloque de release: `BuildPlayerRepop` devolverá un
+resultado explícito, y sus callers de petición/timer no continuarán al
+cementerio tras fallo. La continuación del Player conservará las fases de
+auras/creación pendientes antes de suspenderse; cancelar no autoriza replay.
+El cadáver recién construido y su solicitud SQL serán valores locales de esa
+operación hasta confirmar el guardado, sin un guard de Map durante el await.
+La publicación en Map y `_corpseLocation` quedará después de la confirmación,
+con nueva comprobación de encarnación/residencia. Es una adaptación explícita
+de la frontera asíncrona: C++ registra con `AddCorpse`, encola SaveToDB y llama
+`AddToMap` sin esperar SQL (`Player.cpp:4288–4293,4493–4505`). No se atribuye a
+C++ un commit-before-publication que no tiene. Un fallo/cancelación conserva
+el bloqueo del guardado completo y la retención del dueño, sin reintentar una
+escritura de resultado desconocido. El estado ghost completo es la frontera
+de salida de BuildPlayerRepop; el teleport posterior conserva su propio
+contrato. El bloque está escrito en `player_release.rs` sobre `8be267512`,
+con feedback focalizado y pendiente de aceptación final. Reutiliza
+la continuación del Player para release/creación, rechaza ACKs de teleport
+para esas operaciones y conserva la identidad y revisión de residencia al
+publicar. El helper independiente de creación conserva el guardado posterior
+a huesos antes de construir el reemplazo. Los callers de petición y timer
+solo continúan al cementerio cuando BuildPlayerRepop confirma el resultado.
+El primer check encontró un préstamo temporal y el primer intento de compilar
+tests un getter inexistente; ambos fueron reparados. La primera ejecución de
+los siete casos nuevos produjo 1 passed/6 failed: el fixture carecía de
+SpellInfo para Ghost y se detenía antes de SQL. Se completó ese fixture sin
+debilitar el guard del cast. El caso de reemplazo requirió además preparar
+la salud máxima después de crear/instalar el Player; se corrigió un getter
+inexistente durante esa reparación. El resultado final del filtro
+`cargo test -p wow-world --lib release_failure -- --nocapture` fue **8 passed**,
+exit 0, en `/tmp/rustycore-unit8-release-failure-repair3-20261024T165552Z.log`.
+Incluye identidades distintas para revisión de residencia y nueva encarnación,
+cancelación antes de commit, ausencia/fallo del puerto, petición duplicada,
+fallo de timer y precondiciones de huesos/cadáver. El check de
+`wow-world-entities` pasó tras reparar el préstamo. Los filtros positivos de
+release manual, timer de seis minutos y creación/guardado tras worldport dieron
+1 passed cada uno, exit 0, logs `/tmp/rustycore-unit8-request-success-20261024T165800Z.log`,
+`/tmp/rustycore-unit8-timer-success-20261024T165802Z.log` y
+`/tmp/rustycore-unit8-standalone-corpse-success-20261024T165806Z.log`.
+Todos son feedback del delta de implementación en aarch64, jobs=1, no evidencia
+de aceptación final de un SHA posterior ni prueba de durabilidad con DB real.
+
+La revisión previa de ghost encontró que el flag Player no conectaba las
+máscaras Unit de visibilidad/detección. `09451333d` conecta ese participante de
+`HandleAuraGhost` (`SpellAuraEffects.cpp:1718–1743`), con renovación posterior
+en `2fbb6e587`; ambos siguen sin aceptación final. Están en implementación
+las máscaras de criaturas visibles a ghosts/spirit healers
+(`Creature.cpp:1104–1106,1148–1152`). La consulta de
+visibilidad de otros Players filtra fase, sin el contrato ghost completo.
+Se conservarán las excepciones de cadáver cercano y grupo de
+`Object.cpp:1517–1595`, sin introducir estado mutable por observador.
+La excepción de grupo debe usar `Player.cpp:2121–2143`:
+`Visibility.GroupMode` (default 1 en `World.cpp:1167`) distingue subgrupo,
+raid, equipo y ninguna excepción; el helper Rust actual de pertenencia a grupo
+no demuestra por sí solo ese contrato.
+La ruta genérica usaba 30 segundos y omitía parte de los grupos multiefecto.
+La ruta seleccionada 8326/20584 ya aplica sus tres efectos permanentes y
+conserva su procedencia, con el contraste DB2 y feedback registrados arriba;
+faltan la publicación a observadores, persistencia y aceptación integrada.
+Un retorno Ok del cast no demuestra por sí solo esos contratos. Esto no exige
+portar todas las auras de #32, pero sí las necesarias para el ciclo de #43.
+El diagnóstico opt-in `wow-data::spell_db2::tests::resurrection_effect_data::ghost_wisp_spell_data`
+leyó los cinco DB2 instalados en enUS sobre `7c8e01858` más el delta de test:
+1 passed, exit 0; log `/tmp/rustycore-unit9a-ghost-wisp-data-20261024T170231Z.log`.
+8326 tiene efectos APPLY_AURA 95/31/58 (RecordIDs 686362–686364, índices 0–2,
+base/dado -21/1, 49/1, 49/1); 20584 tiene 31/58/56 (697054–697056,
+74/1, 74/1, -1/1), transform MiscValue=12861. Ambas usan dificultad 0,
+target self y DurationIndex 21: duración base/máxima -1, permanente. Misc IDs
+320590/329372; Ghost tiene XSpellVisual 241720 → visual 886 sin misil;
+Wisp no tiene relación visual. No se presume paridad completa de modificadores
+del caster a partir de estos valores base. Consultas SQL de solo lectura no
+encontraron overlays de efectos/Misc por ambos SpellIDs, ni Duration 21,
+XSpellVisual por ambos IDs/241720 o Visual 886; tampoco estados de hotfix por
+los RecordIDs y sus TableHash F04238A5/C603EE28/B423FA7A/27B7A01A/F72496D9.
+`world.serverside_spell_effect` tampoco tiene filas por ambos SpellIDs.
+El template SQL 12861 existe y tiene un único modelo: DisplayID 1825,
+escala 1, probabilidad 100. Esta lectura no ejecutó casts ni QA viva.
+Decisión del bloque de implementación de auras: una aplicación por hechizo,
+con todos sus efectos activos, duración permanente y procedencia real; se
+reutilizarán los registros de efectos del AuraSubsystem y los consumidores de
+movimiento existentes. La retirada de Ghost conservará sus máscaras mientras
+quede otra aura de tipo 95. La restauración de display debe respetar
+`Unit.cpp:10038–10098,11763–11870`, no forzar siempre el modelo nativo.
+Falta confirmar con el lector productivo la ausencia de enlaces de modelos
+de personalización: el header WDC4 de `ChrCustomizationDisplayInfo.db2`
+declara cero registros (92 bytes), y la consulta SQL de su tabla de hotfixes
+cuenta cero filas. La lectura del header no sustituye ese diagnóstico ni
+prueba el soporte del selector para otros datasets. Las consultas de
+visibilidad y máscaras de criaturas serán el bloque siguiente; no hay
+activación de runtime de un estado intermedio.
+La revisión de guardado encuentra además que el snapshot/adapter actual de
+auras solo escribe la sickness seleccionada; aún no escribe 8326/20584.
+El diagnóstico del worker de 18:12 UTC encontró cero filas SpellInterrupts
+para ambos SpellIDs (TableHash 0x668FAE03); una consulta SQL de solo lectura
+posterior tampoco encontró overlays por esos IDs. `Aura::CanBeSaved`
+(`SpellAuras.cpp:1134`, `SpellMgr.cpp:3280`, exclusión LeaveWorld) permite
+estas auras permanentes autocasteadas sin item. Su guardado y retirada deben integrarse en la
+transacción existente con claves acotadas, preservando las demás auras aún no
+portadas; cargar filas preparadas en un test no prueba ese productor de guardado.
+Esto coexiste con el fallback explícito de `CharacterHandler.cpp:1227–1243`:
+al entrar muerto, C++ recastea Wisp para Night Elf y Ghost solo cuando faltan.
+El fallback ya tiene consumidor Rust en `corpse_login.rs`; no sustituye el
+guardado ni permite duplicar las aplicaciones que sí se cargaron.
+El feedback `cargo test -p wow-data resurrection_effect_data -- --ignored
+--nocapture` ejecutó dos tests, exit 0, sobre `9f24f3832` más delta local;
+log `/tmp/rustycore-unit9b-ghost-wisp-db2-20261024T181243Z.A3Esbf.log`.
+El primer `cargo check -p wow-world-application` falló (exit 101) por dos
+llamadas a un mutador de auras limitado a fixtures; log
+`/tmp/rustycore-unit9b-check-wow-world-application-20261024T181340Z.ykKShG.log`.
+La reparación usa operaciones canónicas acotadas de la cola existente; no
+convierte el mutador genérico de fixtures en API de producción. Las pruebas
+de aplicación y restauración siguen pendientes; no es aceptación final.
+La revisión del delta detectó dos expectativas incorrectas antes de ejecutar
+sus tests: `SpellInfo.cpp:4863` clasifica el efecto GHOST como negativo
+(autocast: NOCASTER|NEGATIVE, no CANCELABLE), y `Unit.cpp:10038–10098`
+restaura el display nativo si GetModelForForm devuelve cero, incluso con
+Glyph of Stars. `SpellAuraEffects.cpp:2132` pasa IsMounted a RestoreDisplayId;
+no permite sustituirlo por un booleano de fallback. Las correcciones pertenecen
+al mismo bloque. La consulta de solo lectura de `world.spell_script_names`
+por 8326/20584 y sus claves negativas no encontró scripts asociados.
+
+La comprobación del productor sin features de fixtures detectó un defecto del
+propio candidato #43 en `login_sequence.rs`: el código de LoadCorpse accedía a
+`SessionCatalogs.graveyard_store`, disponible solo con fixtures. Los checks
+anteriores con `--tests` no prueban esa composición de producción. La reparación
+seleccionada es pasar `ResurrectionOperationCatalogs` a la restauración del
+cadáver, que no utiliza cementerios, y retirar el catálogo vacío de fallback;
+no ampliar la visibilidad de un campo de pruebas. Se debe repetir el check sin
+fixtures y ejecutar las pruebas afectadas antes de aceptar la corrección.
+
+Feedback del productor, 15:41 UTC: sobre `afa4681c8` más su delta local,
+`cargo check -p wow-world-spell` y `cargo check -p wow-world
+--no-default-features` terminaron con exit 0 (el segundo, 17.13 s).
+`cargo test -p wow-data localized_name` pasó un test; `cargo test -p wow-world
+--lib scenarios_spell_state_27 -- --nocapture` pasó los seis tests nuevos
+(1 min 09 s de Cargo). `cargo check -p world-server --no-default-features`
+pasó en 4 min 13 s. Las seis pruebas ejecutan el productor e incluyen dueño
+de cadáver en otro mapa, estado JustDied, locale/pet/realm, trigger ausente o
+aura ya presente, duplicados y encarnación obsoleta. El check sin fixtures
+confirma la reparación de LoadCorpse; sus tests específicos no se ejecutaron
+en esta unidad. El primer filtro `resurrect` obtuvo 25 passes existentes y
+cinco fallos de preparación canónica; no seleccionaba el test de duplicados.
+Se corrigieron los fixtures usando install/attach reales y se ejecutó el módulo
+completo. Se conservan los logs de fallo y reparación separados bajo
+`/tmp/rustycore-spirit-offer-*`; el run verde del módulo es
+`wow-world-scenarios-27-tests-20261024T153316065477947.log` y el de producción
+`world-server-no-default-check-20261024T153440584980239.log`. Esto sigue siendo
+feedback de implementación, no campaña final ni prueba viva. La traza del worker
+`01a16e58-4407-7612-b4cc-1f8c17babadc` confirma `gpt-6-luna`/`max`.
+
+Avance local a las 12:46 UTC: movimiento y timer escritos, **sin compilar ni
+ejecutar todavía sus pruebas**. Worker `01a16ddf-f5d4-7702-a6f2-dec78c3d3767`:
+la traza efectiva confirma `gpt-6-luna`/`max` en sus tres turnos. Se reutilizan
+el contador y la publicación de movimiento existentes; water-walk es
+idempotente, ResurrectPlayer fuerza land-walk y los guards de logout/stun
+conservan root cuando corresponde. Ghost login restablece water-walk después
+de sus auras. El timer sustituye el booleano canónico, actualiza RELEASE_TIMER
+y no avanza con el Player separado del mundo. Las pruebas nuevas llaman al
+driver real con su entrada de paquetes viva; verifican límite, pausa, destino
+pendiente y orden realm sin confundir el envío del teleport con su ACK.
+La revisión corrigió esas expectativas antes de ejecutar evidencia. Continúa
+la operación de resurrección por solicitud; ningún test escrito en este avance
+se incluye en el recuento verde anterior.
+
+Revisión de integración, 13:12 UTC: el checkpoint local `d69c0860e` conserva
+reconexión, movimiento y timer como **UNVALIDATED**. La continuación de
+`ResurrectUsingRequestData` se implementa sobre el mismo Player, antes del primer
+await, y distingue retorno normal de TeleportTo, ACK admitido y efecto externo
+interrumpido. C++ `Player.cpp:24897–24937` ignora el rechazo de TeleportTo:
+no se exige llegar a las coordenadas solicitadas para resucitar cuando la llamada
+retorna sin teleport pendiente. Una llamada cancelada antes de resolver ese paso
+no puede darse por terminada solo por coincidencia de coordenadas. Los efectos
+externos de resultado incierto se retienen; no se autoriza replay ni retiro del
+Player como si hubieran terminado. `TELE_REVIVE_AT_TELEPORT` conserva su fase
+anterior al envío del teleport cercano (`Player.cpp`, rama de TeleportTo), distinta
+de la resurrección por solicitud posterior al ACK. El finalizador exterior recibe
+las capacidades concretas existentes; no se almacena otro catálogo en Session.
+Esta implementación y sus nuevos tests siguen sin ejecutar aceptación.
+La revisión del consumidor far detectó un ciclo entre `post_add` y el guardado
+de SpawnCorpseBones: el save esperaba acabar el teleport y el teleport esperaba
+ese save. La transferencia debe confirmar zona/escalado/pet y limpiar su
+`post_add` antes de continuar la resurrección, cuyo estado canónico sigue
+bloqueando la captura incompleta. El guard compartido reside en la admisión y
+captura del Player, no en cada consumidor de guardado; solo la fase posterior
+al borrado confirmado del cadáver permite preparar su save. Un retorno fallido
+no confirmado debe desconectar y conservar la continuación para el finalizador,
+en lugar de permitir gameplay con una operación parcial. Son decisiones de la
+revisión; sus regresiones todavía no constituyen evidencia ejecutada.
+
+Feedback de implementación, 13:55 UTC: `cargo check -p wow-world --tests`
+termina correctamente (intento r9, 40,68 s). Los logs
+`/tmp/rustycore-unit3-cargo-test-20261024-*.log` muestran doce casos distintos
+verdes: respuesta de resurrección (4), fallo al borrar bones (2), finalización
+far con cadáver y cancelación durante save (2), timer/detached (3) y atribución
+del aura al lanzador original (1, tras reparar su fixture). La regresión
+TELE_REVIVE todavía falla por esperar únicamente CancelCombat/MoveTeleport;
+la operación completa publica también DeathReleaseLoc, land-walk, unroot y
+valores antes del teleport. Son resultados sobre el árbol de trabajo posterior
+a `d69c0860e`, no aceptación final ni evidencia del candidato comprometido.
+Quedan reparaciones y propagación de capacidades en logout instantáneo/timer.
+La revisión de desconexión near fija otro contrato: C++ LogoutPlayer solo
+fuerza transferencias far (`WorldSession.cpp:544–548,602`); el near ejecuta
+operaciones diferidas únicamente al ACK (`MovementHandler.cpp:302`), y
+SaveToDB conserva su destino pendiente (`Player.cpp:19488–19510`). Por ello,
+al finalizar se abandona exclusivamente una solicitud aceptada en
+AwaitingTeleport con near pendiente, todavía sin efectos de resurrección;
+se conserva el muerto/cadáver y el destino para guardar. No se simula un ACK
+ni se descartan fases inciertas de teleport, aura, bones o save. Esa reparación
+y sus regresiones siguen pendientes de implementación/evidencia.
+La revisión posterior del aura detecta que ese test verde de atribución todavía
+usaba un GUID sin Unit: no prueba el contrato C++. `Spell.cpp:536–545,3198–3222`
+y `ObjectAccessor.cpp:217–239` requieren resolver el lanzador original en el
+mismo mapa y en mundo; si ya no está disponible, el aura usa el lanzador real.
+Se corrige el resolver y se exige un caso positivo con dueño canónico real y
+el negativo ausente/en otro mapa antes de aceptar esa evidencia.
+La revisión de `process_represented_delayed_teleport_after_update_like_cpp`
+rechaza quitar su guard IsAlive: `Player.cpp:1151–1155` lo exige precisamente
+para no volver a teletransportar un ghost. El nuevo timer se había situado
+dentro de un tramo Rust con `can_delay=true`; C++ cierra ese tramo tras
+`Unit::Update` (`Player.cpp:935–942`), antes del timer de muerte. Corrección
+acotada: cerrar el tramo Rust después del tick de auras, antes de los timers
+de save/muerte, y conservar el guard vivo de la operación diferida. No se
+presenta este ajuste como migración completa de las fases de #584.
+Los dos casos `production_disconnect_near_resurrection_*` pasan en el objetivo
+`production_login_player_owner` (log local
+`/tmp/rustycore-unit3-cargo-test-20261024-near-finalization.log`): preservan
+cadáver, salud del ghost y destino pendiente, y retienen el fence después de
+un save Unknown sin segundo envío. El resto de reparaciones sigue en feedback.
+
+Checkpoint local del consumidor, 14:34 UTC: worker detenido tras entregar, sin
+Cargo activo; traza efectiva final `gpt-6-luna`/`max`. Se conserva el guard vivo y
+se cierra `can_delay` antes del timer. Último check de `wow-world --tests`: exit 0,
+22,69 s (`/tmp/rustycore-unit3-cargo-check-20261024-can-delay-alive.log`).
+`cargo check -p world-server --tests`: exit 0, 7m37s
+(`/tmp/rustycore-unit3-cargo-check-20261024-world-server-tests.log`); compila sus
+targets de pruebas, **no los ejecuta**. Los filtros de expiración (1), `delayed_`
+(5) y revive-at-teleport (1) pasan, además de los filtros previos de respuesta,
+bones fallido, save far/cancelado, timer/detached, atribución original resuelta
+y las dos pruebas de integración near. El test nuevo de ghost diferido se
+renombró a `update_keeps_delayed_teleport_for_ghost_without_emitting` después de
+ejecutar el mismo cuerpo con sufijo legado; no se relabela esa evidencia.
+Logs de feedback: `/tmp/rustycore-unit3-cargo-test-20261024-*.log`; el de
+revive-at-teleport contiene su última ejecución corregida. No se ejecutó
+`validation-v2 final`, ni inventario exhaustivo, ni cliente/DB/runtime; el
+checkpoint sigue **UNVALIDATED** para la aceptación completa. Estos tiempos
+son de implementación y reparación, no una campaña ordinaria verde de 600 s.
+
+La inspección encontró además que no hay productor de solicitudes integrado en
+los efectos de hechizos: los callers del setter eran fixtures/tests. Completar
+el consumidor no basta para probar esa ruta en producción. La unidad productora
+debe conservar `SpellEffects.cpp:416–441,3599–3626,5328–5357`,
+`Spell.cpp:5288–5310` y `Player.cpp:22705–22714`: Player muerto y en mundo,
+sin solicitud previa, valores absolutos/porcentuales según efecto, aura opcional,
+ubicación del lanzador y publicación `SMSG_RESURRECT_REQUEST` por realm.
+La revisión de muerte también mantiene pendiente conectar los participantes
+existentes de `Player::setDeathState` y la retirada de auras de
+`Unit::setDeathState`; el helper de auras por sí solo no demuestra esa integración.
+La guía del bot contiene la matriz de QA de #43 como preparación, sin declarar
+un driver de muerte ni capturas ejecutadas. Permanecen reservados el cambio del
+binario vivo, las escrituras de cuentas/personajes y DB/reinicio/relogin hasta
+disponer del candidato y de autorización concreta para esos objetivos.
+La inspección de procesos de solo lectura durante esta preparación encuentra
+`bnet-server` y `world-server` Rust, sin un proceso `worldserver` C++ activo.
+El directorio `/home/server/trinity-legacy-install/bin` no existe; se conservan
+los nombres de configuración en `etc`, cuyo contenido no se ha volcado.
+La búsqueda posterior localiza el ejecutable en
+`/home/server/woltk-trinity-legacy/build-r6/src/server/worldserver/worldserver`.
+Su SHA-256 actual es
+`80f143841b5a7b443022480500760ce336dc83052f05ddd7e3b7be6a6605b02a`,
+el mismo registrado en [la preparación R6](../architecture/captures/1263-r6-paired-2026-10-10.md).
+El checkout sigue en `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` con los tres
+parches locales de infraestructura allí documentados (LFGList, instanciaciones
+de Spell y guard DB2); no se presenta como binario upstream sin modificaciones.
+La evidencia R6 histórica no sustituye capturas de muerte nuevas. No se ha
+arrancado, recompilado ni modificado ese runtime de referencia en esta preparación.
+
+**#43, recuperación al reconectar — implementación local y feedback focalizado, 2026-10-24:**
+continuación autorizada sobre `d78b90750`, rama `43-spirit-healer`. Alcance:
+restaurar la ubicación personal del cadáver durante login y conservar enfermedad
+de resurrección y durabilidad al guardar/reconectar. Todavía **sin nueva aceptación**.
+La decisión de persistencia conserva el coordinador, captura canónica, transacción
+Characters y tratamiento de COMMIT desconocido/cancelación existentes. Se añaden
+participantes acotados: enfermedad seleccionada por ChrRaces y durabilidad de
+objetos propios; no se sustituye toda `character_aura` con una representación
+parcial ni se reconoce como guardado el resto del estado de Item. Una carga
+incompleta no autoriza borrados. Anclas revisadas en el C++ objetivo
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player.cpp:19632–19646`
+(inventario/auras en SaveToDB), `19811–19865` (_SaveAuras),
+`19868–20000` (_SaveInventory), `18034–18145` (_LoadAuras, tiempo desconectado),
+`SpellAuras.cpp:1134–1174,1218–1244` (CanBeSaved y clave de efectos).
+La durabilidad actualiza filas existentes de item_instance, ligadas al dueño
+mediante character_inventory; esta entrega no sustituye la creación ni el
+guardado completo de Item. Se captura sin limpiar su estado general Changed/New;
+la enfermedad expirada debe retirar únicamente sus propias filas, conservando
+las auras ajenas. Participantes adicionales necesarios para la reconexión:
+`Player.cpp:19422,19557` guarda GetHealth, incluido el 1 del fantasma; el snapshot
+Rust activo lo convertía en 0 por `!is_alive`, causando el override a CORPSE
+de `Player.cpp:17776–17778`. Se corrige esa captura, conservando el cero del
+cadáver, y se añade `at_login` al mismo guardado para que la limpieza de
+AT_LOGIN_RESURRECT no se repita al reconectar (`18157–18178,19543`). El tiempo
+de penalización por muertes sucesivas pertenece al mismo Player
+(`17676–17679,19545`), con el límite de carga de tres pasos de cinco minutos.
+Se mantiene pendiente la prueba real DB/reinicio/relogin:
+requiere autorización de runtime, y ninguna prueba local de planes SQL o futuros
+simulados se presentará como evidencia de durabilidad real.
+La recuperación personal ya está conectada en `wow-world-character` después de
+los paquetes post-add y antes de LoggedIn: el puerto auxiliar lee
+`SEL_CORPSE_LOCATION` por GUID; `wow-world-entities::corpse_login` consume la fila
+local en el Player canónico, restaura ubicación/release timer y ejecuta las ramas
+alive/AT_LOGIN_RESURRECT. La carga de cadáveres del mapa conserva su operación.
+`wow-world-application::continue_login` restaura DEAD desde Ghost y después
+CORPSE si la salud guardada es cero (`Player.cpp:17717–17723,17776–17778`).
+Las auras 20584/8326 se recuperan independientemente según
+`CharacterHandler.cpp:1227–1241`; se reconoce tanto la aplicación runtime como
+el registro de aura del mismo Unit para no duplicar una ya cargada. Sigue fuera
+de esta parte `SetWaterWalking(true)` y la aceptación completa de movimiento
+fantasma. Las coordenadas incompletas/inválidas y mapas desconocidos no crean
+ubicación; consulta vacía y fallo se distinguen en el adaptador del flujo.
+Feedback de implementación del worker Luna/max (ruta efectiva verificada):
+`cargo check -p wow-world-entities` y `cargo check -p wow-world --tests`, con
+PROTOC local, un job y target de este checkout; compilación verde tras corregir
+los hallazgos. La última comprobación de wow-world terminó el 2026-10-24
+10:52:30 UTC (13,93 s). **En ese corte no se había ejecutado ningún test ni se
+reclamaba aceptación nueva**. Este feedback corresponde solo al delta de
+reconexión anterior a los participantes de guardado, aún no implementados en
+ese corte; no cubre los cambios posteriores. El feedback posterior figura abajo.
+Decisión de representación para la enfermedad: conservar en el subsistema de
+auras del Unit los metadatos de persistencia que antes se descartaban al cargar
+(GUID/identidad del objeto lanzador, máscara de recálculo, cargas y cantidades
+base por efecto). Su vida queda ligada al slot de la aplicación, como la
+procedencia de lanzamiento existente; sustituir, retirar o limpiar la aplicación
+retira esos metadatos. No se duplican duración, stacks ni cantidades actuales.
+Reconstruir siempre la cantidad base desde el catálogo perdería el valor leído
+de DB tras cambios de datos; extender la escritura a todas las auras borraría
+familias aún no representadas. Por ello la escritura queda acotada a la
+enfermedad propia seleccionada por raza, sin objeto lanzador, y las otras filas
+se conservan. La lectura conserva sus metadatos completos para ese límite.
+La revisión de la carga identifica dos reparaciones necesarias para ese contrato:
+el flujo pasaba cero como tiempo desconectado y trataba todas las auras como
+positivas; además publicaba una actualización anticipada con remaining=max.
+El flujo ahora descuenta el tiempo desconectado de la enfermedad negativa,
+aplica sus efectos cargados antes del cálculo inicial de estadísticas y
+publica su duración restante e identidad de lanzamiento en el AuraUpdate
+completo post-add existente. Anclas: `Player.cpp:17640,17718,18034–18145,
+23568–23635,24015–24035`; `SpellInfo.cpp:4725–4775` para los efectos negativos
+79/80. La clave de carga conserva caster/item/spell/effectMask, sin convertir
+un caster vacío en el jugador ni mezclar efectos de distintos objetos.
+Una fila incompleta, GUID binario inválido o aplicación no admitida deja
+incompleta la autoridad de persistencia; la expiración offline legítima sí
+permite retirar la familia propia en el siguiente guardado.
+`Aura::SetLoadedState` también recalcula los efectos cuyo bit está activo
+(`SpellAuras.cpp:1239–1257`, `SpellAuraEffects.h:74–75` y
+`SpellAuraEffects.cpp:659–725`). Para los efectos constantes 79/80/159 de la
+enfermedad se usa la base persistida, DieSides y stacks; un bit desactivado
+conserva amount. Esta parte no constituye un port completo de CalcValue,
+escalado ni scripts de auras arbitrarias.
+La aceptación pendiente de esta entrega debe incluir los escenarios de cadáver
+personal, proyección de guardado y fallos/COMMIT desconocido, SQL y orden del
+plan, carga/expiración/publicación del aura y consumidores de login. Los nuevos
+accesos SQL requieren revisar el delta del inventario de persistencia en esa
+campaña; no se ha regenerado su baseline ni ejecutado otra campaña final.
+Feedback posterior de implementación: `cargo check -p wow-world --tests`
+terminó con exit 0 el 2026-10-24 a las 11:55:19 UTC (inicio 11:53:40 UTC,
+99 s), sobre el árbol de trabajo modificado en HEAD `d78b90750`, con los
+participantes de guardado y la carga de auras ya escritos. Registro:
+`target/validation-v2/evidence/43-reconnect-wow-world-check.{meta,stderr.log}`.
+Este check no ejecuta tests ni constituye aceptación final. El feedback del
+worker terminó con **44 identidades de test distintas verdes**: wow-world,
+`sickness_loading::` (5), `save_snapshot_owner::` (15), `corpse_login::` (7)
+y `save_interleaving::` (11); wow-database, `resurrection_sickness` (2),
+`character_save_adapter_preserves_the_frozen_statement_order_like_cpp` (1)
+y `full_save_death_metadata_and_item_durability_use_exact_owner_scoped_binds`
+(1); wow-entities,
+`aura_cast_provenance_is_slot_scoped_and_cleared_on_replacement_like_cpp` (1);
+wow-data,
+`represented_spell_positivity_marks_resurrection_sickness_modifiers_negative`
+(1). Comandos: `cargo test -p <crate> --lib <filtro> -- --nocapture`, salvo
+el primer filtro sickness_loading, ejecutado sin `--lib`: sus dos objetivos
+de integración tuvieron cero casos ejecutados y **no aportan evidencia**.
+Los registros exactos son `target/validation-v2/evidence/43-reconnect-*.meta`,
+con stdout/stderr asociados. Se conservaron los primeros fallos: dos fixtures
+de guardado y dos de cadáver; se corrigieron la salud máxima inicial y el uso
+del oráculo antiguo, consultando el propietario real de guardado. Los reruns
+`wow-world-save-snapshot-owner-retry1` y `wow-world-corpse-login-retry1` pasan
+sin rebajar aserciones ni cambiar producción para acomodar las fixtures.
+La prueba nueva `handlers/character_tests/sickness_loading.rs` incluye
+carga→efectos canónicos→snapshot de guardado y paquete completo; expiración
+genera Some(grupo vacío), y una clave malformada conserva None para esa familia.
+
+Coste separado de desarrollo: ventana 11:53:40–12:11:30 UTC (1.070 s, incluidos
+revisión/reparación y pausas); suma registrada de comandos 872,57 s, incluidas
+compilaciones y primeros fallos. **Supera diez minutos** y no acredita el
+objetivo de rendimiento de una futura aceptación final. Todo corresponde al
+árbol modificado sobre `d78b90750`, con ajustes posteriores de fixtures; no se
+ha creado un nuevo commit, manifiesto final ni evidencia de publicación.
+Siguen pendientes la campaña final, su inventario de persistencia y la prueba
+real de DB/reinicio/relogin. No hubo push, despliegue ni cambios de runtime;
+**#43 permanece abierta**, incluidos el movimiento fantasma
+(`SetWaterWalking(true)`) y la limpieza general de auras al morir
+(`Player.cpp:17780`, `RemoveAllAurasOnDeath`).
+
+**#43, sanador de espíritus — aceptación local verde, 2026-10-24:** continuación de
+las partes integradas en #1482 (`bdfbe8e2a`, release/corpse/cementerio) y #1483
+(`408d11c12`, reclaim). Rama `43-spirit-healer`, base `408d11c12`; código guardado
+en el commit local `f4633801212a3ea6515978264e27526b4ddd0bf7`. Final verde:
+5.809 tests pasan y se conserva un helper manual ignorado; **sin publicación,
+captura nueva, QA viva ni despliegue; #43 no se cierra**. Contrato:
+`NPCHandler.cpp:331–376` del C++ objetivo `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+admisión del NPC, retirada de muerte fingida, `ResurrectPlayer(0.5f, true)`,
+`DurabilityLossAll(0.25f, true)`, selección del cementerio desde la ubicación del
+cadáver antes de `SpawnCorpseBones`, y teleport solo si difiere del cementerio
+del jugador. `Player.cpp:4320–4404` toma el hechizo de `ChrRaces.ResSicknessSpellID`
+y el umbral de `Death.SicknessLevel`; los nueve primeros niveles afectados
+ajustan el tiempo restante, conservando la duración máxima del aura
+(`SpellAuras.cpp:897–906`).
+La duración final viaja como dato efímero del lanzamiento para publicar una sola
+actualización del aura, siguiendo la acumulación de `SetNeedClientUpdate`
+(`SpellAuras.cpp:220–228`). La reactivación refresca la misma aplicación y
+conserva su identidad de lanzamiento (`Unit.cpp:3224–3283`). La pérdida del
+25 % selecciona equipo, mochila y bolsas llevadas, excluyendo banco y sus bolsas,
+en el orden de `Player.cpp:4522–4544`; publica la durabilidad modificada y
+recalcula estadísticas si el equipo se rompe.
+
+La inspección de los DB2 locales de referencia (`Data/dbc/enUS`, sin overlays SQL)
+encuentra en 15007 los efectos 80/79/159, índices 0/1/2: estadísticas base −75 %,
+daño −75 % y ausencia de crédito PvP. `SpellMisc` 325284 usa `SpellDuration` 427:
+duración −600000, máximo 600000; `SpellInfo::GetDuration` toma el valor absoluto.
+Huellas SHA-256: SpellEffect `c786e3f82d69f6a2675cdcc7a0a6c48a2684044fb23344bd488425d982b525f8`,
+SpellMisc `23a649b44401e99d123375dc7a0d7be1eee76287af02e7bd91c2a45636a089c2`,
+SpellDuration `4b5c9c1795abe70cb788d5652c1dcad413bf535fd9423d49501309400ee3da53`.
+`SpellXSpellVisual` contiene para 15007 la fila incondicional 245039 (visual 69),
+que es la identidad visual transmitida por `SpellInfo::GetSpellXSpellVisualId`
+(`SpellInfo.cpp:4446`). Su huella es
+`893b2141d6250684968cccd76fb365b548177327f2fad508131fe46050276e86`.
+No se encontraron filas 15007 en las secciones legibles de `SpellCooldowns`
+(`4dd4678937c313c08952095e249308904099a06e825b714ed3268e6fc6600b69`) ni
+`SpellPower` (`2e62ed5891722bcdb4f87d4bde8f78abb0814e80f2095bcc18cbe64ac41ed2e5`);
+se omitieron sus siete y dos registros cifrados, respectivamente. El contrato
+del lanzamiento interno de enfermedad conserva CastID propio, OriginalCastID
+vacío y la visual efectiva; `Spell.cpp:4765–4814,8072–8077` gobierna flags y
+admisión de SpellGo. No supone una reparación general de lanzamientos internos.
+Son datos inspeccionados, no prueba de los overlays efectivos del servidor vivo.
+Participantes necesarios de esta entrega: duración restante/expiración, aplicación
+conjunta de los efectos de la enfermedad y su multiplicador de estadísticas base
+(`SpellAuraEffects.cpp:3567–3601`, `Unit.cpp:9080–9094`). La aceptación local
+se ejecutó con los cambios sin commit sobre `408d11c12`; después se guardaron
+sin alteraciones en `f46338012`. El manifiesto conserva `dirty: true` y el HEAD
+base real: no se presenta como una ejecución sobre el commit posterior.
+Se escribieron y ejecutaron
+escenarios en `crates/wow-world/unit_tests/handlers/entities/tests/spirit_healer.rs`
+(admisión, enfermedad por nivel/raza/configuración, renovación, estadísticas,
+durabilidad y cementerios) y `crates/wow-world/unit_tests/session/tests/aura_duration.rs`
+(duración restante, identidad y expiración), además del caso de multiplicadores
+en `crates/wow-data/src/player/stats.rs`. Pasan tanto los casos enfocados como las
+suites completas seleccionadas por final. El soporte de pruebas del
+NPC usa los catálogos de la sesión; los escenarios completan el ACK del teleport
+de release y establecen LoggedIn para ejercitar el refresco de estadísticas.
+**Aceptación final del candidato 3:** mismo comando y entorno de abajo, sin
+`--keep-going`, aarch64/Rust 1.98.0. Manifiesto
+`target/validation-v2/manifests/20261024T001007.529334Z-3206589-final.json`,
+exit 0, verificado con `./tools/validation-v2 verify --manifest <ruta anterior>
+--require-profile final`. Runner 00:10:07.528–00:26:42.333 UTC:
+**994,804 s**; ventana completa con verificación y contraste de huellas hasta
+00:27:22.428 UTC: **1.034,900 s**. **Objetivo de 600 s incumplido.**
+El cierre de consumidores compiló en 719,221 s, incluyendo artefactos aún fríos
+de `world-server`/SQL; el lote de tests compiló y ejecutó en 131,328 s.
+No se repitió una campaña intacta solo para obtener un tiempo cálido menor.
+Pasan arquitectura/fixtures/firmas, censo, formato y nueve bibliotecas:
+`wow-data` 759, `wow-entities` 986, `wow-world` 3.764, `wow-world-application` 15,
+`wow-world-core` 224, `wow-world-entities` 2, `wow-world-interaction` 1,
+`wow-world-inventory` 33 y `wow-world-spell` 25. Única prueba ignorada:
+`handler_contract_tests::print_world_handler_contract_snapshot`, helper manual
+ya ignorado antes de esta entrega. La auditoría exhaustiva de persistencia no
+forma parte de final y sigue sin ejecutarse; no se reclama esa evidencia.
+Las huellas de los 44 archivos probados están en
+`target/validation-v2/evidence/43-spirit-healer-candidate-3.json`; se verificaron
+antes del commit, cuyo árbol es `a8098c58daac7c43b17886a1568087f049d42136`.
+Las tres corridas final, incluidas las fallidas de abajo, suman 1.807,132 s;
+los tiempos de reparación/feedback se conservan por separado. La aceptación
+de publicación del candidato commiteado y la aceptación viva siguen pendientes.
+El delta posterior es solo este checkpoint: `quick --base f46338012
+--require-changes --logs`, manifiesto local
+`target/validation-v2/manifests/20261024-43-spirit-healer-evidence-quick.json`;
+reutiliza el final anterior para código idéntico, sin atribuirle otro HEAD.
+
+Primera campaña en aarch64, árbol modificado sobre `408d11c12`:
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=1
+CARGO_TARGET_DIR=/home/server/rustycore/target VALIDATION_V2_CARGO_JOBS=1
+VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3
+--architecture --timings --logs --require-changes --keep-going`,
+23:26:21–23:36:56 UTC, **634,941 s**. Manifiesto local
+`target/validation-v2/manifests/20261023T232621.284597Z-3184099-final.json`;
+huellas del candidato en `target/validation-v2/evidence/43-spirit-healer-candidate-1.json`.
+Fallaron el límite de crecimiento de Session/Player, el inventario de interfaces
+y el import de `ItemUpdateState` desde la raíz de `wow-entities`. El integrador
+interrumpió con SIGTERM la compilación de tests dependiente del mismo error
+(exit 143); no se ejecutaron los tests. Formato, censo, archivos físicos,
+ausencia de duplicados y método-índice pasaron. El comprobador de arquitectura
+se compiló desde frío (289,578 s en su primer paso); también faltaban artefactos
+del workspace. **Supera 600 s; no acredita el objetivo de rendimiento cálido.**
+La reparación posterior se mide aparte. Censo revisado: seis tests nuevos de
+composición, ninguna identidad/clase preexistente retirada o reclasificada.
+Segunda campaña, mismas opciones sin `--keep-going`, candidato local 2:
+23:41:45–23:44:43 UTC, **177,387 s**, exit 101, manifiesto
+`target/validation-v2/manifests/20261023T234145.998066Z-3190700-final.json`.
+Arquitectura, fixtures, firmas, censo y formato pasaron. La compilación detectó
+dos argumentos `true` añadidos indebidamente a taunt y al aura de criatura al
+adaptar el host de aura de jugador; tests todavía no ejecutados. Se conserva el
+resultado fallido y se corrigen ambos consumidores. Reparación entre campañas:
+23:36:56–23:41:45 UTC (aproximadamente 290 s, fuera de la medición de aceptación).
+La secuencia de enfermedad y sus flags quedan en `wow-world-spell`; el adaptador
+existente de World solo reenvía `send_update`. Crecimiento revisado y acotado:
+Session +2 líneas de producción/+200 de tests; Player +34 de producción sobre
+el almacén canónico, sin nuevo estado, lock, reloj o tarea. Inventario de firmas:
+dos métodos de host añadidos y dos firmas ampliadas; ninguna otra sección cambia.
+Feedback del implementador (secuencial, `CARGO_BUILD_JOBS=1`, mismo target/PROTOC,
+sin campaña paralela del integrador): `cargo check -p wow-world --tests` tuvo dos
+fallos (acceso privado del adaptador; acceso privado y orientación en el fixture)
+y pasó tras corregirlos. `cargo test -p wow-world spirit_healer` pasó finalmente
+**9/9**, y `cargo test -p wow-world aura_duration`, **1/1**. Sus ejecuciones filtradas
+de targets de integración encontraron cero tests y no se cuentan como evidencia.
+Logs locales bajo `target/validation-v2/evidence/`, prefijo `spirit-healer-wow-world-`:
+
+| Log | Segundos de pared | Resultado |
+| --- | ---: | --- |
+| `check.log` | 138 | exit 101 |
+| `check-2.log` | 52 | exit 101 |
+| `check-3.log` | 49 | exit 0 |
+| `test-spirit_healer.log` | 445 | 8 pasan, 1 falla; compilación inicial del ejecutable |
+| `test-spirit_healer-2.log` | 73 | 9 pasan |
+| `test-spirit_healer-3.log` | 77 | 4 pasan, 5 fallan en la precondición común del ACK |
+| `test-spirit_healer-4.log` | 73 | 9 pasan; termina 2026-10-24 00:08:10 UTC |
+| `test-aura_duration.log` | 1 | 1 pasa; termina 00:08:18 UTC |
+
+Los 908 s de órdenes de feedback son coste de implementación/reparación, no una
+campaña final verde. El fallo de cementerio era una aserción sobre
+`far_destination` para un teleport local: ahora se comprueban selección 5/4,
+`near_destination`, paquete/contador, ACK, posición final y flags pendientes.
+El destino histórico se conserva tras ACK; su presencia no significa pendiente.
+No se cambió producción para adaptar esa prueba. El archivo de escenarios mide
+1.068 líneas: revisión de cohesión aceptada para este único flujo con sus fixtures;
+si la continuación de #43 amplía sus fixtures, separar sus decodificadores y datos
+de hechizo antes de añadir escenarios de relog. No requiere excepción de 2.000 líneas.
+La issue completa sigue abierta: carga del cadáver al relog, participantes de
+movimiento y aceptación DB/restart/relogin conservan sus pendientes.
+Siguiente responsabilidad contrastada: `Player::LoadCorpse` (`Player.cpp:18157`)
+y su llamada tras entrada en mundo (`CharacterHandler.cpp:1227`, antes de restaurar
+auras de ghost/velocidad/water-walking). La carga actual de cadáveres del mapa en
+`wow-world-character/src/login_session/login_sequence.rs:349` no restaura por sí
+sola la ubicación de cadáver del Player, `AT_LOGIN_RESURRECT` y release timer.
+Este es el siguiente contrato de relog que debe implementarse y probarse, sin
+suponer que el objeto corpse esté en el mapa actual del jugador.
+El guardado general representado (`PlayerCharacterSaveRequestLikeCpp` y
+`wow-world-lifecycle/src/player_save.rs`) no captura auras ni durabilidad de los
+objetos: marcar el objeto como modificado y publicar sus valores no demuestra
+su supervivencia a logout/restart. El efecto 159 queda representado en el aura;
+no se reclama implementación del sistema de crédito de honor. La agrupación y
+el orden observables de AuraUpdate requieren captura específica de esta acción.
+
+**#1263 F5: las 10 entradas diferidas — 2026-10-11 (rama `1263-f5-deferred`, PR sin integrar):** void storage (4), talent (2) y corpse (4) salen del inventario heredado hacia tres registradores de área explícitos (`wow_world_inventory::register_void_storage_handlers_like_cpp`, `wow_world_application::register_talent_handlers_like_cpp` y `register_corpse_handlers_like_cpp`) cuyos rasgos de host son los contratos de adaptador que faltaban: la persistencia de inventario/dinero, el commit/publicación del reset de talentos y las transiciones de muerte/resurrección/mapa se quedan en el host de World, que ya las poseía. Sin cambio de comportamiento; `world-handler-contract.tsv` idéntico. **F5 en 476/476** (0 legacy-direct + 423 builder + 53 macro); el puente heredado queda vacío y su retirada es un corte aparte. Con este corte, **los seis puntos del criterio de cierre de #1263 están entregados** cuando se integre: (1) #1338, (2) #1345, (3) #1347–#1353, (4) #1355/#1356, (5) este corte, (6) #1358. Seguimientos fuera de #1263: #1339–#1344, #1354, #1357, #1359, más #1360 (retirar el puente heredado vacío) y #1361 (paridad de los handlers de talentos), abiertos por este corte. Detalle y evidencia: entrada `F5: las 10 entradas diferidas` de `wow-world-distribution-plan.md`.
+
+**#1263 F4 LootMoney dependencia (8) — 2026-10-11 (rama `1263-f4-lootmoney-dep8`, integrada como #1358):** el drenaje de objetivos de quest sale del shell: el dueño de producción es `QuestObjectiveProgressCx::drain_represented_quest_objective_progress_like_cpp` (`wow-world-application`), cuya finalización ejecuta ella misma el refresco `UpdateVisibleGameobjectsOrSpellClicks` de `SendQuestUpdate`; `session/quest/objective_drain.rs` solo presta los dueños y se borran los cuerpos de dinero/moneda/reputación del shell. Sin cambio de comportamiento. Con esto **las nueve dependencias de LootMoney están en sus dueños** (el hold «dependencia (8) sigue en el shell» de las entradas de cierre de abajo queda superado). Incluye dos seguimientos de #1356: test de fijación de `UnitFlags` vivos en el CREATE de visibilidad y robustez del test de captura C1 frente a la caché de interés de `tracing`. Detalle y evidencia: entrada homónima de `wow-world-distribution-plan.md`.
+
+**#1263 F6-8E-2 — 2026-10-11 (rama `1263-f6-8e2`, integrada como #1356):** se borra `wow-world-core/src/map_manager/**` (el `MapManager`/`SharedMapManager` heredado, `MapInstance`, `Grid`) y la vista transitoria `WorldCreature`: la raíz de mutación presta la `Creature` canónica (`&mut Creature`) y la proyección `CreatureCreateData` se calcula bajo demanda. Las utilidades de producción viven en `wow_world_core::{terrain, pathfinder, creature_movement, creature_respawn, creature_projection, corpse_load, runtime_plan}`. El runtime canónico pierde los nombres `Legacy*` (`session::creature_runtime`). Seguimientos de #1355: el loot AE visita solo celdas cercanas y lee en sitio; las consultas del movedor controlado vuelven a `None` sin clave canónica del Player (semántica previa a E-1); notas de DynamicFlags/D-2 corregidas; procedencia del TSV de D3a documentada. Detalle y evidencia: entrada F6-8E-2 de `wow-world-distribution-plan.md`.
+
+**#1263 F6-8E-1 — 2026-10-11 (rama `1263-f6-8e`, integrada como #1355):** se borra el runtime heredado de criaturas alrededor del almacén canónico: `RuntimeTickOwner`, los ticks de criatura y combate por sesión, el bucle global heredado y su entrega, las entradas heredadas de fase con sus rasgos de almacén, todos los espejos heredado↔canónico, los respaldos de lectura del almacén heredado y la decisión C1 tautológica. El bucle canónico del mapa es el único runtime de criaturas. Al portar los tests del tick de sesión se corrigieron tres divergencias de la fase de melé del jugador propiedad del mapa (rango/orientación como `getAutoAttackError`, `AttackStop` y fin de combate al matar, clave de mapa de las consultas del movedor) y los dos huecos de DynamicFlags forzados de la liberación de loot. **Queda para F6-8E-2** el borrado de `wow-world-core/src/map_manager/**` (el `MapManager` heredado, solo de tests, y `WorldCreature`, ahora vista transitoria de la criatura canónica). Sin despliegue ni QA live; **#1263 no se cierra**. Detalle en [wow-world-distribution-plan.md §8](../architecture/wow-world-distribution-plan.md) (F6-8E-1).
+
+**Cierre del tramo F4→F6 de #1263 — 2026-10-09:** las **seis reparaciones firmadas** del contrato de reconciliación de autoridades de loot están integradas (R4a, R1a, R1b, R7 completo, R2+R3+R5) más las **capturas de runtime instrumentadas C1/C2** con su registro fechado. Los **cuatro remates estructurales de F4** están integrados, pero **F4 no está completo** (LootMoney estructural con la frontera 8/9 re-firmada por el revisor y la dependencia (8) aún en el shell, StorageMove con el crecimiento de R1 revisado, Save con la valla finalización-antes-de-captura convertida en valla probada, y refresh). De **F6-8** están entregadas las slices **A, B, C, D1 y D2**: el estado de runtime persistente, el RNG, el reloj y la autoridad de ciclo de vida/spawn son canónicos; el movimiento y la publicación de visibilidad leen el estado canónico; los consumidores de melé/aggro/hechizo y de loot deciden canónicamente; el motor completo de fases vive en propiedad canónica con continuidad probada contra los cuerpos pre-D1; y el **camino aislado de ejecución admitida** tiene valla de admisión previa a la mutación, test de exclusividad de tres dueños y publicación diferida, **con la propiedad de producción intacta**. La migración **no diferida de F5 está cerrada: 466/476** registros efectivos (413 literales + 53 por macro). **Holds declarados, no entregados:** la paridad de payout de F4 y la recuperación de claims tras reinicio (slice de comportamiento propia, #1339); la **dependencia (8) de LootMoney** (drenaje de objetivos de quest), que sigue en el shell y cuya retirada sigue debida dentro de #1263; la **paridad del paquete combinado C++ de refresh de F4**, pendiente de captura específica y reparación propia (#1340); los **10 registros diferidos de F5** (void storage 4, talent 2, corpse 4, con sus contratos de adaptador pendientes; desde #1334–#1336 son exactamente las «familias F5 restantes» de la frase del revisor); **F6-8 D3/E** (corte de producción, retirada del planificador y borrado del almacén heredado), cuya aceptación **terminal exige un cliente 3.4.3 real** (#1342); la **evidencia pareada de R6**, que sigue en hold: la corrida pareada del 2026-10-10 (fixture aprovisionado una vez y restaurado exacto) confirma el mismo `CMSG_ATTACK_SWING` admitido, `SMSG_ATTACK_START` y primer golpe idéntico en ambos lados, pero la reacción de combate de la criatura **diverge** justo después, la ventana de persecución no se capturó en ningún lado y el rechazo stale/ABA **no se ejercitó** ([1263-r6-paired-2026-10-10.md](../architecture/captures/1263-r6-paired-2026-10-10.md); divergencia en #1344, defecto de referencia C++ en #1343); y la reapertura de la cuarentena por COMMIT desconocido (#1341). **Salvedad de revisor:** la exención de crecimiento R1 de #1325 (`budget: 661`) y la re-firma 8/9 de #1324 las adjudicó, según la revisión independiente de #1337, el modelo de respaldo del coordinador (`minimax-m3`) actuando como revisor; **esperan firma independiente**. **Rendimiento (corregido 2026-10-10):** de R4a a #1337 hubo **44 campañas `final --architecture --timings`: 38 verdes y 6 fallidas**. Verdes: **dos excesos divulgados** — la cola F5 con **944,88 s** (caché frío tras un disco lleno; re-medición cálida 305,41 s) y F6-8D2 con **613,37 s** (re-medición cálida 136,29 s)—; las otras 36 entre **110,65 y 576,23 s** (no 112–479 s). La `final` de R1a (#1313) registra `dirty: true`. Las seis fallidas (dos de R4a #1312, #1324, #1325, #1329 interrumpida por SIGTERM, #1334), con su paso fallido y dónde se divulgaron, están en la tabla del cierre en [wow-world-distribution-plan.md §8.1](../architecture/wow-world-distribution-plan.md). **Criterio de cierre de #1263 (aprobado por el operador, 2026-10-10):** #1263 se cierra cuando se entreguen, cada uno como slice propia con evidencia y `final` verde: (1) la evidencia pareada de R6 restringida a combate, entregada como MISMATCH registrado en #1338 (R6 cerrada como slice de evidencia; la divergencia pasa a #1344); (2) esta corrección del cierre; (3) F6-8 D3, corte de producción al runtime canónico y retirada de la planificación heredada, aceptado con evidencia local; (4) F6-8 E, borrado de `MapManager`/`SharedMapManager`, ramas de compatibilidad y configuración obsoleta; (5) las 10 entradas diferidas de F5 con sus contratos de adaptador; (6) la dependencia (8) de LootMoney. Todo lo demás sale de #1263 como issues propias (#1339–#1344). **#1263 no se cierra** y no se reclama paridad de juego ni retirada del runtime legado.
+
+**Cierre del tramo de reparaciones de #1263 — 2026-10-08:** las **seis reparaciones firmadas** del contrato de reconciliación de autoridades de loot están **integradas** en `3.4.3` como cortes propios, cada uno con PR con squash y su propia campaña `final` verde sobre el candidato commiteado con árbol limpio: **R4a** (contención del agotamiento), **R1a** (admisión de autoridad única), **R1b** (sellado de asignación y revinculación), **R7** (R7a contrato de mutación con puerta, R7b-1 límite de admisión, R7b-2a raíces de mutación restantes, R7b-2b puerta compartida en los dos espejos de tick con la ventana diferida medida), **R2** (dueño designado con `Found`/`Absent`/`Unavailable` explícitos y eliminación del colapso `Option` de producción, incluida la corrección de ausencia **ordenada por el revisor** que bloqueaba la aceptación) y **R3** (retirada de la reconciliación de doble almacén, su bucle de ocho rondas, sus CAS y su productor de lápida de conflicto) con **R5** (cierre: regresión de la regla de rechazo de alias ajeno/obsoleto y corrección de tres contratos obsoletos). La **cola F5** se remata con trainer (2) y la familia de macros de movimiento (54 = 53 macro + 1 directa) sobre registradores de área, con la **frontera declarada**: **410/476** registros efectivos migrados, **66 literales en 20 ficheros** todavía por el inventario heredado, 10 de ellos **diferidos deliberadamente** con su razón semántica. Se ejecutó la **campaña de capturas de runtime instrumentadas C1/C2** con registro fechado y esquema v1: C1 vivo **parcial** (mutación legítima admitida y aplicada 74 µs antes del paquete visible al cliente), rechazo **solo** con arnés inyectado y **etiquetado como inyectado**, C2 **solo login** (la ventana detached/far-transfer no fue producible y se declara no ejecutada). **Holds acotados declarados y aprobados por el operador:** F4 remates (LootMoney completo con sus nueve dependencias, StorageMove, Save, refresh), F6-8 (retirada del runtime legado y del `map_manager` legado), la evidencia pareada Rust/3.4.3 de **R6** y la reapertura/retirada de la cuarentena por COMMIT desconocido. **Rendimiento:** todas las campañas `final --architecture --timings` cálidas quedaron **≤600 s** (138–367 s en los cortes de reparación; 305–323 s en el de F5); una corrida de **caché frío** posterior a un incidente de disco lleno dio **944,88 s** y se registra como coste de arranque en frío, **no** como la corrida ordinaria. Sin despliegue, sin QA live nueva y sin reclamar paridad: **#1263 no se cierra**. Detalle por corte en [wow-world-distribution-plan.md §8.1](../architecture/wow-world-distribution-plan.md).
+
+**Distribución wow-world, P4a aceptada — 2026-10-02:** #1263 continúa tras P3
+integrada por #1264 en `1f8a7c800`. La rama `1263-f4a-p4a-world-core` mueve las dependencias
+independientes del hub a `wow-world-core`, con consumidores, fixtures y scanner. Código
+aceptado `d9c9e3637`: final/arquitectura verde (385,703 s), configuraciones e integración
+verdes, 3.950 identidades conservadas, cero mensajes de warning nuevos e inventario completo
+verde (9.939 registros, 1.034 grupos). El snapshot heredado se reconcilió después de revisar
+190 altas/88 entradas obsoletas en seis fuentes sin cambios en P4a; no se reparó gameplay.
+Campaña 11:55:50–15:19:37 UTC, 12.227,640 s de pared; incluso las órdenes
+ordinarias del candidato definitivo suman 691,218 s sin su inventario de 784,958 s.
+**Objetivo de 600 s incumplido.** SHAs, manifiestos, reparaciones y costes separados en
+[wow-world-distribution-plan.md §8](../architecture/wow-world-distribution-plan.md).
+La publicación/integración de la fase se registra en #1263; P4b/F4b/F5/F6 siguen pendientes. No reclama
+paridad nueva, retirada de runtime legado ni cierre de #1263/#584; sin despliegue o QA live.
+
+**Continuación de distribución wow-world — 2026-10-02:** #1263 conserva el trabajo
+pendiente de #1241 bajo #584. Base integrada contrastada: `1f8a7c800` (PR #1264);
+F0–F3 y F4a P1–P3 integradas. P3 tiene aceptación acotada verde en `002ff5e46`
+(movimiento `6f0660ab0`), con publicación/integración posterior registrada en #1263;
+P4a tiene la aceptación descrita arriba; P4b, F4b, F5 y F6 siguen pendientes. #1241 ya está
+cerrada en GitHub, sin que eso pruebe cierre técnico. La revisión del plan y la
+consulta de estado no revalidaron las fases anteriores ni reclaman nueva paridad.
+Campaña P3 de código 09:30:05–10:20:07 UTC, 3.002 s de pared; final inicial 622,487 s,
+final tras reparar compose 122,093 s. El objetivo completo de 600 s no se cumplió.
+El alcance, secuencia y aceptación corregida viven en
+[wow-world-distribution-plan.md](../architecture/wow-world-distribution-plan.md);
+las entradas fechadas anteriores conservan sus propios límites de evidencia.
+
 ## Selected Linux navigation library candidate — 2026-10-20
 
 The optional `wow-world/forever-navigation` feature admits the extractor's

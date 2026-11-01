@@ -4,7 +4,10 @@
 
 use super::*;
 
-#[derive(Debug, Clone, PartialEq)]
+/// `Clone` is implemented manually in `creature::runtime_1`: the canonical
+/// creature owns `Unit::i_motionMaster`, whose boxed generators and delayed
+/// closures are not cloneable.
+#[derive(Debug, PartialEq)]
 pub struct Creature {
     pub(super) unit: Unit,
     pub(super) player_damage_req: u32,
@@ -71,6 +74,13 @@ pub struct Creature {
     pub(super) loot_authority: OwnedLootAuthority,
     pub(super) shared_loot: Option<CreatureOwnedLoot>,
     pub(super) personal_loot: HashMap<ObjectGuid, CreatureOwnedLoot>,
+    /// Persistent creature runtime state that C++ keeps on the object:
+    /// `Unit::movespline`, the active movement generators and their path
+    /// corridors, `Unit::i_motionMaster`, the chase target, the
+    /// represented-active key, the delayed `AssistDelayEvent` payload,
+    /// `m_AlreadyCallAssistance`, the active `SPELL_AURA_MOD_TAUNT`s and the
+    /// `CombatAI::_events` slots (#1263 F6-8A).
+    pub(super) runtime_like_cpp: CreatureRuntimeLikeCpp,
 }
 
 pub(super) fn consume_timer(timer: &mut u32, diff_ms: u32) -> bool {

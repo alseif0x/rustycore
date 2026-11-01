@@ -1,0 +1,923 @@
+{
+  "schema_version": 1,
+  "shrink_root": "crates/wow-world/src/",
+  "destination_roots": [
+    "crates/wow-world-core/src/",
+    "crates/wow-world-application/src/",
+    "crates/wow-world-lifecycle/src/",
+    "crates/wow-world-spell/src/",
+    "crates/wow-world-inventory/src/",
+    "crates/wow-world-instances/src/",
+    "crates/wow-world-entities/src/",
+    "crates/wow-world-loot/src/",
+    "crates/wow-world-social/src/",
+    "crates/wow-world-interaction/src/",
+    "crates/wow-world-visibility/src/",
+    "crates/wow-world-test-support/src/",
+    "crates/wow-world-creature/src/",
+    "crates/wow-world-character/src/",
+    "crates/wow-world-quest/src/",
+    "crates/wow-world-loot-ops/src/",
+    "crates/wow-world-player-conditions/src/"
+  ],
+  "reviewed_new_code": {
+    "budget": 661,
+    "measured_requirement": 661,
+    "recorded_at_revision": "4962c56ab7efea0ef5066ca10e4ede0df04f2491",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base 0a6efaf7f: S = 284, G_move = 1259, ratio and slack credits = 598.2, so the measured requirement is 660.8 and the reviewed budget above is 661 (rounded up; the checker reads an integer). Phase new_code = G - S = 975, recorded separately from the budget.",
+    "phases": [
+      {
+        "phase": "P4b (base..21159a71c)",
+        "shrink": 10462,
+        "destination_growth": 11608,
+        "new_code": 1146,
+        "note": "Core hub scaffolding (SessionCore, HubRef/HubMut, canonical access) is written before the wow-world bodies are deleted."
+      },
+      {
+        "phase": "F4b (21159a71c..969bee686)",
+        "shrink": 46818,
+        "destination_growth": 76143,
+        "new_code": 29325,
+        "note": "Largest phase: the application/lifecycle/spell/inventory owners plus their Cx, host-trait, controller and projection surfaces are new code; only the moved bodies are offset by the shrink."
+      },
+      {
+        "phase": "post-pause (969bee686..2c8446066, migrations plus the rustfmt pass)",
+        "shrink": 10525,
+        "destination_growth": 15501,
+        "new_code": 4976,
+        "note": "F5 registrars (social inspect, lifecycle account-data, application reputation, lifecycle support, application client-state, social calendar) and the F6 retirements were net moves; the rustfmt normalization of the branch's own sources reflowed long lines and the new host adapters and composer calls add their own lines, which is most of this phase's new_code."
+      },
+      {
+        "phase": "F5 chat tail (2c8446066..79941db30, chat family plus the final R1 v2 record)",
+        "shrink": 1563,
+        "destination_growth": 2223,
+        "new_code": 660,
+        "note": "The 39 chat handler bodies and their 37 registrations left wow-world for wow-world-social's SocialChat direct registrar; the move cuts 1,563 lines inside the shrink root and adds 2,223 in the social destination (the owner file, its bounded ops split, the registrar/thunks and the fmt/import noise), so 660 net new lines. The duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete bodies."
+      },
+      {
+        "phase": "F5 social contacts tail (79941db30..c6dba3df9, contact family)",
+        "shrink": 573,
+        "destination_growth": 855,
+        "new_code": 282,
+        "note": "The nine contact/social-list opcodes and their bodies left wow-world for wow-world-social's SocialContacts direct registrar (the owner file, its Cx over the hub plus the owned persistence port, nine thunks and the registrar) with the login delegate and the cfg(test) shims staying in wow-world; the duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 arena team tail (c6dba3df9..edec497ce, arena family)",
+        "shrink": 162,
+        "destination_growth": 411,
+        "new_code": 249,
+        "note": "The eight arena-team opcodes and their handlers left wow-world for wow-world-social's SocialArenaTeam direct registrar (the owner file, its Cx over the social state plus hub, eight thunks and the registrar) with the cfg(test) shims staying in wow-world; the duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 battle.net tail (edec497ce..621240873, battle.net family)",
+        "shrink": 26,
+        "destination_growth": 152,
+        "new_code": 126,
+        "note": "The two battle.net opcodes and their handlers left wow-world for wow-world-lifecycle's LifecycleBattlenet direct registrar (the owner file with its hub-only Cx, two thunks and the registrar) with the cfg(test) shims staying in wow-world; the duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 purchase-stub tail (621240873..0c12ef0df, client-state stubs)",
+        "shrink": 36,
+        "destination_growth": 76,
+        "new_code": 40,
+        "note": "Three stateless BattlePay/VAS stub registrations moved from the character account registration file into the existing application client-state registrar; no new contract, authority or duplicate."
+      },
+      {
+        "phase": "F5 time-sync tail (0c12ef0df..b9a0a87e3, client time sync)",
+        "shrink": 79,
+        "destination_growth": 90,
+        "new_code": 11,
+        "note": "The server time offset reply and the three TimeSyncResponse aliases moved from the character world-entry/account registration files into the existing application client-state registrar; no new contract, authority or duplicate."
+      },
+      {
+        "phase": "F5 session-services tail (b9a0a87e3..fd510d69e, played time and logout cancel)",
+        "shrink": 55,
+        "destination_growth": 89,
+        "new_code": 34,
+        "note": "The played-time reply and the logout-cancel acknowledgement moved from the character account/world-entry files into the existing lifecycle account-data registrar; no new contract, authority or duplicate."
+      },
+      {
+        "phase": "F5 data-service tail (fd510d69e..d39c69b70, hotfix and DB2 query)",
+        "shrink": 99,
+        "destination_growth": 250,
+        "new_code": 151,
+        "note": "The hotfix-request and DB2 bulk-query bodies moved from the character account/query files into a new application data-service registrar, which also retires the now-empty character session-services registration file; the composition keeps all 478 opcodes."
+      },
+      {
+        "phase": "F5 ping tail (d39c69b70..322710770, typed ping)",
+        "shrink": 27,
+        "destination_growth": 43,
+        "new_code": 16,
+        "note": "The typed Ping/Pong handler moved from the character world-queries registration and account-data module into the existing application client-state registrar; no new contract, authority or duplicate."
+      },
+      {
+        "phase": "F6 loot duplicate tail (322710770..f3ab6af97, four admit-owner retirements)",
+        "shrink": 77,
+        "destination_growth": 0,
+        "new_code": -77,
+        "note": "Four duplicate bodies were retired into their admitted owners: the two World loot authority/cache transitions now delegate to the application LootReleaseCxLikeCpp, and the two loot-template helpers are imported from wow-world-lifecycle; the reviewed duplicate allowlist falls from five entries to one."
+      },
+      {
+        "phase": "F6 aura duplicate tail (f3ab6af97..8535fdb92, empty allowlist)",
+        "shrink": -1,
+        "destination_growth": 0,
+        "new_code": 1,
+        "note": "The last allowlisted duplicate, the World aura apply wrapper, now delegates to the admitted application aura owner; the reviewed duplicate list is empty. The delegation itself is inside the shrink root (shrink -1, i.e. one net line added there) and adds no destination growth."
+      },
+      {
+        "phase": "F5 group first slice (8535fdb92..054923f7d, twelve group handlers)",
+        "shrink": 544,
+        "destination_growth": 841,
+        "new_code": 297,
+        "note": "Twelve group handlers moved from the World shell into the social group registrar (packet bodies, thunks, host context and test delegates); the invite/leave/convert/subgroup, lifecycle persistence and random-roll handlers stay for later slices."
+      },
+      {
+        "phase": "F5 group cross-domain slice (054923f7d..6c9c3c209, four handlers)",
+        "shrink": 200,
+        "destination_growth": 371,
+        "new_code": 171,
+        "note": "Four leadership/assistant group handlers moved from the World shell into a new application group registrar with a social+lifecycle+hub context; the invite/leave/convert/subgroup, loot and random-roll handlers stay for later slices."
+      },
+      {
+        "phase": "F5 guild invitation slice (6c9c3c209..84ec6e234, three handlers)",
+        "shrink": 49,
+        "destination_growth": 227,
+        "new_code": 178,
+        "note": "Three guild invitation handlers and their canonical guild-state transitions moved from the World shell to the social guild registrar, with a shared social fixture-mutation helper so neither copy duplicates the other; the guild-bank handlers and the registry-sync-dependent auto-decline handler stay for later slices."
+      },
+      {
+        "phase": "F5 quest query slice (84ec6e234..HEAD, three query handlers)",
+        "shrink": 111,
+        "destination_growth": 282,
+        "new_code": 171,
+        "note": "The world-quest-update, quest-info and quest-completion-NPC query handlers moved from the World shell to a new application quest-query registrar with a hub-plus-quest-store context; the quest-store Arc is cloned into the context so the hub keeps its single mutable borrow. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 combat stop/sheathed slice (829cf4b58..HEAD, two handlers)",
+        "shrink": 2,
+        "destination_growth": 137,
+        "new_code": 135,
+        "note": "AttackStop and SetSheathed moved from the World shell to a new application combat registrar that only needs the hub; the new contract carries the usual Cx, host trait, two thunks and registrar boilerplate, which is most of the net growth. The attack-swing handler stays because its admission seam is shell-owned. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 player query slice (10ea58393..HEAD, three handlers)",
+        "shrink": 55,
+        "destination_growth": 207,
+        "new_code": 152,
+        "note": "QueryTime, QueryNextMailTime and SetSelection moved from the World shell to a new application player-query registrar with a hub-only context; the new contract boilerplate (Cx, host trait, three thunks, registrar) is most of the net growth. The remaining player handlers stay while they call shell-owned seams (far sight visibility, live-intent stand state, title persistence, item purchase data). The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 collections slice (ea3a183c0..HEAD, four handlers)",
+        "shrink": 101,
+        "destination_growth": 261,
+        "new_code": 160,
+        "note": "MountSetFavorite, MountSpecialAnim, MountClearFanfare and ToyClearFanfare moved from the World shell to a new application collections registrar with a hub-only context: the collection state, the movement-recipient directory and packet delivery already live in the Core hub. The remaining collections handlers stay while they touch inventory/spell state. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 travel slice (5fcc497a2..HEAD, three handlers)",
+        "shrink": 54,
+        "destination_growth": 216,
+        "new_code": 162,
+        "note": "SuspendTokenResponse, TaxiNodeStatusQuery and UpdateAreaTriggerVisual moved from the World shell to a new application travel registrar whose context splits the lifecycle state from the hub (far-transfer destination and recovery flag stay lifecycle-owned). The remaining travel bodies (taxi activation, area trigger, world-port response, benchmark mode) stay while they call shell-owned or registry-sync seams. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 emote tail (1bf1703f3..HEAD, one handler into the existing chat owner)",
+        "shrink": 18,
+        "destination_growth": 58,
+        "new_code": 40,
+        "note": "The CMSG_EMOTE body moved from the World shell into the existing SocialChat direct registrar in wow-world-social instead of a new contract, so there is no new Cx/trait/registrar boilerplate: only the Cx method, one thunk, one registration and the cfg(test) delegate. SendTextEmote stays because it needs the emote catalogs and the shell-owned aura-interrupt removal. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group subgroup slice (948fcf263..HEAD, two handlers into the existing application group owner)",
+        "shrink": 141,
+        "destination_growth": 212,
+        "new_code": 71,
+        "note": "ChangeSubGroup and SwapSubGroups moved into the existing ApplicationGroup registrar (social + lifecycle + hub) instead of a new contract. The owner applies the canonical group-registry transition and the sender's own subgroup, then returns whether the registry-state publication still runs in the World host through a new bounded trait method (the registry sync keeps its own stats/loot/control providers). The invite/leave/convert/opt-out/random-roll handlers stay. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group leave/convert slice (12bc0ceb0..HEAD, two handlers into the existing application group owner)",
+        "shrink": 219,
+        "destination_growth": 310,
+        "new_code": 91,
+        "note": "LeaveGroup and ConvertRaid moved into the existing ApplicationGroup registrar: the owner performs the canonical removal/conversion, the lifecycle persistence, the self-detach (SetGroup/ClearSubGroup/party-type update through social) and the party update, then returns which final publications still run in the World host through the bounded trait seams (registry sync and visible-gameobject refresh). PartyUninvite stays because its result helper takes the World session. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group uninvite + tail ordering (965204997..HEAD)",
+        "shrink": 155,
+        "destination_growth": 240,
+        "new_code": 85,
+        "note": "PartyUninvite moved into the existing ApplicationGroup registrar, and the subgroup/leave/convert handlers were reworked onto a typed GroupPublicationTailLikeCpp so the deferred World seams (registry sync, visibility refresh) run in C++ order between the canonical transition and the final packets instead of after them. The host runs the tail in place; PartyInvite/PartyInviteResponse stay because the invite path needs the invite policy catalog and a mid-sequence visibility seam. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group invite-response (80baae47b..HEAD)",
+        "shrink": 157,
+        "destination_growth": 195,
+        "new_code": 38,
+        "note": "PartyInviteResponse moved into the existing ApplicationGroup registrar with a new async tail variant (visibility only when the accepted invite joined an existing raid group, then the accepted-invite persistence, then the party update) so the World seam runs mid-sequence in C++ order. PartyInvite stays because its body needs the invite policy catalog plus the shell-owned invite map/instance and dungeon-difficulty helpers. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group random-roll/opt-out (0a26d52c1..HEAD)",
+        "shrink": 68,
+        "destination_growth": 149,
+        "new_code": 81,
+        "note": "RandomRoll and OptOutOfLoot moved into the existing ApplicationGroup registrar, which now also borrows the loot state through a new social+lifecycle+loot split helper; rand moves with the roll. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F4 LootRelease application tests (d23f4926c..HEAD)",
+        "shrink": 1,
+        "destination_growth": 81,
+        "new_code": 80,
+        "note": "First application-owned tests for the loot-release module: the pure helpers direct_item_count_after_loot_release_like_cpp and durable_loot_item_fanout_viewers_like_cpp are pinned in the crate that defines them (six cases). The session-integrated release/fanout paths keep their wow-world coverage because they need a composed WorldSession. The shrink line is the session/mod.rs doc compaction."
+      },
+      {
+        "phase": "F5 player SetActionButton + owner rename (29127a683..HEAD)",
+        "shrink": 22,
+        "destination_growth": 29,
+        "new_code": 7,
+        "note": "SetActionButton moved into the player owner, which is renamed from ApplicationPlayerQuery to ApplicationPlayer (module crate::player_handlers) because it now hosts player state and query bodies; the rename is mechanical and the composer facades keep their exact three exports. The hub-only context serves the action-button transition. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 player SetTitle (68ca808fe..HEAD)",
+        "shrink": 39,
+        "destination_growth": 96,
+        "new_code": 57,
+        "note": "SetTitle moved into the ApplicationPlayer owner, whose context now also borrows the quest session state for the represented fixture fallback. The App-side fixture gates use any(test, feature = test-fixtures), matching the cross-crate policy, and a wow-world test caught the cfg(test)-only gate. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 GetItemPurchaseData (837b29e8f..HEAD)",
+        "shrink": 79,
+        "destination_growth": 149,
+        "new_code": 70,
+        "note": "GetItemPurchaseData moved into the ApplicationPlayer owner, whose context adds the inventory and lifecycle borrows through a new quest+inventory+lifecycle split; the pure extended-cost refund projection moved with it and wow-world re-exports it for the vendor path and the unit test. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 collections favorite (5e2d51daf..HEAD)",
+        "shrink": 30,
+        "destination_growth": 70,
+        "new_code": 40,
+        "note": "CollectionItemSetFavorite moved into the existing ApplicationCollections registrar, whose context now also borrows the inventory state (split_inventory_mut) for the appearance permanence gate and favorite transition; the toybox path keeps the hub transition. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 travel benchmark mode (1a5a085bd..HEAD)",
+        "shrink": 14,
+        "destination_growth": 70,
+        "new_code": 56,
+        "note": "SetTaxiBenchmarkMode moved into the ApplicationTravel owner; the canonical flag transition stays in the owner and it returns whether the World host must re-publish the registry state through a new bounded seam, preserving the C++ order (flag mutation, registry sync). The benchmark flag constant comes from wow-world-core, not wow-movement, so the dependency policy is unchanged. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 player far sight (a1e10d826..HEAD)",
+        "shrink": 11,
+        "destination_growth": 91,
+        "new_code": 80,
+        "note": "FarSight moved into the ApplicationPlayer owner. The represented seer switch is canonical in the owner (VisibilityState and InstanceState are domain-crate types), and the forced visibility refresh stays a bounded host seam that receives the dispatch catalogs back because the spawn catalogs are installed by the runtime. wow-world-application gains the wow-world-visibility dependency (added to the restricted-package policy) like its other domain-state peers. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group invite close (272ff315b..HEAD)",
+        "shrink": 246,
+        "destination_growth": 350,
+        "new_code": 104,
+        "note": "PartyInvite moved into the existing ApplicationGroup registrar, which now also borrows the instances state and receives the invite policy catalog from the host context. The map/instance projection moved as a shared free function. This closes the group family: no literal packet registration remains in crates/wow-world/src/handlers/group.rs. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 player stand state (33770d007..HEAD)",
+        "shrink": 22,
+        "destination_growth": 68,
+        "new_code": 46,
+        "note": "StandStateChange moved into the ApplicationPlayer owner: the owner parses and validates the C++ stand-state values and builds the typed represented->live intent, while the session-owned represented->live bridge stays a bounded host seam (it mutates the canonical unit and records fixture evidence). This closes the entities/player family. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 battleground port/leave and PvP flags (316c171c3..HEAD)",
+        "shrink": 127,
+        "destination_growth": 403,
+        "new_code": 276,
+        "note": "BattlefieldPort, BattlefieldLeave, TogglePvp, SetPvp, RequestRatedPvpInfo and RequestPvpRewards moved to a new ApplicationBattleground registrar whose context is hub-only; the PvP flag transitions keep the registry-sync seam. The new contract carries the usual Cx, host trait, six thunks and registrar boilerplate, which is most of the net growth. The battlemaster-list and queue bodies stay while they need the shell queue/lifecycle orchestration. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 dungeon-finding status tail (97e4fd9a2..HEAD)",
+        "shrink": 17,
+        "destination_growth": 189,
+        "new_code": 172,
+        "note": "DfGetJoinStatus, RequestConquestFormulaConstants, RequestLfgListBlacklist and LfgListGetStatus moved to a new ApplicationDungeonFinding registrar with a hub-only context; the system-info body stays while it needs the LFG dungeon catalog and the shell reward projection. The new contract boilerplate is most of the net growth, and one doc comment was compacted in session/mod.rs to keep its physical ceiling. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 gameobject close/report-use (eb5bce569..HEAD)",
+        "shrink": 50,
+        "destination_growth": 226,
+        "new_code": 176,
+        "note": "CloseInteraction and GameObjReportUse moved to a new ApplicationGameObject registrar whose context borrows the interaction and world-entity domain states through a new split helper; the GameObjUse body stays while it needs the shell loot/spell/quest orchestration. The new contract boilerplate is most of the net growth, and one doc comment was compacted in session/mod.rs to keep its physical ceiling. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 vehicle eject/exit (bd2d3ded9..HEAD)",
+        "shrink": -17,
+        "destination_growth": 156,
+        "new_code": 173,
+        "note": "EjectPassenger and RequestVehicleExit moved to a new ApplicationVehicle registrar with a hub-only context plus the registry-sync seam; the seat-change, dismiss and ride-interact bodies stay while they need the shell movement sanitization and spell-click planning helpers. The new contract boilerplate is most of the net growth and session/mod.rs lost a doc line while gaining the context module, so the shrink root grew slightly. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 vehicle adjacent seats (1bd5f293d..HEAD)",
+        "shrink": 190,
+        "destination_growth": 273,
+        "new_code": 83,
+        "note": "RequestVehiclePrevSeat and RequestVehicleNextSeat moved into the ApplicationVehicle owner, and the pure vehicle handler-action vocabulary (VehicleHandlerAction and the six action helpers) moved to the application crate with a wow-world re-export so the shell callers keep their paths. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 loot specialization (2c70a2352..HEAD)",
+        "shrink": 25,
+        "destination_growth": 113,
+        "new_code": 88,
+        "note": "SetLootSpecialization moved to a new ApplicationLoot registrar borrowing the loot state and the hub; the specialization/class gates use the Core catalog. The new contract boilerplate is most of the net growth and three comments were compacted in session/mod.rs to keep its physical ceiling. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 character query slice (636d0f2d2..HEAD, three handlers)",
+        "shrink": 169,
+        "destination_growth": 322,
+        "new_code": 153,
+        "note": "QueryCreature, QueryGameObject and QueryRealmName moved from the World shell to a new ApplicationCharacterQuery registrar whose context only receives the read-only ObjectMgr catalogs (Arc clone) beside the hub; the character world-query registration file and the character query module keep no literal packet registration, only cfg(test) shims that delegate to the application free realm-query reply. The new contract boilerplate is most of the net growth."
+      },
+      {
+        "phase": "F5 trade slice (5e09b33d6..HEAD, nine handlers)",
+        "shrink": 443,
+        "destination_growth": 863,
+        "new_code": 420,
+        "note": "CancelTrade, AcceptTrade, ClearTradeItem, SetTradeItem, SetTradeGold, UnacceptTrade, BusyTrade, BeginTrade and IgnoreTrade moved to a new ApplicationTrade registrar whose context borrows the social state, the inventory state and the hub; the trade item/gold/accept/begin/cancel transitions and the canonical Player trade-state snapshot moved with them, while the World shell keeps thin wrappers for its remaining consumers (handlers/social.rs, item and spell publication) and cfg(test) delegates. The spell-trade, petition and duel handlers stay in the World shell while they need its spell store and pet state."
+      },
+      {
+        "phase": "F5 character query tail (5f6b1ab69..HEAD, three handlers)",
+        "shrink": 264,
+        "destination_growth": 313,
+        "new_code": 49,
+        "note": "QueryPageText, QueryPetName and QueryPlayerNames moved into the existing ApplicationCharacterQuery owner, whose context now also borrows the lifecycle state for the name-cache persistence port; the world query registration file and the character query module keep only cfg(test) delegates. Most of the growth is the moved player-name projection, offset by the deleted shell bodies."
+      },
+      {
+        "phase": "F5 corpse query tail (2e1170ff1..HEAD, two handlers)",
+        "shrink": 38,
+        "destination_growth": 87,
+        "new_code": 49,
+        "note": "QueryCorpseLocationFromClient and QueryCorpseTransport moved into the existing ApplicationCharacterQuery owner; both only build the not-found response from the hub, so the shell keeps the cfg(test) delegates. The registrar preserves the original ThreadUnsafe processing metadata."
+      },
+      {
+        "phase": "F5 quest gameplay seam (f1d19d7b9..HEAD, no opcode moved)",
+        "shrink": 35,
+        "destination_growth": 59,
+        "new_code": 24,
+        "note": "Bounded the player-quest gameplay seam of #1263 F5: the canonical snapshot and mutation (with their represented fixture fallback) moved from the World shell into the application crate that already owns SessionQuestState, and the World methods are now thin wrappers over split_quest_state_ref/split_quest_state_mut. No registration changed; the goal is to let quest, spell and loot handler bodies reach the canonical quest state without a WorldSession handle."
+      },
+      {
+        "phase": "F5 quest close handler (7d6568a2e..HEAD, one handler)",
+        "shrink": 49,
+        "destination_growth": 90,
+        "new_code": 41,
+        "note": "QuestGiverCloseQuest moved into the existing quest-query owner, whose context now also borrows the quest state so the handler reaches find_quest_slot_like_cpp and the represented fixture tail without a WorldSession handle; the acknowledge helper moved with it and the shell keeps a cfg(test) delegate. The registration keeps its original LoggedIn/Inplace metadata."
+      },
+      {
+        "phase": "F5 quest log-remove handler (9ba305694..HEAD, one handler)",
+        "shrink": 61,
+        "destination_growth": 158,
+        "new_code": 97,
+        "note": "QuestLogRemoveQuest moved into the quest-query owner, whose context now also borrows the lifecycle state for the quest-status persistence port. The owner returns the slot the host must finish after re-publishing the registry state, preserving the C++ order (invalidate authority, remove status, delete the DB row, registry sync, quest-log slot update); the shell keeps a cfg(test) delegate and the registration keeps its original LoggedIn/Inplace metadata."
+      },
+      {
+        "phase": "F5 quest push-result handler (0968a7fd7..HEAD, one handler)",
+        "shrink": 80,
+        "destination_growth": 185,
+        "new_code": 105,
+        "note": "QuestPushResult moved into the quest-query owner. The owner returns a typed tail for the pending-share clear, the host runs the registry sync in place and the owner records the moved evidence, preserving the C++ order; the pending-share read/clear seam also moved to the application crate so acceptance/sharing keep thin World wrappers. The registration keeps its original LoggedIn/ThreadUnsafe metadata."
+      },
+      {
+        "phase": "F5 duel handlers (680c24d29..HEAD, two handlers)",
+        "shrink": 115,
+        "destination_growth": 198,
+        "new_code": 83,
+        "note": "CanDuel and DuelResponse moved into the existing ApplicationTrade owner, which already borrows the social state and the hub. The represented duel arbiter/state transitions moved to the application crate as free functions so the World spell-effect duel path keeps thin wrappers, and DUEL_COUNTDOWN_MS_LIKE_CPP is now owned by wow-world-social. Both registrations keep their original LoggedIn/ThreadUnsafe metadata."
+      },
+      {
+        "phase": "F5 petition handlers (7d722f82a..HEAD, three handlers)",
+        "shrink": 104,
+        "destination_growth": 149,
+        "new_code": 45,
+        "note": "SignPetition, DeclinePetition and QueryPetition moved into the existing ApplicationTrade owner, which already borrows the social state and the hub. The represented petition evidence stays a fixture-only concern (the World PetsCx recorders disappear and the application calls the social recorders under test-fixtures); the query keeps its not-found reply. Both registration metadata stay LoggedIn/ThreadUnsafe."
+      },
+      {
+        "phase": "F5 spell-trade handler (4061aaa88..HEAD, one handler)",
+        "shrink": 110,
+        "destination_growth": 164,
+        "new_code": 54,
+        "note": "SetTradeSpell moved into the ApplicationTrade owner, whose context now also borrows the spell state for the known-spell gate (with the represented fixture fallback) and reads the spell store from the catalog bundle. The spell-trade transitions left the World spell publication module and the shell keeps cfg(test) delegates; the registration keeps its LoggedIn/ThreadUnsafe metadata. handlers/economy now has no literal registration."
+      },
+      {
+        "phase": "F5 grouped-player seam (0355b0d3a..HEAD, no opcode moved)",
+        "shrink": 1,
+        "destination_growth": 14,
+        "new_code": 13,
+        "note": "Bounded the resolved_group_guid_like_cpp seam: the canonical Player group read (with its represented fixture fallback) moved to the application group owner and the World method is a thin wrapper over split_social_ref. No registration changed; the goal is to let group, loot and quest handler bodies resolve Player::m_group without a WorldSession handle."
+      },
+      {
+        "phase": "F5 acceptance repair (4ef885fa3..HEAD, no opcode moved)",
+        "shrink": 0,
+        "destination_growth": 9,
+        "new_code": 9,
+        "note": "Restores the QuestLogRemoveQuest completion log that the move had dropped (the owner now returns the quest id with the slot) and renames the shared quest registry-sync host seam. The rest of the repair is outside the destination roots: Cargo feature alignment for the application, inventory and spell test builds, the Inventory registrar exact-set regression, the production SuspendTokenResponse integration test and cfg(test) shims that dispatch through the registry."
+      },
+      {
+        "phase": "Base reset at the #1266 integration (793851676)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1266 integrated the F4b/F5 checkpoint into 3.4.3, so the merge-base moved from 24a513855 to 793851676 and the 37363-line reviewed budget measured against the old base no longer applies. The budget restarts from the measured requirement against the new base; the phases above are the history of the previous base."
+      },
+      {
+        "phase": "F5 player-condition projection seam (793851676..HEAD)",
+        "shrink": 112,
+        "destination_growth": 77,
+        "new_code": 0,
+        "note": "The condition projection constructor moves from the World session to the application crate, built on the core hub's own condition access instead of a second copy of its fixture-reference list, together with the application evaluation of one PlayerCondition id. The World methods become wrappers; the application group context, resolved group seam and quest-query context receive the host's World-test flag instead of computing their own cfg, and the group test shims build their context through one helper."
+      },
+      {
+        "phase": "F5 NPC text, auction hello and guild-bank query (01bc871cb..HEAD, three handlers)",
+        "shrink": 76,
+        "destination_growth": 115,
+        "new_code": 0,
+        "note": "QueryNpcText moves to the application character-query owner, AuctionHelloRequest to the wow-world-inventory auction owner (with the rest of its family) and GuildBankRemainingWithdrawMoneyQuery to the wow-world-social guild owner. Bodies, registration metadata and log text are unchanged; the World keeps a cfg(test) delegate for the guild-bank query scenario."
+      },
+      {
+        "phase": "Base reset at the #1267 integration (68c395c8e)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1267 integrated the previous checkpoint into 3.4.3; the merge-base moved to 68c395c8e and the budget restarts from the requirement measured against it."
+      },
+      {
+        "phase": "F5 aura-application seam and spell cancel family (68c395c8e..HEAD)",
+        "shrink": 460,
+        "destination_growth": 949,
+        "new_code": 166,
+        "note": "The aura-application context constructor moves from the World session to the application crate (mechanically derived body), and the nine spell cancel handlers (CancelCast, CancelAura, CancelAutoRepeatSpell, CancelChannelling, CancelGrowthAura, CancelMountAura, CancelQueuedSpell, PetCancelAura, TotemDestroyed) move to the new ApplicationSpell owner with their cast/aura cancellation transitions. The reviewed new code is the registrar structure that has no World counterpart: nine explicit generic thunks, the context with its constructor and the host trait, which are larger than the deleted World registration macro blocks. No body is duplicated (the copy gate finds none)."
+      },
+      {
+        "phase": "Base reset at the #1268 integration (f944577d1)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1268 integrated the spell cancel family; the merge-base moved to f944577d1 and the budget restarts from the requirement measured against it."
+      },
+      {
+        "phase": "F5 guild bank family (f944577d1..HEAD, eleven handlers)",
+        "shrink": 530,
+        "destination_growth": 863,
+        "new_code": 7,
+        "note": "The eleven guild-bank handlers and their helpers (interaction gate, list request, tab actions, money and inventory moves) move to the new ApplicationGuildBank owner, mechanically derived from the World bodies; the represented request records stay World-test evidence through the host's flag. The 7 reviewed lines are registrar structure with no World counterpart (the context, its interaction gate wrapper and the host trait); the copy gate finds no duplicated body."
+      },
+      {
+        "phase": "Base reset at the #1269 integration (60a95e559)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1269 integrated the guild bank family; the merge-base moved to 60a95e559."
+      },
+      {
+        "phase": "F5 registry-sync seam and guild auto-decline (60a95e559..HEAD)",
+        "shrink": 89,
+        "destination_growth": 125,
+        "new_code": 0,
+        "note": "The registry-sync body moves to the application crate (World keeps a wrapper) and DeclineGuildInvites moves to the SocialGuild owner, which reports the canonical flag change so the host re-publishes the registry state."
+      },
+      {
+        "phase": "Base reset at the #1270 integration (df80e7030)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1270 integrated the registry-sync seam and the guild auto-decline handler; the merge-base moved to df80e7030."
+      },
+      {
+        "phase": "F5 spell-runtime seam (df80e7030..HEAD)",
+        "shrink": 22,
+        "destination_growth": 50,
+        "new_code": 0,
+        "note": "mutate_player_spell_runtime_like_cpp and its read twin with_player_spell_runtime_like_cpp move to wow-world-spell as SessionSpellState methods over the hub; World keeps wrappers for their 37 and 13 callers."
+      },
+      {
+        "phase": "Base reset at the #1271 integration (3c5187542)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1271 integrated the spell-runtime seam; the merge-base moved to 3c5187542."
+      },
+      {
+        "phase": "F5 area spirit-healer handlers (3c5187542..HEAD)",
+        "shrink": 73,
+        "destination_growth": 145,
+        "new_code": 0,
+        "note": "AreaSpiritHealerQuery and AreaSpiritHealerQueue (C++ BattleGroundHandler.cpp) move to the ApplicationBattleground owner, whose context now borrows the world-entity and instance state; bodies unchanged."
+      },
+      {
+        "phase": "Base reset at the #1272 integration (28e34b066)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1272 integrated the area spirit-healer move; the merge-base moved to 28e34b066."
+      },
+      {
+        "phase": "F5 character handlers (28e34b066..HEAD)",
+        "shrink": 83,
+        "destination_growth": 312,
+        "new_code": 0,
+        "note": "GetUndeleteCharacterCooldownStatus, AlterAppearance, ConfirmBarbersChoice and SetPlayerDeclinedNames (C++ CharacterHandler.cpp) move to the new ApplicationCharacter owner with the barber-chair gate."
+      },
+      {
+        "phase": "Base reset at the #1273 integration (411dada0f)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1273 integrated the ApplicationCharacter owner; the merge-base moved to 411dada0f."
+      },
+      {
+        "phase": "F5 battlemaster queue handlers (411dada0f..HEAD)",
+        "shrink": 134,
+        "destination_growth": 192,
+        "new_code": 0,
+        "note": "RequestBattlefieldStatus, BattlemasterHello, BattlefieldList and BattlemasterJoin move to the existing ApplicationBattleground owner; the host trait selects the BattlemasterList catalog for the generic thunks, and the battleground host moves out of the session aggregate."
+      },
+      {
+        "phase": "Base reset at the #1274 integration (ff70f7842)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1274 integrated the battlemaster queue handlers; the merge-base moved to ff70f7842."
+      },
+      {
+        "phase": "F5 loot release handler (ff70f7842..HEAD)",
+        "shrink": 16,
+        "destination_growth": 66,
+        "new_code": 0,
+        "note": "CMSG_LOOT_RELEASE moves onto the application loot-release context it already owned; the loot host moves next to the handlers and the session aggregate shrinks by 23 production lines."
+      },
+      {
+        "phase": "Base reset at the #1275 integration (641646ef4)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1275 integrated the loot-release handler; the merge-base moved to 641646ef4."
+      },
+      {
+        "phase": "F5 arena battleground join (641646ef4..HEAD)",
+        "shrink": 136,
+        "destination_growth": 174,
+        "new_code": 0,
+        "note": "CMSG_BATTLEMASTER_JOIN_ARENA moves to ApplicationBattleground with its single-user arena chain; the session aggregate falls 82 production lines. The two sibling opcodes that 3.4.3 leaves UNHANDLED stay in place pending a behaviour decision recorded in EXISTING-CODE-DEFECTS.md."
+      },
+      {
+        "phase": "Base reset at the #1276 integration (62b419b10)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1276 integrated the arena join handler and the F6 audit; the merge-base moved to 62b419b10."
+      },
+      {
+        "phase": "Single packet-handler composition authority (62b419b10..HEAD)",
+        "shrink": -95,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "The 33-entry ordered composition existed verbatim in wow-world's fixture builder and world-server's production composer. It now lives once in the crate-level wow-world module handler_composition; the fixture builder and world-server consume it, the session aggregate returns to its tightened ceiling (test/total -68) and world-server falls 139 lines. No registrar order, set or metadata changed."
+      },
+      {
+        "phase": "Base reset at the #1277 integration (3c42b9f00)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1277 integrated the single composition authority; the merge-base moved to 3c42b9f00."
+      },
+      {
+        "phase": "F5 ApplicationBattlePet owner (3c42b9f00..HEAD)",
+        "shrink": 460,
+        "destination_growth": 843,
+        "new_code": 60,
+        "note": "The eight C++ BattlePetHandler.cpp handlers move to a new application owner with their private chain and the four shared helpers; the session tree loses 240 production lines and world-server is untouched, which is the first delivery that exercises the single-composition authority."
+      },
+      {
+        "phase": "Base reset at the #1278 integration (7f34518f5)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1278 integrated the ApplicationBattlePet owner; the merge-base moved to 7f34518f5."
+      },
+      {
+        "phase": "F5 ApplicationNpc owner (7f34518f5..HEAD)",
+        "shrink": 60,
+        "destination_growth": 211,
+        "new_code": 0,
+        "note": "TabardVendorActivate, SpiritHealerActivate and RequestStabledPets (C++ NPCHandler.cpp) move to a new application owner."
+      },
+      {
+        "phase": "Base reset at the #1279 integration (fe99d8cf2)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1279 integrated the ApplicationNpc owner; the merge-base moved to fe99d8cf2."
+      },
+      {
+        "phase": "F5 char delete, rename and cinematic (fe99d8cf2..HEAD)",
+        "shrink": 145,
+        "destination_growth": 363,
+        "new_code": 0,
+        "note": "Three CharacterHandler.cpp handlers join the existing ApplicationCharacter owner; shell-only capabilities stay behind the host trait."
+      },
+      {
+        "phase": "Base reset at the #1280 integration (6ff11b635)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1280 integrated char delete/rename/cinematic; the merge-base moved to 6ff11b635."
+      },
+      {
+        "phase": "F5 character enum, create and customize (6ff11b635..HEAD)",
+        "shrink": 505,
+        "destination_growth": 729,
+        "new_code": 0,
+        "note": "Three CharacterHandler.cpp handlers join the existing ApplicationCharacter owner; shell capabilities stay behind the host trait."
+      },
+      {
+        "phase": "Base reset at the #1282 record (2a1c8c474)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 2a1c8c474."
+      },
+      {
+        "phase": "Owner split into a sibling module (2a1c8c474..HEAD)",
+        "shrink": 0,
+        "destination_growth": 177,
+        "new_code": 0,
+        "note": "character_handlers.rs split into a private sibling module; net +177 lines are per-file headers, import blocks and impl wrappers, no body change."
+      },
+      {
+        "phase": "Base reset at the #1283 split (3c8d9ea5e)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 3c8d9ea5e."
+      },
+      {
+        "phase": "F5 player login and connect-to-failed (3c8d9ea5e..HEAD)",
+        "shrink": 88,
+        "destination_growth": 304,
+        "new_code": 0,
+        "note": "The last two character_setup handlers join ApplicationCharacter; shell-only capabilities stay behind the host trait."
+      },
+      {
+        "phase": "Base reset at the #1284 login slice (405c2df67)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 405c2df67."
+      },
+      {
+        "phase": "F5 ApplicationMovement owner (405c2df67..HEAD)",
+        "shrink": 15,
+        "destination_growth": 172,
+        "new_code": 0,
+        "note": "MoveTimeSkipped and SetActiveMover (C++ MovementHandler.cpp) open the new application movement owner."
+      },
+      {
+        "phase": "Base reset at the #1285 movement owner (231db1d96)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 231db1d96."
+      },
+      {
+        "phase": "F5 movement ACK pair (231db1d96..HEAD)",
+        "shrink": 11,
+        "destination_growth": 146,
+        "new_code": 0,
+        "note": "MoveSetVehicleRecIdAck and MoveSetCollisionHeightAck join the existing movement owner."
+      },
+      {
+        "phase": "Base reset at the #1286 movement ACK pair (f73768e05)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to f73768e05."
+      },
+      {
+        "phase": "F5 movement ACK trio (f73768e05..HEAD)",
+        "shrink": 30,
+        "destination_growth": 312,
+        "new_code": 0,
+        "note": "MoveKnockBackAck, MoveApplyMovementForceAck and MoveRemoveMovementForceAck join the existing movement owner."
+      },
+      {
+        "phase": "Base reset at the #1287 movement trio (864421c84)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 864421c84."
+      },
+      {
+        "phase": "F5 movement mover/teleport ACKs (864421c84..HEAD)",
+        "shrink": 51,
+        "destination_growth": 151,
+        "new_code": 0,
+        "note": "MoveInitActiveMoverComplete and MoveTeleportAck join the existing movement owner."
+      },
+      {
+        "phase": "Base reset at the #1288 mover/teleport ACKs (9d85a3363)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 9d85a3363."
+      },
+      {
+        "phase": "F5 force-magnitude ACK (9d85a3363..HEAD)",
+        "shrink": -6,
+        "destination_growth": 129,
+        "new_code": 0,
+        "note": "One macro-registered movement opcode moves to the existing owner; MoveSplineDone deferred because its body is the shell-owned taxi state machine."
+      },
+      {
+        "phase": "Base reset at the #1291 ratchet correction (29eac6dc3)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 29eac6dc3."
+      },
+      {
+        "phase": "F4 remate: trainer buy body (29eac6dc3..HEAD)",
+        "shrink": 88,
+        "destination_growth": 374,
+        "new_code": 0,
+        "note": "The 238-line TrainerBuySpell body moves to the application trainer owner; the registration stays in world with a thunk into the owner."
+      },
+      {
+        "phase": "Base reset at the #1292 trainer-buy remate (ae9568e10)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to ae9568e10."
+      },
+      {
+        "phase": "F4 remate: quest completion body (ae9568e10..HEAD)",
+        "shrink": 59,
+        "destination_growth": 275,
+        "new_code": 0,
+        "note": "The quest-completion body moves to the existing quest application owner; the registration stays in world (pinned registrar signature) and the host seam lives in the session tree."
+      },
+      {
+        "phase": "Base reset at the #1293 quest-completion remate (951383789)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 951383789."
+      },
+      {
+        "phase": "Quest host relocation out of session/ (951383789..HEAD)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "One host-impl file moves verbatim from session/ to handlers/quest/; the curated footprint is unchanged."
+      },
+      {
+        "phase": "Base reset at the #1294 quest host relocation (124591fb4)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 124591fb4."
+      },
+      {
+        "phase": "F5 loot unit consumer (124591fb4..HEAD)",
+        "shrink": 14,
+        "destination_growth": 238,
+        "new_code": 0,
+        "note": "LootUnit joins the existing application loot owner and its registration moves with it (108 -> 107 world literals)."
+      },
+      {
+        "phase": "Base reset at the #1295 LootUnit slice (b024b8a76)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to b024b8a76."
+      },
+      {
+        "phase": "F5 loot roll and master loot (b024b8a76..HEAD)",
+        "shrink": 232,
+        "destination_growth": 536,
+        "new_code": 0,
+        "note": "LootRoll and MasterLootItem join the existing application loot owner; both registrations move (108 -> 106 world literals)."
+      },
+      {
+        "phase": "Base reset at the #1296 loot roll slice (e55f3abb2)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to e55f3abb2."
+      },
+      {
+        "phase": "Loot owner split into submodules (e55f3abb2..HEAD)",
+        "shrink": 0,
+        "destination_growth": 48,
+        "new_code": 0,
+        "note": "Pure layout move: loot_handlers.rs 913 -> 390 with four private family submodules; no surface change."
+      },
+      {
+        "phase": "Base reset at the #1297 loot owner split (127c0bbb6)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 127c0bbb6."
+      },
+      {
+        "phase": "F5 loot item consumer (127c0bbb6..HEAD)",
+        "shrink": 242,
+        "destination_growth": 416,
+        "new_code": 0,
+        "note": "LootItem joins the existing application loot owner (new item.rs submodule) and its registration moves (75 -> 74 world literals)."
+      },
+      {
+        "phase": "Base reset at the #1298 LootItem slice (e8e6cc2ed)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to e8e6cc2ed."
+      },
+      {
+        "phase": "LootMoney command receivers (e8e6cc2ed..HEAD)",
+        "shrink": 56,
+        "destination_growth": 212,
+        "new_code": 0,
+        "note": "The LootMoney command receivers move to the application loot owner with two host capabilities; the packet consumer stays in the shell."
+      },
+      {
+        "phase": "F6-7 R4a reconciliation-exhaustion containment (6ab5f7024..HEAD)",
+        "shrink": -51,
+        "destination_growth": 95,
+        "new_code": 0,
+        "note": "Typed lookup outcome plus the mandated regression file; the growth is a new 368-line test file and additive typed counterparts."
+      },
+      {
+        "phase": "F4 StorageMove body (0a6efaf7f..4962c56ab)",
+        "shrink": 284,
+        "destination_growth": 1259,
+        "new_code": 975,
+        "note": "Reviewed by the architecture reviewer: complete StorageMove boundary extraction requires borrowed Inventory/persistence/publication and separate Stats contexts, narrow shell capabilities, and canonical-access adapters; these support one application coordinator. The 253-line shell adapter reduces S and is not additional destination growth."
+      }
+    ],
+    "areas": [
+      {
+        "area": "crates/wow-world-core/src",
+        "lines": 0,
+        "reason": "SessionCore/hub state, canonical access owners, map-manager runtime and host traits; new types and cfg-gated fixture refs, not copies of the wow-world remainder plus the #1263 F5 chat policy capacity re-export."
+      },
+      {
+        "area": "crates/wow-world-application/src",
+        "lines": 729,
+        "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
+      },
+      {
+        "area": "crates/wow-world-inventory/src",
+        "lines": 0,
+        "reason": "inventory owners, storage/adapter and publication surfaces extracted from the wow-world item handlers."
+      },
+      {
+        "area": "crates/wow-world-lifecycle/src",
+        "lines": 0,
+        "reason": "lifecycle state, load/finalization owners, account-data and support handler families and the F5 battle.net service handlers with their hub context."
+      },
+      {
+        "area": "crates/wow-world-spell/src",
+        "lines": 0,
+        "reason": "spell state, melee rules and spell-acquisition adapters."
+      },
+      {
+        "area": "crates/wow-world-entities/src",
+        "lines": 0,
+        "reason": "world-entity registries and creature contracts."
+      },
+      {
+        "area": "crates/wow-world-loot/src",
+        "lines": 0,
+        "reason": "loot state, roll publication and random properties."
+      },
+      {
+        "area": "crates/wow-world-social/src",
+        "lines": 0,
+        "reason": "social group/duel state, the inspect, calendar, chat, social-contacts and arena-team handler families with their Cx, host bridge, thunks and group fanout."
+      },
+      {
+        "area": "crates/wow-world-instances/src",
+        "lines": 0,
+        "reason": "instance difficulty and lock operations."
+      },
+      {
+        "area": "crates/wow-world-visibility/src",
+        "lines": 0,
+        "reason": "object-update projection."
+      },
+      {
+        "area": "crates/wow-world-interaction/src",
+        "lines": 0,
+        "reason": "NPC interaction and support features."
+      }
+    ],
+    "review_note": "The reviewed duplication gate below is what proves this growth is not a copy of code still present in crates/wow-world/src: it now finds no duplicated body at all, every former exception having been retired into its admitted owner. Re-measure and re-record this budget whenever destination growth changes; unbudgeted growth fails R1. Since the #1266 integration the area figures are measured against merge-base 793851676; the cumulative figures of the previous base are recorded in the phases history."
+  },
+  "duplicates": []
+}

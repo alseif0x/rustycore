@@ -21,57 +21,63 @@
 
 mod budget;
 mod callbacks;
+// #1263 F6-8D3b-2: the driver's update steps exposed to world-server tests.
+#[cfg(any(test, feature = "test-fixtures"))]
+mod cross_crate_fixtures;
 pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
-pub(super) use callbacks::RenameCallbacks;
+pub(in crate::session) use wow_world_lifecycle::RenameCallbacks;
+mod native_death;
 mod phase_consumer;
 mod phase_pass;
+mod player_recovery;
 
 use phases::SessionDriverPhaseLikeCpp;
+use wow_world_application::{ResurrectionOperationCatalogs, run_logout_timer_with_catalogs};
 
 #[cfg(test)]
 use std::sync::Arc;
 use std::time::Instant;
 
 use tracing::{debug, info};
-use wow_packet::WorldPacket;
+use wow_world_entities::{send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects};
 
-use super::{
-    ClientOpcodes, RuntimeTickOwner, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession,
-};
+use super::{ClientOpcodes, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 
 impl WorldSession {
     /// Process queued packets (up to [`MAX_PACKETS_PER_UPDATE`] per call).
     ///
     /// Returns the number of packets processed.
-    pub async fn update_with_catalogs_like_cpp(
+    pub(crate) async fn update_with_catalogs_like_cpp(
         &mut self,
         diff_ms: u32,
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) -> usize {
         let mut processed = 0;
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainPrimaryPackets);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainPrimaryPackets);
 
         // Drain the primary (instance) packet channel
         while processed < MAX_PACKETS_PER_UPDATE
-            && self.pending_packets.len() < MAX_PACKETS_PER_UPDATE
+            && self.core.admission.pending_packets.len() < MAX_PACKETS_PER_UPDATE
         {
-            let pkt = match self.packet_rx().try_recv() {
+            let pkt = match self.core.packet_rx().try_recv() {
                 Ok(p) => p,
                 Err(flume::TryRecvError::Empty) => break,
                 Err(flume::TryRecvError::Disconnected) => {
                     debug!(
                         "Packet channel disconnected for account {}",
-                        self.account_id
+                        self.core.account_id
                     );
-                    self.state = SessionState::Disconnecting;
+                    self.core.state = SessionState::Disconnecting;
                     break;
                 }
             };
 
-            self.last_packet_time = Instant::now();
-            self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
+            self.core.admission.last_packet_time = Instant::now();
+            self.core
+                .reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
             if !self.evaluate_packet_spoof_like_cpp(&pkt) {
                 break;
             }
@@ -79,27 +85,29 @@ impl WorldSession {
                 && pkt.client_opcode() == Some(ClientOpcodes::RequestCemeteryList)
             {
                 info!(
-                    account = self.account_id,
-                    state = ?self.state,
-                    pending_before = self.pending_packets.len(),
+                    account = self.core.account_id,
+                    state = ?self.core.state,
+                    pending_before = self.core.admission.pending_packets.len(),
                     "RUST_CEMETERY_TRACE queued primary packet"
                 );
             }
-            self.pending_packets.push_back(pkt);
+            self.core.admission.pending_packets.push_back(pkt);
             processed += 1;
         }
 
         // Also drain the realm socket channel (after ConnectTo, realm-type
         // packets like BattlenetRequest, Ping, etc. arrive here)
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainRealmPackets);
-        if let Some(realm_rx) = self.realm_packet_rx() {
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainRealmPackets);
+        if let Some(realm_rx) = self.core.realm_packet_rx() {
             while processed < MAX_PACKETS_PER_UPDATE
-                && self.pending_packets.len() < MAX_PACKETS_PER_UPDATE
+                && self.core.admission.pending_packets.len() < MAX_PACKETS_PER_UPDATE
             {
                 match realm_rx.try_recv() {
                     Ok(pkt) => {
-                        self.last_packet_time = Instant::now();
-                        self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
+                        self.core.admission.last_packet_time = Instant::now();
+                        self.core
+                            .reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
                         if !self.evaluate_packet_spoof_like_cpp(&pkt) {
                             break;
                         }
@@ -107,91 +115,49 @@ impl WorldSession {
                             && pkt.client_opcode() == Some(ClientOpcodes::RequestCemeteryList)
                         {
                             info!(
-                                account = self.account_id,
-                                state = ?self.state,
-                                pending_before = self.pending_packets.len(),
+                                account = self.core.account_id,
+                                state = ?self.core.state,
+                                pending_before = self.core.admission.pending_packets.len(),
                                 "RUST_CEMETERY_TRACE queued realm packet"
                             );
                         }
-                        self.pending_packets.push_back(pkt);
+                        self.core.admission.pending_packets.push_back(pkt);
                         processed += 1;
                     }
                     Err(flume::TryRecvError::Empty) => break,
                     Err(flume::TryRecvError::Disconnected) => {
                         info!(
                             "Realm socket disconnected for account {} (instance still active)",
-                            self.account_id
+                            self.core.account_id
                         );
                         // Realm dropped — don't disconnect immediately, the
                         // instance socket may still be fine.
-                        self.clear_realm_packet_rx();
+                        self.core.clear_realm_packet_rx();
                         break;
                     }
                 }
             }
         }
 
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ConnectionTimeout);
-        if self.is_connection_idle_like_cpp() {
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ConnectionTimeout);
+        if self.core.is_connection_idle_like_cpp() {
             debug!(
                 "Session account {} timed out by SocketTimeOutTime-like deadline",
-                self.account_id
+                self.core.account_id
             );
-            self.state = SessionState::Disconnecting;
+            self.core.state = SessionState::Disconnecting;
         }
 
-        // ── Creature / player combat ticks ─────────────────────────
-        // Creature AI is owned by the map runtime when GlobalLegacy is active.
-        // Player auto-attack remains session-owned here: C++ Player::Update
-        // calls DoMeleeAttackIfReady before Map::Update runs ObjectUpdater.
-        if self.state == SessionState::LoggedIn {
-            self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
-            self.update_pvp_flag_like_cpp(wow_entities::game_time_secs_like_cpp());
-            let _ = self.set_represented_can_delay_teleport_like_cpp(true);
-            // Read the tick owner once; the lock is taken and released inside
-            // runtime_tick_owner_like_cpp before any tick work begins.
-            let owner = self.runtime_tick_owner_like_cpp();
-            self.creature_tick = self.creature_tick.wrapping_add(1);
-            if self.creature_tick % 4 == 0 && owner == RuntimeTickOwner::Session {
-                self.tick_creatures_sync();
-            }
-            // Combat tick every 2 ticks (~100ms), and only when this session
-            // owns the tick.
-            //
-            // Under `GlobalLegacy` the map owns this transition (#28), so the
-            // swing resolves once from the loop's real map diff instead of once
-            // per session on each session's own pass clock. Gated, not deleted:
-            // `RustyCore.LegacyCreatureGlobalRuntime = 0` keeps the owner at
-            // `Session`, and player auto-attack must keep working there.
-            if self.creature_tick % 2 == 0 && owner == RuntimeTickOwner::Session {
-                self.tick_combat_sync();
-            }
-            // C++ `Player::Update` runs `RegenerateAll()` after
-            // `DoMeleeAttackIfReady` for every living in-world player. The
-            // canonical Player owns the accumulators; this session pass is the
-            // single writer and consumes the published stat snapshot.
-            let regen_game_tables = self.regen_game_tables.clone();
-            self.tick_player_regeneration_like_cpp(
-                diff_ms,
-                catalogs.creature_spawns.power_types.as_ref(),
-                regen_game_tables.as_deref(),
-                catalogs.player_regeneration_rates.as_ref(),
-            );
-            // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
-            if self.creature_tick % 4 == 0 {
-                self.tick_auras();
-            }
-            self.update_player_save_timer_like_cpp(diff_ms);
-            self.revalidate_represented_tavern_resting_with_catalog_like_cpp(
-                catalogs.area_triggers.db2.as_ref(),
-            );
-            self.tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
-                catalogs.player_rest_rates.as_ref(),
-                crate::session_rules::current_game_time_secs_like_cpp(),
-            );
-            let _ = self.set_represented_can_delay_teleport_like_cpp(false);
-            self.process_represented_delayed_teleport_after_update_like_cpp()
-                .await;
+        // ── Session-owned ticks ────────────────────────────────────
+        // Creature AI and player auto-attack are owned by the canonical map
+        // runtime (#1263 F6-8D3b-2): C++ `Player::Update` calls
+        // `DoMeleeAttackIfReady` from `Map::Update`, which runs the admitted
+        // creature executor's player melee phase.
+        if self.core.state == SessionState::LoggedIn {
+            self.core
+                .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
+            player_recovery::run_current_player_ticks(self, diff_ms, catalogs).await;
         }
 
         // ── Periodic TimeSyncRequest ──────────────────────────────
@@ -202,33 +168,42 @@ impl WorldSession {
         // C++ sends it on the `!ProcessUnsafe()` branch, i.e. the map filter's
         // pass (`WorldSession.cpp:488-497`). A coordinated session therefore
         // sends it from its map pass tail and must not send it again here.
-        if self.state == SessionState::LoggedIn
-            && self.time_sync_timer_ms > 0
+        if self.core.state == SessionState::LoggedIn
+            && self.core.driver.time_synchronization.timer_ms > 0
             && !self.is_map_phase_coordinated_like_cpp()
         {
-            self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::TimeSync);
-            if diff_ms >= self.time_sync_timer_ms {
-                self.send_time_sync();
+            self.core
+                .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::TimeSync);
+            if diff_ms >= self.core.driver.time_synchronization.timer_ms {
+                self.core.send_time_sync();
             } else {
-                self.time_sync_timer_ms -= diff_ms;
+                self.core.driver.time_synchronization.timer_ms -= diff_ms;
             }
         }
 
         // ── Logout timer ────────────────────────────────────────────
         // C++ decides this **after** the packet loop and the query callbacks,
-        // on the `ProcessUnsafe()` branch (`WorldSession.cpp:498-503`), so a
+        // on the `ProcessUnsafe()` branch (`WorldSession.cpp:505-511`), so a
         // `LogoutCancel` already queued is processed before the decision. A
         // coordinated session therefore runs it at the end of its world pass,
         // not here, where its own packets have not been dispatched yet.
         if !self.is_map_phase_coordinated_like_cpp() {
-            self.run_logout_timer_like_cpp();
+            run_logout_timer_with_catalogs(
+                self,
+                ResurrectionOperationCatalogs {
+                    item_guid_generator: catalogs.id_generators.item.as_ref(),
+                    creature_spawns: catalogs.creature_spawns.as_ref(),
+                    graveyards: Some(catalogs.graveyards.as_ref()),
+                },
+            )
+            .await;
         }
 
         processed
     }
 
     #[cfg(test)]
-    pub async fn update(&mut self, diff_ms: u32) -> usize {
+    pub(crate) async fn update(&mut self, diff_ms: u32) -> usize {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
         self.update_with_catalogs_like_cpp(diff_ms, &catalogs).await
     }
@@ -238,39 +213,59 @@ impl WorldSession {
         &mut self,
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) {
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::FlushPacketSpoofBan);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::FlushPacketSpoofBan);
         self.flush_packet_spoof_ban_like_cpp().await;
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionCommands);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionCommands);
+        // #38: a trade this session accepted last pass completes here, while
+        // the partner parks in its own concurrent pass.
+        wow_world_social::continue_pending_trade_commit_like_cpp(
+            self,
+            std::sync::Arc::clone(&catalogs.id_generators.item),
+        )
+        .await;
         self.process_represented_session_commands_with_catalogs_like_cpp(catalogs)
             .await;
         // #743: a group state change the authority could not hand to this
         // session is applied here, after the mailbox drain that would have
         // carried it, so a delivered command is never applied twice.
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ReconcileGroupState);
-        self.reconcile_group_state_like_cpp();
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
-        self.process_pending_creature_kills_with_generator_like_cpp(
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ReconcileGroupState);
+        wow_world_instances::reconcile_group_state_like_cpp(self);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
+        wow_world_entities::process_pending_creature_kills_with_generator_like_cpp(
+            self,
             catalogs.id_generators.item.as_ref(),
         )
         .await;
 
         // ── Spell casting tick ─────────────────────────────────────────
         // Check if an active spell cast has completed and execute it.
-        if self.state == SessionState::LoggedIn {
-            self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::LoggedInGameplayTicks);
+        if self.core.state == SessionState::LoggedIn {
+            self.core
+                .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::LoggedInGameplayTicks);
             if let Some(player_guid) = self.player_guid() {
-                self.close_retired_active_loot_windows_like_cpp(player_guid);
+                {
+                    let (s, mut h) = crate::session::split_loot_mut(self);
+                    s.close_retired_active_loot_windows_like_cpp(&mut h, player_guid)
+                };
             }
-            self.tick_represented_loot_rolls_with_generator_like_cpp(
+            wow_world_loot_ops::tick_represented_loot_rolls_with_generator_like_cpp(
+                self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.item_valuation.as_ref(),
             )
             .await;
-            self.tick_represented_gameobject_update_like_cpp();
+            wow_world_entities::tick_represented_gameobject_update_like_cpp(self);
             self.send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp();
-            self.send_represented_capture_point_removed_from_last_update_like_cpp();
-            self.send_represented_gameobject_visual_despawn_from_last_update_like_cpp();
-            self.tick_active_spell_cast_with_generator_like_cpp(
+            wow_world_entities::send_represented_capture_point_removed_from_last_update_like_cpp(
+                self,
+            );
+            wow_world_entities::send_represented_gameobject_visual_despawn_from_last_update_like_cpp(self);
+            wow_world_spell::tick_active_spell_cast_with_generator_like_cpp(
+                self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
             )
@@ -281,15 +276,15 @@ impl WorldSession {
             )
             .await;
             self.sync_represented_farsight_clear_from_canonical_like_cpp();
-            self.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp();
+            wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(self);
             self.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp();
         }
 
         // Check for instance link delivery (ConnectTo flow)
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PollInstanceLink);
-        self.poll_instance_link_with_module_registry_like_cpp(
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PollInstanceLink);
+        self.poll_instance_link_with_catalogs_like_cpp(
             catalogs.id_generators.item.as_ref(),
-            catalogs.modules.as_ref(),
             catalogs.creature_spawns.as_ref(),
             catalogs.player_bootstrap.as_ref(),
             catalogs.player_rest_rates.as_ref(),
@@ -300,49 +295,59 @@ impl WorldSession {
         .await;
 
         // Process pending creature/gameobject spawn (async DB query)
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
-        if let Some(spawn) = self.pending_creature_spawn.take() {
-            self.send_nearby_creatures_with_catalogs_like_cpp(
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
+        if let Some(spawn) = self.world_entities.take_pending_creature_spawn_like_cpp() {
+            send_nearby_creatures_with_catalogs_like_cpp(
+                self,
                 catalogs.creature_spawns.as_ref(),
                 spawn.map_id,
                 &spawn.position,
                 spawn.zone_id,
             )
             .await;
-            self.send_nearby_gameobjects(spawn.map_id, &spawn.position, spawn.zone_id)
-                .await;
+            send_nearby_gameobjects(self, spawn.map_id, &spawn.position, spawn.zone_id).await;
         }
 
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DispatchQueuedPackets);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DispatchQueuedPackets);
         // C++ LockedQueue::next selects only the head. Keep unselected packets
         // on Session if this future is cancelled; never replay the in-flight
         // handler, which may already have produced effects. A coordinated pass
         // stops at an ineligible head instead of skipping it.
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
             && self
+                .core
+                .admission
                 .pending_packets
                 .iter()
                 .any(|pkt| pkt.client_opcode() == Some(ClientOpcodes::RequestCemeteryList))
         {
             info!(
-                account = self.account_id,
-                state = ?self.state,
+                account = self.core.account_id,
+                state = ?self.core.state,
                 "RUST_CEMETERY_TRACE dispatching queued packet"
             );
         }
         let _world_pass = self.run_world_phase_dispatch_like_cpp(catalogs).await;
 
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CharacterRenameCallbacks);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CharacterRenameCallbacks);
         self.process_ready_character_rename_callbacks_like_cpp();
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
-        self.process_pending_periodic_player_save_with_generator_like_cpp(
-            catalogs.id_generators.item.as_ref(),
-        )
-        .await;
+        if !self.is_map_phase_coordinated_like_cpp() {
+            // Coordinated sessions consume this SaveTimer work in their
+            // admitted PlayerRecovery pass immediately before the death timer.
+            // Keep this compatibility consumer for standalone Sessions.
+            wow_world_application::process_pending_periodic_player_save_with_generator_like_cpp(
+                self,
+                catalogs.id_generators.item.as_ref(),
+            )
+            .await;
+        }
     }
 
     #[cfg(test)]
-    pub async fn process_pending(&mut self) {
+    pub(crate) async fn process_pending(&mut self) {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
         self.process_pending_with_catalogs_like_cpp(&catalogs).await;
     }
@@ -353,6 +358,7 @@ impl WorldSession {
     ) -> SessionHandlerCatalogsLikeCpp {
         let empty_catalogs = SessionHandlerCatalogsLikeCpp::default();
         let catalogs = self
+            .catalogs
             .object_mgr_catalogs_like_cpp
             .as_ref()
             .cloned()
@@ -372,47 +378,57 @@ impl WorldSession {
                 .unwrap_or(empty_catalogs.battle_pet_trainer_selection),
             chat_policy: Arc::new(self.chat_policy_catalogs_for_test_like_cpp()),
             group_invite_policy: Arc::new(self.group_invite_policy_for_test_like_cpp()),
+            trade_policy: empty_catalogs.trade_policy,
             support_feature_policy: Arc::new(self.support_feature_policy_for_test_like_cpp()),
             player_regeneration_rates: empty_catalogs.player_regeneration_rates,
             bank_bag_slot_prices: self
+                .catalogs
                 .bank_bag_slot_prices_store
                 .clone()
                 .unwrap_or(empty_catalogs.bank_bag_slot_prices),
             adventure_map_pois: self
+                .catalogs
                 .adventure_map_poi_store
                 .clone()
                 .unwrap_or(empty_catalogs.adventure_map_pois),
             quest_info: self
+                .catalogs
                 .quests
                 .info_store
                 .clone()
                 .unwrap_or(empty_catalogs.quest_info),
             battlemaster_lists: self
+                .catalogs
                 .battlemaster_list_store
                 .clone()
                 .unwrap_or(empty_catalogs.battlemaster_lists),
-            emotes: self.emotes_store.clone().unwrap_or(empty_catalogs.emotes),
+            emotes: self
+                .catalogs
+                .emotes_store
+                .clone()
+                .unwrap_or(empty_catalogs.emotes),
             emotes_text: self
+                .catalogs
                 .emotes_text_store
                 .clone()
                 .unwrap_or(empty_catalogs.emotes_text),
             graveyards: self
+                .catalogs
                 .graveyard_store
                 .clone()
                 .unwrap_or(empty_catalogs.graveyards),
             lfg_dungeons: self
+                .catalogs
                 .lfg_dungeon_store_like_cpp
                 .clone()
                 .unwrap_or(empty_catalogs.lfg_dungeons),
             tact_keys: self
+                .catalogs
                 .tact_key_store
                 .clone()
                 .unwrap_or(empty_catalogs.tact_keys),
             hotfixes: empty_catalogs.hotfixes,
-            modules: self
-                .module_registry_like_cpp
-                .clone()
-                .unwrap_or(empty_catalogs.modules),
+            modules: Arc::clone(self.module_hooks.registry_like_cpp()),
             id_generators: Arc::new(self.id_generators_for_test_like_cpp()),
         };
         catalogs

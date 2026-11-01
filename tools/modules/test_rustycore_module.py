@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -26,12 +27,17 @@ class Workspace:
         self.root = root
         (root / "tools/modules").mkdir(parents=True)
         (root / "crates").mkdir()
-        for name in ("compose.py", "rustycore-module"):
+        for name in ("compose.py", "rustycore-module", "module_sql.py"):
             shutil.copy2(REPO_ROOT / "tools/modules" / name, root / "tools/modules" / name)
         shutil.copytree(REPO_ROOT / "tools/modules/skeleton", root / "tools/modules/skeleton")
         shutil.copytree(REPO_ROOT / "crates/wow-module-api", root / "crates/wow-module-api")
         shutil.copytree(REPO_ROOT / "crates/wow-core", root / "crates/wow-core")
         (root / "modules").mkdir()
+        (root / "database/migrations").mkdir(parents=True)
+        shutil.copy2(
+            REPO_ROOT / "database/migrations/manifest.toml",
+            root / "database/migrations/manifest.toml",
+        )
         (root / "Cargo.toml").write_text("[workspace]\nmembers = []\n", encoding="utf-8")
 
     def run(self, *args: str) -> subprocess.CompletedProcess:
@@ -168,6 +174,125 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertIn("source_api", refused.stderr)
         self.assertIn("Update the module or pin an older server", refused.stderr)
 
+    def test_a_module_depending_on_a_server_crate_is_refused(self) -> None:
+        """ADR-002 / #1445 S0: `wow-module-api` is the only server crate allowed."""
+        shutil.copytree(
+            REPO_ROOT / "tools/modules/fixtures/forbidden_dependency",
+            self.ws.root / "modules/forbidden_dependency",
+        )
+        refused = self.ws.run("check")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("depends on server crate 'wow-core'", refused.stderr)
+        self.assertIn("only on wow-module-api", refused.stderr)
+
+    def test_a_workspace_inherited_server_crate_is_refused_too(self) -> None:
+        self.ws.run("new", "demo.greeter")
+        root = self.ws.root / "Cargo.toml"
+        root.write_text(
+            root.read_text(encoding="utf-8")
+            + '\n[workspace.dependencies]\nwow-core = { path = "crates/wow-core" }\n',
+            encoding="utf-8",
+        )
+        cargo = self.ws.root / "modules/demo_greeter/Cargo.toml"
+        cargo.write_text(
+            cargo.read_text(encoding="utf-8").replace(
+                "[dependencies]\n", "[dependencies]\nwow-core = { workspace = true }\n", 1
+            ),
+            encoding="utf-8",
+        )
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("'wow-core'", refused.stderr)
+
+    def test_a_server_crate_named_without_a_path_is_refused(self) -> None:
+        self.ws.run("new", "demo.greeter")
+        cargo = self.ws.root / "modules/demo_greeter/Cargo.toml"
+        cargo.write_text(
+            cargo.read_text(encoding="utf-8").replace(
+                "[dependencies]\n", '[dependencies]\nwow-core = "0.1"\n', 1
+            ),
+            encoding="utf-8",
+        )
+        refused = self.ws.run("check")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("depends on server crate 'wow-core'", refused.stderr)
+
+    def test_a_helper_crate_inside_the_module_cannot_smuggle_a_server_crate(self) -> None:
+        self.ws.run("new", "demo.greeter")
+        module = self.ws.root / "modules/demo_greeter"
+        helper = module / "helper"
+        (helper / "src").mkdir(parents=True)
+        (helper / "src/lib.rs").write_text("", encoding="utf-8")
+        (helper / "Cargo.toml").write_text(
+            '[package]\nname = "demo-helper"\nversion = "0.1.0"\nedition = "2024"\n\n'
+            '[dependencies]\nnot-a-server-name = { package = "wow-core", '
+            'path = "../../../crates/wow-core" }\n',
+            encoding="utf-8",
+        )
+        cargo = module / "Cargo.toml"
+        cargo.write_text(
+            cargo.read_text(encoding="utf-8").replace(
+                "[dependencies]\n", '[dependencies]\ndemo-helper = { path = "helper" }\n', 1
+            ),
+            encoding="utf-8",
+        )
+        refused = self.ws.run("check")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("'wow-core'", refused.stderr)
+
+        # The same helper without the server dependency is fine.
+        (helper / "Cargo.toml").write_text(
+            '[package]\nname = "demo-helper"\nversion = "0.1.0"\nedition = "2024"\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+
+    def test_dev_dependencies_and_api_one_modules_still_compose(self) -> None:
+        """The skeleton is a source API 1 module; a dev-dependency is not checked."""
+        self.ws.run("new", "demo.greeter")
+        cargo = self.ws.root / "modules/demo_greeter/Cargo.toml"
+        cargo.write_text(
+            cargo.read_text(encoding="utf-8")
+            + '\n[dev-dependencies]\nwow-core = { path = "../../crates/wow-core" }\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        lock = tomllib.loads((self.ws.root / "modules.lock.toml").read_text(encoding="utf-8"))
+        self.assertEqual(lock["source_api"], "2", "the server provides API 2")
+        self.assertEqual(lock["module"][0]["source_api"], "1", "the module keeps its own API")
+
+    def test_the_example_milestones_module_installs_and_composes(self) -> None:
+        """#1444 H5: the shipped example is a valid source API 2 checkout."""
+        example = self.ws.root / "examples/milestones"
+        shutil.copytree(REPO_ROOT / "tools/modules/examples/milestones", example)
+        installed = self.ws.run("install", "--path", "examples/milestones", "--json")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        self.assertEqual(json.loads(installed.stdout)["id"], "example.milestones")
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        lock = tomllib.loads((self.ws.root / "modules.lock.toml").read_text(encoding="utf-8"))
+        self.assertEqual(lock["module"][0]["source_api"], "2")
+        compositor = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("example_milestones::register(&mut modules, config)", compositor)
+        # #1444 H6c: its SQL is recorded and the lock is embedded.
+        sql = lock["module"][0]["sql"]
+        self.assertEqual(sql["min_core_schema"], "2026.08.03.00")
+        self.assertEqual(
+            [(m["database"], m["version"]) for m in sql["migration"]],
+            [("characters", "2026.10.21.00")],
+        )
+        self.assertEqual([p["file"] for p in sql["purge"]], ["purge/characters.sql"])
+        self.assertIn("world_server::run_with_composition(", compositor)
+        self.assertEqual(self.ws.run("check").returncode, 0)
+
+    def test_the_composer_and_the_module_api_agree_on_source_apis(self) -> None:
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+
+        lib = (REPO_ROOT / "crates/wow-module-api/src/lib.rs").read_text(encoding="utf-8")
+        self.assertIn(f'pub const SOURCE_API: &str = "{compose.SUPPORTED_SOURCE_API}";', lib)
+        rendered = ", ".join(f'"{api}"' for api in sorted(compose.COMPATIBLE_SOURCE_APIS))
+        self.assertIn(f"pub const COMPATIBLE_SOURCE_APIS: &[&str] = &[{rendered}];", lib)
+
     def test_zero_modules_and_no_config_keep_the_base_behaviour(self) -> None:
         self.assertEqual(self.ws.run("sync").returncode, 0)
         main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
@@ -179,6 +304,450 @@ class ModuleManagerTests(unittest.TestCase):
             manifest,
             "the generated launcher has no unit tests and must not link a libtest harness",
         )
+
+    def test_workspace_lint_inheritance_is_checked_and_restored(self) -> None:
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        manifest_path = self.ws.root / "crates/world-modules/Cargo.toml"
+        manifest_text = manifest_path.read_text(encoding="utf-8")
+        self.assertIs(tomllib.loads(manifest_text)["lints"]["workspace"], True)
+
+        without_lints = manifest_text.replace("\n[lints]\nworkspace = true\n", "\n", 1)
+        self.assertNotEqual(without_lints, manifest_text)
+        manifest_path.write_text(without_lints, encoding="utf-8")
+        stale = self.ws.run("check")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("crates/world-modules/Cargo.toml", stale.stderr)
+
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        restored = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertIs(restored["lints"]["workspace"], True)
+
+
+    # ------------------------------------------------ per-module SQL (#1444 H6)
+    def _module_with_sql(self, module_id: str = "demo.greeter", database: str = "characters",
+                         minimum: str = "2026.08.02.00", directory: str | None = None) -> pathlib.Path:
+        directory = directory or module_id.replace(".", "_")
+        created = self.ws.run("new", module_id, "--dir", directory, "--package", directory.replace("_", "-"))
+        self.assertEqual(created.returncode, 0, created.stderr)
+        root = self.ws.root / "modules" / directory
+        sql = root / "data/sql"
+        (sql / database).mkdir(parents=True, exist_ok=True)
+        (sql / "purge").mkdir(exist_ok=True)
+        prefix = "mod_" + module_id.replace(".", "_") + "_"
+        (sql / database / "1.sql").write_text(
+            f"CREATE TABLE {prefix}counts (guid BIGINT UNSIGNED PRIMARY KEY);\r\n", encoding="utf-8"
+        )
+        (sql / "purge/drop.sql").write_text(f"DROP TABLE IF EXISTS {prefix}counts;\n", encoding="utf-8")
+        (sql / "manifest.toml").write_text(
+            f'format = 1\nmin_core_schema = "{minimum}"\n\n'
+            f'[[migrations]]\ndatabase = "{database}"\nversion = "2026.10.21.00"\n'
+            f'description = "counts"\nfile = "{database}/1.sql"\n\n'
+            f'[[purge]]\ndatabase = "{database}"\nfile = "purge/drop.sql"\n',
+            encoding="utf-8",
+        )
+        return root
+
+    def _lock(self) -> dict:
+        return tomllib.loads((self.ws.root / "modules.lock.toml").read_text(encoding="utf-8"))
+
+    def test_module_sql_is_recorded_in_the_lock_and_embedded(self) -> None:
+        self._module_with_sql()
+        synced = self.ws.run("sync")
+        self.assertEqual(synced.returncode, 0, synced.stderr)
+        sql = self._lock()["module"][0]["sql"]
+        self.assertEqual(sql["min_core_schema"], "2026.08.02.00")
+        self.assertEqual(sql["source"], "modules/demo_greeter/data/sql")
+        migration = sql["migration"][0]
+        self.assertEqual(
+            (migration["database"], migration["version"], migration["file"]),
+            ("characters", "2026.10.21.00", "characters/1.sql"),
+        )
+        # CRLF is normalized before hashing, exactly like rustycore-db does.
+        import hashlib  # noqa: PLC0415
+        expected = hashlib.sha256(
+            b"CREATE TABLE mod_demo_greeter_counts (guid BIGINT UNSIGNED PRIMARY KEY);\n"
+        ).hexdigest()
+        self.assertEqual(migration["sha256"], expected)
+        self.assertEqual(sql["purge"][0]["file"], "purge/drop.sql")
+        main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("world_server::run_with_composition(", main)
+        self.assertIn('include_str!("../../../modules.lock.toml")', main)
+        self.assertEqual(self.ws.run("check").returncode, 0)
+
+    def test_a_recorded_migration_is_immutable(self) -> None:
+        root = self._module_with_sql()
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        (root / "data/sql/characters/1.sql").write_text("CREATE TABLE mod_demo_greeter_x (a INT);\n")
+        changed = self.ws.run("sync")
+        self.assertNotEqual(changed.returncode, 0)
+        self.assertIn("add a new migration file", changed.stderr)
+        self.assertNotEqual(self.ws.run("check").returncode, 0)
+
+    def test_a_module_with_sql_cannot_vanish_without_a_tombstone(self) -> None:
+        root = self._module_with_sql()
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        lock = (self.ws.root / "modules.lock.toml").read_text(encoding="utf-8")
+        shutil.rmtree(root)
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("rustycore-db module remove demo.greeter", refused.stderr)
+
+        # The tombstone block rustycore-db writes is kept byte for byte.
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+        entry = lock[lock.index("[[module]]"):]
+        block = (
+            compose.TOMBSTONE_MARKER + "\n"
+            + entry.replace("[[module]]", "[[tombstone]]").replace("[module.", "[tombstone.")
+            .replace("[[module.", "[[tombstone.")
+        )
+        (self.ws.root / "modules.lock.toml").write_text(lock + "\n" + block, encoding="utf-8")
+        synced = self.ws.run("sync")
+        self.assertEqual(synced.returncode, 0, synced.stderr)
+        text = (self.ws.root / "modules.lock.toml").read_text(encoding="utf-8")
+        self.assertTrue(text.endswith(block), "the tombstone block is preserved verbatim")
+        self.assertEqual([t["id"] for t in self._lock()["tombstone"]], ["demo.greeter"])
+        self.assertNotIn("module", self._lock())
+        main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("run_with_composition", main, "tombstoned history stays accepted")
+        self.assertEqual(self.ws.run("check").returncode, 0)
+
+    def test_module_sql_is_limited_to_characters_and_world(self) -> None:
+        for database in ("auth", "hotfixes"):
+            with self.subTest(database=database):
+                root = self._module_with_sql(database=database)
+                refused = self.ws.run("sync")
+                self.assertNotEqual(refused.returncode, 0)
+                self.assertIn("a module may change only characters and world", refused.stderr)
+                shutil.rmtree(root)
+
+    def test_min_core_schema_must_exist_in_this_core(self) -> None:
+        self._module_with_sql(minimum="2999.01.01.00")
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("newer than this server's core schema", refused.stderr)
+
+    def test_a_missing_or_escaping_sql_file_is_refused(self) -> None:
+        root = self._module_with_sql()
+        manifest = root / "data/sql/manifest.toml"
+        text = manifest.read_text(encoding="utf-8")
+        for bad in ("characters/missing.sql", "../module.toml.sql", "/etc/x.sql"):
+            with self.subTest(file=bad):
+                manifest.write_text(text.replace('file = "characters/1.sql"', f'file = "{bad}"'))
+                self.assertNotEqual(self.ws.run("sync").returncode, 0)
+
+    def test_two_modules_cannot_share_a_table_prefix(self) -> None:
+        self._module_with_sql("demo.a_b")
+        self._module_with_sql("demo_a.b", directory="second")
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("share the table prefix", refused.stderr)
+
+    def test_lock_records_migrations_in_numeric_version_order(self) -> None:
+        root = self._module_with_sql()
+        sql = root / "data/sql"
+        (sql / "characters/9.sql").write_text("CREATE TABLE mod_demo_greeter_nine (a INT);\n")
+        (sql / "characters/10.sql").write_text("CREATE TABLE mod_demo_greeter_ten (a INT);\n")
+        manifest = sql / "manifest.toml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8")
+            + '\n[[migrations]]\ndatabase = "characters"\nversion = "2026.10.10"\n'
+            'description = "ten"\nfile = "characters/10.sql"\n'
+            '\n[[migrations]]\ndatabase = "characters"\nversion = "2026.10.9"\n'
+            'description = "nine"\nfile = "characters/9.sql"\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        versions = [m["version"] for m in self._lock()["module"][0]["sql"]["migration"]]
+        self.assertEqual(versions, ["2026.10.9", "2026.10.10", "2026.10.21.00"])
+
+    def test_a_description_with_a_newline_or_control_character_is_refused(self) -> None:
+        root = self._module_with_sql()
+        manifest = root / "data/sql/manifest.toml"
+        text = manifest.read_text(encoding="utf-8")
+        for bad in ('"counts\\nmore"', "'counts\tmore'", '"""counts\nmore"""'):
+            with self.subTest(description=bad):
+                manifest.write_text(text.replace('description = "counts"', f"description = {bad}"))
+                refused = self.ws.run("sync")
+                self.assertNotEqual(refused.returncode, 0, bad)
+
+    def test_the_tombstone_block_may_hold_only_tombstones(self) -> None:
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+        lock = self.ws.root / "modules.lock.toml"
+        base = lock.read_text(encoding="utf-8")
+        for block in (
+            "[[module]]\nid = \"smuggled.module\"\n",
+            "source_api = \"9\"\n",
+            "[[tombstone]]\nid = \"no.sql\"\n",
+        ):
+            with self.subTest(block=block):
+                lock.write_text(base + "\n" + compose.TOMBSTONE_MARKER + "\n" + block, encoding="utf-8")
+                refused = self.ws.run("sync")
+                self.assertNotEqual(refused.returncode, 0, refused.stdout)
+
+    def test_the_sql_guard_matches_the_shared_vectors(self) -> None:
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import module_sql  # noqa: PLC0415
+        vectors = json.loads((REPO_ROOT / "tools/modules/sql_guard_vectors.json").read_text())
+        prefix = vectors["prefix"]
+        self.assertEqual(module_sql.table_prefix("example.milestones"), prefix)
+        for kind, purge in (("migration", False), ("purge", True)):
+            for statement in vectors[kind]["allow"]:
+                with self.subTest(kind=kind, allow=statement):
+                    self.assertEqual(module_sql.check_script(statement, prefix, purge), [])
+            for statement in vectors[kind]["deny"]:
+                with self.subTest(kind=kind, deny=statement):
+                    self.assertNotEqual(module_sql.check_script(statement, prefix, purge), [])
+
+    def test_compose_refuses_sql_on_core_tables(self) -> None:
+        root = self._module_with_sql()
+        (root / "data/sql/characters/1.sql").write_text(
+            "CREATE TABLE mod_demo_greeter_counts (guid INT PRIMARY KEY);\n"
+            "ALTER TABLE characters ADD COLUMN x INT;\n",
+            encoding="utf-8",
+        )
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("refused by the module SQL guard", refused.stderr)
+        self.assertIn("statement 2", refused.stderr)
+        (root / "data/sql/purge/drop.sql").write_text("DROP TABLE characters;\n")
+        (root / "data/sql/characters/1.sql").write_text(
+            "CREATE TABLE mod_demo_greeter_counts (guid INT PRIMARY KEY);\n"
+        )
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("purge/drop.sql", refused.stderr)
+
+    def test_remove_keeps_recorded_sql_acceptable(self) -> None:
+        self._module_with_sql()
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        refused = self.ws.run("remove", "demo.greeter")
+        self.assertEqual(refused.returncode, 4, refused.stderr)
+        self.assertIn("rustycore-db module remove demo.greeter", refused.stderr)
+        self.assertTrue((self.ws.root / "modules/demo_greeter").is_dir())
+
+    def test_a_description_quoting_the_tombstone_marker_is_harmless(self) -> None:
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+        root = self._module_with_sql()
+        manifest = root / "data/sql/manifest.toml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8").replace(
+                'description = "counts"', f'description = "counts {compose.TOMBSTONE_MARKER} x"'
+            ),
+            encoding="utf-8",
+        )
+        for _ in range(2):
+            synced = self.ws.run("sync")
+            self.assertEqual(synced.returncode, 0, synced.stderr)
+        self.assertEqual(self.ws.run("check").returncode, 0)
+        self.assertNotIn("tombstone", self._lock())
+
+    def test_nested_table_prefixes_are_refused(self) -> None:
+        self._module_with_sql("demo.x")
+        self._module_with_sql("demo.x.y", directory="nested")
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("one prefix contains the other", refused.stderr)
+
+    def test_zero_modules_keep_the_plain_compositor(self) -> None:
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("world_server::run_with_modules(", main)
+        self.assertNotIn("run_with_composition", main)
+
+
+
+class SqlCompositorCheckTests(unittest.TestCase):
+    """#1468 item 3: the SQL-mode compositor check restores the checkout."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.ws = Workspace(pathlib.Path(self._tmp.name))
+        root = self.ws.root
+        shutil.copy2(REPO_ROOT / "tools/modules/check_sql_compositor.py",
+                     root / "tools/modules/check_sql_compositor.py")
+        shutil.copytree(REPO_ROOT / "tools/modules/examples/milestones",
+                        root / "tools/modules/examples/milestones")
+        (root / "modules/.gitignore").write_text("*\n!.gitignore\n", encoding="utf-8")
+        (root / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+        self.cargo_log = root.parent / f"{root.name}-cargo.log"
+        self.cargo = root.parent / f"{root.name}-cargo"
+        for command in (["init", "-q"], ["config", "user.email", "t@example.invalid"],
+                        ["config", "user.name", "t"], ["add", "."], ["commit", "-qm", "base"]):
+            subprocess.run(["git", *command], cwd=root, check=True)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+        self.cargo_log.unlink(missing_ok=True)
+        self.cargo.unlink(missing_ok=True)
+
+    def stub_cargo(self, fail_on: str | None = None) -> None:
+        """Record each call; the workspace member must be there when it runs."""
+        failing = f'[ "$1" = "{fail_on}" ] && exit 3\n' if fail_on else ""
+        self.cargo.write_text(
+            "#!/bin/sh\n"
+            f'echo "$*" >> "{self.cargo_log}"\n'
+            'grep -q \'"modules/milestones",\' Cargo.toml || exit 9\n'
+            'grep -q run_with_composition crates/world-modules/src/main.rs || exit 8\n'
+            f"{failing}exit 0\n",
+            encoding="utf-8",
+        )
+        self.cargo.chmod(0o755)
+
+    def snapshot(self) -> dict[str, bytes]:
+        return {
+            str(path.relative_to(self.ws.root)): path.read_bytes()
+            for path in sorted(self.ws.root.rglob("*"))
+            if path.is_file() and ".git" not in path.relative_to(self.ws.root).parts[:1]
+            and "__pycache__" not in path.parts
+        }
+
+    def check(self) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(self.ws.root / "tools/modules/check_sql_compositor.py"),
+             "--cargo", str(self.cargo), "--jobs", "1"],
+            cwd=self.ws.root, capture_output=True, text=True, check=False,
+        )
+
+    def test_a_passing_check_compiles_sql_mode_and_restores_everything(self) -> None:
+        self.stub_cargo()
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("sql compositor check: PASS", result.stdout)
+        self.assertEqual(
+            self.cargo_log.read_text(encoding="utf-8").splitlines(),
+            ["metadata --offline --format-version 1",
+             "test --offline -p example-milestones --jobs 1",
+             "check --offline -p world-modules --jobs 1"],
+        )
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse((self.ws.root / ".git/rustycore-sql-compositor-backup").exists())
+
+    def test_a_failing_compile_still_restores_and_fails(self) -> None:
+        self.stub_cargo(fail_on="check")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("cargo", result.stderr)
+        self.assertIn("exited 3", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def checker(self):
+        sys.path.insert(0, str(self.ws.root / "tools/modules"))
+        try:
+            import check_sql_compositor  # noqa: PLC0415
+        finally:
+            sys.path.pop(0)
+        return check_sql_compositor
+
+    def interrupt_after_compose(self) -> pathlib.Path:
+        """What a SIGKILL after the composed state was recorded leaves behind."""
+        checker = self.checker()
+        backup = checker.backup_directory(self.ws.root)
+        state = checker.save(self.ws.root, backup)
+        self.assertEqual(self.ws.run("install", "--path", checker.EXAMPLE).returncode, 0)
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        checker.add_member(self.ws.root)
+        checker.record_composed(self.ws.root, backup, state)
+        return backup
+
+    def git(self, *args: str) -> None:
+        subprocess.run(["git", *args], cwd=self.ws.root, check=True, capture_output=True)
+
+    def test_an_interrupted_run_is_restored_by_the_next_one(self) -> None:
+        self.stub_cargo()
+        before = self.snapshot()
+        backup = self.interrupt_after_compose()
+        self.assertNotEqual(self.snapshot(), before)
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("interrupted run", result.stdout)
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse(backup.exists())
+
+    def test_a_stale_backup_never_reverts_a_later_commit(self) -> None:
+        """#1468 review B2: the operator restored by hand, then committed a
+        Cargo.toml change; the stale backup must not revert it."""
+        self.stub_cargo()
+        backup = self.interrupt_after_compose()
+        self.git("checkout", "--", "Cargo.toml")
+        shutil.rmtree(self.ws.root / "modules/milestones")
+        manifest = self.ws.root / "Cargo.toml"
+        manifest.write_text(manifest.read_text(encoding="utf-8") + "# later work\n", encoding="utf-8")
+        self.git("commit", "-qam", "later work")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("could overwrite newer work", result.stderr)
+        self.assertIn("HEAD is", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+        self.assertIn("# later work", manifest.read_text(encoding="utf-8"))
+        self.assertTrue(backup.exists(), "the backup stays for a manual restore")
+        self.assertFalse(self.cargo_log.exists())
+
+    def test_a_stale_backup_never_removes_the_operators_own_checkout(self) -> None:
+        """#1468 review B2: a user's new modules/milestones survives."""
+        self.stub_cargo()
+        self.interrupt_after_compose()
+        own = self.ws.root / "modules/milestones"
+        shutil.rmtree(own)
+        own.mkdir()
+        (own / "mine.txt").write_text("operator work\n", encoding="utf-8")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("is not the example the interrupted run installed", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual((own / "mine.txt").read_text(encoding="utf-8"), "operator work\n")
+
+    def test_an_uncommitted_edit_after_the_interruption_is_refused(self) -> None:
+        self.stub_cargo()
+        self.interrupt_after_compose()
+        main_rs = self.ws.root / "crates/world-modules/src/main.rs"
+        main_rs.write_text(main_rs.read_text(encoding="utf-8") + "// edited\n", encoding="utf-8")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("crates/world-modules/src/main.rs changed", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_an_interruption_before_the_composed_state_is_refused(self) -> None:
+        self.stub_cargo()
+        checker = self.checker()
+        checker.save(self.ws.root, checker.backup_directory(self.ws.root))
+        self.assertEqual(self.ws.run("install", "--path", checker.EXAMPLE).returncode, 0)
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("before it recorded the composed state", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_a_backup_without_state_never_removes_an_existing_checkout(self) -> None:
+        self.stub_cargo()
+        checker = self.checker()
+        checker.backup_directory(self.ws.root).mkdir(parents=True)  # killed inside save
+        own = self.ws.root / "modules/milestones"
+        own.mkdir()
+        (own / "mine.txt").write_text("operator work\n", encoding="utf-8")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("already exists", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_an_existing_checkout_is_refused_untouched(self) -> None:
+        self.stub_cargo()
+        (self.ws.root / "modules/milestones").mkdir()
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("already exists", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse(self.cargo_log.exists())
 
 
 if __name__ == "__main__":

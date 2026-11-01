@@ -15,6 +15,24 @@ pub struct PlayerCharacterSaveRequestLikeCpp {
     pub account_id: u32,
     pub wall_clock_unix_secs: i64,
     pub character: PlayerCharacterSnapshotSaveLikeCpp,
+    /// Absolute durability values for Player-owned item objects that were
+    /// already persisted by their creation/loot transaction.
+    pub item_durability: Option<Vec<PlayerItemDurabilitySave>>,
+    /// Complete dirty inventory-object snapshot and its position in the
+    /// character inventory. `None` preserves item rows when inventory
+    /// authority or required item metadata is incomplete.
+    pub inventory_items: Option<Vec<PlayerItemSaveLikeCpp>>,
+    /// Dirty currency rows selected from the canonical Player currency owner.
+    /// `None` preserves rows when CurrencyTypes authority is unavailable.
+    pub currencies: Option<crate::PlayerCurrencySaveRequestLikeCpp>,
+    /// Selected race's complete sickness spell snapshot, including every
+    /// persistable caster/item family for that spell. `None` preserves rows
+    /// when canonical aura authority or catalogs are incomplete; an empty
+    /// `families` list authorizes deleting the selected spell's rows.
+    pub resurrection_sickness: Option<PlayerLifecycleAuraSpellSave>,
+    /// Complete selected Ghost and Wisp spell-key snapshots.
+    /// `None` preserves rows when canonical aura authority or catalogs are incomplete.
+    pub ghost_wisp: Option<Vec<PlayerLifecycleAuraFamilySave>>,
     pub spells: Option<PlayerSpellSaveGroupLikeCpp>,
     pub skills: Option<Vec<PlayerSkillSaveLikeCpp>>,
     pub glyphs: Option<Vec<PlayerGlyphSaveLikeCpp>>,
@@ -24,6 +42,9 @@ pub struct PlayerCharacterSaveRequestLikeCpp {
     pub action_buttons: Option<PlayerActionButtonsSaveLikeCpp>,
     pub equipment_sets: Option<Vec<PlayerEquipmentSetSaveLikeCpp>>,
     pub void_storage: Option<Vec<PlayerVoidStorageSlotSaveLikeCpp>>,
+    /// Dirty native quest-status rows and per-quest deletes selected by the full-save owner.
+    /// `Some(empty)` also acknowledges dirty source intents that require no SQL statement.
+    pub quest_statuses: Option<Vec<crate::PlayerQuestStatusPersistenceRequestLikeCpp>>,
     pub tutorials: Option<PlayerTutorialsSaveLikeCpp>,
     pub instance_lock_times: Vec<PlayerInstanceLockTimeSaveLikeCpp>,
     pub played_time: PlayerPlayedTimeSaveLikeCpp,
@@ -55,6 +76,9 @@ impl PlayerCharacterSaveRequestLikeCpp {
                 .as_ref()
                 .is_some_and(|tutorials| !tutorials.already_persisted),
             reputation: !self.reputations.is_empty(),
+            inventory_items: self.inventory_items.is_some(),
+            currencies: self.currencies.is_some(),
+            quest_statuses: self.quest_statuses.is_some(),
         }
     }
 }
@@ -68,6 +92,12 @@ pub struct PlayerCharacterCommittedGroupsLikeCpp {
     pub tutorials_changed: bool,
     pub tutorials_insert: bool,
     pub reputation: bool,
+    /// A coherent inventory-item group was included in this transaction.
+    pub inventory_items: bool,
+    /// A coherent currency group was included in this transaction.
+    pub currencies: bool,
+    /// A coherent dirty quest-status group was included in this transaction.
+    pub quest_statuses: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +125,99 @@ pub struct PlayerCharacterSnapshotSaveLikeCpp {
     pub dungeon_difficulty: u32,
     pub raid_difficulty: u32,
     pub legacy_raid_difficulty: u32,
+    /// C++ `Player::SaveToDB` persists `m_atLoginFlags`/`m_deathExpireTime`
+    /// (`Player.cpp:19543,19545`).
+    pub at_login_flags: u16,
+    pub death_expire_time: i64,
+}
+
+/// One dirty, already-persisted item whose current durability belongs to this
+/// character's full-save transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerItemDurabilitySave {
+    pub item_guid: u64,
+    pub durability: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerItemSaveStateLikeCpp {
+    New,
+    Changed,
+    Removed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerItemGemSaveLikeCpp {
+    pub item_id: u32,
+    pub bonus_list_ids: String,
+    pub context: u8,
+}
+
+/// One complete `Item::SaveToDB` projection plus the `Player::_SaveInventory`
+/// link operation for the same object.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerItemSaveLikeCpp {
+    pub state: PlayerItemSaveStateLikeCpp,
+    pub item_guid: u64,
+    pub item_entry: u32,
+    pub owner_guid: u64,
+    pub creator_guid: u64,
+    pub gift_creator_guid: u64,
+    pub count: u32,
+    pub expiration: u32,
+    pub charges: String,
+    pub dynamic_flags: u32,
+    pub enchantments: String,
+    pub durability: u32,
+    pub played_time: u32,
+    pub text: String,
+    pub battle_pet_species_id: u32,
+    pub battle_pet_breed_data: u32,
+    pub battle_pet_level: u32,
+    pub battle_pet_display_id: u32,
+    pub random_properties_id: i32,
+    pub property_seed: i32,
+    pub context: u8,
+    pub bag_guid: u64,
+    pub slot: u8,
+    pub gems: Option<[PlayerItemGemSaveLikeCpp; 3]>,
+    pub transmog: Option<[u32; 18]>,
+    pub wrapped: bool,
+}
+
+/// One selected lifecycle spell and the complete persistable database-key set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerLifecycleAuraSpellSave {
+    pub spell_id: u32,
+    pub families: Vec<PlayerLifecycleAuraFamilySave>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerLifecycleAuraFamilySave {
+    pub spell_id: u32,
+    pub caster_guid_binary: [u8; 16],
+    pub item_guid_binary: [u8; 16],
+    pub auras: Vec<PlayerLifecycleAuraSave>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerLifecycleAuraSave {
+    pub difficulty: u8,
+    pub stack_count: u8,
+    pub max_duration: i32,
+    pub remaining_duration: i32,
+    pub charges: u8,
+    pub recalculate_mask: u32,
+    pub cast_item_id: u32,
+    pub cast_item_level: i32,
+    pub effects: Vec<PlayerLifecycleAuraEffectSave>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerLifecycleAuraEffectSave {
+    pub index: u8,
+    pub amount: i32,
+    pub base_amount: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

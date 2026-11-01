@@ -112,7 +112,9 @@ impl InventoryAliasCollector {
 impl<'ast> Visit<'ast> for InventoryAliasCollector {
     fn visit_file(&mut self, file: &'ast syn::File) {
         self.enter_scope(&file.items);
-        syn::visit::visit_file(self, file);
+        for item in &file.items {
+            self.visit_item(item);
+        }
         self.local_inventory.pop();
     }
 
@@ -167,6 +169,16 @@ impl<'ast> Visit<'ast> for InventoryAliasCollector {
 
 pub(crate) fn registration_alias_violations(source: &str) -> Result<Vec<String>, String> {
     collect(source, false)
+}
+
+/// Same audit as [`registration_alias_violations`], with the data-module rule
+/// for packages that have no dependency path to the `inventory` crate: there a
+/// local `inventory` module cannot shadow it.
+pub(crate) fn registration_alias_violations_with_context(
+    source: &str,
+    allow_local_data_module: bool,
+) -> Result<Vec<String>, String> {
+    collect(source, allow_local_data_module)
 }
 
 /// Only for packages outside the handler registry closure and without any normal

@@ -1,0 +1,78 @@
+{
+ "slice": "#1363 slice 12b1b (player-item application builders, committed relocation/swap/removal and swap side effects -> wow-world-application, over TrainerSessionHostLikeCpp::split_trainer_mut)",
+ "base": "e5c8195b0",
+ "moved": [
+  "inventory_equip_cx_like_cpp",
+  "inventory_position_publication_cx_like_cpp",
+  "inventory_swap_effects_cx_like_cpp",
+  "apply_committed_inventory_item_relocation_like_cpp",
+  "apply_committed_inventory_item_swap_like_cpp",
+  "apply_committed_inventory_item_removal_like_cpp",
+  "apply_inventory_item_remove_side_effects_like_cpp",
+  "apply_inventory_item_store_side_effects_like_cpp",
+  "execute_inventory_equip_to_empty_raw_like_cpp",
+  "publish_inventory_position_changes_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn inventory_equip_cx_like_cpp\\(\\s*&mut self,?\\s*\\) -> wow_world_application::InventoryEquipCxLikeCpp<'_> \\{",
+   "fn inventory_equip_cx_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H) -> crate::InventoryEquipCxLikeCpp<'_> {\n    let world_test = host.world_test_consumer_like_cpp();\n    let TrainerSessionFieldsLikeCpp {\n        hub: HubMut { core, catalogs, config, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. },\n        lifecycle, inventory, #[cfg(any(test, feature = \"test-fixtures\"))] spell_state, #[cfg(any(test, feature = \"test-fixtures\"))] quest_state, loot,\n        ..\n    } = host.split_trainer_mut();"
+  ],
+  [
+   "pub\\(crate\\) fn inventory_position_publication_cx_like_cpp\\(\\s*&mut self,?\\s*\\) -> wow_world_application::InventoryPositionPublicationCxLikeCpp<'_> \\{",
+   "fn inventory_position_publication_cx_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H) -> crate::InventoryPositionPublicationCxLikeCpp<'_> {\n    let TrainerSessionFieldsLikeCpp {\n        hub: HubMut { core, catalogs, config, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. },\n        inventory,\n        ..\n    } = host.split_trainer_mut();"
+  ],
+  [
+   "fn inventory_swap_effects_cx_like_cpp\\(\\s*&mut self,?\\s*\\) -> wow_world_application::InventorySwapEffectsCxLikeCpp<'_> \\{",
+   "fn inventory_swap_effects_cx_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H) -> crate::InventorySwapEffectsCxLikeCpp<'_> {\n    let world_test = host.world_test_consumer_like_cpp();\n    let TrainerSessionFieldsLikeCpp {\n        hub: HubMut { core, catalogs, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. },\n        inventory,\n        ..\n    } = host.split_trainer_mut();"
+  ],
+  [
+   "pub\\(crate\\) fn (apply_committed_inventory_item_(?:relocation|swap|removal)_like_cpp)\\(\\s*&mut self,([^{]*)\\{",
+   "pub fn \\1<H: TrainerSessionHostLikeCpp>(host: &mut H,\\2{\n    let TrainerSessionFieldsLikeCpp {\n        hub: HubMut { core, catalogs, .. },\n        inventory,\n        ..\n    } = host.split_trainer_mut();"
+  ],
+  [
+   "pub\\(crate\\) fn (apply_inventory_item_(?:remove|store)_side_effects_like_cpp)\\(\\s*&mut self,",
+   "pub fn \\1<H: TrainerSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) async fn execute_inventory_equip_to_empty_raw_like_cpp\\(\\s*&mut self,",
+   "pub async fn execute_inventory_equip_to_empty_raw_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) fn publish_inventory_position_changes_like_cpp\\(&mut self,",
+   "pub fn publish_inventory_position_changes_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*{name}\\(\\)",
+   "{name}(host)"
+  ],
+  [
+   "&mut self\\s*\\.\\s*inventory\\b(?![\\w.])",
+   "inventory"
+  ],
+  [
+   "&self\\s*\\.\\s*(inventory|lifecycle|spell_state|quest_state)\\b(?![\\w.\\[])",
+   "&*\\1"
+  ],
+  [
+   "&self\\s*\\.\\s*(loot|catalogs|config)\\b(?![\\w.\\[])",
+   "\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   ""
+  ],
+  [
+   "\\bSelf::(M(?:IN|AX)_ITEM_LEVEL_LIKE_CPP)\\b",
+   "wow_world_player_conditions::\\1"
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test"
+  ],
+  [
+   "wow_world_application::",
+   "crate::"
+  ]
+ ]
+}

@@ -13,7 +13,6 @@ pub(crate) struct GameEventObjectSpawnBucketSummaryLikeCpp {
     pub(crate) load_attempts: usize,
     pub(crate) loader_blocked_or_missing: usize,
     pub(crate) successful_loaded_grid_spawns: usize,
-    pub(crate) legacy_creature_mirrors: usize,
     pub(crate) add_to_map_failures: usize,
     pub(crate) gameobject_not_spawned_by_default_skips: usize,
 }
@@ -37,7 +36,6 @@ pub(crate) struct GameEventSpawnForEventSummaryLikeCpp {
 
 pub(crate) fn game_event_spawn_object_guid_list_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     object_type: wow_map::SpawnObjectType,
@@ -123,19 +121,16 @@ pub(crate) fn game_event_spawn_object_guid_list_for_event_like_cpp(
             for pre_add_record in records.pre_add_records {
                 let _ = map.add_map_object_record_to_map_like_cpp(pre_add_record);
             }
-            let legacy_mirror_record = records.primary_record.creature().cloned();
-            match map.add_map_object_record_to_map_like_cpp(records.primary_record) {
+            let mut primary_record = records.primary_record;
+            if let Some(creature) = primary_record.creature_mut() {
+                initialize_loaded_grid_creature_default_motion_like_cpp(
+                    creature,
+                    canonical_spawn_metadata.waypoint_paths_like_cpp(),
+                );
+            }
+            match map.add_map_object_record_to_map_like_cpp(primary_record) {
                 Ok(_outcome) => {
                     summary.successful_loaded_grid_spawns += 1;
-                    if let Some(creature) = legacy_mirror_record
-                        && mirror_loaded_grid_creature_to_legacy_like_cpp(
-                            legacy_manager,
-                            canonical_spawn_metadata.waypoint_paths_like_cpp(),
-                            creature,
-                        )
-                    {
-                        summary.legacy_creature_mirrors += 1;
-                    }
                 }
                 Err(_error) => {
                     summary.add_to_map_failures += 1;
@@ -153,7 +148,6 @@ pub(crate) fn game_event_spawn_object_guid_list_for_event_like_cpp(
 
 pub(crate) fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_id: i16,
@@ -172,7 +166,6 @@ pub(crate) fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
 
     let creature = game_event_spawn_object_guid_list_for_event_like_cpp(
         manager,
-        legacy_manager,
         canonical_spawn_metadata,
         loaded_grid_creature_respawn_caches,
         wow_map::SpawnObjectType::Creature,
@@ -193,7 +186,6 @@ pub(crate) fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
 
     let gameobject = game_event_spawn_object_guid_list_for_event_like_cpp(
         manager,
-        legacy_manager,
         canonical_spawn_metadata,
         loaded_grid_creature_respawn_caches,
         wow_map::SpawnObjectType::GameObject,
@@ -217,7 +209,6 @@ pub(crate) struct GameEventPoolSpawnSummaryLikeCpp {
     pub(crate) pools_without_loaded_canonical_maps: usize,
     pub(crate) maps_matched: usize,
     pub(crate) executed_loaded_grid_respawns: usize,
-    pub(crate) legacy_creature_mirrors: usize,
     pub(crate) blocked_loaded_grid_respawn_add_to_map: usize,
     pub(crate) pool_spawn_actions_skipped_unloaded_grid: usize,
     pub(crate) pool_spawn_actions_blocked_loaded_grid: usize,
@@ -266,7 +257,6 @@ impl GameEventPoolSpawnSummaryLikeCpp {
 
 pub(crate) fn game_event_spawn_pools_like_cpp(
     manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_pool_ids: &[u32],
@@ -322,12 +312,11 @@ pub(crate) fn game_event_spawn_pools_like_cpp(
                     },
                 ) {
                 Ok(map_summary) => {
-                    summary.legacy_creature_mirrors +=
-                        mirror_loaded_grid_primary_records_to_legacy_like_cpp(
-                            legacy_manager,
-                            canonical_spawn_metadata.waypoint_paths_like_cpp(),
-                            &map_summary.loaded_grid_primary_records,
-                        );
+                    initialize_loaded_grid_primary_records_default_motion_like_cpp(
+                        managed_map.map_mut(),
+                        canonical_spawn_metadata.waypoint_paths_like_cpp(),
+                        &map_summary.loaded_grid_primary_records,
+                    );
                     summary.accumulate_spawn_summary_like_cpp(&map_summary);
                 }
                 Err(error) => summary.blocked_pool_plan_errors.push(error),
@@ -344,7 +333,6 @@ pub(crate) fn game_event_spawn_pools_like_cpp(
 
 pub(crate) fn game_event_spawn_pools_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_id: i16,
@@ -363,7 +351,6 @@ pub(crate) fn game_event_spawn_pools_for_event_like_cpp(
         missing_event_pool_ids: false,
         pool_summary: game_event_spawn_pools_like_cpp(
             manager,
-            legacy_manager,
             canonical_spawn_metadata,
             loaded_grid_creature_respawn_caches,
             event_pool_ids,
@@ -373,14 +360,12 @@ pub(crate) fn game_event_spawn_pools_for_event_like_cpp(
 
 pub(crate) fn game_event_spawn_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_id: i16,
 ) -> GameEventSpawnForEventSummaryLikeCpp {
     let non_pool = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         manager,
-        legacy_manager,
         canonical_spawn_metadata,
         loaded_grid_creature_respawn_caches,
         event_id,
@@ -396,7 +381,6 @@ pub(crate) fn game_event_spawn_for_event_like_cpp(
     } else {
         game_event_spawn_pools_for_event_like_cpp(
             manager,
-            legacy_manager,
             canonical_spawn_metadata,
             loaded_grid_creature_respawn_caches,
             event_id,

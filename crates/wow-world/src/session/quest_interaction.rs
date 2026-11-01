@@ -1,0 +1,68 @@
+// Copyright (c) 2026 alseif0x
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Quest interaction: private Session responsibility.
+//! Relocated under #1233; canonical state, phase order and public paths are unchanged.
+
+#[cfg(test)]
+use super::RepresentedGameObjectUseState;
+#[cfg(test)]
+use super::WorldSession;
+use super::{ObjectGuid, RepresentedGameObjectAccessLikeCpp};
+
+impl crate::session::QuestStateCx<'_> {
+    pub(crate) fn record_represented_gameobject_template_quest_source_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        template: &wow_entities::GameObjectTemplateData,
+    ) {
+        let state = self
+            .world_entities
+            .ensure_represented_gameobject_use_state_like_cpp(guid);
+        if let Some(source) = template.chest_loot_source_like_cpp() {
+            state.chest_loot_source = Some(source);
+        }
+        if let Some(source) = template.gathering_node_use_source_like_cpp() {
+            state.gathering_node_loot_id = Some(source.loot_id);
+        }
+        state.condition_id1 = (template.get_condition_id1_like_cpp() != 0)
+            .then_some(template.get_condition_id1_like_cpp());
+    }
+}
+
+impl crate::session::QuestStateCxRef<'_> {
+    pub(crate) fn represented_gameobject_questgiver_can_interact_with_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<RepresentedGameObjectAccessLikeCpp> {
+        // C++ anchor: Player::CanInteractWithQuestGiver(TYPEID_GAMEOBJECT)
+        // delegates to GetGameObjectIfCanInteractWith(guid, GAMEOBJECT_TYPE_QUESTGIVER).
+        // This represented guard consumes canonical map access plus locally recorded
+        // template type/radius from the GO-use path. The C++ IconName == "Point"
+        // rejection is represented earlier in handle_game_obj_use before runtime state
+        // is registered/consumed here; standalone paths without represented type state
+        // fail closed instead of treating canonical existence as interactability.
+        let access = self.hub.core.canonical_gameobject_access_like_cpp(guid)?;
+        let state = self
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(guid)?;
+        if state.go_type.map(u32::from) != Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) {
+            return None;
+        }
+        let player_position = self.hub.player_position_like_cpp()?;
+        let interaction_distance = state
+            .interact_radius_override
+            .filter(|value| *value != 0)
+            .map_or(5.5555553, |override_hundredths| {
+                override_hundredths as f32 / 100.0
+            });
+        access
+            .position
+            .is_within_dist(&player_position, interaction_distance)
+            .then_some(access)
+    }
+}
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/quest_interaction/test_only.rs"]
+mod test_only;

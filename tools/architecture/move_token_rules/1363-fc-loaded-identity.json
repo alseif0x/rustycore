@@ -1,0 +1,20 @@
+{
+ "slice": "#1363 final cleanup (allow-list fix B: the loaded-character identity write and its gender decode -> wow-world-application continue_login/identity.rs over TalentHostLikeCpp; the ContinueLoginHostLikeCpp method of that name retires)",
+ "base": "f27b315ea",
+ "moved": ["set_loaded_player_identity_like_cpp", "gender_from_u8"],
+ "comment": "The talent-point refresh is TalentHostLikeCpp::refresh_represented_talent_points_like_cpp, whose World impl is wow_world_quest::refresh_represented_talent_points_like_cpp(self): the call the base body made. The #[cfg(not(test))] early return becomes the World-test form: world_test is test_fixtures_ref_like_cpp().is_some() under cfg(any(test, feature = \"test-fixtures\")) and false otherwise, so the return is compiled in and taken in production and in the test-fixtures lib (the World overrides the accessor only under cfg(test)) and skipped in the World lib test build, as before. The cfg(any(test, feature = \"test-fixtures\")) fixture block keeps its cfg; application's test-fixtures feature is enabled by the World's.",
+ "rules": [
+  ["pub\\(crate\\) fn {name}\\(\\s*&mut self,", "pub fn {name}<H: TalentHostLikeCpp + ?Sized>(host: &mut H,"],
+  ["pub\\(in crate::session\\) fn gender_from_u8", "pub fn gender_from_u8"],
+  ["#\\[cfg\\(not\\(test\\)\\)\\]\\s*if self\\.core\\.player_handle_like_cpp\\.is_some\\(\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] let world_test = host.test_fixtures_ref_like_cpp().is_some(); #[cfg(not(any(test, feature = \"test-fixtures\")))] let world_test = false; if !world_test && host.core().player_handle_like_cpp.is_some()"],
+  ["crate::session::hub_ref\\(self\\)", "host.hub_ref()"],
+  ["crate::session::hub_mut\\(self\\)", "host.hub_mut()"],
+  ["crate::session::gender_from_u8\\(", "gender_from_u8("],
+  ["super::PlayerIdentityBootstrapLikeCpp", "PlayerIdentityBootstrapLikeCpp"],
+  ["wow_world_quest::refresh_represented_talent_points_like_cpp\\(self\\)", "host.refresh_represented_talent_points_like_cpp()"],
+  ["\\bself\\s*\\.\\s*core\\s*\\.\\s*current_map_id", "host.core_mut().current_map_id"],
+  ["\\bself\\s*\\.\\s*core\\s*\\.\\s*player_identity_bootstrap_like_cpp\\s*=", "host.core_mut().player_identity_bootstrap_like_cpp ="],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\s*\\.\\s*fixtures\\s*\\.", "host.hub_mut().fixtures."]
+ ]
+}

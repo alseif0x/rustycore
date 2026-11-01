@@ -1,0 +1,5 @@
+# phase: comma-separated allowed path prefixes (a * marks a wildcard tail)
+A0: tools/xtask/, Cargo.toml, Cargo.lock, docs/architecture/, crates/*/Cargo.toml
+A1: crates/, Cargo.toml, Cargo.lock, docs/architecture/, tools/xtask/
+A2: crates/world-modules/, crates/wow-module-api/, Cargo.toml, Cargo.lock, docs/architecture/
+A3: crates/capture-diff/, crates/wow-recastdetour/, Cargo.toml, Cargo.lock, docs/architecture/

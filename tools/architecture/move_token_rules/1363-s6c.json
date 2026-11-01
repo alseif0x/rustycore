@@ -1,0 +1,199 @@
+{
+ "slice": "#1363 slice 6c",
+ "base": "5c04ace6b",
+ "moved": [
+  "handle_adventure_map_start_quest_with_catalog_like_cpp",
+  "handle_quest_giver_status_query_with_catalog_like_cpp",
+  "handle_quest_giver_hello",
+  "handle_quest_giver_query_quest",
+  "handle_quest_poi_query",
+  "quest_poi_store_like_cpp",
+  "handle_quest_giver_accept_quest_with_generator_like_cpp",
+  "handle_quest_confirm_accept_with_generator_like_cpp",
+  "set_represented_pending_quest_sharing_like_cpp",
+  "handle_quest_giver_request_reward_with_generator_like_cpp",
+  "handle_quest_giver_choose_reward_with_generator_like_cpp",
+  "handle_send_repeatable_turn_in_request_items_command_like_cpp",
+  "handle_set_quest_sharing_info_and_send_details_command_like_cpp",
+  "handle_push_quest_to_party",
+  "represented_can_share_quest_like_cpp",
+  "send_push_quest_result_to_sender_if_available_like_cpp",
+  "send_push_quest_result_to_sender_with_title_if_available_like_cpp",
+  "send_repeatable_turn_in_request_items_like_cpp",
+  "quest_source_item_quest_log_item_id_like_cpp"
+ ],
+ "rules": [
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn\\s+(represented_quest_giver_(?:involved|accept)_source_allows_quest_like_cpp)\\((\\s*)&self",
+   "pub fn \\1<H: QuestSessionHostLikeCpp>(\\2host: &H"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn\\s+(represented_quest_giver_status_query_source_like_cpp)\\((\\s*)&self",
+   "pub fn \\1<H: QuestHandlerSessionHostLikeCpp>(\\2host: &H"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+(quest_source_item_quest_log_item_id_like_cpp)\\(",
+   "pub \\1fn \\2<H: QuestItemStorageHostLikeCpp>("
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn\\s+(represented_can_share_quest_like_cpp|send_push_quest_result_to_sender_(?:with_title_)?if_available_like_cpp)\\(",
+   "fn \\1<H: QuestHandlerSessionHostLikeCpp>("
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn\\s+(read_quest_choice_item_like_cpp|represented_reward_choice_matches_loaded_type_like_cpp|read_quest_giver_query_quest_like_cpp|read_quest_giver_accept_quest_like_cpp|build_quest_poi_store_like_cpp)\\(",
+   "pub fn \\1("
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+{name}\\(",
+   "pub \\1fn {name}<H: QuestHandlerSessionHostLikeCpp>("
+  ],
+  [
+   "(HostLikeCpp>)\\((\\s*)&mut self",
+   "\\1(\\2host: &mut H"
+  ],
+  [
+   "(HostLikeCpp>)\\((\\s*)&self",
+   "\\1(\\2host: &H"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "crate::session::split_world_entities_mut\\(self\\)",
+   "host.split_world_entities_mut()"
+  ],
+  [
+   "crate::session::cx_quest_state_ref\\(self\\)\\s*\\.quest_poi_persistence_port_like_cpp\\(\\)",
+   "host.lifecycle().quest_poi_persistence_port_like_cpp().cloned()"
+  ],
+  [
+   "crate::session::cx_inventory_ref\\(self\\)\\s*\\.item_template_addon_catalog_persistence_port_like_cpp\\(\\)",
+   "host.lifecycle().item_template_addon_catalog_persistence_port_like_cpp().cloned()"
+  ],
+  [
+   "crate::session::cx_quest_state_ref\\(self\\)\\s*\\.(represented_quest_giver_[a-z_]+)\\(",
+   "\\1(host, "
+  ],
+  [
+   "wow_world_character::(build_gossip_menu|send_represented_creature_trainer_gossip_menu_like_cpp)\\((\\s*)self,\\s*",
+   "host.\\1(\\2"
+  ],
+  [
+   "crate::session::directory::PlayerQuestSharingSnapshot",
+   "wow_world_core::player_directory::PlayerQuestSharingSnapshot"
+  ],
+  [
+   "crate::session::mailbox::",
+   "wow_world_core::session::mailbox::"
+  ],
+  [
+   "WorldSession::(read_quest_choice_item_like_cpp|represented_reward_choice_matches_loaded_type_like_cpp)\\(",
+   "\\1("
+  ],
+  [
+   "session: &mut WorldSession",
+   "session: &mut H"
+  ],
+  [
+   "\\bsession(\\s*)\\.(\\s*)quest_state(\\s*)\\.(\\s*)record_",
+   "session\\1.\\2quest_state_mut()\\3.\\4record_"
+  ],
+  [
+   "&self(\\s*)\\.(\\s*)(catalogs|quest_state)(\\s*[,)])",
+   "self\\1.\\2\\3\\4"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)catalogs(\\s*)\\.(\\s*)(quest_poi_store_like_cpp\\s*=|cache_item_template_addon_quest_log_item_id_like_cpp)",
+   "host\\1.\\2catalogs_mut()\\3.\\4\\5"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)catalogs\\b",
+   "host\\1.\\2hub_ref().catalogs"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)hub\\b",
+   "host\\1.\\2hub_ref()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)world_entities\\b",
+   "host\\1.\\2world_entities()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)core\\b",
+   "host\\1.\\2core()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)lifecycle\\b",
+   "host\\1.\\2lifecycle()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)quest_state(\\s*)\\.(\\s*)(record_|fixture_set_)",
+   "host\\1.\\2quest_state_mut()\\3.\\4\\5"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)quest_state\\b",
+   "host\\1.\\2quest_state()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)item_storage_template\\(",
+   "host.hub_ref().catalogs.item_storage_template("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)item_template_start_quest_id\\(",
+   "host.hub_ref().catalogs.item_template_start_quest_id("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)send_equip_error\\(",
+   "host.core().send_equip_error("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)player_registry\\(\\)",
+   "host.core().player_registry()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)group_registry\\(\\)",
+   "host.core().group_registry()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)send_packet_realm\\(",
+   "host.core().send_packet_realm("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)represented_meets_player_condition_id_like_cpp\\(([^()]*)\\)",
+   "wow_world_player_conditions::meets_player_condition_id_like_cpp(&host.player_condition_projection_cx_like_cpp(), host.hub_ref().catalogs.player_condition_store.as_deref(), \\3)"
+  ],
+  [
+   "\\bquest_has_represented_item_objective_like_cpp\\(",
+   "crate::represented_quest_has_item_objective_like_cpp("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*){name}\\(\\s*\\)",
+   "{name}(host)"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*){name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "\\bself(\\s*)\\.",
+   "host\\1."
+  ],
+  [
+   "\\bself\\b",
+   "host"
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test"
+  ],
+  [
+   "wow_world_quest::([a-z_0-9]+)\\(\\s*self\\b",
+   "crate::\\1(host"
+  ],
+  [
+   "wow_world_quest::",
+   "crate::"
+  ]
+ ]
+}

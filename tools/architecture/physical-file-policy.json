@@ -5,13 +5,6 @@
   "completed_checkpoints": [],
   "legacy": [
     {
-      "path": "crates/capture-diff/scripts/capture-rust.sh",
-      "observed_lines": 2243,
-      "ceiling_lines": 2243,
-      "split": "Separate runtime swap, packet-dump provenance and recovery orchestration; preserve existing capture/fixture safeguards and explicit runtime authorization.",
-      "review_checkpoint": "584:C4"
-    },
-    {
       "path": "crates/capture-diff/scripts/creature-spell-casting-fixture-common.sh",
       "observed_lines": 2144,
       "ceiling_lines": 2144,
@@ -26,206 +19,24 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/capture-diff/src/lineage.rs",
-      "observed_lines": 3103,
-      "ceiling_lines": 42,
-      "split": "Separate the lineage boundaries, the import selection and the atomic flow import from their regressions. #658 decomposes the 3,103-line root into four state modules, dropping it to 42 lines and tightening the ceiling to that figure; the `Drop` impl stays whole. Item-for-item with the crate's 26 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/capture-diff/src/semantic.rs",
-      "observed_lines": 4013,
-      "ceiling_lines": 31,
-      "split": "Separate the wire-position model, the semantic body sides/diff and the per-opcode decoded bodies. #658 decomposes the 4,013-line root into five state modules, dropping it to 31 lines and tightening the ceiling to that figure. Item-for-item with the crate's 26 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
       "path": "crates/world-server/src/app.rs",
-      "observed_lines": 5675,
-      "ceiling_lines": 5675,
-      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order. #703 shortens every catalog and hotfix call site to the grouped module path, a validated reduction from 5652 to 5645 lines; the ceiling is tightened to that figure. #718 adds 6 lines that construct and install the quest-reward durability port, from 5645 to 5651: one required capability, no gameplay authority entering the composition root. #787 adds one inseparable line: the composition root hands the active-session registry to the canonical producer, which needs it to drive the world phase of every session, character screen included (World.cpp:2704). #584 adds one required immutable DungeonEncounterStore capability to the existing SessionWorldCatalogCapabilitiesLikeCpp bundle; startup remains the sole composition owner and no gameplay authority enters app.rs. #61 adds 3 lines that construct the immutable PlayerRegenerationRatesLikeCpp from the already-resolved WorldConfigSet and attach it to SessionHandlerCatalogsLikeCpp; it carries no gameplay authority and startup order is unchanged. #61 adds one further line resolving RATE_DURABILITY_LOSS_ON_DEATH into the existing SessionRuntimePolicyCapabilitiesLikeCpp, a required immutable value with no gameplay authority. #61 adds one line attaching the already-loaded SpellClassOptionsStore to the existing SessionSpellCatalogCapabilitiesLikeCpp bundle for the canonical `m_transformSpell`/`IsPolymorphed` classification; it is an immutable loaded catalog, not gameplay authority, and startup order is unchanged. #61 adds one line resolving the immutable `CONFIG_STATS_LIMITS_*` values into the existing `SessionRuntimePolicyCapabilitiesLikeCpp`, alongside the durability rate; it carries no gameplay authority and startup order is unchanged. #61 adds the immutable creature-template capability the map-owned runtime needs for the victim `GetCreatureTypeMask` of `MeleeDamageBonusDone`; it carries no gameplay authority and startup remains the only composition owner. #29 loads the `ExpectedStat` DB2 table once at startup beside the other stores, one more line with no new authority. (three further lines: the `tracing` warning path and its rustfmt layout). #31 adds one line attaching the already-loaded DB2 PowerTypeStore to the existing SessionPlayerCatalogCapabilitiesLikeCpp bundle, which `Unit::EnergizeBySpell` reads for the UseRegenInterrupt flag; it is an immutable loaded catalog with no gameplay authority and startup order is unchanged. #31 adds eight lines loading the immutable `SpellLabel.db2` authority beside the other spell stores and attaching it to the existing SessionSpellCatalogCapabilitiesLikeCpp bundle for the caster-label damage-taken term; it is a loaded catalog with no gameplay authority and startup order is unchanged. #29 adds one inseparable line attaching the already-loaded `ChrRaces.db2` store to the existing creature-aggro configuration for player-victim `GetCreatureTypeMask`; it is immutable data with no new gameplay authority.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/world-server/src/creature_loaded_grid.rs",
-      "observed_lines": 797,
-      "ceiling_lines": 797,
-      "split": "#584 P4 splits the 2,944-line file into 797 lines of production grid population and loaded-creature construction plus the shared test facade and two responsibility-scoped test modules (1,194/525 lines). All 28 tests remain registered; the old root is retained as the production facade and its test files carry explicit cfg(test) attribution.",
+      "observed_lines": 5709,
+      "ceiling_lines": 5709,
+      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order. #703 shortens every catalog and hotfix call site to the grouped module path, a validated reduction from 5652 to 5645 lines; the ceiling is tightened to that figure. #718 adds 6 lines that construct and install the quest-reward durability port, from 5645 to 5651: one required capability, no gameplay authority entering the composition root. #787 adds one inseparable line: the composition root hands the active-session registry to the canonical producer, which needs it to drive the world phase of every session, character screen included (World.cpp:2704). #584 adds one required immutable DungeonEncounterStore capability to the existing SessionWorldCatalogCapabilitiesLikeCpp bundle; startup remains the sole composition owner and no gameplay authority enters app.rs. #61 adds 3 lines that construct the immutable PlayerRegenerationRatesLikeCpp from the already-resolved WorldConfigSet and attach it to SessionHandlerCatalogsLikeCpp; it carries no gameplay authority and startup order is unchanged. #61 adds one further line resolving RATE_DURABILITY_LOSS_ON_DEATH into the existing SessionRuntimePolicyCapabilitiesLikeCpp, a required immutable value with no gameplay authority. #61 adds one line attaching the already-loaded SpellClassOptionsStore to the existing SessionSpellCatalogCapabilitiesLikeCpp bundle for the canonical `m_transformSpell`/`IsPolymorphed` classification; it is an immutable loaded catalog, not gameplay authority, and startup order is unchanged. #61 adds one line resolving the immutable `CONFIG_STATS_LIMITS_*` values into the existing `SessionRuntimePolicyCapabilitiesLikeCpp`, alongside the durability rate; it carries no gameplay authority and startup order is unchanged. #61 adds the immutable creature-template capability the map-owned runtime needs for the victim `GetCreatureTypeMask` of `MeleeDamageBonusDone`; it carries no gameplay authority and startup remains the only composition owner. #29 loads the `ExpectedStat` DB2 table once at startup beside the other stores, one more line with no new authority. (three further lines: the `tracing` warning path and its rustfmt layout). #31 adds one line attaching the already-loaded DB2 PowerTypeStore to the existing SessionPlayerCatalogCapabilitiesLikeCpp bundle, which `Unit::EnergizeBySpell` reads for the UseRegenInterrupt flag; it is an immutable loaded catalog with no gameplay authority and startup order is unchanged. #31 adds eight lines loading the immutable `SpellLabel.db2` authority beside the other spell stores and attaching it to the existing SessionSpellCatalogCapabilitiesLikeCpp bundle for the caster-label damage-taken term; it is a loaded catalog with no gameplay authority and startup order is unchanged. #29 adds one inseparable line attaching the already-loaded `ChrRaces.db2` store to the existing creature-aggro configuration for player-victim `GetCreatureTypeMask`; it is immutable data with no new gameplay authority. 2026-10-04 #1263 F5 review: 5675 -> 5676 (+1). bc9d6185a builds the process-wide packet-handler registry once and adds it to `SessionCoreCapabilitiesLikeCpp`; one field line carries the registration-composition wiring and cannot live elsewhere. No gameplay logic added. 2026-10-10 #1263 F6-8D3b-1: 5676 -> 5682 (+6). The boolean legacy-runtime switch becomes the one creature tick owner value (`creature_tick_owner_from_config_like_cpp`), set once on the legacy manager before either loop spawns, and the composition root constructs the `CanonicalCreatureRuntimeLikeCpp` it hands to the canonical map loop only for `RuntimeTickOwner::CanonicalMap`; the construction needs the startup-owned mmap, pathfinder, aggro and group capabilities, so it cannot leave the composition root. No gameplay logic added; the default owner is unchanged. #1445 H0 review adds 3 lines registering wow_module_api::module_callback_in_progress as the wow-logging panic-hook containment probe, so a panic caught at a linked-module boundary is logged as contained rather than Trinity::Fatal-like; composition wiring only, no gameplay authority. 2026-10-20 #1444 H2 review: 5625 -> 5640 (+15). The composition root builds the process-level world.* module hooks once the configuration and realm id are read (raising AzerothCore OnAfterConfigLoad(false), World.cpp:300), binds the World::SendWorldText announcer once the player registry exists, hands the hooks to the canonical map loop for world.update, and calls world.startup and world.shutdown beside the internal ScriptMgr lifecycle (Main.cpp:395/419); the snapshot building, dispatch and effect application live in world-server module_hooks.rs, so app.rs only carries the calls whose position is the C++ order. No gameplay authority added. 2026-10-20 #1444 H2 review fixes: 5640 -> 5638 (-2), re-tightened: the realm announcer binding moved into module_hooks.rs (with_realm_announcer_like_cpp) and world.config_loaded moved after set_realm_offline (C++ StartDB/realm-offline order). 2026-10-21 #1444 H6a: 5638 -> 5625 (-13), re-tightened: the public run/run_with_modules entries moved to app's `entry` submodule (entry.rs) beside the new run_with_composition; app.rs keeps the module declaration, the lock parse and the manifest merge at the startup schema check. 2026-10-22 #38: 5625 -> 5626 (+1). One field line attaches the immutable C++ trade policy (`CONFIG_TRADE_LEVEL_REQ`, `CONFIG_ALLOW_TWO_SIDE_TRADE`, built by bootstrap/config.rs `trade_policy_like_cpp`) to `SessionHandlerCatalogsLikeCpp` for `HandleInitiateTradeOpcode`; no gameplay authority enters app.rs. 2026-10-22 #38 slice 3: 5626 -> 5629 (+3). The composition root attaches the one new MariaDB player-trade persistence adapter to the player capabilities (`with_player_trade_like_cpp`); composition only, no gameplay authority. 2026-10-23 #43 slice 1: 5629 -> 5630 (+1). One field line resolves the immutable C++ `CONFIG_DEATH_*` policy (built by bootstrap/config.rs `death_policy_like_cpp`) into the existing SessionRuntimePolicyCapabilitiesLikeCpp beside the durability rate; no gameplay authority enters app.rs. 2026-10-28 #43 closeout review: 5630 -> 5708 (+78). Added lines load immutable appearance, spell level/aura/class/label/proc and condition-presence catalogs, compose effective cast costs once and attach these plus existing group/death/quest ports in startup order. Domain modules retain transition bodies. Moving these bindings alone would obscure startup dependencies; the bounded exit remains C4-8 typed bootstrap extraction under #584. This exact ceiling grants no further growth. 2026-10-29 #43 Stuck capability review: 5708 -> 5709 (+1). Startup clones the already-loaded immutable GraveyardStore into the required World capability consumed by native EffectStuck. No gameplay, mutable state, task or clock enters this composition root; the existing C4 split exit is unchanged. This reviewed, unvalidated delta grants no further growth.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/lib.rs",
-      "observed_lines": 2110,
-      "ceiling_lines": 2110,
-      "split": "Separate shutdown/session supervision contracts from runtime helper projections and tests; retain the thin main entrypoint. #787 adds the phase rail and the readiness flag to the World::m_sessions equivalent, plus the participant query the producer uses; registration alone is not readiness, so both live beside the command rail.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/world-server/src/main_tests.rs",
-      "observed_lines": 1534,
-      "ceiling_lines": 1534,
-      "split": "Separate configuration, composition, shutdown, session supervision and runtime timing suites with narrow fixture builders. #589 adds two inseparable lines: SpellStartPkt and SpellGoPkt now carry the typed SpellCastData payload, so both creature-plan fixtures name the field explicitly instead of relying on the former hardcoded empty sections. No new scenario is added here. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 13042 to 984 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #787 adds the import of the detached phase rail used by the registry fixtures. #584 Transport VALUES adds the explicit transport-visibility field to the shared registry fixture; it remains one inseparable registration contract.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/world-server/src/runtime/game_events/mod.rs",
-      "observed_lines": 9,
-      "ceiling_lines": 9,
-      "split": "Keep a compact facade with explicit child-module visibility for parent reexports so sibling runtime consumers retain the existing surface; separate game-event despawn, loaded-grid, spawn, bootstrap, scheduler, live-update and consumer responsibilities.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/world-server/src/runtime/map.rs",
-      "observed_lines": 1297,
-      "ceiling_lines": 1297,
-      "split": "#787 moves the canonical World/Map producer into the private map/update_loop.rs submodule with its entry re-exported unchanged. Keep the remaining respawn/startup projections and recipient delivery scoped; no I/O under map guards.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/world-server/src/spawn_store_loader.rs",
-      "observed_lines": 3427,
-      "ceiling_lines": 3427,
-      "split": "Keep startup composition in this facade while private submodules own game-event catalog models, game-event startup loading/validation, game-event runtime/cache transitions, world-state catalog models, pool/spawn-group startup loading, creature/gameobject/areatrigger spawn rows with linked-respawn validation and waypoint/formation startup metadata; continue separating addon catalog construction without changing startup or DB ownership.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/world-server/src/spawn_store_loader_tests.rs",
-      "observed_lines": 1007,
-      "ceiling_lines": 1007,
-      "split": "Move catalog-specific loader fixtures and negative cases beside their loader responsibilities. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 5632 to 1007 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
+      "observed_lines": 1995,
+      "ceiling_lines": 1995,
+      "split": "Separate shutdown/session supervision contracts from runtime helper projections and tests; retain the thin main entrypoint. #787 adds the phase rail and the readiness flag to the World::m_sessions equivalent, plus the participant query the producer uses; registration alone is not readiness, so both live beside the command rail. 2026-10-04 #1263 F5 review: 2110 -> 2113 (+3). bc9d6185a adds `mod handler_registry;`, its root re-export and the separating blank line. A module declaration and its crate-root re-export must live in the parent root; no logic added. 2026-10-09 #1263 F6-8D2 review: 2113 -> 2124 (+11). The slice adds `pub(crate) mod isolated_creature_execution;` to the private runtime module and a crate-root `pub use` of the isolated admitted creature execution adapter (three outcome types and the two entry points) with its comment block. Production does not call the adapter - the production owner stays `RuntimeTickOwner::GlobalLegacy` and `MapCreatureUpdateOwnerLikeCpp::ExternalRuntime` - so the crate-root re-export is what makes the wiring reachable instead of dead code; the module declaration and its root re-export must live in the parent root. No logic, no gameplay authority and no new task, lock or clock added. 2026-10-20 #1444 H2 review: 2121 -> 2122 (+1): the private module_hooks module declaration for the world.* module hook adapter. 2026-11-01 #54 review: 2122 -> 1995 (-127), re-tightened after moving the complete DbAccountLookup/AccountLookup implementation into the private account_lookup.rs module with identical SQL, RBAC and async behavior; the crate root retains only the module declaration and import.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/spell/acquisition_loader.rs",
-      "observed_lines": 2267,
-      "ceiling_lines": 2267,
-      "split": "Separate spell/talent/trait acquisition catalog assembly and load-validation cases. #699 groups the spell_* siblings into crates/world-server/src/spell/, so the row moves to the successor path; the ceiling is unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-ai/src/lib.rs",
-      "observed_lines": 2541,
-      "ceiling_lines": 44,
-      "split": "Separate the creature AI kinds, the attack/target selector inputs and the evade reasons. #658 moves them into a private `ai` module with two state modules and two regression modules, dropping the crate root to 44 lines and tightening the ceiling to that figure. Item-for-item with the crate's 46 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-data/src/conditions.rs",
-      "observed_lines": 4759,
-      "ceiling_lines": 32,
-      "split": "Separate the condition entry model, the by-type entry store and the load report from their regressions. #638 decomposes the 4,759-line root into three state modules and four regression modules, dropping it to 32 lines and tightening the ceiling to that figure; only the imports and the module composition remain. Item-for-item with the crate's 724 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-data/src/creature/template.rs",
-      "observed_lines": 2458,
-      "ceiling_lines": 29,
-      "split": "Separate the creature template model from its loader and regressions. #664 decomposes the 2,458-line file into two state modules and two regression modules, dropping it to 29 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged. #697 groups the creature_* siblings into crates/wow-data/src/creature/, so the row moves to the successor path; the ceiling is unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-data/src/misc_generated.rs",
-      "observed_lines": 2062,
-      "ceiling_lines": 220,
-      "split": "Separate the miscellaneous DB2 entry structs from their readers. Despite the name no generator owns this file - it is hand-written in a generated style - so #664 decomposes it like any other module, into two state modules and one regression module, dropping the 2,062-line file to 220 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-data/src/skill.rs",
-      "observed_lines": 3761,
-      "ceiling_lines": 43,
-      "split": "Separate the skill tier and pet levelup/family/default spell stores from the skill store operations and their regressions. #638 decomposes the 3,761-line root into two state modules, one skill/ops module dividing the inherent `impl SkillStore`, and two regression modules, dropping it to 43 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-data/src/spell/mod.rs",
-      "observed_lines": 136,
-      "ceiling_lines": 136,
-      "split": "Separate the spell metadata and proc rules from the module root. #646 moves the `spell_effect_types` and `aura_types` constant modules to their own files and the remaining definitions into two state modules, dropping the root from 2,093 to 121 lines and tightening the ceiling to that figure; the root keeps the imports, the small inline constant modules and the composition. Item-for-item with the crate's 724 tests unchanged. #61 adds six inseparable lines to the deliberately-kept inline `attributes` module: the `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` and `SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS` words consumed by the represented `Unit::SpellDamagePctDone` early-outs, each with its `SharedDefines.h` anchor. #61 adds three more inseparable lines for `SPELL_ATTR6_IGNORE_HEALING_MODIFIERS` (`SharedDefines.h:680`), consumed by the represented `Unit::SpellHealingPctDone` early-outs. #31 adds three lines for the `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE` constant the absorb ignore term reads; the ceiling is tightened to the validated size. #31 adds three lines for the `SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS` constant read by the pushed-down spell-damage-taken term; it is a C++ constant with its SharedDefines.h anchor, not gameplay authority.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-data/src/spell/stores.rs",
-      "observed_lines": 3123,
-      "ceiling_lines": 22,
-      "split": "Separate the C++-shaped pet-aura, threat, linked, totem-model, required and chain stores. #646 decomposes the 3,123-line module into three state modules plus two ops modules that divide the 1,150-line inherent `impl SpellStore` by responsibility, dropping it to 22 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-data/src/spell_acquisition.rs",
-      "observed_lines": 2837,
-      "ceiling_lines": 36,
-      "split": "Separate the acquisition table, coverage seed, value domain, effect, dependency and misc models. #646 decomposes the 2,837-line module into three state modules plus two ops modules that divide the 1,122-line inherent `impl SpellAcquisitionCatalogLikeCpp`, dropping it to 36 lines and tightening the ceiling to that figure. Item-for-item with the crate's 724 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-data/src/spell_db2.rs",
-      "observed_lines": 239,
-      "ceiling_lines": 239,
-      "split": "Separate the DB2 spell entry structs and their per-table stores from their regressions. #646 decomposes the 3,124-line root into three state modules and one regression module, dropping it to 229 lines and tightening the ceiling to that figure; the root keeps the imports, the `db2_store!` macro and its per-table invocations, which are one cohesive declaration. Item-for-item with the crate's 724 tests unchanged. #31 adds ten lines for `SpellLabelStore::has_label_like_cpp`, the `SpellInfo::HasLabel` scan over the store's own private entries; it adds no new data source.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-data/src/spell_tests.rs",
-      "observed_lines": 522,
-      "ceiling_lines": 522,
-      "split": "Split spell store/reader/acquisition fixtures and test registration by catalog responsibility. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 6136 to 522 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-database/src/statements/character.rs",
-      "observed_lines": 3429,
-      "ceiling_lines": 27,
-      "split": "Separate the character-database statement identities, their `StatementDef` impl and the generated-statement constructors. #652 decomposes the 3,429-line root into three modules, dropping it to 27 lines and tightening the ceiling to that figure. Two justified exceptions, both indivisible items: character/identities.rs is 1,788 lines because `enum CharStatements` is one variant list whose identities a persistence golden freezes, and character/statement_def.rs is 1,626 lines because a trait impl cannot be split. Their exit is the semantic separation of the statement catalogue by database operation, owned by 584:C4. Item-for-item with the crate's 358 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-database/src/statements/character_tests/mod.rs",
-      "observed_lines": 104,
-      "ceiling_lines": 104,
-      "split": "Retires the 3,315-line character-statement regression file: #652 replaces it with this module root, which keeps the shared preamble and the C++ source readers and mounts four scenario modules (719-882 lines) holding all 58 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-database/src/statements/world.rs",
-      "observed_lines": 2004,
-      "ceiling_lines": 16,
-      "split": "Separate the world-database statement identities, their `StatementDef` impl and the regressions. #652 decomposes the 2,004-line root into two modules plus one regression module, dropping it to 16 lines and tightening the ceiling to that figure; every new file is inside the review budget. Item-for-item with the crate's 358 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-entities/src/creature.rs",
-      "observed_lines": 3850,
-      "ceiling_lines": 44,
-      "split": "Separate creature lifecycle plans, runtime state and the AI/loot operations. #636 decomposes the 3,850-line root into two state modules and three creature/ops modules that divide the inherent `impl Creature` by responsibility, dropping it to 44 lines and tightening the ceiling to that figure; only the imports and the module composition remain. Item-for-item with the crate's 725 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-entities/src/creature_tests/mod.rs",
-      "observed_lines": 213,
-      "ceiling_lines": 213,
-      "split": "Retires the 3,092-line creature regression file: #648 replaces it with this module root, which keeps the shared preamble and helpers and mounts four scenario modules (353-884 lines) holding all 79 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-entities/src/game_object.rs",
-      "observed_lines": 4369,
-      "ceiling_lines": 31,
-      "split": "Separate GameObject template, loot and runtime state from the object operations and their regressions. #636 decomposes the 4,369-line root into two state modules, two game_object/ops modules dividing the inherent `impl GameObject`, and three regression modules, dropping it to 31 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-entities/src/object_accessor.rs",
-      "observed_lines": 3174,
-      "ceiling_lines": 21,
-      "split": "Separate the accessor object kinds, the map-object record and the lookup operations from their regressions. #648 decomposes the 3,174-line root into one state module, one ops module dividing the inherent `impl ObjectAccessor`, and three regression modules, dropping it to 21 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-entities/src/pet.rs",
-      "observed_lines": 5082,
-      "ceiling_lines": 27,
-      "split": "Separate pet lifecycle, aura and persistence state from the pet operations and their regressions. #636 decomposes the 5,082-line root into one state module, two pet/ops modules dividing the inherent `impl Pet`, and four regression modules, dropping it to 27 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
+      "observed_lines": 2302,
+      "ceiling_lines": 2302,
+      "split": "Separate spell/talent/trait acquisition catalog assembly and load-validation cases. #699 groups the spell_* siblings into crates/world-server/src/spell/, so the row moves to the successor path; the ceiling is unchanged. 2026-10-28 #43 closeout review: 2267 -> 2292 (+25). The existing effective reagent loader composes item and currency costs through canonical SpellCastCostStoreLikeCpp, shared by trainer and resurrection consumers; the former reagent-only composer is a test projection. Keeping both hotfix/removal streams together preserves startup ordering and last-record semantics. The bounded exit remains C4-2 extraction of loader tests to a private sibling under #584. No general growth allowance. 2026-10-28 #43 formatting refinement: the reviewed loader change is 25 lines plus 10 lines of rustfmt layout, yielding 2302 physical lines (+35 from 2267). The C4-2 split exit and the preceding semantic review remain unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -237,65 +48,9 @@
     },
     {
       "path": "crates/wow-entities/src/player/mod.rs",
-      "observed_lines": 4802,
-      "ceiling_lines": 4802,
-      "split": "Separate the player login/gameplay load plans from the state definitions they own; 17 responsibility submodules already exist. #636 measured this root and deferred it: the runtime-ownership hotspot ratchet forbids growth in the player module aggregate, and relocating the plans into sibling modules adds module headers and re-export wiring without reducing the hotspot, so this root needs the semantic extraction owned by 584:C4 rather than a physical move.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-entities/src/player_tests.rs",
-      "observed_lines": 512,
-      "ceiling_lines": 512,
-      "split": "Distribute Player tests by canonical gameplay responsibility without duplicating whole-Player fixtures. Above 2fdbd962 +3 formatting lines adapt existing tuple-header expectations to the native trait value; no new scenario bodies here. C4 retirement remains. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 9497 to 501 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. 2026-09-12 #763/#765/#767/#769/#771/#773 add one `#[path]` scenario module each for the encapsulated Player owners (collections, taxi, equipment sets, item modifiers, pending spell cast, difficulty); six two-line index entries raise the file from 501 to 502 lines net after the quest-state module it replaced was already counted. The ceiling moves with the index by exactly that one line: the bodies live in the scenario modules, not here. #775 adds the trait-config hydration scenario module, two more index lines. #777 adds the cinematic scenario module, two more index lines. #779 adds the rest scenario module, two more index lines. #781 adds the world-local scenario module, two more index lines. #783 adds the battleground scenario module, two more index lines.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-entities/src/unit.rs",
-      "observed_lines": 4308,
-      "ceiling_lines": 34,
-      "split": "Separate unit values, visibility and health-revision state from the unit operations and their regressions. #636 decomposes the 4,308-line root into one state module, three unit/ops modules dividing the inherent `impl Unit`, and three regression modules, dropping it to 34 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-entities/src/unit_subsystems/tests/mod.rs",
-      "observed_lines": 15,
-      "ceiling_lines": 15,
-      "split": "Retires the 2,260-line unit-subsystem regression file: #648 replaces it with this module root, which keeps the vestigial `unit_subsystems_tests` wrapper so every test path is unchanged and mounts three scenario modules holding all 59 tests. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-entities/src/world_object.rs",
-      "observed_lines": 2451,
-      "ceiling_lines": 21,
-      "split": "Separate the visibility-distance, height-query, line-of-sight and world-location model from its operations and regressions. #648 decomposes the 2,451-line root into one state module, one ops module and one regression module, dropping it to 21 lines and tightening the ceiling to that figure. Item-for-item with the crate's 725 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-instances/src/lib.rs",
-      "observed_lines": 3036,
-      "ceiling_lines": 26,
-      "split": "Separate the instance lock, the DB2 entries, the reset schedule and the lock manager. #658 moves them into a private `instances` module with two state modules, one ops module dividing the inherent `impl InstanceLockMgr`, and two regression modules, dropping the crate root to 26 lines and tightening the ceiling to that figure; the root keeps the crate documentation, its imports and the public re-exports. Item-for-item with the crate's 49 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-loot/src/authority.rs",
-      "observed_lines": 3515,
-      "ceiling_lines": 37,
-      "split": "Separate the owned-loot authority state, the claim/lease operations and their regressions. #642 decomposes the 3,515-line module into one state module, two authority/ops modules dividing the inherent `impl OwnedLootAuthority`, and two regression modules, dropping it to 37 lines and tightening the ceiling to that figure. Every trait impl - Drop, Debug, PartialEq, Default - stays whole. Item-for-item with the crate's 69 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-loot/src/lib.rs",
-      "observed_lines": 3835,
-      "ceiling_lines": 32,
-      "split": "Separate the loot store definitions, the reference and condition-link reports, the template/group model and their regressions. #642 moves them into a private `store` module with four state modules (135-937 lines) and two regression modules, dropping the crate root to 32 lines and tightening the ceiling to that figure; the root keeps the crate documentation, its imports and the public re-exports, so every downstream path is unchanged. Item-for-item with the crate's 69 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-map/src/manager.rs",
-      "observed_lines": 4594,
-      "ceiling_lines": 47,
-      "split": "Separate the managed-map kinds, the instance-id allocator, the interval timer and the updater from their regressions. #644 decomposes the 4,594-line root into two state modules and four regression modules, dropping it to 47 lines and tightening the ceiling to that figure; only the imports and the module composition remain. Item-for-item with the crate's 727 tests unchanged.",
+      "observed_lines": 4791,
+      "ceiling_lines": 4791,
+      "split": "Separate the player login/gameplay load plans from the state definitions they own; 17 responsibility submodules already exist. #636 measured this root and deferred it: the runtime-ownership hotspot ratchet forbids growth in the player module aggregate, and relocating the plans into sibling modules adds module headers and re-export wiring without reducing the hotspot, so this root needs the semantic extraction owned by 584:C4 rather than a physical move. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. 2026-10-22 #38 slice 3: +2. The canonical trade-transfer transitions live in their own `player/trade_transfer.rs`; the root only declares the module and re-exports its one result type. 2026-10-28 #43 closeout review: 4728 -> 4789 (+61). Root additions are private modules/narrow exports, canonical quest/inebriation/death-operation and SelfRes/no-reagent fields, initialization and immutable wire projections. Transition bodies live in private modules. Splitting fields into another mutable owner would weaken one-Player authority; the bounded exit remains C4-6a extraction of cohesive lifecycle/load records and item plans under #584. This exact root-wiring/state-definition delta grants no general growth. 2026-10-29 #43 publication follow-up: 4789 -> 4791 (+2) for ActivePlayerDataUpdate.local_flags and its comment. This is an immutable snapshot of the existing canonical active-local-flags field, populated in player/visibility.rs; it adds no second mutable owner. The existing 584:C4 extraction exit remains unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -307,16 +62,16 @@
     },
     {
       "path": "crates/wow-map/src/map/mod.rs",
-      "observed_lines": 5310,
-      "ceiling_lines": 5310,
-      "split": "Separate map phase orchestration, object admission and spatial/grid capabilities while retaining one Map owner.",
+      "observed_lines": 5135,
+      "ceiling_lines": 5135,
+      "split": "Separate map phase orchestration, object admission and spatial/grid capabilities while retaining one Map owner. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. 2026-10-28 #43 closeout review: 5133 -> 5135 (+2). Only additions declare private pet_combat and re-export its typed result. Its Map transition already lives in that child; both root bindings are required for consumers. Bounded C4-7a/C4-7b split exits remain under #584. No further growth is authorized.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-map/src/map/relocation.rs",
-      "observed_lines": 2182,
-      "ceiling_lines": 2182,
-      "split": "Separate relocation planning, grid/visibility effects and movement-boundary tests.",
+      "observed_lines": 2176,
+      "ceiling_lines": 2176,
+      "split": "Separate relocation planning, grid/visibility effects and movement-boundary tests. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -324,97 +79,6 @@
       "observed_lines": 2384,
       "ceiling_lines": 2384,
       "split": "Separate spawn-group admission, activation/deactivation and failure tests.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-map/src/map_tests.rs",
-      "observed_lines": 918,
-      "ceiling_lines": 918,
-      "split": "Separate map lifetime/transfer, grids, respawn, movement, visibility and update-phase suites. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 18288 to 918 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-map/src/pool.rs",
-      "observed_lines": 2699,
-      "ceiling_lines": 24,
-      "split": "Separate the C++-shaped pool template/object model and group selection from their regressions. #644 decomposes the 2,699-line root into two state modules and two regression modules, dropping it to 24 lines and tightening the ceiling to that figure. Item-for-item with the crate's 727 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-map/src/spawn.rs",
-      "observed_lines": 2021,
-      "ceiling_lines": 22,
-      "split": "Separate the spawn object/group model and the linked-respawn store from their regressions. #644 decomposes the 2,021-line root into two state modules and one regression module, dropping it to 22 lines and tightening the ceiling to that figure. Item-for-item with the crate's 727 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-network/src/world_socket.rs",
-      "observed_lines": 2021,
-      "ceiling_lines": 73,
-      "split": "Separate the socket write fences, the reader and the socket state from the read/write loop. #658 decomposes the 2,021-line file into one state module, one ops module and one regression module, dropping it to 73 lines and tightening the ceiling to that figure. No await point, lock scope or buffer boundary moves. Item-for-item with the crate's 32 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-packet/src/packets/misc/social.rs",
-      "observed_lines": 2045,
-      "ceiling_lines": 46,
-      "split": "Separate the duel, social and auction packets. #650 decomposes the 2,045-line root into three state modules, dropping it to 46 lines and tightening the ceiling to that figure; each trait impl stays beside its type and whole. Item-for-item with the crate's 728 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-packet/src/packets/misc/tests/mod.rs",
-      "observed_lines": 104,
-      "ceiling_lines": 104,
-      "split": "Retires the 4,928-line misc regression file: #640 replaces it with this module root, which keeps the shared preamble and the helpers that sat between tests, and mounts six scenario modules (482-885 lines) holding all 281 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-packet/src/packets/movement.rs",
-      "observed_lines": 2240,
-      "ceiling_lines": 59,
-      "split": "Separate the movement info model from the client/ack packets and their regressions. #650 decomposes the 2,240-line root into two state modules and one regression module, dropping it to 59 lines and tightening the ceiling to that figure. Item-for-item with the crate's 728 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-packet/src/packets/party.rs",
-      "observed_lines": 2152,
-      "ceiling_lines": 95,
-      "split": "Separate the party client/server packets from their regressions. #650 decomposes the 2,152-line root into two state modules and two regression modules, dropping it to 95 lines and tightening the ceiling to that figure; each `ClientPacket`/`ServerPacket` impl stays beside its type. Item-for-item with the crate's 728 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-packet/src/packets/update/block.rs",
-      "observed_lines": 2352,
-      "ceiling_lines": 36,
-      "split": "Separate the update-object block builder, its masks and its value writers. #650 decomposes the 2,352-line root into two state modules and two ops modules that divide the 1,300-line inherent `impl UpdateObject`, dropping it to 36 lines and tightening the ceiling to that figure. `impl ServerPacket for UpdateObject` stays whole because a trait impl cannot be split. Item-for-item with the crate's 728 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-packet/src/packets/update/player.rs",
-      "observed_lines": 3466,
-      "ceiling_lines": 37,
-      "split": "Separate the player/active-player update-value structs, their `Default` impls and the delta writers. #650 decomposes the 3,466-line root into five state modules, dropping it to 37 lines and tightening the ceiling to that figure. No field, order or bit changes; item-for-item with the crate's 728 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-packet/src/packets/update_tests/mod.rs",
-      "observed_lines": 218,
-      "ceiling_lines": 218,
-      "split": "Retires the 3,676-line update-block regression file: #640 replaces it with this module root, which keeps the shared preamble and helpers and mounts five scenario modules (98-882 lines) holding all 82 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename. #61 adds one line to the shared `test_player_create_data_with_farsight` fixture for the new `PlayerCreateData::school_resistances` field, keeping the fixture in step with the production create data. #61 adds two lines to the shared `test_player_create_data_with_farsight` fixture for the attack power multiplier fields, keeping the fixture in step with the production create data. #61 also adds one line to `zeroed_stat_changes` and two lines to `test_player_create_data_with_farsight` for the `mod_damage_done_pos`/`mod_damage_done_neg`/`mod_healing_done_pos` arrays that replace the removed scalar `spell_power` field, keeping both fixtures in step with the production create and values data. #61 allocates one more line to `zeroed_stat_changes` for the `mod_damage_done_neg` array added to the narrow values update, keeping the fixture in step with the production packet struct. #61 allocates two more fixture lines for the `mod_damage_done_percent` array in `zeroed_stat_changes` and `test_player_create_data_with_farsight`, keeping both in step with the production packet structs. #61 allocates one more fixture line for the `mod_healing_done_pct` create-data field, keeping `test_player_create_data_with_farsight` in step with the production struct. #61 allocates four more fixture lines for the `mod_target_resistance`/`mod_target_physical_resistance` fields in `zeroed_stat_changes` and `test_player_create_data_with_farsight`, keeping both in step with the production packet structs. #61 allocates four more fixture lines for the `override_spell_power_by_ap_percent`/`override_ap_by_spell_power_percent` fields in `zeroed_stat_changes` and `test_player_create_data_with_farsight`, keeping both in step with the production packet structs. #61 allocates two more fixture lines for the `versatility_bonus` field in `zeroed_stat_changes` and `test_player_create_data_with_farsight`, keeping both in step with the production packet structs.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-recastdetour/src/lib.rs",
-      "observed_lines": 3194,
-      "ceiling_lines": 218,
-      "split": "Separate the navmesh and query wrappers from the crate root. #658 moves them into a private `navmesh` module with four state modules, moves the deterministic fixtures to their own file and the regressions to three scenario modules, dropping the root from 3,194 to 218 lines and tightening the ceiling to that figure. The root keeps the two `bitflags!` declarations and the `unsafe extern \"C\"` FFI block, which is one indivisible declaration of the vendored Detour surface. Item-for-item with the crate's 55 tests unchanged.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-recastdetour/src/lib_tests/mod.rs",
-      "observed_lines": 142,
-      "ceiling_lines": 142,
-      "split": "Retires the 2,471-line navmesh regression file: #658 replaces it with this module root, which keeps the shared preamble and helpers and mounts three scenario modules (737-873 lines) holding all its tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -432,276 +96,311 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/battle_pet_purchase.rs",
-      "observed_lines": 5206,
-      "ceiling_lines": 92,
-      "split": "Separate the battle-pet purchase saga, its status/store state and the executor fixtures. #656 decomposes the 5,206-line file into one state module, two ops modules dividing the `impl WorldSession` block by purchase phase, and two regression trees whose fixtures live in their own module, dropping it to 92 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "path": "crates/wow-world/src/handlers/loot_test_shims.rs",
+      "observed_lines": 434,
+      "ceiling_lines": 434,
+      "split": "cfg(test) method-syntax entry points and test-only re-exports for the loot bodies moved to wow-world-loot-ops (#1363 slices 5a-5c), mounted from handlers/mod.rs outside the loot hotspot tree, so its lines are not charged to the loot hotspot's test ceiling. 2026-10-13 #1363 slice 5c (#1381 review follow-up 1): ratcheted at the live value. It grew 354 (5a) -> 572 (5b); 5c adds the two cfg(test) CMSG_LOOT_MONEY/apply-loot-money entry points that were nested in the moved handlers/loot/handlers/money.rs and the re-exports the World loot module no longer imports, and retires 11 single-caller shims by converting their scenario call sites to free-function calls without raising the loot test ceiling, so it falls 572 -> 441. Retire the rest the same way; no growth is permitted from here. 2026-10-13 #1363 slice 7b (#1383 follow-up): marked #![cfg(test)] (it was already mounted only under #[cfg(test)]), so the classifier counts its 441 lines as test instead of production; the header was condensed so the file stays at 441. 2026-10-17 #1363 final cleanup: tightened 441 -> 434 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/conditions.rs",
-      "observed_lines": 3359,
-      "ceiling_lines": 38,
-      "split": "Separate the condition snapshot borrows - map reference, quest, progression and map-state - from their regressions. #656 decomposes the 3,359-line file into three state modules and two regression modules, dropping it to 38 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "path": "crates/wow-world/src/handlers/loot_handler_test_shims.rs",
+      "observed_lines": 105,
+      "ceiling_lines": 105,
+      "split": "cfg(test) entry points for the loot handlers moved to wow-world-loot-ops (#1263 F5; #1363 A7) that dispatch through the registered production thunks. Formerly handlers/loot/handlers/test_shims.rs, mounted cfg(test) inside the loot hotspot tree without #![cfg(test)], so the hotspot charged its 104 lines to the loot production row; the #1363 final cleanup marks it #![cfg(test)] and moves it out of that tree (mounted from handlers/mod.rs, the shim convention), so the loot test row does not grow, and deletes the emptied handlers/loot/handlers.rs (its row retires). 2026-10-17: ratcheted at the live value from creation; no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/entity_update_bridge.rs",
-      "observed_lines": 2107,
-      "ceiling_lines": 35,
-      "split": "Separate the entity update bridge state from its operations and regressions. #662 decomposes the 2,107-line file into two state modules, one ops module and one regression module, dropping it to 35 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "path": "crates/wow-world/src/handlers/player_test_shims.rs",
+      "observed_lines": 142,
+      "ceiling_lines": 142,
+      "split": "cfg(test) method-syntax entry points for the player combat bodies moved to wow-world-entities (#1363 slice 7a) the pet bodies moved to wow-world-lifecycle (pet_session), including the six pet row-loader entry points that left unit_tests/session/pet_loading/f3_shims.rs, and the loot-money tracker read whose LootCxRef facade retired when the battle-pet purchase saga moved, mounted from handlers/mod.rs outside the session and character hotspot trees and marked #![cfg(test)] so the classifier counts it as test code, so the scenarios keep their method syntax without growing those hotspots' test lines. 2026-10-13 #1363 slice 7a: ratcheted at the live value from creation; each method is a one-call forward to the moved free function. Retire it by converting the scenario call sites to free-function calls in a slice that reviews those test ceilings; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 150 -> 142 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/character/items.rs",
-      "observed_lines": 3904,
-      "ceiling_lines": 3904,
-      "split": "Separate item move/use operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #584 P2 replaces the production item-object mutation closure with the closed Player-owned command set; the validated conversion adds 26 physical lines while removing every production `&mut Item` handoff. The ceiling is ratcheted to this measured delivery; the remaining C4 split stays open. #61 adds two `PlayerStatChanges` lines for the override percentage fields, copied from the canonical projection with no new authority. #61 adds one `PlayerStatChanges` line for `versatility_bonus`, copied from the canonical projection with no new authority. #61 adds one inseparable argument line at the `effective_weapon_damage_ranges_like_cpp` call site for the represented shapeshift `CombatRoundTime` input.",
+      "path": "crates/wow-world/src/handlers/battle_pet_test_shims.rs",
+      "observed_lines": 577,
+      "ceiling_lines": 577,
+      "split": "cfg(test) represented (fixture-backed) BattlePetMgr bodies (cage, add, experience, quality, level, remove, rename, the owner-aura experience entry and the represented cage handler) that were #[cfg(test)] methods nested in the production battle-pet impls of session/pets/battle_pet{,_journal}.rs, session/battle_pet_adapter.rs and handlers/pets/mod.rs, plus one-call method entry points for the journal helpers moved to wow-world-inventory (battle_pet_session). The moved durable operations reach the represented bodies through the cfg(any(test, feature = \"test-fixtures\")) BattlePetSessionHostLikeCpp fixture hooks. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)] so the classifier counts it as test code and the session hotspot's test lines do not grow. 2026-10-13 #1363 slice 7b: ratcheted at the live value from creation. Retire it when the represented fixture bodies give way to the canonical account owner in the scenarios; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 603 -> 577 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/character/mod.rs",
-      "observed_lines": 2729,
-      "ceiling_lines": 2729,
-      "split": "Separate character admission and lifecycle dispatch by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #584 P2 keeps the bag-exchange fixture helper explicitly test-only; the one-line cfg boundary is recorded in the measured ceiling and does not add production behavior.",
+      "path": "crates/wow-world/src/handlers/progression_test_shims.rs",
+      "observed_lines": 284,
+      "ceiling_lines": 284,
+      "split": "cfg(test) method entry points for the #1363 slice 7c progression families: the one-call entry point of the battle-pet XP-percent aura moved to wow-world-spell (SessionSpellState), and the #[cfg(test)] methods that were nested in the production impls of session/rest_progression.rs (rest state, XP rest bonus, tavern revalidation, create flags), session/progression_adapters.rs (kill credit, XP table, money), session/progression/{skills,reputation}.rs, session/pets/pet.rs (petition reads, tapper-pet kill hook) and session/combat/state.rs, moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)] so the classifier counts it as test code and the session hotspot's test lines do not grow. 2026-10-13 #1363 slice 7c: ratcheted at the live value from creation. Retire entries as the scenarios move to the owning crates or call the moved bodies directly; no growth is permitted from here. 2026-10-15 #1363 slice 10b: tightened 315 -> 284: the test-only tapper-pet KilledUnit hook record moved to wow-world-entities (creature_kill_session.rs, cfg(any(test, feature = \"test-fixtures\"))) with the death-state completion, its only caller, and its RepresentedCreatureKillEventLikeCpp import left.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/character/session_state.rs",
-      "observed_lines": 2810,
-      "ceiling_lines": 2810,
-      "split": "Separate character adapters by complete operation; preserve registration/publication order. #585 adds ten lines so both failed-login consumers retain identity when canonical retirement fails, rather than discarding the returned outcome. This bounded safety integration does not retire the remaining login/worldport module debt in #584. #589 adds four inseparable lines: the binder consumer adapts to fallible canonical cast-identity allocation and returns when the admitted Map cannot allocate, instead of publishing an empty CastID. No new responsibility enters this file.",
+      "path": "crates/wow-world/src/handlers/visibility_test_shims.rs",
+      "observed_lines": 122,
+      "ceiling_lines": 122,
+      "split": "cfg(test) method-syntax entry points for the visibility bodies moved to wow-world-entities (visibility_session, #1363 slice 8a): send_nearby_creatures and update_visibility (moved verbatim from the cfg(test) impl of handlers/character/visibility/creatures.rs) and send_nearby_gameobjects, plus the four split_world_entities_* wrappers (creature aggro radius, creature create stats, gameobject DB phase shift and runtime state records) moved verbatim from session/world_entities/{aggro,creature_query,gameobject_overrides,gameobject_state}.rs because only the scenarios call them once the moved bodies make the split through the host. Mounted from handlers/mod.rs outside the character hotspot tree and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8a: ratcheted at the live value from creation; each method is a one-call forward to the moved free function. Retire it by converting the scenario call sites to free-function calls; no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/character/vendor.rs",
-      "observed_lines": 2562,
-      "ceiling_lines": 2562,
-      "split": "Separate vendor purchase/sale operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "path": "crates/wow-world/src/handlers/vendor_test_shims.rs",
+      "observed_lines": 137,
+      "ceiling_lines": 137,
+      "split": "cfg(test) method-syntax entry points for the vendor and bank bodies moved to wow-world-inventory (vendor_session, #1363 slice 8b): handle_buy_item, handle_repair_item and handle_buy_bank_slot (moved verbatim from the cfg(test) impls of handlers/character/{vendor/buy,vendor,bank}.rs), handle_banker_activate and update_vendor_item_current_count, plus seven one-statement wrappers (has_item_count_direct_inventory, plan_destroy_item_count_direct_inventory, set_buyback_slot_metadata_like_cpp, resolved_buyback_price_like_cpp, resolved_player_bank_bag_slot_count_like_cpp, set_inventory_item_object_slot, send_sell_error) moved verbatim from handlers/character/items.rs and session/{buyback_adapter,player_items/bank,player_items/storage_slots,publication/operations}.rs because only the scenarios call them once the moved bodies make the split or core call through the host. Mounted from handlers/mod.rs outside the character and session hotspot trees and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8b: ratcheted at the live value from creation. Retire it by converting the scenario call sites to free-function and split calls; no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/character/world_entry.rs",
-      "observed_lines": 2782,
-      "ceiling_lines": 2782,
-      "split": "Separate world entry and initialization by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. Above c61903fc +26 lines complete native transfer before explicit logout save, leave Terminal source-save to disconnect, and reject quarantined/unadmitted character-select readiness. No new state or retry policy; retain the C1 logout split and C4 retirement exit. #61 adds one line publishing the melee attack power multiplier into the login `PlayerCombatStats` snapshot, completing the C++ `AttackPowerMultiplier` create field; it carries no new authority and startup order is unchanged. #61 also adds two lines to the login `PlayerCombatStats` literal for `mod_damage_done_pos`/`mod_damage_done_neg`/`mod_healing_done_pos`, replacing the removed scalar `spell_power` field and carrying no new authority. #61 adds one more login `PlayerCombatStats` line for `mod_damage_done_percent`, the matching `ActivePlayerData` percentage field, with no new authority. #61 adds one more login `PlayerCombatStats` line for `ModHealingDonePercent`, with no new authority. #61 adds two more login `PlayerCombatStats` lines for `ModTargetResistance`/`ModTargetPhysicalResistance`, with no new authority. #61 adds two more login `PlayerCombatStats` lines for the override percentage fields, with no new authority. #61 adds one more login `PlayerCombatStats` line for `VersatilityBonus`, with no new authority. #61 adds one inseparable argument line at the `effective_weapon_damage_ranges_like_cpp` call site for the represented shapeshift `CombatRoundTime` input.",
+      "path": "crates/wow-world/src/handlers/character_query_test_shims.rs",
+      "observed_lines": 84,
+      "ceiling_lines": 84,
+      "split": "cfg(test) method-syntax entry points for the character query handlers moved to wow-world-character (#1263 F5, #1363 A5). The file was handlers/character/query/test_shims.rs, mounted only for the test build but counted as production because it lacked #![cfg(test)]; #1363 slice 8b moved it verbatim outside the character hotspot tree (mounted from handlers/mod.rs) and marked it #![cfg(test)] (#1386 follow-up 4), so 77 lines leave the production figure without code change. 2026-10-13 #1363 slice 8b: ratcheted at the live value from creation; no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/character_tests.rs",
-      "observed_lines": 2473,
-      "ceiling_lines": 134,
-      "split": "Character-handler regressions: the mounts already live in character_tests/. #662 moves the shared fixtures - the lifecycle/homebind/collection ports and their builders - into three fixture modules, dropping this root from 2,473 to 134 lines and tightening the ceiling to that figure; only the `#[path]` mounts, the shared imports and the fixture re-exports remain. All tests unchanged.",
+      "path": "crates/wow-world/src/handlers/item_test_shims.rs",
+      "observed_lines": 210,
+      "ceiling_lines": 210,
+      "split": "cfg(test) method-syntax entry points for the item handler bodies moved to wow-world-inventory (item_session, #1363 slice 8c): handle_swap_inv_item, handle_auto_equip_item, handle_auto_equip_item_slot, handle_swap_item, handle_auto_store_bag_item, handle_autobank_item and handle_autostore_bank_item (moved verbatim from the cfg(test) methods of handlers/character/{items/handlers,bank}.rs), plan_destroyed_inventory_quest_persistence_like_cpp, destroy_inventory_full_stack_by_pos_like_cpp, plan_inventory_child_redirect_like_cpp, plan_inventory_equip_child_like_cpp and plan_inventory_real_swap_children_like_cpp (forwards to the moved free functions), plus six one-statement wrappers (direct_item_contains_items, plan_inventory_swap_preflight_like_cpp, represented_inventory_descendants_postorder_like_cpp, send_item_relocation_values_update_like_cpp, send_item_dynamic_flags_values_update_like_cpp, represented_can_use_current_bank_like_cpp) moved verbatim from session/player_items/{items,persistence,storage_slots,publication,bank}.rs because only the scenarios call them once the moved bodies make the split, InventoryState or bank-use call through the host. Mounted from handlers/mod.rs outside the character and session hotspot trees and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8c: ratcheted at the live value from creation. Retire it by converting the scenario call sites to free-function and split calls; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 249 -> 210 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/chat.rs",
-      "observed_lines": 4265,
-      "ceiling_lines": 311,
-      "split": "Separate the chat handler operations, the level/notification policy helpers and the regressions. #654 decomposes the 4,265-line file into one state module, two ops modules dividing the `impl WorldSession` blocks by handler responsibility, and three regression modules, dropping it to 311 lines and tightening the ceiling to that figure. The root keeps the imports and the `inventory::submit!` handler registrations, which are the single registration source and must stay together. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "path": "crates/wow-world/src/handlers/login_test_shims.rs",
+      "observed_lines": 219,
+      "ceiling_lines": 219,
+      "split": "cfg(test) method-syntax entry points for the character login-load bodies moved to wow-world-character (login_session, #1363 slice 8d): handle_logout_request, test_load_initial_world_states_for_login_like_cpp and send_initial_packets_after_add_to_map (moved verbatim from the cfg(test) methods of handlers/character/{world_entry,world_entry/initial_packets,session_state}.rs, now naming the moved free functions), sixteen one-call forwards to the moved free functions the scenarios call (abort/continue/retry/repair/delete/seed login recovery, the corpse, customization and default-graveyard loads, the persisted transport resolve, the hearth handler, the login combat stats, the login packet prelude, the before-add burst, the login sequence, the realm-characters refresh and the post-add entry zone), plus nine one-statement wrappers (send_account_heirlooms_like_cpp, load_represented_cuf_profile_like_cpp, represented_load_cuf_profiles_packet_like_cpp, set_loaded_player_customizations_like_cpp, send_favorite_appearances_like_cpp, mark_represented_equipment_sets_loaded_like_cpp, represented_load_equipment_set_packet_like_cpp, insert_buyback_item_like_cpp, complete_player_equipment_inventory_authority_load_like_cpp) moved verbatim from session/{lifecycle_ops/operations,persistence/load,player_items/appearance,player_items/equipment_sets,player_items/items,player_items/persistence_load}.rs because only the scenarios call them once the moved bodies make the same split and state call through the host. Mounted from handlers/mod.rs outside the character and session hotspot trees and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8d: ratcheted at the live value from creation. Retire it by converting the scenario call sites to free-function and split calls; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 386 -> 214 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here. 2026-10-28 #43 composition review: 214 -> 219 (+5). The existing logout test forward now supplies the borrowed resurrection catalogs, and the existing post-add forward returns the real bool outcome. No new test entry or production authority is added. Keeping this adapter beside its current callers avoids changing the scenarios during the behavior repair; retire it by explicit catalog/free-function calls at the existing #584 C4 checkpoint. Exact ceiling, no further growth.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/group.rs",
-      "observed_lines": 350,
-      "ceiling_lines": 350,
-      "split": "Separate the group handler operations from their regressions. #662 decomposes the 2,995-line file into one state module, two ops modules dividing the `impl WorldSession` block by handler responsibility, and three regression modules, dropping it to 349 lines and tightening the ceiling to that figure. The root keeps the imports and the `inventory::submit!` handler registrations, which are the single registration source. Item-for-item with the crate's 3,822 lib tests unchanged. #743 adds one inseparable line: the `commands` module declaration. A module declaration must live in its parent root, which is also the single opcode registration source.",
+      "path": "crates/wow-world/src/handlers/login_data_gossip_test_shims.rs",
+      "observed_lines": 128,
+      "ceiling_lines": 128,
+      "split": "cfg(test) method-syntax entry points for the login data and gossip bodies moved to wow-world-character (#1363 slice 8e): handle_binder_activate (moved verbatim from the cfg(test) method of handlers/character/gossip.rs, now naming the moved free function), seven one-call forwards to the moved free functions the scenarios call (handle_gossip_hello, handle_gossip_select_option, build_gossip_menu, skill_rewarded_quest_fallback_allowed_like_cpp, skill_rewarded_spell_changes_for_login_like_cpp, load_character_spell_history_packets_like_cpp, load_active_player_trait_configs_like_cpp), plus five one-statement wrappers (mark_represented_character_spell_cooldowns_loaded_like_cpp, record_loaded_character_spell_cooldown_like_cpp, mark_represented_character_spell_charges_loaded_like_cpp, record_loaded_character_spell_charge_like_cpp, set_player_interaction_source_like_cpp) moved verbatim from session/{spell_state/cooldown,spell_state/spell,npc_interaction}.rs because only the scenarios call them once the moved bodies make the same split and state call through the host. Mounted from handlers/mod.rs outside the character and session hotspot trees and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8e: ratcheted at the live value from creation. Retire it by converting the scenario call sites to free-function and split calls; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 141 -> 128 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/group_tests.rs",
-      "observed_lines": 786,
-      "ceiling_lines": 786,
-      "split": "Separate group admission, membership and publication scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 5964 to 782 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #743 adds two inseparable lines: the `#[path]` registration of the bounded `reconciliation` scenario module. This root's own split keeps shared helpers and scenario registrations here, so a new scenario module cannot be registered anywhere else. #787 adds the phase-rail field to this file's shared registration fixture. #584 Transport VALUES adds the explicit transport-visibility field to the shared registration fixture.",
+      "path": "crates/wow-world/src/handlers/spellbook_test_shims.rs",
+      "observed_lines": 337,
+      "ceiling_lines": 337,
+      "split": "cfg(test) method-syntax entry points for the spellbook bodies moved to wow-world-spell (spellbook_session, #1363 slice 9a): the #[cfg(test)] methods that were nested in the production impls of session/spell_state/{spellbook,spell,effects,acquisition}.rs (the fixture known-spell writes, the trait-definition and override fixtures, the loaded-row and acquisition-runtime replacement fixtures, the start-all-spells test entry and the spell-runtime test dispatch), the spellbook's #1241 F3 test entry points that were unit_tests/session/spell_state/spellbook/f3_shims.rs, and one-call forwards to the moved free functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 433 -> 337 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/loot/handlers.rs",
-      "observed_lines": 2384,
-      "ceiling_lines": 2384,
-      "split": "Separate loot packet adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #743 removes the 116-line group command application block, which was not a loot responsibility; it now lives in `handlers/group/commands.rs` beside the group operations that produce those commands. The ceiling is tightened to the reduced size. #584 Transport VALUES adds a typed visibility projection and keeps the command gate beside the packet adaptation; no new authority or lock is introduced. #61 adds 3 lines to the represented creature-melee victim handler: the C++ `Unit::Kill` durability producer is one call into `durability.rs`, with the packet and gate kept outside this adapter. #29 adds the one `blocked: 0` field line to the loot roll `AttackerStateUpdate` construction. #29 adds the one `original_damage` field line to the loot roll packet. #29 adds 10 lines to the represented creature-melee victim handler: the exhausted-absorb-slot loop and overflow-returned fields that call the session's own `remove_aura` transition, which keeps the removal publication and its side effects in the aura owner; the packet and gate stay outside this adapter.",
+      "path": "crates/wow-world/src/handlers/talent_test_shims.rs",
+      "observed_lines": 83,
+      "ceiling_lines": 83,
+      "split": "cfg(test) method-syntax entry points for the talent bodies moved to wow-world-spell (talent_session, #1363 slice 9b): the talents' #1241 F3 test entry points that were unit_tests/session/progression/talents/f3_shims.rs (verbatim except pub(in crate::session) reads pub(crate)) and one-call forwards to the moved free functions the scenarios and the handlers/talent test_only fixture call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 114 -> 83 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/loot/requests.rs",
-      "observed_lines": 2544,
-      "ceiling_lines": 2544,
-      "split": "Separate loot command admission and persistence outcomes by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #756 adds seven inseparable lines: the quest reads that used to touch the state's public fields now name the owner's accessors, which wrap onto their own lines. #584 adds the named Player::IsLockedToDungeonEncounter adapter and fail-closed missing-authority handling; the canonical catalog/InstanceLockMgr query remains in the Session binding module and the old set is cfg(test) fixture input only.",
+      "path": "crates/wow-world/src/handlers/aura_test_shims.rs",
+      "observed_lines": 60,
+      "ceiling_lines": 60,
+      "split": "cfg(test) method-syntax entry points for the aura bodies moved to wow-world-spell (aura_session, #1363 slice 9b): the #[cfg(test)] mounted-aura test entry that was nested in the production impl of session/spell_state/mount_aura.rs (verbatim; that file is deleted) and one-call forwards to the moved free functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 75 -> 60 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/loot/sources.rs",
-      "observed_lines": 3110,
-      "ceiling_lines": 3110,
-      "split": "Separate typed loot source discovery and queries by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #584 routes encounter filtering through the canonical Player::IsLockedToDungeonEncounter adapter without adding a source-local authority, lock or clock.",
+      "path": "crates/wow-world/src/handlers/spell_effect_test_shims.rs",
+      "observed_lines": 108,
+      "ceiling_lines": 108,
+      "split": "cfg(test) method-syntax entry points for the spell-effect bodies moved to wow-world-spell (effect_session, #1363 slice 9c): the #[cfg(test)] apply_damage entry that was nested in the production impl of session/spell_effects/effect_combat/damage_and_combat_application.rs (verbatim except that its call to the moved damage entry is a free call) and one-call forwards to the moved free functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 125 -> 108 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/loot_tests.rs",
-      "observed_lines": 1760,
-      "ceiling_lines": 1760,
-      "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 16393 to 1735 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #787 adds the phase-rail field to this file's shared registration fixture. #584 Transport VALUES adds the explicit transport-visibility fixture field and a focused command-consumer regression.",
+      "path": "crates/wow-world/src/handlers/spell_execution_test_shims.rs",
+      "observed_lines": 191,
+      "ceiling_lines": 191,
+      "split": "cfg(test) method-syntax entry points for the spell execution moved to wow-world-spell (execution_session and effect_session, #1363 slice 9d): the five #[cfg(test)] overloads that were nested in the production impl of session/spell_effects/execution_overloads.rs (verbatim except that their calls to the moved execution entry points are free calls), the mount of that file's unit_tests execution_overloads test fixture, and one-call forwards to the moved free functions the scenarios and that fixture call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 231 -> 191 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/movement.rs",
-      "observed_lines": 3162,
-      "ceiling_lines": 340,
-      "split": "Separate the movement handler operations from the regressions. #654 decomposes the 3,162-line file into one state module, one ops module and three regression modules, dropping it to 340 lines and tightening the ceiling to that figure; the root keeps the imports and the handler registrations. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "path": "crates/wow-world/src/handlers/player_cast_test_shims.rs",
+      "observed_lines": 125,
+      "ceiling_lines": 125,
+      "split": "cfg(test) method-syntax entry points for the player cast, the spell handlers, the spell-click plan and the aura modifier moved to wow-world-spell (#1363 slice 9e): the four #[cfg(test)] overloads that were nested in the production impls of session/player_cast/state.rs, handlers/spell/ops_{1,2}.rs and session/spell_state/spell_click.rs (verbatim except that their calls to the moved entry points are free calls), one-call forwards to the moved functions the scenarios call (the aura modifier forward names the AuraHostLikeCpp provided method, which WorldSession does not override), the search_spell_focus_like_cpp split wrapper the scenarios still call (verbatim; its production caller moved and inlined it), and the session_test_reexports module of names only the session scenarios read. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-14 #1363 slice 9e: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-14 #1363 slice 10a: tightened 150 -> 128: the session_test_reexports module moved to the #![cfg(test)] session/test_reexports.rs (#1395 follow-up 1). 2026-10-17 #1363 final cleanup: tightened 128 -> 125 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/quest/handlers.rs",
-      "observed_lines": 2716,
-      "ceiling_lines": 2716,
-      "split": "Separate quest admission and client adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "path": "crates/wow-world/src/handlers/world_entities_test_shims.rs",
+      "observed_lines": 125,
+      "ceiling_lines": 125,
+      "split": "cfg(test) method-syntax entry points for the world-entity bodies moved to wow-world-entities (#1363 slice 10a): one-call forwards to the moved creature message-to-set gate, creature aura application, visible gameobject/creature queries and last-update visual despawn the scenarios and the creature F3 shim call, so no scenario call site changes; the scripted goober-preamble test entry moved verbatim from the cfg(test)-mounted session/world_entities/gameobject_use_scripted.rs (deleted); and the #[path] mounts of the per-type gameobject-use and creature-publication F3 shims (unit_tests/session/world_entities/{gameobject_use_types,creature_publication}/f3_shims.rs), which left the emptied gameobject_use_types.rs (deleted) and creature_publication.rs. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-14 #1363 slice 10a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/quest/rewards.rs",
-      "split": "Separate quest reward transaction/application by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #718 makes the reward one character transaction and moves its durable close - commit, ambiguous-COMMIT reconciliation and the memory half that may only follow a known COMMIT - into the quest application module, a validated reduction from 2232 to 2140 lines; #584 P2 replaces the production item-object mutation closures with data commands, adding eight measured lines while preserving reward transaction order. The ceiling is ratcheted to that validated delivery; the remaining file plans the grants and still owes the split above.",
-      "observed_lines": 2148,
-      "ceiling_lines": 2148,
+      "path": "crates/wow-world/src/handlers/world_entities_registry_test_shims.rs",
+      "observed_lines": 364,
+      "ceiling_lines": 364,
+      "split": "cfg(test) world-entity entry points (#1363 slice 10b): the #[cfg(test)] methods that were nested in the production impls of session/world_entities/{creature_registry,creature,creature_kill,aggro}.rs, moved verbatim (the fixture creature registration chain and removal, the talk-to and kill objective entries without a generator, and the two canonical threat readers, widened from pub(in crate::session) to pub(crate) because the file is outside the session tree), one-call method forwards to the creature kill reputation award and death-state completion moved to wow-world-entities and to the spell initial threat moved to wow-world-spell (so no scenario call site changes), and the #[path] mount of the creature-registry F3 shim (unit_tests/session/world_entities/creature_registry/f3_shims.rs), which left the deleted creature_registry.rs. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 10b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-28 #43 composition review: 361 -> 364 (+3). The existing creature fixture constructor receives and forwards type_flags; its old convenience entry passes zero. This preserves the actual creature-data participant for native death tests without a second authority. Retire the existing method adapters with their scenario calls at #584 C4; no new entry or further growth allowance.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/quest_tests.rs",
-      "observed_lines": 1406,
-      "ceiling_lines": 1406,
-      "split": "Separate quest eligibility, accept, objective and reward scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 10679 to 1404 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #718 adds the 2-line declaration of the reward-transaction scenario module, from 1404 to 1406; its scenarios live in that bounded file.",
+      "path": "crates/wow-world/src/handlers/canonical_objects_test_shims.rs",
+      "observed_lines": 28,
+      "ceiling_lines": 28,
+      "split": "cfg(test) method-syntax entry points for the canonical-map object queries and the dynamic-object VALUES publication moved to wow-world-entities (visibility_session, #1363 slice 11a): one-call forwards to visible_dynamic_objects_from_canonical_map_like_cpp and send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp, the two the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 11a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 35 -> 28 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/spell.rs",
-      "observed_lines": 2375,
-      "ceiling_lines": 242,
-      "split": "Separate the spell handler operations from their regressions. #662 decomposes the 2,375-line file into one state module, one ops module and two regression modules, dropping it to 242 lines and tightening the ceiling to that figure; the root keeps the handler registrations. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "path": "crates/wow-world/src/handlers/open_item_test_shims.rs",
+      "observed_lines": 23,
+      "ceiling_lines": 23,
+      "split": "cfg(test) method-syntax entry points for the item-container bodies moved to wow-world-loot-ops (#1363 slice 4c): one-call forwards to handle_open_item and open_active_item_loot_view_like_cpp, the two the scenarios call, and the item_template_lock_id catalog read whose only production caller (the moved CMSG_OPEN_ITEM body) now reads the catalog through the host, so no scenario call site changes. Mounted from handlers/mod.rs outside the session and loot hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 4c: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 31 -> 23 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/talent.rs",
-      "observed_lines": 2299,
-      "ceiling_lines": 58,
-      "split": "Separate the talent handler operations from their regressions. #662 decomposes the 2,299-line file into one state module, one ops module and two regression modules, dropping it to 58 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "path": "crates/wow-world/src/handlers/void_storage_test_shims.rs",
+      "observed_lines": 97,
+      "ceiling_lines": 97,
+      "split": "cfg(test) method-syntax entry points for the void-storage bodies moved to wow-world-application (void_storage_session, #1363 slice 4c): the CMSG_UNLOCK_VOID_STORAGE and CMSG_VOID_STORAGE_TRANSFER test entry points that were nested in the moved files (verbatim except that they call the moved handlers as free functions), and one-call forwards to the moved functions the void-storage and session scenarios call, so no scenario call site changes except the two loaded-state reads that named the retired LifecycleCxRef. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 4c: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 231 -> 97 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/handlers/trainer.rs",
-      "observed_lines": 3693,
-      "ceiling_lines": 846,
-      "split": "#587 retires admitted acquisition sequencing into spell_acquisition/trainer_purchase.rs and separates trainer tests by scenario. The remaining 846-line handler owns trainer admission/list adaptation and battle-pet saga routing; opcode registration and publication order are preserved. No remaining oversized trainer file.",
+      "path": "crates/wow-world/src/handlers/trainer_talent_test_shims.rs",
+      "observed_lines": 34,
+      "ceiling_lines": 34,
+      "split": "cfg(test) method-syntax entry points for the trainer and talent-point bodies moved in #1363 slice 12a: the CMSG_TRAINER_BUY_SPELL test entry point (verbatim; it was a nested cfg(test) method of handlers/trainer.rs) and one-call forwards to the moved CMSG_TRAINER_LIST handler, the trainer offer decision (wow-world-application) and the talent-point refresh (wow-world-quest), the ones the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-15 #1363 slice 12b1: tightened 58 -> 57 to the live value: the redundant inner #[cfg(test)] on handle_trainer_buy_spell is dropped (#1410 review nit 4); the file is #![cfg(test)]. 2026-10-17 #1363 final cleanup: tightened 57 -> 34 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/map_manager/mod.rs",
-      "observed_lines": 255,
-      "ceiling_lines": 255,
-      "split": "Separate the map manager's canonical/legacy bridge from its runtime state. #662 measured this module and deferred it: the bridge inventory pairs canonical-side and legacy-side evidence inside one enclosing module, so relocating a bridge function's context into a sibling module drops a row from the audit - `world_creature_from_pending_respawn_like_cpp` disappeared from the 65-row bridge inventory when it moved. That is a coverage narrowing, not a physical improvement, so this module needs the semantic separation owned by 584:C4. #711 separates the grid, terrain, pathfinder, pending-respawn and runtime-state item families into map_manager submodules, item-for-item with an identical 89-item surface; the root drops from 2,191 to 255 lines and the ceiling is tightened to that figure.",
+      "path": "crates/wow-world/src/handlers/player_items_test_shims.rs",
+      "observed_lines": 170,
+      "ceiling_lines": 170,
+      "split": "cfg(test) method-syntax entry points for the player-item bodies moved to wow-world-inventory in #1363 slice 12b1 (player_items_session): the three repair test entry points (verbatim from the nested cfg(test) methods of session/player_items/{durability,bank}.rs except that they call the moved repair functions), one-call forwards to the moved functions the scenarios call (durability loss, item mods, the item-bonus stat publication, the item-set item record, the direct item-set removal, the offhand unequip, the collection hook and the appearance add and gate), the five one-statement wrappers the moved bodies now inline (the appearance and temporary-appearance adds, the two modified-appearance catalog reads, the account heirloom add) moved verbatim because only the scenarios still call them, and the recorded offhand-request accessor moved verbatim from the retired unit_tests/session/player_items/offhand/f3_shims.rs (without its redundant inner cfg(test)). Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12b1: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 195 -> 170 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/map_manager/movement.rs",
-      "observed_lines": 130,
-      "ceiling_lines": 130,
-      "split": "Movement generators over the legacy map manager. #662 deferred this file with map_manager/mod.rs for the same reason: splitting the module breaks the bridge inventory's pairing of canonical and legacy evidence within one enclosing module, narrowing the audit. Its exit is the semantic separation owned by 584:C4. #705 divides the 2,069-line inherent WorldCreature impl into seven bounded map_manager/movement submodules - motion_master, spline, home_and_chase, random_and_waypoint, point_and_effects, terrain and corpse_loot - method-for-method with an identical 94-method surface; the root keeps its own file and drops from 2,335 to 130 lines, so the ceiling is tightened to that figure.",
+      "path": "crates/wow-world/src/handlers/travel_test_shims.rs",
+      "observed_lines": 20,
+      "ceiling_lines": 20,
+      "split": "cfg(test) method-syntax entry points for the travel bodies moved to wow-world-instances (#1363 slice 4d): the CMSG_AREA_TRIGGER test entry point (verbatim except that it calls the moved body as a free function) and one-call forwards to the moved CMSG_ACTIVATE_TAXI body and its mount-display filter, the ones the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 4d: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 31 -> 20 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/map_manager_tests.rs",
-      "observed_lines": 339,
-      "ceiling_lines": 339,
-      "split": "Separate legacy clock/creature lifecycle, movement, combat and bridge scenarios. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 6273 to 339 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
+      "path": "crates/wow-world/src/handlers/player_item_builders_test_shims.rs",
+      "observed_lines": 154,
+      "ceiling_lines": 154,
+      "split": "cfg(test) method-syntax entry points for the player-item builders, planning and committed publications moved to wow-world-application and wow-world-inventory (#1363 slice 12b1b): one-call forwards to the moved functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12b2b: row added under the shim physical-row convention (every handlers/*_test_shims.rs carries a ratcheting row at its live value from creation, enforced by session_method_index.py check); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 233 -> 154 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/reputation/mgr.rs",
-      "observed_lines": 2520,
-      "ceiling_lines": 39,
-      "split": "Separate the reputation manager state from its operations and regressions. #662 decomposes the 2,520-line file into two state modules plus two ops modules dividing the 1,058-line inherent `impl ReputationMgrLikeCpp`, and two regression modules, dropping it to 39 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "path": "crates/wow-world/src/handlers/spell_effect_session_test_shims.rs",
+      "observed_lines": 42,
+      "ceiling_lines": 42,
+      "split": "cfg(test) method-syntax entry points for the spell-effect bodies moved to wow-world-spell (#1363 slice 12b2) and the item-flags catalog read only the scenarios call: one-call forwards, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12b2b: row added under the shim physical-row convention (every handlers/*_test_shims.rs carries a ratcheting row at its live value from creation, enforced by session_method_index.py check); it retires with the other shims when the scenarios call the free functions directly.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/session/directory.rs",
-      "observed_lines": 2438,
-      "ceiling_lines": 2438,
-      "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority. #589 adds sixteen inseparable lines: one PlayerRegistry publication entry point for represented Player spell frames over the existing bounded durable rail, alongside the creature equivalent it mirrors. Relocating a single registry accessor would fragment the registry's own responsibility. #743 adds nine inseparable lines: the `group_state` module declaration, the delivery-obligation field with its Default entry, and the two lifecycle calls that forget an obligation when its incarnation is unregistered. The contract, its API and its documentation live in `directory/group_state.rs`; the field itself cannot leave the struct it belongs to. #756 adds twenty inseparable lines for the same reason: the quest snapshot projection reads through named accessors instead of the retired public fields. #787 adds the session phase rail to the directory: the canonical producer addresses a session's map phase through a generation-checked rail of its own, never through the command mailbox that a phase pass drains. The detached rail helper keeps fixtures and pre-parking registrations addressable without a consumer. #584 Transport VALUES adds one generation-safe transport visibility projection to the registration and recipient contracts; ordinary visibility remains a separate set.",
+      "path": "crates/wow-world/src/handlers/item_mods_session_test_shims.rs",
+      "observed_lines": 106,
+      "ceiling_lines": 106,
+      "split": "cfg(test) method-syntax entry points for the bodies moved in #1363 slice 12b2b (the nearby-entry destination search to wow-world-spell; the loaded item-mod, enchantment and item-set-aura family to wow-world-application): one-call forwards the scenarios call, and the catalog reads, equip-aura and without-update aura wrappers whose last production caller moved. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12b2b: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/session/mod.rs",
-      "observed_lines": 19001,
-      "ceiling_lines": 19001,
-      "split": "Retire gameplay orchestration/catalog access by complete operations. #585 adds the task-owned finalization ledger and identity-hydration guard. PR #586 review adds 16 inseparable lines to retain the native far-transfer destination before an interruptible realm writer fence in both immediate and delayed paths. #589 moves the represented Player cast publication out to session/player_cast/, a net reduction of 267 lines; the ceiling is tightened to the validated 75840. Existing update methods become async in the same Session task; no new field, task, lock or state mirror. New failure/cancellation tests remain in bounded files. This reviewed growth is not physical closeout: the remaining C4 root split stays in #584. #597 separates the represented item and inventory responsibility into 18 bounded session/player_items submodules, a validated reduction from 75840 to 67187 lines; the ceiling is tightened to that figure. The move is method-for-method with an identical impl surface before and after, so this is physical separation, not a behaviour change. The remaining C4 root split stays in #584. #599 separates the represented world-entity responsibility - creature, gameobject, aggro and spawn - into 18 bounded session/world_entities submodules, a validated reduction from 66,808 to 60,041 lines; the ceiling is tightened to that figure and the stale 67,187 entry left by #597 is corrected to the real count. The move is method-for-method with an identical impl surface of 2,149 methods before and after. #601 separates the represented aura and spell-state responsibility into 14 bounded session/spell_state submodules, a validated reduction from 60,041 to 54,029 lines; the ceiling is tightened to that figure. Method-for-method with an identical impl surface of 1,983 methods before and after. #603 separates the represented movement and world-transfer responsibility into 7 bounded session/movement submodules, a validated reduction from 54,029 to 50,802 lines; the ceiling is tightened to that figure. Method-for-method with an identical impl surface of 1,714 methods before and after; the #585/#586 far-transfer writer fence ordering is relocated, not altered. #605 separates the represented quest responsibility into 7 bounded session/quest submodules, a validated reduction from 50,802 to 47,905 lines; the ceiling is tightened to that figure. Method-for-method with an identical impl surface of 1,577 methods before and after. #607 separates the represented pet and battle-pet responsibility into 7 bounded session/pets submodules, a validated reduction from 47,905 to 45,001 lines; the ceiling is tightened to that figure. Method-for-method with an identical impl surface. #609 separates the represented persistence responsibility into 5 bounded session/persistence submodules, a validated reduction from 45,001 to 42,725 lines; the ceiling is tightened to that figure. The #585/#586 finalization and identity-hydration ordering is relocated, not altered. #611 separates the represented character-progression responsibility into 3 bounded session/progression submodules, a validated reduction from 42,725 to 41107 lines; the ceiling is tightened to that figure. Method-for-method with an identical impl surface. #613 separates the represented instance and difficulty responsibility into 5 bounded session/instances submodules, a validated reduction from 41,107 to 39283 lines; the ceiling is tightened to that figure. Method-for-method with an identical impl surface. #615 separates the represented social responsibility into 5 bounded session/social submodules, a validated reduction from 39,283 to 37808 lines; the ceiling is tightened to that figure. Method-for-method with an identical impl surface. #617 separates the represented combat responsibility into 5 bounded session/combat submodules, a validated reduction from 37,808 to 36338 lines; the ceiling is tightened to that figure. Method-for-method with an identical impl surface. #619 separates the legacy creature and player runtime tick into 9 bounded session/legacy_runtime submodules, a validated reduction from 36,338 to 31298 lines; the ceiling is tightened to that figure. These are free functions rather than WorldSession methods, so the seven public tick entry points are re-exported to keep their external wow_world::session path for world-server. Item-for-item with an identical top-level surface of 575 items before and after. #621 separates the represented spell-effect execution responsibility, held in a second impl WorldSession block the earlier movers never scanned, into 14 bounded session/spell_effects submodules; a validated reduction from 31,298 to 25079 lines and the ceiling is tightened to that figure. execution.rs stays at 1,095 lines because its single 1,086-line entry point cannot be divided without changing behaviour, which #584 rule 7 keeps out of a structural commit; its exit is the semantic extraction of that operation. Method-for-method with an identical impl surface. #632 separates the twelve remaining small Session responsibilities - loot, catalogs, publication, world_state, taxi, money, lifecycle_ops, chat, visibility, collections, canonical_access and test_support - each into its own bounded module, dropping the root from 25,080 to 18920 lines with the ceiling tightened to that figure. Method-for-method with an identical impl surface of 798 methods. What remains is the WorldSession struct, its construction and the Session infrastructure types; shrinking that surface is the semantic extraction #584 still owns. #61 adds the represented `MeleeDamageBonusDone` `(flat, pct)` pair plus the shared `GetAPMultiplier` helper the swing function consumes. #29 adds 43 inseparable lines to the shared swing: the per-attack-type outcome facts parameter, the `RollMeleeOutcomeAgainst` roll and the outcome damage/presentation application inside `represented_white_swing_damage_like_cpp`, and the avoid handling in `apply_player_melee_to_canonical_player_like_cpp`. The #29 block band adds the two `blocked` lines the swing result and the `PlayerMeleeCreatureHitLikeCpp` presentation vector carry. The #29 `MeleeDamageBonusTaken` step adds the ten lines that apply the resolved taken modifiers between the done bonus and the armour reduction. The #29 `OriginalDamage` publication adds the four lines that capture and carry the pre-outcome damage. The #29 critical-damage-bonus term adds the one line that passes the attacker's multiplier into the outcome switch. #29 passes the victim-side `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` term to `armor_reduced_damage_like_cpp`, one more argument line with no new authority. #29 passes the victim-side `GetBlockPercent` to the block arm, one more argument line with no new authority. #29 adds the `ExpectedStat` store handle the block band reads, two more lines with no new authority. #29 adds the `ExpectedStat` store handle the block band reads, one net line with no new authority. #31 adds six lines for the `represented_creature_auras_like_cpp` tracking field that owns the lifetime of the creature auras this session applied. #31 adds five lines for the per-cast `_executeLogEffects` accumulator (`Spell::SendSpellExecuteLog`, Spell.cpp:5048-5060), a session owner with no gameplay authority beyond the log it publishes. #29 adds four inseparable lines to the existing `LegacyCreatureAggroConfigLikeCpp` owner for the immutable `ChrRaces.db2` capability consumed by the player-victim creature-type projection; no gameplay authority or second owner is introduced.",
+      "path": "crates/wow-world/src/handlers/login_load_test_shims.rs",
+      "observed_lines": 46,
+      "ceiling_lines": 46,
+      "split": "cfg(test) method-syntax entry points for the represented login-load bodies moved in #1363 slice 12b4 to wow-world-character and the login spell reset moved to wow-world-application: one-call forwards the scenarios call, and the vault clear, which has no production caller left. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12b4: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 58 -> 46 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 5806,
-      "ceiling_lines": 5806,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains. #589 adds 33 inseparable fixture lines: the three spell-click scenarios install a canonical Player on the map and adopt its handle, and the cast lifecycle module registers two more scenarios for the C++ Start/Go flag assembly and the residence fence over server-triggered casts. #626 completes this entry's original instruction: the 1,496 test functions move into 114 bounded session/tests/scenarios_* files grouped by the responsibility they exercise, each within the 1,000-line review budget, and the file drops from 94,725 to 5755 lines with the ceiling tightened to that figure. The 197 shared helpers stay here deliberately: a child module already sees its parent's private items, so relocating them would need re-export plumbing for no boundary, the same conclusion #623 recorded for types. The test count is unchanged at 3,822 and no production line moved. #756 adds three inseparable lines in the shared quest fixture, which now builds its state through the owner's named operations. #787 adds the map-phase scenario module index entry, two more lines; the scenarios live in session/tests/map_phase_pass.rs. #787 adds the map-phase scenario module's registration line. #584 Transport VALUES adds the shared transport visibility fixture field and one focused delivery scenario. #61 adds the shared `grant_learned_weapon_proficiency_like_cpp` acceptance fixture that seeds the canonical `Player::GetWeaponProficiency` mask for the `CollectionMgr::CanAddAppearance` scenarios; it is test-only scaffolding and adds no production authority. #61 adds two inseparable module-registration lines for the new bounded session/tests/scenarios_spell_state_25.rs aura-state suite, split out of scenarios_spell_state_11.rs when that file reached the 2,000-line test-file budget; the scenario bodies themselves live in the bounded child file. #29 adds the inert-attack-table fixture (`disable_represented_melee_attack_table_for_test_like_cpp`, 20 lines) and the two module-registration lines for the new bounded session/tests/scenarios_combat_4.rs melee-math suite. #29 adds two inseparable module-registration lines for the new bounded session/tests/scenarios_world_entities_32.rs player-victim melee suite, split out of scenarios_world_entities_28.rs when that file reached 1,977 of the 2,000-line test-file budget; the scenario bodies live in the bounded child file. #29 adds two inseparable module-registration lines for the new bounded session/tests/scenarios_combat_5.rs melee-absorb suite, split out of scenarios_combat_4.rs before that file reached the 2,000-line test-file budget; the scenario bodies live in the bounded child file. #31 adds two inseparable module-registration lines for the new bounded session/tests/scenarios_spell_state_26.rs suite, split out of scenarios_spell_state_12.rs before that file reached the 2,000-line test-file budget; the scenario bodies live in the bounded child file. #29 adds two inseparable module-registration lines for the new bounded session/tests/scenarios_world_entities_33.rs creature-victim absorb suite; #29 adds two inseparable module-registration lines for the new bounded session/tests/scenarios_world_entities_34.rs damage-immunity suite; the scenario bodies stay in their own bounded files while this shared fixture root remains the owner of the test preamble.",
+      "path": "crates/wow-world/src/handlers/session_leftovers_test_shims.rs",
+      "observed_lines": 128,
+      "ceiling_lines": 128,
+      "split": "cfg(test) method-syntax entry points for the session leftovers moved in #1363 slice 12b7 to wow-world-application, wow-world-spell, wow-world-instances, wow-world-inventory and wow-world-loot-ops: one-call forwards the scenarios call, the cancel split forward and the two mount-capability wrappers whose only callers are scenarios, and the realm-id forward. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12b7: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 155 -> 128 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/spell_acquisition/application.rs",
-      "observed_lines": 147,
-      "ceiling_lines": 147,
-      "split": "#587 separates generic runtime application, Session row/packet adaptation and scenario tests while retaining the pure plan validator and SQLx-free request/outcome conversion in this 1458-line file. Its cohesive validation responsibility was reviewed above 1000 lines; no oversized replacement file or second mutation owner. #711 separates plan validation, post-commit validation, plan translation and preparation into application submodules, item-for-item; the root keeps the request/outcome types and drops from 1,459 to 147 lines, so the ceiling is tightened to that figure.",
+      "path": "crates/wow-world/src/handlers/split_forward_test_shims.rs",
+      "observed_lines": 238,
+      "ceiling_lines": 238,
+      "split": "cfg(test) method-syntax entry points for the World forwards and bodies retired or moved in #1363 slice 12c: one-call forwards to the rest-flag and fully-looted removal functions moved to wow-world-instances and wow-world-loot-ops, and the split, field and one-call forwards whose production callers now name the split, the field or the destination (cast state, money, quest-state seam, player-item catalog and inventory reads, lifecycle, instances, battle-pet, aura and enchantment forwards), kept verbatim because only the scenarios call them. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12c: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions, splits and fields directly. 2026-10-17 #1363 final cleanup: tightened 241 -> 238 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "tools/architecture/check_architecture.py",
-      "observed_lines": 3858,
-      "ceiling_lines": 202,
-      "split": "Separate the checker's command families. #664 decomposes the 3,106-line entry point into five sibling modules - policy validation, runtime ownership, dependencies, fixtures/self-tests and issue state - over a shared module holding the imports, paths and constants, dropping it to 202 lines and tightening the ceiling to that figure; the root keeps the argument parsing and dispatch. The module graph is a DAG: two private helpers moved into the policy module to remove the only cycle, and the underscore-prefixed helpers a glob import skips are named explicitly. Every command and the self-test report identical counts.",
+      "path": "crates/wow-world/src/handlers/retired_forward_test_shims.rs",
+      "observed_lines": 361,
+      "ceiling_lines": 361,
+      "split": "cfg(test) method-syntax entry points for the World split forwards and test-only bodies retired in #1363 slice 12d: the currency, instance, lifecycle, loot, interaction, player-item and gameobject split forwards whose production host impls now name the split or field, and the scenario-only taxi edge distance and map-difficulty condition reads, each kept verbatim because only the scenarios call them. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-17 #1363 slice 12d: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the splits and fields directly. 2026-10-17 #1363 final cleanup: tightened 362 -> 361 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "tools/architecture/handler-contract-check/src/bridge_access.rs",
-      "observed_lines": 2128,
-      "ceiling_lines": 54,
-      "split": "Separate the bridge access record, accumulator and symbol table from their regressions. #660 decomposes the 2,128-line root into three state modules and one regression module, dropping it to 52 lines. #716 adds two reviewed wiring lines for private lexical provenance resolution; the root is 54 lines, with no relocation counted as ownership retirement.",
+      "path": "crates/wow-world/src/handlers/social_quest_test_shims.rs",
+      "observed_lines": 76,
+      "ceiling_lines": 76,
+      "split": "cfg(test) method-syntax entry points for the social, gossip and session-visibility bodies moved in #1363 slices 12b5-12b6 to wow-world-instances, wow-world-social, wow-world-character, wow-world-quest and wow-world-entities: one-call forwards the scenarios call, and the field-split forwards (owned group membership, duel arbiter) whose production callers now name the split. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slices 12b5-12b6: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 88 -> 76 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "tools/architecture/handler-contract-check/src/persistence_access.rs",
-      "observed_lines": 21248,
-      "ceiling_lines": 239,
-      "split": "Separate the remaining production AST traversal, statement/workflow classification and provenance. #634 decomposes the 12,348-line root into 21 private responsibility modules (72-949 lines) plus the divided body analyzer, dropping it to 239 lines and tightening the ceiling to that figure; only the pinned constant tables, the shared TargetSet alias and the module composition remain. The inherent `impl BodyAnalyzer` is divided by analysis phase across five body_ops modules. The retained 1,686-line persistence_access/body_visit.rs needs review under 584:C4: one Visit trait impl can delegate to private expression analyzers while preserving traversal order. #716 corrects the earlier blanket single-impl exception without changing this file's measured ceiling or claiming its decomposition complete.",
+      "path": "crates/wow-world/src/handlers/spell_state_session_test_shims.rs",
+      "observed_lines": 88,
+      "ceiling_lines": 88,
+      "split": "cfg(test) method-syntax entry points for the spell-state bodies moved in #1363 slice 12b3 to wow-world-spell: one-call forwards the scenarios call, and the spell-row and mount-source reads, which have no production caller. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12b3: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 103 -> 88 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "tools/architecture/handler-contract-check/src/registry_access.rs",
-      "observed_lines": 3066,
-      "ceiling_lines": 52,
-      "split": "Separate the registry kind/operation model, the access record and accumulator, and the AST scan. #660 decomposes the 3,066-line root into four state modules and one regression module, dropping it to 52 lines and tightening the ceiling to that figure. Item-for-item with the checker's 334 tests unchanged.",
+      "path": "crates/wow-world/src/handlers/group_session_test_shims.rs",
+      "observed_lines": 24,
+      "ceiling_lines": 24,
+      "split": "cfg(test) method-syntax entry points for the group bodies moved to wow-world-instances (group_session, #1363 slice 4d): one-call forwards to the reconciliation and the publication tail, and the next_group_update_sequence_number_like_cpp session wrapper moved verbatim after its last production caller (the moved party-update receiver) went, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 4d: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 37 -> 24 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "tools/architecture/handler-contract-check/src/session_ownership.rs",
-      "observed_lines": 2996,
-      "ceiling_lines": 68,
-      "split": "Separate the package roles, the expression-surface collector and the baseline builder. #660 decomposes the 2,996-line root into three state modules and one regression module, dropping it to 54 lines. #716 adds a 14-line cfg(test) cached complete repository syntax fixture: real bridge and ownership assertions share actual lexical context instead of incomplete file subsets or repeated full syntax scans. The reviewed 68-line root retains the same production owner and inventory obligations.",
+      "path": "crates/wow-world/src/handlers/collections_session_test_shims.rs",
+      "observed_lines": 60,
+      "ceiling_lines": 60,
+      "split": "cfg(test) method-syntax entry points for the toy bodies moved to wow-world-inventory and wow-world-spell (toy_session, #1363 slice 4d): the CMSG_USE_TOY test entry point (verbatim except that it calls the moved body as a free function), a one-call forward to CMSG_ADD_TOY, and the send_equip_error, add_account_toy_like_cpp and set_active_spell_cast_like_cpp session wrappers moved verbatim after their last production caller (a moved toy body) went, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 4d: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 64 -> 60 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "tools/architecture/handler-contract-check/src/tests/mod.rs",
-      "observed_lines": 90,
-      "ceiling_lines": 90,
-      "split": "Retires the 2,289-line handler-contract regression file: #660 replaces it with this module root, which keeps the shared imports and mounts three scenario modules (480-882 lines) holding all its tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
+      "path": "crates/wow-world/src/handlers/instance_session_test_shims.rs",
+      "observed_lines": 72,
+      "ceiling_lines": 72,
+      "split": "cfg(test) world-state and instance-admission entry points (#1363 slice 11b): one-call method forwards to the bodies moved to wow-world-instances (instance_session: the explored-zones snapshot, the area and zone updates, the tavern resting flag, the create-map side effects, player context, active instance lock and instance owner) that the scenarios and F3 shims call, so no call site changes; and the two split wrappers of session/instances/instance.rs that only the scenarios still call (resolved_player_recent_instance_id_like_cpp, set_represented_player_recent_instance_like_cpp), moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 11b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 107 -> 72 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "tools/wow-test-bot/src/loot_race.rs",
-      "observed_lines": 8188,
-      "ceiling_lines": 47,
-      "split": "Separate fixture journal/recovery, routed connection/logout, loot race, group capacity and their tests without widening cleanup scope. #634 decomposes the 8,188-line file into 11 private responsibility modules plus 3 test modules, dropping it to 47 lines and tightening the ceiling to that figure; only the module composition remains. Item-for-item with the 179 bot tests unchanged and no production crate touched.",
+      "path": "crates/wow-world/src/handlers/continue_login_test_shims.rs",
+      "observed_lines": 231,
+      "ceiling_lines": 231,
+      "split": "cfg(test) continue-login hydration entry points (#1363 slice 13c): one-call method forwards to the login hydration steps moved with the continue-login coordinator (the login spell application and the account mount load in wow-world-spell, the account item-appearance and transmog-illusion loads in wow-world-inventory, the explored-zones load in wow-world-instances, and the titles, group-leader flag and login known-spell projection in wow-world-application) that the scenarios call, so no call site changes; and the one-line split and hub forwards the coordinator inlined that only the scenarios still call (the account toy/heirloom loads of handlers/character/account/collections.rs, the canonical world-map entry of session/instances/map_resolution.rs, the first-login cast test entry of session/spell_state/cast.rs, the difficulty-load forward of the session/persistence/load F3 shim, the loaded-player flag/power/xp-clamp/account-data/achievement loads of session/persistence/{load,load_authority}.rs, the account appearance loads, slot counts and loaded enchantment publication of session/player_items, the skill-record replacement and the spell-hit aura tombstone), moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 13c: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 265 -> 231 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "tools/wow-test-bot/src/main.rs",
-      "observed_lines": 799,
-      "ceiling_lines": 799,
-      "split": "Separate protocol connection/authentication, scenario orchestration and scenario-specific tests; keep shared wire primitives narrow. #630 decomposes this file into 28 bounded src/bot modules by responsibility plus 3 test modules, dropping it from 20,452 to 799 lines with the ceiling tightened to that figure. Only the binary entry point and the module composition remain. One justified exception: src/bot/void_storage_2.rs is 1,573 lines because its single run_bot_with_void_storage function is 1,567 on its own and dividing it would change behaviour; its exit is the semantic extraction of that scenario. Item-for-item with the 179 bot tests unchanged and no production crate touched.",
+      "path": "crates/wow-world/src/handlers/session_lifecycle_test_shims.rs",
+      "observed_lines": 205,
+      "ceiling_lines": 205,
+      "split": "cfg(test) lifecycle orchestration entry points (#1363 slice 13b): one-call method forwards to the bodies moved to wow-world-application (session_lifecycle: the finalization step, the periodic save, the talent-reset commit, the respec wipe, and the LifecycleCx buyback and account collection saves) that the scenarios call, so no call site changes; the six account split wrappers of session/lifecycle/account.rs, unregister_from_player_registry and the two disconnect-cleanup test entries of cleanup.rs, set_player_logout of logout.rs, restore_realm_channels of connection.rs, send_buy_error of publication/operations.rs and the talent-reset plan of persistence/plans.rs that only the scenarios still call, moved verbatim; and the persistence/commit.rs F3 shim mount. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 13b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly.",
+      "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/handlers/worldport_test_shims.rs",
+      "observed_lines": 80,
+      "ceiling_lines": 80,
+      "split": "cfg(test) map-entry and far-transfer completion entry points (#1363 slice 13a): one-call method forwards to the bodies moved to wow-world-instances (instance_session map entry: the worldport attach, the canonical map entry preparation, the canonical Player residence) and wow-world-character (worldport_session: the homebind recovery, the native completion before disconnect, the post-add begin, the self CREATE send and build) that the scenarios call, so no call site changes; and the two instance split wrappers of session/instances/{instance,difficulty}.rs and the two account-collection wrappers of session/lifecycle_ops/operations.rs that only the scenarios still call, moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 13a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 84 -> 70 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here. 2026-10-28 #43 composition review: 70 -> 80 (+10). The existing native-before-disconnect test forward becomes async and supplies the borrowed resurrection catalogs, so it observes completion of the real pending operation. No new scenario entry or gameplay authority. Retire the adapter through explicit catalog/free-function calls at #584 C4; exact reviewed ceiling only.",
+      "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/handlers/teleport_test_shims.rs",
+      "observed_lines": 80,
+      "ceiling_lines": 80,
+      "split": "cfg(test) teleport entry points (#1363 slice 11a): the two #[cfg(test)] readers that were nested in the production impl of session/movement/transfer.rs (represented_delayed_resurrection_after_teleport_like_cpp, move_teleport_ack_events_like_cpp), moved verbatim; one-call method forwards to the teleport bodies moved to wow-world-entities (teleport_session: pending_teleport_save_destination, teleport_to_with_options, the delayed teleport after the update, the delayed resurrection scheduling and HandleMoveTeleportAck's near state machine) the scenarios call, so no scenario call site changes; and the #[path] mount of the far-transfer F3 shim (unit_tests/session/movement/far_transfer/f3_shims.rs), which left the deleted session/movement/far_transfer.rs. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 11a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 67 -> 46 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here. 2026-10-28 #43 composition review: 46 -> 80 (+34). The tests now call the actual catalog-bearing teleport and admitted delayed executor, and inspect PlayerResurrectionContinuation rather than an unaccepted request. The two catalog-resolving adapters keep existing World composition fixtures on their canonical operation; they do not implement teleport or hold mutable state. The named exit is converting these callers to explicit catalog/free-function calls at #584 C4. This reviewed interface adaptation grants no further growth.",
+      "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/handlers/quest_handler_test_shims.rs",
+      "observed_lines": 246,
+      "ceiling_lines": 246,
+      "split": "cfg(test) quest packet-handler entry points (#1363 slice 6c): the former handlers/quest/handlers/test_shims.rs moved verbatim; the six #[cfg(test)] wrappers that were nested in production impls of handlers/quest/handlers.rs and handlers/quest/handlers/{queries,acceptance,reward_flow}.rs (handle_adventure_map_start_quest, handle_quest_giver_status_query, handle_quest_giver_accept_quest, handle_quest_confirm_accept, handle_quest_giver_request_reward, handle_quest_giver_choose_reward), moved verbatim except that their one call names the moved wow-world-quest free function; the two pending-sharing readers of session/quest/state.rs whose only production caller moved; one-call method forwards for the moved functions the scenarios call; and the quest_handler_test_reexports module of the moved constants, packet readers and the names only the quest scenarios still read. Mounted from handlers/mod.rs outside the session and quest hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to either hotspot's test ceiling. 2026-10-15 #1363 slice 6c: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 264 -> 246 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
+      "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/handlers/quest_item_test_shims.rs",
+      "observed_lines": 85,
+      "ceiling_lines": 85,
+      "split": "cfg(test) quest item-objective entry points (#1363 slice 6b): the four #[cfg(test)] wrappers that were nested in production impls of handlers/quest/objectives.rs (apply_quest_source_item_added_non_bound_objective_progress_like_cpp, apply_quest_item_added_objective_progress_like_cpp, apply_quest_source_item_bound_objective_progress_for_object_like_cpp) and handlers/quest/state.rs (complete_represented_quest_after_add_if_ready_like_cpp), moved verbatim except that their one call names the moved wow-world-quest free function; and the can_take_quest and apply_quest_item_removed_like_cpp one-call forwards the scenarios call. Mounted from handlers/mod.rs outside the session and quest hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to either hotspot's test ceiling. 2026-10-15 #1363 slice 6b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 92 -> 85 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
+      "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/handlers/quest_session_test_shims.rs",
+      "observed_lines": 193,
+      "ceiling_lines": 193,
+      "split": "cfg(test) quest-session entry points (#1363 slice 6a): one-call method forwards to the quest state, persistence, seasonal status, quest-giver dialog and publication and item-mutation persistence plans moved to wow-world-quest (quest_session) that the scenarios call, so no call site changes; and the two #[cfg(test)] quest readers that were nested in production impls of session/quest/giver.rs (seed_seasonal_quest_status_like_cpp) and handlers/quest/persistence.rs (represented_quest_statuses_for_save_like_cpp), moved verbatim. Mounted from handlers/mod.rs outside the session and quest hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to either hotspot's test ceiling. 2026-10-15 #1363 slice 6a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 219 -> 193 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     }
   ],

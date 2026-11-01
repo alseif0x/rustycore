@@ -133,7 +133,7 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     }
     assert!(registry.bind_canonical_map_manager(canonical));
 
-    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
+    let candidates = collect_creature_aggro_candidates_like_cpp(&registry);
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].player_guid, in_world);
@@ -224,10 +224,8 @@ fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_c
     }
     assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
 
-    let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
-        &registry,
-        Some(&canonical),
-    );
+    let candidates =
+        collect_creature_aggro_candidates_with_canonical_like_cpp(&registry, Some(&canonical));
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].map_difficulty_id, 2);
@@ -292,10 +290,8 @@ fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_cano
         player.set_forced_reputation_rank_like_cpp(87, true);
     }
 
-    let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
-        &registry,
-        Some(&canonical),
-    );
+    let candidates =
+        collect_creature_aggro_candidates_with_canonical_like_cpp(&registry, Some(&canonical));
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(
@@ -324,7 +320,7 @@ fn collect_legacy_creature_aggro_candidates_skips_unknown_canonical_owner_like_c
     let (info, _) = make_registry_player_like_cpp(571, 2, position, true);
     registry.register_or_replace(player_guid, info, Default::default());
 
-    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
+    let candidates = collect_creature_aggro_candidates_like_cpp(&registry);
 
     assert!(candidates.is_empty());
 }
@@ -430,7 +426,7 @@ fn rejected_map_attack_filters_both_session_and_visual_delivery_like_cpp() {
     );
 
     let attack_bytes = wow_packet::packets::combat::AttackStart { attacker, victim }.to_bytes();
-    let recipients = wow_world::map_manager::RecipientRule::NearbyVisibleDurable {
+    let recipients = wow_world::runtime_plan::RecipientRule::NearbyVisibleDurable {
         source_guid: attacker,
         map_id: 571,
         instance_id: 4,
@@ -438,14 +434,26 @@ fn rejected_map_attack_filters_both_session_and_visual_delivery_like_cpp() {
         range: 100.0,
         required_3d: false,
     };
-    let mut plan = wow_world::map_manager::RuntimePlan {
+    // #1344: the hostile AI reaction published ahead of the creature's own
+    // attack start is dropped together with the rejected start.
+    let reaction_bytes = wow_packet::packets::combat::AIReaction {
+        unit_guid: attacker,
+        reaction: wow_constants::creature::AiReaction::Hostile,
+    }
+    .to_bytes();
+    let mut plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![
-            wow_world::map_manager::RuntimeEvent {
+            wow_world::runtime_plan::RuntimeEvent {
+                source_guid: attacker,
+                recipients: recipients.clone(),
+                packet_bytes: reaction_bytes,
+            },
+            wow_world::runtime_plan::RuntimeEvent {
                 source_guid: attacker,
                 recipients: recipients.clone(),
                 packet_bytes: attack_bytes,
             },
-            wow_world::map_manager::RuntimeEvent {
+            wow_world::runtime_plan::RuntimeEvent {
                 source_guid: attacker,
                 recipients,
                 packet_bytes: vec![0xAA, 0x55],
@@ -640,172 +648,6 @@ fn creature_attack_start_delivery_uses_durable_rail_when_general_queue_is_full_l
         SessionCommand::CreatureAttackStartLikeCpp(_)
     ));
 }
-/// 4C.4 bridge coverage: the combined global runtime body can perform the
-/// C++ `CreatureAI::MoveInLineOfSight`-style aggro transition once from the
-/// map owner and deliver both the authoritative session transition and its
-/// visible attack-start packet to the victim session in FIFO order.
-#[test]
-fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
-    let legacy: wow_world::SharedMapManager =
-        Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
-    let canonical: wow_world::SharedCanonicalMapManager =
-        Arc::new(Mutex::new(wow_map::MapManager::default()));
-    canonical.lock().unwrap().create_world_map(0, 0);
-
-    let victim = ObjectGuid::create_player(1, 93_001);
-    let victim_position = Position::new(10.5, 10.5, 0.0, 0.0);
-    add_canonical_test_player_on_map_like_cpp(&canonical, victim, victim_position, 0, 0, 100);
-
-    let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 93_002);
-    let attacker_position = Position::new(10.0, 10.0, 0.0, 0.0);
-    add_canonical_test_creature_on_map_like_cpp(&canonical, attacker, attacker_position, 0, 0, 100);
-    let mut creature = wow_world::map_manager::WorldCreature::new(
-        attacker,
-        9001,
-        attacker_position,
-        25,
-        2,
-        3,
-        5,
-        5.0,
-        100,
-        14,
-        0,
-        0,
-    );
-    {
-        let ai = creature.creature.ai_ownership_mut();
-        ai.wander_delay_ms = u64::MAX;
-        ai.swing_timer_ms = u64::MAX;
-    }
-
-    {
-        let mut manager = legacy.write().unwrap();
-        manager.add_creature(
-            0,
-            0,
-            wow_world::map_manager::world_to_grid_x(attacker_position.x),
-            wow_world::map_manager::world_to_grid_y(attacker_position.y),
-            creature,
-        );
-        manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
-    }
-
-    let registry = PlayerRegistry::default();
-    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
-    let (mut victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, victim_position, true);
-    registry.register_or_replace(victim, victim_info, Default::default());
-    let wrong_map = ObjectGuid::create_player(1, 93_003);
-    let (wrong_map_info, wrong_map_rx) = make_registry_player_like_cpp(1, 0, victim_position, true);
-    registry.register_or_replace(wrong_map, wrong_map_info, Default::default());
-    add_canonical_test_player_on_map_like_cpp(&canonical, wrong_map, victim_position, 1, 0, 100);
-    let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
-        enabled: false,
-        ..Default::default()
-    };
-    let aggro_config = wow_world::session::LegacyCreatureAggroConfigLikeCpp {
-        faction_template_store: Some(Arc::new(
-            wow_data::progression_rewards::FactionTemplateStore::from_entries([
-                wow_data::progression_rewards::FactionTemplateEntry {
-                    id: 14,
-                    faction: 72,
-                    flags: 0,
-                    faction_group: 0,
-                    friend_group: 0,
-                    enemy_group: 0,
-                    enemies: [930, 0, 0, 0, 0, 0, 0, 0],
-                    friend: [0; 8],
-                },
-                wow_data::progression_rewards::FactionTemplateEntry {
-                    id: 1,
-                    faction: 930,
-                    flags: 0,
-                    faction_group: 0,
-                    friend_group: 0,
-                    enemy_group: 0,
-                    enemies: [0; 8],
-                    friend: [0; 8],
-                },
-            ]),
-        )),
-        faction_store: Some(Arc::new(
-            wow_data::progression_rewards::FactionStore::from_entries([
-                wow_data::progression_rewards::FactionEntry::for_test_like_cpp(72, 1),
-            ]),
-        )),
-        ..Default::default()
-    };
-    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
-    assert_eq!(candidates.len(), 2, "{candidates:?}");
-    let outcome = run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
-        &legacy,
-        Some(&canonical),
-        &legacy_runtime_world_map_store_like_cpp(),
-        &mmap_config,
-        None,
-        aggro_config,
-        10,
-        std::time::Instant::now(),
-        &registry,
-        None,
-        None,
-        None,
-        &Arc::new(Mutex::new(Default::default())),
-    );
-
-    assert!(!outcome.aggro.skipped_owner_not_global);
-    assert_eq!(outcome.aggro.maps_seen, 1);
-    assert_eq!(outcome.aggro.creatures_seen, 1);
-    assert_eq!(outcome.aggro.candidates_seen, 1);
-    assert_eq!(outcome.aggro.aggro_starts, 1);
-    assert_eq!(outcome.aggro.commands.len(), 1);
-    assert_eq!(outcome.aggro_delivery.commands_seen, 1);
-    assert_eq!(outcome.aggro_delivery.candidates_seen, 1);
-    assert_eq!(outcome.aggro_delivery.candidates_queued, 1);
-    assert_eq!(outcome.aggro_delivery.candidates_skipped_wrong_map, 0);
-    assert_eq!(outcome.aggro_plan_delivery.events_seen, 1);
-    assert_eq!(outcome.aggro_plan_delivery.candidates_seen, 2);
-    assert_eq!(outcome.aggro_plan_delivery.candidates_queued, 1);
-    assert_eq!(outcome.aggro_plan_delivery.candidates_skipped_distance, 1);
-    assert_eq!(outcome.movement.movement_packets, 0);
-    assert_eq!(outcome.melee.swings_ready, 0);
-
-    let commands = drain_durable_creature_runtime_commands_like_cpp(&registry, victim);
-    let [
-        SessionCommand::CreatureAttackStartLikeCpp(command),
-        SessionCommand::SendIfVisibleLikeCpp(visual),
-    ] = commands.as_slice()
-    else {
-        panic!("expected authoritative then visual attack-start commands: {commands:?}");
-    };
-    assert_eq!(command.attacker_guid, attacker);
-    assert_eq!(command.victim_guid, victim);
-    assert_eq!(command.map_id, 0);
-    assert_eq!(command.instance_id, 0);
-    assert_eq!(visual.source_guid, attacker);
-    assert_eq!(visual.map_id, 0);
-    assert_eq!(visual.instance_id, 0);
-    assert_eq!(
-        u16::from_le_bytes([visual.packet_bytes[0], visual.packet_bytes[1]]),
-        wow_constants::ServerOpcodes::AttackStart as u16
-    );
-    assert!(victim_rx.try_recv().is_err());
-    assert!(wrong_map_rx.try_recv().is_err());
-
-    let combat_target = {
-        let guard = legacy.read().unwrap();
-        guard
-            .find_creature(0, 0, attacker)
-            .unwrap()
-            .creature
-            .ai_ownership()
-            .combat_target
-    };
-    assert_eq!(combat_target, Some(victim));
-}
-/// 4C.3 dormant rail: map-owned creature melee results route to exactly
-/// the victim session. C++ anchor: `Unit::AttackerStateUpdate` resolves a
-/// single melee hit for one victim, then `Unit::DealDamage` mutates health.
 #[test]
 fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
     let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();

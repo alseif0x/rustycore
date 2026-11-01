@@ -658,7 +658,7 @@ pub(crate) fn print_help() {
         "  --bank-smoke             Deposit, logout/relogin, withdraw, logout, and verify DB persistence"
     );
     println!("  --bank-item-entry <id>   Controlled fixture item (default: 2589)");
-    println!("  --bank-runtime-counter <n> Live ObjectGuid low counter for the banker");
+    println!("  --bank-runtime-counter <n> Optional live banker ObjectGuid low counter (default: discover)");
     println!("  --bank-timeout <secs>    Per bank phase timeout (default: 8)");
     println!(
         "                           Env: WOW_BOT_BANK_SMOKE, WOW_BOT_BANK_ITEM_ENTRY, WOW_BOT_BANK_RUNTIME_COUNTER, WOW_BOT_BANK_TIMEOUT_SECS"
@@ -693,6 +693,44 @@ pub(crate) fn print_help() {
     println!("  --vendor-timeout <secs>  Vendor response timeout (default: 8)");
     println!(
         "                           Env: WOW_BOT_VENDOR_SMOKE, WOW_BOT_VENDOR_ENTRY, WOW_BOT_VENDOR_SPAWN_GUID, WOW_BOT_VENDOR_RUNTIME_COUNTER, WOW_BOT_VENDOR_ITEM_ENTRY, WOW_BOT_VENDOR_EXTENDED_COST, WOW_BOT_VENDOR_CURRENCY_ID, WOW_BOT_VENDOR_CURRENCY_COST, WOW_BOT_VENDOR_CURRENCY_QUANTITY, WOW_BOT_VENDOR_TIMEOUT_SECS"
+    );
+    println!(
+        "  --vendor-sell-smoke      Sell one isolated backpack item to the vendor, relog, verify the C++ buyback-save deletion and money gain, and restore the fixture"
+    );
+    println!("  --vendor-sell-item-entry <id> Item to seed and sell (default: 2589 Linen Cloth)");
+    println!(
+        "  --vendor-sell-expected-money <copper> Exact SellPrice*Amount gain (default: only require a gain > 0)"
+    );
+    println!(
+        "                           Reuses --vendor-entry/--vendor-spawn-guid/--vendor-runtime-counter/--vendor-timeout"
+    );
+    println!(
+        "                           Env: WOW_BOT_VENDOR_SELL_SMOKE, WOW_BOT_VENDOR_SELL_ITEM_ENTRY, WOW_BOT_VENDOR_SELL_EXPECTED_MONEY"
+    );
+    println!(
+        "  --movement-smoke         Run START_FORWARD/HEARTBEAT/STOP a few yards, relog, verify the persisted and republished position, and restore it"
+    );
+    println!("                           Env: WOW_BOT_MOVEMENT_SMOKE");
+    println!(
+        "  --trade-smoke            Two sessions: A offers an isolated item + gold, B accepts, verify DB/relog, restore"
+    );
+    println!(
+        "  --ack-disposable-trade   Required with --trade-smoke (mutates two disposable characters; needs WOW_BOT_FIXTURE_JOURNAL)"
+    );
+    println!(
+        "  --trade-account-a/-b <account>  Initiator/receiver (default TESTBOT2@bot.local / TESTBOT3@bot.local, same faction)"
+    );
+    println!(
+        "  --trade-item-entry <id> --trade-gold <copper> --trade-money-a <copper> --trade-money-b <copper>"
+    );
+    println!(
+        "                           Defaults: 2589 Linen Cloth, 3000, 10000, 500; --trade-timeout <secs> (30)"
+    );
+    println!(
+        "  --recover-trade-fixture  Restore a pending trade fixture record (WOW_BOT_FIXTURE_JOURNAL) and exit"
+    );
+    println!(
+        "                           Env: WOW_BOT_TRADE_SMOKE, WOW_BOT_ACK_DISPOSABLE_TRADE, WOW_BOT_TRADE_ACCOUNT_A/B, WOW_BOT_TRADE_ITEM_ENTRY, WOW_BOT_TRADE_TIMEOUT_SECS, WOW_BOT_TRADE_BAG_DESTINATION"
     );
     println!(
         "  --equipment-set-race-smoke  Concurrently save equipment/transmog sets, logout, relog, and verify shared GUID persistence"

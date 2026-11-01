@@ -149,10 +149,27 @@ pub(crate) fn database_thread_count_like_cpp(key: &str, default: u32) -> u32 {
     value
 }
 
-pub(crate) fn legacy_creature_global_runtime_enabled_from_config_like_cpp() -> bool {
-    wow_config::get_value::<u8>(RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG)
-        .map(|value| value != 0)
-        .unwrap_or(true)
+/// Warn about the retired creature tick owner keys.
+///
+/// #1263 F6-8D3b-2: production has a single creature runtime, the canonical
+/// map update loop, which runs every creature phase on the canonical
+/// incarnations (C++ `Map::Update` → `Creature::Update`). #1263 F6-8E deleted
+/// the legacy global creature loop and the per-session tick together with the
+/// owner value that selected them. The two former selection keys are retired
+/// and ignored, with a startup warning when a configuration still sets them:
+/// `RustyCore.LegacyCreatureGlobalRuntime` and `RustyCore.CanonicalCreatureRuntime`.
+pub(crate) fn warn_retired_creature_tick_owner_keys_like_cpp() {
+    for key in [
+        RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG,
+        RUSTYCORE_CANONICAL_CREATURE_RUNTIME_CONFIG,
+    ] {
+        if wow_config::get_value::<u8>(key).is_some() {
+            warn!(
+                key,
+                "Retired creature tick owner key ignored: the canonical map loop is the only creature runtime"
+            );
+        }
+    }
 }
 
 pub(crate) fn realm_id_like_cpp() -> Result<u16> {
@@ -202,6 +219,17 @@ pub(crate) fn world_config_f32(configs: &WorldConfigSet, enum_name: &str, defaul
 
 pub(crate) fn world_config_bool(configs: &WorldConfigSet, enum_name: &str, default: bool) -> bool {
     configs.get_bool(enum_name).unwrap_or(default)
+}
+
+/// Resolve only the keep-abandoned facts proven by Source cleaner policy.
+/// `None` means the enabled cleaner may retain QUESTSTATUS, whose current
+/// persistent world-variable flags have no Rust owner yet.
+pub(crate) fn quest_status_keep_abandoned_like_cpp(configs: &WorldConfigSet) -> Option<bool> {
+    const CLEANING_FLAG_QUESTSTATUS_LIKE_CPP: u32 = 0x10;
+
+    let cleaner_enabled = world_config_bool(configs, "CONFIG_CLEAN_CHARACTER_DB", false);
+    let persistent_flags = world_config_u32(configs, "CONFIG_PERSISTENT_CHARACTER_CLEAN_FLAGS", 0);
+    (!cleaner_enabled || persistent_flags & CLEANING_FLAG_QUESTSTATUS_LIKE_CPP == 0).then_some(true)
 }
 
 pub(crate) fn declined_names_used_for_realm_category_like_cpp(
@@ -340,6 +368,51 @@ pub(crate) fn durability_loss_on_death_rate_like_cpp(configs: &WorldConfigSet) -
         return 0.0;
     }
     percent / 100.0
+}
+
+/// C++ `CONFIG_TRADE_LEVEL_REQ` (`LevelReq.Trade`, default 1) and
+/// `CONFIG_ALLOW_TWO_SIDE_TRADE` (`AllowTwoSide.Trade`, default false),
+/// `World.cpp:791,916`, read by `HandleInitiateTradeOpcode` (#38).
+pub(crate) fn trade_policy_like_cpp(
+    configs: &WorldConfigSet,
+) -> wow_world::session::TradePolicyLikeCpp {
+    wow_world::session::TradePolicyLikeCpp {
+        trade_level_req: world_config_u32(configs, "CONFIG_TRADE_LEVEL_REQ", 1),
+        allow_two_side_trade: world_config_bool(configs, "CONFIG_ALLOW_TWO_SIDE_TRADE", false),
+    }
+}
+
+/// C++ `CONFIG_DEATH_SICKNESS_LEVEL`, `CONFIG_DEATH_CORPSE_RECLAIM_DELAY_*` and
+/// `CONFIG_DEATH_BONES_*` (`World.cpp:1306-1310`), with the C++ defaults.
+pub(crate) fn death_policy_like_cpp(configs: &WorldConfigSet) -> wow_world::DeathPolicyLikeCpp {
+    let defaults = wow_world::DeathPolicyLikeCpp::default();
+    wow_world::DeathPolicyLikeCpp {
+        durability_loss_in_pvp: world_config_bool(
+            configs,
+            "CONFIG_DURABILITY_LOSS_IN_PVP",
+            defaults.durability_loss_in_pvp,
+        ),
+        sickness_level: configs
+            .get_int("CONFIG_DEATH_SICKNESS_LEVEL")
+            .map(|value| value as i32)
+            .unwrap_or(defaults.sickness_level),
+        corpse_reclaim_delay_pvp: world_config_bool(
+            configs,
+            "CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP",
+            defaults.corpse_reclaim_delay_pvp,
+        ),
+        corpse_reclaim_delay_pve: world_config_bool(
+            configs,
+            "CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVE",
+            defaults.corpse_reclaim_delay_pve,
+        ),
+        bones_world: world_config_bool(configs, "CONFIG_DEATH_BONES_WORLD", defaults.bones_world),
+        bones_bg_or_arena: world_config_bool(
+            configs,
+            "CONFIG_DEATH_BONES_BG_OR_ARENA",
+            defaults.bones_bg_or_arena,
+        ),
+    }
 }
 
 /// C++ `CONFIG_STATS_LIMITS_ENABLE`/`_DODGE`/`_PARRY`/`_BLOCK`/`_CRIT`

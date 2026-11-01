@@ -1,0 +1,172 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! World-side adapter for the application trainer purchase (#1263 F4 remate).
+//!
+//! The application crate owns the C++ `WorldSession::HandleTrainerBuySpellOpcode`
+//! body (`Handlers/NPCHandler.cpp:132`); this session only lends the shell-only
+//! capabilities that body cannot reach: the session hub, the NPCHandler
+//! admission context, the acquisition snapshot, the durable save, the exclusive
+//! money fence, the trainer offer contexts and the represented battle-pet
+//! journal. Every method delegates to the existing World operation at the exact
+//! point the World body invoked it, so no World body is duplicated and no step
+//! value is needed. The trainer contexts are built in the application crate
+//! from the disjoint fields `split_trainer_mut` lends (#1363 slice 12a).
+
+use std::collections::BTreeMap;
+use std::future::Future;
+
+use wow_core::{ObjectGuid, ObjectGuidGenerator};
+use wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp;
+use wow_handler::HandlerFuture;
+use wow_spell_acquisition::{
+    PlayerAcquisitionLifecycleLikeCpp, PlayerCastAcquisitionResolutionLikeCpp,
+    PlayerFuturePlayerConditionResolutionLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp,
+    SpellAcquisitionSnapshotAdapterErrorLikeCpp,
+};
+use wow_world_application::{
+    PreparedBattlePetTrainerOfferLikeCpp, TrainerBuySpellHostLikeCpp, TrainerHandlerHostLikeCpp,
+    TrainerSessionFieldsLikeCpp, TrainerSessionHostLikeCpp,
+};
+use wow_world_core::session::{HubMut, HubRef};
+use wow_world_lifecycle::ExclusivePlayerMoneyPersistenceLikeCpp;
+
+use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
+
+impl TrainerSessionHostLikeCpp for WorldSession {
+    fn split_trainer_mut(&mut self) -> TrainerSessionFieldsLikeCpp<'_> {
+        TrainerSessionFieldsLikeCpp {
+            hub: HubMut {
+                core: &mut self.core,
+                catalogs: &self.catalogs,
+                config: &self.config,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixtures: &mut self.fixtures,
+            },
+            lifecycle: &mut self.lifecycle,
+            inventory: &mut self.inventory,
+            spell_state: &mut self.spell_state,
+            quest_state: &mut self.quest_state,
+            loot: &self.loot,
+            interaction: &mut self.interaction,
+            social: &self.social,
+            instances: &self.instances,
+        }
+    }
+}
+
+impl TrainerBuySpellHostLikeCpp for WorldSession {
+    fn trainer_buy_spell_hub_ref_like_cpp(&self) -> HubRef<'_> {
+        crate::session::hub_ref(self)
+    }
+
+    fn trainer_buy_spell_hub_mut_like_cpp(&mut self) -> HubMut<'_> {
+        crate::session::hub_mut(self)
+    }
+
+    fn spell_acquisition_snapshot_like_cpp(
+        &self,
+        lifecycle: PlayerAcquisitionLifecycleLikeCpp,
+        future_player_condition_resolutions: Vec<PlayerFuturePlayerConditionResolutionLikeCpp>,
+        cast_resolutions: BTreeMap<u32, PlayerCastAcquisitionResolutionLikeCpp>,
+    ) -> Result<PlayerSpellAcquisitionSnapshotLikeCpp, SpellAcquisitionSnapshotAdapterErrorLikeCpp>
+    {
+        WorldSession::spell_acquisition_snapshot_like_cpp(
+            self,
+            lifecycle,
+            future_player_condition_resolutions,
+            cast_resolutions,
+        )
+    }
+
+    fn save_current_player_to_db_with_generator_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a ObjectGuidGenerator,
+    ) -> impl Future<Output = ()> + Send {
+        async move {
+            wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
+                self,
+                item_guid_generator,
+            )
+            .await;
+        }
+    }
+
+    fn begin_exclusive_player_money_persistence_like_cpp(
+        &mut self,
+    ) -> impl Future<Output = Option<ExclusivePlayerMoneyPersistenceLikeCpp>> + Send {
+        WorldSession::begin_exclusive_player_money_persistence_like_cpp(self)
+    }
+
+    fn execute_battle_pet_trainer_purchase_with_generator_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a ObjectGuidGenerator,
+        battle_pet_selection_store: &'a BattlePetSelectionStoreLikeCpp,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        trainer_guid: ObjectGuid,
+        trainer_id: u32,
+        offer: PreparedBattlePetTrainerOfferLikeCpp,
+    ) -> impl Future<Output = ()> + Send {
+        async move {
+            wow_world_inventory::execute_battle_pet_trainer_purchase_with_generator_like_cpp(
+                self,
+                item_guid_generator,
+                battle_pet_selection_store,
+                money_persistence,
+                trainer_guid,
+                trainer_id,
+                offer,
+            )
+            .await;
+        }
+    }
+
+    fn trainer_buy_battle_pet_capacity_capped_like_cpp(&self, species_id: u32) -> bool {
+        wow_world_inventory::battle_pet_account_owner_lease_like_cpp(self)
+            .map(|(owner, _)| owner.has_max_pet_count_like_cpp(species_id, self.player_guid()))
+            .unwrap_or(true)
+    }
+
+    fn resolved_player_money_like_cpp(&self) -> Option<u64> {
+        wow_world_inventory::BattlePetPurchaseHostLikeCpp::resolved_player_money_like_cpp(self)
+    }
+
+    fn drain_represented_quest_objective_progress_with_generator_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a ObjectGuidGenerator,
+    ) -> impl Future<Output = ()> + Send {
+        async move {
+            WorldSession::drain_represented_quest_objective_progress_with_generator_like_cpp(
+                self,
+                item_guid_generator,
+            )
+            .await;
+        }
+    }
+}
+
+impl TrainerHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+    fn handle_trainer_list_like_cpp<'a>(
+        &'a mut self,
+        hello: wow_packet::packets::gossip::Hello,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move { wow_world_application::handle_trainer_list(self, hello).await })
+    }
+
+    fn handle_trainer_buy_spell_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        pkt: wow_packet::WorldPacket,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            wow_world_application::handle_trainer_buy_spell_with_generator_like_cpp(
+                self,
+                catalogs.id_generators.item.as_ref(),
+                catalogs.battle_pet_trainer_selection.as_ref(),
+                pkt,
+            )
+            .await
+        })
+    }
+}

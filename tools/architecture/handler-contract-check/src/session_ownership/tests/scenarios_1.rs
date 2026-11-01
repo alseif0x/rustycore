@@ -65,9 +65,22 @@ fn synthetic_baseline_with_network(
     server: &str,
     network: &str,
 ) -> Result<SessionSyntaxBaseline, String> {
+    synthetic_baseline_with_core(world, server, network, "")
+}
+
+pub(super) fn synthetic_baseline_with_core(
+    world: &str,
+    server: &str,
+    network: &str,
+    world_core: &str,
+) -> Result<SessionSyntaxBaseline, String> {
     collect_units(
         vec![
             unit(PackageRole::World, "wow-world/src/lib.rs", world),
+            // Older scenario snippets model the pre-P4a layout. Keep an
+            // explicit empty core unit so fixture omission never masks a
+            // missing production root.
+            unit(PackageRole::WorldCore, WORLD_CORE_CRATE_ROOT, world_core),
             unit(PackageRole::Server, "world-server/src/main.rs", server),
             unit(PackageRole::Network, "wow-network/src/lib.rs", network),
         ],
@@ -113,6 +126,7 @@ fn test_only_external_modules_supply_bridge_import_context() {
     let baseline = collect_units(
         vec![
             unit(PackageRole::World, "wow-world/src/lib.rs", &world),
+            unit(PackageRole::WorldCore, WORLD_CORE_CRATE_ROOT, ""),
             fixture,
             unit(PackageRole::Server, "world-server/src/main.rs", &server_source("", "")),
             unit(PackageRole::Network, "wow-network/src/lib.rs",
@@ -125,7 +139,7 @@ fn test_only_external_modules_supply_bridge_import_context() {
     assert_eq!(baseline.bridge_accesses.bridges[0].cfg, vec!["cfg (test)"]);
 }
 
-fn world_source(field: &str, extra_impl_item: &str) -> String {
+pub(super) fn world_source(field: &str, extra_impl_item: &str) -> String {
     format!(
         r#"
             pub mod session {{
@@ -149,7 +163,7 @@ fn world_source(field: &str, extra_impl_item: &str) -> String {
     )
 }
 
-fn server_source(extra_field: &str, extra_factory: &str) -> String {
+pub(super) fn server_source(extra_field: &str, extra_factory: &str) -> String {
     format!(
         r#"
             mod session_resources {{
@@ -447,6 +461,47 @@ fn splitting_a_private_owner_into_child_modules_keeps_one_logical_owner() {
 }
 
 #[test]
+fn private_session_state_reexport_is_canonical_and_duplicates_fail() {
+    let world = r#"
+        pub mod session {
+            mod state {
+                pub struct WorldSession { pub account_id: u32 }
+            }
+            pub use state::WorldSession;
+            impl WorldSession {
+                fn internal(&self) {}
+            }
+        }
+    "#;
+    let baseline = synthetic_baseline(world, &server_source("", ""))
+        .expect("private state module and facade reexport parse");
+    assert_eq!(
+        baseline.world_session.definition.module,
+        WORLD_SESSION_MODULE
+    );
+    assert_eq!(baseline.world_session.fields[0].name, "account_id");
+
+    let duplicate = r#"
+        pub mod session {
+            mod state {
+                pub struct WorldSession { pub account_id: u32 }
+            }
+            pub use state::WorldSession;
+            pub struct WorldSession { pub account_id: u32 }
+            impl WorldSession {
+                fn internal(&self) {}
+            }
+        }
+    "#;
+    let error = synthetic_baseline(duplicate, &server_source("", ""))
+        .expect_err("a root/child duplicate must remain rejected");
+    assert!(
+        error.contains("WorldSession is mounted more than once"),
+        "{error}"
+    );
+}
+
+#[test]
 fn session_resources_and_factory_fanout_are_exact() {
     let baseline = synthetic_baseline(&world_source("state: u8,", ""), &server_source("", ""))
         .expect("baseline parses");
@@ -677,7 +732,7 @@ fn repository_surface_can_be_collected() {
         .unwrap_or_else(|error| panic!("repository baseline must parse:\n{error}"));
 
     let raw_session_source =
-        fs::read_to_string(repository_root.join("crates/wow-world/src/session/mod.rs"))
+        fs::read_to_string(repository_root.join("crates/wow-world/src/session/state.rs"))
             .expect("read session source");
     let raw_session = syn::parse_file(&raw_session_source).expect("parse session source");
     let raw_fields = raw_session

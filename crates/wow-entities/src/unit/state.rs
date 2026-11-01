@@ -62,6 +62,8 @@ pub const UNIT_DATA_FLAGS2_BIT: usize = 42;
 
 pub const UNIT_DATA_FLAGS3_BIT: usize = 43;
 
+pub const UNIT_DATA_AURA_STATE_BIT: usize = 44;
+
 pub const UNIT_DATA_BOUNDING_RADIUS_BIT: usize = 46;
 
 pub const UNIT_DATA_COMBAT_REACH_BIT: usize = 47;
@@ -91,6 +93,8 @@ pub const UNIT_DATA_PET_FLAGS_BIT: usize = 79;
 pub const UNIT_DATA_SHAPESHIFT_FORM_BIT: usize = 80;
 
 pub const UNIT_DATA_CRITTER_BIT: usize = 13;
+
+pub const UNIT_DATA_SUMMON_BIT: usize = 12;
 
 pub const UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT: usize = 20;
 
@@ -150,6 +154,7 @@ pub struct UnitDataValues {
     pub health: u64,
     pub max_health: u64,
     pub display_id: i32,
+    pub summon: ObjectGuid,
     pub critter: ObjectGuid,
     pub battle_pet_companion_guid: ObjectGuid,
     pub battle_pet_companion_name_timestamp: u32,
@@ -199,6 +204,7 @@ impl Default for UnitDataValues {
             health: 0,
             max_health: 0,
             display_id: 0,
+            summon: ObjectGuid::EMPTY,
             critter: ObjectGuid::EMPTY,
             battle_pet_companion_guid: ObjectGuid::EMPTY,
             battle_pet_companion_name_timestamp: 0,
@@ -248,6 +254,20 @@ impl Default for UnitDataValues {
 pub struct UnitDataUpdate {
     pub mask: UpdateMask,
     pub values: UnitDataValues,
+    /// Frozen owner projection and caster contributions (Unit.cpp:5916).
+    pub aura_state: u32,
+    pub aura_state_per_caster: Vec<(ObjectGuid, u32)>,
+}
+
+impl UnitDataUpdate {
+    pub fn project_aura_state_for_target_like_cpp(&mut self, target: ObjectGuid) {
+        self.aura_state &= !crate::PER_CASTER_AURA_STATE_MASK;
+        for (caster, states) in &self.aura_state_per_caster {
+            if *caster == target {
+                self.aura_state |= states;
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -360,6 +380,16 @@ pub struct UnitAttackContextLikeCpp {
     pub victim_has_pvp_unk1_flag: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnitVisibilityContext {
+    /// The caller's `WorldObject::IsWithinDist` result, resolved before the GM gate.
+    pub distance_allowed: bool,
+    /// A corpse-derived exception to the ghost mask check only.
+    pub corpse_visibility: bool,
+    /// The caller's group result; the predicate still requires Player↔Player objects.
+    pub player_group_visibility: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnitVisibilityDetectionStateLikeCpp {
     pub(super) never_visible_for_seer: bool,
@@ -377,7 +407,6 @@ pub struct UnitVisibilityDetectionStateLikeCpp {
     pub(super) server_side_visibility_detect_gm: u32,
     pub(super) server_side_visibility_ghost: u32,
     pub(super) server_side_visibility_detect_ghost: u32,
-    pub(super) ghost_visible_to_seer_by_group: bool,
     pub(super) seer_can_always_see_target_guid: ObjectGuid,
     pub(super) invisibility_flags: u64,
     pub(super) invisibility: [i32; MAX_VISIBILITY_AURA_TYPES_LIKE_CPP],
@@ -406,7 +435,6 @@ impl Default for UnitVisibilityDetectionStateLikeCpp {
             server_side_visibility_detect_gm: 0,
             server_side_visibility_ghost: GHOST_VISIBILITY_ALIVE_LIKE_CPP,
             server_side_visibility_detect_ghost: GHOST_VISIBILITY_ALIVE_LIKE_CPP,
-            ghost_visible_to_seer_by_group: false,
             seer_can_always_see_target_guid: ObjectGuid::EMPTY,
             invisibility_flags: 0,
             invisibility: [0; MAX_VISIBILITY_AURA_TYPES_LIKE_CPP],
@@ -448,6 +476,19 @@ impl HealthStateRevisionAuthorityLikeCpp {
 
     pub fn shares_storage_like_cpp(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.allocator, &other.allocator)
+    }
+
+    /// Stable process-local identity of this incarnation's health timeline.
+    ///
+    /// #1263 C1 runtime capture only. The admission contract already compares
+    /// incarnations by [`Self::shares_storage_like_cpp`]; that predicate is a
+    /// boolean and cannot be correlated across events. This returns the address
+    /// of the retained allocation as a token, which is exactly the identity the
+    /// predicate compares and which cannot be reused while a token exists. It is
+    /// a pure read with no behaviour of its own: no admission decision and no
+    /// production path consults it.
+    pub fn timeline_identity_like_cpp(&self) -> u64 {
+        Arc::as_ptr(&self.allocator) as usize as u64
     }
 }
 

@@ -44,6 +44,14 @@ impl GameTime {
         Self(secs)
     }
 
+    /// Current Unix timestamp in nanoseconds.
+    pub fn unix_time_nanos() -> u128 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    }
+
     /// Create from a Unix timestamp (seconds).
     pub fn from_unix(secs: u64) -> Self {
         Self(secs)

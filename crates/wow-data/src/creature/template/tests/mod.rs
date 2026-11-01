@@ -8,8 +8,6 @@ use rand::{SeedableRng, rngs::StdRng};
 
 use crate::CreatureModelInfoLikeCpp;
 
-use super::*;
-
 struct FixedCreatureModelRandomLikeCpp {
     weighted_roll: f32,
     other_gender_zero: bool,
@@ -80,6 +78,7 @@ pub(crate) fn creature_template_lifecycle_record_for_test(
         flags_extra: 0,
         string_id: String::new(),
         regen_health: true,
+        base_variance: 0.0,
         spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
         models: Vec::new(),
     }

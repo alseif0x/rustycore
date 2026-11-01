@@ -1,9 +1,16 @@
-//! C++-shaped spell stores state definitions, part 4 of 4. operations, part 1 of 2.
+//! Spell metadata loading and exact field operations.
 //!
-//! The inherent impl is divided by responsibility under #646; every
-//! method keeps its original body.
+//! Indexed effect hydration and reads live in the sibling effects module.
 
 use super::*;
+
+fn spell_misc_rows_in_record_id_order(
+    store: &crate::spell_db2::SpellMiscStore,
+) -> Vec<&crate::spell_db2::SpellMiscEntry> {
+    let mut rows = store.entries_like_cpp().collect::<Vec<_>>();
+    rows.sort_unstable_by_key(|misc| misc.id);
+    rows
+}
 
 impl SpellStore {
     /// Create a new empty spell store.
@@ -11,44 +18,31 @@ impl SpellStore {
         Self {
             spells: HashMap::new(),
             spell_info_keys_like_cpp: crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::default(),
+            regular_visual_override_targets: BTreeSet::new(),
             spell_effects_by_difficulty: HashMap::new(),
             spell_misc_attributes: HashMap::new(),
             spell_misc_attributes_by_difficulty: HashMap::new(),
             spell_interrupt_flags: HashMap::new(),
             spell_interrupt_rows_by_id: BTreeMap::new(),
             spell_hit_categories_by_difficulty: HashMap::new(),
+            spell_categories_loaded: false,
+            spell_misc_loaded: false,
             spell_hit_misc_by_difficulty: HashMap::new(),
             spell_hit_effect_mechanics_by_difficulty: HashMap::new(),
             spell_shapeshift_masks: HashMap::new(),
             implicit_target_conditions: HashMap::new(),
+            cast_costs_like_cpp: None,
+            cast_times_by_difficulty_like_cpp: HashMap::new(),
+            cast_time_payload_loaded_like_cpp: false,
+            cooldowns_by_difficulty_like_cpp: HashMap::new(),
+            cooldown_payload_loaded_like_cpp: false,
+            power_costs_by_difficulty_like_cpp: HashMap::new(),
+            power_cost_payload_loaded_like_cpp: false,
+            spell_focus_requirements_like_cpp: HashMap::new(),
         }
     }
     pub(super) fn make_pair64_like_cpp(low: i32, high: i32) -> u64 {
         u64::from(low as u32) | (u64::from(high as u32) << 32)
-    }
-    pub fn effects_for_difficulty_like_cpp(
-        &self,
-        spell_id: i32,
-        requested_difficulty_id: u8,
-        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
-    ) -> Option<&[SpellEffectInfo]> {
-        let mut difficulty_id = requested_difficulty_id;
-        let mut visited = HashSet::new();
-        loop {
-            if let Some(effects) = self
-                .spell_effects_by_difficulty
-                .get(&(spell_id, difficulty_id))
-            {
-                return Some(effects);
-            }
-            if difficulty_id == 0 || !visited.insert(difficulty_id) {
-                break;
-            }
-            difficulty_id = difficulty_store
-                .and_then(|store| store.get(u32::from(difficulty_id)))
-                .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
-        }
-        self.spells.get(&spell_id).map(|spell| spell.effects())
     }
     /// Resolve the fields consumed by C++ spell-hit logic through the
     /// requested difficulty and its `FallbackDifficultyID` chain.
@@ -120,6 +114,145 @@ impl SpellStore {
 
         has_metadata.then_some(metadata)
     }
+    /// Read only the `SpellCategories` mechanic row at the exact difficulty.
+    ///
+    /// `Some(0)` is an explicit category row and differs from no row. Callers
+    /// that need source-difficulty inheritance must resolve it separately.
+    pub fn spell_mechanic_for_exact_difficulty(
+        &self,
+        spell_id: i32,
+        difficulty_id: u8,
+    ) -> Option<i8> {
+        self.spell_hit_categories_by_difficulty
+            .get(&(spell_id, difficulty_id))
+            .map(|categories| categories.spell_mechanic)
+    }
+
+    /// Read the effective spell category at the selected `SpellInfo` key's
+    /// difficulty. A loaded category catalog with no row means category zero;
+    /// an unhydrated catalog remains unknown.
+    pub fn category_id_at_difficulty(
+        &self,
+        spell_id: u32,
+        requested_difficulty_id: u8,
+        difficulties: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Result<u32, SpellCategoryReadError> {
+        if !self.spell_categories_loaded {
+            return Err(SpellCategoryReadError::MetadataUnavailable);
+        }
+
+        let spell_key = spell_id as i32;
+        let has_any_row = self
+            .spell_hit_categories_by_difficulty
+            .keys()
+            .any(|(candidate_id, _)| *candidate_id == spell_key);
+        let category_id = crate::spell::resolve_spell_catalog_value(
+            requested_difficulty_id,
+            difficulties,
+            has_any_row,
+            |difficulty_id| {
+                self.spell_hit_categories_by_difficulty
+                    .get(&(spell_key, difficulty_id))
+                    .map(|row| row.category_id)
+            },
+        )
+        .map_err(SpellCategoryReadError::Catalog)?;
+
+        Ok(category_id.unwrap_or(0))
+    }
+
+    /// Resolve C++ `SpellInfo::StartRecoveryCategory` from the selected
+    /// SpellCategories family through the map difficulty fallback chain.
+    pub fn start_recovery_category_at_difficulty_like_cpp(
+        &self,
+        spell_id: u32,
+        requested_difficulty_id: u8,
+        difficulties: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Result<u32, SpellCategoryReadError> {
+        if !self.spell_categories_loaded {
+            return Err(SpellCategoryReadError::MetadataUnavailable);
+        }
+
+        let spell_key = spell_id as i32;
+        let has_any_row = self
+            .spell_hit_categories_by_difficulty
+            .keys()
+            .any(|(candidate_id, _)| *candidate_id == spell_key);
+        let category_id = crate::spell::resolve_spell_catalog_value(
+            requested_difficulty_id,
+            difficulties,
+            has_any_row,
+            |difficulty_id| {
+                self.spell_hit_categories_by_difficulty
+                    .get(&(spell_key, difficulty_id))
+                    .map(|row| row.start_recovery_category_id)
+            },
+        )
+        .map_err(SpellCategoryReadError::Catalog)?;
+
+        Ok(category_id.unwrap_or(0))
+    }
+
+    pub fn charge_category_id_at_difficulty_like_cpp(
+        &self,
+        spell_id: u32,
+        requested_difficulty_id: u8,
+        difficulties: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Result<u32, SpellCategoryReadError> {
+        if !self.spell_categories_loaded {
+            return Err(SpellCategoryReadError::MetadataUnavailable);
+        }
+
+        let spell_key = spell_id as i32;
+        let has_any_row = self
+            .spell_hit_categories_by_difficulty
+            .keys()
+            .any(|(candidate_id, _)| *candidate_id == spell_key);
+        let charge_category_id = crate::spell::resolve_spell_catalog_value(
+            requested_difficulty_id,
+            difficulties,
+            has_any_row,
+            |difficulty_id| {
+                self.spell_hit_categories_by_difficulty
+                    .get(&(spell_key, difficulty_id))
+                    .map(|row| row.charge_category_id)
+            },
+        )
+        .map_err(SpellCategoryReadError::Catalog)?;
+
+        Ok(charge_category_id.unwrap_or(0))
+    }
+
+    /// Resolve C++ `SpellInfo::PreventionType` from effective SpellCategories
+    /// rows through the selected difficulty's fallback chain.
+    pub fn prevention_type_at_difficulty_like_cpp(
+        &self,
+        spell_id: u32,
+        requested_difficulty_id: u8,
+        difficulties: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Result<u32, SpellCategoryReadError> {
+        if !self.spell_categories_loaded {
+            return Err(SpellCategoryReadError::MetadataUnavailable);
+        }
+        let spell_key = spell_id as i32;
+        let has_any_row = self
+            .spell_hit_categories_by_difficulty
+            .keys()
+            .any(|(candidate_id, _)| *candidate_id == spell_key);
+        let prevention_type = crate::spell::resolve_spell_catalog_value(
+            requested_difficulty_id,
+            difficulties,
+            has_any_row,
+            |difficulty_id| {
+                self.spell_hit_categories_by_difficulty
+                    .get(&(spell_key, difficulty_id))
+                    .map(|row| row.prevention_type)
+            },
+        )
+        .map_err(SpellCategoryReadError::Catalog)?;
+        Ok(prevention_type.unwrap_or(0))
+    }
+
     pub(in crate::spell) fn empty_spell_info_like_cpp(spell_id: i32) -> SpellInfo {
         SpellInfo {
             spell_id,
@@ -134,38 +267,6 @@ impl SpellStore {
             requires_spell_focus: 0,
             power_costs: Vec::new(),
             effects: Vec::new(),
-        }
-    }
-    pub(super) fn spell_effect_from_db2_like_cpp(
-        effect: &crate::spell_db2::SpellEffectDb2Entry,
-    ) -> SpellEffectInfo {
-        SpellEffectInfo {
-            effect_index: u32::try_from(effect.effect_index).unwrap_or(0),
-            effect: effect.effect,
-            effect_aura: i32::from(effect.effect_aura),
-            effect_base_points: effect.effect_base_points,
-            effect_mechanic: effect.effect_mechanic,
-            effect_amplitude: effect.effect_amplitude,
-            effect_die_sides: effect.effect_die_sides,
-            effect_bonus_coefficient_from_ap: effect.bonus_coefficient_from_ap,
-            effect_spell_class_mask: effect.effect_spell_class_mask,
-            effect_misc_value_1: effect.effect_misc_value[0],
-            effect_misc_value_2: effect.effect_misc_value[1],
-            effect_trigger_spell: effect.effect_trigger_spell,
-            effect_radius_index_1: effect.effect_radius_index[0],
-            position_facing: effect.effect_pos_facing,
-            chain_targets: effect.effect_chain_targets,
-            implicit_target_1: u32::try_from(effect.implicit_target[0]).unwrap_or(0),
-            implicit_target_2: u32::try_from(effect.implicit_target[1]).unwrap_or(0),
-        }
-    }
-    pub(super) fn hydrate_primary_effect_like_cpp(info: &mut SpellInfo) {
-        info.effects.sort_by_key(|effect| effect.effect_index);
-        if let Some(primary) = info.effects.iter().find(|effect| effect.effect != 0) {
-            info.effect_type = primary.effect;
-            info.effect_base_points = primary.effect_base_points;
-            info.effect_bonus_coefficient = 0.0;
-            info.aura_type = Some(primary.effect_aura);
         }
     }
     /// Load the exact regular `SpellInfo` key authority that still has
@@ -224,6 +325,64 @@ impl SpellStore {
         self.spell_info_keys_like_cpp
             .contains_exact_like_cpp(spell_id, difficulty_id)
     }
+    /// Build the represented payload for the exact selected C++ SpellInfo key.
+    /// The exact key check remains independent from the partially hydrated
+    /// difficulty-zero `SpellInfo` map.
+    pub fn spell_info_for_exact_key_like_cpp(
+        &self,
+        spell_id: i32,
+        difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Result<Option<SpellInfo>, crate::spell::SpellInfoPayloadResolutionErrorLikeCpp> {
+        let spell_key = spell_id as u32;
+        if !self.contains_spell_info_exact_like_cpp(spell_key, difficulty_id) {
+            return Ok(None);
+        }
+        let mut info = Self::empty_spell_info_like_cpp(spell_id);
+        info.cast_time_ms =
+            self.resolve_cast_time_payload_like_cpp(spell_id, difficulty_id, difficulty_store)?;
+        let (cooldown, recovery, category_recovery) =
+            self.resolve_cooldown_payload_like_cpp(spell_id, difficulty_id, difficulty_store)?;
+        info.cooldown_ms = cooldown;
+        info.recovery_time_ms = recovery.max(category_recovery);
+        info.power_costs =
+            self.resolve_power_cost_payload_like_cpp(spell_id, difficulty_id, difficulty_store)?;
+        if let Some(required_focus) = self.spell_focus_requirements_like_cpp.get(&spell_id) {
+            info.requires_spell_focus = *required_focus;
+        }
+        info.effects = crate::spell::resolve_spell_effect_rows(
+            self,
+            spell_id,
+            difficulty_id,
+            difficulty_store,
+        )
+        .map_err(crate::spell::SpellInfoPayloadResolutionErrorLikeCpp::EffectRows)?
+        .into_iter()
+        .cloned()
+        .collect();
+        Self::hydrate_primary_effect(&mut info);
+        Ok(Some(info))
+    }
+
+    pub fn spell_info_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Result<Option<(SpellInfo, u8)>, crate::spell::SpellInfoPayloadResolutionErrorLikeCpp> {
+        let Some(actual_difficulty_id) = crate::spell::resolve_spell_info_key_difficulty(
+            self,
+            spell_id as u32,
+            requested_difficulty_id,
+            difficulty_store,
+        )
+        .map_err(crate::spell::SpellInfoPayloadResolutionErrorLikeCpp::Catalog)?
+        else {
+            return Ok(None);
+        };
+        self.spell_info_for_exact_key_like_cpp(spell_id, actual_difficulty_id, difficulty_store)
+            .map(|info| info.map(|info| (info, actual_difficulty_id)))
+    }
     /// Exact regular `SpellInfo` keys in deterministic `(SpellID, Difficulty)` order.
     pub fn spell_info_keys_in_order_like_cpp(&self) -> Vec<(u32, u8)> {
         self.spell_info_keys_like_cpp.exact_keys_in_order_like_cpp()
@@ -275,15 +434,17 @@ impl SpellStore {
         spell_effect_store: &crate::spell_db2::SpellEffectDb2Store,
     ) {
         for categories in spell_categories_store.entries_like_cpp() {
-            let Ok(spell_id) = i32::try_from(categories.spell_id) else {
-                continue;
-            };
+            // C++ carries this relationship as uint32. Retain its full-width
+            // bit pattern in the signed Rust key used by the hit index.
+            let spell_id = categories.spell_id as i32;
             let row = SpellHitCategoriesRowLikeCpp {
                 record_id: categories.id,
                 // C++ assigns the signed DB2 fields directly into the
                 // corresponding uint32 SpellInfo members.
                 category_id: categories.category as u32,
+                start_recovery_category_id: categories.start_recovery_category as u32,
                 charge_category_id: categories.charge_category as u32,
+                prevention_type: categories.prevention_type as u32,
                 defense_type: categories.defense_type,
                 spell_mechanic: categories.mechanic,
             };
@@ -296,6 +457,7 @@ impl SpellStore {
                 })
                 .or_insert(row);
         }
+        self.spell_categories_loaded = true;
 
         for misc in spell_misc_store.entries_like_cpp() {
             let Ok(spell_id) = i32::try_from(misc.spell_id) else {
@@ -304,6 +466,8 @@ impl SpellStore {
             let row = SpellHitMiscRowLikeCpp {
                 record_id: misc.id,
                 school_mask: misc.school_mask,
+                speed: misc.speed,
+                launch_delay: misc.launch_delay,
             };
             self.spell_hit_misc_by_difficulty
                 .entry((spell_id, misc.difficulty_id))
@@ -314,14 +478,13 @@ impl SpellStore {
                 })
                 .or_insert(row);
         }
+        self.spell_misc_loaded = true;
 
         for effect in spell_effect_store.entries_like_cpp() {
             let Ok(spell_id) = i32::try_from(effect.spell_id) else {
                 continue;
             };
-            let Ok(difficulty_id) = u8::try_from(effect.difficulty_id) else {
-                continue;
-            };
+            let difficulty_id = effect.difficulty_id as u8;
             let Ok(effect_index) = u32::try_from(effect.effect_index) else {
                 continue;
             };
@@ -358,10 +521,8 @@ impl SpellStore {
             spell_effect_store,
         );
 
-        for misc in spell_misc_store.entries_like_cpp() {
-            let Ok(spell_id) = i32::try_from(misc.spell_id) else {
-                continue;
-            };
+        for misc in spell_misc_rows_in_record_id_order(spell_misc_store) {
+            let spell_id = misc.spell_id as i32;
             let difficulty_id = misc.difficulty_id;
             let attributes = misc.attributes.map(|attribute| attribute as u32);
             store
@@ -377,31 +538,7 @@ impl SpellStore {
             store.spell_misc_attributes.insert(spell_id, attributes);
         }
 
-        for effect in spell_effect_store.entries_like_cpp() {
-            if effect.effect == 0 {
-                continue;
-            }
-            let Ok(spell_id) = i32::try_from(effect.spell_id) else {
-                continue;
-            };
-            let Ok(difficulty_id) = u8::try_from(effect.difficulty_id) else {
-                continue;
-            };
-            let converted = Self::spell_effect_from_db2_like_cpp(effect);
-            store
-                .spell_effects_by_difficulty
-                .entry((spell_id, difficulty_id))
-                .or_default()
-                .push(converted.clone());
-            if difficulty_id != 0 {
-                continue;
-            }
-            let spell = store
-                .spells
-                .entry(spell_id)
-                .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
-            spell.effects.push(converted);
-        }
+        store.hydrate_spell_effect_rows(spell_effect_store);
 
         for shapeshift in spell_shapeshift_store.entries_like_cpp() {
             if shapeshift.spell_id <= 0 {
@@ -420,10 +557,6 @@ impl SpellStore {
                     ),
                 ),
             );
-        }
-
-        for spell in store.spells.values_mut() {
-            Self::hydrate_primary_effect_like_cpp(spell);
         }
 
         store
@@ -558,18 +691,21 @@ impl SpellStore {
         spell_misc_store: &crate::spell_db2::SpellMiscStore,
         spell_cast_times_store: &crate::spell_db2::SpellCastTimesStore,
     ) {
+        self.cast_time_payload_loaded_like_cpp = true;
         for misc in spell_misc_store.entries_like_cpp() {
-            if misc.difficulty_id != 0 || misc.casting_time_index == 0 {
-                continue;
-            }
-            let Ok(spell_id) = i32::try_from(misc.spell_id) else {
-                continue;
-            };
-            let Some(entry) = spell_cast_times_store.get(u32::from(misc.casting_time_index)) else {
-                continue;
-            };
-            if let Some(spell) = self.spells.get_mut(&spell_id) {
-                spell.cast_time_ms = entry.base.max(entry.minimum).max(0) as u32;
+            let spell_id = misc.spell_id as i32;
+            let cast_time = spell_cast_times_store
+                .get(u32::from(misc.casting_time_index))
+                .map(|entry| entry.base.max(entry.minimum).max(0) as u32);
+            self.cast_times_by_difficulty_like_cpp.insert(
+                (spell_id, misc.difficulty_id),
+                (misc.casting_time_index, cast_time),
+            );
+            if misc.difficulty_id == 0
+                && let Some(spell) = self.spells.get_mut(&spell_id)
+                && let Some(cast_time) = cast_time
+            {
+                spell.cast_time_ms = cast_time;
             }
         }
     }
@@ -585,16 +721,22 @@ impl SpellStore {
         &mut self,
         spell_cooldowns_store: &crate::spell_db2::SpellCooldownsStore,
     ) {
+        self.cooldown_payload_loaded_like_cpp = true;
         for entry in spell_cooldowns_store.entries_like_cpp() {
+            let spell_id = entry.spell_id as i32;
+            let cooldown = entry.start_recovery_time.max(0) as u32;
+            let recovery = entry.recovery_time.max(0) as u32;
+            let category_recovery = entry.category_recovery_time.max(0) as u32;
+            self.cooldowns_by_difficulty_like_cpp.insert(
+                (spell_id, entry.difficulty_id),
+                (cooldown, recovery, category_recovery),
+            );
             if entry.difficulty_id != 0 {
                 continue;
             }
-            let Ok(spell_id) = i32::try_from(entry.spell_id) else {
-                continue;
-            };
             if let Some(spell) = self.spells.get_mut(&spell_id) {
-                spell.recovery_time_ms =
-                    entry.recovery_time.max(entry.category_recovery_time).max(0) as u32;
+                spell.cooldown_ms = cooldown;
+                spell.recovery_time_ms = recovery.max(category_recovery);
             }
         }
     }
@@ -625,6 +767,13 @@ impl SpellStore {
                 .or_insert((entry.id, entry.requires_spell_focus));
         }
 
+        self.spell_focus_requirements_like_cpp = effective_by_spell
+            .iter()
+            .map(|(&spell_id, &(_, requires_spell_focus))| {
+                (spell_id, u32::from(requires_spell_focus))
+            })
+            .collect();
+
         for spell in self.spells.values_mut() {
             spell.requires_spell_focus = effective_by_spell
                 .get(&spell.spell_id)
@@ -638,9 +787,11 @@ impl SpellStore {
         spell_power_store: &crate::spell_db2::SpellPowerStore,
         spell_power_difficulty_store: &crate::spell_db2::SpellPowerDifficultyStore,
     ) {
+        self.power_cost_payload_loaded_like_cpp = true;
         for spell in self.spells.values_mut() {
             spell.power_costs.clear();
         }
+        self.power_costs_by_difficulty_like_cpp.clear();
 
         // C++ walks `sSpellPowerStore` through its record-ID ordered index, so
         // two rows that collide on the same spell and order index must resolve
@@ -649,21 +800,12 @@ impl SpellStore {
             if power.spell_id == 0 {
                 continue;
             }
-            let Ok(spell_id) = i32::try_from(power.spell_id) else {
-                continue;
-            };
+            let spell_id = power.spell_id as i32;
 
             let (difficulty_id, order_index) = spell_power_difficulty_store
                 .get(power.id)
                 .map(|difficulty| (difficulty.difficulty_id, difficulty.order_index))
                 .unwrap_or((0, power.order_index));
-            if difficulty_id != 0 {
-                continue;
-            }
-
-            let Some(spell) = self.spells.get_mut(&spell_id) else {
-                continue;
-            };
             let power_cost = SpellPowerCostInfoLikeCpp {
                 order_index,
                 power_type: power.power_type,
@@ -677,94 +819,31 @@ impl SpellStore {
                 optional_cost: power.optional_cost,
             };
 
-            if let Some(existing) = spell
-                .power_costs
+            let by_difficulty = self
+                .power_costs_by_difficulty_like_cpp
+                .entry((spell_id, difficulty_id))
+                .or_default();
+            if let Some(existing) = by_difficulty
                 .iter_mut()
                 .find(|existing| existing.order_index == order_index)
             {
                 *existing = power_cost;
             } else {
-                spell.power_costs.push(power_cost);
+                by_difficulty.push(power_cost);
             }
-            spell.power_costs.sort_by_key(|entry| entry.order_index);
+            by_difficulty.sort_by_key(|entry| entry.order_index);
+        }
+        for (&(spell_id, difficulty_id), costs) in &self.power_costs_by_difficulty_like_cpp {
+            if difficulty_id == 0
+                && let Some(spell) = self.spells.get_mut(&spell_id)
+            {
+                spell.power_costs = costs.clone();
+            }
         }
     }
     /// Look up a spell by ID.
     pub fn get(&self, spell_id: i32) -> Option<&SpellInfo> {
         self.spells.get(&spell_id)
-    }
-    /// Resolve the `SpellMisc` attributes owned by the same difficulty-specific
-    /// C++ `SpellInfo` selected by `SpellMgr::GetSpellInfo`.
-    pub fn misc_attributes_for_difficulty_like_cpp(
-        &self,
-        spell_id: i32,
-        requested_difficulty_id: u8,
-        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
-    ) -> Option<[u32; 15]> {
-        let mut difficulty_id = requested_difficulty_id;
-        let mut visited = HashSet::new();
-        loop {
-            if let Some(attributes) = self
-                .spell_misc_attributes_by_difficulty
-                .get(&(spell_id, difficulty_id))
-                .copied()
-            {
-                return Some(attributes);
-            }
-            if difficulty_id == 0 || !visited.insert(difficulty_id) {
-                break;
-            }
-            difficulty_id = difficulty_store
-                .and_then(|store| store.get(u32::from(difficulty_id)))
-                .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
-        }
-        self.spell_misc_attributes.get(&spell_id).copied()
-    }
-    pub fn has_attribute_for_difficulty_like_cpp(
-        &self,
-        spell_id: i32,
-        requested_difficulty_id: u8,
-        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
-        attribute_word: usize,
-        attribute: u32,
-    ) -> bool {
-        self.misc_attributes_for_difficulty_like_cpp(
-            spell_id,
-            requested_difficulty_id,
-            difficulty_store,
-        )
-        .and_then(|attributes| attributes.get(attribute_word).copied())
-        .is_some_and(|attributes| attributes & attribute != 0)
-    }
-    /// C++ `SpellInfo::HasAttribute` for attributes hydrated from `SpellMisc.db2`.
-    pub fn has_attribute0_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
-        self.spell_misc_attributes
-            .get(&spell_id)
-            .is_some_and(|attributes| attributes[0] & attribute != 0)
-    }
-    /// C++ `SpellInfo::HasAttribute(SpellAttr1)` for attributes hydrated from `SpellMisc.db2`.
-    pub fn has_attribute1_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
-        self.spell_misc_attributes
-            .get(&spell_id)
-            .is_some_and(|attributes| attributes[1] & attribute != 0)
-    }
-    /// C++ `SpellInfo::HasAttribute(SpellAttr2)` for attributes hydrated from `SpellMisc.db2`.
-    pub fn has_attribute2_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
-        self.spell_misc_attributes
-            .get(&spell_id)
-            .is_some_and(|attributes| attributes[2] & attribute != 0)
-    }
-    /// C++ `SpellInfo::HasAttribute(SpellAttr4)` for attributes hydrated from `SpellMisc.db2`.
-    pub fn has_attribute4_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
-        self.spell_misc_attributes
-            .get(&spell_id)
-            .is_some_and(|attributes| attributes[4] & attribute != 0)
-    }
-    /// C++ `SpellInfo::HasAttribute(SpellAttr8)` for attributes hydrated from `SpellMisc.db2`.
-    pub fn has_attribute8_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
-        self.spell_misc_attributes
-            .get(&spell_id)
-            .is_some_and(|attributes| attributes[8] & attribute != 0)
     }
     /// C++ `SpellInfo::Stances` / `StancesNot` for login passive-cast gates.
     pub fn shapeshift_masks_like_cpp(&self, spell_id: i32) -> (u64, u64) {

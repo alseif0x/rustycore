@@ -26,9 +26,28 @@ use wow_core::ObjectGuid;
 
 use super::PlayerQuestStatusRecord;
 
+mod objectives;
+pub use objectives::{QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp};
+
+/// C++ `QuestSaveType` (`Player.h:557-565`) for one dirty `m_QuestStatusSave` key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerQuestStatusSaveTypeLikeCpp {
+    Default,
+    Delete,
+    ForceDelete,
+}
+
+/// Immutable dirty-key row exposed to the existing Player save capture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerQuestStatusSaveIntentLikeCpp {
+    pub quest_id: u32,
+    pub save_type: PlayerQuestStatusSaveTypeLikeCpp,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerQuestGameplayState {
     pub(super) statuses: BTreeMap<u32, PlayerQuestStatusRecord>,
+    pub(super) status_save_types: BTreeMap<u32, PlayerQuestStatusSaveTypeLikeCpp>,
     pub(super) rewarded_quest_ids: BTreeSet<u32>,
     pub(super) daily_quest_ids: BTreeSet<u32>,
     pub(super) weekly_quest_ids: BTreeSet<u32>,
@@ -62,6 +81,41 @@ impl PlayerQuestGameplayState {
     /// `itr->second` after finding it in `m_QuestStatus`.
     pub fn status_mut_like_cpp(&mut self, quest_id: u32) -> Option<&mut PlayerQuestStatusRecord> {
         self.statuses.get_mut(&quest_id)
+    }
+
+    /// C++ `m_QuestStatusSave`, ordered by quest ID like its `std::map` owner.
+    #[must_use]
+    pub fn status_save_intents_like_cpp(&self) -> Vec<PlayerQuestStatusSaveIntentLikeCpp> {
+        self.status_save_types
+            .iter()
+            .map(
+                |(&quest_id, &save_type)| PlayerQuestStatusSaveIntentLikeCpp {
+                    quest_id,
+                    save_type,
+                },
+            )
+            .collect()
+    }
+
+    #[must_use]
+    pub fn status_save_type_like_cpp(
+        &self,
+        quest_id: u32,
+    ) -> Option<PlayerQuestStatusSaveTypeLikeCpp> {
+        self.status_save_types.get(&quest_id).copied()
+    }
+
+    /// Apply the full-save acknowledgement only while this exact dirty kind remains current.
+    pub(crate) fn clear_status_save_if_like_cpp(
+        &mut self,
+        quest_id: u32,
+        expected: PlayerQuestStatusSaveTypeLikeCpp,
+    ) -> bool {
+        if self.status_save_type_like_cpp(quest_id) != Some(expected) {
+            return false;
+        }
+        self.status_save_types.remove(&quest_id);
+        true
     }
 
     /// C++ `Player::m_RewardedQuests`.
@@ -138,9 +192,58 @@ impl PlayerQuestGameplayState {
         self.statuses.insert(quest_id, record);
     }
 
+    /// C++ `Player::AddQuest` installs a status and marks its own save intent.
+    pub fn add_active_status_like_cpp(&mut self, quest_id: u32, record: PlayerQuestStatusRecord) {
+        self.insert_status_like_cpp(quest_id, record);
+        self.mark_status_save_like_cpp(quest_id, PlayerQuestStatusSaveTypeLikeCpp::Default);
+    }
+
+    /// Record one source operation's save kind. A skipped SetQuestStatus save does not erase an
+    /// earlier dirty kind; C++ only writes the map when its `!IsTurnIn()` branch is taken.
+    pub fn mark_status_save_like_cpp(
+        &mut self,
+        quest_id: u32,
+        save_type: PlayerQuestStatusSaveTypeLikeCpp,
+    ) {
+        self.status_save_types.insert(quest_id, save_type);
+    }
+
+    /// C++ `SetQuestStatus` indexes `m_QuestStatus[questId]`, creating its default record when
+    /// absent, then conditionally marks Default. The caller gates on the loaded quest template
+    /// and supplies the effective `!Quest::IsTurnIn()` decision.
+    pub fn set_status_like_cpp(
+        &mut self,
+        quest_id: u32,
+        status_value: u8,
+        mark_default: bool,
+    ) -> u8 {
+        let status = self
+            .statuses
+            .entry(quest_id)
+            .or_insert_with(|| PlayerQuestStatusRecord {
+                quest_id,
+                status: 0,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 25,
+            });
+        let old_status = status.status;
+        status.status = status_value;
+        if mark_default {
+            self.mark_status_save_like_cpp(quest_id, PlayerQuestStatusSaveTypeLikeCpp::Default);
+        }
+        old_status
+    }
+
     /// C++ `Player::RemoveActiveQuest` (`Player.cpp:15575`) erasing one record.
     pub fn remove_status_like_cpp(&mut self, quest_id: u32) -> Option<PlayerQuestStatusRecord> {
-        self.statuses.remove(&quest_id)
+        let removed = self.statuses.remove(&quest_id);
+        if removed.is_some() {
+            self.mark_status_save_like_cpp(quest_id, PlayerQuestStatusSaveTypeLikeCpp::Delete);
+        }
+        removed
     }
 
     /// Iterate every quest record for in-place progress updates, as C++ walks
@@ -173,6 +276,17 @@ impl PlayerQuestGameplayState {
         complete: bool,
     ) {
         self.statuses = statuses;
+        self.status_authority_complete = complete;
+    }
+
+    /// Install one authoritative loader result without converting the load into live dirty work.
+    pub fn replace_loaded_statuses_like_cpp(
+        &mut self,
+        statuses: BTreeMap<u32, PlayerQuestStatusRecord>,
+        complete: bool,
+    ) {
+        self.statuses = statuses;
+        self.status_save_types.clear();
         self.status_authority_complete = complete;
     }
 

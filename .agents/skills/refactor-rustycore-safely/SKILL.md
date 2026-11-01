@@ -23,6 +23,9 @@ logs. Read [references/refactor-playbook.md](references/refactor-playbook.md). F
 decomposition, also read docs/architecture/module-design-guidelines.md completely; that document
 owns current budgets, bounded exceptions and independent semantic/physical acceptance.
 
+For placement conventions use [develop-rustycore](../develop-rustycore/SKILL.md); do
+mechanical moves with the compiler-guided codemods in `tools/codemods/`.
+
 Inspect current callers, tests and exact C++ behavior before moving the responsibility.
 If ownership or dependency direction is unresolved, use the architecture skill to investigate
 that boundary; keep safe inspection moving. An approved design and implementation request
@@ -75,9 +78,10 @@ Apply the module-design policy to production, tests and fixtures as well as the 
 
 Use AGENTS.md and the validation-v2 operation guide for the actual commands/profiles:
 focused positive/negative tests and affected-crate checks at completed-delivery acceptance;
-author tests during implementation without running per-slice checks. Include explicit production
-integration/failure cases for affected owners; committed-candidate final and exact issue acceptance at
-publication. Set PROTOC for protobuf builds and select the real lib/bin/integration target.
+author tests during implementation without running per-slice checks. Exception: every #1241 PR
+compiles and passes its acceptance (AGENTS.md "#1241 wow-world split programme").
+Include explicit production integration/failure cases for affected owners; committed-candidate
+final and exact issue acceptance at publication. Set PROTOC for protobuf builds and select the real lib/bin/integration target.
 Do not rerun exhaustive inventories per helper or treat a library suite as production wiring proof.
 The playbook provides change-specific evidence; it does not override proportional validation.
 

@@ -4,12 +4,14 @@
 //! and its re-exported names.
 
 pub mod chr_specialization;
+pub mod condition_presence;
 pub mod creature_display;
 pub mod difficulty;
 pub mod lfg_dungeons;
 pub mod skill_catalog;
 
 pub use chr_specialization::*;
+pub use condition_presence::*;
 pub use creature_display::*;
 pub use difficulty::*;
 pub use lfg_dungeons::*;

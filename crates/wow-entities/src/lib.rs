@@ -7,9 +7,11 @@
 
 mod area_trigger;
 mod bag;
+mod character_rules;
 mod conversation;
 mod corpse;
 mod creature;
+pub mod creature_create;
 mod dynamic_object;
 mod game_object;
 mod item;
@@ -19,6 +21,7 @@ mod pet;
 mod player;
 mod player_gameplay_state;
 pub mod player_rules;
+mod quest_objectives;
 mod scene_object;
 mod spell_cast;
 mod totem;
@@ -29,10 +32,34 @@ mod update_fields;
 mod vehicle;
 mod world_object;
 
+pub use character_rules::represented_character_rename_name_result_like_cpp;
+pub use player::{
+    QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp, is_buyback_slot,
+};
+pub use player_rules::{
+    apply_pct_modifier_to_u32_like_cpp, chair_stand_state_like_cpp,
+    item_transmogrification_slot_like_cpp, sanitize_rest_bonus_like_cpp,
+    valid_player_rest_state_like_cpp, xp_in_group_rate_like_cpp,
+};
+pub use quest_objectives::{
+    QuestObjective, QuestObjectiveRulesLikeCpp, ThresholdQuestObjectiveChangeLikeCpp,
+    apply_quest_item_added_bound_to_statuses_like_cpp,
+    apply_quest_item_added_non_bound_to_statuses_like_cpp,
+    apply_quest_item_removed_to_statuses_like_cpp, plan_threshold_quest_objective_changes_like_cpp,
+    player_has_incomplete_quest_objective_for_object_id_like_cpp,
+    represented_can_complete_quest_after_objective_like_cpp,
+    represented_quest_objective_completable_like_cpp,
+    represented_quest_objective_complete_like_cpp,
+};
+
 pub use spell_cast::{
     CastExecutionStateLikeCpp, PendingSpellCastRequestLikeCpp,
     SpellCastBattlePetItemModifiersLikeCpp, SpellCastLocationLikeCpp, SpellCastMetadata,
     SpellCastState, SpellCastTargetsLikeCpp, SpellCastVisualLikeCpp,
+    TRIGGERED_CAST_DIRECTLY_LIKE_CPP, TRIGGERED_FULL_MASK_LIKE_CPP,
+    TRIGGERED_IGNORE_CAST_ITEM_LIKE_CPP, TRIGGERED_IGNORE_GCD_LIKE_CPP,
+    TRIGGERED_IGNORE_POWER_AND_REAGENT_COST_LIKE_CPP,
+    TRIGGERED_IGNORE_SPELL_AND_CATEGORY_CD_LIKE_CPP, bind_area_id_like_cpp,
 };
 
 pub use area_trigger::{
@@ -50,6 +77,7 @@ pub use area_trigger::{
     AreaTriggerDataUpdate, AreaTriggerDataValues, AreaTriggerId, AreaTriggerOrbitInfo,
     AreaTriggerPosition2, AreaTriggerPosition3, AreaTriggerShapeInfo, AreaTriggerShapeType,
     AreaTriggerValuesUpdate, ScaleCurveValues, VisualAnimValues,
+    position_is_within_area_trigger_box_like_cpp,
 };
 pub use bag::{
     Bag, BagCreateError, BagCreateInfo, BagValuesUpdate, CONTAINER_DATA_NUM_SLOTS_BIT,
@@ -72,7 +100,8 @@ pub use corpse::{
     CorpseCustomizationChoice, CorpseDataUpdate, CorpseDataValues, CorpseType, CorpseValuesUpdate,
 };
 pub use creature::{
-    CREATURE_NOPATH_EVADE_TIME_MS, CREATURE_REGEN_INTERVAL_MS, CREATURE_TAPPERS_SOFT_CAP, Creature,
+    ActiveTauntLikeCpp, BASE_ATTACK_TIME_LIKE_CPP, CREATURE_NOPATH_EVADE_TIME_MS,
+    CREATURE_REGEN_INTERVAL_MS, CREATURE_TAPPERS_SOFT_CAP, Creature,
     CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonAuraApplicationLikeCpp,
     CreatureAddonAuraEffectLikeCpp, CreatureAddonLifecycleRecordLikeCpp, CreatureAiOwnershipState,
     CreatureAiState, CreatureAimInitializeOutcomeLikeCpp, CreatureAvoidanceLikeCpp,
@@ -80,15 +109,17 @@ pub use creature::{
     CreatureLifecycleMetadata, CreatureLifecyclePlan, CreatureLifecycleStats,
     CreatureLifecycleStep, CreatureLoadFromDbLifecycleRecord, CreatureModelDimensions,
     CreatureMovementInform, CreatureOwnedLoot, CreatureRuntimeAction, CreatureRuntimeEvadeReason,
-    CreatureRuntimePlan, CreatureRuntimeState, CreatureRuntimeUpdateContext,
-    CreatureSearchFormationOutcomeLikeCpp, CreatureSpawnLifecycleRecord, CreatureSpellClickInform,
-    CreatureTemplateLifecycleRecord, DEFAULT_BOUNDARY_CHECK_TIME_MS, DEFAULT_CORPSE_DELAY_SECS,
+    CreatureRuntimeLikeCpp, CreatureRuntimePlan, CreatureRuntimeState,
+    CreatureRuntimeUpdateContext, CreatureSearchFormationOutcomeLikeCpp,
+    CreatureSpawnLifecycleRecord, CreatureSpellClickInform, CreatureTemplateLifecycleRecord,
+    DEFAULT_BOUNDARY_CHECK_TIME_MS, DEFAULT_CORPSE_DELAY_SECS,
     DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP, DEFAULT_MONSTER_SIGHT_DISTANCE,
     DEFAULT_RESPAWN_DELAY_SECS, LOOT_MODE_DEFAULT, MAX_AGGRO_RESET_TIME_SECS_LIKE_CPP,
     MAX_CREATURE_SPELLS, MovementGeneratorType, PendingCreatureAddonAuraProvenanceLikeCpp,
-    ReactState, VehicleKitCreateInputLikeCpp, game_time_secs_like_cpp,
-    normalize_creature_chase_movement_type_like_cpp,
-    normalize_creature_random_movement_type_like_cpp,
+    ReactState, RuntimeRepresentedActiveGeneratorLikeCpp, RuntimeRepresentedActiveKeyLikeCpp,
+    VISIBILITY_RADIUS_LIKE_CPP, VehicleKitCreateInputLikeCpp, game_time_secs_like_cpp,
+    new_runtime_motion_master_like_cpp, normalize_creature_chase_movement_type_like_cpp,
+    normalize_creature_random_movement_type_like_cpp, runtime_default_generator_like_cpp,
 };
 pub use dynamic_object::{
     DYNAMIC_OBJECT_DATA_CAST_TIME_BIT, DYNAMIC_OBJECT_DATA_CASTER_BIT,
@@ -135,7 +166,7 @@ pub use game_object::{
     GatheringNodeUseSource, GoState, GooberUseSource, GuardPostUseSource, ItemForgeUseSource,
     LootState, MAX_GAMEOBJECT_DATA, MeetingStoneUseSource, NewFlagDropUseSource, NewFlagUseSource,
     QuestgiverUseSource, RitualUseSource, SpellFocusUseSource, SpellcasterUseSource, TrapUseSource,
-    UiLinkUseSource,
+    UiLinkUseSource, ui_link_player_interaction_type_like_cpp,
 };
 pub use item::{
     APPEARANCE_MODIFIER_SLOT_BY_SPEC, ArtifactPower, BOP_TRADEABLE_DURATION_SECS,
@@ -172,7 +203,7 @@ pub use object::{
 pub use object_accessor::{
     AccessorObjectKind, AccessorObjectRef, AccessorPlayer, MapObjectRecord, ObjectAccessor,
     ObjectAccessorError, ObjectAccessorMapSource, PlayerSaveError, PlayerSaveSink,
-    normalize_player_name,
+    normalize_player_name, represented_seer_kinds_like_cpp,
 };
 pub use pet::{
     ActiveState, GROUP_UPDATE_FLAG_PET_LIKE_CPP, GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP,
@@ -201,28 +232,30 @@ pub use player::{
     ACTIVE_PLAYER_DATA_REST_INFO_FIRST_BIT, ACTIVE_PLAYER_DATA_REST_INFO_PARENT_BIT,
     ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT,
     ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT,
-    ACTIVE_PLAYER_DATA_SUMMONED_BATTLE_PET_GUID_BIT, ACTIVE_PLAYER_DATA_TOYS_BIT,
-    ACTIVE_PLAYER_DATA_TRANSMOG_BIT, ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT,
-    ACTIVE_PLAYER_DATA_XP_BIT, ActivePlayerDataUpdate, ActivePlayerDataValues,
-    ApplyEnchantmentArgs, ApplyEnchantmentBaseMod, ApplyEnchantmentCombatRating,
-    ApplyEnchantmentDurationAction, ApplyEnchantmentEffectAction, ApplyEnchantmentEffectKind,
-    ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef, ApplyEnchantmentPlan,
-    ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult, ApplyEnchantmentSkipReason,
-    ApplyEnchantmentSocketContext, ApplyEnchantmentTemplateRef, ApplyEnchantmentUnitMod,
-    ApplyEnchantmentUnitModifier, ArenaEnchantmentItemRef, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START,
-    BANK_SLOT_ITEM_END, BANK_SLOT_ITEM_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END,
-    BUYBACK_SLOT_START, BagTemplateRef, CHILD_EQUIPMENT_SLOT_END, CHILD_EQUIPMENT_SLOT_START,
-    CLASS_HUNTER, CLASS_PALADIN, CLASS_SHAMAN, CLASS_WARRIOR, CanBankItemArgs, CanEquipItemArgs,
-    CanEquipItemOutcome, CanEquipUniqueItemArgs, CanEquipUniqueItemTemplateArgs, CanStoreItemArgs,
-    CanStoreItemOutcome, CanTakeMoreSimilarItemsArgs, CanTakeMoreSimilarItemsOutcome,
-    CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs, DestroyFilteredItemAction,
-    DestroyFilteredItemRef, DestroyItemCountAction, DestroyItemCountItemRef, DestroyItemCountPlan,
-    EquipItemObjectOutcome, EquippedGemRef, FindEquipSlotArgs, ForgottenKnownSpellLikeCpp,
-    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ITEM_LIMIT_CATEGORY_MODE_EQUIP,
-    ITEM_LIMIT_CATEGORY_MODE_HAVE, ItemDurationRef, ItemLimitCategoryTemplate,
-    ItemObjectUpdateLikeCpp, ItemPosCount, ItemSearchCallbackResult, ItemSearchLocation,
-    ItemSlotRef, ItemStorageRef, KEYRING_SLOT_END, KEYRING_SLOT_START, MAX_MONEY_AMOUNT, NULL_BAG,
+    ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT, ACTIVE_PLAYER_DATA_SUMMONED_BATTLE_PET_GUID_BIT,
+    ACTIVE_PLAYER_DATA_TOYS_BIT, ACTIVE_PLAYER_DATA_TRANSMOG_BIT,
+    ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT, ACTIVE_PLAYER_DATA_XP_BIT,
+    ActivePlayerDataUpdate, ActivePlayerDataValues, ApplyEnchantmentArgs, ApplyEnchantmentBaseMod,
+    ApplyEnchantmentCombatRating, ApplyEnchantmentDurationAction, ApplyEnchantmentEffectAction,
+    ApplyEnchantmentEffectKind, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
+    ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult,
+    ApplyEnchantmentSkipReason, ApplyEnchantmentSocketContext, ApplyEnchantmentTemplateRef,
+    ApplyEnchantmentUnitMod, ApplyEnchantmentUnitModifier, ArenaEnchantmentItemRef,
+    AuraDurationUpdatePolicy, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BANK_SLOT_ITEM_END,
+    BANK_SLOT_ITEM_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef,
+    CHILD_EQUIPMENT_SLOT_END, CHILD_EQUIPMENT_SLOT_START, CLASS_HUNTER, CLASS_PALADIN,
+    CLASS_SHAMAN, CLASS_WARRIOR, CanBankItemArgs, CanEquipItemArgs, CanEquipItemOutcome,
+    CanEquipUniqueItemArgs, CanEquipUniqueItemTemplateArgs, CanStoreItemArgs, CanStoreItemOutcome,
+    CanTakeMoreSimilarItemsArgs, CanTakeMoreSimilarItemsOutcome, CanUnequipItemArgs,
+    CanUseItemArgs, CanUseItemTemplateArgs, DestroyFilteredItemAction, DestroyFilteredItemRef,
+    DestroyItemCountAction, DestroyItemCountItemRef, DestroyItemCountPlan, EquipItemObjectOutcome,
+    EquippedGemRef, ExistingStorageStackUpdateLikeCpp, FindEquipSlotArgs,
+    ForgottenKnownSpellLikeCpp, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START,
+    ITEM_LIMIT_CATEGORY_MODE_EQUIP, ITEM_LIMIT_CATEGORY_MODE_HAVE, InventoryStorageMovePlanLikeCpp,
+    ItemDurationRef, ItemLimitCategoryTemplate, ItemObjectUpdateLikeCpp, ItemPosCount,
+    ItemSearchCallbackResult, ItemSearchLocation, ItemSlotRef, ItemStorageRef, KEYRING_SLOT_END,
+    KEYRING_SLOT_START, MAX_MONEY_AMOUNT, NULL_BAG,
     PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT, PLAYER_DATA_CURRENT_SPEC_ID_BIT,
     PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_FLAGS_EX_BIT, PLAYER_DATA_HONOR_LEVEL_BIT,
     PLAYER_DATA_INEBRIATION_BIT, PLAYER_DATA_LOOT_TARGET_GUID_BIT, PLAYER_DATA_NATIVE_SEX_BIT,
@@ -238,58 +271,71 @@ pub use player::{
     PlayerBattlegroundQueueRecord, PlayerBattlegroundQueueSlotLikeCpp,
     PlayerBattlegroundQueueTypeIdLikeCpp, PlayerBattlegroundState, PlayerCinematicStateLikeCpp,
     PlayerCreateLifecycleRecord, PlayerCufProfile, PlayerCurrencyRecord, PlayerCustomizationChoice,
-    PlayerDataUpdate, PlayerDataValues, PlayerDbLoadLifecycleRecord, PlayerDuelInfoLikeCpp,
-    PlayerDuelStateLikeCpp, PlayerEffectiveCombatStatsLikeCpp, PlayerEnchantDuration,
-    PlayerEnchantDurationItemRef, PlayerEnchantTimeUpdate, PlayerEquipmentSetLikeCpp,
-    PlayerEquipmentSetTypeLikeCpp, PlayerEquipmentSetUpdateStateLikeCpp,
-    PlayerEquipmentSetsLikeCpp, PlayerFactionStateLikeCpp, PlayerGameplayLoadPlan,
-    PlayerGameplayLoadRecord, PlayerGameplayLoadStep, PlayerGroupState,
+    PlayerDataUpdate, PlayerDataValues, PlayerDbLoadLifecycleRecord, PlayerDeathOperationContext,
+    PlayerDeathOperationId, PlayerDeathOperationPhase, PlayerDeathOperationSnapshot,
+    PlayerDerivedStatValuesUpdate, PlayerDuelInfoLikeCpp, PlayerDuelStateLikeCpp,
+    PlayerEffectiveCombatStatsLikeCpp, PlayerEnchantDuration, PlayerEnchantDurationItemRef,
+    PlayerEnchantTimeUpdate, PlayerEquipmentSetLikeCpp, PlayerEquipmentSetTypeLikeCpp,
+    PlayerEquipmentSetUpdateStateLikeCpp, PlayerEquipmentSetsLikeCpp, PlayerFactionStateLikeCpp,
+    PlayerGameplayLoadPlan, PlayerGameplayLoadRecord, PlayerGameplayLoadStep, PlayerGroupState,
     PlayerGroupUpdateSequenceLikeCpp, PlayerGuildState, PlayerInventoryItem,
     PlayerInventoryRuntime, PlayerInventoryStorage, PlayerItemBonusStateLikeCpp,
     PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp, PlayerItemSetEffectLikeCpp,
     PlayerItemTimeUpdate, PlayerKnownSpellRecord, PlayerLifecycleMetadata, PlayerLifecyclePower,
     PlayerLoginLifecyclePlan, PlayerLoginLifecycleStep, PlayerMailRecord,
     PlayerPersistentCapabilityStateLikeCpp, PlayerPowerIndexResolver, PlayerQuestGameplayState,
-    PlayerQuestStatusRecord, PlayerRandomBattlegroundState, PlayerReputationStateLikeCpp,
-    PlayerRestState, PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp,
-    PlayerSkillLoadState, PlayerSkillRecord, PlayerSocialState,
-    PlayerSpellAcquisitionSnapshotLikeCpp, PlayerSpellChargeRecord, PlayerSpellCooldownRecord,
-    PlayerSpellLoadState, PlayerSpellRuntimeState, PlayerStorageError, PlayerTalentRuntimeState,
+    PlayerQuestNativeSaveProjectionLikeCpp, PlayerQuestObjectiveSaveValueLikeCpp,
+    PlayerQuestStatusRecord, PlayerQuestStatusSaveIntentLikeCpp,
+    PlayerQuestStatusSaveProjectionLikeCpp, PlayerQuestStatusSaveTypeLikeCpp,
+    PlayerRandomBattlegroundState, PlayerReputationStateLikeCpp, PlayerRestState,
+    PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp, PlayerSkillLoadState,
+    PlayerSkillRecord, PlayerSocialState, PlayerSpellAcquisitionSnapshotLikeCpp,
+    PlayerSpellCastCurrencyDebitActionLikeCpp, PlayerSpellCastItemDebitActionLikeCpp,
+    PlayerSpellCastItemUseOutcomeLikeCpp, PlayerSpellCastItemUsePlanLikeCpp,
+    PlayerSpellCastResourceDebitOutcomeLikeCpp, PlayerSpellCastResourceDebitPlanLikeCpp,
+    PlayerSpellChargeRecord, PlayerSpellCooldownRecord, PlayerSpellLoadState,
+    PlayerSpellRuntimeState, PlayerStorageError, PlayerTalentRuntimeState,
     PlayerTaxiFlightNodeLikeCpp, PlayerTaxiFlightStateLikeCpp, PlayerTaxiState,
     PlayerTradeStateLikeCpp, PlayerTraitConfigDetails, PlayerTraitConfigState, PlayerTraitEntry,
     PlayerTransportState, PlayerValuesUpdate, PlayerVoidStorageItemLikeCpp,
     PlayerWorldInsertionState, PlayerWorldLocalState, PreparedPlayerSpellAcquisitionLikeCpp,
-    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
-    REAGENT_BAG_SLOT_START, REPUTATION_FLAG_AT_WAR_LIKE_CPP, RemoveArenaEnchantmentAction,
-    ReputationRankCounterLikeCpp, ReputationRankCountersLikeCpp, SKILL_ENGINEERING_LIKE_CPP,
-    SKILL_MAIL, SKILL_PLATE_MAIL, SendNewItemArgs, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SendNewItemTemplateRef,
-    SkillEnchantmentItemRef, SkillEnchantmentTemplateRef, SocketedGemUniqueRef,
-    SoulboundTradeableItemRef, SwapBagItemMove, SwapBagItemRef, SwapBagRef,
-    SwapItemBagExchangePlan, SwapItemBagExchangeResult, SwapItemEmptyDestinationPlan,
-    SwapItemEmptyDestinationResult, SwapItemErrorItemOrder, SwapItemMergeFillPlan,
-    SwapItemMergeFillResult, SwapItemMissingPhase, SwapItemOrchestrationPlan,
-    SwapItemOrchestrationResult, SwapItemPreflightItem, SwapItemPreflightPlan,
-    SwapItemPreflightResult, SwapItemRealSwapExecutionPlan, SwapItemRealSwapTarget,
-    SwapItemRealSwapValidationPlan, SwapItemRealSwapValidationResult,
+    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, QuestLogRowUpdateLikeCpp,
+    QuestLogValuesLikeCpp, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
+    REPUTATION_FLAG_AT_WAR_LIKE_CPP, RemoveArenaEnchantmentAction, ReputationRankCounterLikeCpp,
+    ReputationRankCountersLikeCpp, SKILL_ENGINEERING_LIKE_CPP, SKILL_MAIL, SKILL_PLATE_MAIL,
+    SendNewItemArgs, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
+    SendNewItemModifier, SendNewItemPlan, SendNewItemTemplateRef, SkillEnchantmentItemRef,
+    SkillEnchantmentTemplateRef, SocketedGemUniqueRef, SoulboundTradeableItemRef, SwapBagItemMove,
+    SwapBagItemRef, SwapBagRef, SwapItemBagExchangePlan, SwapItemBagExchangeResult,
+    SwapItemEmptyDestinationPlan, SwapItemEmptyDestinationResult, SwapItemErrorItemOrder,
+    SwapItemMergeFillPlan, SwapItemMergeFillResult, SwapItemMissingPhase,
+    SwapItemOrchestrationPlan, SwapItemOrchestrationResult, SwapItemPreflightItem,
+    SwapItemPreflightPlan, SwapItemPreflightResult, SwapItemRealSwapExecutionPlan,
+    SwapItemRealSwapTarget, SwapItemRealSwapValidationPlan, SwapItemRealSwapValidationResult,
     SwapItemRealSwapValidationSubject, TEAM_ALLIANCE_ID, TEAM_HORDE_ID, TEAM_OTHER,
-    TitanGripPenaltyAction, UpdateEnchantTimeAction, UpdateItemDurationAction,
-    UpdateSkillEnchantmentAction, UpdateSkillEnchantmentReason, VisibleItemValues,
-    WeaponDamageBoundLikeCpp, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
-    is_bank_packed_pos, is_bank_pos, is_child_equipment_packed_pos, is_child_equipment_pos,
-    is_equipment_packed_pos, is_equipment_pos, is_inventory_packed_pos, is_inventory_pos,
-    item_resistance_bonus_actions_like_cpp, item_scaling_stat_bonus_actions_like_cpp,
-    item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp,
-    item_weapon_damage_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
+    TitanGripPenaltyAction, TradeTakenItemLikeCpp, UpdateEnchantTimeAction,
+    UpdateItemDurationAction, UpdateSkillEnchantmentAction, UpdateSkillEnchantmentReason,
+    VisibleItemValues, WeaponDamageBoundLikeCpp, explored_zones_db_string_from_blocks_like_cpp,
+    is_bag_pos, is_bank_packed_pos, is_bank_pos, is_child_equipment_packed_pos,
+    is_child_equipment_pos, is_equipment_packed_pos, is_equipment_pos, is_inventory_packed_pos,
+    is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
+    item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp,
+    loaded_enchantment_effect_action_is_unrepresented_like_cpp, make_item_pos,
+    parse_explored_zones_db_string_like_cpp, plan_inventory_storage_move_like_cpp,
+    represented_avg_total_item_level_maybe_replace_slot_like_cpp,
+    represented_item_bonus_action_updates_stats_like_cpp,
+    represented_total_avg_equipment_slot_candidates_like_cpp,
 };
 pub use player_gameplay_state::{
     PlayerAccountHeirloomDataLikeCpp, PlayerCollectionStateLikeCpp, PlayerCurrency,
     PlayerCurrencyState, PlayerDamageControlStateLikeCpp, PlayerFavoriteAppearanceStateLikeCpp,
     PlayerGameplayState, PlayerGossipOptionLikeCpp, PlayerHomebindLikeCpp,
     PlayerInteractionDataLikeCpp, PlayerMenuStateLikeCpp, PlayerMovementControlStateLikeCpp,
-    PlayerPetLifecycleStateLikeCpp, PlayerResurrectionRequestLikeCpp,
-    PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp, PlayerTransferRecovery,
-    PlayerWorldportPostAddLikeCpp, PlayerWorldportPostAddPhaseLikeCpp,
+    PlayerPetLifecycleStateLikeCpp, PlayerResurrectionContinuation, PlayerResurrectionOperation,
+    PlayerResurrectionPhase, PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
+    PlayerTeleportStateLikeCpp, PlayerTransferRecovery, PlayerWorldportPostAddLikeCpp,
+    PlayerWorldportPostAddPhaseLikeCpp, plan_remove_currency_like_cpp,
 };
 pub use scene_object::{
     SCENE_OBJECT_DATA_CREATED_BY_BIT, SCENE_OBJECT_DATA_PARENT_BIT,
@@ -316,7 +362,7 @@ pub use unit::{
     SPELL_AURA_INTERRUPT_FLAG_ATTACKING_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP,
     SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP, SPELL_AURA_MOD_DETECT_RANGE_LIKE_CPP,
     SPELL_AURA_MOD_DETECTED_RANGE_LIKE_CPP, SPELL_AURA_MOD_STALKED_LIKE_CPP,
-    SPELL_AURA_MOD_UNATTACKABLE_LIKE_CPP, UNIT_DATA_ANIM_TIER_BIT,
+    SPELL_AURA_MOD_UNATTACKABLE_LIKE_CPP, UNIT_DATA_ANIM_TIER_BIT, UNIT_DATA_AURA_STATE_BIT,
     UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT, UNIT_DATA_BATTLE_PET_COMPANION_NAME_TIMESTAMP_BIT,
     UNIT_DATA_BOUNDING_RADIUS_BIT, UNIT_DATA_CLASS_ID_BIT, UNIT_DATA_COMBAT_REACH_BIT,
     UNIT_DATA_CRITTER_BIT, UNIT_DATA_DISPLAY_ID_BIT, UNIT_DATA_DISPLAY_POWER_BIT,
@@ -329,13 +375,14 @@ pub use unit::{
     UNIT_DATA_PLAYER_CLASS_ID_BIT, UNIT_DATA_POWER_FIRST_BIT, UNIT_DATA_POWER_PARENT_BIT,
     UNIT_DATA_PVP_FLAGS_BIT, UNIT_DATA_RACE_BIT, UNIT_DATA_SEX_BIT, UNIT_DATA_SHAPESHIFT_FORM_BIT,
     UNIT_DATA_SHEATHE_STATE_BIT, UNIT_DATA_STAND_STATE_BIT, UNIT_DATA_STAND_STATE_PARENT_BIT,
-    UNIT_DATA_TARGET_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT, UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT,
-    UNIT_DATA_VIS_FLAGS_BIT, UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT, Unit,
-    UnitAddToWorldOutcomeLikeCpp, UnitAttackContextLikeCpp, UnitAttackStartOutcome,
-    UnitAttackStopOutcome, UnitDataUpdate, UnitDataValues, UnitHealthRegenInputLikeCpp,
-    UnitPowerRegenInputLikeCpp, UnitPowerRegenOutcomeLikeCpp, UnitPowerRegenStateLikeCpp,
-    UnitRemoveFromWorldOutcomeLikeCpp, UnitSharedVisionSetWorldObjectRequestLikeCpp,
-    UnitValuesUpdate, UnitVisibilityDetectionStateLikeCpp, represented_power_type_from_u8_like_cpp,
+    UNIT_DATA_SUMMON_BIT, UNIT_DATA_TARGET_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT,
+    UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT, UNIT_DATA_VIS_FLAGS_BIT,
+    UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT, Unit, UnitAddToWorldOutcomeLikeCpp,
+    UnitAttackContextLikeCpp, UnitAttackStartOutcome, UnitAttackStopOutcome, UnitDataUpdate,
+    UnitDataValues, UnitHealthRegenInputLikeCpp, UnitPowerRegenInputLikeCpp,
+    UnitPowerRegenOutcomeLikeCpp, UnitPowerRegenStateLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
+    UnitSharedVisionSetWorldObjectRequestLikeCpp, UnitValuesUpdate, UnitVisibilityContext,
+    UnitVisibilityDetectionStateLikeCpp, represented_power_type_from_u8_like_cpp,
 };
 pub use unit_subsystems::{
     ACT_COMMAND_LIKE_CPP, ACT_DISABLED_LIKE_CPP, ACT_ENABLED_LIKE_CPP, ACT_PASSIVE_LIKE_CPP,
@@ -343,8 +390,8 @@ pub use unit_subsystems::{
     AURA_STATE_DEFENSIVE_2, AURA_STATE_ENRAGED, AURA_STATE_FROZEN, AURA_STATE_NONE,
     AURA_STATE_RAID_ENCOUNTER_2, AURA_STATE_ROGUE_POISONED, AURA_STATE_WOUNDED_20_PERCENT,
     AiSubsystem, AppliedAuraRef, AssistanceDistractFinalize, AssistanceMovementFinalize,
-    AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp, AuraRef, AuraSubsystem,
-    AuraThreatSnapshotLikeCpp, COMMAND_ATTACK_LIKE_CPP, COMMAND_FOLLOW_LIKE_CPP,
+    AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp, AuraPersistenceMetadata, AuraRef,
+    AuraSubsystem, AuraThreatSnapshotLikeCpp, COMMAND_ATTACK_LIKE_CPP, COMMAND_FOLLOW_LIKE_CPP,
     COMMAND_STAY_LIKE_CPP, CREATURE_FAMILY_ASSISTANCE_DELAY_MS_LIKE_CPP,
     CURRENT_FIRST_NON_MELEE_SPELL, CURRENT_MAX_SPELL, CharmInfoState, CharmType,
     CombatBeginContextLikeCpp, CombatReferenceState, CombatSubsystem, ControlSubsystem,
@@ -382,8 +429,8 @@ pub use unit_subsystems::{
     UnitSubsystems, VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitCreateOutcomeLikeCpp,
     VehicleKitInstallOutcomeLikeCpp, VehicleKitRemoveOutcomeLikeCpp, VehicleKitState,
     VehicleSubsystem, VisibleAuraApplicationLikeCpp, VisibleAuraEffectAmountLikeCpp,
-    make_unit_action_button_like_cpp, unit_action_button_action_like_cpp,
-    unit_action_button_type_like_cpp,
+    legacy_aura_duration_pair, make_unit_action_button_like_cpp,
+    unit_action_button_action_like_cpp, unit_action_button_type_like_cpp,
 };
 pub use update_fields::{
     ACTIVE_PLAYER_DATA_BITS, AREA_TRIGGER_DATA_BITS, CONTAINER_DATA_BITS, CONVERSATION_DATA_BITS,

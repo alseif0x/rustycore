@@ -1,0 +1,25 @@
+{
+ "slice": "#1363 slice 12b7 (the tavern-resting revalidation -> wow-world-instances instance_session over InstanceSessionHostLikeCpp)",
+ "base": "8d5cb55a0",
+ "moved": [
+  "revalidate_represented_tavern_resting_with_catalog_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn revalidate_represented_tavern_resting_with_catalog_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn revalidate_represented_tavern_resting_with_catalog_like_cpp<H: InstanceSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "wow_world_instances::player_is_in_area_trigger_radius_like_cpp\\(\\s*self\\s*,",
+   "player_is_in_area_trigger_radius_like_cpp(host,"
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

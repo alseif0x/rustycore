@@ -9,7 +9,7 @@ use wow_map::terrain::forever::{
     Error, ForeverTerrain, Ground, Limits, MapParent, Options, Profile, QueryBudget, QueryLimits,
     SourceLimits, StoreLimits, TileKey,
 };
-use wow_world::map_manager::LiveForeverTerrain;
+use wow_world::terrain::LiveForeverTerrain;
 
 fn live(f: &Fixture) -> LiveForeverTerrain {
     LiveForeverTerrain::new(
