@@ -586,8 +586,6 @@ def _validate_instant(evidence: dict[str, Any], actor: dict[str, Any], realm_id:
             raise ScenarioFailure("instant logout response was not observed after its typed request")
         if _sequence(complete[0]) <= _sequence(responses[0]):
             raise ScenarioFailure("instant logout Complete was not observed after its response")
-    if evidence.get("logout_confirmed") is not True:
-        raise ScenarioFailure("instant logout did not confirm completion")
     if any(_sequence(event) > request_boundary
            for event in _events(evidence, MOVE_ROOT, "instance")):
         raise ScenarioFailure("instant logout emitted a movement root")

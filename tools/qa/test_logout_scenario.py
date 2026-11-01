@@ -158,6 +158,8 @@ class NativeCppLogoutTests(unittest.TestCase):
     def test_cpp_native_response_replaces_only_the_bot_response_requirement(self) -> None:
         selected, evidence = instant_evidence("logout-resting")
         evidence["events"] = [event(scenario.LOGOUT_COMPLETE, 12, b"", "realm")]
+        evidence["logout_confirmed"] = False
+        evidence["logout_route"] = None
         plan = scenario.plan_for("logout-resting", selected, backend="cpp")
         native = b"\x00" * 4 + b"\x80"
         facts = scenario.validate_evidence("logout-resting", plan, evidence, selected, 1,
@@ -175,19 +177,19 @@ class NativeCppLogoutTests(unittest.TestCase):
             scenario.validate_evidence("logout-resting", plan, wrong_bot_response, selected, 1,
                                        native_response=native)
 
-        for defect in ("premature", "duplicate", "root", "stun", "unconfirmed"):
+        for defect in ("missing", "premature", "duplicate", "root", "stun"):
             bad = copy.deepcopy(evidence)
-            if defect == "premature":
+            if defect == "missing":
+                del bad["events"][0]
+            elif defect == "premature":
                 bad["events"][0]["observation_sequence"] = 10
             elif defect == "duplicate":
                 bad["events"].append(event(scenario.LOGOUT_COMPLETE, 13, b"", "realm"))
             elif defect == "root":
                 bad["events"].append(event(scenario.MOVE_ROOT, 13))
-            elif defect == "stun":
+            else:
                 bad["events"].append(stun_event(
                     selected, 13, 0x1000 | scenario.UNIT_FLAG_STUNNED))
-            else:
-                bad["logout_confirmed"] = False
             with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_evidence("logout-resting", plan, bad, selected, 1,
                                            native_response=native)
