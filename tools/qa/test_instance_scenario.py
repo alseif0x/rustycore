@@ -84,7 +84,7 @@ def reset_event(sequence: int = 11, body: bytes | None = None,
 class InstancePlanTests(unittest.TestCase):
     def test_observer_and_reset_plans_use_native_logout_and_exact_map_body(self) -> None:
         selected = actor()
-        for plan in (scenario.observer_plan(selected), scenario.reset_plan(selected)):
+        for plan in (scenario.observer_plan(selected), scenario.reset_plan(selected, 1)):
             self.assertEqual(plan["character_guid"], selected["guid"])
             self.assertEqual(plan["finish_policy"], "logout")
         self.assertTrue(scenario.observer_plan(selected)["observe_only"])
@@ -92,9 +92,15 @@ class InstancePlanTests(unittest.TestCase):
         self.assertTrue(disconnect["observe_only"])
         self.assertEqual(disconnect["finish_policy"], "disconnect")
         self.assertEqual(disconnect["actions"], [])
-        plan = scenario.reset_plan(selected)
+        plan = scenario.reset_plan(selected, 1)
         self.assertFalse(plan.get("observe_only", False))
+        self.assertEqual(plan["timeout_ms"], 45_000)
         self.assertEqual(plan["actions"], [
+            {"action": "cast", "spell_id": 8690,
+             "cast_id": {"low": 8_690_001, "high": 0},
+             "target": death_scenario.player_guid(selected, 1)},
+            {"action": "wait_for_packet", "connection": "instance",
+             "opcode": scenario.SMSG_MOVE_TELEPORT, "timeout_ms": 30_000},
             {"action": "reset_instances"},
             {"action": "wait_for_packet", "connection": "instance",
              "opcode": scenario.SMSG_INSTANCE_RESET, "timeout_ms": 5_000},
@@ -238,6 +244,35 @@ class ResetEvidenceTests(unittest.TestCase):
                 scenario.validate_reset_evidence(bad)
 
 
+class NativeResetEvidenceTests(unittest.TestCase):
+    def test_native_hearthstone_worldport_precedes_reset(self) -> None:
+        evidence = {
+            "sent_packets": [
+                typed("cast", "instance", scenario.CMSG_CAST_SPELL, "", 10),
+                sent_reset(20),
+            ],
+            "events": [
+                group_event("instance", scenario.SMSG_MOVE_TELEPORT, "", 15),
+                reset_event(21),
+            ],
+        }
+        facts = scenario.validate_solo_reset_evidence(evidence)
+        self.assertEqual(facts["hearthstone_spell_id"], 8690)
+        self.assertTrue(facts["native_worldport"])
+        self.assertLess(facts["cast_sequence"], facts["teleport_sequence"])
+
+        for defect in ("missing_cast", "missing_teleport", "late_teleport"):
+            bad = copy.deepcopy(evidence)
+            if defect == "missing_cast":
+                bad["sent_packets"] = bad["sent_packets"][1:]
+            elif defect == "missing_teleport":
+                bad["events"] = bad["events"][1:]
+            else:
+                bad["events"][0] = group_event("instance", scenario.SMSG_MOVE_TELEPORT, "", 25)
+            with self.subTest(defect=defect), self.assertRaises(scenario.ScenarioFailure):
+                scenario.validate_solo_reset_evidence(bad)
+
+
 class RunCaseTests(unittest.TestCase):
     def test_report_records_all_passes_lifecycle_and_position_restoration(self) -> None:
         selected = actor()
@@ -246,36 +281,49 @@ class RunCaseTests(unittest.TestCase):
         entry = inside_state(selected, 41)
         reconnect = inside_state(selected, 41)
         full_relogin = inside_state(selected, 42)
+        reset_state = outside_state(selected)
         final = outside_state(selected)
-        reset_evidence = {"sent_packets": [sent_reset()], "events": [reset_event()]}
+        reset_evidence = {
+            "sent_packets": [
+                typed("cast", "instance", scenario.CMSG_CAST_SPELL, "", 10),
+                sent_reset(20),
+            ],
+            "events": [
+                group_event("instance", scenario.SMSG_MOVE_TELEPORT, "", 15),
+                reset_event(21),
+            ],
+        }
         with tempfile.TemporaryDirectory() as raw:
             paths = []
-            for label in ("entry", "reconnect", "relogin", "reset"):
+            for label in ("reset", "entry", "reconnect", "relogin", "final"):
                 path = Path(raw) / f"{label}.json"
                 path.write_text("{}\n", encoding="utf-8")
                 paths.append(path)
-            with patch.object(scenario, "relocate_inside"), \
+            with patch.object(scenario, "relocate_inside") as relocate, \
                     patch.object(scenario, "restore_outside") as restore, \
                     patch.object(scenario.logout_scenario, "_run_single",
-                                 side_effect=[{"lifecycle": "entry"}, {"lifecycle": "disconnect"},
-                                              {"lifecycle": "reconnect"}, {"lifecycle": "relogin"},
-                                              reset_evidence]), \
+                                 side_effect=[reset_evidence, {"lifecycle": "entry"},
+                                              {"lifecycle": "disconnect"},
+                                              {"lifecycle": "reconnect"}, {"lifecycle": "relogin"}]), \
                     patch.object(scenario, "_save_position_snapshot",
-                                 side_effect=[({}, entry, paths[0]), ({}, reconnect, paths[1]),
-                                              ({}, full_relogin, paths[2]), ({}, final, paths[3])]):
+                                 side_effect=[({}, reset_state, paths[0]), ({}, entry, paths[1]),
+                                              ({}, reconnect, paths[2]),
+                                              ({}, full_relogin, paths[3]), ({}, final, paths[4])]):
                 report = scenario._run_case(identity, journal, 1, Mock())
         self.assertEqual(report["scenario"], "instance-solo-reset")
         self.assertEqual(len(report["observations"]), 5)
-        self.assertEqual(report["observations"][0]["instance_id"], 41)
-        self.assertTrue(report["observations"][1]["disconnect_reconnect"])
-        self.assertNotIn("snapshot_sha256", report["observations"][1])
-        self.assertEqual(report["observations"][2]["reconnect_instance_id"], 41)
-        self.assertNotIn("reconnect_same_instance", report["observations"][2])
-        self.assertEqual(report["observations"][3]["full_relogin_instance_id"], 42)
-        self.assertEqual(report["observations"][4]["map_id"], 33)
+        self.assertTrue(report["observations"][0]["native_worldport"])
+        self.assertEqual(report["observations"][0]["hearthstone_spell_id"], 8690)
+        self.assertEqual(report["observations"][1]["instance_id"], 41)
+        self.assertTrue(report["observations"][2]["disconnect_reconnect"])
+        self.assertNotIn("snapshot_sha256", report["observations"][2])
+        self.assertEqual(report["observations"][3]["reconnect_instance_id"], 41)
+        self.assertNotIn("reconnect_same_instance", report["observations"][3])
+        self.assertEqual(report["observations"][4]["full_relogin_instance_id"], 42)
         self.assertEqual(report["final_state"], final)
         self.assertTrue(report["position_restoration"]["outside_home"])
         self.assertFalse(report["position_restoration"]["group_or_lock_rows_mutated"])
+        self.assertEqual(relocate.call_count, 2)
         restore.assert_called_once()
 
     def test_failure_stops_owned_bots_and_restores_owned_position(self) -> None:

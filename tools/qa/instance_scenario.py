@@ -28,6 +28,9 @@ INSTANCE_MAP = 33
 INSTANCE_POSITION = (-228.191, 2111.41, 76.8904)
 CMSG_RESET_INSTANCES = 0x366A
 CMSG_LEAVE_GROUP = 0x364C
+CMSG_CAST_SPELL = 0x329C
+HEARTHSTONE_SPELL_ID = 8690
+SMSG_MOVE_TELEPORT = 0x2E04
 SMSG_INSTANCE_RESET = 0x2686
 SMSG_INSTANCE_RESET_FAILED = 0x2687
 SMSG_RESET_FAILED_NOTIFY = 0x26B7
@@ -51,7 +54,29 @@ def disconnect_observer_plan(actor: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def reset_plan(actor: dict[str, Any]) -> dict[str, Any]:
+def reset_plan(actor: dict[str, Any], realm_id: int) -> dict[str, Any]:
+    return {
+        "character_guid": int(actor["guid"]),
+        "timeout_ms": 45_000,
+        "actions": [
+            {"action": "cast", "spell_id": HEARTHSTONE_SPELL_ID,
+             "cast_id": {"low": 8_690_001, "high": 0},
+             "target": death_scenario.player_guid(actor, realm_id)},
+            death_scenario._wait("instance", SMSG_MOVE_TELEPORT, 30_000),
+            {"action": "reset_instances"},
+            death_scenario._wait("instance", SMSG_INSTANCE_RESET, 5_000),
+        ],
+        "expect": [
+            death_scenario._packet(
+                "instance", SMSG_INSTANCE_RESET, INSTANCE_MAP.to_bytes(4, "little")
+            ),
+            death_scenario._packet("realm", LOGOUT_COMPLETE),
+        ],
+        "finish_policy": "logout",
+    }
+
+
+def group_reset_plan(actor: dict[str, Any]) -> dict[str, Any]:
     return {
         "character_guid": int(actor["guid"]),
         "timeout_ms": 10_000,
@@ -241,13 +266,40 @@ def validate_reset_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_solo_reset_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    facts = validate_reset_evidence(evidence)
+    casts = [packet for packet in evidence.get("sent_packets", [])
+             if isinstance(packet, dict) and packet.get("action") == "cast"
+             and packet.get("connection") == "instance" and packet.get("opcode") == CMSG_CAST_SPELL
+             and packet.get("action_index") is not None
+             and packet.get("write_attempted") is True
+             and packet.get("write_completed") is True and packet.get("write_error") is None]
+    if len(casts) != 1:
+        raise ScenarioFailure("solo reset requires one native Hearthstone cast before reset")
+    teleports = [event for event in evidence.get("events", [])
+                 if isinstance(event, dict) and event.get("connection") == "instance"
+                 and event.get("opcode") == SMSG_MOVE_TELEPORT]
+    if len(teleports) != 1:
+        raise ScenarioFailure("solo reset requires one native Hearthstone worldport")
+    reset_request = next(packet for packet in evidence["sent_packets"]
+                         if isinstance(packet, dict) and packet.get("action") == "reset_instances")
+    if not (_sequence(casts[0]) < _sequence(teleports[0]) < _sequence(reset_request)):
+        raise ScenarioFailure("Hearthstone worldport must precede the solo reset request")
+    facts.update({
+        "hearthstone_spell_id": HEARTHSTONE_SPELL_ID,
+        "cast_sequence": casts[0].get("sequence"),
+        "teleport_sequence": teleports[0].get("sequence"),
+        "native_worldport": True,
+    })
+    return facts
+
+
 def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
               db: death_fixture.MariaDB) -> dict[str, Any]:
     if identity.get("scenario", SCENARIO) == GROUP_SCENARIO:
         return _run_group_case(identity, journal, realm_id, db)
     if identity.get("scenario") == DIFFICULTY_SCENARIO:
         return _run_difficulty_case(identity, journal, realm_id, db)
-    del realm_id
     actor = next(item for item in journal["actors"] if item["name"] == ACTOR_NAME)
     relocated = False
     restored = False
@@ -256,6 +308,16 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
         relocated = True
         observations = []
 
+        reset_pass = death_scenario.BotPass(actor, reset_plan(actor, realm_id), "instance-reset-001")
+        reset_evidence = logout_scenario._run_single(reset_pass, identity)
+        reset_facts = validate_solo_reset_evidence(reset_evidence)
+        _, reset_state, reset_path = _save_position_snapshot(
+            db, journal, actor, identity["capture"], reset_pass.label)
+        validate_outside_state(actor, reset_state)
+        observations.append(logout_scenario._observation(
+            reset_pass, reset_evidence, reset_state, reset_path, reset_facts))
+
+        relocate_inside(db, journal, actor)
         entry_pass = death_scenario.BotPass(actor, observer_plan(actor), "instance-entry-001")
         entry_evidence = logout_scenario._run_single(entry_pass, identity, observer=True)
         _, entry_state, entry_path = _save_position_snapshot(
@@ -297,14 +359,9 @@ def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
 
         restore_outside(db, journal, actor)
         restored = True
-        reset_pass = death_scenario.BotPass(actor, reset_plan(actor), "instance-reset-001")
-        reset_evidence = logout_scenario._run_single(reset_pass, identity)
-        reset_facts = validate_reset_evidence(reset_evidence)
-        _, final_state, final_path = _save_position_snapshot(
-            db, journal, actor, identity["capture"], reset_pass.label)
+        _, final_state, _ = _save_position_snapshot(
+            db, journal, actor, identity["capture"], "instance-final-outside-001")
         validate_outside_state(actor, final_state)
-        observations.append(logout_scenario._observation(
-            reset_pass, reset_evidence, final_state, final_path, reset_facts))
         return {
             "scenario": SCENARIO,
             "epoch": 1,
@@ -581,7 +638,7 @@ def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id:
             {**notify_facts, "not_expelled": True, "instance_id": instance_id}))
 
         success_pass = death_scenario.BotPass(
-            leader, reset_plan(leader), "instance-group-reset-empty-001")
+            leader, group_reset_plan(leader), "instance-group-reset-empty-001")
         success_evidence = logout_scenario._run_single(success_pass, identity)
         success_facts = validate_reset_evidence(success_evidence)
         _, success_state, success_path = _group_snapshot(
