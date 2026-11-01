@@ -1,5 +1,28 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## Forever modular integration accepted — 2026-11-01
+
+Code candidate `1d5dd370cf5d337f606263b20bda92a38e8913d8` replays all 49 non-merge
+Forever commits onto `origin/3.4.3` at `a680ab4328fab903bff5cd17cabd750d3ff716b3`.
+The legacy modular owners remain intact: navigation and terrain adapters live in
+`wow-world-core`, shared handler vocabulary stays in `wow-handler`, and Forever's
+six account-phase handlers use one explicit static registration list without
+`inventory`. Package admission remains available for v23, v56 and v57.
+
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings --logs`
+passed on Linux x86_64 and its manifest was verified green for the final profile:
+`target/validation-v2/manifests/20261101T155505.499900Z-759752-final.json`.
+Focused checks also passed: 12 navigation tests, three terrain tests, one
+feature-disabled regression, 57 Python protocol tests, 460 active `wow-database`
+tests, and 464 handler-contract tests. The timing-sensitive split-death case
+passed independently. The reviewed architecture, net-move and test-census gates
+are green; the 449 new source-local tests remain explicit placement debt, not a
+completed test migration.
+
+This is local structural and synthetic acceptance, not a fresh real-client,
+full-world or extractor-completion claim. No live runtime was activated and no
+private client-data probes were run during this integration.
+
 ## #54 closure execution plan — 2026-10-31
 
 Branch `54-c-character2-complete-logout-admission-countdown-and-cancellation`;
