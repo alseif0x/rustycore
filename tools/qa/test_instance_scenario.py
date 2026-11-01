@@ -380,6 +380,12 @@ class GroupPlanTests(unittest.TestCase):
             "target": death_scenario.player_guid(member, 1),
         })
         self.assertEqual(leader_plan["actions"][1]["connection"], "realm")
+        for plan in (member_plan, leader_plan):
+            self.assertEqual(
+                [rule["opcode"] for rule in plan["expect"]],
+                [scenario.SMSG_PARTY_UPDATE, scenario.SMSG_PARTY_UPDATE,
+                 scenario.LOGOUT_COMPLETE],
+            )
 
         occupied = scenario.member_occupied_plan(member)
         self.assertEqual(occupied["actions"], [{"action": "wait", "milliseconds": 90_000}])
@@ -454,20 +460,35 @@ class GroupResetEvidenceTests(unittest.TestCase):
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_reset_failed_notify_evidence(bad_notify)
 
-    def test_formation_requires_invite_accept_and_party_update_on_both(self) -> None:
+    def test_formation_requires_invite_accept_and_two_party_updates_on_both(self) -> None:
         leader = actor()
         member = member_actor()
         leader_evidence = {
             "sent_packets": [typed("party_invite", "realm", 0x3604, "builder")],
-            "events": [group_event("realm", scenario.SMSG_PARTY_UPDATE)],
+            "events": [
+                group_event("realm", scenario.SMSG_PARTY_UPDATE, "01"),
+                group_event("realm", scenario.SMSG_PARTY_UPDATE, "02", 12),
+            ],
         }
         member_evidence = {
             "sent_packets": [typed("party_invite_response", "realm", 0x3606, "40")],
-            "events": [group_event("realm", scenario.SMSG_PARTY_UPDATE)],
+            "events": [
+                group_event("realm", scenario.SMSG_PARTY_UPDATE, "03"),
+                group_event("realm", scenario.SMSG_PARTY_UPDATE, "04", 12),
+            ],
         }
         scenario.validate_group_formation_evidence(leader_evidence, member_evidence)
-        with self.assertRaises(scenario.ScenarioFailure):
-            scenario.validate_group_formation_evidence(leader_evidence, {"sent_packets": [], "events": []})
+        for count in (0, 1, 3):
+            bad_leader = copy.deepcopy(leader_evidence)
+            bad_member = copy.deepcopy(member_evidence)
+            bad_leader["events"] = [
+                group_event("realm", scenario.SMSG_PARTY_UPDATE) for _ in range(count)
+            ]
+            bad_member["events"] = [
+                group_event("realm", scenario.SMSG_PARTY_UPDATE) for _ in range(count)
+            ]
+            with self.subTest(count=count), self.assertRaises(scenario.ScenarioFailure):
+                scenario.validate_group_formation_evidence(bad_leader, bad_member)
 
 
 class GroupFailureRestorationTests(unittest.TestCase):
@@ -478,11 +499,17 @@ class GroupFailureRestorationTests(unittest.TestCase):
         journal = {"actors": list(actors)}
         leader_evidence = {
             "sent_packets": [typed("party_invite", "realm", 0x3604, "builder")],
-            "events": [group_event("realm", scenario.SMSG_PARTY_UPDATE)],
+            "events": [
+                group_event("realm", scenario.SMSG_PARTY_UPDATE),
+                group_event("realm", scenario.SMSG_PARTY_UPDATE, "", 12),
+            ],
         }
         member_evidence = {
             "sent_packets": [typed("party_invite_response", "realm", 0x3606, "40")],
-            "events": [group_event("realm", scenario.SMSG_PARTY_UPDATE)],
+            "events": [
+                group_event("realm", scenario.SMSG_PARTY_UPDATE),
+                group_event("realm", scenario.SMSG_PARTY_UPDATE, "", 12),
+            ],
         }
         with tempfile.TemporaryDirectory() as raw:
             snapshot = Path(raw) / "snapshot.json"

@@ -405,6 +405,7 @@ def member_invite_plan(member: dict[str, Any]) -> dict[str, Any]:
         ],
         "expect": [
             death_scenario._packet("realm", SMSG_PARTY_UPDATE),
+            death_scenario._packet("realm", SMSG_PARTY_UPDATE),
             death_scenario._packet("realm", LOGOUT_COMPLETE),
         ],
         "finish_policy": "logout",
@@ -421,6 +422,7 @@ def leader_invite_plan(leader: dict[str, Any], member: dict[str, Any],
             death_scenario._wait("realm", SMSG_PARTY_UPDATE, 10_000),
         ],
         "expect": [
+            death_scenario._packet("realm", SMSG_PARTY_UPDATE),
             death_scenario._packet("realm", SMSG_PARTY_UPDATE),
             death_scenario._packet("realm", LOGOUT_COMPLETE),
         ],
@@ -490,10 +492,12 @@ def validate_group_formation_evidence(leader: dict[str, Any], member: dict[str, 
         raise ScenarioFailure("leader did not send exactly one reviewed party invite")
     if len(_typed_packets(member, "party_invite_response", "realm", 0x3606, "40")) != 1:
         raise ScenarioFailure("member did not accept exactly one reviewed party invite")
-    if len(_opcode_events(leader, "realm", SMSG_PARTY_UPDATE, "")) != 1:
-        raise ScenarioFailure("leader did not observe exactly one party update")
-    if len(_opcode_events(member, "realm", SMSG_PARTY_UPDATE, "")) != 1:
-        raise ScenarioFailure("member did not observe exactly one party update")
+    for evidence, client in ((leader, "leader"), (member, "member")):
+        updates = [event for event in evidence.get("events", [])
+                   if isinstance(event, dict) and event.get("connection") == "realm"
+                   and event.get("opcode") == SMSG_PARTY_UPDATE]
+        if len(updates) != 2:
+            raise ScenarioFailure(f"{client} did not observe exactly two party updates")
 
 
 def validate_reset_failed_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
