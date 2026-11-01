@@ -310,6 +310,80 @@ async fn instance_eof_is_fatal_during_actions_even_with_a_previous_logout_marker
     }
 }
 
+#[tokio::test]
+async fn idle_realm_polling_drains_instance_burst_before_packet_wait_deadline() {
+    const AMBIENT_PACKETS: usize = 20;
+    const TARGET_BODY: [u8; 5] = [0; 5];
+
+    let mut controller = packet_controller(packet_plan(
+        Action::WaitForPacket {
+            connection: Connection::Instance,
+            opcode: SMSG_LOGOUT_RESPONSE,
+            timeout_ms: 100,
+        },
+        raw_packet_expectation(
+            Connection::Instance,
+            SMSG_LOGOUT_RESPONSE,
+            &TARGET_BODY,
+        ),
+        200,
+    ));
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let (realm_stream, _realm_peer) = tcp_pair().await;
+    let key = [0x6d; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+    let mut server_crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut burst = Vec::new();
+    for sequence in 0..AMBIENT_PACKETS {
+        burst.extend(encrypted_server_packet(
+            &mut server_crypt,
+            SMSG_ON_MONSTER_MOVE,
+            &[sequence as u8],
+        ));
+    }
+    burst.extend(encrypted_server_packet(
+        &mut server_crypt,
+        SMSG_LOGOUT_RESPONSE,
+        &TARGET_BODY,
+    ));
+    instance_peer.write_all(&burst).await.unwrap();
+
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(100);
+    wait_for_packet(
+        deadline,
+        Connection::Instance,
+        SMSG_LOGOUT_RESPONSE,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+        &mut controller,
+    )
+    .await
+    .expect("1ms realm polling drains the queued instance burst");
+
+    assert!(tokio::time::Instant::now() < deadline);
+    assert_eq!(controller.evidence.events.len(), AMBIENT_PACKETS + 1);
+    for (sequence, event) in controller.evidence.events[..AMBIENT_PACKETS]
+        .iter()
+        .enumerate()
+    {
+        assert_eq!(event.connection, Connection::Instance);
+        assert_eq!(event.opcode, SMSG_ON_MONSTER_MOVE);
+        assert_eq!(event.body_hex, hex::encode([sequence as u8]));
+    }
+    let target = controller.evidence.events.last().unwrap();
+    assert_eq!(target.connection, Connection::Instance);
+    assert_eq!(target.opcode, SMSG_LOGOUT_RESPONSE);
+    assert_eq!(target.body_hex, hex::encode(TARGET_BODY));
+}
+
 #[test]
 fn packet_wait_validation_includes_supported_movement_controls_only_for_waits() {
     let mut plan = packet_plan(

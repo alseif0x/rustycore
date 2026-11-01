@@ -564,6 +564,8 @@ async fn next_packet(
     realm: &mut Option<EncryptedWorldConnection>,
     mut instance_closed: Option<&mut bool>,
 ) -> Result<Option<(Connection, u16, Vec<u8>)>> {
+    const PACKET_POLL_INTERVAL: Duration = Duration::from_millis(1);
+
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
@@ -574,7 +576,7 @@ async fn next_packet(
                 &mut realm.stream,
                 &mut realm.crypt,
                 &mut realm.inflater,
-                remaining.min(Duration::from_millis(10)),
+                remaining.min(PACKET_POLL_INTERVAL),
                 remaining,
                 "cast lifecycle realm packet",
             )
@@ -595,7 +597,7 @@ async fn next_packet(
             // malformed or truncated encrypted frames still fail below.
             let mut byte = [0u8; 1];
             match tokio::time::timeout(
-                remaining.min(Duration::from_millis(10)),
+                remaining.min(PACKET_POLL_INTERVAL),
                 stream.peek(&mut byte),
             )
             .await
@@ -613,7 +615,7 @@ async fn next_packet(
             stream,
             crypt,
             inflater,
-            remaining.min(Duration::from_millis(10)),
+            remaining.min(PACKET_POLL_INTERVAL),
             remaining,
             "cast lifecycle instance packet",
         )
