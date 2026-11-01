@@ -82,9 +82,30 @@ claimed equal.
 The QA harness now drains instance bursts at 1 ms, handles only the demonstrated
 logout EOF/cross-socket races and skips the observer after confirmed completion.
 Twelve packet-wait tests and 34 hermetic logout-runner tests passed. These harness
-fixes do not change server gameplay behavior. Candidate
-`508acacda51215887542532d1a57922783365eaf` still requires its final campaign,
-production integration, exhaustive persistence and publication evidence.
+fixes do not change server gameplay behavior.
+
+### Completed-delivery acceptance at `b454197f7` — 2026-11-01
+
+Candidate `b454197f7a1f00802e5abb66570714e96b677c3c` passed
+`final --architecture --timings --logs` and exact manifest verification in 219.982
+seconds on aarch64 with a clean tree. The ordinary campaign additionally passed 260
+bot tests, 34 runner tests, 643 world-server tests and 42 production-login tests.
+The complete ordinary campaign at `59cb66403` took 744.683 seconds, exceeding the
+600-second performance target; final alone took 232.913 seconds on that earlier
+code-equivalent candidate. R5 remains 1,238 production methods and one thunk;
+`world-server/src/lib.rs` is now 1,995 lines and `account_lookup.rs` 173.
+
+The exhaustive persistence check passed 8,196 production and 2,681 test-fixture rows
+with 1,094 semantic groups (`/tmp/rustycore54-persistence-b454197f7.log`). Its delta
+was reviewed as exactly 15 moved account-lookup rows and 10 RBAC rows; annotations
+and generated policy preserve the root workflows and add the new module only.
+Exhaustive checking took 1,070.417 seconds, separately from the ordinary target.
+
+Final live smoke with debug world-server SHA-256
+`4ca0f2c967241346ac1963aa1bb305b8ad7f39e65195b58d2905931f5a6edd95`
+passed timed in 19,325.465 ms and RBAC revoke with `variant_fixture_restored=true`.
+No RBAC rows remained and the stable runtime was restored. Local acceptance is
+complete; publication, merge and issue closure remain the only outstanding steps.
 
 ## #43 closure execution plan — 2026-10-29
 
