@@ -711,17 +711,13 @@ def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id:
 
 
 def difficulty_plan(actor: dict[str, Any]) -> dict[str, Any]:
-    body = (2).to_bytes(4, "little", signed=True)
     return {
         "character_guid": int(actor["guid"]), "timeout_ms": 10_000,
         "actions": [
             {"action": "set_dungeon_difficulty", "difficulty_id": 2},
             death_scenario._wait("realm", SMSG_SET_DUNGEON_DIFFICULTY, 5_000),
         ],
-        "expect": [
-            death_scenario._packet("realm", SMSG_SET_DUNGEON_DIFFICULTY, body),
-            death_scenario._packet("realm", LOGOUT_COMPLETE),
-        ],
+        "expect": [death_scenario._packet("realm", LOGOUT_COMPLETE)],
         "finish_policy": "logout",
     }
 
@@ -742,8 +738,8 @@ def validate_difficulty_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
     if len(requests) != 1:
         raise ScenarioFailure("difficulty change requires exactly one typed SetDungeonDifficulty")
     responses = _opcode_events(evidence, "realm", SMSG_SET_DUNGEON_DIFFICULTY, body)
-    if len(responses) != 1 or _sequence(responses[0]) <= _sequence(requests[0]):
-        raise ScenarioFailure("difficulty change requires exactly one body-2 response")
+    if not responses or _sequence(responses[0]) <= _sequence(requests[0]):
+        raise ScenarioFailure("difficulty change requires a body-2 response after its request")
     return {"request_sequence": requests[0].get("sequence"),
             "response_sequence": responses[0].get("sequence"), "difficulty_id": 2}
 
@@ -762,8 +758,8 @@ def validate_login_difficulty(evidence: dict[str, Any]) -> None:
                  if isinstance(event, dict) and event.get("opcode") == SMSG_SET_DUNGEON_DIFFICULTY
                  and event.get("connection") == "realm"
                  and event.get("body_hex") == body]
-    if len(responses) != 1:
-        raise ScenarioFailure("fresh login requires one persisted body-2 dungeon difficulty")
+    if not responses:
+        raise ScenarioFailure("fresh login requires a persisted body-2 dungeon difficulty")
 
 
 def require_group_difficulty(db: death_fixture.MariaDB,

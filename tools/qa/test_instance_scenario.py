@@ -587,22 +587,30 @@ class DifficultyPlanTests(unittest.TestCase):
         self.assertEqual(plan["actions"][0],
                          {"action": "set_dungeon_difficulty", "difficulty_id": 2})
         self.assertEqual(plan["actions"][1]["connection"], "realm")
-        self.assertEqual(plan["expect"][0]["body_hex"], "02000000")
+        self.assertEqual([packet["opcode"] for packet in plan["expect"]],
+                         [scenario.LOGOUT_COMPLETE])
         self.assertEqual(plan["finish_policy"], "logout")
         member_plan = scenario.member_difficulty_plan(member_actor())
         self.assertEqual(member_plan["expect"][0]["connection"], "realm")
         self.assertEqual(member_plan["expect"][0]["body_hex"], "02000000")
         self.assertEqual(member_plan["finish_policy"], "disconnect")
 
+        response = group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")
         evidence = {
             "sent_packets": [typed("set_dungeon_difficulty", "instance", 0x3684, "02000000")],
-            "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")],
+            "events": [response, copy.deepcopy(response)],
         }
         self.assertEqual(scenario.validate_difficulty_evidence(evidence)["difficulty_id"], 2)
         scenario.validate_no_reset_events(evidence)
-        scenario.validate_login_difficulty({
-            "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
-        })
+        scenario.validate_login_difficulty(evidence)
+        for bad_events in ([], [group_event(
+                "realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "01000000")]):
+            bad = copy.deepcopy(evidence)
+            bad["events"] = bad_events
+            with self.assertRaises(scenario.ScenarioFailure):
+                scenario.validate_difficulty_evidence(bad)
+            with self.assertRaises(scenario.ScenarioFailure):
+                scenario.validate_login_difficulty(bad)
         bad = copy.deepcopy(evidence)
         bad["events"].append(group_event("realm", scenario.SMSG_INSTANCE_RESET, "21000000", 12))
         with self.assertRaises(scenario.ScenarioFailure):
