@@ -98,6 +98,16 @@ belongs at that existing login phase, through the Social packet owner, preservin
 offline roster slots, per-player sequence numbers and realm delivery. It does not
 require a new group authority or a new task/clock.
 
+The local repair now invokes the Social publisher at that login phase. Its roster
+uses the canonical group's ordered member slots, including offline members, and
+effective race/faction catalogs. The current member receives a direct realm packet
+with its canonical sequence; connected peers use the existing command rail without
+an extra full-state tail. The receiver rejects snapshots after membership changes.
+Worker feedback on the worktree based on `3145e4247` passed
+`cargo check --locked --tests -p wow-world --jobs 1` and
+`cargo test --locked -p wow-world login_group --lib --jobs 1` (3 passed).
+These are coding checks, not a live result or final acceptance at a committed SHA.
+
 The leave harness now waits for and verifies the exact successful native
 `PartyCommandResult` before logout. Difficulty epoch two also waits up to five
 seconds for the server's asynchronously committed group removal, before recovery
@@ -105,13 +115,51 @@ SQL can run. The focused Python suite passes 30 tests. The old native leave trac
 has no acknowledgment and cannot prove server-accepted leaving; renewed evidence
 must exercise the corrected barrier.
 
-Remaining sequence: repair and prove login party publication; finish the bounded
-raid fixture corrections; exercise difficulty/restart and persistent-lock/reset/bind on both
-backends; resolve demonstrated findings; run one completed-delivery acceptance
-with the required production integration and exhaustive persistence evidence;
-then validate the publication candidate and deliver the PR. Preserve the passing
-scenario evidence at its actual code/binary hashes and assess invalidation before
-any rerun. No broad instance or group redesign is implied by this acceptance.
+### Remaining delivery and acceptance gates
+
+The source audit at `3145e4247` also found that the earlier description of pending
+bind as implemented was too broad. `pending_raid_lock.rs` has no production caller,
+and no Player update consumer advances its timer. The opcode consumer cannot
+establish an enter/bind lifecycle by itself. The lock loader constructs realm-zero
+Player GUIDs, whereas login uses realm-qualified Player GUIDs; its exact-key lookup
+therefore needs a configured-realm regression before restart acceptance.
+
+Complete the following units in order, with one implementation worker:
+
+1. Implemented locally: publish the recovered canonical party at the existing login phase. Prove offline
+   roster slots, current-recipient sequence, realm routing and connected recipients.
+2. Correct loaded-lock Player identity using the configured realm, updating all
+   consumers and proving that another realm cannot resolve the loaded lock.
+3. Complete pending bind at actual successful instance entry and the existing
+   admitted Player update phase, between save and death timers. Preserve one pending
+   owner, character/map lifetime checks, explicit acceptance/rejection and automatic
+   confirmation at 60 seconds. No new clock, task or parallel mutable lock authority.
+4. Correct the shared ICC fixture with a durable ownership reservation and guarded
+   stopped-world cleanup. Require actual bind publication, committed character lock
+   contents and relogin; a seeded leader lock alone is not bind acceptance.
+5. Build the committed debug candidate and run difficulty/restart and persistent
+   lock/reset/bind on Rust and the pinned native backend, with action captures and
+   restoration. Reuse prior reset evidence only after reviewing changed consumers.
+6. Run one completed-delivery final campaign with architecture, required production
+   integration, harness tests and exhaustive persistence evidence. Record actual
+   revision, commands, duration and the separate exhaustive/live costs. Review exact
+   policy deltas rather than regenerating baselines to hide failures.
+7. Commit the evidence and prepare the publication candidate. Push, merge and issue
+   closure retain their authority and full acceptance gates.
+
+Unit 3 has a bounded implementation hold on enabling the entry producer: native
+`InstanceMap::AddPlayerToMap` (`Map.cpp:2880-2897`) requires a live instance script,
+and confirmation saves that script's actual data (`Map.cpp:3165-3188`). The Rust
+`InstanceScriptBase` currently has no production map owner; the existing confirmation
+helper supplies an empty data string. Resolve the minimum real script/save-data
+integration and persistence failure semantics before enabling this path. Do not
+replace script existence with a seeded lock, fabricate save data, claim durable
+success without a persistence port, or count helper tests as live acceptance.
+This hold does not block the group publication or lock-identity corrections.
+
+The full issue remains open. Preserve passing scenario evidence at its actual
+code/binary hashes and assess invalidation before rerunning it. A complete raid
+gameplay/script port is not implied by this bounded entry/bind responsibility.
 
 ## #54 closure execution plan — 2026-10-31
 

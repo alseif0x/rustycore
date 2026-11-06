@@ -831,6 +831,8 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         return false;
     }
 
+    host.send_initial_group_update_after_login_like_cpp();
+
     // C++ `Player::LoadCorpse` runs after map insertion and before login is
     // published. Corpse restoration consumes only resurrection catalogs.
     if let Err(reason) = wow_world_entities::restore_player_corpse_after_login(

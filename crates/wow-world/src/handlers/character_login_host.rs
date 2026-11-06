@@ -358,6 +358,12 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         let (state, mut hub) = crate::session::split_social_mut(self);
         state.set_owned_player_group_like_cpp(&mut hub, membership)
     }
+    fn send_initial_group_update_after_login_like_cpp(&mut self) {
+        let (social, mut hub) = crate::session::split_social_mut(self);
+        wow_world_social::group_fanout::send_initial_group_update_after_login_like_cpp(
+            social, &mut hub,
+        );
+    }
     fn void_storage_is_unlocked_like_cpp(&self) -> bool {
         WorldSession::void_storage_is_unlocked_like_cpp(self)
     }
