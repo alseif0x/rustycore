@@ -608,10 +608,12 @@ fn update_instance_lock_replaces_expired_non_extended_lock_like_cpp() {
 
 #[test]
 fn load_from_rows_reconstructs_shared_and_character_locks_like_cpp() {
+    let realm_id = 7;
     let entries = raid_entries();
     let mut mgr = InstanceLockMgr::default();
 
     let issues = mgr.load_from_rows_like_cpp(
+        realm_id,
         [SharedInstanceLockRow {
             instance_id: 9001,
             data: "shared".to_string(),
@@ -634,12 +636,63 @@ fn load_from_rows_reconstructs_shared_and_character_locks_like_cpp() {
     );
 
     assert!(issues.is_empty());
-    let locks =
-        mgr.get_instance_locks_for_player(ObjectGuid::create_global(HighGuid::Player, 0, 55));
+    let player_guid = ObjectGuid::create_player(realm_id, 55);
+    let locks = mgr.get_instance_locks_for_player(player_guid);
     assert_eq!(locks.len(), 1);
     assert_eq!(locks[0].data.data, "player");
     assert_eq!(locks[0].instance_initialization_data().data, "shared");
     assert!(locks[0].extended);
+    assert!(
+        mgr.find_active_instance_lock_at(player_guid, &entries, 100)
+            .is_some()
+    );
+    assert!(
+        mgr.find_instance_lock_exact_like_cpp(
+            player_guid,
+            entries.map_id,
+            entries.difficulty_id,
+            9001
+        )
+        .is_some()
+    );
+    let raid_info = mgr.get_raid_info_locks_for_player_at(
+        player_guid,
+        100,
+        ResetSchedule::default(),
+        |_, _| Some(entries),
+    );
+    assert_eq!(raid_info.len(), 1);
+    assert_eq!(raid_info[0].instance_id, 9001);
+    assert_eq!(raid_info[0].completed_mask, 0b0010);
+    for other_realm in [0, 1] {
+        let wrong_realm_guid = ObjectGuid::create_player(other_realm, 55);
+        assert!(
+            mgr.get_instance_locks_for_player(wrong_realm_guid)
+                .is_empty()
+        );
+        assert!(
+            mgr.find_active_instance_lock_at(wrong_realm_guid, &entries, 100)
+                .is_none()
+        );
+        assert!(
+            mgr.find_instance_lock_exact_like_cpp(
+                wrong_realm_guid,
+                entries.map_id,
+                entries.difficulty_id,
+                9001,
+            )
+            .is_none()
+        );
+        assert!(
+            mgr.get_raid_info_locks_for_player_at(
+                wrong_realm_guid,
+                100,
+                ResetSchedule::default(),
+                |_, _| Some(entries),
+            )
+            .is_empty()
+        );
+    }
     assert_eq!(mgr.statistics().instance_count, 1);
     assert_eq!(mgr.statistics().player_count, 1);
     assert_eq!(mgr.registered_instance_ids_like_cpp_order(), vec![9001]);
@@ -647,10 +700,12 @@ fn load_from_rows_reconstructs_shared_and_character_locks_like_cpp() {
 
 #[test]
 fn raid_info_locks_for_player_match_cpp_send_raid_info_fields() {
+    let realm_id = 0;
     let entries = raid_entries();
     let mut mgr = InstanceLockMgr::default();
 
     mgr.load_from_rows_like_cpp(
+        realm_id,
         [SharedInstanceLockRow {
             instance_id: 9001,
             data: String::new(),
@@ -673,7 +728,7 @@ fn raid_info_locks_for_player_match_cpp_send_raid_info_fields() {
     );
 
     let views = mgr.get_raid_info_locks_for_player_at(
-        ObjectGuid::create_global(HighGuid::Player, 0, 55),
+        ObjectGuid::create_player(realm_id, 55),
         100,
         ResetSchedule::default(),
         |_, _| Some(entries),
@@ -695,10 +750,12 @@ fn raid_info_locks_for_player_match_cpp_send_raid_info_fields() {
 
 #[test]
 fn raid_info_locks_extend_effective_expiry_like_cpp() {
+    let realm_id = 0;
     let entries = raid_entries();
     let mut mgr = InstanceLockMgr::default();
 
     mgr.load_from_rows_like_cpp(
+        realm_id,
         [SharedInstanceLockRow {
             instance_id: 9001,
             data: String::new(),
@@ -721,7 +778,7 @@ fn raid_info_locks_extend_effective_expiry_like_cpp() {
     );
 
     let views = mgr.get_raid_info_locks_for_player_at(
-        ObjectGuid::create_global(HighGuid::Player, 0, 55),
+        ObjectGuid::create_player(realm_id, 55),
         100,
         ResetSchedule::default(),
         |_, _| Some(entries),
@@ -737,10 +794,12 @@ fn raid_info_locks_extend_effective_expiry_like_cpp() {
 
 #[test]
 fn load_from_rows_skips_missing_shared_instance_data_like_cpp() {
+    let realm_id = 0;
     let entries = raid_entries();
     let mut mgr = InstanceLockMgr::default();
 
     let issues = mgr.load_from_rows_like_cpp(
+        realm_id,
         [],
         [CharacterInstanceLockRow {
             player_guid_counter: 55,
@@ -765,7 +824,7 @@ fn load_from_rows_skips_missing_shared_instance_data_like_cpp() {
         }]
     );
     assert!(
-        mgr.get_instance_locks_for_player(ObjectGuid::create_global(HighGuid::Player, 0, 55))
+        mgr.get_instance_locks_for_player(ObjectGuid::create_player(realm_id, 55))
             .is_empty()
     );
     assert_eq!(mgr.registered_instance_ids_like_cpp_order(), vec![9001]);
@@ -773,9 +832,11 @@ fn load_from_rows_skips_missing_shared_instance_data_like_cpp() {
 
 #[test]
 fn cleanup_unreferenced_shared_instance_data_matches_cpp_delete_path() {
+    let realm_id = 0;
     let mut mgr = InstanceLockMgr::default();
 
     let issues = mgr.load_from_rows_like_cpp(
+        realm_id,
         [SharedInstanceLockRow {
             instance_id: 9001,
             data: "orphan".to_string(),
@@ -802,10 +863,12 @@ fn cleanup_unreferenced_shared_instance_data_matches_cpp_delete_path() {
 
 #[test]
 fn cleanup_keeps_referenced_shared_instance_data_like_cpp() {
+    let realm_id = 0;
     let entries = raid_entries();
     let mut mgr = InstanceLockMgr::default();
 
     mgr.load_from_rows_like_cpp(
+        realm_id,
         [SharedInstanceLockRow {
             instance_id: 9001,
             data: "shared".to_string(),

@@ -234,10 +234,11 @@ fn reset_live_map_instance_like_cpp(
             ) else {
                 return InstanceResetResultLikeCpp::Other;
             };
-            let Ok(owner_guid_counter) = i64::try_from(context.owner_guid_counter) else {
+            let Some(owner_guid) =
+                locks.player_guid_for_instance_lock_owner_like_cpp(context.owner_guid_counter)
+            else {
                 return InstanceResetResultLikeCpp::Other;
             };
-            let owner_guid = ObjectGuid::create_player(1, owner_guid_counter);
             if create_map_instance_lock_token_like_cpp(owner_guid, &entries, &lock) != context.token
             {
                 return InstanceResetResultLikeCpp::Other;

@@ -60,7 +60,7 @@ pub fn apply_create_map_side_effects_like_cpp<H: InstanceSessionHostLikeCpp>(
             } => {
                 let owner_guid = i64::try_from(owner_guid_counter)
                     .ok()
-                    .map(|counter| ObjectGuid::create_player(1, counter));
+                    .map(|counter| ObjectGuid::create_player(host.core().realm_id(), counter));
                 let updated = host
                     .resolved_group_guid_like_cpp()
                     .zip(owner_guid)
@@ -90,7 +90,7 @@ pub fn apply_create_map_side_effects_like_cpp<H: InstanceSessionHostLikeCpp>(
             } => {
                 let owner_guid = i64::try_from(owner_guid_counter)
                     .ok()
-                    .map(|counter| ObjectGuid::create_player(1, counter));
+                    .map(|counter| ObjectGuid::create_player(host.core().realm_id(), counter));
                 let created = decision_difficulty_id
                     .zip(owner_guid)
                     .and_then(|(difficulty_id, owner_guid)| {

@@ -202,8 +202,9 @@ fn canonical_instance_count_blocks_new_distinct_instance_like_cpp() {
 #[test]
 fn canonical_instance_count_rejection_marks_new_map_existing_lock_in_use_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
+    session.core.set_realm_id(7);
     let canonical = shared_canonical_map_manager();
-    let player_guid = ObjectGuid::create_player(1, 92);
+    let player_guid = ObjectGuid::create_player(7, 92);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -786,10 +787,11 @@ fn canonical_player_group_adopts_existing_unowned_instance_map_like_cpp() {
 #[test]
 fn canonical_player_existing_instance_map_rejects_incompatible_player_lock_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
+    session.core.set_realm_id(7);
     let canonical = shared_canonical_map_manager();
-    let leader = ObjectGuid::create_player(1, 67);
-    let member = ObjectGuid::create_player(1, 68);
-    let instance_owner = ObjectGuid::create_player(1, 69);
+    let leader = ObjectGuid::create_player(7, 67);
+    let member = ObjectGuid::create_player(7, 68);
+    let instance_owner = ObjectGuid::create_player(7, 69);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(

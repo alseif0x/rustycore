@@ -37,6 +37,7 @@ fn spawn_selected_recovery_root(world: &D3bWorldLikeCpp) -> tokio::task::JoinHan
                 wow_instances::InstanceLockMgr::default(),
             )),
             Arc::new(wow_social::group::GroupRegistry::default()),
+            1,
         ),
         Arc::new(ActiveWorldSessionRegistryLikeCpp::new()),
         Arc::new(wow_data::BattlemasterListStore::from_entries([])),

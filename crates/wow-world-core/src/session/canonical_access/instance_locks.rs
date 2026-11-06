@@ -34,6 +34,16 @@ impl SessionCore {
 }
 
 impl InstanceLockManagerAccessLikeCpp<'_> {
+    pub fn player_guid_for_instance_lock_owner_like_cpp(
+        &self,
+        owner_guid_counter: u64,
+    ) -> Option<ObjectGuid> {
+        Some(ObjectGuid::create_player(
+            self.core.realm_id(),
+            i64::try_from(owner_guid_counter).ok()?,
+        ))
+    }
+
     pub fn reset_schedule_like_cpp(&self) -> ResetSchedule {
         *self.reset_schedule
     }
@@ -102,7 +112,7 @@ impl InstanceLockManagerAccessLikeCpp<'_> {
             is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
         };
         let owner_guid =
-            ObjectGuid::create_player(1, i64::try_from(context.owner_guid_counter).ok()?);
+            self.player_guid_for_instance_lock_owner_like_cpp(context.owner_guid_counter)?;
         let manager = self.core.instance_lock_mgr.as_ref()?.read().ok()?;
         let lock = manager.find_instance_lock_exact_like_cpp(
             owner_guid,

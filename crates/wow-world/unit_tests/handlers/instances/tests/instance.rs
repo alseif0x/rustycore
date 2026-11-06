@@ -393,7 +393,8 @@ async fn stand_state_update_uses_cpp_realm_connection_and_values_use_instance() 
 #[tokio::test]
 async fn reset_instances_handler_resets_live_map_without_expiring_lock_or_persisting_like_cpp() {
     let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
-    let player_guid = ObjectGuid::create_player(1, 42);
+    session.core.set_realm_id(7);
+    let player_guid = ObjectGuid::create_player(7, 42);
     let fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, true);
     let port = Arc::new(InstanceLockPersistenceFixtureLikeCpp::new(
         InstanceLockPersistenceOutcomeLikeCpp::Committed,
@@ -860,11 +861,14 @@ async fn set_difficulty_id_group_persistence_failure_does_not_roll_back_reset_li
 #[tokio::test]
 async fn reset_instances_expired_attached_non_new_lock_is_cannot_reset_like_cpp() {
     let (mut session, send_rx) = make_session();
-    let player_guid = ObjectGuid::create_global(wow_core::guid::HighGuid::Player, 0, 42);
+    session.core.set_realm_id(7);
+    let realm_id = session.core.realm_id();
+    let player_guid = ObjectGuid::create_player(realm_id, 42);
     let mut fixture = install_live_reset_fixture_like_cpp(&mut session, player_guid, false);
     let mut expired = wow_instances::InstanceLockMgr::default();
     let entries = fixture.entries.clone();
     let issues = expired.load_from_rows_like_cpp(
+        realm_id,
         [],
         [wow_instances::CharacterInstanceLockRow {
             player_guid_counter: player_guid.counter() as u64,

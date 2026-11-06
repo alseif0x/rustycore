@@ -122,7 +122,7 @@ impl InstanceState {
     ) -> Option<wow_instances::TransferAbortReason> {
         let player_guid = hub.core.player_guid?;
         let owner_guid_counter = i64::try_from(target_lock_context.owner_guid_counter).ok()?;
-        let owner_guid = ObjectGuid::create_player(1, owner_guid_counter);
+        let owner_guid = ObjectGuid::create_player(hub.core.realm_id(), owner_guid_counter);
         let entries = self.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)?;
         let now = u64::try_from(unix_now()).unwrap_or(0);
         let mgr = hub.core.instance_lock_mgr.as_ref()?;

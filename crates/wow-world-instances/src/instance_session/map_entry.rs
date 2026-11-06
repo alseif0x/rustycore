@@ -520,7 +520,8 @@ fn set_final_map_lock_in_use_like_cpp<H: InstanceSessionHostLikeCpp>(
     let Ok(owner_guid_counter) = i64::try_from(context.owner_guid_counter) else {
         return false;
     };
-    let owner_guid = wow_core::ObjectGuid::create_player(1, owner_guid_counter);
+    let owner_guid =
+        wow_core::ObjectGuid::create_player(host.core().realm_id(), owner_guid_counter);
     host.core()
         .instance_lock_mgr
         .as_ref()

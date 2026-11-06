@@ -84,7 +84,8 @@ fn create_cleanup_test_map(
 
 #[test]
 fn destroyed_map_cleanup_clears_exact_locks_and_groups_idempotently_like_cpp() {
-    let owner = wow_core::ObjectGuid::create_player(1, 42);
+    let realm_id = 7;
+    let owner = wow_core::ObjectGuid::create_player(realm_id, 42);
     let persistent_key = wow_map::MapKey::new(631, 100);
     let temporary_key = wow_map::MapKey::new(632, 200);
     let solo_key = wow_map::MapKey::new(633, 300);
@@ -93,18 +94,38 @@ fn destroyed_map_cleanup_clears_exact_locks_and_groups_idempotently_like_cpp() {
     let temporary_entries = cleanup_test_entries(632, 4, 20);
     let unrelated_entries = cleanup_test_entries(999, 2, 30);
     let mut lock_mgr = wow_instances::InstanceLockMgr::default();
-    lock_mgr.update_instance_lock_for_player_at(
-        owner,
-        &persistent_entries,
-        wow_instances::InstanceLockUpdateEvent {
+    let load_issues = lock_mgr.load_from_rows_like_cpp(
+        realm_id,
+        [],
+        [wow_instances::CharacterInstanceLockRow {
+            player_guid_counter: owner.counter() as u64,
+            map_id: persistent_entries.map_id,
+            lock_id: persistent_entries.lock_id,
             instance_id: 100,
-            new_data: String::new(),
-            instance_completed_encounters_mask: 0,
-            completed_encounter_bit: None,
-            entrance_world_safe_loc_id: None,
-        },
-        wow_instances::ResetSchedule::default(),
-        100,
+            difficulty_id: persistent_entries.difficulty_id,
+            data: String::new(),
+            completed_encounters_mask: 0,
+            entrance_world_safe_loc_id: 0,
+            expiry_time: 500,
+            extended: false,
+        }],
+        |_, _| Some(persistent_entries),
+    );
+    assert!(load_issues.is_empty());
+    assert!(
+        lock_mgr
+            .find_instance_lock_exact_like_cpp(owner, 631, 3, 100)
+            .is_some()
+    );
+    assert!(
+        lock_mgr
+            .find_instance_lock_exact_like_cpp(
+                wow_core::ObjectGuid::create_player(1, 42),
+                631,
+                3,
+                100
+            )
+            .is_none()
     );
     lock_mgr.create_instance_lock_for_new_instance_at(
         owner,
@@ -180,8 +201,11 @@ fn destroyed_map_cleanup_clears_exact_locks_and_groups_idempotently_like_cpp() {
         .into_started()
         .expect("destruction tick");
     assert_eq!(plan.destroyed_maps_like_cpp().len(), 3);
-    let owners =
-        CanonicalMapLifecycleOwnersLikeCpp::new(Arc::clone(&lock_mgr), Arc::clone(&group_registry));
+    let owners = CanonicalMapLifecycleOwnersLikeCpp::new(
+        Arc::clone(&lock_mgr),
+        Arc::clone(&group_registry),
+        realm_id,
+    );
 
     let summary = consume_destroyed_map_cleanup_like_cpp(plan.destroyed_maps_like_cpp(), &owners);
 
@@ -240,7 +264,8 @@ fn destroyed_map_cleanup_clears_exact_locks_and_groups_idempotently_like_cpp() {
 
 #[test]
 fn destroyed_map_lock_failure_does_not_skip_group_unlink_like_cpp() {
-    let owner = wow_core::ObjectGuid::create_player(1, 42);
+    let realm_id = 7;
+    let owner = wow_core::ObjectGuid::create_player(realm_id, 42);
     let key = wow_map::MapKey::new(631, 100);
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     let group = wow_social::group::GroupInfo::new(owner);
@@ -265,6 +290,7 @@ fn destroyed_map_lock_failure_does_not_skip_group_unlink_like_cpp() {
             wow_instances::InstanceLockMgr::default(),
         )),
         Arc::clone(&group_registry),
+        realm_id,
     );
 
     let summary = consume_destroyed_map_cleanup_like_cpp(plan.destroyed_maps_like_cpp(), &owners);

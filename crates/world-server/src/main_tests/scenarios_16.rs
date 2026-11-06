@@ -456,6 +456,7 @@ fn d3b_spawn_canonical_loop_with_like_cpp(
                 wow_instances::InstanceLockMgr::default(),
             )),
             Arc::new(wow_social::group::GroupRegistry::default()),
+            1,
         ),
         Arc::new(ActiveWorldSessionRegistryLikeCpp::new()),
         Arc::new(wow_data::BattlemasterListStore::from_entries([])),

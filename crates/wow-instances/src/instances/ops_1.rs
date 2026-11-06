@@ -21,6 +21,7 @@ impl InstanceLockMgr {
     }
     pub fn load_from_rows_like_cpp(
         &mut self,
+        realm_id: u16,
         shared_rows: impl IntoIterator<Item = SharedInstanceLockRow>,
         character_rows: impl IntoIterator<Item = CharacterInstanceLockRow>,
         mut entries_for: impl FnMut(u32, u8) -> Option<MapDb2Entries>,
@@ -58,8 +59,7 @@ impl InstanceLockMgr {
                 is_flex_locking: true,
                 is_using_encounter_locks: true,
             });
-            let player_guid =
-                ObjectGuid::create_global(HighGuid::Player, 0, row.player_guid_counter as i64);
+            let player_guid = ObjectGuid::create_player(realm_id, row.player_guid_counter as i64);
             let data = InstanceLockData {
                 data: row.data,
                 completed_encounters_mask: row.completed_encounters_mask,

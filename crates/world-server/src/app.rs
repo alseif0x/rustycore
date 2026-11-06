@@ -4201,6 +4201,7 @@ async fn run_inner(
         };
     let mut loaded_instance_lock_mgr = InstanceLockMgr::default();
     let instance_lock_load_issues = loaded_instance_lock_mgr.load_from_rows_like_cpp(
+        realm_id,
         shared_instance_lock_rows,
         character_instance_lock_rows,
         |map_id, difficulty_id| {
@@ -5419,6 +5420,7 @@ async fn run_inner(
         CanonicalMapLifecycleOwnersLikeCpp::new(
             Arc::clone(&instance_lock_mgr),
             Arc::clone(&group_registry),
+            realm_id,
         ),
         Arc::clone(&active_session_registry),
         Arc::clone(&battlemaster_list_typed_store),

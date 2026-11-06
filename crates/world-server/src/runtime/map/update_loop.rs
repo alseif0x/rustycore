@@ -33,16 +33,19 @@ use super::{
 pub(crate) struct CanonicalMapLifecycleOwnersLikeCpp {
     pub instance_lock_mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
     pub group_registry: Arc<wow_social::group::GroupRegistry>,
+    realm_id: u16,
 }
 
 impl CanonicalMapLifecycleOwnersLikeCpp {
     pub(crate) fn new(
         instance_lock_mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
         group_registry: Arc<wow_social::group::GroupRegistry>,
+        realm_id: u16,
     ) -> Self {
         Self {
             instance_lock_mgr,
             group_registry,
+            realm_id,
         }
     }
 }
@@ -66,7 +69,7 @@ pub(crate) fn consume_destroyed_map_cleanup_like_cpp(
                 .and_then(|counter| {
                     owners.instance_lock_mgr.write().ok().map(|mut manager| {
                         manager.set_instance_lock_in_use_like_cpp(
-                            wow_core::ObjectGuid::create_player(1, counter),
+                            wow_core::ObjectGuid::create_player(owners.realm_id, counter),
                             destroyed.key.map_id,
                             context.difficulty_id,
                             context.instance_id,

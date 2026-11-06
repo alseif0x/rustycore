@@ -124,11 +124,20 @@ establish an enter/bind lifecycle by itself. The lock loader constructs realm-ze
 Player GUIDs, whereas login uses realm-qualified Player GUIDs; its exact-key lookup
 therefore needs a configured-realm regression before restart acceptance.
 
+The local lock-identity repair now passes the configured realm into loading and
+uses it for admission, create-map owner reconstruction, reset token checks and
+destroyed-map cleanup. Realm-7 fixtures also reject identical counters from realms
+0 and 1. Worker feedback on the worktree based on `26b6f886a` passed
+`cargo check --locked -p wow-instances` and
+`cargo test --locked -p wow-instances load_from_rows --lib --jobs 1` (2 passed).
+World and world-server consumer checks remain deferred to completed-delivery
+acceptance; these coding checks do not establish live restart behavior.
+
 Complete the following units in order, with one implementation worker:
 
 1. Implemented locally: publish the recovered canonical party at the existing login phase. Prove offline
    roster slots, current-recipient sequence, realm routing and connected recipients.
-2. Correct loaded-lock Player identity using the configured realm, updating all
+2. Implemented locally: correct loaded-lock Player identity using the configured realm, updating all
    consumers and proving that another realm cannot resolve the loaded lock.
 3. Complete pending bind at actual successful instance entry and the existing
    admitted Player update phase, between save and death timers. Preserve one pending
@@ -156,6 +165,14 @@ integration and persistence failure semantics before enabling this path. Do not
 replace script existence with a seeded lock, fabricate save data, claim durable
 success without a persistence port, or count helper tests as live acceptance.
 This hold does not block the group publication or lock-identity corrections.
+
+The pending-state ownership decision is to use the canonical Player, following
+`Player.cpp:327,1087-1095,19006-19020`. Migrate the existing pending value and every
+handler/loot reader together, removing the Session-owned production field. This
+gives retirement and character replacement their natural lifetime without another
+identity mirror or cleanup protocol. Keep that ownership change separate from
+enabling entry publication, timer consumption and script-data persistence. The
+existing admitted Player recovery pass remains the only timer executor.
 
 The full issue remains open. Preserve passing scenario evidence at its actual
 code/binary hashes and assess invalidation before rerunning it. A complete raid
