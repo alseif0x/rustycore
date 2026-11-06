@@ -32,11 +32,41 @@ The working candidate now implements:
   `instance-group-reset` forms a real party, proves occupied notification and
   non-expulsion, then resets empty and disbands. All 15 runner tests pass.
 
-No live instance scenario, paired capture comparison, exhaustive persistence
-check or final campaign has run for this candidate. Next: commit a clean debug
-candidate, run the bounded solo/group scenarios against Rust and pinned C++,
-then exercise difficulty and restart/persistence scenarios.
-Do not claim issue completion from the current focused suites.
+### Resumption audit — 2026-11-06
+
+The clean branch head at resumption was `9e99be318798120472655894ca80c0b40bea7535`.
+Issue #45 remains open and has no PR. The earlier statement that live QA had
+not started is superseded by these inspected artifacts:
+
+- Solo reset passed on both backends, with capture collection and restoration:
+  `/tmp/rustycore45-solo-{rust,cpp}-a56612e4f/death-runtime-report.json`.
+  The three action comparisons (request, reset response, NewWorld) are CLEAN in
+  `/tmp/rustycore45-solo-comparison-a56612e4f-r2/`.
+- Group reset passed on both backends with restoration:
+  `/tmp/rustycore45-group-{rust,cpp}-online-unsaved/death-runtime-report.json`.
+  Four action comparisons (request, failure, occupied notification, success)
+  are CLEAN in `/tmp/rustycore45-group-comparison-a56612e4f/`.
+- Rust difficulty/restart passed both epochs, including persisted difficulty,
+  shared instance admission after restart and cleanup, in
+  `/tmp/rustycore45-difficulty-rust-relocated/`.
+- Native difficulty/restart has successful scenario reports for both epochs in
+  `/tmp/rustycore45-difficulty-cpp-party-timeout/`, but the interrupted wrapper
+  retained only epoch one's capture report and left the fixture journal prepared.
+  This is incomplete acceptance, despite successful scenario observations.
+  On resumption the original stable executable was running, all five journaled
+  actors were offline, no linked group rows or unsupported owned rows remained,
+  and no QA executor was active. Guarded recovery restored only that journal's
+  fixture rows and verified the original runtime/configuration. The separate
+  `recovery-report.json` records the repair; the historical held report and missing
+  epoch-two capture report are not rewritten as a successful run.
+
+Remaining sequence: complete native difficulty capture provenance and paired
+comparisons; review and exercise persistent-lock/reset and bind coverage on both
+backends; resolve demonstrated findings; run one completed-delivery acceptance
+with the required production integration and exhaustive persistence evidence;
+then validate the publication candidate and deliver the PR. Preserve the passing
+scenario evidence at its actual code/binary hashes and assess invalidation before
+any rerun. No broad instance or group redesign is implied by this acceptance.
 
 ## #54 closure execution plan — 2026-10-31
 
