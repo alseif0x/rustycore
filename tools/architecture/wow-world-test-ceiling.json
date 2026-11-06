@@ -345,6 +345,16 @@
    "unit_tests_lines": 278717,
    "unit_tests_tests": 4151,
    "src_tests": 22
+  },
+  {
+   "id": "raise-45-32",
+   "kind": "raise",
+   "issue": 45,
+   "reviewed_at": "2026-11-06",
+   "reason": "Replace two incorrect force-expiry reset assertions with live-map semantics; add 18 net World-composition tests for manual/difficulty reset outcomes, group map ownership and lock lifetime. Reviewed delta: +953 physical lines/+18 tests; no ignored tests or test relocation.",
+   "unit_tests_lines": 279670,
+   "unit_tests_tests": 4169,
+   "src_tests": 22
   }
  ]
 }

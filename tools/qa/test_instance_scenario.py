@@ -392,6 +392,14 @@ def group_event(connection: str, opcode: int, body: str = "", sequence: int = 11
             "connection": connection, "opcode": opcode, "body_hex": body}
 
 
+def party_command_result(name: str, command: int = 2, result: int = 0,
+                         sequence: int = 11, connection: str = "realm") -> dict:
+    encoded_name = name.encode("utf-8")
+    header = ((len(encoded_name) << 15) | (command << 11) | (result << 5)).to_bytes(3, "big")
+    body = header + b"\x00" * 6 + encoded_name
+    return group_event(connection, scenario.SMSG_PARTY_COMMAND_RESULT, body.hex(), sequence)
+
+
 class GroupPlanTests(unittest.TestCase):
     def test_invite_occupied_failure_and_leave_plans_use_native_routes(self) -> None:
         leader = actor()
@@ -432,7 +440,11 @@ class GroupPlanTests(unittest.TestCase):
         self.assertEqual(failed["expect"][0]["body_hex"], "2100000000")
         self.assertEqual(failed["expect"][0]["opcode"], 0x2687)
         leave = scenario.leave_group_plan(leader)
-        self.assertEqual(leave["actions"], [{"action": "leave_group"}])
+        self.assertEqual(leave["actions"], [
+            {"action": "leave_group"},
+            {"action": "wait_for_packet", "connection": "realm",
+             "opcode": scenario.SMSG_PARTY_COMMAND_RESULT, "timeout_ms": 5_000},
+        ])
         self.assertEqual(leave["finish_policy"], "logout")
 
 
@@ -481,8 +493,12 @@ class GroupResetEvidenceTests(unittest.TestCase):
 
         success = {"sent_packets": [sent_reset()], "events": [reset_event()]}
         self.assertEqual(scenario.validate_reset_evidence(success)["map_id"], 33)
-        leave = {"sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")]}
-        scenario.validate_leave_group_evidence(leave)
+        leave = {
+            "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")],
+            "events": [party_command_result(leader["name"])],
+        }
+        self.assertEqual(
+            scenario.validate_leave_group_evidence(leave, leader["name"])["result"], 0)
 
         bad = copy.deepcopy(failed)
         bad["events"].append(group_event("realm", scenario.SMSG_INSTANCE_RESET_FAILED, "2100000000", 12))
@@ -492,6 +508,43 @@ class GroupResetEvidenceTests(unittest.TestCase):
         bad_notify["events"].append(group_event("realm", scenario.SMSG_RESET_FAILED_NOTIFY, "", 12))
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_reset_failed_notify_evidence(bad_notify)
+
+    def test_leave_requires_ordered_successful_party_command_result(self) -> None:
+        leader = actor()
+        self.assertEqual(
+            party_command_result(scenario.ACTOR_NAME)["body_hex"],
+            "0590000000000000005161646561746863617374")
+        request = typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "", sequence=10)
+        valid = {"sent_packets": [request],
+                 "events": [party_command_result(leader["name"], sequence=11)]}
+        facts = scenario.validate_leave_group_evidence(valid, leader["name"])
+        self.assertEqual(facts["command"], 2)
+        self.assertEqual(facts["result"], 0)
+        self.assertEqual(facts["name"], leader["name"])
+        self.assertLess(facts["request_sequence"], facts["response_sequence"])
+
+        malformed = copy.deepcopy(valid)
+        malformed["events"][0]["body_hex"] = malformed["events"][0]["body_hex"][:-2]
+        missing_request_order = copy.deepcopy(valid)
+        del missing_request_order["sent_packets"][0]["observation_sequence"]
+        cases = [
+            ("missing", {"sent_packets": [request], "events": []}),
+            ("malformed", malformed),
+            ("missing request sequence", missing_request_order),
+            ("wrong command", {"sent_packets": [request], "events": [
+                party_command_result(leader["name"], command=1, sequence=11)]}),
+            ("wrong result", {"sent_packets": [request], "events": [
+                party_command_result(leader["name"], result=1, sequence=11)]}),
+            ("wrong party", {"sent_packets": [request], "events": [
+                party_command_result("OtherLeader", sequence=11)]}),
+            ("wrong connection", {"sent_packets": [request], "events": [
+                party_command_result(leader["name"], sequence=11, connection="instance")]}),
+            ("unordered", {"sent_packets": [request], "events": [
+                party_command_result(leader["name"], sequence=9)]}),
+        ]
+        for label, evidence in cases:
+            with self.subTest(label=label), self.assertRaises(scenario.ScenarioFailure):
+                scenario.validate_leave_group_evidence(evidence, leader["name"])
 
     def test_formation_requires_invite_accept_and_two_party_updates_on_both(self) -> None:
         leader = actor()
@@ -659,7 +712,10 @@ class DifficultyRestartTests(unittest.TestCase):
         login = {
             "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
         }
-        leave = {"sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")]}
+        leave = {
+            "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")],
+            "events": [party_command_result(leader["name"])],
+        }
         order = []
 
         def run_single(bot_pass, _identity, observer=False):
@@ -689,7 +745,8 @@ class DifficultyRestartTests(unittest.TestCase):
                                      ({}, outside_state(member), paths[3]),
                                  ]), \
                     patch.object(scenario, "restore_outside") as restore, \
-                    patch.object(scenario, "cleanup_group") as cleanup:
+                    patch.object(scenario, "cleanup_group") as cleanup, \
+                    patch.object(scenario, "_group_rows_absent", return_value=True) as rows_absent:
                 report = scenario._run_difficulty_case(
                     {"scenario": scenario.DIFFICULTY_SCENARIO, "epoch": 2,
                      "capture": Path(raw)}, journal, 1, Mock())
@@ -697,12 +754,72 @@ class DifficultyRestartTests(unittest.TestCase):
         self.assertEqual(report["restart_persistence"]["current_shared_instance"], 42)
         self.assertTrue(report["restart_persistence"]["old_instance_id_not_required"])
         self.assertTrue(report["group_cleanup"]["scenario_group_rows_removed"])
+        self.assertTrue(report["group_cleanup"]["server_leave_rows_absent"])
         self.assertEqual(order[:3], [
             "instance-difficulty-member-restart-001", f"relocate:{leader['name']}",
             "instance-difficulty-leader-restart-001",
         ])
         self.assertEqual(restore.call_count, 2)
-        cleanup.assert_called_once()
+        rows_absent.assert_called_once()
+        cleanup.assert_not_called()
+
+    def test_epoch_two_retained_group_rows_fail_before_recovery_cleanup(self) -> None:
+        leader = actor()
+        member = member_actor()
+        journal = {"actors": [leader, member]}
+        login = {
+            "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
+        }
+        leave = {
+            "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")],
+            "events": [party_command_result(leader["name"])],
+        }
+        order = []
+
+        def run_single(bot_pass, _identity, observer=False):
+            order.append(bot_pass.label)
+            return leave if bot_pass.label == "instance-difficulty-leave-001" else login
+
+        def rows_remain(_db, _actors):
+            order.append("group_rows_present")
+            return False
+
+        def recover_group(_db, _actors, _preflight):
+            order.append("recovery_cleanup")
+
+        with tempfile.TemporaryDirectory() as raw:
+            paths = []
+            for label in ("member", "leader"):
+                path = Path(raw) / f"{label}.json"
+                path.write_text("{}\n", encoding="utf-8")
+                paths.append(path)
+            with patch.object(scenario, "require_group_difficulty",
+                              return_value={"difficulty": 2}), \
+                    patch.object(scenario, "_require_offline"), \
+                    patch.object(scenario.logout_scenario, "_run_single", side_effect=run_single), \
+                    patch.object(scenario, "relocate_inside"), \
+                    patch.object(scenario, "_difficulty_snapshot",
+                                 side_effect=[
+                                     ({}, inside_state(member, 42), paths[0]),
+                                     ({}, inside_state(leader, 42), paths[1]),
+                                 ]), \
+                    patch.object(scenario, "restore_outside"), \
+                    patch.object(scenario, "_group_rows_absent", side_effect=rows_remain), \
+                    patch.object(scenario, "cleanup_group", side_effect=recover_group), \
+                    patch.object(scenario.death_scenario, "_poll_actor_offline"), \
+                    patch.object(scenario.death_scenario, "ACTIVE_BOTS", []), \
+                    patch.object(scenario.time, "monotonic", side_effect=[0.0, 0.0, 5.0]), \
+                    patch.object(scenario.time, "sleep"):
+                with self.assertRaisesRegex(
+                        scenario.ScenarioFailure, "accepted leader leave did not remove"):
+                    scenario._run_difficulty_case(
+                        {"scenario": scenario.DIFFICULTY_SCENARIO, "epoch": 2,
+                         "capture": Path(raw)}, journal, 1, Mock())
+
+        self.assertLess(order.index("instance-difficulty-leave-001"),
+                        order.index("group_rows_present"))
+        self.assertLess(order.index("group_rows_present"), order.index("recovery_cleanup"))
+        self.assertEqual(order.count("recovery_cleanup"), 1)
 
     def test_epoch_two_failure_stops_bots_and_cleans_group(self) -> None:
         leader = actor()

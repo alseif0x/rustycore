@@ -60,8 +60,53 @@ not started is superseded by these inspected artifacts:
   `recovery-report.json` records the repair; the historical held report and missing
   epoch-two capture report are not rewritten as a successful run.
 
-Remaining sequence: complete native difficulty capture provenance and paired
-comparisons; review and exercise persistent-lock/reset and bind coverage on both
+The replacement native campaign at documentation head `bf9f2656d` completed in
+420.96 seconds with both epochs observed, native captures collected and the
+original runtime and fixture restored:
+`/tmp/rustycore45-difficulty-cpp-complete-20261106/death-runtime-report.json`.
+The pinned derived R6 executable remains
+`80f143841b5a7b443022480500760ce336dc83052f05ddd7e3b7be6a6605b02a`.
+The request and first corresponding difficulty response both compare CLEAN
+(one match each; no value, routing, missing or extra differences) against the
+retained Rust capture in `/tmp/rustycore45-difficulty-comparison-20261106/`.
+Its comparison report records the exact commands and input hashes. This is an
+action-specific comparison, not whole-stream party parity.
+
+The acceptance review found two bounded harness gaps. Difficulty epoch two must
+assert the recovered party's leader, roster and difficulty, and server acceptance
+of leaving it, rather than accepting only a difficulty packet and outgoing leave.
+The ICC fixture must seed the shared `instance` row alongside its character lock:
+native `InstanceLockMgr::Load` deletes an instance-ID-bound character lock when
+that shared data is missing. Effective enUS DB2 data has map 631 flags1=16785181
+(no flexible-lock bit) and MapDifficulty row 486, difficulty 4, lock 12, flags 0;
+read-only hotfix queries found no overrides for these rows. The retained metadata
+and file hashes are `/tmp/rustycore45-icc-db2-metadata-20261106.json`.
+The planned bind observation uses native `Player::Update`'s 60-second confirmation
+(`Player.cpp:1087-1095`) and `InstanceMap::CreateInstanceLockForPlayer`
+(`Map.cpp:3165-3188`), followed by DB verification and member relogin. The shared
+fixture row needs journaled ownership and stopped-world cleanup before live use.
+
+The retained party review then established a production gap, rather than only a
+missing assertion: both Rust epoch-two login traces contain zero `PartyUpdate`
+packets, and the raw server capture also contains none. Native traces contain
+the same recovered party, leader 24, both members 20/24, and difficulty 2.
+The read-only layout review and hashed inputs are retained in
+`/tmp/rustycore45-restarted-party-review-20261106.json`; its Rust verdict is
+`missing-party-update`, not PASS. `CharacterHandler.cpp:1214-1224` publishes the
+group after initial map packets and before corpse restoration. The bounded repair
+belongs at that existing login phase, through the Social packet owner, preserving
+offline roster slots, per-player sequence numbers and realm delivery. It does not
+require a new group authority or a new task/clock.
+
+The leave harness now waits for and verifies the exact successful native
+`PartyCommandResult` before logout. Difficulty epoch two also waits up to five
+seconds for the server's asynchronously committed group removal, before recovery
+SQL can run. The focused Python suite passes 30 tests. The old native leave trace
+has no acknowledgment and cannot prove server-accepted leaving; renewed evidence
+must exercise the corrected barrier.
+
+Remaining sequence: repair and prove login party publication; finish the bounded
+raid fixture corrections; exercise difficulty/restart and persistent-lock/reset/bind on both
 backends; resolve demonstrated findings; run one completed-delivery acceptance
 with the required production integration and exhaustive persistence evidence;
 then validate the publication candidate and deliver the PR. Preserve the passing

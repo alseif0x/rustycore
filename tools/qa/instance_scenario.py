@@ -32,6 +32,7 @@ INSTANCE_POSITION = (-228.191, 2111.41, 76.8904)
 CMSG_RESET_INSTANCES = 0x366A
 CMSG_LEAVE_GROUP = 0x364C
 CMSG_CAST_SPELL = 0x329C
+SMSG_PARTY_COMMAND_RESULT = 0x2796
 HEARTHSTONE_SPELL_ID = 8690
 SMSG_NEW_WORLD = 0x2594
 SMSG_INSTANCE_RESET = 0x2686
@@ -459,7 +460,10 @@ def reset_failed_plan(actor: dict[str, Any]) -> dict[str, Any]:
 def leave_group_plan(actor: dict[str, Any]) -> dict[str, Any]:
     return {
         "character_guid": int(actor["guid"]), "timeout_ms": 10_000,
-        "actions": [{"action": "leave_group"}],
+        "actions": [
+            {"action": "leave_group"},
+            death_scenario._wait("realm", SMSG_PARTY_COMMAND_RESULT, 5_000),
+        ],
         "expect": [death_scenario._packet("realm", LOGOUT_COMPLETE)],
         "finish_policy": "logout",
     }
@@ -525,9 +529,31 @@ def validate_reset_failed_notify_evidence(evidence: dict[str, Any]) -> dict[str,
     return {"notify_sequence": notifications[0].get("sequence"), "body_bytes": 0}
 
 
-def validate_leave_group_evidence(evidence: dict[str, Any]) -> None:
-    if len(_typed_packets(evidence, "leave_group", "realm", CMSG_LEAVE_GROUP, "")) != 1:
-        raise ScenarioFailure("leader must send exactly one empty realm LeaveGroup")
+def validate_leave_group_evidence(evidence: dict[str, Any], expected_leader_name: str) -> dict[str, Any]:
+    requests = [packet for packet in evidence.get("sent_packets", [])
+                if isinstance(packet, dict) and packet.get("action") == "leave_group"]
+    completed = _typed_packets(evidence, "leave_group", "realm", CMSG_LEAVE_GROUP, "")
+    if len(requests) != 1 or len(completed) != 1:
+        raise ScenarioFailure("leader must complete exactly one empty realm LeaveGroup")
+
+    name = expected_leader_name.encode("utf-8")
+    if not name or len(name) >= (1 << 9):
+        raise ScenarioFailure("leader name cannot be represented by PartyCommandResult")
+    # PartyCommandResult::Write emits Name(9), Command(4), Result(6), ResultData,
+    # packed empty ResultGUID, then Name. PARTY_OP_LEAVE=2 and ERR_PARTY_RESULT_OK=0.
+    header = ((len(name) << 15) | (2 << 11)).to_bytes(3, "big")
+    expected_body = (header + bytes(6) + name).hex()
+    results = [event for event in evidence.get("events", [])
+               if isinstance(event, dict) and event.get("opcode") == SMSG_PARTY_COMMAND_RESULT]
+    matching = _opcode_events(evidence, "realm", SMSG_PARTY_COMMAND_RESULT, expected_body)
+    request_sequence = _sequence(completed[0])
+    response_sequence = _sequence(matching[0]) if matching else -1
+    if len(results) != 1 or len(matching) != 1 \
+            or request_sequence < 0 or response_sequence <= request_sequence:
+        raise ScenarioFailure(
+            "leader leave requires one ordered successful PARTY_OP_LEAVE PartyCommandResult")
+    return {"request_sequence": request_sequence, "response_sequence": response_sequence,
+            "command": 2, "result": 0, "name": expected_leader_name}
 
 
 def _group_rows_absent(db: death_fixture.MariaDB,
@@ -536,6 +562,19 @@ def _group_rows_absent(db: death_fixture.MariaDB,
     leaders = db.execute(f"SELECT leaderGuid FROM groups WHERE leaderGuid IN ({ids})")
     members = db.execute(f"SELECT memberGuid FROM group_member WHERE memberGuid IN ({ids})")
     return not leaders and not members
+
+
+def _wait_group_rows_absent(db: death_fixture.MariaDB,
+                            actors: tuple[dict[str, Any], dict[str, Any]]) -> None:
+    # Group::Disband queues its transaction asynchronously after the leave response.
+    deadline = time.monotonic() + 5.0
+    while True:
+        if _group_rows_absent(db, actors):
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ScenarioFailure("accepted leader leave did not remove the scenario group rows")
+        time.sleep(min(0.1, remaining))
 
 
 def preflight_group(db: death_fixture.MariaDB, journal: dict[str, Any],
@@ -668,13 +707,13 @@ def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id:
         leave_pass = death_scenario.BotPass(
             leader, leave_group_plan(leader), "instance-group-leave-001")
         leave_evidence = logout_scenario._run_single(leave_pass, identity)
-        validate_leave_group_evidence(leave_evidence)
+        leave_facts = validate_leave_group_evidence(leave_evidence, leader["name"])
         _, leave_state, leave_path = _group_snapshot(
             db, journal, leader, identity["capture"], leave_pass.label, True)
         validate_outside_state(leader, leave_state)
         observations.append(logout_scenario._observation(
             leave_pass, leave_evidence, leave_state, leave_path,
-            {"leave_group_sent": True}))
+            {**leave_facts, "leave_group_accepted": True}))
         cleanup_group(db, actors, preflight)
         _, final_member_state, final_member_path = _group_snapshot(
             db, journal, member, identity["capture"], "instance-group-member-outside-001", True)
@@ -925,13 +964,15 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
         leave_pass = death_scenario.BotPass(
             leader, leave_group_plan(leader), "instance-difficulty-leave-001")
         leave_evidence = logout_scenario._run_single(leave_pass, identity)
-        validate_leave_group_evidence(leave_evidence)
+        leave_facts = validate_leave_group_evidence(leave_evidence, leader["name"])
+        _wait_group_rows_absent(db, actors)
         _, leave_state, leave_path = _difficulty_snapshot(
             db, journal, leader, identity["capture"], leave_pass.label, True, epoch)
         validate_outside_state(leader, leave_state)
         observations.append(logout_scenario._observation(
-            leave_pass, leave_evidence, leave_state, leave_path, {"leave_group_sent": True}))
-        cleanup_group(db, actors, preflight)
+            leave_pass, leave_evidence, leave_state, leave_path,
+            {**leave_facts, "leave_group_accepted": True,
+             "group_rows_absent_after_leave": True}))
         _, final_member_state, final_member_path = _difficulty_snapshot(
             db, journal, member, identity["capture"], "instance-difficulty-member-outside-001",
             True, epoch)
@@ -947,6 +988,7 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
             },
             "group_cleanup": {
                 "scenario_group_rows_removed": True,
+                "server_leave_rows_absent": True,
                 "other_groups_untouched": True,
                 "lock_rows_mutated": False,
                 "member_snapshot_sha256": death_scenario._sha256(final_member_path),
@@ -1284,12 +1326,13 @@ def _run_lock_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: 
         leave_pass = death_scenario.BotPass(
             leader, leave_group_plan(leader), "instance-lock-leave-001")
         leave_evidence = logout_scenario._run_single(leave_pass, identity)
-        validate_leave_group_evidence(leave_evidence)
+        leave_facts = validate_leave_group_evidence(leave_evidence, leader["name"])
         _, leave_state, leave_path = _lock_snapshot(
             db, journal, leader, identity["capture"], leave_pass.label, True, epoch)
         validate_outside_state(leader, leave_state)
         observations.append(logout_scenario._observation(
-            leave_pass, leave_evidence, leave_state, leave_path, {"leave_group_sent": True}))
+            leave_pass, leave_evidence, leave_state, leave_path,
+            {**leave_facts, "leave_group_accepted": True}))
         cleanup_group(db, actors, preflight)
         _, final_member_state, final_member_path = _lock_snapshot(
             db, journal, member, identity["capture"], "instance-lock-member-outside-001",
