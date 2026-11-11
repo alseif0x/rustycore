@@ -41,6 +41,7 @@ fn missing_projection_is_inserted_and_count_is_the_canonical_absolute_count() {
 
 #[test]
 fn already_projected_receipt_is_idempotent_but_still_refreshes_the_absolute_count() {
+    let _serialized = crate::persistence_trace::capture_flag_test_lock();
     assert_eq!(
         plan(entry(), &character(), 7, Some(&last(500))),
         Ok(RecoveryPlan {
@@ -83,6 +84,7 @@ fn newer_last_played_state_is_preserved_even_when_it_belongs_to_another_realm() 
 
 #[test]
 fn older_projection_has_one_coherent_replace_and_count_batch() {
+    let _serialized = crate::persistence_trace::capture_flag_test_lock();
     let policy = plan(entry(), &character(), 3, Some(&last(499))).unwrap();
     assert_eq!(policy.last_played, LastPlayedWrite::Replace);
     let batch = projection(entry(), character(), policy);

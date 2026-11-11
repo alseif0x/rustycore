@@ -55,6 +55,15 @@ prepared privately from the package matching the installed runtime, without a
 system package change. That campaign ended 101 after 853.244 seconds, exceeding
 the 600-second target. A corrected committed-candidate campaign remains required.
 
+The 18939b2ee campaign used the corrected legacy references and private OpenSSL
+headers: all reference contrasts and the QA-bot compilation passed. It ended
+101 after 197.304 seconds with one remaining recording-test failure. Three
+creation tests call production transaction builders internally (journal cleanup
+and two recovery projections); these must use the existing capture-test guard
+for the complete batch lifetime. The pure planning fixtures retain private
+recorders. This is test isolation only; production tracing and all SQL/assertions
+remain unchanged, and publication acceptance is still pending.
+
 ## Forever character creation resumed — 2026-11-06
 
 The active worktree at `03eb9b532` contains uncommitted login/build-70450 and

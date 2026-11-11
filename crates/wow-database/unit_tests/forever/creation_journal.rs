@@ -31,6 +31,7 @@ fn journal_records_the_full_realm_identity_time_and_format_without_personal_data
 
 #[test]
 fn cleanup_requires_the_exact_acknowledged_marker_and_one_affected_row() {
+    let _serialized = crate::persistence_trace::capture_flag_test_lock();
     let statement = entry().delete();
     assert_eq!(
         statement.sql(),
