@@ -19,6 +19,18 @@ Publication acceptance is pending on the committed candidate. Preserve its new
 manifest and logs under target/validation-v2; do not claim the pending server
 library tests, native oracle, DB/restart recovery or runtime acceptance passed.
 
+The first publication campaign at bc8a33a6c passed physical limits, syntax
+ownership, net-move, the test census and formatting, but reported growth in four
+logical-owner aggregates. Their exact Map/composition/quest-fixture/Entity-family
+deltas now have bounded reviews in runtime-ownership-ledger.json; the existing
+#584 retirement conditions remain. No generic baseline or inherited-debt waiver
+is used for this new growth. That campaign was interrupted with exit 143 after
+another host campaign started and inspection found unpublished changes in the
+sibling extractor. Replacement acceptance uses a read-only process-local overlay
+of a clean d8f4044f63f4d47fcb44d655d11cea90889ec8ea extractor checkout, preserving
+the real sibling worktree and the checkout-local Cargo target. Prior partial
+results do not establish publication acceptance for this corrected candidate.
+
 ## Forever character creation resumed — 2026-11-06
 
 The active worktree at `03eb9b532` contains uncommitted login/build-70450 and
