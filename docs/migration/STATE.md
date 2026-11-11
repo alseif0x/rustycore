@@ -15,9 +15,10 @@ in their owning policies; neither grants general growth or retires core debt.
 
 The old /tmp unit artifacts are no longer available. Their historical command
 results below remain dated reports, not fresh evidence for this candidate.
-Publication acceptance is pending on the committed candidate. Preserve its new
-manifest and logs under target/validation-v2; do not claim the pending server
-library tests, native oracle, DB/restart recovery or runtime acceptance passed.
+Publication final passed at bf1cfaf9c281d3204c80903b42980b6ca79edd21; its
+manifest and logs are preserved under target/publication-20261111. Additional
+binary/native evidence retains its c5ece0ba5 SHA as detailed below. DB/restart
+recovery and runtime acceptance remain absent; creation stays disabled.
 
 The first publication campaign at bc8a33a6c passed physical limits, syntax
 ownership, net-move, the test census and formatting, but reported growth in four
@@ -94,6 +95,21 @@ publication elapsed time includes host waits and coding/error repair, measured
 separately from acceptance commands. The 853.244-second attempt alone exceeded
 the 600-second acceptance target; a later green rerun cannot erase that overrun.
 Corrected committed-candidate acceptance is pending.
+
+The corrected committed candidate bf1cfaf9c281d3204c80903b42980b6ca79edd21
+passed `validation-v2 final --base 03eb9b5320af5cf6cbca79388179f73384d8b1a9
+--architecture --timings --logs --keep-going --require-changes` with one Cargo
+job and a clean worktree, from 13:21:35.652Z to 13:24:41.666Z (186.013 seconds).
+All 19 declared commands passed, including workspace/all-target compilation,
+10,174 selected library tests (17 ignored), 464 contract-checker tests and QA-bot
+compilation. `verify --require-profile final` verified the green manifest
+target/publication-20261111/final-bf1cfaf9c.json. The private dependency/header
+setup and separate C++ reference pins above remained in effect. The test fixture
+follow-up has no production/binary/native input delta from c5ece0ba5, so its
+additional evidence is reused at that original SHA, without relabelling it.
+This subsequent documentation-only closeout does not change the tested code;
+its hygiene evidence and exact publication SHA are recorded separately. The
+earlier 853.244-second failure and missing live/durability evidence remain.
 
 ## Forever character creation resumed — 2026-11-06
 
