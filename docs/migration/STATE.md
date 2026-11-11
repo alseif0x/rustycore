@@ -31,6 +31,16 @@ of a clean d8f4044f63f4d47fcb44d655d11cea90889ec8ea extractor checkout, preservi
 the real sibling worktree and the checkout-local Cargo target. Prior partial
 results do not establish publication acceptance for this corrected candidate.
 
+The pinned-sibling campaign at 3eb3038ea passed architecture and syntax
+ownership, then its workspace all-target check returned 101: the two new
+loaded-grid consumer tests imported private loader aliases for public persistence
+row types. The dependent test compilation was stopped (143) so the same known
+compile error is repaired before further acceptance. The repair uses the
+original public persistence types, with fixture values/assertions and production
+visibility unchanged. The recorded host wait was 3,088.14 seconds; the attempted
+campaign itself ran 295.34 seconds. Those costs and the earlier failed campaign
+remain separate recorded attempts, not a green ten-minute acceptance result.
+
 ## Forever character creation resumed — 2026-11-06
 
 The active worktree at `03eb9b532` contains uncommitted login/build-70450 and

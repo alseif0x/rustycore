@@ -2,9 +2,7 @@
 
 use super::initialize_loaded_grid_primary_records_default_motion_like_cpp;
 use crate::runtime::map::LoadedGridAreaTriggerLoadSummaryLikeCpp;
-use crate::spawn_store_loader::{
-    WaypointPathNodeRowLikeCpp, WaypointPathRowLikeCpp, WaypointPathStoreLikeCpp,
-};
+use crate::spawn_store_loader::WaypointPathStoreLikeCpp;
 use wow_constants::{DeathState, TypeId, TypeMask};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_entities::{
@@ -99,20 +97,24 @@ fn materialize(
 
 fn waypoint_paths() -> WaypointPathStoreLikeCpp {
     let (store, report) = WaypointPathStoreLikeCpp::from_rows_like_cpp(
-        [30, 40].map(|path_id| WaypointPathRowLikeCpp {
-            path_id,
-            move_type: 1,
-            flags: 0,
-        }),
-        [30, 40].map(|path_id| WaypointPathNodeRowLikeCpp {
-            path_id,
-            node_id: 7,
-            x: 11.0,
-            y: 12.0,
-            z: 13.0,
-            orientation: Some(1.5),
-            delay: 250,
-        }),
+        [30, 40].map(
+            |path_id| wow_persistence::WaypointPathPersistenceRowLikeCpp {
+                path_id,
+                move_type: 1,
+                flags: 0,
+            },
+        ),
+        [30, 40].map(
+            |path_id| wow_persistence::WaypointPathNodePersistenceRowLikeCpp {
+                path_id,
+                node_id: 7,
+                x: 11.0,
+                y: 12.0,
+                z: 13.0,
+                orientation: Some(1.5),
+                delay: 250,
+            },
+        ),
     );
     assert_eq!(report.paths_loaded, 2);
     assert_eq!(report.nodes_loaded, 2);
