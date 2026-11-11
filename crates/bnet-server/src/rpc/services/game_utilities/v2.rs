@@ -25,19 +25,39 @@ pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<Option<Vec<u8>>> {
     match method & 0x3FFF_FFFF {
         1 => {
-            let request: wire::ProcessTaskRequest = decode(payload)?;
+            let request: wire::ProcessTaskRequest = match decode(payload) {
+                Ok(request) => request,
+                Err(error) => {
+                    eprintln!(
+                        "Forever GameUtilities decode rejected: payload_bytes={}",
+                        payload.len()
+                    );
+                    return Err(error);
+                }
+            };
             if !session.authed {
+                eprintln!("Forever GameUtilities rejected an unauthenticated request");
                 return Err(RpcStatusError::new(status::ERROR_DENIED).into());
             }
             let request = project_attributes(request.attribute);
+            eprintln!(
+                "Forever GameUtilities attributes: authed={}, count={}, names={:?}",
+                session.authed,
+                request.attribute.len(),
+                request
+                    .attribute
+                    .iter()
+                    .map(|attr| attr.name.as_str())
+                    .collect::<Vec<_>>()
+            );
             let command = find_command_attr_like_cpp(&request.attribute)
                 .map(|attr| remove_suffix(&attr.name))
                 .ok_or_else(|| RpcStatusError::new(status::ERROR_RPC_MALFORMED_REQUEST))?;
-            tracing::debug!(command, "GameUtilities V2 command");
+            eprintln!("Forever GameUtilities command: {command}");
             discovery_trace::trace_discovery(command, &request.attribute);
             let response = match command {
                 "Command_SuperDistrictListRequest_v1" => {
-                    if session.build != 70170 {
+                    if !crate::realm::forever::is_supported_build(session.build) {
                         return Err(RpcStatusError::new(status::ERROR_RPC_NOT_IMPLEMENTED).into());
                     }
                     // Discovery is admitted only after a game-account ticket.
@@ -71,7 +91,7 @@ pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
                             RpcStatusError::new(status::ERROR_UTIL_SERVER_UNKNOWN_REALM).into()
                         );
                     }
-                    if session.build == 70170 {
+                    if crate::realm::forever::is_supported_build(session.build) {
                         let account = account_info_or_status_like_cpp(
                             session.account_info.as_ref(),
                             status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT,
@@ -88,6 +108,7 @@ pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
                             &session.state().realm_mgr.read(),
                             game,
                             &request,
+                            session.build,
                             now,
                         )?;
                         Some(response.encode_to_vec())
@@ -157,7 +178,7 @@ async fn realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
     if account.is_banned {
         return Err(RpcStatusError::new(status::ERROR_GAME_ACCOUNT_SUSPENDED).into());
     }
-    let (secret, variant) = if session.build == 70170 {
+    let (secret, variant) = if crate::realm::forever::is_supported_build(session.build) {
         let (secret, variant) = parse_realm_list_ticket_client_info_v2_like_cpp(&request.attribute)
             .ok_or_else(|| {
                 RpcStatusError::new(status::ERROR_WOW_SERVICES_DENIED_REALM_LIST_TICKET)

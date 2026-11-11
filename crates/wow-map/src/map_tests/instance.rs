@@ -536,7 +536,8 @@ fn insert_map_object_record_preserves_shared_typed_authority_for_same_guid_refre
             .installed()
     );
     let creature_record = MapObjectRecord::new_creature(creature).unwrap();
-    let creature_refresh = creature_record.clone();
+    let creature_refresh =
+        MapObjectRecord::new_creature(creature_record.creature().unwrap().clone()).unwrap();
     let creature_authority = creature_record
         .creature()
         .unwrap()
@@ -591,7 +592,8 @@ fn insert_map_object_record_preserves_shared_typed_authority_for_same_guid_refre
             .installed()
     );
     let gameobject_record = MapObjectRecord::new_game_object(gameobject).unwrap();
-    let gameobject_refresh = gameobject_record.clone();
+    let gameobject_refresh =
+        MapObjectRecord::new_game_object(gameobject_record.game_object().unwrap().clone()).unwrap();
     let gameobject_authority = gameobject_record
         .game_object()
         .unwrap()

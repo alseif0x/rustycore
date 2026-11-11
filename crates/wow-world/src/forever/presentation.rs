@@ -99,6 +99,7 @@ pub(super) fn initialize(
     // Explicit isolated policy: no shop/commerce/support integrations. Defaults
     // below are SystemPackets.h, not zero-filled guesses at required fields.
     let glue = packet::ClassicGlueScreen70009 {
+        bpay_store_available: policy.classic_friends_subscriptions,
         commerce_price_poll_time_seconds: 0,
         redeem_for_balance_amount: 0,
         max_characters_on_realm: policy.max_characters,
@@ -121,10 +122,15 @@ pub(super) fn initialize(
     }
     .encode_payload()
     .map_err(codec)?;
+    let hotfix_locale = match identity.dbc_locale {
+        0 => "enUS",
+        6 => "esES",
+        _ => return Err(SessionError::Protocol),
+    };
     let hotfixes = packet::AvailableHotfixes {
         virtual_realm_address: identity.realm_address as i32,
         hotfixes: hotfixes
-            .available_hotfix_ids("esES")
+            .available_hotfix_ids(hotfix_locale)
             .into_iter()
             .map(|id| packet::HotfixId {
                 push_id: id.push_id,
@@ -146,8 +152,7 @@ pub(super) fn initialize(
         }),
     }
     .encode_payload();
-    // 02245dcd WorldSession.cpp::InitializeSessionCallback source order.
-    Ok(vec![
+    let mut messages = vec![
         Outgoing::new(0x460001, auth),
         Outgoing::new(0x460123, timezone),
         Outgoing::new(0x460064, glue),
@@ -171,11 +176,70 @@ pub(super) fn initialize(
             0x4602B1,
             packet::ConnectionStatus {
                 state: 1,
-                // BattlenetPackets.h default; InitializeSessionCallback only sets State.
-                suppress_notification: true,
+                suppress_notification: !policy.classic_friends_subscriptions,
             }
             .encode_payload()
             .map_err(codec)?,
         ),
-    ])
+    ];
+    if policy.classic_friends_subscriptions {
+        let variables = [
+            ("raidLockoutExtendEnabled", "1"),
+            ("sellAllJunkEnabled", "1"),
+            ("bypassItemLevelScalingCode", "0"),
+            ("shop2Enabled", "0"),
+            (
+                "shop2HostUrlRequests",
+                "https://trinity.actual.battle.net:8443",
+            ),
+            ("shop2HostUrlAuth", "https://trinity.actual.battle.net:8443"),
+            ("shop2UseConnectedRealmGameServiceRegionId", "0"),
+            ("bpayStoreEnable", "1"),
+            ("recentAlliesEnabledClient", "1"),
+            ("recentAlliesRequestDataThrottle", "180"),
+            ("socialUIEnabledClient", "1"),
+            ("battleNetTitleFriendsEnabledClient", "1"),
+            ("battleNetTitleFriendTagsEnabledClient", "1"),
+            ("battleNetTitleFriendCustomNamesEnabledClient", "1"),
+            ("socialUIFriendsListEnabledClient", "1"),
+            ("socialUIRaidListEnabledClient", "1"),
+            ("socialUISocialQueueEnabledClient", "1"),
+            ("legacyFriendSystemEnabledClient", "1"),
+            ("browserEnabled", "1"),
+            ("housingEnableCreateGuildNeighborhood", "0"),
+            ("housingEnableDeleteHouse", "0"),
+            ("housingServiceEnabled", "0"),
+            ("housingEnableMoveHouse", "0"),
+            ("housingEnableCreateCharterNeighborhood", "0"),
+            ("housingEnableBuyHouse", "0"),
+            ("housingMarketEnabled", "0"),
+        ]
+        .map(|(name, value)| packet::MirrorVar {
+            name: name.into(),
+            value: value.into(),
+        });
+        messages.insert(
+            3,
+            Outgoing::new(
+                packet::MIRROR_VARS_OPCODE,
+                packet::MirrorVars {
+                    variables: variables.to_vec(),
+                }
+                .encode_payload()
+                .map_err(codec)?,
+            ),
+        );
+        for (service_hash, data) in [
+            (packet::battlenet::FRIENDS_SERVICE_HASH, vec![]),
+            (packet::battlenet::BLOCK_LIST_SERVICE_HASH, vec![0x0A, 0x00]),
+        ] {
+            messages.push(Outgoing::new(
+                packet::battlenet::BATTLENET_RESPONSE_OPCODE,
+                packet::battlenet::BattlenetResponse::subscription(service_hash, data)
+                    .encode_payload()
+                    .map_err(codec)?,
+            ));
+        }
+    }
+    Ok(messages)
 }

@@ -133,6 +133,7 @@ mod tests {
 pub struct AccountInfo {
     pub id: u32,
     pub login: String,
+    pub battle_tag: Option<String>,
     pub is_locked_to_ip: bool,
     pub lock_country: String,
     pub last_ip: String,

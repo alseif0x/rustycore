@@ -26,53 +26,15 @@ impl Player {
     /// inventory runtime (the position authority in production): a top-level
     /// record (never buyback) or an object contained in a top-level bag.
     pub fn trade_item_position_like_cpp(&self, item_guid: ObjectGuid) -> Option<(u8, u8)> {
-        let runtime = self.inventory_runtime_like_cpp();
-        if let Some((&slot, _)) = runtime
-            .inventory_items()
-            .iter()
-            .find(|(slot, record)| record.guid == item_guid && !crate::is_buyback_slot(**slot))
-        {
-            return Some((INVENTORY_SLOT_BAG_0, slot));
-        }
-        let item = runtime.item_objects().get(&item_guid)?;
-        let container = item.container_guid();
-        if container.is_empty() {
-            return None;
-        }
-        let bag = runtime
-            .inventory_items()
-            .iter()
-            .find(|(slot, record)| record.guid == container && !crate::is_buyback_slot(**slot))
-            .map(|(&slot, _)| slot)
-            .or_else(|| {
-                self.inventory()
-                    .bags
-                    .iter()
-                    .enumerate()
-                    .find_map(|(slot, storage)| {
-                        storage
-                            .as_ref()
-                            .filter(|storage| storage.bag_guid == container)
-                            .map(|_| slot as u8)
-                    })
-            })?;
-        Some((bag, item.slot()))
+        self.inventory_runtime
+            .trade_item_position_like_cpp(&self.inventory, item_guid)
     }
 
     /// The bag item at a bag slot: the runtime record (production), else the
     /// native bag storage.
     pub fn trade_bag_guid_like_cpp(&self, bag: u8) -> Option<ObjectGuid> {
-        self.inventory_runtime_like_cpp()
-            .inventory_items()
-            .get(&bag)
-            .map(|record| record.guid)
-            .or_else(|| {
-                self.inventory()
-                    .bags
-                    .get(bag as usize)
-                    .and_then(Option::as_ref)
-                    .map(|storage| storage.bag_guid)
-            })
+        self.inventory_runtime
+            .trade_bag_guid_like_cpp(&self.inventory, bag)
     }
 
     /// C++ `Player::MoveItemFromInventory(bag, slot, update)`: the item leaves
@@ -194,16 +156,8 @@ impl Player {
     /// The item at a storage position, as `Player::GetItemByPos` resolves it
     /// over the inventory runtime.
     pub fn trade_item_at_like_cpp(&self, bag: u8, slot: u8) -> Option<&Item> {
-        let runtime = self.inventory_runtime_like_cpp();
-        if bag == INVENTORY_SLOT_BAG_0 {
-            let guid = runtime.inventory_items().get(&slot)?.guid;
-            return runtime.item_objects().get(&guid);
-        }
-        let bag_guid = self.trade_bag_guid_like_cpp(bag)?;
-        runtime
-            .item_objects()
-            .values()
-            .find(|item| item.container_guid() == bag_guid && item.slot() == slot)
+        self.inventory_runtime
+            .trade_item_at_like_cpp(&self.inventory, bag, slot)
     }
 }
 

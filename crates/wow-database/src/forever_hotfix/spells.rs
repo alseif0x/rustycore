@@ -75,6 +75,7 @@ impl ForeverHotfixRepository {
         };
         for (table, sql) in QUERIES.iter().enumerate() {
             for custom in [false, true] {
+                eprintln!("spell overlay query: table={table} custom={custom}");
                 let mut statement = PreparedStatement::new(*sql);
                 statement.set_bool(0, !custom);
                 let mut result = self

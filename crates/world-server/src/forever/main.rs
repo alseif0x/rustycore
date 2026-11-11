@@ -6,6 +6,7 @@ mod birth_skill_lookup;
 mod bootstrap;
 mod character_capture;
 mod connection;
+mod game_utilities;
 mod initialization;
 mod item_specs;
 mod items;
@@ -13,6 +14,7 @@ mod name_regex;
 mod names;
 mod navigation;
 mod ruleset;
+mod skill_status_order;
 mod spell_book_order;
 mod spell_random;
 mod spell_traversal;
@@ -39,7 +41,8 @@ async fn run() -> Result<()> {
     let runtime = bootstrap::load().await?;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:18085").await?;
     println!(
-        "Forever build-70170 isolated account-phase server ready on 127.0.0.1:18085; effective birth counts={:?}; no Player skills/spells/items or creation admitted.",
+        "Forever build-{} isolated account-phase server ready on 127.0.0.1:18085; effective birth counts={:?}; no Player skills/spells/items or creation admitted.",
+        runtime.build,
         runtime.birth.counts()
     );
     if let Some(navigation) = &runtime.navigation {
@@ -61,8 +64,34 @@ async fn run() -> Result<()> {
             Ok(true) => break,
             Ok(false) => {}
             Err(error) if error.is::<connection::DurableStateUncertain>() => return Err(error),
-            Err(_) => {
-                eprintln!("Forever connection ended/rejected; no secret-bearing errors rendered.")
+            Err(error) => {
+                if let Some(socket_error) =
+                    error.downcast_ref::<wow_network::forever::ForeverSocketError>()
+                {
+                    eprintln!("Forever socket rejected: {socket_error}");
+                } else {
+                    let message = error.to_string();
+                    if matches!(
+                        message.as_str(),
+                        "target variant rejected"
+                            | "admission"
+                            | "account expansion"
+                            | "realm name"
+                            | "account locale"
+                            | "realm timezone"
+                            | "session construction"
+                            | "session initialization"
+                            | "session operation"
+                            | "explicit target RBAC policy required"
+                            | "nonordinary target RBAC policy required"
+                    ) {
+                        eprintln!("Forever connection rejected: {message}");
+                    } else {
+                        eprintln!(
+                            "Forever connection ended/rejected; no secret-bearing errors rendered."
+                        )
+                    }
+                }
             }
         }
     }

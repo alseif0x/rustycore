@@ -99,6 +99,14 @@ def run(args: argparse.Namespace) -> int:
         if len(declarations) != 1:
             raise ValueError("missing or ambiguous source Player spell declaration")
         book_declarations.append(declarations[0])
+    skill_status_declarations = [
+        unique_source(player, pattern, "Player skill status declaration")
+        for pattern in (
+            rb"enum SkillUpdateState\n\{.*?\n\};",
+            rb"struct SkillStatusData\n\{.*?\n\};",
+            rb"typedef std::unordered_map<uint32, SkillStatusData> SkillStatusMap;",
+        )
+    ]
     directory = ROOT / "crates/world-server/src/forever/spell_traversal"
     overrides = re.findall(
         rb"std::unordered_map<uint32 /\*overridenSpellId\*/, std::unordered_set<uint32> /\*newSpellId\*/> m_overrideSpells;",
@@ -159,6 +167,10 @@ def run(args: argparse.Namespace) -> int:
             b"using uint32 = std::uint32_t;\nstruct ReferenceOverrideOwner {\n"
             + overrides[0] + b"\n};\n"
         )
+        (staging_root / "SourceSkillStatusMap.hpp").write_bytes(
+            b"#include <cstdint>\n#include <unordered_map>\nusing uint32 = std::uint32_t;\n"
+            + b"\n".join(skill_status_declarations) + b"\n"
+        )
         (staging_root / "SourceCastContext.hpp").write_bytes(context + b"\n")
         (staging_root / "SourceCastFunctions.hpp").write_bytes(b"\n".join(functions) + b"\n")
         (staging_root / "SourceCastEnums.hpp").write_bytes(
@@ -177,6 +189,7 @@ def run(args: argparse.Namespace) -> int:
             f"-I{args.boost_headers_root.resolve()}", f"-I{staging_root}",
             str(directory / "bridge.cpp"), str(directory / "oracle.cpp"),
             str(directory / "birth_lookup.cpp"), str(directory / "birth_lookup_oracle.cpp"),
+            str(directory / "skill_status_order.cpp"), str(directory / "skill_status_order_oracle.cpp"),
             str(directory / "book_order.cpp"), str(directory / "book_order_oracle.cpp"),
             str(directory / "override_order.cpp"), str(directory / "override_order_oracle.cpp"),
             str(directory / "cast_oracle.cpp"),

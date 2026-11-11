@@ -44,7 +44,34 @@ use wow_world::forever::permissions::DefaultAccountPermissions;
 use wow_world::forever::spells::{SpellDefinitionSeeds, SpellLoadPlan};
 use wow_world::forever::{CharacterCatalog, InitializationPolicy};
 
+#[cfg(test)]
+#[path = "../../unit_tests/forever/bootstrap.rs"]
+mod tests;
+
+fn navigation_arguments<'a>(
+    args: &'a [std::ffi::OsString],
+    offset: &mut usize,
+) -> Result<Option<[&'a std::ffi::OsStr; 3]>> {
+    let remaining = args.get(*offset..).context("invalid argument offset")?;
+    if !remaining.first().is_some_and(|arg| {
+        arg == "--ack-available-navigation56" || arg == "--ack-available-navigation57"
+    }) {
+        return Ok(None);
+    }
+    let [_, package, plan, map, ..] = remaining else {
+        bail!("navigation package, plan and map are required");
+    };
+    *offset += 4;
+    Ok(Some([
+        package.as_os_str(),
+        plan.as_os_str(),
+        map.as_os_str(),
+    ]))
+}
+
 pub(super) struct Runtime {
+    pub build: u32,
+    pub dbc_locale: u8,
     pub auth: Arc<LoginDatabase>,
     pub session_repository: Arc<dyn SessionRepository>,
     pub catalog: CharacterCatalog,
@@ -72,9 +99,9 @@ pub(super) struct Runtime {
 
 pub(super) async fn load() -> Result<Runtime> {
     let args: Vec<_> = env::args_os().skip(1).collect();
-    if !matches!(args.len(), 4..=13) || args[0] != "--ack-isolated-forever" {
+    if args.len() < 4 || args[0] != "--ack-isolated-forever" {
         bail!(
-            "usage: --ack-isolated-forever <bnet-config> <private-build-key-file> <private-target-db2-directory> [--ack-available-initial-map] [--ack-available-birth-abilities] --ack-available-item-tables [--ack-available-spell-info-tables] [--ack-available-navigation56|--ack-available-navigation57 <package-root> <plan> <map-id>] [--ack-private-character-create-capture|--ack-private-name-availability-capture <new-private-file>]"
+            "usage: --ack-isolated-forever <bnet-config> <private-build-key-file> <private-target-db2-directory> [--ack-available-initial-map] [--ack-available-birth-abilities] --ack-available-item-tables [--ack-available-spell-info-tables] [--build 70170|70450] [--locale enUS|esES] [--ack-available-navigation56|--ack-available-navigation57 <package-root> <plan> <map-id>] [--ack-private-character-create-capture|--ack-private-name-availability-capture <new-private-file>]"
         );
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -120,23 +147,36 @@ pub(super) async fn load() -> Result<Runtime> {
     } else {
         SpellBaseline::Complete
     };
-    let navigation = if args.get(optional).is_some_and(|arg| {
-        arg == "--ack-available-navigation56" || arg == "--ack-available-navigation57"
-    }) {
-        ensure!(
-            args.len() >= optional + 3,
-            "navigation package, plan and map are required"
-        );
-        let navigation = super::navigation::load(
-            &args[optional + 1],
-            &args[optional + 2],
-            &args[optional + 3],
-        )?;
-        optional += 3;
-        Some(navigation)
+    let build = if args.get(optional).is_some_and(|arg| arg == "--build") {
+        let build = args
+            .get(optional + 1)
+            .and_then(|value| value.to_str())
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|build| matches!(build, 70170 | 70450))
+            .context("unsupported target build")?;
+        optional += 2;
+        build
     } else {
-        None
+        70170
     };
+    let dbc_locale = if args.get(optional).is_some_and(|arg| arg == "--locale") {
+        let locale = args
+            .get(optional + 1)
+            .and_then(|value| value.to_str())
+            .context("missing target locale")?;
+        ensure!(
+            matches!(locale, "enUS" | "esES"),
+            "unsupported target locale"
+        );
+        optional += 2;
+        if locale == "enUS" { 0 } else { 6 }
+    } else {
+        6
+    };
+    let locale = if dbc_locale == 0 { "enUS" } else { "esES" };
+    let navigation = navigation_arguments(&args, &mut optional)?
+        .map(|[package, plan, map]| super::navigation::load(package, plan, map))
+        .transpose()?;
     let character_capture = if args.len() != optional {
         ensure!(
             args.len() == optional + 2,
@@ -144,9 +184,13 @@ pub(super) async fn load() -> Result<Runtime> {
         );
         Some(
             if args[optional] == "--ack-private-character-create-capture" {
-                CharacterCapture::prepare(&root, Path::new(&args[optional + 1]))?
+                CharacterCapture::prepare_for_build(&root, Path::new(&args[optional + 1]), build)?
             } else if args[optional] == "--ack-private-name-availability-capture" {
-                CharacterCapture::prepare_name(&root, Path::new(&args[optional + 1]))?
+                CharacterCapture::prepare_name_for_build(
+                    &root,
+                    Path::new(&args[optional + 1]),
+                    build,
+                )?
             } else {
                 bail!("unknown opt-in");
             },
@@ -207,74 +251,97 @@ pub(super) async fn load() -> Result<Runtime> {
         Arc::new(WorldDatabase::open_with_pool_size(&url("world_forever_70170_02245"), 1).await?);
     let hotfix =
         Arc::new(HotfixDatabase::open_with_pool_size(&url("hotfixes_forever_70170"), 1).await?);
+    eprintln!("bootstrap data phase: achievements");
     let achievements = ForeverAchievementIds::load(Path::new(&args[3]))?;
+    eprintln!("bootstrap data phase: initialization");
     let initialization_rows = InitializationRecords::load(Path::new(&args[3]), map_baseline)?;
+    eprintln!("bootstrap data phase: birth");
     let birth_rows = BirthRecords::load(Path::new(&args[3]), ability_baseline)?;
+    eprintln!("bootstrap data phase: items");
     let item_rows = ItemRecords::load_available(Path::new(&args[3]))?;
+    eprintln!("bootstrap data phase: item specs");
     let item_spec_rows = ItemSpecRecords::load(Path::new(&args[3]))?;
+    eprintln!("bootstrap data phase: spells");
     let spell_rows = SpellRecords::load(Path::new(&args[3]), spell_baseline)?;
+    eprintln!("bootstrap data phase: game tables");
     let game_tables = wow_data::forever_game_tables::InitialGameTables::load(Path::new(&args[3]))?;
+    eprintln!("bootstrap data phase: spell value game tables");
     let spell_value_tables = Arc::new(wow_data::forever_game_tables::SpellValueGameTables::load(
         Path::new(&args[3]),
     )?);
+    eprintln!("bootstrap data phase: hotfix overlays");
     let initialization_overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_initialization_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("initialization overlay query failed"))?;
+    eprintln!("bootstrap data phase: birth overlays");
     let birth_overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_birth_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("birth overlay query failed"))?;
+    eprintln!("bootstrap data phase: item overlays");
     let item_overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_item_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("item overlay query failed"))?;
+    eprintln!("bootstrap data phase: item spec overlays");
     let item_spec_overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_item_spec_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("item specialization overlay query failed"))?;
+    eprintln!("bootstrap data phase: item locale overlays");
     let sparse_locale_overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_sparse_es_es_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("item locale overlay query failed"))?;
+    eprintln!("bootstrap data phase: spell overlays");
     let spell_overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_spell_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("spell overlay query failed"))?;
+    eprintln!("bootstrap data phase: spell locale overlays");
     let spell_locale_overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_spell_es_es_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("spell locale overlay query failed"))?;
     let spell_repository = ForeverSpellWorldRepository::new(world.clone());
+    eprintln!("bootstrap data phase: server spells");
     let server_spell_rows = spell_repository
         .load_server_spells()
         .await
         .map_err(|_| anyhow::anyhow!("server spell source query failed"))?;
+    eprintln!("bootstrap data phase: spell custom attributes");
     let spell_custom_attributes = spell_repository
         .load_spell_custom_attributes()
         .await
         .map_err(|_| anyhow::anyhow!("spell SQL custom attribute source query failed"))?;
+    eprintln!("bootstrap data phase: creature immunities");
     let creature_immunities = spell_repository
         .load_creature_immunities()
         .await
         .map_err(|_| anyhow::anyhow!("creature immunity source query failed"))?;
+    eprintln!("bootstrap data phase: spell required");
     let spell_required = spell_repository
         .load_spell_required()
         .await
         .map_err(|_| anyhow::anyhow!("spell required source query failed"))?;
+    eprintln!("bootstrap data phase: spell learning");
     let spell_learn = spell_repository
         .load_spell_learn_spells()
         .await
         .map_err(|_| anyhow::anyhow!("spell learn relationship source query failed"))?;
     let creation_repository = ForeverCreationWorldRepository::new(world.clone());
+    eprintln!("bootstrap data phase: item addons");
     let item_addons = creation_repository
         .load_item_addons()
         .await
         .map_err(|_| anyhow::anyhow!("target item addon source query failed"))?;
+    eprintln!("bootstrap data phase: creation world");
     let creation_rows = creation_repository
         .load_creation_world()
         .await
         .map_err(|_| anyhow::anyhow!("target creation world source query failed"))?;
+    eprintln!("bootstrap data phase: character templates");
     let template_rows = creation_repository
         .load_character_templates()
         .await
@@ -285,11 +352,14 @@ pub(super) async fn load() -> Result<Runtime> {
     // 02245dcd World.cpp numeric defaults/limits, NOT native Forever playable
     // cap proof. No DB2 StartingLevel or legacy DK=55 policy is substituted.
     let (max_level, starting_config) = super::start_config::load();
+    eprintln!("bootstrap data phase: availability");
     let availability_rows = ForeverAvailabilityRepository::new(world)
         .load_availability()
         .await
         .map_err(|_| anyhow::anyhow!("availability query failed"))?;
+    eprintln!("bootstrap data phase: TACT keys");
     let tact_keys = ForeverTactKeys::load(Path::new(&args[3]))?;
+    eprintln!("bootstrap data phase: TACT key overlays");
     let overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_tact_key_overlays()
         .await
@@ -298,17 +368,22 @@ pub(super) async fn load() -> Result<Runtime> {
         overlays.official.into_iter().map(|row| (row.id, row.key)),
         overlays.custom.into_iter().map(|row| (row.id, row.key)),
     )?;
+    eprintln!("bootstrap data phase: appearance");
     let appearance_rows =
         wow_data::forever_appearance::AppearanceRecords::load(Path::new(&args[3]))?;
+    eprintln!("bootstrap data phase: appearance overlays");
     let appearance_overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_appearance_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("appearance overlay query failed"))?;
+    eprintln!("bootstrap data phase: names");
     let name_rows = wow_data::forever_names::NameRecords::load(Path::new(&args[3]))?;
+    eprintln!("bootstrap data phase: name overlays");
     let name_overlays = ForeverHotfixRepository::new(hotfix.clone())
         .load_name_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("name overlay query failed"))?;
+    eprintln!("bootstrap data phase: hotfix metadata");
     let hotfix_adapter = MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new(hotfix);
     let mut hotfixes = HotfixBlobCache::new();
     hotfixes.register_typed_table(TACT_KEY_TABLE_HASH);
@@ -352,6 +427,7 @@ pub(super) async fn load() -> Result<Runtime> {
     for name in ["ChrClasses.db2", "ChrRaces.db2"] {
         hotfixes.load_db2(Path::new(&args[3]).join(name))?;
     }
+    eprintln!("bootstrap data phase: hotfix blobs");
     let blobs = match hotfix_adapter.load_hotfix_blob_rows_like_cpp().await {
         HotfixDeliveryMetadataLoadOutcomeLikeCpp::Loaded(rows) => rows,
         _ => bail!("hotfix blob query failed"),
@@ -360,8 +436,9 @@ pub(super) async fn load() -> Result<Runtime> {
         blobs
             .into_iter()
             .map(|row| (row.table_hash, row.record_id, row.locale, row.blob)),
-        "esES",
+        locale,
     );
+    eprintln!("bootstrap data phase: hotfix data rows");
     let rows = match hotfix_adapter.load_hotfix_data_rows_like_cpp().await {
         HotfixDeliveryMetadataLoadOutcomeLikeCpp::Loaded(rows) => rows,
         _ => bail!("hotfix data query failed"),
@@ -383,11 +460,13 @@ pub(super) async fn load() -> Result<Runtime> {
         rows.iter()
             .map(|row| (row.table_hash, row.record_id, row.status)),
     );
+    eprintln!("bootstrap data phase: finish appearance");
     let appearance = appearance_rows.finish(
         super::appearance::records(appearance_overlays.official),
         super::appearance::records(appearance_overlays.custom),
         &removals,
     )?;
+    eprintln!("bootstrap data phase: finish initialization");
     let initialization = initialization_rows.finish(
         super::initialization::records(initialization_overlays.official),
         super::initialization::records(initialization_overlays.custom),
@@ -397,21 +476,32 @@ pub(super) async fn load() -> Result<Runtime> {
         CharacterTemplates::load(template_rows, &initialization)
             .map_err(|error| anyhow::anyhow!("target character templates rejected: {error:?}"))?,
     );
-    let birth = birth_rows.finish(
-        super::birth::records(birth_overlays.official),
-        super::birth::records(birth_overlays.custom),
-        &removals,
-    )?;
+    eprintln!("bootstrap data phase: finish birth");
+    let birth = birth_rows
+        .finish(
+            super::birth::records(birth_overlays.official),
+            super::birth::records(birth_overlays.custom),
+            &removals,
+        )
+        .map_err(|error| {
+            eprintln!("birth composition rejected: {error}");
+            error
+        })?;
     let birth = Arc::new(birth);
     // Null-caster spell values consume the effective sparse item catalog.
     // Finish this canonical input before the ordered spell custom phase;
     // numeric templates later share it rather than owning a second copy.
+    eprintln!("bootstrap data phase: finish items");
     let items = item_rows
         .finish(
             super::items::records(item_overlays.official),
             super::items::records(item_overlays.custom),
             &removals,
-        )?
+        )
+        .map_err(|error| {
+            eprintln!("item composition rejected: {error}");
+            error
+        })?
         .with_sparse_locale(
             6,
             sparse_locale_overlays
@@ -424,55 +514,72 @@ pub(super) async fn load() -> Result<Runtime> {
                 .map(|r| (r.id, r.strings)),
         );
     let item_data = Arc::new(items);
-    let spell_catalog = Arc::new(spell_rows.finish(
-        super::spells::records(spell_overlays.official)?,
-        super::spells::records(spell_overlays.custom)?,
-        6,
-        super::spells::locale_records(spell_locale_overlays.official),
-        super::spells::locale_records(spell_locale_overlays.custom),
-        &removals,
-    )?);
-    let spell_load_plan = SpellLoadPlan::build(spell_catalog)
-        .map_err(|error| anyhow::anyhow!("target spell input join rejected: {error:?}"))?;
-    let spell_definitions = Arc::new(
-        super::spell_traversal::correct(
-            spell_load_plan
-                .with_server_spells(server_spell_rows)
-                .map_err(|error| anyhow::anyhow!("target server spell inputs rejected: {error:?}"))?
-                .with_id_corrections()
-                .map_err(|error| {
-                    anyhow::anyhow!("target spell ID corrections rejected: {error:?}")
-                })?,
-        )?
-        .with_skill_line_abilities(birth.clone())
-        .map_err(|error| anyhow::anyhow!("target skill-line ability map rejected: {error:?}"))?
-        .with_sql_custom_attributes(spell_custom_attributes)
-        .map_err(|error| anyhow::anyhow!("target spell SQL custom attributes rejected: {error:?}"))?
-        .with_value_game_tables(spell_value_tables)
-        .map_err(|error| anyhow::anyhow!("target spell value tables rejected: {error:?}"))?
-        .with_custom_attributes(&item_data, &mut super::spell_random::draw)
-        .map_err(|error| {
-            anyhow::anyhow!("target spell derived custom attributes rejected: {error:?}")
-        })?
-        .with_diminishing_info(&mut super::spell_random::select)
-        .map_err(|error| anyhow::anyhow!("target spell diminishing info rejected: {error:?}"))?
-        .with_immunity_info(creature_immunities)
-        .map_err(|error| anyhow::anyhow!("target spell immunity info rejected: {error:?}"))?
-        .with_target_caps(&item_data)
-        .map_err(|error| anyhow::anyhow!("target spell target caps rejected: {error:?}"))?
-        .with_spell_ranks()
-        .map_err(|error| anyhow::anyhow!("target spell ranks rejected: {error:?}"))?
-        .with_spell_required(spell_required)
-        .map_err(|error| {
-            anyhow::anyhow!("target spell required relationships rejected: {error:?}")
-        })?
-        .with_learn_skills(&item_data, &mut super::spell_random::draw)
-        .map_err(|error| anyhow::anyhow!("target spell learn skills rejected: {error:?}"))?
-        .with_specific_and_aura_state()
-        .map_err(|error| anyhow::anyhow!("target spell specific/aura state rejected: {error:?}"))?
-        .with_learn_spells(spell_learn)
-        .map_err(|error| anyhow::anyhow!("target spell learn relationships rejected: {error:?}"))?,
+    eprintln!("bootstrap data phase: finish spells");
+    let spell_catalog = Arc::new(
+        spell_rows
+            .finish(
+                super::spells::records(spell_overlays.official)?,
+                super::spells::records(spell_overlays.custom)?,
+                6,
+                super::spells::locale_records(spell_locale_overlays.official),
+                super::spells::locale_records(spell_locale_overlays.custom),
+                &removals,
+            )
+            .map_err(|error| {
+                eprintln!("spell composition rejected: {error}");
+                error
+            })?,
     );
+    eprintln!("bootstrap data phase: spell load plan");
+    let spell_load_plan = SpellLoadPlan::build(spell_catalog).map_err(|error| {
+        eprintln!("spell load plan rejected: {error:?}");
+        anyhow::anyhow!("target spell input join rejected: {error:?}")
+    })?;
+    let spell_definitions = super::spell_traversal::correct(
+        spell_load_plan
+            .with_server_spells(server_spell_rows)
+            .map_err(|error| anyhow::anyhow!("target server spell inputs rejected: {error:?}"))?
+            .with_id_corrections()
+            .map_err(|error| anyhow::anyhow!("target spell ID corrections rejected: {error:?}"))?,
+    )?
+    .with_skill_line_abilities(birth.clone())
+    .map_err(|error| anyhow::anyhow!("target skill-line ability map rejected: {error:?}"))?
+    .with_sql_custom_attributes(spell_custom_attributes)
+    .map_err(|error| anyhow::anyhow!("target spell SQL custom attributes rejected: {error:?}"))?;
+    let spell_definitions = if matches!(spell_baseline, SpellBaseline::AvailablePrefixes) {
+        spell_definitions
+    } else {
+        spell_definitions
+            .with_value_game_tables(spell_value_tables)
+            .map_err(|error| anyhow::anyhow!("target spell value tables rejected: {error:?}"))?
+            .with_custom_attributes(&item_data, &mut super::spell_random::draw)
+            .map_err(|error| {
+                anyhow::anyhow!("target spell derived custom attributes rejected: {error:?}")
+            })?
+            .with_diminishing_info(&mut super::spell_random::select)
+            .map_err(|error| anyhow::anyhow!("target spell diminishing info rejected: {error:?}"))?
+            .with_immunity_info(creature_immunities)
+            .map_err(|error| anyhow::anyhow!("target spell immunity info rejected: {error:?}"))?
+            .with_target_caps(&item_data)
+            .map_err(|error| anyhow::anyhow!("target spell target caps rejected: {error:?}"))?
+            .with_spell_ranks()
+            .map_err(|error| anyhow::anyhow!("target spell ranks rejected: {error:?}"))?
+            .with_spell_required(spell_required)
+            .map_err(|error| {
+                anyhow::anyhow!("target spell required relationships rejected: {error:?}")
+            })?
+            .with_learn_skills(&item_data, &mut super::spell_random::draw)
+            .map_err(|error| anyhow::anyhow!("target spell learn skills rejected: {error:?}"))?
+            .with_specific_and_aura_state()
+            .map_err(|error| {
+                anyhow::anyhow!("target spell specific/aura state rejected: {error:?}")
+            })?
+            .with_learn_spells(spell_learn)
+            .map_err(|error| {
+                anyhow::anyhow!("target spell learn relationships rejected: {error:?}")
+            })?
+    };
+    let spell_definitions = Arc::new(spell_definitions);
     // ID/global corrections, custom, diminishing, immunity, caps and rank/
     // required/skill/specific/aura/learning phases finish before publishing
     // either immutable reader. This is not full executable SpellInfo readiness.
@@ -588,7 +695,7 @@ pub(super) async fn load() -> Result<Runtime> {
                 row.status,
             )
         }),
-        "esES",
+        locale,
     );
     let rows = match hotfix_adapter
         .load_hotfix_optional_data_rows_like_cpp()
@@ -607,7 +714,7 @@ pub(super) async fn load() -> Result<Runtime> {
                     && !SPELL_TABLE_HASHES.contains(&row.table_hash)
             })
             .map(|row| (row.table_hash, row.record_id, row.locale, row.key, row.data)),
-        "esES",
+        locale,
     );
     // Names and expansion are taken from the admitted auth/realm rows later;
     // this policy controls only this isolated target's unimplemented services.
@@ -622,6 +729,7 @@ pub(super) async fn load() -> Result<Runtime> {
         content_set,
         max_characters: 200,
         character_templates,
+        classic_friends_subscriptions: build >= 70291,
     };
     // World.cpp:726,1061 and WorldSession::ResetTimeOutTime(false): inactive
     // character selection uses SocketTimeOutTime, not the 30-second probe read.
@@ -644,6 +752,8 @@ pub(super) async fn load() -> Result<Runtime> {
         hotfixes.tact_key_count()
     );
     Ok(Runtime {
+        build,
+        dbc_locale,
         auth: auth.clone(),
         session_repository,
         name_rules,

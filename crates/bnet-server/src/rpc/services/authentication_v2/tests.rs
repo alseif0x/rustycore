@@ -7,6 +7,7 @@ fn completion_uses_v2_record_handles_and_only_the_documented_fields() {
     let account = AccountInfo {
         id: 17,
         login: "LOCAL@TEST".into(),
+        battle_tag: None,
         is_locked_to_ip: false,
         lock_country: "00".into(),
         last_ip: "127.0.0.1".into(),
@@ -57,6 +58,16 @@ fn completion_uses_v2_record_handles_and_only_the_documented_fields() {
             .unwrap()
             .geoip_country
             .is_none()
+    );
+    let mut tagged = account;
+    tagged.battle_tag = Some("Local#0001".into());
+    assert_eq!(
+        logon_complete(&tagged, "ES", &[0; 64])
+            .record
+            .unwrap()
+            .battle_tag
+            .as_deref(),
+        Some("Local#0001")
     );
 }
 

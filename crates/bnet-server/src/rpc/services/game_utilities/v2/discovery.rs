@@ -10,6 +10,7 @@ pub(super) fn last_character(
     realms: &RealmManager,
     game: &GameAccountInfo,
     request: &ClientRequest,
+    build: u32,
     now: u64,
 ) -> Result<ClientResponse> {
     let sub_region =
@@ -34,7 +35,7 @@ pub(super) fn last_character(
     } else {
         return Ok(ClientResponse::default());
     };
-    let Some(entry) = catalog.realm_entry(realms, address, 70170, game.security_level, now) else {
+    let Some(entry) = catalog.realm_entry(realms, address, build, game.security_level, now) else {
         return if last.is_some() {
             Err(RpcStatusError::new(status::ERROR_UTIL_SERVER_FAILED_TO_SERIALIZE_RESPONSE).into())
         } else {

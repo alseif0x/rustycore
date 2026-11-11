@@ -1,5 +1,214 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## Forever publication candidate — 2026-11-11
+
+The operator requested a commit and push of the preserved experimental worktree.
+This is a publication checkpoint, not completion of character creation. The
+composition still supplies no CharacterCreator, and no schema, service or live
+database operation is authorized by this publication. The four loaded-grid fact
+bindings now use primary_facts; normal formatting reduces spawn_groups.rs to
+2,380 lines, below its existing 2,384 ceiling. The World test census is updated
+after reviewing all 135 relocated test names at unique Entity/World destinations,
+89 added World identities and the dependency/classification delta. The exact
+current test metrics and formatter-only storage root adjustment are recorded
+in their owning policies; neither grants general growth or retires core debt.
+
+The old /tmp unit artifacts are no longer available. Their historical command
+results below remain dated reports, not fresh evidence for this candidate.
+Publication acceptance is pending on the committed candidate. Preserve its new
+manifest and logs under target/validation-v2; do not claim the pending server
+library tests, native oracle, DB/restart recovery or runtime acceptance passed.
+
+## Forever character creation resumed — 2026-11-06
+
+The active worktree at `03eb9b532` contains uncommitted login/build-70450 and
+character-creation changes. Creation remains disabled at runtime because no
+composition-owned constructor is attached. Source-reviewed local corrections
+and authored regressions cover creation cancellation/unknown-commit fencing,
+canonical ownership, SQL binding and GUID allocation, plus startup parsing
+and diagnostic privacy. Further authored work requires explicit primary-row
+state, preserves source scalar/vector/version and item-primary projections,
+resolves container/child-creator references, and retains a repository recovery
+fence across cancelled/uncertain saves. Full dependent save groups, canonical
+Player/item construction and durable restart reconciliation remain open.
+The base item save now represents gems, transmog, artifact/powers and ordinary
+modifiers with explicit snapshot inputs and source-ordered auxiliary rows.
+Explicit Azerite/empowered subtype saves now precede the base row; actual
+template-dependent subtype selection and item construction remain unfinished.
+An owned creation operation now reserves character/item identities before
+construction and retains one writer gate through consumed save. A journal
+marker in the character transaction, separate post-Auth cleanup and a
+pending-marker/schema guard are authored; the explicit schema migration is
+not applied, and real durability/reconciliation evidence is still absent.
+The explicit projection-only reconciler and a connection-bound advisory writer
+are now authored. Auth account/last-played locks precede character writes;
+normal save/recovery share the projection encoders and use the existing SQL
+commit classifier. Startup recovery wiring and real cross-process/DB/restart
+acceptance remain open; no runtime creator is enabled.
+The represented customization, spell-favorite and selection-cache groups now
+include their source-mandated deletes in the correct order.
+Fishing and battleground rows now use explicit constructor inputs in source
+order around the primary/customization/inventory prefix.
+Quest status/reward persistence now preserves ordered dirty queues, abandoned
+retention and explicit-delete policies, objective/spawn rows and source widths.
+Periodic quest groups preserve changed-empty semantics, source ordering and
+integer conversions. Fishing state now retains the canonical uint8 range and
+widens only at SQL binding.
+Glyph/normal/PvP talent snapshots now preserve five groups, source iteration,
+glyph narrowing and all five PvP rows even when every slot is zero.
+Trait persistence now preserves dirty-state policies, key/ID distinctions,
+nullable kind-specific fields and the source defaults for unknown kinds.
+Spell-history projection now preserves cooldown/charge save order, held-state
+filtering and signed epoch-second bindings before action persistence.
+Aura persistence now preserves frozen eligibility/key outcomes, full binary
+GUIDs, raw doubles and parent/effect order before skills; canonical aura
+eligibility and mask construction remain open.
+Stored aura locations now preserve source state/order/raw coordinates,
+including its unassigned Spell-delete parameter behavior.
+Achievement/reputation/quest-criteria projection now preserves dirty policies,
+counter/date widths, map/ID distinctions and source order before the cache.
+Saved equipment and legacy transmog sets now preserve all four dirty states,
+type-specific parameter orders, value GUIDs and ordered map traversal.
+Modern transmog outfits now preserve ordered dirty IDs, missing-lookup deletes,
+parent/situation/slot order and exact signed/unsigned field bindings.
+Session tutorial/restriction snapshots now preserve changed/loaded and
+empty-map policies, account identity and source order after the selection cache.
+Currency snapshots now preserve frozen lookup/state decisions, zero writes,
+source iteration, uint16 key narrowing and distinct REPLACE/UPDATE orders.
+CUF snapshots now preserve all five slot operations and the source's 27-bit
+boolean mask, with exact DELETE/REPLACE field widths after currency.
+Character-data snapshots now preserve ordered dirty element/word keys,
+delete/nonzero-insert policies, typed nulls and raw float bindings after CUF.
+Character bank-tab snapshots now always delete and reinsert the owner's set after
+character-data writes, preserving vector indexes, private strings and signed flags.
+Garrison snapshots now preserve absence/empty policies, source delete/insert
+order, optional plot filtering and supplied follower/ability identities.
+Statistics snapshots now preserve the frozen eligibility decision, complete
+setter layout and the source's resilience/mastery overwrite/default behavior.
+Mail snapshots now preserve the updated/state gate, checked-bit narrowing,
+ordered link/attachment cleanup and all eleven source item-deletion statements.
+The construction contract now retains a guarded owner across save and local
+confirmation/publication, with cleanup on cancellation and failure. The target
+GUID helper preserves sixteen realm bits for selection/creation, and starting
+actions are preparation requests rather than fabricated SQL trait/spec rows.
+Format-1 recovery remains limited to its represented Auth projection; complete
+account effects need durable intents and Battle.net-owner exclusion first.
+The source pet tail has independent commits outside that journal; conditional
+pet creation also needs an explicit durability/recovery contract before activation.
+Worker feedback now has a passing `wow-database` check and all 171 focused
+`forever::create::` library cases. This work remains **NOT VALIDATED** for
+completed-delivery acceptance. Subsequent worker feedback also has a passing
+`wow-world` check and all 470 focused `forever::` cases, including 14 creation
+lifetime/fencing cases. This remains coding feedback under level 1; the
+accepted November 1 integration below does not qualify these new inputs.
+The subsequent signed-XP correction has a passing `wow-world` check and all
+nine focused vitals cases after correcting one zero-XP fixture failure. XP and
+NextLevelXP are signed int32 in the target source as well as the entity model;
+the unsupported `INT32_MIN - 1` boundary remains guarded without a native-parity
+claim. The earlier 470-case run predates this correction. The existing entity
+is the selected base-state owner where its target contract is represented;
+complete birth initialization and one canonical skill/spell authority remain open.
+The shared PowerType model now uses target ComboPoints ID 4 and BurningEmbers
+ID 14, with one decoder for kinds 0–25 and preserved invalid-byte policies.
+Worker coding feedback has a passing `world-server` check, two constants
+cases and fourteen entity power cases. It does not establish native/runtime
+acceptance or enable creation.
+The follow-up armor preparation fix preserves the source float create-agility
+rounding before signed conversion without changing current integer stats.
+Its `wow-world` check and all eleven focused vitals cases pass as worker coding
+feedback; undefined C++ conversion boundaries remain explicitly guarded.
+The complete target skill algorithms now use separate basic-catalog and full
+learning-source interfaces, preserving weak-query admission and mandatory
+reentrant effects. Their first World-owned form has a passing `wow-world`
+check and all 48 focused skill cases. Interface extraction is not replacement
+of the canonical skill vector, its 256-slot publication or load/save consumers.
+Those interfaces, metadata, input and generic error now belong to Entities;
+the actual BirthCatalog adapter belongs to Data, using existing dependencies.
+The lower-layer extraction also has a passing `wow-world` check and all 48
+focused cases. The complete private skill state/algorithm/effect family now
+lives in Entities, with World retaining the real-source adapter and facade.
+Its check passes; 38 Entity and 13 World cases pass after repairing two missing
+World test imports. All 48 original cases remain, with three source-adapter
+splits added. This remains coding feedback, not completed acceptance. The
+ordinary Player still uses its old skill vector: consumer/load/save/publication
+replacement and production effect/factory integration remain open, and no
+parallel skill field or runtime creator was added.
+A separate C++-backed book correction now uses category 11 for primary
+professions, preserving the unranked-first fallback and point-effect ordering.
+Its check and all 62 focused learning cases pass after repairing a new test's
+rank-supersession return-value expectation. Complete Add/Remove cases cover
+secondary/child exclusion and higher ranks. Those results predate the source
+and family extraction below; complete creation acceptance remains open.
+The lower definition-source/view boundary and complete generic cast resolver
+now have a passing `wow-world` check and all 22 focused cast cases. The first
+test build exposed a borrowed-source GAT lifetime requirement; it was made
+explicit before the passing check/test rerun. All 19 original cases remain,
+with three boundary cases added. Cast still requires no learning readiness;
+the subsequent complete learning source boundary also has a passing
+`wow-world` check, 63 learning cases and
+the same 22 cast cases. One missing test import was repaired before those
+passing runs. All 62 original learning cases remain, plus a real-view item-fit
+case. Add/Learn/Remove and private phases now use the lower source contracts;
+the complete book/state/effect family has subsequently moved to Entities.
+World keeps the admitted adapter, concrete aliases and real-source integration
+cases. Its check passes; 52 Entity and 45 World cases pass, preserving all 93
+original identities and adding four source projections. Two missing test
+helper/import failures were repaired, then one unused test import was removed
+and the World filter rerun. The operation bodies and private state remain
+unchanged; ordinary Player spell collections have not yet been replaced.
+Canonical load/save/publication consumers, production effects/factory and
+complete creation acceptance remain open. These are worker coding results on
+the dirty tree, not completed acceptance.
+The skill owner now records only successful full-width status insertions and
+admits provider-ordered borrowed status/field views. Its `wow-world` check and
+all 46 Entity skill cases pass, preserving the original 38 cases and adding
+eight insertion/admission regressions. No failed feedback loop occurred.
+Exact-set admission does not establish native iteration order. The separate
+skill-specific numeric adapter is now implemented; its Forever binary check
+and five focused adapter cases pass with all four required features. The
+independent extracted-source oracle is authored but uncompiled/unexecuted.
+These remain coding results. Load/save/acknowledgement, live publication and canonical
+Player replacement remain open; no runtime creator is enabled.
+The subsequent borrowed item-storage view preserves seven complete query
+bodies and the existing Player API, preparing trade planning to stop copying
+whole Players. After repairing extraction imports/lifetimes its Entity check
+passes; 26 existing item cases pass through their real mounted modules. The
+first requested filter executed zero cases and is not credited. Actual trade
+snapshot/consumer replacement is now implemented across Inventory and Social:
+the pair read captures only inventory and original SQL facts, then plans
+outside the map lock. All three whole-Player planning clone statements are
+retired. Its repaired `wow-world` check passes, with 124 Entity item cases,
+3 transfer cases, 9 inventory-planning cases, 6 Social capture/SQL cases and
+all 9 original World trade-commit cases passing. The initial private-module
+compile failure and the interrupted tool wait are recorded; the original
+Cargo process completed normally without a duplicate run. Parent reviewed
+the patch/current hashes and unchanged async fence/application functions.
+These remain level-1 coding results, not final or target inventory acceptance.
+The direct quest/gameplay capture, emptiness predicate and quest-log fixture
+copies are now retired. Their World check and 26 Entity misc, 3 Core quest
+snapshot and 252 World quest cases pass as worker coding feedback; all 72
+unaffected function texts remain unchanged. Eleven new regressions cover
+narrow read facts, emptiness and actual fixture-owner transfers/rejections.
+The initially prescribed World filter ran zero cases and is not credited;
+the corrected mounted family supplies the 252 passing cases. Parent reviewed
+all seven tested source hashes and the actual unit patch. The indirect
+map-record output copies are replaced in the partial local implementation,
+but this next unit is unfinished: its binary check and 69 focused cases pass;
+the attempted server binary test ran zero cases because tests live in the
+composition library. The library test and World trade regression remain
+unexecuted, as does a one-line physical-ratchet repair. Luna stopped on its
+usage limit; no fallback model or parent routine implementation replaced it.
+Parent recovered the exact source/feedback and closed the stopped worker;
+no Cargo process remains active. Canonical load/save/effects/factory
+integration remains unfinished. The renewed trace
+also found the shared inventory query/values-publication projection's
+`Clone::clone` producer; that separate cross-crate boundary must be replaced
+before removing the aggregate derives.
+The [owning runbook checkpoint](../operations/forever-login.md#character-creation-worktree-checkpoint--2026-11-06)
+records exact source anchors, the intentional acknowledgement contract and
+remaining construction/recovery/native-evidence gates. No new runtime or
+publication result is claimed.
+
 ## Forever modular integration accepted — 2026-11-01
 
 Code candidate `1d5dd370cf5d337f606263b20bda92a38e8913d8` replays all 49 non-merge

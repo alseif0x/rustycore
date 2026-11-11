@@ -39,6 +39,13 @@ extern "C" int rustycore_forever_birth_skill_lookup(
     ForeverSkillKey const* records, std::size_t length,
     std::uint32_t* order, std::size_t capacity, std::size_t* written) noexcept;
 
+// Successful skill-status insertions only, full uint32 keys. Duplicate histories
+// and capacity != physical status count are invalid. Same output/failure and
+// temporary-owner contract; no field-count limit or payload crosses this ABI.
+extern "C" int rustycore_forever_skill_status_order(
+    std::uint32_t const* insertions, std::size_t length,
+    std::uint32_t* output, std::size_t capacity, std::size_t* written) noexcept;
+
 struct ForeverSpellBookMutation
 {
     std::uint32_t spell;

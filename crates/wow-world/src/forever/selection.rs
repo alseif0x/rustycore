@@ -111,13 +111,9 @@ fn basic(
     policy: &SelectionPolicy,
 ) -> Result<CharacterInfoBasic, SessionError> {
     let realm = realm_address & 0xFFFF;
-    // ObjectGuidFactory::CreatePlayer/Guild uses the realm unmasked. Legacy
-    // helpers mask to 13 bits; do not silently reuse their different contract.
+    // Player/Guild factories preserve the full realm; legacy helpers differ.
     let mut basic = CharacterInfoBasic::new(row.name, row.surname);
-    basic.guid = ObjectGuid::new(
-        ((2_u64 << 58) | (u64::from(realm) << 42)) as i64,
-        row.guid as i64,
-    );
+    basic.guid = super::guid::player_guid(realm_address, row.guid);
     basic.virtual_realm_address = realm_address;
     basic.guild_club_member_id = row.guid | ((u64::from(realm) & 0xFFF) << 48);
     if row.guild != 0 {

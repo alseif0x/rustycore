@@ -46,13 +46,13 @@ fn new_account_can_discover_only_its_explicit_ruleset_without_fake_character_dat
     let account = game();
     for filter in [-1, 137, 0] {
         assert!(
-            last_character(&catalog, &realms, &account, &request(filter), 100)
+            last_character(&catalog, &realms, &account, &request(filter), 70170, 100)
                 .unwrap()
                 .attribute
                 .is_empty()
         );
     }
-    let response = last_character(&catalog, &realms, &account, &request(136), 100).unwrap();
+    let response = last_character(&catalog, &realms, &account, &request(136), 70170, 100).unwrap();
     assert_eq!(
         response
             .attribute
@@ -87,7 +87,7 @@ fn existing_character_keeps_real_guid_name_time_and_cannot_cross_rulesets() {
             last_played_time: 2200000000,
         },
     );
-    let response = last_character(&catalog, &realms, &account, &request(136), 100).unwrap();
+    let response = last_character(&catalog, &realms, &account, &request(136), 70170, 100).unwrap();
     assert_eq!(
         response.attribute[1].value.string_value.as_deref(),
         Some("Testchar")
@@ -104,7 +104,7 @@ fn existing_character_keeps_real_guid_name_time_and_cannot_cross_rulesets() {
         .next()
         .unwrap()
         .realm_address = 0x02010002;
-    let response = last_character(&catalog, &realms, &account, &request(136), 100).unwrap();
+    let response = last_character(&catalog, &realms, &account, &request(136), 70170, 100).unwrap();
     assert_eq!(response.attribute.len(), 3);
     assert_eq!(response.attribute[1].value.int_value, Some(100));
 }
@@ -115,7 +115,7 @@ fn missing_offline_or_forbidden_binding_never_publishes_an_entry() {
     let account = game();
     realms.realms.values_mut().next().unwrap().flag = RealmFlagsLikeCpp::OFFLINE;
     assert!(
-        last_character(&catalog, &realms, &account, &request(136), 100)
+        last_character(&catalog, &realms, &account, &request(136), 70170, 100)
             .unwrap()
             .attribute
             .is_empty()
@@ -128,7 +128,7 @@ fn missing_offline_or_forbidden_binding_never_publishes_an_entry() {
         .unwrap()
         .allowed_security_level = 3;
     assert!(
-        last_character(&catalog, &realms, &account, &request(136), 100)
+        last_character(&catalog, &realms, &account, &request(136), 70170, 100)
             .unwrap()
             .attribute
             .is_empty()
@@ -139,6 +139,7 @@ fn missing_offline_or_forbidden_binding_never_publishes_an_entry() {
             &realms,
             &account,
             &request(136),
+            70170,
             100
         )
         .unwrap()

@@ -112,12 +112,16 @@ async fn populated_holder_is_not_replaced_by_empty_success_and_banned_row_is_not
         .unwrap();
     assert_eq!(
         output.iter().map(Outgoing::opcode).collect::<Vec<_>>(),
-        [0x460018, 0x460362, 0x460360]
+        [0x460018, 0x46021E, 0x460362, 0x460360]
     );
     assert_eq!(&output[0].payload()[2..6], &2_u32.to_le_bytes());
     assert_eq!(&output[0].payload()[10..14], &12_i32.to_le_bytes());
-    assert_eq!(output[1].payload(), &[0; 9]);
-    assert_eq!(output[2].payload(), &[0; 4]);
+    assert_eq!(output[1].payload(), &[0; 6]);
+    assert_eq!(
+        output[2].payload(),
+        &[0x10, 0xBD, 0xEC, 0x08, 7, 0, 0, 0, 0]
+    );
+    assert_eq!(output[3].payload(), &[0; 4]);
     assert_eq!(session.legitimate_characters.len(), 1);
     assert!(
         session
@@ -197,6 +201,12 @@ async fn codec_failure_does_not_perform_recustomization_or_publish_authority() {
 async fn cancelled_refresh_revokes_previous_list_and_cannot_resume_authenticated_actions() {
     struct PendingSelection(Repository);
     impl SessionRepository for PendingSelection {
+        fn begin_character_creation(
+            &self,
+            admission: CreationAdmission,
+        ) -> PersistenceFutureLikeCpp<'_, Result<Box<dyn CharacterCreation>, CreateError>> {
+            self.0.begin_character_creation(admission)
+        }
         fn load_account(
             &self,
             account: u32,

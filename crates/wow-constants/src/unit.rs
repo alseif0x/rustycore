@@ -18,7 +18,7 @@ pub enum PowerType {
     Rage = 1,
     Focus = 2,
     Energy = 3,
-    Happiness = 4,
+    ComboPoints = 4,
     Runes = 5,
     RunicPower = 6,
     SoulShards = 7,
@@ -28,7 +28,7 @@ pub enum PowerType {
     Maelstrom = 11,
     Chi = 12,
     Insanity = 13,
-    ComboPoints = 14,
+    BurningEmbers = 14,
     DemonicFury = 15,
     ArcaneCharges = 16,
     Fury = 17,
@@ -41,6 +41,42 @@ pub enum PowerType {
     AlternateEncounter = 24,
     AlternateMount = 25,
     Max = 26,
+}
+
+impl PowerType {
+    /// Target 02245dcd SharedDefines.h292–324 positive storage IDs.
+    /// Health and sentinel values are not unsigned-byte power kinds.
+    pub const fn from_u8_like_cpp(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::Mana),
+            1 => Some(Self::Rage),
+            2 => Some(Self::Focus),
+            3 => Some(Self::Energy),
+            4 => Some(Self::ComboPoints),
+            5 => Some(Self::Runes),
+            6 => Some(Self::RunicPower),
+            7 => Some(Self::SoulShards),
+            8 => Some(Self::LunarPower),
+            9 => Some(Self::HolyPower),
+            10 => Some(Self::AlternatePower),
+            11 => Some(Self::Maelstrom),
+            12 => Some(Self::Chi),
+            13 => Some(Self::Insanity),
+            14 => Some(Self::BurningEmbers),
+            15 => Some(Self::DemonicFury),
+            16 => Some(Self::ArcaneCharges),
+            17 => Some(Self::Fury),
+            18 => Some(Self::Pain),
+            19 => Some(Self::Essence),
+            20 => Some(Self::RuneBlood),
+            21 => Some(Self::RuneFrost),
+            22 => Some(Self::RuneUnholy),
+            23 => Some(Self::AlternateQuest),
+            24 => Some(Self::AlternateEncounter),
+            25 => Some(Self::AlternateMount),
+            _ => None,
+        }
+    }
 }
 
 /// Player gender.
@@ -644,7 +680,59 @@ pub enum Team {
 
 #[cfg(test)]
 mod tests {
-    use super::UnitPvpFlags;
+    use super::{PowerType, UnitPvpFlags};
+
+    #[test]
+    fn power_type_ids_and_byte_round_trips_match_target_literals() {
+        // Each pair pins the source name and literal ID independently of array order.
+        let expected = [
+            (PowerType::Mana, 0),
+            (PowerType::Rage, 1),
+            (PowerType::Focus, 2),
+            (PowerType::Energy, 3),
+            (PowerType::ComboPoints, 4),
+            (PowerType::Runes, 5),
+            (PowerType::RunicPower, 6),
+            (PowerType::SoulShards, 7),
+            (PowerType::LunarPower, 8),
+            (PowerType::HolyPower, 9),
+            (PowerType::AlternatePower, 10),
+            (PowerType::Maelstrom, 11),
+            (PowerType::Chi, 12),
+            (PowerType::Insanity, 13),
+            (PowerType::BurningEmbers, 14),
+            (PowerType::DemonicFury, 15),
+            (PowerType::ArcaneCharges, 16),
+            (PowerType::Fury, 17),
+            (PowerType::Pain, 18),
+            (PowerType::Essence, 19),
+            (PowerType::RuneBlood, 20),
+            (PowerType::RuneFrost, 21),
+            (PowerType::RuneUnholy, 22),
+            (PowerType::AlternateQuest, 23),
+            (PowerType::AlternateEncounter, 24),
+            (PowerType::AlternateMount, 25),
+        ];
+        for (kind, raw) in expected {
+            assert_eq!(kind as u8, raw);
+            assert_eq!(PowerType::from_u8_like_cpp(raw), Some(kind));
+        }
+        assert_eq!(PowerType::Health as i8, -2);
+        assert_eq!(PowerType::None as i8, -1);
+        assert_eq!(PowerType::Max as i8, 26);
+    }
+
+    #[test]
+    fn power_type_unsigned_decoder_rejects_sentinels_and_out_of_range_bytes() {
+        const COMBO: Option<PowerType> = PowerType::from_u8_like_cpp(4);
+        assert_eq!(COMBO, Some(PowerType::ComboPoints));
+        for raw in 26..=255 {
+            assert_eq!(PowerType::from_u8_like_cpp(raw), None);
+        }
+        for raw in [26, 127, 254, 255] {
+            assert_eq!(PowerType::from_u8_like_cpp(raw), None);
+        }
+    }
 
     #[test]
     fn unit_pvp_flags_match_cpp_values() {

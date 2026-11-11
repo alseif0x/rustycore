@@ -58,7 +58,7 @@ impl AccessorObjectKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct AccessorPlayer {
     pub(super) normalized_name: String,
     pub(super) body: AccessorPlayerBody,
@@ -66,7 +66,7 @@ pub struct AccessorPlayer {
     pub(super) items: HashMap<ObjectGuid, Item>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(super) enum AccessorPlayerBody {
     WorldObject(WorldObject),
     Player(Box<Player>),
@@ -243,13 +243,13 @@ pub trait ObjectAccessorMapSource {
     fn map_object_record(&self, guid: ObjectGuid) -> Option<&MapObjectRecord>;
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct MapObjectRecord {
     pub(super) kind: AccessorObjectKind,
     pub(super) body: MapObjectBody,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(super) enum MapObjectBody {
     WorldObject(WorldObject),
     AreaTrigger(AreaTrigger),

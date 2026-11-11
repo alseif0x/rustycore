@@ -355,6 +355,16 @@
    "unit_tests_lines": 278717,
    "unit_tests_tests": 4151,
    "src_tests": 471
+  },
+  {
+   "id": "raise-584-33",
+   "kind": "raise",
+   "issue": 584,
+   "reviewed_at": "2026-11-11",
+   "reason": "2026-11-11 Forever publication review: preserve all 135 removed World test names at their unique Entity/World destination (reviewed mapping); complete skill/book family moves plus admitted source, creation, vitals, GUID and six quest-owner regressions. Mounted World total 4622 -> 4576; unit_tests lines 278717 -> 282978, unit tests 4151 -> 4231, src tests 471 -> 345. Review includes 89 added identities, 135 relocated identities, 148 classification/dependency updates (113 P->P, 33 W->W, two W->H); none is an omitted test waiver. Exact current metrics grant no headroom and retire no canonical skill/book or composition debt. Final acceptance remains required.",
+   "unit_tests_lines": 282978,
+   "unit_tests_tests": 4231,
+   "src_tests": 345
   }
  ]
 }

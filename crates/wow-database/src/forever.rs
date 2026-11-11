@@ -9,17 +9,20 @@ use wow_persistence::forever::{
     ClassRequirement, GLOBAL_CACHE_MASK, LoadError, RaceClassRequirement, RaceUnlockRequirement,
     SessionRepository,
 };
+mod create;
 mod creation;
 mod names;
 mod permissions;
 mod selection;
 mod spells;
+pub use create::recovery::CreationRecoveryReport;
 pub use creation::ForeverCreationWorldRepository;
 pub use spells::ForeverSpellWorldRepository;
 
 pub struct ForeverSessionRepository {
     auth: Arc<LoginDatabase>,
     characters: Arc<CharacterDatabase>,
+    creation_ids: Arc<tokio::sync::Mutex<create::CreationIds>>,
 }
 
 // LoginDatabase.cpp / AccountInfoQueryHolder::Initialize: exact columns.
@@ -54,7 +57,11 @@ fn field<T: for<'r> sqlx::Decode<'r, sqlx::MySql> + sqlx::Type<sqlx::MySql>>(
 
 impl ForeverSessionRepository {
     pub fn new(auth: Arc<LoginDatabase>, characters: Arc<CharacterDatabase>) -> Self {
-        Self { auth, characters }
+        Self {
+            auth,
+            characters,
+            creation_ids: Arc::new(tokio::sync::Mutex::new(create::CreationIds::default())),
+        }
     }
 
     async fn load(
@@ -214,6 +221,19 @@ impl SessionRepository for ForeverSessionRepository {
                 .map_err(|_| LoadError::Database)?;
             Ok(!result.is_empty())
         })
+    }
+
+    fn begin_character_creation(
+        &self,
+        admission: wow_persistence::forever::creation::save::CreationAdmission,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        Result<
+            Box<dyn wow_persistence::forever::creation::save::CharacterCreation>,
+            wow_persistence::forever::creation::save::CreateError,
+        >,
+    > {
+        Box::pin(self.reserve_creation(admission))
     }
 }
 

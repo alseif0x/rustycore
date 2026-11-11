@@ -784,7 +784,7 @@ Rate.RunicPower.Loss = 0.75
         Some(0.75)
     );
     assert_eq!(
-        rates.rate_for_power_like_cpp(wow_constants::PowerType::Happiness),
+        rates.rate_for_power_like_cpp(wow_constants::PowerType::ComboPoints),
         None
     );
 }

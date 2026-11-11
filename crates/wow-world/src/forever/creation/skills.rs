@@ -69,7 +69,9 @@ impl InitialSkillFields {
     /// Execute only source preallocation into the future Player's canonical
     /// field storage. Default requests still need real SetSkill/spell effects.
     pub fn initialize_player_skills(&self) -> crate::forever::player::PlayerSkills {
-        crate::forever::player::PlayerSkills::initialize(self)
+        crate::forever::player::PlayerSkills::initialize(
+            self.fields.iter().map(|seed| seed.skill()),
+        )
     }
     pub fn fields(&self) -> &[SkillFieldSeed] {
         &self.fields

@@ -894,6 +894,8 @@ mod group_2;
 mod instance;
 #[path = "map_tests/item.rs"]
 mod item;
+#[path = "map_tests/loaded_grid.rs"]
+mod loaded_grid;
 #[path = "map_tests/loot.rs"]
 mod loot;
 #[path = "map_tests/misc_1.rs"]

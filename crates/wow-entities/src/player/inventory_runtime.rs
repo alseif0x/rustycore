@@ -17,6 +17,8 @@ use crate::SocketedGem;
 use std::collections::{HashMap, HashSet};
 use wow_core::ObjectGuid;
 
+mod trade;
+
 /// Concrete item/object runtime owned by the canonical Player.
 ///
 /// This is deliberately a private Player substate rather than a shared lock:

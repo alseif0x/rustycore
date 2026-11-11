@@ -41,6 +41,7 @@ pub(super) fn build(manifest_dir: &Path) {
         .include(&root)
         .file(directory.join("bridge.cpp"))
         .file(directory.join("birth_lookup.cpp"))
+        .file(directory.join("skill_status_order.cpp"))
         .file(directory.join("book_order.cpp"))
         .file(directory.join("override_order.cpp"))
         .compile("rustycore_forever_spell_traversal");

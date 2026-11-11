@@ -102,6 +102,29 @@ pub fn verify_and_derive(
         .verify_truncated_left(digest)
         .map_err(|_| AuthError::DigestMismatch)?;
 
+    Ok(derive_session_keys(
+        join_key,
+        local_challenge,
+        server_challenge,
+    ))
+}
+
+/// TrinityCore's explicit unknown-build-key development path: the caller has
+/// already authenticated the BNet join ticket and deliberately skips only the
+/// per-build digest. Session and encryption key derivation is unchanged.
+pub fn derive_without_build_key(
+    join_key: &[u8; 64],
+    local_challenge: &[u8; 32],
+    server_challenge: &[u8; 32],
+) -> SessionKeys {
+    derive_session_keys(join_key, local_challenge, server_challenge)
+}
+
+fn derive_session_keys(
+    join_key: &[u8; 64],
+    local_challenge: &[u8; 32],
+    server_challenge: &[u8; 32],
+) -> SessionKeys {
     let key_data_hash = Sha512::digest(join_key);
     let session_hmac = hmac_sha512_parts(
         &key_data_hash,
@@ -116,10 +139,10 @@ pub fn verify_and_derive(
     let mut encryption_key = [0u8; ENCRYPTION_KEY_LEN];
     encryption_key.copy_from_slice(&encryption_hmac[..ENCRYPTION_KEY_LEN]);
 
-    Ok(SessionKeys {
+    SessionKeys {
         session_key,
         encryption_key,
-    })
+    }
 }
 
 /// Sign an `SMSG_ENTER_ENCRYPTED_MODE` proof with Ed25519ctx.
@@ -319,6 +342,9 @@ mod tests {
         );
 
         let keys = verify_and_derive(&join_key, &build_key, &local, &server, &digest).unwrap();
+        let unchecked = derive_without_build_key(&join_key, &local, &server);
+        assert_eq!(unchecked.session_key(), keys.session_key());
+        assert_eq!(unchecked.encryption_key(), keys.encryption_key());
         assert_eq!(
             hex(keys.session_key()),
             "eb1cd3efe62d57594372fa1db16280d3a7b39e1fbc2c038a4467453e841939959482050a792d3f79"

@@ -7,10 +7,16 @@ use wow_data::{
     HotfixBlobCache,
     forever_hotfix::{ForeverHotfixCatalog, ForeverTactKeys, TACT_KEY_TABLE_HASH},
 };
+use wow_persistence::forever::creation::save::{
+    CharacterCreation, CreateError, CreatedCharacter, CreationAdmission, CreationIdentities,
+    CreationIdentity, NewCharacter,
+};
 use wow_persistence::{PersistenceFutureLikeCpp, forever::AccountData};
 mod item_hotfix;
 mod name_availability;
 mod selection;
+#[path = "../../unit_tests/forever/session_creation.rs"]
+mod session_creation;
 mod templates;
 
 fn hotfix_catalog(mut metadata: HotfixBlobCache) -> ForeverHotfixCatalog {
@@ -67,11 +73,27 @@ struct Repository {
     selection: wow_persistence::forever::selection::SelectionRows,
     recustomize_error: Option<LoadError>,
     recustomized: std::sync::Mutex<Vec<u64>>,
+    creations: Arc<AtomicUsize>,
+    begins: AtomicUsize,
+    begin_error: Option<CreateError>,
+    begin_pending: bool,
+    create_error: Option<CreateError>,
+    create_pending: bool,
+    create_bad_guid: bool,
+    reserved_guid: u64,
 }
 
 impl Repository {
     fn good() -> Self {
         Self {
+            creations: Arc::new(AtomicUsize::new(0)),
+            begins: AtomicUsize::new(0),
+            begin_error: None,
+            begin_pending: false,
+            create_error: None,
+            create_pending: false,
+            create_bad_guid: false,
+            reserved_guid: 17,
             load_error: None,
             enum_error: None,
             loads: AtomicUsize::new(0),
@@ -95,6 +117,33 @@ fn snapshot() -> AccountSnapshot {
 }
 
 impl SessionRepository for Repository {
+    fn begin_character_creation(
+        &self,
+        admission: CreationAdmission,
+    ) -> PersistenceFutureLikeCpp<'_, Result<Box<dyn CharacterCreation>, CreateError>> {
+        Box::pin(async move {
+            self.begins.fetch_add(1, Ordering::SeqCst);
+            if self.begin_pending {
+                return std::future::pending().await;
+            }
+            if let Some(error) = self.begin_error {
+                return Err(error);
+            }
+            let operation: Box<dyn CharacterCreation> = Box::new(TestCreation {
+                identity: CreationIdentity {
+                    guid: self.reserved_guid,
+                    account: admission.account,
+                    realm: admission.realm,
+                },
+                creations: self.creations.clone(),
+                error: self.create_error,
+                pending: self.create_pending,
+                bad_guid: self.create_bad_guid,
+                next_item: 41,
+            });
+            Ok(operation)
+        })
+    }
     fn load_account(
         &self,
         _: u32,
@@ -139,6 +188,47 @@ impl SessionRepository for Repository {
         Box::pin(async move {
             self.queried_names.lock().unwrap().push(name.into());
             self.name_error.map_or(Ok(self.used_name), Err)
+        })
+    }
+}
+
+struct TestCreation {
+    identity: CreationIdentity,
+    creations: Arc<AtomicUsize>,
+    error: Option<CreateError>,
+    pending: bool,
+    bad_guid: bool,
+    next_item: u64,
+}
+
+impl CreationIdentities for TestCreation {
+    fn identity(&self) -> CreationIdentity {
+        self.identity
+    }
+    fn next_item_guid(&mut self) -> Result<u64, CreateError> {
+        let guid = self.next_item;
+        self.next_item = guid.checked_add(1).ok_or(CreateError::InvalidRow)?;
+        Ok(guid)
+    }
+}
+
+impl CharacterCreation for TestCreation {
+    fn save(
+        self: Box<Self>,
+        character: NewCharacter,
+    ) -> PersistenceFutureLikeCpp<'static, Result<CreatedCharacter, CreateError>> {
+        Box::pin(async move {
+            assert_eq!(character.guid, self.identity.guid);
+            self.creations.fetch_add(1, Ordering::SeqCst);
+            if self.pending {
+                return std::future::pending().await;
+            }
+            self.error.map_or(
+                Ok(CreatedCharacter {
+                    guid: self.identity.guid + u64::from(self.bad_guid),
+                }),
+                Err,
+            )
         })
     }
 }
@@ -190,6 +280,7 @@ fn policy() -> InitializationPolicy {
             )
             .unwrap(),
         ),
+        classic_friends_subscriptions: false,
     }
 }
 
@@ -212,6 +303,12 @@ fn linked_registry_has_one_exact_metadata_and_call_set() {
         rows,
         BTreeSet::from([
             (
+                0x440070,
+                "Authenticated".into(),
+                "ThreadUnsafe".into(),
+                "forever_create"
+            ),
+            (
                 0x450006,
                 "ConnectionEarly".into(),
                 "Inplace".into(),
@@ -222,6 +319,18 @@ fn linked_registry_has_one_exact_metadata_and_call_set() {
                 "ConnectionEarly".into(),
                 "Inplace".into(),
                 "forever_disconnect"
+            ),
+            (
+                0x440124,
+                "Authenticated".into(),
+                "Inplace".into(),
+                "forever_battlenet"
+            ),
+            (
+                0x4400EA,
+                "Authenticated".into(),
+                "Inplace".into(),
+                "forever_purchase_list"
             ),
             (
                 0x440014,
@@ -249,6 +358,113 @@ fn linked_registry_has_one_exact_metadata_and_call_set() {
             ),
         ])
     );
+}
+
+#[tokio::test]
+async fn empty_purchase_list_unblocks_the_account_phase_without_commerce_records() {
+    let mut session = session(Arc::new(Repository::good()));
+    let catalog = CharacterCatalog::fixture();
+    session.initialize(&catalog, &policy(), 17).await.unwrap();
+    let request = Request {
+        opcode: wow_packet::forever::BATTLE_PAY_GET_PURCHASE_LIST_OPCODE,
+        payload: vec![],
+    };
+    let output = session.dispatch(&catalog, request).await.unwrap().unwrap();
+    assert_eq!(output.len(), 1);
+    assert_eq!(
+        output[0].opcode(),
+        wow_packet::forever::BATTLE_PAY_GET_PURCHASE_LIST_RESPONSE_OPCODE
+    );
+    assert_eq!(output[0].payload(), &[0; 8]);
+
+    let malformed = Request {
+        opcode: wow_packet::forever::BATTLE_PAY_GET_PURCHASE_LIST_OPCODE,
+        payload: vec![0],
+    };
+    assert!(matches!(
+        session.dispatch(&catalog, malformed).await,
+        Err(SessionError::Protocol)
+    ));
+}
+
+#[tokio::test]
+async fn resources_content_handle_matches_the_official_beta_capture() {
+    use wow_packet::forever::battlenet::{
+        BATTLENET_REQUEST_OPCODE, BATTLENET_RESPONSE_OPCODE, GET_CONTENT_HANDLE_METHOD_ID,
+        RESOURCES_SERVICE_HASH,
+    };
+    let mut session = session(Arc::new(Repository::good()));
+    let catalog = CharacterCatalog::fixture();
+    session.initialize(&catalog, &policy(), 17).await.unwrap();
+    let method_type =
+        (u64::from(RESOURCES_SERVICE_HASH) << 32) | u64::from(GET_CONTENT_HANDLE_METHOD_ID);
+    let mut payload = method_type.to_le_bytes().to_vec();
+    payload.extend_from_slice(&1_u64.to_le_bytes());
+    payload.extend_from_slice(&9_u32.to_le_bytes());
+    payload.extend_from_slice(&15_u32.to_le_bytes());
+    for (tag, value) in [
+        (0x0D_u8, 0x424E_u32),
+        (0x15, 0x61706674),
+        (0x1D, 0x656E5553),
+    ] {
+        payload.push(tag);
+        payload.extend_from_slice(&value.to_le_bytes());
+    }
+    let output = session
+        .dispatch(
+            &catalog,
+            Request {
+                opcode: BATTLENET_REQUEST_OPCODE,
+                payload,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(output.len(), 1);
+    assert_eq!(output[0].opcode(), BATTLENET_RESPONSE_OPCODE);
+    assert_eq!(output[0].payload().len(), 120);
+    assert_eq!(&output[0].payload()[..4], &[0; 4]);
+    assert_eq!(
+        &output[0].payload()[33..38],
+        &[0x15, 0x79, 0x74, 0x66, 0x70]
+    );
+}
+
+#[tokio::test]
+async fn isolated_empty_social_lists_include_a_zero_continuation() {
+    use wow_packet::forever::battlenet::{
+        BATTLENET_REQUEST_OPCODE, FRIENDS_SERVICE_HASH, GET_FRIENDS_METHOD_ID,
+        GET_RECEIVED_INVITATIONS_METHOD_ID, GET_SENT_INVITATIONS_METHOD_ID,
+    };
+    let mut session = session(Arc::new(Repository::good()));
+    let catalog = CharacterCatalog::fixture();
+    session.initialize(&catalog, &policy(), 17).await.unwrap();
+    for method_id in [
+        GET_FRIENDS_METHOD_ID,
+        GET_RECEIVED_INVITATIONS_METHOD_ID,
+        GET_SENT_INVITATIONS_METHOD_ID,
+    ] {
+        let method_type = (u64::from(FRIENDS_SERVICE_HASH) << 32) | u64::from(method_id);
+        let mut payload = method_type.to_le_bytes().to_vec();
+        payload.extend_from_slice(&0_u64.to_le_bytes());
+        payload.extend_from_slice(&9_u32.to_le_bytes());
+        payload.extend_from_slice(&0_u32.to_le_bytes());
+        let output = session
+            .dispatch(
+                &catalog,
+                Request {
+                    opcode: BATTLENET_REQUEST_OPCODE,
+                    payload,
+                },
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(output[0].payload().len(), 30);
+        assert_eq!(&output[0].payload()[..4], &[0; 4]);
+        assert_eq!(&output[0].payload()[28..], &[0x10, 0x00]);
+    }
 }
 
 fn bulk_request(table_hash: u32, ids: &[u32]) -> Request {
@@ -436,6 +652,44 @@ async fn initialized_snapshot_is_owned_before_the_exact_ordered_batch() {
 }
 
 #[tokio::test]
+async fn modern_initialization_appends_empty_friends_and_block_list_subscriptions() {
+    let mut session = session(Arc::new(Repository::good()));
+    let mut policy = policy();
+    policy.classic_friends_subscriptions = true;
+    let output = session
+        .initialize(&CharacterCatalog::fixture(), &policy, 17)
+        .await
+        .unwrap();
+    assert_eq!(output.len(), 11);
+    assert_eq!(output[2].payload()[0], 0x80);
+    assert_eq!(output[3].opcode(), 0x460371);
+    assert_eq!(&output[3].payload()[..4], &26_u32.to_le_bytes());
+    assert!(output[3].payload().ends_with(b"0\0"));
+    assert_eq!(output[8].payload(), &[0x40]);
+    for (index, service_hash, data) in [
+        (
+            9,
+            wow_packet::forever::battlenet::FRIENDS_SERVICE_HASH,
+            &[][..],
+        ),
+        (
+            10,
+            wow_packet::forever::battlenet::BLOCK_LIST_SERVICE_HASH,
+            &[0x0A, 0x00][..],
+        ),
+    ] {
+        let payload = output[index].payload();
+        let method_type = (u64::from(service_hash) << 32)
+            | u64::from(wow_packet::forever::battlenet::SUBSCRIBE_METHOD_ID);
+        assert_eq!(output[index].opcode(), 0x4602AF);
+        assert_eq!(&payload[..4], &[0; 4]);
+        assert_eq!(&payload[4..12], &method_type.to_le_bytes());
+        assert_eq!(&payload[12..24], &[0; 12]);
+        assert_eq!(&payload[28..], data);
+    }
+}
+
+#[tokio::test]
 async fn registry_thunk_and_phase_admission_not_an_opcode_match_run_the_operation() {
     let mut session = session(Arc::new(Repository::good()));
     let catalog = CharacterCatalog::fixture();
@@ -523,13 +777,17 @@ async fn registry_thunk_and_phase_admission_not_an_opcode_match_run_the_operatio
         .unwrap();
     assert_eq!(
         output.iter().map(Outgoing::opcode).collect::<Vec<_>>(),
-        [0x460018, 0x460362, 0x460360]
+        [0x460018, 0x46021E, 0x460362, 0x460360]
     );
     assert!(session.has_enumerated());
     assert!(session.character_activity > activity);
     assert_eq!(&output[0].payload()[10..14], &1_i32.to_le_bytes());
-    assert_eq!(output[1].payload(), &[0; 9]);
-    assert_eq!(output[2].payload(), &[0; 4]);
+    assert_eq!(output[1].payload(), &[0; 6]);
+    assert_eq!(
+        output[2].payload(),
+        &[0x10, 0xBD, 0xEC, 0x08, 7, 0, 0, 0, 0]
+    );
+    assert_eq!(output[3].payload(), &[0; 4]);
 }
 
 #[tokio::test]
@@ -578,6 +836,12 @@ async fn invalid_packet_policy_never_returns_a_partial_auth_batch() {
 async fn cancelled_initialization_cannot_be_restarted_or_admit_character_operations() {
     struct PendingRepository;
     impl SessionRepository for PendingRepository {
+        fn begin_character_creation(
+            &self,
+            _: CreationAdmission,
+        ) -> PersistenceFutureLikeCpp<'_, Result<Box<dyn CharacterCreation>, CreateError>> {
+            panic!("cancelled initialization must never create")
+        }
         fn load_account(
             &self,
             _: u32,

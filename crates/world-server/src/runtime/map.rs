@@ -1120,7 +1120,7 @@ impl LoadedGridAreaTriggerLoadSummaryLikeCpp {
         self.loaded_area_trigger_guids.extend(
             grid.loaded_grid_primary_records
                 .iter()
-                .map(|record| record.object().guid()),
+                .map(|record| record.object_guid()),
         );
         self.add_to_map_errors += grid.add_to_map_errors;
     }

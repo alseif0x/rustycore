@@ -36,6 +36,30 @@ mod pending_spell_cast;
 mod persistent_capabilities;
 mod pet_lifecycle;
 mod progression;
+mod skill_sources;
+mod spell_book;
+pub use spell_book::{
+    AddPlayerSpell, CastOverrideAura, CastSpellAuras, CastSpellError, CastSpellResult,
+    LearnPlayerSpell, PlayerSpellBook, PlayerSpellEntry, PlayerSpellState, PlayerSpellTrait,
+    RemovePlayerSpell, SpellBookMessage, SpellBookMutation, SpellBookOrderError,
+    SpellLearnCriterion, SpellLearningEffects,
+};
+mod spell_sources;
+pub use spell_sources::{
+    SpellBookDefinition, SpellBookEffect, SpellDefinitionSource, SpellLearningAbility,
+    SpellLearningError, SpellLearningNode, SpellLearningRank, SpellLearningSkill,
+    SpellLearningSource, SpellLearningSourceError,
+};
+mod skills;
+pub use skill_sources::{
+    SkillAbilityMetadata, SkillCatalog, SkillLineMetadata, SkillRaceClassMetadata,
+    SkillRewardSpellMetadata, SkillSetError, SkillSetSource, SkillUpdate,
+};
+pub use skills::{
+    PLAYER_MAX_SKILLS, PlayerSkills, ProfessionItemMove, SkillBonusError, SkillCriteria,
+    SkillFields, SkillSetEffects, SkillSetOutcome, SkillStatusEntry, SkillStatusOrderError,
+    SkillUpdateState,
+};
 mod pvp;
 mod quest_log;
 mod quest_state;
@@ -63,6 +87,7 @@ pub use item_modifiers::{
     PlayerItemSetEffectLikeCpp, loaded_enchantment_effect_action_is_unrepresented_like_cpp,
     represented_item_bonus_action_updates_stats_like_cpp,
 };
+pub use items::ItemStorageView;
 pub use items::{
     ExistingStorageStackUpdateLikeCpp, InventoryStorageMovePlanLikeCpp,
     plan_inventory_storage_move_like_cpp,
@@ -121,10 +146,10 @@ use std::sync::Arc;
 use crate::PlayerGameplayState;
 use bitflags::bitflags;
 use wow_constants::{
-    BagFamilyMask, EnchantmentSlot, Gender, InventoryResult, InventoryType, ItemBondingType,
-    ItemClass, ItemEnchantmentType, ItemFieldFlags, ItemFieldFlags2, ItemModType, ItemModifier,
-    ItemSubClassContainer, ItemSubClassQuiver, ItemSubClassWeapon, ItemSubclassProfession,
-    ItemUpdateState, PowerType, Stats, TypeId, TypeMask, WeaponAttackType, spell::SpellSchools,
+    EnchantmentSlot, Gender, InventoryResult, InventoryType, ItemBondingType, ItemClass,
+    ItemEnchantmentType, ItemFieldFlags, ItemFieldFlags2, ItemModType, ItemModifier,
+    ItemSubClassQuiver, ItemSubClassWeapon, ItemSubclassProfession, ItemUpdateState, PowerType,
+    Stats, TypeId, TypeMask, WeaponAttackType, spell::SpellSchools,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -898,7 +923,7 @@ fn representable_power_types() -> [PowerType; MAX_POWERS] {
         PowerType::Rage,
         PowerType::Focus,
         PowerType::Energy,
-        PowerType::Happiness,
+        PowerType::ComboPoints,
         PowerType::Runes,
         PowerType::RunicPower,
         PowerType::SoulShards,
@@ -908,7 +933,7 @@ fn representable_power_types() -> [PowerType; MAX_POWERS] {
         PowerType::Maelstrom,
         PowerType::Chi,
         PowerType::Insanity,
-        PowerType::ComboPoints,
+        PowerType::BurningEmbers,
         PowerType::DemonicFury,
         PowerType::ArcaneCharges,
         PowerType::Fury,

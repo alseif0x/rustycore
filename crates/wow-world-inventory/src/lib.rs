@@ -187,8 +187,8 @@ pub use publication::item_storage_fields_values_update_like_cpp;
 pub use state::InventoryState;
 pub use storage_slots::is_represented_bag_slot;
 pub use trade_storage::{
-    TradeStoreActionLikeCpp, TradeStoreCatalogsLikeCpp, TradeStorePlanLikeCpp,
-    plan_trade_receive_like_cpp,
+    TradeStorageSnapshot, TradeStoreActionLikeCpp, TradeStoreCatalogsLikeCpp,
+    TradeStorePlanLikeCpp, plan_trade_receive_like_cpp, plan_trade_receive_snapshot_like_cpp,
 };
 
 pub use quest_reward::{

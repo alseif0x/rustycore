@@ -465,8 +465,12 @@ impl PlayerGameplayState {
             return false;
         }
 
-        let mut normalized = self.clone();
-        normalized.void_storage_items.clear();
-        normalized == Self::default()
+        let empty = Self {
+            void_storage_items: std::iter::repeat_with(|| None)
+                .take(self.void_storage_items.len())
+                .collect(),
+            ..Self::default()
+        };
+        self == &empty
     }
 }

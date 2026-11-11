@@ -2297,11 +2297,9 @@ where
                 }
             }
             let primary_record = records.primary_record;
-            let loaded_grid_primary_record = primary_record.clone();
+            let primary_facts = LoadedGridObjectFacts::from_record(&primary_record);
             match self.add_map_object_record_to_map_like_cpp(primary_record) {
-                Ok(_outcome) => summary
-                    .loaded_grid_primary_records
-                    .push(loaded_grid_primary_record),
+                Ok(_outcome) => summary.loaded_grid_primary_records.push(primary_facts),
                 Err(_error) => summary.add_to_map_errors += 1,
             }
         }

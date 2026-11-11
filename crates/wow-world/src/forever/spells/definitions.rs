@@ -2,6 +2,7 @@
 //! One derived authority consumes the ID-only plan. Global startup correction
 //! requires exclusive raw ownership; later readers share an immutable Arc.
 mod abilities;
+mod book_source;
 #[cfg(test)]
 mod cast_fixture;
 mod client;
@@ -20,7 +21,7 @@ mod skill_set_fixture;
 #[cfg(test)]
 mod spell_book_fixture;
 #[cfg(test)]
-pub(crate) use cast_fixture::cast_test_definitions;
+pub(crate) use cast_fixture::{cast_test_definitions, cast_test_shared_catalog_pair};
 #[cfg(test)]
 pub(crate) use learn_spells::spell_book_test_learn_flags;
 #[cfg(test)]

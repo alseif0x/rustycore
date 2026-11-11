@@ -6,6 +6,7 @@
 pub mod appearance;
 mod catalog;
 pub mod creation;
+mod guid;
 mod handlers;
 pub mod name_rules;
 pub mod permissions;
@@ -39,6 +40,7 @@ enum Phase {
     Initializing,
     Authenticated,
     Selecting,
+    Creating,
     Closed,
 }
 
@@ -48,6 +50,7 @@ pub enum SessionError {
     Protocol,
     Codec,
     Persistence(LoadError),
+    Creation(wow_persistence::forever::creation::save::CreateError),
     Registry,
     NameRules(name_rules::NameRuleError),
 }
@@ -72,6 +75,7 @@ pub struct InitializationPolicy {
     pub content_set: i32,
     pub max_characters: i32,
     pub character_templates: Arc<creation::CharacterTemplates>,
+    pub classic_friends_subscriptions: bool,
 }
 
 /// Payload is deliberately not Debug. Metadata can be recorded without rows.
@@ -119,6 +123,7 @@ pub struct Session {
     name_rules: Arc<name_rules::NameRules>,
     name_policy: name_rules::NamePolicy,
     selection_policy: selection::SelectionPolicy,
+    creator: Option<Arc<dyn creation::CharacterCreator>>,
     legitimate_characters: HashSet<wow_core::ObjectGuid>,
     registry: HashMap<u32, &'static Entry>,
     latency: u32,
@@ -158,12 +163,17 @@ impl Session {
             name_rules,
             name_policy,
             selection_policy,
+            creator: None,
             legitimate_characters: HashSet::new(),
             registry,
             latency: 0,
             enumerated: false,
             character_activity: std::time::Instant::now(),
         })
+    }
+
+    pub fn attach_creator(&mut self, creator: Arc<dyn creation::CharacterCreator>) {
+        self.creator = Some(creator);
     }
 
     pub async fn initialize(
@@ -283,6 +293,20 @@ static ENTRIES: &[Entry] = &[
         handler: |session, _, request| Box::pin(handlers::disconnect(session, request)),
     },
     Entry {
+        opcode: wow_packet::forever::battlenet::BATTLENET_REQUEST_OPCODE,
+        status: Admission::Authenticated,
+        processing: PacketProcessing::Inplace,
+        handler_name: "forever_battlenet",
+        handler: |session, _, request| Box::pin(handlers::battlenet(session, request)),
+    },
+    Entry {
+        opcode: wow_packet::forever::BATTLE_PAY_GET_PURCHASE_LIST_OPCODE,
+        status: Admission::Authenticated,
+        processing: PacketProcessing::Inplace,
+        handler_name: "forever_purchase_list",
+        handler: |session, _, request| Box::pin(handlers::purchase_list(session, request)),
+    },
+    Entry {
         opcode: ENUM_CHARACTERS,
         status: Admission::Authenticated,
         processing: PacketProcessing::ThreadUnsafe,
@@ -304,6 +328,13 @@ static ENTRIES: &[Entry] = &[
         processing: PacketProcessing::Inplace,
         handler_name: "forever_db_query",
         handler: |session, _, request| Box::pin(handlers::db_query(session, request)),
+    },
+    Entry {
+        opcode: 0x440070,
+        status: Admission::Authenticated,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "forever_create",
+        handler: |session, catalog, request| Box::pin(handlers::create(session, catalog, request)),
     },
     Entry {
         opcode: wow_packet::forever::name_availability::CHECK_CHARACTER_NAME_AVAILABILITY_OPCODE,

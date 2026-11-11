@@ -15,18 +15,29 @@ pub(super) struct CharacterCapture {
     path: PathBuf,
     name_availability: bool,
     response_path: Option<PathBuf>,
+    build: u32,
 }
 
 impl CharacterCapture {
-    pub(super) fn prepare(root: &Path, path: &Path) -> Result<Self> {
-        Self::prepare_kind(root, path, false)
+    pub(super) fn prepare_for_build(root: &Path, path: &Path, build: u32) -> Result<Self> {
+        Self::prepare_kind(root, path, false, build)
     }
 
-    pub(super) fn prepare_name(root: &Path, path: &Path) -> Result<Self> {
-        Self::prepare_kind(root, path, true)
+    pub(super) fn prepare_name_for_build(root: &Path, path: &Path, build: u32) -> Result<Self> {
+        Self::prepare_kind(root, path, true, build)
     }
 
-    fn prepare_kind(root: &Path, path: &Path, name_availability: bool) -> Result<Self> {
+    #[cfg(test)]
+    fn prepare(root: &Path, path: &Path) -> Result<Self> {
+        Self::prepare_for_build(root, path, 70170)
+    }
+
+    #[cfg(test)]
+    fn prepare_name(root: &Path, path: &Path) -> Result<Self> {
+        Self::prepare_name_for_build(root, path, 70170)
+    }
+
+    fn prepare_kind(root: &Path, path: &Path, name_availability: bool, build: u32) -> Result<Self> {
         let parent = path
             .parent()
             .ok_or_else(|| anyhow::anyhow!("capture parent"))?
@@ -60,6 +71,7 @@ impl CharacterCapture {
             path,
             name_availability,
             response_path,
+            build,
         })
     }
 
@@ -83,7 +95,7 @@ impl CharacterCapture {
         options.mode(0o600);
         let mut file = options.open(path).await?;
         let mut header = Vec::from(*b"FNS1");
-        header.extend_from_slice(&70170_u32.to_le_bytes());
+        header.extend_from_slice(&self.build.to_le_bytes());
         header.extend_from_slice(&opcode.to_le_bytes());
         header.extend_from_slice(&8_u32.to_le_bytes());
         file.write_all(&header).await?;
@@ -124,7 +136,7 @@ impl CharacterCapture {
         } else {
             *b"FCR1"
         });
-        header.extend_from_slice(&70170u32.to_le_bytes());
+        header.extend_from_slice(&self.build.to_le_bytes());
         header.extend_from_slice(&expected.to_le_bytes());
         header.extend_from_slice(&(payload.len() as u32).to_le_bytes());
         file.write_all(&header).await?;
@@ -172,7 +184,7 @@ mod tests {
     async fn captures_only_create_privately_without_overwrite() {
         let root = Root::new();
         let path = root.0.join("request.bin");
-        let capture = CharacterCapture::prepare(&root.0, &path).unwrap();
+        let capture = CharacterCapture::prepare_for_build(&root.0, &path, 70450).unwrap();
         for opcode in [0x440010, 0x440011, 0x440014, 0x450006, 0x450001] {
             capture
                 .record(opcode, b"synthetic-not-captured")
@@ -183,7 +195,7 @@ mod tests {
         capture.record(OPCODE, b"synthetic-create").await.unwrap();
         let bytes = fs::read(&path).unwrap();
         assert_eq!(&bytes[..4], b"FCR1");
-        assert_eq!(&bytes[4..8], &70170u32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &70450u32.to_le_bytes());
         assert_eq!(&bytes[8..12], &OPCODE.to_le_bytes());
         assert_eq!(&bytes[12..16], &16u32.to_le_bytes());
         assert_eq!(&bytes[16..], b"synthetic-create");

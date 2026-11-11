@@ -4,236 +4,73 @@
 
 <p align="center">
   <strong>RustyCore · Forever</strong><br>
-  Bringing a new generation of Classic to Rust.<br>
-  Experimental server support for <strong>WoW Forever 1.60.1 · build 70170 · Beta x64</strong>.
+  A Rust server for WoW Forever 1.60.1, build 70170, Beta x64.
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg" alt="License: GPL-3.0-or-later"></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-1.98.0-orange.svg" alt="Rust 1.98.0"></a>
-  <a href="docs/operations/forever-login.md"><img src="https://img.shields.io/badge/client-Forever%201.60.1%20%2870170%29-6f42c1.svg" alt="WoW Forever 1.60.1 build 70170"></a>
-  <img src="https://img.shields.io/badge/milestone-native%20character%20screen-2ea44f.svg" alt="Real-client login, empty character selection and creation UI observed">
   <img src="https://img.shields.io/badge/status-experimental-e09f3e.svg" alt="Experimental; not playable yet">
   <a href="https://discord.gg/mH6ACpGPb2"><img src="https://img.shields.io/badge/Discord-join%20the%20community-5865F2.svg" alt="Join the Discord community"></a>
 </p>
 
 <p align="center">
-  <a href="#what-works-today">Progress</a> ·
-  <a href="#quick-start">Build & test</a> ·
-  <a href="#forever-extraction-tools">Extraction tools</a> ·
-  <a href="docs/operations/forever-login.md">Forever runbook</a> ·
-  <a href="#roadmap">Next milestones</a> ·
-  <a href="#contributing">Contribute</a> ·
+  <a href="#current-status">Status</a> ·
+  <a href="#extractor">Extractor</a> ·
+  <a href="#build-and-test">Build & test</a> ·
+  <a href="#documentation">Documentation</a> ·
   <a href="#community">Community</a>
 </p>
 
-## A new Classic client. A Rust foundation.
+## What is RustyCore Forever?
 
-This is the **`forever` development branch** of RustyCore, starting from the
-[WotLK Classic `3.4.3` codebase](https://github.com/alseif0x/rustycore/tree/3.4.3)
-at `2df57d6f`. Its target is the **modern WoW Forever client**, not the original
-Vanilla 1.12.1 protocol.
+RustyCore Forever is the modern-client development branch of
+[RustyCore](https://github.com/alseif0x/rustycore). It reuses the modular
+`3.4.3` foundation while implementing the WoW Forever `1.60.1.70170` protocol.
 
-`3.4.3` and `forever` are independent version lines. Forever fixes and pull
-requests target `forever`; this port is not intended to be merged wholesale
-into `3.4.3`. A GitHub **Compare & pull request** suggestion after a push does
-not change that workflow. Client version numbers remain separate from branch names.
-Compatibility with 3.4.3 is **not** a requirement of this branch. Shared code is
-reused where it fits the Forever client; incompatible protocols and behavior are
-replaced using target-build evidence, not retained for historical compatibility.
+The `forever` and `3.4.3` branches have different client targets. Forever fixes
+and pull requests belong in `forever`; matching older behavior is not enough
+when the modern client requires something different.
 
-The first real-client milestone is in: build **70170** completes normal HTTPS
-SRP authentication, Battle.net Authentication V2, account queries and a realm-list
-ticket exchange against RustyCore. It now also displays Forever's **ruleset
-selection screen**, with the PvP option from the configured SuperDistrict.
-In the isolated online probe, it accepts the configured realm and modern join
-ticket, opens the world connection, answers the **65-byte AuthChallenge** and
-passes strict verification of its **24-byte AuthSession digest**. The derived
-40-byte session key is persisted in the disposable Auth fixture.
-No password bypass or synthetic login success.
+## Current status
 
-> **Research preview — not playable yet.** The real client now logs into the
-> target-specific encrypted Session, shows the empty **character selection**
-> screen and opens **creation UI with a 3D human warrior preview**.
-> After implementing typed `TactKey` query delivery, a fresh probe again reaches
-> race/class selection and **personalization**, with rendered 3D models.
-> Earlier repeats stalled during loading; broader repeatability is not yet proven.
-> Saving a character and entering the world remain unimplemented; a visible
-> creation screen is not persistence. The normal fixture stays offline.
-> The diagnostic launcher setup is not a turnkey client installer.
+The original Forever work is now integrated with the modular foundation. The
+November 1 integration passed its final local acceptance, including architecture,
+navigation, terrain, database and protocol checks. Subsequent experimental
+creation and ownership changes retain their separate acceptance status in the
+current-state checkpoint.
 
-Character/world integration is **paused pending the `3.4.3` architecture refactor**.
-The current source checkpoint preserves unfinished readers, initialization,
-spell/skill operations and authored tests; it is not a compiled, installed or
-playable milestone. Independent extractor work continues in
-[rustycore-extractors](https://github.com/alseif0x/rustycore-extractors/tree/forever).
+That is useful progress, but **the server is not playable yet**.
 
-## What works today
-
-Evidence recorded on **2026-10-02–03**, with the real Windows x64 client running in
-an isolated Wine environment on a Linux x86_64 host:
-
-| Stage | Status | Evidence / boundary |
-| --- | --- | --- |
-| BNet TLS connection and connection identity | Verified | Real build-70170 client |
-| HTTPS SRPv2 and Authentication V2 | Verified | Successful proof, token verification and `OnLogonComplete` |
-| Account V2 queries | Verified | Account and game-account information/restrictions |
-| Realm-list ticket and subregion discovery | Verified | Real client accepts the responses |
-| Offline realm-list serialization | Smoke-tested | V1/V2 test client decodes `1.60.1.70170`; not a realm-selector UI pass |
-| Forever `SuperDistrictList` and ruleset UI | Verified | Real client displays and selects PvP for configured district 1 |
-| Realm discovery after ruleset choice | Verified in isolated probe | Client accepts content 136 / district 1 and requests realm `0x02010001` |
-| Modern BNet realm join | Verified | JSON ticket, build variant and session-key persistence; real client accepts the response |
-| World TCP, V2 preamble and AuthSession proof | Verified in isolated probe | Native 70170 digest verified; 40-byte session key persisted; build key kept private |
-| Signed encryption / AES-256-GCM traffic | Verified in isolated probe | Native ACK, encrypted requests and server replies; no signature bypass |
-| Target character-data acquisition | Verified locally | Actual classes/races, six model/customization tables and 434 readable Achievement rows; nine Achievement rows remain unavailable |
-| Birth skill/loadout data | Effective composition implemented; Rust acceptance pending | Five real baselines + ten official/custom reads + final removals; 7833 readable baseline abilities with five unavailable encrypted rows, explicit source Skip; not learned skills or instantiated inventory |
-| Initial skill fields / learning | Canonical fields and learning coordinators authored; unvalidated | Source-ordered indices, first-match lookup, 300-slot preallocation and ordered SetSkill states/profession-child synchronization. Default learning checks live skill/level after each preceding effect; reward learning preserves condition/mask/level order and exact-spell removal. Actual condition/spell/aura/enchant/inventory executors and native acceptance remain pending |
-| Target spell inputs / hotfix delivery | 49-table and three spell-value GameTable acquisitions verified; working Rust composition remains unvalidated | 49 client stores and 668 hotfix SQL columns, including UnitCondition, talents, enchantments, visuals, liquids and expected-stat/item-value inputs; eight enUS/esES text families and difficulty fallback. Complete SpellScaling and item-level rating/stamina inputs have native numeric fingerprints; Rust differential remains pending. Source-contrasted expected-stat and random-property calculations are implemented but unexecuted. Independent 117-column server spells, 191 ID-correction groups, 153 implicit targets and all 361 effect-target metadata rows. Pinned Linux C++ replay supplies IDs only; one shared catalog owns full raw/hotfix records. Definitions retain 17 attribute words and 32/5 effect/cost slots. Full executable SpellInfo, learning and Player/save remain pending; no 3.4.3 fallback |
-| Initial item data / quantities / source list | Numeric producer integrated in working code; acceptance pending | Four target baseline readers + eight official/custom SQL reads + final removals; source food/drink/DK counts, effect order, contexts, race masks and signed overrides. Rust/actual-file acceptance, full templates, equip and save still pending |
-| Numeric item-template rules | Implemented in working startup; acceptance pending | Three complete spec/relic baselines + six hotfix reads + addons; source durability, five specialization slots/class and effect order. Bonuses/scripts, equip and Rust/native acceptance still pending |
-| Item hotfix delivery / localized texts | Integrated in working code; unvalidated | Seven source-ordered serializers, separate enUS/esES text overlays and shared immutable item records; no external IDs/compressed DB2 bytes in payloads. Rust/actual-file/native acceptance pending |
-| Target Session / initial server packet sequence | Verified in isolated probe | Real Character/Auth query holders, ordered success initialization and native enum request |
-| TactKey DBQueryBulk / DBReply | Implemented; native batch observed | Real baseline + official/custom SQL overlays; missing requested records get Invalid, never fabricated keys |
-| Empty character selection | Verified with real client | Database-backed empty list and «Crear personaje» button |
-| Creation UI / personalization | Observed with real client | Fresh probe reaches human warrior customization and rendered models; no character saved |
-| Target appearance validation | Implemented; native QA passed | Seven real DB2 baselines + SQL overlays/removals; nine native human-warrior choices validate, without a save/success response |
-| Name availability | Native 70170 verified | Valid name shows green; server-configured rejection shows red and disables Finish. Exact sequence/result response; not a reservation or Create success |
-| Target name rules | Local acceptance passing | Real WDC5/SQL catalog, finite UTF-16 casing, pinned Boost Perl/icase engine, reserved-name ordering and scoped default RBAC |
-| Creation inputs / populated-list codecs | Implementation in progress | Target SQL including all 16 skill-tier values, seven effective initialization stores, signed stats/vitals, source start-level/money and template preparation; new Rust acceptance pending, no admitted Player/save |
-| Local nonempty character selection | Implementation in progress | Target two-query holder, all 19 equipment slots, appearance/flags and one Session authorization set; new Rust/native acceptance pending, visible-pet integration still open |
-| Character creation | Pending | Name/admission, starting Player state and durable persistence still required; no character saved |
-| Initial world load | Pending | Requires target-build packets and appropriate world/client data |
-
-Working spell initialization now connects the complete ordered custom-attribute
-and positivity pass, including null-caster values and the pinned SFMT/frand
-adapter, consulting the same shared catalogs. Rust compilation and the new
-comparisons remain pending; this is not a verified playable milestone.
-Remaining derived spell semantics, character save and world entry are unfinished.
-Diminishing/visual selection now uses complete effective `UnitCondition` inputs.
-Source immunity metadata, its separate World SQL catalog and all 25 target-cap
-rules are connected after that phase. The working startup now also connects
-source-ordered ranks, required-spell relationships, learned-skill metadata,
-spell-specific/aura-state classification and SQL/effect/DB2 learning relationships.
-These are spell metadata, not an executed Player spellbook or learned skills.
-Source `IsSpellValid` now queries the same numeric item-template authority,
-preserving physical effects, recursive regular-difficulty learning and reagent
-order. Player-owned skill fields and actual temporary/permanent bonus propagation
-are authored; full `SetSkill` and spell/aura execution remain unfinished.
-The `SetSkill` field/state coordinator now preserves ordered mandatory effects,
-profession inventory early returns and final child synchronization. Its recording
-tests are not an actual Player effect executor; creation remains disabled.
-Default skills now run through that coordinator with live admission checks.
-Reward learning itself is integrated, replacing its generic callback with
-source-ordered condition and spellbook commands. Concrete conditions/AddSpell/
-LearnSpell effects remain required; no empty executor enables creation.
-The Player spellbook now owns source states, temporary spells, favorites and
-known/active queries in working code. Its numeric-only native traversal replays
-membership history and borrows canonical entries; actual PlayerSpellMap oracle
-and domain/ABI cases are authored, unexecuted. AddSpell/LearnSpell now coordinate
-real book transitions, recursive rank/dependent learning, passive/cast decisions,
-skill commands, criteria and mount ordering in working code, with 31 unexecuted
-domain cases. RemoveSpell is also authored, with 29 further unexecuted cases for
-dependency removal, lower-rank restoration, aura/profession/weapon commands and
-failure/reentry ordering. Mandatory Unit/pet/SetSkill/inventory-mail/collection/
-publication executors and durable persistence remain required; creation is still disabled.
-Cast-definition resolution now follows canonical override groups and applied-aura
-inputs, preserving source unordered-set order and the shared five-slot context.
-Nineteen domain/four ABI cases, 420 independent set histories and 22 extracted
-C++ resolver cases are authored, unexecuted. This selects a definition; it is not
-an actual Unit cast/aura executor or a completed Player/creation milestone.
-All working Rust remains uncompiled/unexecuted; actual Player initialization,
-live immunity/skill/spell effects, durable save and world entry remain required.
-
-The current evidence includes **133 BNet tests**, **364 database tests** (2
-additional integration tests ignored), **40 Python tests**, **59 crypto tests**,
-**37 transport tests**, and
-live V1/V2 positive/negative authentication scenarios. These counts describe the
-recorded scoped checks, not a full-workspace or gameplay-parity certification.
-The [runbook](docs/operations/forever-login.md) records exact revisions, source
-anchors, failures, timings and the observed client trace.
-The account-phase delivery additionally passed **764 data / 362 database / 767
-packet / 35 persistence / 4048 world tests**, with 2 database and 1 world tests
-ignored, plus 1 target-binary ticket test, 48 Python guards and 9 probe CLI guards.
-The authenticated-idle correction passed **42 transport tests** and a fresh
-three-minute native connection. Typed TactKey delivery additionally passed **774
-data tests**, the affected database/packet/persistence/world suites (**4052 world
-tests**, 1 ignored), and the target-binary test and normal build. A fresh native
-probe reaches customization after receiving two DBReply batches. No key material
-is distributed with this repository.
-These are scoped results; the ordinary 600-second acceptance budget was exceeded.
-The character-data candidate additionally passed **760 data tests**, **4 strict
-fixture tests**, **6 acquisition guards** and **9 negative private-copy cases**;
-the real tables decode through Rust. These are data/admission prerequisites,
-not playable-race selection or character creation.
-
-The full `validation-v2 final` gate is currently blocked by inherited architecture
-hotspot limits and legacy ownership-baseline mismatches. The shared registry
-relocation adds no legacy Session growth; no limits or baselines were relaxed.
-The passing scoped checks above are not
-a substitute for that gate; see the runbook's publication boundary.
-
-## Documentation
-
-Start with the branch-specific material; inherited guides still describe 3.4.3
-unless explicitly marked otherwise.
-
-- [Forever login runbook](docs/operations/forever-login.md) — isolated fixture, protocol evidence and current blocker.
-- [Current state](docs/migration/STATE.md) — implementation, evidence, and known boundaries.
-- [Documentation map](docs/README.md) — maintained project references.
-- [Inherited server setup](docs/wiki/server/setup.md) and [database bootstrap](docs/operations/db-bootstrap.md) — 3.4.3 foundation, not verified Forever world setup.
-- [Validation V2](docs/operations/validation-v2.md) — focused, final, and exhaustive checks.
-- [Live client debugging](docs/operations/live-client-debug.md) — authorized runtime evidence.
-
-## Roadmap
-
-1. **Save a real character.** Login, empty selection and creation UI are now
-   observed. Implement target validation, creation transactions and nonempty
-   enumeration, then verify persistence with the real client.
-2. **Complete character admission.** Load the saved target character without
-   legacy protocol or invented player state.
-3. **Load the initial world.** Confirm the required data, initial packet sequence
-   and client loading result.
-
-These are dependency-ordered goals, not release dates or completed compatibility
-claims. The parent [3.4.3 port plan](docs/migration/PORT_PLAN.md) remains separate;
-inherited gameplay implementation does not establish support for build 70170.
-
-The installed client's two character tables have been acquired privately in
-`esES`. Forever uses **WDC5/version 5**, not the inherited WDC4 header. Their
-schema hashes match the pinned Forever reference; old field mappings are not
-treated as interchangeable. See the [character-data prerequisite](docs/operations/forever-login.md#build-70170-character-data-prerequisite)
-for acquisition, validation and the remaining world/character database boundary.
-
-## Target and prerequisites
-
-| Area | Current target |
+| Area | Where we are |
 | --- | --- |
-| Client | WoW Forever `1.60.1.70170` — Beta x64 |
-| Branch / foundation | `forever`, based on `3.4.3` at `2df57d6f` |
-| Rust | `1.98.0`, pinned in [`rust-toolchain.toml`](rust-toolchain.toml) |
-| Protobuf compiler | `28.3`, pinned in [`.protoc-version`](.protoc-version) |
-| Accepted local fixture | Disposable MariaDB `11.4`, separate Auth / Character / World / Hotfix schemas |
-| World data | Pinned target TDB plus source-ordered updates; gameplay parity not established; no 3.4.3 drop-in data |
-| Manual testing | Your own client installation and the documented diagnostic launcher setup |
+| Battle.net authentication | Real build-70170 authentication, account queries and realm-list exchange work in the isolated fixture |
+| World connection | The client completes the target AuthSession proof and encrypted transport in the isolated probe |
+| Character screen | Empty selection and the creation/customization UI have been observed with the real client |
+| Character creation | Durable creation, saving and nonempty enumeration are not finished |
+| World entry | Initial world loading and normal gameplay remain open |
+| Modular integration | Final local acceptance passes; this is not full-world or gameplay acceptance |
 
-You will also need a local configuration and, for Battle.net authentication, TLS certificate
-material. Keep credentials, certificates, database URLs, and runtime configuration outside Git.
-Use the [Forever runbook](docs/operations/forever-login.md) for the accepted local
-scope. It deliberately keeps the test realm offline and does not start a world server.
+For exact evidence and remaining work, read [Current state](docs/migration/STATE.md).
 
-## Quick start
+## Extractor
 
-Clone this experimental branch and let `rustup` use the pinned toolchain:
+RustyCore also has a dedicated extraction project:
+**[rustycore-extractors](https://github.com/alseif0x/rustycore-extractors/tree/forever)**.
 
-```bash
-git clone --branch forever https://github.com/alseif0x/rustycore.git
-cd rustycore
-```
+Its `forever-extractor` CLI reads a local client and produces versioned DB2,
+GameTable, camera, terrain, collision and navigation packages. Packages can be
+verified offline before RustyCore consumes them.
 
-Before running **any Cargo command**, clone the pinned sibling extractor source.
-The RustyCore workspace resolves sibling path manifests even when the optional
-extractor feature is disabled. Keep this layout, with both checkouts under the
-same parent:
+The extractor already has bounded real packages and navigation readers. It does
+**not** yet provide complete client extraction or full-world resources.
+
+Use the extractor's [build and usage guide](https://github.com/alseif0x/rustycore-extractors/blob/forever/README.md#build-the-rust-product).
+
+### Required checkout layout
+
+The RustyCore workspace resolves sibling path dependencies even when optional
+extractor features are disabled. Keep both repositories under the same parent:
 
 ```text
 parent/
@@ -241,228 +78,71 @@ parent/
 └── rustycore-extractors/
 ```
 
-The reviewed extractor source is commit
-`3baac307329bd0391cd7f083a55e03b982081b27`; its `Cargo.lock` SHA-256 is
-`8afafe1f5f8b9c98f53ed55155160b2a6d21f6efb5edf1d1c7f0f6e60819af27`.
-This checkout refuses to use an existing destination rather than replacing it:
+The reviewed extractor revision is
+`d8f4044f63f4d47fcb44d655d11cea90889ec8ea`:
 
 ```bash
-(
-  set -eu
-  if [ -e ../rustycore-extractors ] || [ -L ../rustycore-extractors ]; then
-    printf '%s\n' 'Refusing existing ../rustycore-extractors; inspect it or choose a fresh sibling layout.' >&2
-    exit 1
-  fi
-  git clone --no-checkout https://github.com/alseif0x/rustycore-extractors.git ../rustycore-extractors
-  git -C ../rustycore-extractors checkout --detach 3baac307329bd0391cd7f083a55e03b982081b27
-  test "$(git -C ../rustycore-extractors rev-parse HEAD)" = '3baac307329bd0391cd7f083a55e03b982081b27'
-  test "$(sha256sum ../rustycore-extractors/Cargo.lock | cut -d ' ' -f 1)" = '8afafe1f5f8b9c98f53ed55155160b2a6d21f6efb5edf1d1c7f0f6e60819af27'
-)
+git clone https://github.com/alseif0x/rustycore-extractors.git ../rustycore-extractors
+git -C ../rustycore-extractors checkout d8f4044f63f4d47fcb44d655d11cea90889ec8ea
 ```
 
-Install a `protoc` release matching `.protoc-version` (`28.3`), then point `PROTOC` at it.
-Build the Battle.net server with one Cargo job:
+Inspect an existing checkout instead of replacing local work.
+
+## Build and test
+
+Install the pinned Rust toolchain and `protoc` 28.3, then build the Battle.net
+server with one Cargo job:
 
 ```bash
-PROTOC=/path/to/protoc cargo build --locked --release -j1 \
-  -p bnet-server
+PROTOC=/path/to/protoc cargo build --locked --release -j1 -p bnet-server
 ```
 
-Provision **a fresh disposable Auth database** and private TLS/configuration
-material using the [runbook](docs/operations/forever-login.md). Provisioning is
-operator-controlled, not a one-command install; never point the fixture at a
-shared or existing realm database. After preparation, start the local BNet server:
+Provision a **fresh disposable Auth database** and private TLS/configuration
+material using the [Forever runbook](docs/operations/forever-login.md). Do not
+point the fixture at a shared realm database.
 
 ```bash
 RUST_LOG=warn ./target/release/bnet-server \
   --config /absolute/path/to/private-runtime/bnetserver.conf
 ```
 
-In another terminal, exercise the normal authentication path:
+In another terminal, run the authentication smoke test:
 
 ```bash
 python3 tools/wow-test-bot/forever_bnet_smoke.py \
   --runtime /absolute/path/to/private-runtime
 ```
 
-The checker reads the fixture's private password file, verifies the TLS
-certificate and SRP server proof, and reports sanitized results. It does not
-create a character or join a world. There is **no published default password**.
+The fixture is loopback-only and the test realm stays offline. No character is
+created and no world is joined. There is no published default password.
 
-The recorded isolated fixture uses loopback-only endpoints:
+The current modular integration also passes `validation-v2 final`. Its verified
+manifest and focused test results are linked from [Current state](docs/migration/STATE.md).
 
-| Service | Port |
-| --- | ---: |
-| Battle.net RPC over TLS | `1119` |
-| Battle.net HTTPS REST | `18081` |
-| Disposable MariaDB | `13316` |
-| World metadata only — no listener started | `18085` |
+## Documentation
 
-Advertised HTTPS URLs use `localhost` to match the test certificate. Do not copy
-these development endpoints, credentials or certificates into a public deployment.
+- [Forever runbook](docs/operations/forever-login.md) — isolated fixture, protocol evidence and current blockers
+- [Current state](docs/migration/STATE.md) — implementation status and acceptance evidence
+- [Extractor guide](https://github.com/alseif0x/rustycore-extractors/blob/forever/README.md) — build, extract and verify resources
+- [Validation V2](docs/operations/validation-v2.md) — local checks and acceptance profiles
+- [Documentation map](docs/README.md) — maintained project references
+- [Inherited server setup](docs/wiki/server/setup.md) — 3.4.3 foundation, not a verified Forever world setup
 
-## Forever extraction tools
+## Community and contributing
 
-The separate [rustycore-extractors project](https://github.com/alseif0x/rustycore-extractors/tree/forever)
-provides versioned tools that read local client data and produce and verify
-resource packages for RustyCore. Its Rust CLI is `forever-extractor`. The
-preserved standalone C++ tools remain for `wow_classic` 3.4.3/build 51943; they
-are not retargeted by the `forever` branch. The Rust profiles have their own
-build and component gates. In particular, the v20–v23 profiles below target
-client build 70450; their evidence does not change this server branch's separate
-build-70170 runtime target or establish runtime compatibility.
+Code, tests, protocol evidence, documentation and bug reports are welcome.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), then check the current state before
+choosing a task. Protocol and gameplay changes need a target C++ source anchor
+or real client capture.
 
-The pinned source checkout and Cargo.lock checksum are listed in the [Quick
-start](#quick-start). Build the Rust CLI from the sibling `rustycore-extractors/`
-checkout with the repository-pinned Rust 1.98.0 toolchain. Keep build files and
-all run outputs outside both Git checkouts and the client:
-
-```bash
-cd ../rustycore-extractors
-# Replace WORK_ROOT with a real path outside every Git checkout.
-WORK_ROOT=/absolute/path/outside/all-git-checkouts/rustycore-extractor-work
-mkdir -p "$WORK_ROOT/builds" "$WORK_ROOT/runs/candidate"
-export CARGO_TARGET_DIR="$WORK_ROOT/builds/rust"
-
-# Fetch the locked dependency closure, then build offline.
-cargo fetch --locked
-cargo build --offline --locked --release \
-  -p forever-extractor --no-default-features
-
-BIN="$CARGO_TARGET_DIR/release/forever-extractor"
-"$BIN" --help
-```
-
-`cargo fetch` may need network access to retrieve locked Rust dependencies if
-they are not cached. Client acquisition remains local. The `--no-default-features`
-build does not enable the optional native acquisition prototype.
-
-Plans are explicit, caller-supplied canonical TSV files; the client does not
-generate a plan for you. Use an admitted plan for the exact build and components
-you intend to run. Test fixtures under `tests/contracts/fixtures` are synthetic
-contract examples, not real-client plans. `inspect --plan` validates a plan but
-does not inspect the client. The [product guide](https://github.com/alseif0x/rustycore-extractors/blob/3baac307329bd0391cd7f083a55e03b982081b27/docs/forever-product.md)
-describes plan profiles and their required options.
-
-For a profile that takes a client and plan without linked packages, such as a
-v20 terrain plan, use this inspect/extract/verify lifecycle. Replace each
-placeholder with an absolute path outside the checkouts; choose a new output
-directory that does not already exist:
-
-```bash
-WORK_ROOT=/absolute/path/outside/all-git-checkouts/rustycore-extractor-work
-BIN="$WORK_ROOT/builds/rust/release/forever-extractor"
-PLAN=/absolute/path/to/your-admitted-plan.tsv
-CLIENT=/absolute/path/to/matching-client
-NEW_PACKAGE="$WORK_ROOT/runs/candidate/new-package"
-
-"$BIN" inspect --plan "$PLAN"
-"$BIN" extract --plan "$PLAN" --client "$CLIENT" --output "$NEW_PACKAGE"
-"$BIN" verify --plan "$PLAN" --output "$NEW_PACKAGE"
-```
-
-The client is read-only. Keep the package separate from the client, plan and
-both repositories. Use each profile guide when it requires additional options,
-including `--scratch` for v22 extraction. The [v20 terrain guide](https://github.com/alseif0x/rustycore-extractors/blob/3baac307329bd0391cd7f083a55e03b982081b27/docs/forever-product-v20.md)
-and [v22 selected-geometry guide](https://github.com/alseif0x/rustycore-extractors/blob/3baac307329bd0391cd7f083a55e03b982081b27/docs/forever-product-v22.md)
-cover producing those inputs.
-
-### Build-70450 selected navigation (v23)
-
-On Linux, v23 uses an already sealed v20 terrain package and v22 selected-map
-geometry package, along with the exact canonical producer plan for each. These
-inputs, the v23 plan and the local client must match in build, locale and source
-identity. The input packages must contain the selected map's required terrain
-and geometry; v23 does not manufacture missing inputs. Follow the
-[v23 guide](https://github.com/alseif0x/rustycore-extractors/blob/3baac307329bd0391cd7f083a55e03b982081b27/docs/forever-product-v23.md)
-for plan admission and create the v20/v22 packages using their linked guides
-above. Use fresh output paths outside the client, plans and input packages:
-
-```bash
-WORK_ROOT=/absolute/path/outside/all-git-checkouts/rustycore-extractor-work
-BIN="$WORK_ROOT/builds/rust/release/forever-extractor"
-PLAN=/absolute/path/to/canonical-v23-plan.tsv
-CLIENT=/absolute/path/to/matching-build-70450-client
-NEW_PACKAGE="$WORK_ROOT/runs/candidate/new-v23-package"
-TERRAIN_PACKAGE=/absolute/path/to/sealed-v20-package
-TERRAIN_PLAN=/absolute/path/to/canonical-v20-producer-plan.tsv
-VMAP_PACKAGE=/absolute/path/to/sealed-v22-package
-VMAP_PLAN=/absolute/path/to/canonical-v22-producer-plan.tsv
-
-"$BIN" inspect --plan "$PLAN"
-"$BIN" extract \
-  --plan "$PLAN" --client "$CLIENT" --output "$NEW_PACKAGE" \
-  --terrain-package "$TERRAIN_PACKAGE" --terrain-plan "$TERRAIN_PLAN" \
-  --vmap-package "$VMAP_PACKAGE" --vmap-plan "$VMAP_PLAN"
-"$BIN" verify --plan "$PLAN" --output "$NEW_PACKAGE"
-"$BIN" verify-links \
-  --plan "$PLAN" --output "$NEW_PACKAGE" \
-  --terrain-package "$TERRAIN_PACKAGE" --terrain-plan "$TERRAIN_PLAN" \
-  --vmap-package "$VMAP_PACKAGE" --vmap-plan "$VMAP_PLAN"
-```
-
-This produces a selected-map navigation package, not complete world data.
-Verification establishes package integrity and, with `verify-links`, the exact
-sealed-input links; it does not establish full-world coverage, complete
-extraction or server runtime compatibility. The merged optional
-`wow-world`/`forever-navigation` library worker from
-[RustyCore PR #1454](https://github.com/alseif0x/rustycore/pull/1454) does not
-activate `world-server` configuration. The extractor does not copy packages
-into `DataDir` or convert data in place.
-
-## Workspace
-
-RustyCore is a Cargo workspace. These groups show where to start; the complete member list
-lives in the root [`Cargo.toml`](Cargo.toml).
-
-| Area | Crates |
-| --- | --- |
-| Services | `bnet-server`, `world-server`, `rustycore-db` |
-| Protocol and transport | `wow-packet`, `wow-proto`, `wow-handler`, `wow-network`, `wow-session` |
-| World and gameplay | `wow-world`, `wow-map`, `wow-entities`, `wow-data`, `wow-movement`, `wow-combat` |
-| Persistence and data | `wow-database`, `wow-persistence`, `wow-config`, `wow-core` |
-| Extensions | `wow-module-api`, `world-modules`, `wow-script`, `wow-scripts`, `wow-ai` |
-| Supporting libraries | `wow-constants`, `wow-crypto`, `wow-chat`, `wow-loot`, `wow-instances`, `wow-social` |
-| Tools | `capture-diff` and the tools under `tools/` |
-
-## Contributing
-
-RustyCore welcomes code, tests, packet evidence, documentation, issue reports, and thoughtful
-discussion. Start with [CONTRIBUTING.md](CONTRIBUTING.md), then check the [documentation map](docs/README.md)
-and [current state](docs/migration/STATE.md) before choosing a task. Gameplay and protocol
-work needs the relevant C++ source anchor or target-build capture so that the port preserves
-known behavior instead of guessing.
-
-## Community
-
-Questions, design conversations, and introductions are welcome on
-[Discord](https://discord.gg/mH6ACpGPb2). For a reproducible defect or a bounded improvement,
-open a [GitHub issue](https://github.com/alseif0x/rustycore/issues). Please keep sensitive
-runtime details and credentials out of public issues.
-
-The documentation site is published at [alseif0x.github.io/rustycore](https://alseif0x.github.io/rustycore/).
-
-## Support the project
-
-RustyCore takes time: protocol research, C++ archaeology, Rust porting, database work, packet
-tests, client testing, and long debugging sessions. Donations are welcome if you want to
-support the time needed to keep the project moving.
-
-| Network | Wallet |
-| --- | --- |
-| BTC | `bc1qeggjcl5guwmqr0aa4emufyzyh7nu5rkfrytqy8` |
-| ETH / BNB | `0xfec63e014e0bd36d77b094ff27f7e7f5d7ab67aa` |
-| Solana | `9ktt1zinmwwsZXGx9x1BM995FwbAfdNWe65v1mdPgDhn` |
-| XRP | `rBVvKPrQAmd5uDZ89nDgz5HbSWVD6sTbg2` |
+Join the [Discord community](https://discord.gg/mH6ACpGPb2) or open a
+[GitHub issue](https://github.com/alseif0x/rustycore/issues). Keep credentials,
+private configuration and client-derived data out of issues and pull requests.
 
 ## License
 
-RustyCore is licensed under **GPL-3.0-or-later** (GNU GPL version 3 or any later version).
-See [LICENSE](LICENSE) for the complete license text and [NOTICE](NOTICE) for the
-project's license grant and attribution notices.
+RustyCore is licensed under **GPL-3.0-or-later**. See [LICENSE](LICENSE) and
+[NOTICE](NOTICE) for the license grant and attribution notices.
 
-WoW protocol research and server behavior are based on the public work of the TrinityCore
-and MaNGOS communities.
-
-World of Warcraft is owned by Blizzard Entertainment. This project is not affiliated with,
-endorsed by, or sponsored by Blizzard Entertainment.
+World of Warcraft belongs to Blizzard Entertainment. This project is not
+affiliated with, endorsed by, or sponsored by Blizzard Entertainment.

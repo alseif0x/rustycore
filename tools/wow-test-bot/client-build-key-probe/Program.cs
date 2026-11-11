@@ -8,9 +8,108 @@ using System.Security.Cryptography;
 
 if (args.Length > 0 && args[0] == "--character-name-input")
 {
+    try
+    {
+        if (args.Length != 4)
+            throw new ArgumentException("Usage: --character-name-input <isolated WowB.exe> <fixture first name> <fixture surname>");
+        CharacterInput.Enter(args[1], args[2], args[3]);
+    }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error.Message);
+        Environment.Exit(1);
+    }
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--local-password-input")
+{
+    if (args.Length != 3)
+        throw new ArgumentException("Usage: --local-password-input <isolated 70450 WowB.exe> <private password file>");
+    CharacterInput.EnterPassword(Path.GetFullPath(args[1]), Path.GetFullPath(args[2]));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--local-login-submit")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Usage: --local-login-submit <isolated 70450 WowB.exe>");
+    CharacterInput.SubmitLogin(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--local-login-dismiss")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Usage: --local-login-dismiss <isolated 70450 WowB.exe>");
+    CharacterInput.DismissLoginDialog(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--trust-local-certificate")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Usage: --trust-local-certificate <public PEM certificate>");
+    LocalCertificateTrust.Install(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--local-ruleset-select")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Usage: --local-ruleset-select <isolated 70450 WowB.exe>");
+    CharacterInput.SelectRuleset(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--local-character-name-input")
+{
     if (args.Length != 4)
-        throw new ArgumentException("Usage: --character-name-input <isolated WowB.exe> <fixture first name> <fixture surname>");
-    CharacterInput.Enter(args[1], args[2], args[3]);
+        throw new ArgumentException("Usage: --local-character-name-input <isolated 70450 WowB.exe> <fixture first name> <fixture surname>");
+    CharacterInput.Enter70450(Path.GetFullPath(args[1]), args[2], args[3]);
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--local-character-finish")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Usage: --local-character-finish <isolated 70450 WowB.exe>");
+    CharacterInput.FinishCharacterCreation(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--local-character-back")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Usage: --local-character-back <isolated 70450 WowB.exe>");
+    CharacterInput.BackToCharacterSelection(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--local-close-issue-reporter")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Usage: --local-close-issue-reporter <isolated 70450 WowB.exe>");
+    CharacterInput.CloseIssueReporter(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--local-character-customize")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Usage: --local-character-customize <isolated 70450 WowB.exe>");
+    CharacterInput.CustomizeCharacter(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--discover-local-world-certificate")
+{
+    if (args.Length != 4)
+        throw new ArgumentException(
+            "Usage: --discover-local-world-certificate <isolated 70450 WowB.exe> <70170 text.bin> <70170 rdata.bin>");
+
+    CertificateDiscovery.Discover(
+        Path.GetFullPath(args[1]), Path.GetFullPath(args[2]), Path.GetFullPath(args[3]));
     return;
 }
 

@@ -6,6 +6,8 @@ pub(super) const SERVER_HELLO: &[u8] = b"WORLD OF WARCRAFT CONNECTION - SERVER T
 pub(super) const CLIENT_HELLO: &[u8] = b"WORLD OF WARCRAFT CONNECTION - CLIENT TO SERVER - V2\n";
 pub(super) const HEADER_SIZE: usize = 16;
 pub(super) const MAX_FRAME: usize = 0x10000;
+pub(super) const MAX_OUTGOING_FRAME: usize = 0x1000000;
+pub(super) const COMPRESSED_PACKET: u32 = 0x4C000E;
 
 /// Decrypted opcode/body. Debug deliberately omits the payload.
 pub struct Frame {
@@ -22,6 +24,18 @@ impl Frame {
         &self.payload
     }
 
+    pub(super) fn normalize_client_opcode(&mut self, shifted: bool) {
+        if shifted {
+            let group = self.opcode >> 16;
+            let index = self.opcode & 0xFFFF;
+            if group == 0x46 {
+                self.opcode = 0x450000 | index;
+            } else if group == 0x44 && index > 0x13B {
+                self.opcode -= 1;
+            }
+        }
+    }
+
     pub(super) fn decode(data: Vec<u8>) -> Result<Self, ForeverSocketError> {
         if !(4..MAX_FRAME).contains(&data.len()) {
             return Err(ForeverSocketError::Protocol);
@@ -31,6 +45,22 @@ impl Frame {
             opcode,
             payload: data[4..].to_vec(),
         })
+    }
+}
+
+pub(super) fn server_opcode(opcode: u32, shifted: bool) -> u32 {
+    if !shifted {
+        return opcode;
+    }
+    let group = opcode >> 16;
+    let mut index = opcode & 0xFFFF;
+    if group == 0x46 && index >= 0x98 {
+        index += 1;
+    }
+    if (0x46..=0x6B).contains(&group) {
+        ((group + 1) << 16) | index
+    } else {
+        (group << 16) | index
     }
 }
 
@@ -44,8 +74,35 @@ pub(super) fn frame_data(opcode: u32, payload: &[u8]) -> Result<Vec<u8>, Forever
     Ok(data)
 }
 
+pub(super) fn frame_data_outgoing(
+    opcode: u32,
+    payload: &[u8],
+) -> Result<Vec<u8>, ForeverSocketError> {
+    if payload.len() >= MAX_OUTGOING_FRAME - 4 {
+        return Err(ForeverSocketError::Protocol);
+    }
+    let mut data = Vec::with_capacity(4 + payload.len());
+    data.extend_from_slice(&opcode.to_le_bytes());
+    data.extend_from_slice(payload);
+    Ok(data)
+}
+
+#[cfg(test)]
 pub(super) fn header(size: usize, tag: [u8; 12]) -> Result<[u8; HEADER_SIZE], ForeverSocketError> {
     if !(4..MAX_FRAME).contains(&size) {
+        return Err(ForeverSocketError::Protocol);
+    }
+    let mut bytes = [0; HEADER_SIZE];
+    bytes[..4].copy_from_slice(&(size as u32).to_le_bytes());
+    bytes[4..].copy_from_slice(&tag);
+    Ok(bytes)
+}
+
+pub(super) fn header_outgoing(
+    size: usize,
+    tag: [u8; 12],
+) -> Result<[u8; HEADER_SIZE], ForeverSocketError> {
+    if !(4..MAX_OUTGOING_FRAME).contains(&size) {
         return Err(ForeverSocketError::Protocol);
     }
     let mut bytes = [0; HEADER_SIZE];

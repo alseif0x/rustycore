@@ -11,6 +11,11 @@ mod bindings;
 pub(crate) mod test_fixture;
 
 const MAX_DISTRICTS: usize = 64;
+pub const SUPPORTED_BUILDS: &[u32] = &[70170, 70450];
+
+pub fn is_supported_build(build: u32) -> bool {
+    SUPPORTED_BUILDS.contains(&build)
+}
 
 #[derive(Debug, Default)]
 pub(crate) struct ForeverCatalog {

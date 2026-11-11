@@ -29,31 +29,44 @@ struct Ticket {
     kind: u32,
 }
 
-fn admits_ticket(raw: &str) -> bool {
-    let Ok(ticket) = serde_json::from_str::<Ticket>(raw) else {
-        return false;
+fn admits_ticket(raw: &str, build: u32) -> bool {
+    let ticket = match serde_json::from_str::<Ticket>(raw) {
+        Ok(ticket) => ticket,
+        Err(_) => {
+            eprintln!("Forever join ticket schema rejected");
+            return false;
+        }
     };
+    eprintln!(
+        "Forever join ticket: account_matches={} platform=0x{:08X} arch=0x{:08X} kind=0x{:08X}",
+        ticket.game_account == "1#1",
+        ticket.platform,
+        ticket.client_arch,
+        ticket.kind
+    );
+    let expected_kind = if build == 70450 { *b"WoWE" } else { *b"WoWB" };
     ticket.game_account == "1#1"
         && ticket.platform == u32::from_be_bytes(*b"\0Win")
         && ticket.client_arch == u32::from_be_bytes(*b"\0x64")
-        && ticket.kind == u32::from_be_bytes(*b"WoWB")
+        && ticket.kind == u32::from_be_bytes(expected_kind)
 }
 
 pub(super) async fn run(runtime: &Runtime, stream: TcpStream) -> Result<bool> {
-    let mut socket = ForeverSocket::new(stream, 0x02010001, runtime.region_group);
+    let mut socket =
+        ForeverSocket::new_for_build(stream, 0x02010001, runtime.region_group, runtime.build);
     socket.start().await?;
-    if !admits_ticket(socket.join_ticket()?) {
+    if !admits_ticket(socket.join_ticket()?, runtime.build) {
         bail!("target variant rejected");
     }
-    let row = runtime.auth.direct_query(concat!(
+    let row = runtime.auth.direct_query(&format!(concat!(
         "SELECT a.session_key_bnet,a.expansion,r.name,a.locale,r.timezone FROM account a JOIN battlenet_accounts b ON a.battlenet_account=b.id JOIN realmlist r ON r.id=1 ",
-        "WHERE a.id=1 AND a.username='1#1' AND a.client_build=70170 AND LENGTH(a.session_key_bnet)=64 AND a.online=0 ",
+        "WHERE a.id=1 AND a.username='1#1' AND a.client_build={build} AND LENGTH(a.session_key_bnet)=64 AND a.online=0 ",
         "AND b.id=1 AND b.email='FOREVER@LOCAL.TEST' AND (b.locked=0 OR b.last_ip='127.0.0.1') AND b.lock_country IN ('','00') ",
         "AND NOT EXISTS (SELECT 1 FROM account_banned ab WHERE ab.id=a.id AND ab.active=1 AND (ab.unbandate>UNIX_TIMESTAMP() OR ab.unbandate=ab.bandate)) ",
         "AND NOT EXISTS (SELECT 1 FROM battlenet_account_bans bb WHERE bb.id=b.id AND (bb.unbandate>UNIX_TIMESTAMP() OR bb.unbandate=bb.bandate)) ",
         "AND NOT EXISTS (SELECT 1 FROM ip_banned ib WHERE ib.ip='127.0.0.1' AND (ib.unbandate>UNIX_TIMESTAMP() OR ib.unbandate=ib.bandate)) ",
-        "AND r.gamebuild=70170 AND r.Region=2 AND r.Battlegroup=1 AND r.port=18085 AND r.flag=0 AND r.icon=1 AND r.allowedSecurityLevel=0"
-    )).await?;
+        "AND r.gamebuild={build} AND r.Region=2 AND r.Battlegroup=1 AND r.port=18085 AND r.flag=0 AND r.icon=1 AND r.allowedSecurityLevel=0"
+    ), build = runtime.build)).await?;
     let join_key: [u8; 64] = row
         .try_read::<Vec<u8>>(0)
         .context("admission")?
@@ -63,29 +76,31 @@ pub(super) async fn run(runtime: &Runtime, stream: TcpStream) -> Result<bool> {
     let realm_name: String = row.try_read(2).context("realm name")?;
     let account_locale: u8 = row.try_read(3).context("account locale")?;
     anyhow::ensure!(account_locale < 12, "invalid account locale");
-    // WorldSession.cpp:132/GetAvailableDbcLocale: this isolated data loader
-    // admits esES only, so any other account locale uses its configured default.
-    let dbc_locale = if account_locale == 6 {
-        account_locale
-    } else {
-        6
-    };
+    // The isolated profile explicitly selects which loaded locale to exercise;
+    // the account row remains real admission data, not an implicit data override.
+    let dbc_locale = runtime.dbc_locale;
     let realm_timezone: u32 = row.try_read(4).context("realm timezone")?;
-    socket.verify_credentials(&join_key, &runtime.build_key)?;
+    if runtime.build == 70450 {
+        socket.verify_credentials_without_build_key(&join_key)?;
+    } else {
+        socket.verify_credentials(&join_key, &runtime.build_key)?;
+    }
     let mut persist = PreparedStatement::new(
-        "UPDATE account SET session_key_bnet=?,online=1 WHERE id=1 AND client_build=70170 AND online=0 AND session_key_bnet=?",
+        "UPDATE account SET session_key_bnet=?,online=1 WHERE id=1 AND client_build=? AND online=0 AND session_key_bnet=?",
     );
     persist.set_bytes(0, socket.session_key()?.to_vec());
-    persist.set_bytes(1, join_key.to_vec());
+    persist.set_u32(1, runtime.build);
+    persist.set_bytes(2, join_key.to_vec());
     let rows = match runtime.auth.execute(&persist).await {
         Ok(rows) => rows,
         Err(_) => {
             // Autocommit acknowledgement can be lost. Admit only after a fresh
             // read confirms our exact key+online projection; unknown is failure.
             let mut confirm = PreparedStatement::new(
-                "SELECT id FROM account WHERE id=1 AND client_build=70170 AND online=1 AND session_key_bnet=?",
+                "SELECT id FROM account WHERE id=1 AND client_build=? AND online=1 AND session_key_bnet=?",
             );
-            confirm.set_bytes(0, socket.session_key()?.to_vec());
+            confirm.set_u32(0, runtime.build);
+            confirm.set_bytes(1, socket.session_key()?.to_vec());
             let confirmed = runtime
                 .auth
                 .query(&confirm)
@@ -106,9 +121,10 @@ pub(super) async fn run(runtime: &Runtime, stream: TcpStream) -> Result<bool> {
         _ = tokio::signal::ctrl_c() => { shutdown = true; Ok(()) },
     };
     if rows == 1 {
-        let clean = PreparedStatement::new(
-            "UPDATE account SET online=0 WHERE id=1 AND client_build=70170 AND online=1",
+        let mut clean = PreparedStatement::new(
+            "UPDATE account SET online=0 WHERE id=1 AND client_build=? AND online=1",
         );
+        clean.set_u32(0, runtime.build);
         if runtime
             .auth
             .execute(&clean)
@@ -143,7 +159,10 @@ async fn admitted(
         bail!("nonordinary target RBAC policy required");
     }
     socket.complete_encryption(rows).await?;
-    println!("Forever native digest and encryption ACK accepted; initializing real account state.");
+    println!(
+        "Forever continued session and encryption ACK accepted (build digest verified={}); initializing real account state.",
+        runtime.build != 70450
+    );
     let mut session = Session::after_encryption(
         Identity {
             account_id: 1,
@@ -185,6 +204,7 @@ async fn admitted(
         content_set: runtime.policy.content_set,
         max_characters: runtime.policy.max_characters,
         character_templates: runtime.policy.character_templates.clone(),
+        classic_friends_subscriptions: runtime.build >= 70291,
     };
     // No realm-name stand-in: the initialized virtual realm uses its real row.
     let time = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())?;
@@ -241,6 +261,30 @@ async fn admitted(
                 );
             }
         }
+        if frame.opcode() == wow_packet::forever::battlenet::BATTLENET_REQUEST_OPCODE
+            && let Some(request) =
+                wow_packet::forever::battlenet::BattlenetRequest::decode(frame.payload())
+        {
+            println!(
+                "Forever Battle.net request: service=0x{:08X}, method=0x{:08X}, object={}, token={}, data_bytes={}",
+                request.service_hash(),
+                request.method_id(),
+                request.object_id(),
+                request.token(),
+                request.data().len()
+            );
+            if request.service_hash() == wow_packet::forever::battlenet::RESOURCES_SERVICE_HASH
+                && let Some(content) =
+                    wow_packet::forever::battlenet::ContentHandleRequest::decode(request.data())
+            {
+                println!(
+                    "Forever content request: program=0x{:08X}, stream=0x{:08X}, version=0x{:08X}",
+                    content.program(),
+                    content.stream(),
+                    content.version()
+                );
+            }
+        }
         // Read-only request metadata before the canonical registry dispatch.
         // Never log record IDs or private TACT values here.
         if frame.opcode() == 0x440010 && frame.payload().len() >= 6 {
@@ -250,6 +294,24 @@ async fn admitted(
             println!(
                 "DBQueryBulk request metadata: table_hash=0x{table:08X}, requested_records={count}"
             );
+        }
+        if frame.opcode() == wow_packet::forever::battlenet::BATTLENET_REQUEST_OPCODE
+            && let Some(request) =
+                wow_packet::forever::battlenet::BattlenetRequest::decode(frame.payload())
+            && let Some(response) = super::game_utilities::respond(runtime, &request)
+                .await
+                .context("GameUtilities operation")?
+        {
+            let payload = response
+                .encode_payload()
+                .map_err(|_| anyhow::anyhow!("GameUtilities response encoding"))?;
+            socket
+                .send(
+                    wow_packet::forever::battlenet::BATTLENET_RESPONSE_OPCODE,
+                    &payload,
+                )
+                .await?;
+            continue;
         }
         let output = session
             .dispatch(
@@ -261,6 +323,9 @@ async fn admitted(
             )
             .await
             .map_err(|error| {
+                if matches!(error, wow_world::forever::SessionError::Creation(_)) {
+                    return anyhow::Error::new(DurableStateUncertain);
+                }
                 eprintln!("Forever operation rejected: {error:?}");
                 anyhow::anyhow!("session operation")
             })?;
@@ -324,8 +389,12 @@ mod tests {
 
     #[test]
     fn ticket_admission_is_exact_and_does_not_accept_other_accounts_or_variants() {
-        let ticket = serde_json::json!({ "gameAccount": "1#1", "platform": u32::from_be_bytes(*b"\0Win"), "clientArch": u32::from_be_bytes(*b"\0x64"), "type": u32::from_be_bytes(*b"WoWB") });
-        assert!(admits_ticket(&ticket.to_string()));
+        let mut ticket = serde_json::json!({ "gameAccount": "1#1", "platform": u32::from_be_bytes(*b"\0Win"), "clientArch": u32::from_be_bytes(*b"\0x64"), "type": u32::from_be_bytes(*b"WoWB") });
+        assert!(admits_ticket(&ticket.to_string(), 70170));
+        assert!(!admits_ticket(&ticket.to_string(), 70450));
+        ticket["type"] = serde_json::json!(u32::from_be_bytes(*b"WoWE"));
+        assert!(admits_ticket(&ticket.to_string(), 70450));
+        assert!(!admits_ticket(&ticket.to_string(), 70170));
         for (field, value) in [
             ("gameAccount", serde_json::json!("2#1")),
             ("platform", serde_json::json!(0)),
@@ -335,9 +404,9 @@ mod tests {
         ] {
             let mut invalid = ticket.clone();
             invalid[field] = value;
-            assert!(!admits_ticket(&invalid.to_string()));
+            assert!(!admits_ticket(&invalid.to_string(), 70450));
         }
-        assert!(!admits_ticket("{}"));
-        assert!(!admits_ticket("not-json"));
+        assert!(!admits_ticket("{}", 70450));
+        assert!(!admits_ticket("not-json", 70450));
     }
 }

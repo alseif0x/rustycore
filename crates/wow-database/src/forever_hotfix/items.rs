@@ -95,6 +95,7 @@ impl ForeverHotfixRepository {
     async fn item_batch(&self, custom: bool) -> Result<ItemRows, LoadError> {
         let mut rows = ItemRows::default();
         for (table, sql) in QUERIES.iter().enumerate() {
+            eprintln!("item overlay query: table={table} custom={custom}");
             let mut statement = PreparedStatement::new(*sql);
             statement.set_bool(0, !custom);
             let mut result = self

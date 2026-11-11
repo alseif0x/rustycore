@@ -187,6 +187,7 @@ fn logon_complete(
                     region: Some(2),
                 })
                 .collect(),
+            battle_tag: account.battle_tag.clone(),
             geoip_country: (!country.is_empty()).then(|| country.to_owned()),
             session_key: Some(key.to_vec()),
             ..Default::default()

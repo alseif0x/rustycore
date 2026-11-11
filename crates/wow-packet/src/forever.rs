@@ -22,6 +22,7 @@ use wow_core::ObjectGuid;
 
 use crate::WorldPacket;
 
+pub mod battlenet;
 pub mod character_create;
 pub mod character_list;
 pub mod character_result;
@@ -339,6 +340,7 @@ fn write_game_time(packet: &mut WorldPacket, value: GameTime) {
 /// unchanged in 70170; the explicit suffix keeps that uncertainty visible.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassicGlueScreen70009 {
+    pub bpay_store_available: bool,
     pub commerce_price_poll_time_seconds: u32,
     pub redeem_for_balance_amount: i64,
     pub max_characters_on_realm: i32,
@@ -366,7 +368,8 @@ pub struct ClassicGlueScreen70009 {
 impl ClassicGlueScreen70009 {
     pub fn encode_payload(&self) -> Result<Vec<u8>, ForeverPacketError> {
         let mut packet = WorldPacket::new_empty();
-        packet.write_bytes(&[0; 6]);
+        packet.write_uint8(if self.bpay_store_available { 0x80 } else { 0 });
+        packet.write_bytes(&[0; 5]);
         packet.write_uint32(self.commerce_price_poll_time_seconds);
         packet.write_int64(self.redeem_for_balance_amount);
         packet.write_int32(self.max_characters_on_realm);
@@ -395,6 +398,41 @@ impl ClassicGlueScreen70009 {
         packet.write_uint32(0); // DebugTimeEvents
         packet.write_int32(self.most_recent_time_event_id);
         packet.write_uint32(self.event_realm_queues);
+        Ok(finish(packet))
+    }
+}
+
+pub const MIRROR_VARS_OPCODE: u32 = 0x460371;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MirrorVar {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MirrorVars {
+    pub variables: Vec<MirrorVar>,
+}
+
+impl MirrorVars {
+    pub fn encode_payload(&self) -> Result<Vec<u8>, ForeverPacketError> {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_uint32(count(self.variables.len(), "mirror_vars")?);
+        for variable in &self.variables {
+            for (value, field) in [
+                (&variable.name, "mirror_var_name"),
+                (&variable.value, "mirror_var_value"),
+            ] {
+                length(value.as_bytes(), 0xFF_FFFE, field)?;
+            }
+            packet.write_bit(false);
+            packet.write_bits(variable.name.len() as u32 + 1, 24);
+            packet.write_bits(variable.value.len() as u32 + 1, 24);
+            packet.flush_bits();
+            packet.write_cstring(&variable.name);
+            packet.write_cstring(&variable.value);
+        }
         Ok(finish(packet))
     }
 }
@@ -640,6 +678,40 @@ impl EmptyRecentAllyDataResponse70009 {
         packet.write_uint32(self.leading_value);
         packet.write_uint8(self.mode);
         packet.write_uint32(self.entry_count);
+        finish(packet)
+    }
+}
+
+pub const BATTLE_PAY_GET_PURCHASE_LIST_OPCODE: u32 = 0x4400EA;
+pub const BATTLE_PAY_GET_PURCHASE_LIST_RESPONSE_OPCODE: u32 = 0x46021D;
+pub const BATTLE_PAY_GET_DISTRIBUTION_LIST_RESPONSE_OPCODE: u32 = 0x46021E;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EmptyBattlePayDistributionListResponse {
+    pub result: i32,
+}
+
+impl EmptyBattlePayDistributionListResponse {
+    pub fn encode_payload(self) -> Vec<u8> {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_int32(self.result);
+        packet.write_bits(0, 11);
+        finish(packet)
+    }
+}
+
+/// Empty shop response: Result followed by PurchaseCount. No purchase records
+/// are fabricated for the isolated account with no commerce integration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EmptyBattlePayPurchaseListResponse {
+    pub result: u32,
+}
+
+impl EmptyBattlePayPurchaseListResponse {
+    pub fn encode_payload(self) -> Vec<u8> {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_uint32(self.result);
+        packet.write_uint32(0);
         finish(packet)
     }
 }

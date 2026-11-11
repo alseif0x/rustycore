@@ -48,6 +48,8 @@ pub fn database_field_type_like_cpp(type_name: &str) -> DatabaseFieldTypeLikeCpp
         DatabaseFieldTypeLikeCpp::Binary
     } else if upper == "YEAR" {
         DatabaseFieldTypeLikeCpp::UInt16
+    } else if upper == "BOOLEAN" {
+        DatabaseFieldTypeLikeCpp::Int8
     } else if upper.contains("TINYINT") || upper == "TINY" || upper == "UNSIGNED TINY" {
         if unsigned {
             DatabaseFieldTypeLikeCpp::UInt8
@@ -609,6 +611,17 @@ mod tests {
 
     #[test]
     fn validates_rust_getter_types_like_cpp() {
+        assert_eq!(
+            database_field_type_like_cpp("BOOLEAN"),
+            DatabaseFieldTypeLikeCpp::Int8
+        );
+        assert!(rust_type_compatible_with_database_field_like_cpp::<i8>(
+            "BOOLEAN"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<bool>(
+            "BOOLEAN"
+        ));
+        assert!(!rust_type_compatible_with_database_field_like_cpp::<String>("BOOLEAN"));
         assert!(rust_type_compatible_with_database_field_like_cpp::<u8>(
             "TINYINT UNSIGNED"
         ));

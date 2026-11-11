@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "misc_gameplay_empty.rs"]
+mod gameplay_empty;
+
 #[test]
 fn player_lifecycle_create_initializes_representable_state_as_clean_baseline() {
     let record = lifecycle_create_record();

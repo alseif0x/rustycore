@@ -274,8 +274,7 @@ async fn release_item_guid_allocator_lock_like_cpp(
     Ok(())
 }
 
-#[cfg(test)]
-fn item_guid_allocator_lock_name_like_cpp(database_name: &str) -> String {
+pub(crate) fn item_guid_allocator_lock_name_like_cpp(database_name: &str) -> String {
     guid_allocator_lock_name_like_cpp(ITEM_GUID_ALLOCATOR_LOCK_PREFIX_LIKE_CPP, database_name)
 }
 
@@ -542,6 +541,60 @@ impl SqlTransaction {
             .store(TRACE_RESOLVED, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Execute a batch on an already opened transaction. The caller owns any
+    /// admission reads/locks; a deadlock cannot replay that snapshot here.
+    /// Batch trace events alone do not establish those earlier read/lock steps.
+    pub(crate) async fn commit_started(
+        self,
+        transaction: sqlx::Transaction<'_, MySql>,
+    ) -> Result<(), SqlTransactionCommitError> {
+        self.execute_started(transaction).await
+    }
+
+    /// Keep all attempts on the physical connection holding the writer lock.
+    /// A lost session must never be replaced by a fresh pooled connection.
+    pub(crate) async fn commit_on_connection(
+        self,
+        connection: &mut sqlx::MySqlConnection,
+    ) -> Result<(), SqlTransactionCommitError> {
+        if self.statements.is_empty() {
+            return Ok(());
+        }
+        let mut result = self.try_commit_connection(connection).await;
+        if !is_outcome_deadlock_like_cpp(&result) {
+            return result;
+        }
+        let _deadlock_guard = DEADLOCK_RETRY_LOCK_LIKE_CPP.lock().await;
+        let start = Instant::now();
+        let mut attempt = 0;
+        while start.elapsed() <= DEADLOCK_MAX_RETRY_TIME_LIKE_CPP {
+            attempt += 1;
+            self.record_deadlock_retry(attempt);
+            self.record_retry_boundary();
+            result = self.try_commit_connection(connection).await;
+            if !is_outcome_deadlock_like_cpp(&result) {
+                return result;
+            }
+        }
+        result
+    }
+
+    async fn try_commit_connection(
+        &self,
+        connection: &mut sqlx::MySqlConnection,
+    ) -> Result<(), SqlTransactionCommitError> {
+        let transaction = match sqlx::Connection::begin(connection).await {
+            Ok(transaction) => transaction,
+            Err(error) => {
+                self.record_batch_abandoned();
+                return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+                    DatabaseError::from(error),
+                ));
+            }
+        };
+        self.execute_started(transaction).await
+    }
+
     fn record_batch_abandoned(&self) {
         if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
             recorder.record(PersistenceEvent::BatchAbandoned { database });
@@ -802,6 +855,14 @@ impl SqlTransaction {
     }
 
     #[cfg(test)]
+    pub(crate) fn params_for_test(&self) -> Vec<&[SqlParam]> {
+        self.statements
+            .iter()
+            .map(|statement| statement.statement.params())
+            .collect()
+    }
+
+    #[cfg(test)]
     pub(crate) fn expected_rows_for_test(&self) -> Vec<Option<u64>> {
         self.statements
             .iter()
@@ -814,13 +875,11 @@ impl SqlTransaction {
     }
 
     async fn try_commit_inner(&self, pool: &MySqlPool) -> Result<(), SqlTransactionCommitError> {
-        // Recording happens here rather than at the caller because only this
-        // scope knows whether `tx.commit()` was ever reached. A failure to
-        // acquire a connection, to execute a statement, or to validate an
-        // affected-row count is a rollback that never attempted a commit, and
-        // conflating it with a resolved COMMIT would freeze the wrong crash
-        // boundary — the one thing this contract exists to get right.
-        let mut tx = match pool.begin().await {
+        // Pool admission is recorded here; execute_started owns the statement
+        // and COMMIT boundary for both pooled and connection-bound callers.
+        // Execution, row-count and pre-COMMIT failures remain distinct from a
+        // COMMIT acknowledgement whose outcome is unknown.
+        let tx = match pool.begin().await {
             Ok(tx) => tx,
             Err(error) => {
                 // No transaction was opened and no statement reached MySQL, so
@@ -836,6 +895,13 @@ impl SqlTransaction {
             }
         };
 
+        self.execute_started(tx).await
+    }
+
+    async fn execute_started(
+        &self,
+        mut tx: sqlx::Transaction<'_, MySql>,
+    ) -> Result<(), SqlTransactionCommitError> {
         self.trace_progress
             .store(TRACE_EXECUTING, std::sync::atomic::Ordering::Relaxed);
 

@@ -108,6 +108,18 @@ pub trait SessionRepository: Send + Sync {
         &'a self,
         normalized_name: &'a str,
     ) -> PersistenceFutureLikeCpp<'a, Result<bool, LoadError>>;
+
+    /// Admits the name/counts and reserves identity before construction. The
+    /// returned operation owns writer exclusion through construction and save.
+    /// Its consumed save acknowledges CharacterDB, LoginDB and journal cleanup;
+    /// this is not cross-database atomicity.
+    fn begin_character_creation(
+        &self,
+        admission: creation::save::CreationAdmission,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        Result<Box<dyn creation::save::CharacterCreation>, creation::save::CreateError>,
+    >;
 }
 
 pub trait AvailabilityRepository: Send + Sync {

@@ -4,6 +4,7 @@
 
 use super::LoadError;
 use crate::PersistenceFutureLikeCpp;
+pub mod save;
 pub mod templates;
 
 #[derive(Clone, Copy)]

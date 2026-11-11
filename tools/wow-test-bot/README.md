@@ -35,6 +35,14 @@ Its authored birth-skill extension also obtains the exact target
 pointer-payload equal-range cases with the IDs-only producer. The new extension
 and Rust lookup suites remain unexecuted; grouping/set/determinism tests alone
 are not proof of reference ordering or successful Player skill learning.
+Its authored skill-status extension independently extracts `SkillUpdateState`,
+`SkillStatusData` and `SkillStatusMap` from the same pinned Git objects. It
+compares actual source-map iteration with the separate numeric producer across
+rehash boundaries, duplicate attempts, retained Deleted nodes, full-width keys,
+shared slots and independent lifetimes. These synthetic container cases do not
+admit DB rows or establish loader, persistence or playable-character behavior.
+This extension remains unexecuted until the parent's completed-delivery campaign;
+the Rust adapter tests alone do not establish source iteration order.
 
 `test_forever_spell_random_oracle.py` is the companion **non-live** source
 numerical comparison. It obtains pristine SFMT/seeding headers and exact

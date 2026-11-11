@@ -203,7 +203,7 @@ fn compose<T>(
     for row in baseline {
         ensure!(
             records.insert(id(&row), row).is_none(),
-            "Duplicate birth baseline ID"
+            "Duplicate birth baseline ID in table {hash:08X}"
         );
     }
     for row in official.into_iter().chain(custom) {

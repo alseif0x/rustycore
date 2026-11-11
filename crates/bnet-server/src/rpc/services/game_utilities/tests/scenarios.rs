@@ -90,6 +90,7 @@ fn selected_game_account_like_cpp_uses_identity_selection_not_hashmap_order() {
     let account = AccountInfo {
         id: 2,
         login: "user@example.test".to_string(),
+        battle_tag: None,
         is_locked_to_ip: false,
         lock_country: String::new(),
         last_ip: String::new(),

@@ -1068,27 +1068,5 @@ impl Unit {
 /// C++ `Powers(powerByte)` for a `SPELL_AURA_MOD_POWER_DISPLAY` effect value;
 /// `None` for the sentinel and out-of-range ids the client never displays.
 pub fn represented_power_type_from_u8_like_cpp(power: u8) -> Option<PowerType> {
-    Some(match power {
-        0 => PowerType::Mana,
-        1 => PowerType::Rage,
-        2 => PowerType::Focus,
-        3 => PowerType::Energy,
-        4 => PowerType::Happiness,
-        5 => PowerType::Runes,
-        6 => PowerType::RunicPower,
-        7 => PowerType::SoulShards,
-        8 => PowerType::LunarPower,
-        9 => PowerType::HolyPower,
-        10 => PowerType::AlternatePower,
-        11 => PowerType::Maelstrom,
-        12 => PowerType::Chi,
-        13 => PowerType::Insanity,
-        14 => PowerType::ComboPoints,
-        15 => PowerType::DemonicFury,
-        16 => PowerType::ArcaneCharges,
-        17 => PowerType::Fury,
-        18 => PowerType::Pain,
-        19 => PowerType::Essence,
-        _ => return None,
-    })
+    PowerType::from_u8_like_cpp(power)
 }

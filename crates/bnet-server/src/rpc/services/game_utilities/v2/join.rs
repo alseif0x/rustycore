@@ -19,13 +19,11 @@ use wow_proto::bgs::protocol::game_utilities::v1::{ClientRequest, ClientResponse
 use wow_proto::bgs::protocol::{Attribute, Variant};
 use wow_proto::status;
 
-const FOREVER_BUILD: u32 = 70170;
-
 pub(super) async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
     session: &mut RpcSession<S>,
     request: &ClientRequest,
 ) -> Result<Option<Vec<u8>>> {
-    if session.build != FOREVER_BUILD {
+    if !crate::realm::forever::is_supported_build(session.build) {
         return Err(RpcStatusError::new(status::ERROR_RPC_NOT_IMPLEMENTED).into());
     }
 
@@ -42,6 +40,10 @@ pub(super) async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
         .client_build_variant()
         .ok_or_else(|| RpcStatusError::new(status::ERROR_WOW_SERVICES_DENIED_REALM_LIST_TICKET))?;
     let realm_address = parse_realm_address(&request.attribute)?;
+    println!(
+        "Forever realm join requested: build={} realm=0x{realm_address:08X}",
+        session.build
+    );
 
     // The realm manager remains the sole authority for current realm state.
     // Drop its read guard before generating/persisting secrets or awaiting DB.
@@ -53,13 +55,17 @@ pub(super) async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
             .prepare_join_realm(
                 &realms,
                 realm_address,
-                FOREVER_BUILD,
+                session.build,
                 security_level,
                 Some(session.addr().ip()),
             )
             .map_err(join_status)?
             .server_addresses
     };
+    println!(
+        "Forever realm join prepared: address_bytes={}",
+        server_addresses.len()
+    );
 
     let mut server_secret = vec![0_u8; 32];
     rand::Rng::fill(&mut rand::thread_rng(), server_secret.as_mut_slice());
@@ -86,6 +92,10 @@ pub(super) async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
         .execute(&stmt)
         .await
         .map_err(Into::into);
+    println!(
+        "Forever realm join persistence returned: ok={}",
+        persisted.is_ok()
+    );
     finish_join(
         persisted,
         &RealmJoinTicket {
@@ -207,6 +217,8 @@ fn make_blob(name: &str, value: &[u8]) -> Attribute {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const FOREVER_BUILD: u32 = 70170;
 
     #[test]
     fn production_publication_fence_rejects_failed_unknown_and_wrong_row_outcomes() {

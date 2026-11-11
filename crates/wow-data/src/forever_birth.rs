@@ -10,6 +10,7 @@ pub mod item_sparse;
 pub mod item_specs;
 mod load;
 mod race_mask;
+mod skill_sources;
 pub use effective::{
     ABILITY_HASH, BirthCatalog, LOADOUT_HASH, LOADOUT_ITEM_HASH, RACE_CLASS_HASH, SKILL_LINE_HASH,
 };

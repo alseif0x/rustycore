@@ -187,6 +187,12 @@ async fn database_failure_closes_without_publishing_an_available_result() {
 async fn cancelled_read_produces_no_result_and_transport_can_close_the_incarnation() {
     struct PendingName(Repository);
     impl SessionRepository for PendingName {
+        fn begin_character_creation(
+            &self,
+            admission: CreationAdmission,
+        ) -> PersistenceFutureLikeCpp<'_, Result<Box<dyn CharacterCreation>, CreateError>> {
+            self.0.begin_character_creation(admission)
+        }
         fn load_account(
             &self,
             account: u32,

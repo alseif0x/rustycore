@@ -10,10 +10,11 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 use wow_crypto::forever::{ForeverWorldCrypt, SessionKeys, verify_and_derive};
+use wow_packet::compression::{PacketCompressor, should_compress_payload_len};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ForeverSocketError {
-    #[error("invalid build-70170 world protocol")]
+    #[error("invalid Forever world protocol")]
     Protocol,
     #[error("invalid world connection phase")]
     Phase,
@@ -46,10 +47,12 @@ pub struct ForeverSocket {
     stream: TcpStream,
     realm_address: u32,
     region_group: i32,
+    shifted_opcodes: bool,
     server_challenge: [u8; 32],
     pending: Option<AuthSession>,
     keys: Option<SessionKeys>,
     cipher: Option<ForeverWorldCrypt>,
+    compressor: PacketCompressor,
     phase: Phase,
     server_counter: u64,
     client_counter: u64,
@@ -57,16 +60,27 @@ pub struct ForeverSocket {
 
 impl ForeverSocket {
     pub fn new(stream: TcpStream, realm_address: u32, region_group: i32) -> Self {
+        Self::new_for_build(stream, realm_address, region_group, super::BUILD)
+    }
+
+    pub fn new_for_build(
+        stream: TcpStream,
+        realm_address: u32,
+        region_group: i32,
+        build: u32,
+    ) -> Self {
         let mut server_challenge = [0; 32];
         rand::thread_rng().fill_bytes(&mut server_challenge);
         Self {
             stream,
             realm_address,
             region_group,
+            shifted_opcodes: build >= 70291,
             server_challenge,
             pending: None,
             keys: None,
             cipher: None,
+            compressor: PacketCompressor::new(),
             phase: Phase::New,
             server_counter: 0,
             client_counter: 0,
@@ -129,6 +143,23 @@ impl ForeverSocket {
         join_key: &[u8; 64],
         build_key: &[u8; 16],
     ) -> Result<(), ForeverSocketError> {
+        self.verify_credentials_inner(join_key, Some(build_key))
+    }
+
+    /// Explicit development path for a build whose auth key is unknown. This
+    /// skips only the per-build digest after normal BNet ticket admission.
+    pub fn verify_credentials_without_build_key(
+        &mut self,
+        join_key: &[u8; 64],
+    ) -> Result<(), ForeverSocketError> {
+        self.verify_credentials_inner(join_key, None)
+    }
+
+    fn verify_credentials_inner(
+        &mut self,
+        join_key: &[u8; 64],
+        build_key: Option<&[u8; 16]>,
+    ) -> Result<(), ForeverSocketError> {
         if self.phase != Phase::AwaitingCredentials {
             return Err(ForeverSocketError::Phase);
         }
@@ -140,7 +171,7 @@ impl ForeverSocket {
         {
             return Err(ForeverSocketError::Protocol);
         }
-        self.keys = Some(
+        self.keys = Some(if let Some(build_key) = build_key {
             verify_and_derive(
                 join_key,
                 build_key,
@@ -148,8 +179,14 @@ impl ForeverSocket {
                 &self.server_challenge,
                 &request.digest,
             )
-            .map_err(|_| ForeverSocketError::Proof)?,
-        );
+            .map_err(|_| ForeverSocketError::Proof)?
+        } else {
+            wow_crypto::forever::derive_without_build_key(
+                join_key,
+                &request.local_challenge,
+                &self.server_challenge,
+            )
+        });
         self.phase = Phase::Verified;
         Ok(())
     }
@@ -191,6 +228,11 @@ impl ForeverSocket {
         if acknowledgement.opcode() != ENTER_ENCRYPTED_MODE_ACK
             || !acknowledgement.payload().is_empty()
         {
+            let reason = acknowledgement
+                .payload()
+                .get(..4)
+                .map(|bytes| u32::from_le_bytes(bytes.try_into().expect("reason width")));
+            eprintln!("Forever encryption acknowledgement rejected: reason={reason:?}");
             return Err(ForeverSocketError::UnexpectedEncryptionAck {
                 opcode: acknowledgement.opcode(),
                 payload_bytes: acknowledgement.payload().len(),
@@ -216,7 +258,24 @@ impl ForeverSocket {
             return Err(ForeverSocketError::Phase);
         }
         self.phase = Phase::Failed;
-        let data = wire::frame_data(opcode, payload)?;
+        let wire_opcode = wire::server_opcode(opcode, self.shifted_opcodes);
+        eprintln!(
+            "Forever encrypted send: opcode=0x{opcode:06X}, wire_opcode=0x{wire_opcode:06X}, payload_bytes={}",
+            payload.len()
+        );
+        let data = if !self.shifted_opcodes && should_compress_payload_len(payload.len()) {
+            let compressed = self
+                .compressor
+                .compress_forever_packet(&wire_opcode.to_le_bytes(), payload);
+            eprintln!(
+                "Forever packet compressed: uncompressed_bytes={}, frame_bytes={}",
+                payload.len() + 4,
+                compressed.len() + 4
+            );
+            wire::frame_data(wire::COMPRESSED_PACKET, &compressed)?
+        } else {
+            wire::frame_data_outgoing(wire_opcode, payload)?
+        };
         let (ciphertext, tag) = self
             .cipher
             .as_mut()
@@ -266,25 +325,40 @@ impl ForeverSocket {
         };
         // The session's remaining deadline also covers a partial frame. First
         // byte availability never renews that session deadline.
-        let (data, tag) = match idle {
+        let received = match idle {
             Some(idle) => timeout(idle, read)
                 .await
-                .map_err(|_| ForeverSocketError::Timeout)??,
-            None => read.await?,
+                .map_err(|_| ForeverSocketError::Timeout)?,
+            None => read.await,
         };
+        let (data, tag) = received.map_err(|error| {
+            eprintln!("Forever encrypted receive transport failed: {error}");
+            error
+        })?;
+        eprintln!("Forever encrypted receive: frame_bytes={}", data.len());
         let plaintext = self
             .cipher
             .as_mut()
             .ok_or(ForeverSocketError::Phase)?
             .decrypt(&data, &tag)
-            .map_err(|_| ForeverSocketError::Cipher)?;
-        let frame = Frame::decode(plaintext)?;
+            .map_err(|_| {
+                eprintln!("Forever encrypted receive authentication failed");
+                ForeverSocketError::Cipher
+            })?;
+        let plaintext_bytes = plaintext.len();
+        let mut frame = Frame::decode(plaintext).map_err(|error| {
+            eprintln!(
+                "Forever decrypted frame rejected: plaintext_bytes={plaintext_bytes}, error={error}"
+            );
+            error
+        })?;
+        frame.normalize_client_opcode(self.shifted_opcodes);
         self.phase = Phase::Encrypted;
         Ok(frame)
     }
 
     async fn send_plain(&mut self, opcode: u32, payload: &[u8]) -> Result<(), ForeverSocketError> {
-        let data = wire::frame_data(opcode, payload)?;
+        let data = wire::frame_data(wire::server_opcode(opcode, self.shifted_opcodes), payload)?;
         self.write_frame(&data, [0; 12]).await?;
         self.server_counter += 1;
         Ok(())
@@ -296,11 +370,13 @@ impl ForeverSocket {
             return Err(ForeverSocketError::Protocol);
         }
         self.client_counter += 1;
-        Frame::decode(data)
+        let mut frame = Frame::decode(data)?;
+        frame.normalize_client_opcode(self.shifted_opcodes);
+        Ok(frame)
     }
 
     async fn write_frame(&mut self, data: &[u8], tag: [u8; 12]) -> Result<(), ForeverSocketError> {
-        let header = wire::header(data.len(), tag)?;
+        let header = wire::header_outgoing(data.len(), tag)?;
         timeout(Duration::from_secs(10), async {
             self.stream
                 .write_all(&header)

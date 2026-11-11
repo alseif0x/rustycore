@@ -706,38 +706,31 @@ impl PlayerRegistry {
         };
 
         if let Some(manager) = canonical_map_manager {
-            let gameplay = with_canonical_player_at_like_cpp(
-                manager,
-                guid,
-                u32::from(map_id),
-                instance_id,
-                |player| player.gameplay_state().clone(),
-            )?;
-            snapshot.pending_quest_sharing = gameplay.quests.pending_share_like_cpp();
-            snapshot.rewarded_quests = gameplay
-                .quests
-                .rewarded_quest_ids_like_cpp()
-                .iter()
-                .copied()
-                .collect();
-            snapshot.active_quest_statuses = gameplay
-                .quests
-                .statuses_like_cpp()
+            let (pending_share, rewarded_ids, statuses, df_ids, daily_ids) =
+                with_canonical_player_at_like_cpp(
+                    manager,
+                    guid,
+                    u32::from(map_id),
+                    instance_id,
+                    |player| {
+                        let quests = &player.gameplay_state().quests;
+                        (
+                            quests.pending_share_like_cpp(),
+                            quests.rewarded_quest_ids_like_cpp().clone(),
+                            quests.statuses_like_cpp().clone(),
+                            quests.df_quest_ids_like_cpp().clone(),
+                            quests.daily_quest_ids_like_cpp().clone(),
+                        )
+                    },
+                )?;
+            snapshot.pending_quest_sharing = pending_share;
+            snapshot.rewarded_quests = rewarded_ids.iter().copied().collect();
+            snapshot.active_quest_statuses = statuses
                 .values()
                 .map(|status| (status.quest_id, status.status))
                 .collect();
-            snapshot.df_quests = gameplay
-                .quests
-                .df_quest_ids_like_cpp()
-                .iter()
-                .copied()
-                .collect();
-            snapshot.daily_quests_completed = gameplay
-                .quests
-                .daily_quest_ids_like_cpp()
-                .iter()
-                .copied()
-                .collect();
+            snapshot.df_quests = df_ids.iter().copied().collect();
+            snapshot.daily_quests_completed = daily_ids.iter().copied().collect();
             snapshot.reputation_standings = with_canonical_player_at_like_cpp(
                 manager,
                 guid,

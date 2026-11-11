@@ -3,6 +3,7 @@ syntax = "proto2";
 package bgs.protocol.account.v2;
 message AccountInfo {
   optional uint64 account_id = 1;
+  optional string battle_tag = 5;
   repeated uint32 flags = 14;
 }
 message GameAccountInfo {

@@ -287,3 +287,136 @@ fn in_world_registrations_list_only_players_in_the_world_like_cpp() {
         vec![in_world]
     );
 }
+
+#[test]
+fn quest_sharing_snapshot_reads_live_narrow_facts_after_registration() {
+    let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+    let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
+    let guid = ObjectGuid::create_player(1, 704);
+    let sender = ObjectGuid::create_player(1, 705);
+    let canonical = canonical_map_with_player_for_test(guid, 571, 42, 7);
+    let registry = PlayerRegistry::new();
+    let mut info = registration_for_test(571, 42, send_tx, command_tx);
+    info.identity.class = 8;
+    info.identity.race = 11;
+    info.identity.active_expansion = 6;
+    info.placement.level = 73;
+    info.placement.is_alive = false;
+    info.placement.position = Position::new(12.0, 34.0, 56.0, 0.5);
+    let registration = registry.register_or_replace(guid, info, Default::default());
+    assert_eq!(registration.generation, 1);
+
+    // Change every quest fact after registration, without publishing a mirror.
+    {
+        let mut manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map_mut(571, 42)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(guid)
+            .unwrap();
+        let quests = &mut player.gameplay_state_mut().quests;
+        quests.set_pending_share_like_cpp(Some((sender, 70_001)));
+        quests.replace_rewarded_quest_ids_like_cpp([71_001, 71_002].into());
+        quests.replace_df_quest_ids_like_cpp([72_001].into());
+        quests.replace_daily_quest_ids_like_cpp([73_001, 73_002].into());
+        // Values, rather than map keys, supply quest IDs. The last BTree
+        // value for a colliding record ID must retain its status.
+        for (key, quest_id, status) in [(10, 80_001, 1), (20, 80_002, 3), (30, 80_001, 5)] {
+            quests.insert_status_like_cpp(
+                key,
+                wow_entities::PlayerQuestStatusRecord {
+                    quest_id,
+                    status,
+                    explored: false,
+                    accept_time_secs: 0,
+                    end_time_secs: 0,
+                    objective_counts: Vec::new(),
+                    slot: 0,
+                },
+            );
+        }
+        player.reputation_mut_like_cpp().insert_faction_like_cpp(
+            wow_entities::PlayerFactionStateLikeCpp {
+                faction_id: 72,
+                reputation_list_id: 2,
+                standing: -300,
+                ..Default::default()
+            },
+        );
+        player.reputation_mut_like_cpp().insert_faction_like_cpp(
+            wow_entities::PlayerFactionStateLikeCpp {
+                faction_id: 76,
+                reputation_list_id: 1,
+                standing: 4_200,
+                ..Default::default()
+            },
+        );
+    }
+
+    let snapshot = registry
+        .quest_sharing_snapshot(guid, Some(&canonical))
+        .unwrap();
+    assert_eq!(
+        snapshot.registration,
+        PlayerRegistration {
+            guid,
+            generation: 1
+        }
+    );
+    assert_eq!(snapshot.pending_quest_sharing, Some((sender, 70_001)));
+    assert_eq!(snapshot.rewarded_quests, HashSet::from([71_001, 71_002]));
+    assert_eq!(
+        snapshot.active_quest_statuses,
+        HashMap::from([(80_001, 5), (80_002, 3)])
+    );
+    assert_eq!(snapshot.df_quests, HashSet::from([72_001]));
+    assert_eq!(
+        snapshot.daily_quests_completed,
+        HashSet::from([73_001, 73_002])
+    );
+    assert_eq!((snapshot.is_alive, snapshot.level), (false, 73));
+    assert_eq!(
+        (snapshot.class, snapshot.race, snapshot.active_expansion),
+        (8, 11, 6)
+    );
+    assert_eq!(
+        snapshot.reputation_standings,
+        Some(vec![(76, 4_200), (72, -300)])
+    );
+}
+
+#[test]
+fn quest_sharing_snapshot_without_manager_keeps_directory_facts_and_unknown_reputation() {
+    let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+    let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
+    let guid = ObjectGuid::create_player(1, 706);
+    let registry = PlayerRegistry::new();
+    let mut info = registration_for_test(530, 19, send_tx, command_tx);
+    info.identity.class = 3;
+    info.identity.race = 4;
+    info.identity.active_expansion = 5;
+    info.placement.level = 62;
+    info.placement.is_alive = false;
+    registry.register_or_replace(guid, info, Default::default());
+
+    let snapshot = registry.quest_sharing_snapshot(guid, None).unwrap();
+    assert_eq!(
+        snapshot.registration,
+        PlayerRegistration {
+            guid,
+            generation: 1
+        }
+    );
+    assert_eq!(snapshot.pending_quest_sharing, None);
+    assert_eq!(snapshot.rewarded_quests, HashSet::new());
+    assert_eq!(snapshot.active_quest_statuses, HashMap::new());
+    assert_eq!(snapshot.df_quests, HashSet::new());
+    assert_eq!(snapshot.daily_quests_completed, HashSet::new());
+    assert_eq!((snapshot.is_alive, snapshot.level), (false, 62));
+    assert_eq!(
+        (snapshot.class, snapshot.race, snapshot.active_expansion),
+        (3, 4, 5)
+    );
+    assert_eq!(snapshot.reputation_standings, None);
+}

@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[path = "quest_log_fixtures_tests.rs"]
+mod tests;
+
 pub(super) fn canonical_player_quest_status_like_cpp(
     session: &WorldSession,
     quest_id: u32,
@@ -188,53 +191,43 @@ pub(super) fn install_native_quest_log_bag_fixture_like_cpp(
     );
 }
 
-fn attach_map_manager_like_cpp(session: &mut WorldSession, mut manager: wow_map::MapManager) {
-    let player_guid = session.player_guid().expect("quest test Player guid");
-    if !manager
-        .find_map(571, 0)
-        .is_some_and(|map| map.map().get_typed_player(player_guid).is_some())
-    {
-        let player = session
-            .core
-            .with_owned_player_like_cpp(|player| player.clone())
-            .expect("quest fixture has an owned Player");
-        manager
-            .create_world_map(571, 0)
-            .map_mut()
-            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
-            .unwrap();
-    }
-    session.set_canonical_map_manager(std::sync::Arc::new(std::sync::Mutex::new(manager)));
-    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
-}
-
 fn ensure_quest_log_map_player_like_cpp(session: &mut WorldSession) {
-    let Some(manager) = session.core.canonical_map_manager.as_ref().cloned() else {
-        attach_map_manager_like_cpp(session, wow_map::MapManager::default());
-        return;
-    };
-    let has_player = manager.lock().ok().is_some_and(|manager| {
-        manager.find_map(571, 0).is_some_and(|map| {
-            map.map()
-                .get_typed_player(session.player_guid().unwrap())
-                .is_some()
-        })
-    });
-    if has_player {
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .cloned()
+        .expect("quest fixture requires its canonical Map manager");
+    let handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("quest fixture requires its owned Player handle");
+    assert_eq!(
+        Some(handle.guid()),
+        session.player_guid(),
+        "quest fixture Player identity must match its owned handle"
+    );
+    let mut manager = manager.lock().expect("quest fixture Map manager lock");
+    let residence = manager
+        .checked_player_residence_like_cpp(handle)
+        .expect("quest fixture requires a valid owned Player residence");
+    let target = wow_map::MapKey::new(571, 0);
+    if residence == wow_map::PlayerResidenceLikeCpp::Active(target) {
         return;
     }
-    let player = session
-        .core
-        .with_owned_player_like_cpp(|player| player.clone())
-        .expect("quest fixture has an owned Player");
+    let position = manager
+        .with_player_like_cpp(handle, |player| player.unit().world().position())
+        .expect("quest fixture owned Player must resolve under the same guard");
+    manager.create_world_map(target.map_id, target.instance_id);
+    if let wow_map::PlayerResidenceLikeCpp::Active(_) = residence {
+        manager
+            .detach_player_like_cpp(handle)
+            .expect("quest fixture active Player must detach from its old map");
+    }
     manager
-        .lock()
-        .expect("quest fixture Map manager lock")
-        .create_world_map(571, 0)
-        .map_mut()
-        .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
-        .unwrap();
-    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+        .attach_player_like_cpp(handle, target, position)
+        .expect("quest fixture detached Player must attach to the target map");
+    drop(manager);
 }
 
 pub(super) fn insert_player_quest_status_fixture_like_cpp(

@@ -3,7 +3,7 @@ use wow_data::forever_initialization::{
     ClassPowerRecord, ClassRecord, InitializationRecords, PowerRecord, RaceRecord,
 };
 use wow_persistence::forever::creation::{
-    ClassLevelStats, CreationWorldRows, RaceStats, StartDefinition,
+    ClassLevelStats, CreationWorldRows, RaceStats, StartDefinition, XpOverride,
 };
 
 fn tables(hp: &str, mana: f32) -> InitialGameTables {
@@ -18,6 +18,13 @@ fn tables(hp: &str, mana: f32) -> InitialGameTables {
     InitialGameTables::parse_strs(&format!("L\t{columns}\n1\t{row}\n2\t{row}\n3\t{row}\n"),hp,"L\tTotal\tKill\tJunk\tStats\tDivisor\n1\t400\t0\t0\t0\t0\n2\t500\t0\t0\t0\t0\n3\t600\t0\t0\t0\t0\n").unwrap()
 }
 fn sources(tables: &InitialGameTables, stats: [i32; 5]) -> WorldSources {
+    sources_with_xp(tables, stats, Vec::new())
+}
+fn sources_with_xp(
+    tables: &InitialGameTables,
+    stats: [i32; 5],
+    xp_overrides: Vec<XpOverride>,
+) -> WorldSources {
     WorldSources::from_rows(
         CreationWorldRows {
             definitions: (1..=15)
@@ -45,6 +52,7 @@ fn sources(tables: &InitialGameTables, stats: [i32; 5]) -> WorldSources {
                     stats,
                 })
                 .collect(),
+            xp_overrides,
             ..Default::default()
         },
         |id| id == 1,
@@ -149,6 +157,94 @@ fn health_armor_xp_and_mana_are_source_derived_not_classic_legacy_defaults() {
             .collect::<Vec<_>>(),
         [(0, 0, 109, 109), (1, 1, 1000, 0)]
     );
+}
+
+#[test]
+fn prepared_xp_compares_signed_next_level_bits_before_subtraction() {
+    let tables = tables("L\tHealth\n1\t10\n", 100.);
+    let initialization = initialization(1, 1, &[(1, 1000, 0)]);
+    for (raw_next, expected_xp) in [
+        (0, u32::MAX),
+        (1, 0),
+        (i32::MAX as u32, 0),
+        (0x8000_0001, 0x8000_0000),
+        (u32::MAX, 0xFFFF_FFFE),
+    ] {
+        let mut overrides = vec![XpOverride {
+            level: 1,
+            experience: raw_next,
+        }];
+        if raw_next == 0 {
+            // A zero level-one override triggers source gap fill. The legal
+            // level-zero override makes its defined unsigned +12000 wrap to zero.
+            overrides.push(XpOverride {
+                level: 0,
+                experience: 0u32.wrapping_sub(12_000),
+            });
+        }
+        let sources = sources_with_xp(&tables, [20; 5], overrides);
+        let result = sources
+            .pre_equipment_vitals(1, 1, 1, &initialization, &tables)
+            .unwrap();
+        assert_eq!(result.next_level_xp(), raw_next);
+        assert_eq!(result.experience(), expected_xp);
+    }
+}
+
+#[test]
+fn armor_uses_create_agility_float_rounding_without_rounding_current_stats() {
+    let tables = tables("L\tHealth\n1\t10\n", 100.);
+    let initialization = initialization(1, 1, &[(1, 1000, 0)]);
+    for (agility, expected_armor) in [
+        (13, 26),
+        (-13, -26),
+        (16_777_217, 33_554_432),
+        (-16_777_217, -33_554_432),
+        (16_777_219, 33_554_440),
+        (-1_073_741_825, i32::MIN),
+    ] {
+        let stats = [20, agility, 21, 12, 9];
+        let result = sources(&tables, stats)
+            .pre_equipment_vitals(1, 1, 1, &initialization, &tables)
+            .unwrap();
+        assert_eq!(result.armor(), expected_armor);
+        assert_eq!(result.stats(), &stats);
+    }
+}
+
+#[test]
+fn armor_rejects_undefined_cpp_float_to_int32_conversion_boundaries() {
+    let tables = tables("L\tHealth\n1\t10\n", 100.);
+    let initialization = initialization(1, 1, &[(1, 1000, 0)]);
+    for agility in [1_073_741_823, i32::MAX, -1_073_741_952, i32::MIN] {
+        assert!(matches!(
+            sources(&tables, [20, agility, 21, 12, 9]).pre_equipment_vitals(
+                1,
+                1,
+                1,
+                &initialization,
+                &tables
+            ),
+            Err(SourceError::StatsOverflow)
+        ));
+    }
+}
+
+#[test]
+fn signed_minimum_next_level_xp_rejects_unproven_cpp_overflow_boundary() {
+    let tables = tables("L\tHealth\n1\t10\n", 100.);
+    let sources = sources_with_xp(
+        &tables,
+        [20; 5],
+        vec![XpOverride {
+            level: 1,
+            experience: 0x8000_0000,
+        }],
+    );
+    assert!(matches!(
+        sources.pre_equipment_vitals(1, 1, 1, &initialization(1, 1, &[(1, 1000, 0)]), &tables),
+        Err(SourceError::StatsOverflow)
+    ));
 }
 
 #[test]

@@ -75,6 +75,25 @@ fn entry_has_exact_70170_json_keys_types_and_compression_envelope() {
 }
 
 #[test]
+fn entry_supports_70450_build_with_its_own_realm_identity() {
+    let (catalog, mut realms) = fixture();
+    realms.builds[0].build = 70450;
+    realms.realms.values_mut().next().unwrap().build = 70450;
+    let data = catalog
+        .realm_entry(&realms, ADDRESS, 70450, 0, 100)
+        .unwrap();
+    let value: serde_json::Value = serde_json::from_str(
+        inflate(&data)
+            .strip_prefix("JamJSONRealmEntry:")
+            .unwrap()
+            .trim_end_matches('\0'),
+    )
+    .unwrap();
+    assert_eq!(value["version"]["versionBuild"], 70450);
+    assert_eq!(value["wowRealmAddress"], ADDRESS);
+}
+
+#[test]
 fn unavailable_or_mismatched_realms_are_not_recommended() {
     let (catalog, mut realms) = fixture();
     assert!(

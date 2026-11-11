@@ -55,6 +55,61 @@ fn signed_target_stats_are_not_narrowed_to_the_legacy_uint16_projection() {
 }
 
 #[test]
+fn initial_action_requests_filter_race_class_keep_order_and_source_narrowing() {
+    let mut input = rows();
+    input.actions = vec![
+        StartAction {
+            race: 2,
+            class: 1,
+            button: 9,
+            action: 10,
+            kind: 11,
+        },
+        StartAction {
+            race: 1,
+            class: 1,
+            button: 0x1234,
+            action: u32::MAX,
+            kind: 0xabcd,
+        },
+        StartAction {
+            race: 1,
+            class: 2,
+            button: 12,
+            action: 13,
+            kind: 14,
+        },
+        StartAction {
+            race: 1,
+            class: 1,
+            button: u16::MAX,
+            action: 0,
+            kind: u16::MAX,
+        },
+        // Duplicate narrowed button requests survive preparation for AddActionButton.
+        StartAction {
+            race: 1,
+            class: 1,
+            button: 0x0034,
+            action: 17,
+            kind: 0x0100,
+        },
+    ];
+    let sources = load(input).unwrap();
+    let requests = sources.initial_actions(1, 1);
+    assert_eq!(
+        requests
+            .iter()
+            .map(|r| (r.button(), r.action(), r.kind()))
+            .collect::<Vec<_>>(),
+        [(0x34, u32::MAX, 0xcd), (255, 0, 255), (0x34, 17, 0),]
+    );
+    assert!(sources.initial_actions(3, 3).is_empty());
+    assert_eq!(sources.initial_actions(2, 1)[0].action(), 10);
+    // These requests establish neither AddActionButton admission nor SQL trait/spec selection.
+}
+
+#[test]
 fn composed_world_sources_retain_skill_tiers_without_fabricating_missing_rows() {
     let mut input = rows();
     let mut values = [0; 16];

@@ -119,3 +119,5 @@ pub use storage_move::{
     ExistingStorageStackUpdateLikeCpp, InventoryStorageMovePlanLikeCpp,
     plan_inventory_storage_move_like_cpp,
 };
+
+pub use storage::ItemStorageView;

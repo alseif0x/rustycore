@@ -80,24 +80,25 @@ impl PacketCompressor {
     pub fn compress_packet(&mut self, opcode_bytes: &[u8; 2], payload: &[u8]) -> Vec<u8> {
         compress_packet_impl(&mut self.inner, opcode_bytes, payload)
     }
+
+    /// Forever uses the same compressed body with a four-byte wire opcode.
+    pub fn compress_forever_packet(&mut self, opcode_bytes: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+        compress_packet_impl(&mut self.inner, opcode_bytes, payload)
+    }
 }
 
 /// Compressed packet format:
 ///
 /// ```text
-/// [UncompressedSize: i32 LE]      — original opcode(2) + payload size
+/// [UncompressedSize: i32 LE]      — original opcode + payload size
 /// [UncompressedAdler32: u32 LE]   — adler32 of original opcode + payload
 /// [CompressedAdler32: u32 LE]     — adler32 of compressed data
 /// [CompressedData: ...]           — deflated bytes (raw deflate, Z_SYNC_FLUSH)
 /// ```
 ///
 /// Shared implementation: compress using an existing deflate stream.
-fn compress_packet_impl(
-    compressor: &mut Compress,
-    opcode_bytes: &[u8; 2],
-    payload: &[u8],
-) -> Vec<u8> {
-    let uncompressed_size = (2 + payload.len()) as i32;
+fn compress_packet_impl(compressor: &mut Compress, opcode_bytes: &[u8], payload: &[u8]) -> Vec<u8> {
+    let uncompressed_size = (opcode_bytes.len() + payload.len()) as i32;
 
     // Adler32 of original opcode + payload
     let uncompressed_adler = {
@@ -106,7 +107,7 @@ fn compress_packet_impl(
     };
 
     // Concatenate input: opcode + payload
-    let input_len = 2 + payload.len();
+    let input_len = opcode_bytes.len() + payload.len();
     let mut input = Vec::with_capacity(input_len);
     input.extend_from_slice(opcode_bytes);
     input.extend_from_slice(payload);

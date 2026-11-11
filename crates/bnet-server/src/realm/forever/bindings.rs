@@ -76,7 +76,7 @@ impl ForeverCatalog {
         crate::realm::JoinRealmPreparedLikeCpp,
         crate::realm::JoinRealmPrepareErrorLikeCpp,
     > {
-        if build != 70170 {
+        if !super::is_supported_build(build) {
             return Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm);
         }
         let binding = self
@@ -126,7 +126,7 @@ impl ForeverCatalog {
         security: u8,
         now: u64,
     ) -> Option<Vec<u8>> {
-        if build != 70170 {
+        if !super::is_supported_build(build) {
             return None;
         }
         let binding = self.bindings.iter().find(|b| b.address == address)?;

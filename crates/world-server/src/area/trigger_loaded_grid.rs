@@ -96,7 +96,7 @@ pub struct ResolvedAreaTriggerSpawnLikeCpp {
     pub phase_group: u32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct AreaTriggerLoadedGridResolvedLikeCpp {
     pub area_trigger: AreaTrigger,
     pub map_object_record: Option<MapObjectRecord>,

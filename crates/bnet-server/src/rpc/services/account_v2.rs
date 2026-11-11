@@ -42,6 +42,7 @@ fn response(account: Option<&AccountInfo>, method: u32, payload: &[u8]) -> Resul
             GetAccountInfoResponse {
                 info: Some(wire::AccountInfo {
                     account_id: Some(u64::from(account.id)),
+                    battle_tag: account.battle_tag.clone(),
                     flags: vec![7],
                 }),
             }
@@ -109,6 +110,7 @@ mod tests {
         AccountInfo {
             id: 1,
             login: "test".into(),
+            battle_tag: None,
             is_locked_to_ip: false,
             lock_country: String::new(),
             last_ip: String::new(),

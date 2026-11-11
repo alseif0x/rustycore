@@ -1,4 +1,4 @@
-//! 02245dcd SpellMgr.cpp:5373-5412, observed signed World SQL metadata.
+//! 02245dcd SpellMgr.cpp:5373-5412, observed World SQL metadata.
 use super::{LoadError, SqlResult, text};
 use wow_persistence::forever::spells::CreatureImmunityRow;
 
@@ -15,8 +15,8 @@ pub(super) fn decode(row: &SqlResult) -> Result<CreatureImmunityRow, LoadError> 
         mechanics: row.try_read_typed::<i64>(3).ok_or(LoadError::InvalidRow)?,
         effects: text(row, 4)?,
         auras: text(row, 5)?,
-        immune_aoe: row.try_read_typed::<i8>(6).ok_or(LoadError::InvalidRow)? != 0,
-        immune_chain: row.try_read_typed::<i8>(7).ok_or(LoadError::InvalidRow)? != 0,
+        immune_aoe: row.try_read_typed::<bool>(6).ok_or(LoadError::InvalidRow)?,
+        immune_chain: row.try_read_typed::<bool>(7).ok_or(LoadError::InvalidRow)?,
     })
 }
 

@@ -66,7 +66,8 @@ fn auth_payload(server: &[u8; 32]) -> Vec<u8> {
 async fn read_frame(peer: &mut TcpStream) -> (Vec<u8>, [u8; 12]) {
     let mut header = [0; 16];
     peer.read_exact(&mut header).await.unwrap();
-    let mut data = vec![0; wire::frame_size(&header).unwrap()];
+    let size = u32::from_le_bytes(header[..4].try_into().unwrap()) as usize;
+    let mut data = vec![0; size];
     peer.read_exact(&mut data).await.unwrap();
     (data, header[4..].try_into().unwrap())
 }
@@ -85,6 +86,10 @@ async fn write_plain(peer: &mut TcpStream, opcode: u32, body: &[u8]) {
 }
 
 async fn pending() -> (ForeverSocket, TcpStream, SessionKeys) {
+    pending_for_build(super::BUILD).await
+}
+
+async fn pending_for_build(build: u32) -> (ForeverSocket, TcpStream, SessionKeys) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let (client, accepted) = tokio::join!(
         TcpStream::connect(listener.local_addr().unwrap()),
@@ -92,7 +97,7 @@ async fn pending() -> (ForeverSocket, TcpStream, SessionKeys) {
     );
     let mut peer = client.unwrap();
     // The certificate RegionGroup is independent of geographic realm Region 2.
-    let mut socket = ForeverSocket::new(accepted.unwrap().0, 0x02010001, 7);
+    let mut socket = ForeverSocket::new_for_build(accepted.unwrap().0, 0x02010001, 7, build);
     let client_side = async {
         let mut hello = vec![0; wire::SERVER_HELLO.len()];
         peer.read_exact(&mut hello).await.unwrap();
@@ -101,7 +106,10 @@ async fn pending() -> (ForeverSocket, TcpStream, SessionKeys) {
         let (data, tag) = read_frame(&mut peer).await;
         assert_eq!(tag, [0; 12]);
         let frame = Frame::decode(data).unwrap();
-        assert_eq!(frame.opcode(), AUTH_CHALLENGE);
+        assert_eq!(
+            frame.opcode(),
+            wire::server_opcode(AUTH_CHALLENGE, build >= 70291)
+        );
         assert_eq!(frame.payload().len(), 65);
         let challenge: [u8; 32] = frame.payload()[32..64].try_into().unwrap();
         write_plain(&mut peer, AUTH_SESSION, &auth_payload(&challenge)).await;
@@ -113,13 +121,20 @@ async fn pending() -> (ForeverSocket, TcpStream, SessionKeys) {
 }
 
 async fn encrypted() -> (ForeverSocket, TcpStream, SessionKeys) {
-    let (mut socket, mut peer, keys) = pending().await;
+    encrypted_for_build(super::BUILD).await
+}
+
+async fn encrypted_for_build(build: u32) -> (ForeverSocket, TcpStream, SessionKeys) {
+    let (mut socket, mut peer, keys) = pending_for_build(build).await;
     socket.verify_credentials(&JOIN, &BUILD_KEY).unwrap();
     let client_side = async {
         let (data, tag) = read_frame(&mut peer).await;
         assert_eq!(tag, [0; 12]);
         let frame = Frame::decode(data).unwrap();
-        assert_eq!(frame.opcode(), ENTER_ENCRYPTED_MODE);
+        assert_eq!(
+            frame.opcode(),
+            wire::server_opcode(ENTER_ENCRYPTED_MODE, build >= 70291)
+        );
         assert_eq!(frame.payload().len(), 69);
         write_plain(&mut peer, ENTER_ENCRYPTED_MODE_ACK, &[]).await;
     };
@@ -150,6 +165,28 @@ fn wire_bounds_and_auth_session_exact_length() {
     let mut overflow = body;
     overflow[77..81].copy_from_slice(&u32::MAX.to_le_bytes());
     assert!(wire::AuthSession::decode(&overflow).is_err());
+}
+
+#[test]
+fn build_70291_opcode_shift_preserves_the_old_profile_and_translation_boundaries() {
+    for opcode in [AUTH_CHALLENGE, AUTH_RESPONSE, 0x460098, 0x4A0000, 0x6BFFFF] {
+        assert_eq!(wire::server_opcode(opcode, false), opcode);
+    }
+    assert_eq!(wire::server_opcode(AUTH_CHALLENGE, true), 0x4E0000);
+    assert_eq!(wire::server_opcode(AUTH_RESPONSE, true), 0x470001);
+    assert_eq!(wire::server_opcode(0x460098, true), 0x470099);
+    assert_eq!(wire::server_opcode(0x4A0000, true), 0x4B0000);
+    assert_eq!(wire::server_opcode(0x450007, true), 0x450007);
+    for (raw, normalized) in [
+        (0x460007, 0x450007),
+        (0x440150, 0x44014F),
+        (0x44013B, 0x44013B),
+        (0x450006, 0x450006),
+    ] {
+        let mut frame = Frame::decode(wire::frame_data(raw, &[]).unwrap()).unwrap();
+        frame.normalize_client_opcode(true);
+        assert_eq!(frame.opcode(), normalized);
+    }
 }
 
 #[tokio::test]
@@ -219,6 +256,13 @@ async fn missing_or_ambiguous_persistence_never_publishes_offer() {
         let mut byte = [0];
         assert_eq!(peer.read(&mut byte).await.unwrap(), 0);
     }
+}
+
+#[tokio::test]
+async fn explicit_unknown_build_key_path_preserves_session_derivation() {
+    let (mut socket, _peer, keys) = pending().await;
+    socket.verify_credentials_without_build_key(&JOIN).unwrap();
+    assert_eq!(socket.session_key().unwrap(), keys.session_key());
 }
 
 #[tokio::test]
@@ -332,4 +376,82 @@ async fn first_encrypted_client_frame_uses_counter_two_with_idle_policy() {
         .unwrap();
     assert_eq!(frame.opcode(), PING);
     assert_eq!(frame.payload(), &[1, 2, 3, 4]);
+}
+
+#[tokio::test]
+async fn large_encrypted_packet_uses_persistent_raw_deflate_and_four_byte_checksums() {
+    let (mut socket, mut peer, keys) = encrypted().await;
+    let body: Vec<u8> = (0..78_592).map(|index| (index % 251) as u8).collect();
+    socket.send(AUTH_RESPONSE, &body).await.unwrap();
+
+    let (data, tag) = read_frame(&mut peer).await;
+    let mut nonce_bytes = [0; 12];
+    nonce_bytes[..8].copy_from_slice(&2_u64.to_le_bytes());
+    nonce_bytes[8..].copy_from_slice(&0x5256_5253_u32.to_le_bytes());
+    let cipher = TestAesGcm::new_from_slice(keys.encryption_key()).unwrap();
+    assert!(data.len() < wire::MAX_FRAME);
+    let mut plaintext = data;
+    cipher
+        .decrypt_in_place_detached(
+            Nonce::from_slice(&nonce_bytes),
+            &[],
+            &mut plaintext,
+            (&tag).into(),
+        )
+        .unwrap();
+    let frame = Frame::decode(plaintext).unwrap();
+    assert_eq!(frame.opcode(), wire::COMPRESSED_PACKET);
+
+    let payload = frame.payload();
+    let uncompressed_size = u32::from_le_bytes(payload[..4].try_into().unwrap()) as usize;
+    let uncompressed_adler = u32::from_le_bytes(payload[4..8].try_into().unwrap());
+    let compressed_adler = u32::from_le_bytes(payload[8..12].try_into().unwrap());
+    assert_eq!(uncompressed_size, body.len() + 4);
+    assert_eq!(
+        compressed_adler,
+        wow_packet::compression::adler32(&payload[12..])
+    );
+
+    let expected = [AUTH_RESPONSE.to_le_bytes().as_slice(), &body].concat();
+    assert_eq!(
+        uncompressed_adler,
+        wow_packet::compression::adler32(&expected)
+    );
+    let mut output = vec![0; uncompressed_size];
+    let mut decompressor = flate2::Decompress::new(false);
+    decompressor
+        .decompress(&payload[12..], &mut output, flate2::FlushDecompress::Sync)
+        .unwrap();
+    assert_eq!(decompressor.total_out() as usize, expected.len());
+    assert_eq!(output, expected);
+}
+
+#[tokio::test]
+async fn modern_large_hotfix_response_uses_uncompressed_original_opcode() {
+    let (mut socket, mut peer, keys) = encrypted_for_build(70450).await;
+    let body = vec![0xA5; 1_983_623];
+    socket.send(AUTH_RESPONSE, &body).await.unwrap();
+
+    let (data, tag) = read_frame(&mut peer).await;
+    assert_eq!(data.len(), body.len() + 4);
+    let mut nonce_bytes = [0; 12];
+    nonce_bytes[..8].copy_from_slice(&2_u64.to_le_bytes());
+    nonce_bytes[8..].copy_from_slice(&0x5256_5253_u32.to_le_bytes());
+    let cipher = TestAesGcm::new_from_slice(keys.encryption_key()).unwrap();
+    let mut plaintext = data;
+    cipher
+        .decrypt_in_place_detached(
+            Nonce::from_slice(&nonce_bytes),
+            &[],
+            &mut plaintext,
+            (&tag).into(),
+        )
+        .unwrap();
+    assert_eq!(
+        u32::from_le_bytes(plaintext[..4].try_into().unwrap()),
+        wire::server_opcode(AUTH_RESPONSE, true)
+    );
+    assert_eq!(&plaintext[4..], body);
+    assert!(wire::header_outgoing(0xFF_FFFF, [0; 12]).is_ok());
+    assert!(wire::header_outgoing(0x100_0000, [0; 12]).is_err());
 }

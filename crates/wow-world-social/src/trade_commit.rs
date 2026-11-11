@@ -4,25 +4,22 @@
 
 //! `CMSG_ACCEPT_TRADE` through the atomic exchange (#38 slice 3).
 //!
-//! C++ `WorldSession::HandleAcceptTradeOpcode` (`TradeHandler.cpp:236-520`):
-//! the checks in C++ order, then — when the trader already accepted —
-//! `setAcceptTradeMode`, the trade spells, `TRADE_STATUS_ACCEPTED` to the
-//! trader, `CanStoreItems` for both, `MoveItemFromInventory` for every traded
-//! item, `moveItems`, `ModifyMoney` four times, both `m_trade` deleted, one
-//! Character transaction with both `SaveInventoryAndGoldToDB`, and
-//! `TRADE_STATUS_COMPLETE` to both.
-//!
-//! Rust order (each step keeps the C++ outcome of that step):
-//! 1. the C++ checks with both Players under one map-manager lock;
+//! Represented Rust operation and established async commit contract:
+//! 1. acceptance checks with both Players under one map-manager lock;
 //! 2. the coordinator's exclusive money fence, then the partner parked with
 //!    its own fence (see `wow_world_core::session::mailbox::TradeCommitRequestLikeCpp`);
-//! 3. `CanStoreItems` on detached copies of both canonical Players;
+//! 3. capture both inventories and original SQL facts under the pair lock,
+//!    then plan the disposable inventories outside that lock using the
+//!    inherited sequential `CanStoreItem` queries;
 //! 4. one detached worker: the single COMMIT, then — only after it — both
 //!    canonical Players change under one lock, and each side gets the
 //!    publication of its own client;
 //! 5. each session publishes its side, then queues its `MoneyChanged` and
 //!    drains it, which raises `player.money_changed` once per Player after the
 //!    commit and outside every guard (#169).
+//!
+//! The target `CanStoreItems` comparison remains a separate source-evidence
+//! boundary from this structural inventory snapshot extraction.
 
 use std::any::Any;
 use std::future::Future;
@@ -40,7 +37,6 @@ use wow_packet::packets::misc::{
     TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_TOO_FAR_AWAY_LIKE_CPP, TradeStatus,
 };
 use wow_persistence::{
-    PlayerTradeItemPersistenceLikeCpp, PlayerTradeMoneyPersistenceLikeCpp,
     PlayerTradePersistenceOutcomeLikeCpp, PlayerTradePersistencePortLikeCpp,
     PlayerTradePersistenceRequestLikeCpp, PlayerTradeReconciliationLikeCpp,
     classify_player_trade_reconciliation_like_cpp,
@@ -51,15 +47,15 @@ use wow_world_core::session::mailbox::{
     TradeSidePublicationLikeCpp,
 };
 use wow_world_core::session::{TradeCommitTargetLikeCpp, TradeSideLikeCpp};
-use wow_world_inventory::{
-    TradeStoreActionLikeCpp, TradeStoreCatalogsLikeCpp, TradeStorePlanLikeCpp,
-    plan_trade_receive_like_cpp,
-};
+use wow_world_inventory::{TradeStoreActionLikeCpp, TradeStorePlanLikeCpp};
 
 use crate::TradeHandlerCxLikeCpp;
 use crate::trade_contents::{
     TRADE_SLOT_TRADED_COUNT_LIKE_CPP, set_accepted_like_cpp, set_spell_like_cpp,
 };
+
+mod planning;
+use planning::{item_db_guid, money_after_like_cpp};
 
 /// C++ `EQUIP_ERR_TOO_MUCH_GOLD`.
 pub const EQUIP_ERR_TOO_MUCH_GOLD_LIKE_CPP: i32 = InventoryResult::TooMuchGold as i32;
@@ -421,213 +417,6 @@ impl TradeHandlerCxLikeCpp<'_> {
             set_accepted_like_cpp(pair, cx, TradeSideLikeCpp::Own, false, false, fx);
             set_accepted_like_cpp(pair, cx, TradeSideLikeCpp::Partner, false, false, fx);
         });
-    }
-
-    /// Step 3: `CanStoreItems` for both, on detached copies of both canonical
-    /// Players. On a missing space C++ sends `TRADE_STATUS_FAILED` with the
-    /// bag result and item to both (`FailureForYou` on the side that lacks
-    /// space) and resets both acceptances.
-    fn plan_trade_commit_like_cpp(
-        &mut self,
-        snapshot: TradeCommitSnapshotLikeCpp,
-    ) -> Result<TradeCommitPlanLikeCpp, ()> {
-        let catalogs = self.hub.catalogs;
-        let template = move |entry: u32| catalogs.item_storage_template(entry);
-        let limit_category = move |category: u32| {
-            if category == 0 {
-                return None;
-            }
-            catalogs
-                .items
-                .limit_category_store
-                .as_ref()
-                .and_then(|store| store.get(category))
-                .map(|entry| wow_entities::ItemLimitCategoryTemplate {
-                    id: entry.id,
-                    quantity: entry.quantity,
-                    flags: entry.flags,
-                })
-        };
-        let store_catalogs = TradeStoreCatalogsLikeCpp {
-            template: &template,
-            limit_category: &limit_category,
-        };
-
-        let copies =
-            self.hub.shared().core.with_trade_pair_like_cpp(|pair| {
-                let own = pair.own(|player| player.clone())?;
-                let partner = pair.partner(|player| player.clone())?;
-                let still_open = own.trade_state_snapshot_like_cpp().is_some_and(|trade| {
-                    trade.in_accept_process && trade.money == snapshot.own_offer
-                }) && partner.trade_state_snapshot_like_cpp().is_some_and(
-                    |trade| trade.in_accept_process && trade.money == snapshot.partner_offer,
-                ) && traded_items(&own) == snapshot.own_items
-                    && traded_items(&partner) == snapshot.partner_items;
-                still_open.then_some((own, partner))
-            });
-        let Some(Some((own, partner))) = copies else {
-            self.abandon_accept_process_like_cpp();
-            return Err(());
-        };
-        let own_outgoing: Vec<Item> = snapshot
-            .own_items
-            .iter()
-            .filter_map(|guid| own.trade_item_by_guid_like_cpp(*guid).cloned())
-            .collect();
-        let partner_outgoing: Vec<Item> = snapshot
-            .partner_items
-            .iter()
-            .filter_map(|guid| partner.trade_item_by_guid_like_cpp(*guid).cloned())
-            .collect();
-
-        // C++ computes the trader's result first, then ours, and reports
-        // ours first (`TradeHandler.cpp:445-485`).
-        let partner_result = plan_trade_receive_like_cpp(
-            &partner,
-            &snapshot.partner_items,
-            &own_outgoing,
-            &store_catalogs,
-        );
-        let own_result = plan_trade_receive_like_cpp(
-            &own,
-            &snapshot.own_items,
-            &partner_outgoing,
-            &store_catalogs,
-        );
-        let failure = match (&own_result, &partner_result) {
-            (Err((result, item)), _) => Some((TradeSideLikeCpp::Own, *result, *item)),
-            (Ok(_), Err((result, item))) => Some((TradeSideLikeCpp::Partner, *result, *item)),
-            _ => None,
-        };
-        if let Some((lacking, result, item)) = failure {
-            let _ = self.run_trade_transition_like_cpp(|pair, cx, fx| {
-                let _ = pair.own(|player| player.set_trade_in_accept_process_like_cpp(false));
-                let _ = pair.partner(|player| player.set_trade_in_accept_process_like_cpp(false));
-                let mut info = TradeStatus::failed_like_cpp(result as i32, item as i32);
-                fx.packets
-                    .push((lacking.other(), status_bytes(info, cx.same_bnet)));
-                info.failure_for_you = true;
-                fx.packets.push((lacking, status_bytes(info, cx.same_bnet)));
-                set_accepted_like_cpp(pair, cx, TradeSideLikeCpp::Own, false, false, fx);
-                set_accepted_like_cpp(pair, cx, TradeSideLikeCpp::Partner, false, false, fx);
-            });
-            return Err(());
-        }
-        let (Ok(own_receives), Ok(partner_receives)) = (own_result, partner_result) else {
-            return Err(());
-        };
-
-        let own_money_before = own.money();
-        let partner_money_before = partner.money();
-        let request = trade_persistence_request_like_cpp(
-            &snapshot,
-            &own,
-            &partner,
-            &own_receives,
-            &partner_receives,
-            own_money_before,
-            partner_money_before,
-        );
-        Ok(TradeCommitPlanLikeCpp {
-            snapshot,
-            own_receives,
-            partner_receives,
-            own_money_before,
-            partner_money_before,
-            request,
-        })
-    }
-}
-
-fn money_after_like_cpp(before: u64, gives: u64, receives: u64) -> u64 {
-    before.saturating_sub(gives).saturating_add(receives)
-}
-
-fn item_db_guid(guid: ObjectGuid) -> u64 {
-    guid.counter() as u64
-}
-
-fn bag_db_guid(receiver: &Player, bag: u8) -> u64 {
-    if bag == INVENTORY_SLOT_BAG_0 {
-        return 0;
-    }
-    // The runtime record is the production authority for the bag item.
-    receiver
-        .trade_bag_guid_like_cpp(bag)
-        .map_or(0, item_db_guid)
-}
-
-fn trade_persistence_request_like_cpp(
-    snapshot: &TradeCommitSnapshotLikeCpp,
-    own: &Player,
-    partner: &Player,
-    own_receives: &[TradeStorePlanLikeCpp],
-    partner_receives: &[TradeStorePlanLikeCpp],
-    own_money_before: u64,
-    partner_money_before: u64,
-) -> PlayerTradePersistenceRequestLikeCpp {
-    let mut items = Vec::new();
-    let mut push_side = |giver: &Player, receiver: &Player, plans: &[TradeStorePlanLikeCpp]| {
-        for plan in plans {
-            let Some(item) = giver.trade_item_by_guid_like_cpp(plan.item_guid) else {
-                continue;
-            };
-            for action in &plan.actions {
-                match action {
-                    TradeStoreActionLikeCpp::Merge {
-                        target_guid,
-                        new_count,
-                        ..
-                    } => items.push(PlayerTradeItemPersistenceLikeCpp::MergeInto {
-                        item_guid: item_db_guid(*target_guid),
-                        new_count: *new_count,
-                    }),
-                    TradeStoreActionLikeCpp::Store { bag, slot, count } => {
-                        items.push(PlayerTradeItemPersistenceLikeCpp::Move {
-                            item_guid: item_db_guid(plan.item_guid),
-                            from_owner_guid: item_db_guid(giver.guid()),
-                            to_owner_guid: item_db_guid(receiver.guid()),
-                            bag_guid: bag_db_guid(receiver, *bag),
-                            slot: *slot,
-                            new_count: (*count != item.count()).then_some(*count),
-                            wrapped: item.is_wrapped(),
-                        });
-                    }
-                }
-            }
-            if plan.fully_merged() {
-                items.push(PlayerTradeItemPersistenceLikeCpp::FullyMerged {
-                    item_guid: item_db_guid(plan.item_guid),
-                    from_owner_guid: item_db_guid(giver.guid()),
-                });
-            }
-        }
-    };
-    // `SaveInventoryAndGoldToDB` for us, then for the trader.
-    push_side(partner, own, own_receives);
-    push_side(own, partner, partner_receives);
-    PlayerTradePersistenceRequestLikeCpp {
-        money: vec![
-            PlayerTradeMoneyPersistenceLikeCpp {
-                player_guid: item_db_guid(snapshot.own_guid),
-                money_before: own_money_before,
-                money_after: money_after_like_cpp(
-                    own_money_before,
-                    snapshot.own_offer,
-                    snapshot.partner_offer,
-                ),
-            },
-            PlayerTradeMoneyPersistenceLikeCpp {
-                player_guid: item_db_guid(snapshot.partner_guid),
-                money_before: partner_money_before,
-                money_after: money_after_like_cpp(
-                    partner_money_before,
-                    snapshot.partner_offer,
-                    snapshot.own_offer,
-                ),
-            },
-        ],
-        items,
     }
 }
 

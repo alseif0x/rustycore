@@ -187,6 +187,7 @@ pub(super) async fn load_authenticated_account_like_cpp<S: AsyncRead + AsyncWrit
     let login_ticket_expiry: u64 = result.try_read::<u64>(5).unwrap_or(0);
     let is_banned: bool = result.try_read::<bool>(6).unwrap_or(false);
     let is_permanently_banned: bool = result.try_read::<bool>(7).unwrap_or(false);
+    let battle_tag = result.try_read::<String>(14).filter(|tag| !tag.is_empty());
 
     if login_ticket_is_expired_like_cpp(login_ticket_expiry, unix_timestamp_like_cpp()) {
         tracing::debug!("VerifyWebCredentials: expired ticket for account {account_id}");
@@ -328,6 +329,7 @@ pub(super) async fn load_authenticated_account_like_cpp<S: AsyncRead + AsyncWrit
     Ok(AccountInfo {
         id: account_id,
         login,
+        battle_tag,
         is_locked_to_ip,
         lock_country,
         last_ip,

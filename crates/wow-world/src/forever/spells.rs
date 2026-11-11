@@ -8,7 +8,7 @@ mod inputs;
 mod join;
 mod targets;
 #[cfg(test)]
-pub(crate) use definitions::cast_test_definitions;
+pub(crate) use definitions::{cast_test_definitions, cast_test_shared_catalog_pair};
 #[cfg(test)]
 pub(crate) use definitions::{skill_set_test_definitions, skill_set_test_spell_fields};
 #[cfg(test)]

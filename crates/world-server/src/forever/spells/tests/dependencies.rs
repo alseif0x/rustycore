@@ -87,8 +87,8 @@ fn spell_range_moves_all_source_columns_without_loss() {
     assert_eq!(result.display_name_short.at(0), Some(&[0xFF, 0, b'a'][..]));
     assert_eq!(result.display_name_short.at(6), None);
     assert_eq!(result.flags, i32::MIN);
-    assert_eq!(result.range_min, [f32::from_bits(0x7FC0_1234); 2]);
-    assert_eq!(result.range_max, [f32::from_bits(0x7FC0_1234); 2]);
+    assert_eq!(result.range_min.map(f32::to_bits), [0x7FC0_1234; 2]);
+    assert_eq!(result.range_max.map(f32::to_bits), [0x7FC0_1234; 2]);
 }
 
 #[test]

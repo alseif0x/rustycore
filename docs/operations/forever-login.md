@@ -1,5 +1,2145 @@
 # WoW Forever 1.60.1 login-only runbook
 
+## Character creation worktree checkpoint — 2026-11-06
+
+The active `forever` worktree is based on
+`03eb9b532` and contains uncommitted login/build-70450, character creation and
+probe changes. These are implementation inputs, not accepted evidence. The
+November 1 modular integration acceptance in `STATE.md` does not cover them.
+The real `forever-world-server` still supplies no `CharacterCreator`; its
+creation handler therefore returns an error without reaching persistence.
+No new build, tests, runtime activation, database mutation, commit, push or
+merge has been performed for this checkpoint. Validation remains deferred
+under the default level-1 implementation mode.
+
+The source review uses Git objects at
+`advocaite/TrinityCore@02245dcd245e7433e524577656177723d3e4992e`, available in
+`target/forever-cpp-reference`:
+
+- `ObjectGuid.h::GetMaxCounter` and
+  `ObjectGuidSequenceGenerator.cpp::CheckGeneratedGuidValue/Generate` bound
+  Player/Item counters to 40 bits and reject at maximum minus one. The working
+  allocator now checks cached allocations as well as the initial database
+  maximum, leaves exhaustion intact and does not consume/reset a GUID merely
+  to initialize its cache. Returning an error instead of C++'s process stop
+  is an explicit fail-closed adaptation of this inactive persistence path.
+- `CharacterDatabase.cpp::CHAR_INS_CHARACTER` and
+  `Player.cpp::SaveToDB(LoginDatabaseTransaction, CharacterDatabaseTransaction,
+  bool)` establish the 84-column order. The working binder previously emitted
+  ten 32-bit zeros after inventory slots, shifting the following values by
+  two columns. It now binds six inventory/bag flags, two byte-sized bank
+  counts, bank flags and rest state in their target positions. This repairs
+  positional binding, not completeness of Player initialization or defaults.
+- `CharacterDatabase.cpp`'s character-select equipment macros establish the
+  19-slot/eight-field cache order. Its generated statement now has immutable
+  static storage compatible with `PreparedStatement::new`'s lifetime and
+  retains prepared parameters. No general SQL API widening was introduced.
+- `CharacterHandler.cpp:1000–1047` commits CharacterDB before submitting
+  LoginDB. The Rust candidate deliberately awaits both separate transactions
+  before success; this is stronger acknowledgement, **not cross-database
+  atomicity**. LoginDB's timestamp conversion now happens before any commit,
+  so an invalid timestamp cannot become an ordinary error after saving a
+  character. SQL COUNT is read as the target's unsigned 64-bit value.
+
+The primary-row port now requires explicit `NewCharacterState` values for
+inventory/bank flags and counts, rest state, player flags, difficulty and
+transport, taxi state, played time, reset/death state, honor/title state,
+bitvectors, tabard and transmog state. The adapter no longer supplies guessed
+zero/empty defaults for those fields. `Player.cpp:20706–20834` sanitizes only
+nonfinite floats, and splits explored-zone/title uint64 blocks into decimal
+low/high uint32 words, with trailing spaces. `PlayerTaxi.cpp:190–204,224–229`
+defines the taxi-route faction/nodes and byte-mask strings. Those projections
+are now represented explicitly. A nonempty route must contain at least two
+nodes. Save time is distinct from creation time and supplies both logout and
+last-played timestamps; the LoginDB uint32 timestamp range is checked before
+durable work. The selected fail-closed policy rejects an unrepresentable save
+timestamp instead of silently narrowing it. `ClientBuildInfo.cpp:200–204`
+encodes version components as `major * 10000 + minor * 100 + bugfix` with
+uint32 arithmetic. The candidate preserves that width and encoding rather
+than persisting raw build 70170/70450. Resolving the realm's version from the
+effective build catalog still belongs to the future constructor/composition.
+
+`Item.cpp:639–701`, `ItemDefines.h::MAX_ENCHANTMENT_SLOT` and
+`Player.cpp:21359–21379` establish the working item-primary-row/link contract.
+There are **13** enchantment slots, not the previous writer's 12. Item creator
+is explicit (none, the character, or another new item), independent of owner;
+`Player.cpp:11590–11603` sets the parent item as a child equipment item's
+creator. The constructor allocates item GUIDs through its admitted operation;
+the save snapshot retains those same identities. Container/creator references
+can resolve forward as well as backward without assigning replacement GUIDs
+during save. Invalid indices, cycles, zero entries/counts, duplicate GUIDs and
+duplicate physical positions reject before durable writes. Container indices become
+the corresponding item counter in `character_inventory`; root inventory uses
+zero. Signed charges and bonus lists, all 13 filtered enchantment triples,
+duration/flags, random bonus, durability, creation/played time, text, pet
+modifiers and context now come from the input instead of fabricated values.
+The constructor remains responsible for effect-count truncation and effective
+enchantment metadata/DoNotSaveToDB filtering. Base gem,
+transmog/artifact/modifier auxiliary rows are now authored as described below;
+full item construction/equipment admission remains unported.
+
+The complete item-save contract is source-reviewed at the same pin:
+`Item.cpp:704–851`, `AzeriteItem.cpp:51–121`,
+`AzeriteEmpoweredItem.cpp:44–77`, `Bag.cpp:108–111`, and
+`CharacterDatabase.cpp:238–280`. For each new inventory item the position
+precedes virtual item save. Azerite subtype deletes/inserts precede the base
+item row; Bag adds no separate save group. Base save then deletes/repopulates
+gems, transmog, artifact/powers and modifiers in that order, even when the
+new item's corresponding group is empty. Gem-vector absence differs from a
+nonempty vector of zero item IDs: only the latter inserts the padded three-slot
+row. Each nonzero gem preserves sixteen uint16 bonus IDs, omits zero bonuses
+from its trailing-space string, and retains context/scaling level; zero or
+absent slots bind four explicit zero/empty fields. Transmog has three groups
+of six uint32 modifier values, with insertion only if any value is nonzero.
+Artifact presence comes from the effective item template, independently of XP
+or power-list emptiness; its row keeps uint64 XP, uint32 appearance/tier and
+ordered uint32 power/uint8 purchased-rank rows. The two ordinary modifiers
+insert only if either is nonzero. Azerite items keep uint64 XP, uint32
+level/knowledge, up to four selected specialization/four-essence groups padded
+to the source SQL width, plus ordered milestone and unlocked-essence rows;
+empowered items keep five signed int32 selections. The future snapshot must
+require these groups explicitly rather than infer empty state from an absent
+port. Reject over-capacity dynamic vectors before durable writes. The
+source widths/order are distinct from item-template validation and subtype
+selection (`Item.cpp:55–67`), which remain constructor responsibilities. This
+paragraph records the selected full contract. The base auxiliary save is now
+authored in `create/items/auxiliary.rs` with mandatory `NewItem` fields and no
+default-filled auxiliary snapshot. It validates the three-socket capacity
+before persistence and adds all five base auxiliary tables to the InnoDB
+guard. Its tests exercise empty versus zero-entry gem vectors, padding/bonus
+filtering, full transmog mapping, artifact-presence/width/order, modifiers and
+multi-item statement/identity order. Azerite overrides are also now authored
+in `create/items/subtype.rs`: the required explicit subtype selects no extra
+rows for Base/Bag, three deletes and the 24-column Azerite parent plus ordered
+milestones/essences, or the empowered delete/insert with five signed selections.
+Both overrides run after the inventory link and before the base item row.
+Selected-essence vectors over four reject before writes. The adapter does not
+infer subtype from entry; effective template/DB2 selection remains the future
+factory's obligation. The schema guard includes all four subtype tables.
+None of this is real-DB acceptance or complete item construction.
+
+The initially represented CharacterDB groups preserved their source order:
+primary row, customizations, inventory, spells, actions, skills and selection outfit;
+`CharacterHandler.cpp:1017–1028` appends the surname after `SaveToDB`.
+`Player.cpp::_SaveActions` requires a uint64 action plus the selected signed
+trait configuration; those values no longer narrow to uint32 or silently
+become configuration zero. `Player.cpp:21772–21810::_SaveSpells` skips dependent
+spell rows while still processing favorites; the working input/writer now
+preserves that distinction. Unrepresented save groups are still mandatory
+future work, not implicitly empty.
+The renewed operation review found omitted deletes within these represented
+groups: `SavePlayerCustomizations` (`Player.cpp:21093–21106`, called for new
+Player customizations even when empty via `Player.h:2965–2970`) deletes before
+inserting choices; `_SaveSpells` (`Player.cpp:21793–21806`) deletes each new
+spell's favorite row even when dependent or not favorite; selection outfit
+save (`:31676–31683`) deletes the cache before its insert. The writer now
+includes those deletes through private append/statement helpers, and the
+favorite test asserts all four dependent/favorite combinations with the delete
+in its source position. Empty/nonempty customizations, multiple spells and
+cache replacement have GUID/order assertions. Fresh GUID allocation does not
+waive operation/order evidence. The remaining unrepresented save groups still
+prevent a complete-Player-save claim.
+The current builder also includes the additional source groups documented
+below, including mail before customizations and the ordered tail through
+statistics. Their presence does not complete canonical initialization or turn
+new-row projections into a general save API.
+The renewed whole-pipeline review also preserves a narrower boundary within
+those early projections: `NewAction`, `NewSkill` and `NewSpell` represent new
+save rows, not arbitrary dirty states of an already-loaded Player. Source
+`_SaveActions`, `_SaveSkills` and `_SaveSpells`
+(`Player.cpp:21128–21201,21721–21829`) have additional changed/deleted/unchanged
+branches. The eventual fresh constructor must project the actual reachable
+NEW rows and skip source unchanged/removed entries, or extend the contract if
+its audited creation path can produce another persisted state. Do not dump
+the canonical maps into these vectors or call them a generic Player-save API.
+`ActionButton` starts NEW and preserves NEW under modification
+(`Player.h:409–427`); removing a new button erases it
+(`Player.cpp:6296–6305`). New spell removal erases the row, while `AddSpell`
+chooses NEW versus UNCHANGED from its learning argument (`:2794,3257–3268`).
+Skill removal can retain an UNCHANGED zero-valued entry (`:5920–5923`), which
+must not become an INSERT merely because it still exists in a map. Canonical
+construction and these source-state selections remain acceptance requirements.
+The same boundary applies to the new-inventory projection.
+`Player.cpp:21250–21381` runs buyback/refund/enchantment-duration work before
+traversing its nullable update queue, verifies actual container/slot identity,
+and handles removed/changed/unchanged states separately. The current adapter
+serializes already-validated new items in supplied queue order; its cycle,
+GUID and duplicate-slot checks are not the canonical inventory prelude or
+position check. `InitializeSkillFields` (`:5750–5764`) also prepopulates
+UNCHANGED skill entries, reinforcing why a map dump is not a fresh-save plan.
+These source policies must be supplied by the eventual constructor/owner
+before enabling creation, rather than inferred from an empty or new-only DTO.
+
+The selected Session contract is explicit: a constructor cannot replace the
+reserved GUID, canonical account, full realm address or validated name. Before
+awaiting admission, the Session enters `Creating` and revokes its previous selection. A
+cancelled future leaves that incarnation fenced against another Create,
+enumeration or name query. A confirmed result restores authenticated admission;
+an unknown CharacterDB outcome or a failed/unknown LoginDB acknowledgement
+returns no character-operation packet and closes the Session. Composition
+propagates this uncertainty through `DurableStateUncertain`, which stops the
+isolated listener after its existing online-flag cleanup. This is an intentional
+departure from the C++ callback/queued-LoginDB acknowledgement boundary.
+
+The repository's creation port now returns an owned `CharacterCreation`
+operation. `CreationAdmission` supplies the canonical account/realm, normalized
+name and configured limits before allocation. `reserve_creation` checks the
+name/counts, allocates the character identity, initializes the item counter and
+retains the existing allocator's `OwnedMutexGuard` through construction and
+consumed save. Other callers of that repository wait on the same gate. The
+constructor sees only `CreationIdentities`, which supplies the character
+identity and bounded item GUID allocation; no SQL handle or Session crosses
+that interface. The adapter independently checks all saved item GUIDs belong
+to this operation's allocated interval. The pure `CreationReservation` owns
+that identity/counter state; `CreationLease` additionally owns the physical
+database resources. Dropping an unused operation or unpolled save rolls back
+the read-only Auth transaction and closes its CharacterDB owner before
+releasing the in-memory gate, leaving only legitimate GUID holes and no
+character/projection row mutation. There is no second allocator or late
+identity patch-up.
+
+The lock order is the existing asynchronous operation gate, the CharacterDB
+advisory owner, then Auth's account and last-played row locks. The Auth
+transaction opens before construction and retains those locks through the
+CharacterDB commit and Auth projection commit. Both CharacterDB transactions
+run on the exact physical session holding the advisory lock. No map/entity/
+synchronous guard is involved. `CreationWriter` uses the existing allocator
+lock-name function/key, so it also conflicts with a legacy Rust world-server's
+process-lifetime item allocator owner for that schema. GET_LOCK has a bounded
+five-second wait to allow a cancelled predecessor's connection close to settle;
+the connection is close-on-drop even after an ambiguous lock acknowledgement.
+A dead physical session is never replaced by a pooled session mid-operation.
+On each ownership acquisition, both GUID counters are synchronized with the
+persisted maxima without decreasing a larger process-local next value.
+This fences cooperating RustyCore writers; arbitrary SQL/C++ writers do not
+participate in this advisory-lock contract and must be excluded by the runtime
+acceptance scope.
+The source identity points are `CharacterHandler.cpp:1000` before
+`Player::Create`, and `Item.cpp:1734–1739` before item initialization. The port
+now permits those points; the real Player/item factory remains unfinished.
+
+The same gate retains an in-memory recovery fence. The three-step coordinator
+sets it before polling CharacterDB, never polls LoginDB before CharacterDB
+succeeds, and polls journal cleanup only after LoginDB succeeds. It releases
+the fence only after a definite first-transaction rollback or all three
+successful acknowledgements. Cancellation or a partial/unknown save retains the
+fence after the mutex guard is dropped. Later callers of that repository fail
+with `RecoveryRequired` before database reads or another save, and the Session
+treats that as fatal durable uncertainty.
+
+Durable evidence is now authored in the same CharacterDB transaction as the
+character rows: `rustycore_forever_creation_journal` records player counter,
+account, full realm address, save time and format version 1, without names or
+credentials. A separate CharacterDB cleanup transaction deletes only that exact
+marker and requires one affected row, after LoginDB's acknowledgement. The
+[new explicit schema migration](../../sql/custom/characters/2026_11_06_00_forever_character_creation_journal.sql)
+is a RustyCore recovery extension, not a target C++ table, and has **not been
+applied**. Before admitting another creation the adapter requires all forty-four
+represented CharacterDB tables and all three LoginDB participants (`account`,
+`account_last_played_character`, `realmcharacters`) to exist as InnoDB,
+and refuses a nonempty journal. Missing schema is not an empty journal.
+This check also runs for a fresh repository, so process-local state cannot
+silently erase a pending marker. Marker persistence/cleanup and all failure
+paths remain unexecuted against a real database. In particular, this is
+**not accepted restart recovery**: the implementation and its DB/restart failure
+matrix, cross-process behavior and startup publication order still need proof.
+No code auto-applies the migration. Ordinary creation never clears an existing
+pending marker.
+
+The explicit `ForeverSessionRepository::reconcile_character_creations(realm)`
+operation is now authored. It holds the same in-memory/advisory owner, reads
+bounded ordered marker batches, requires format 1 and the exact expected full
+realm, then acquires Auth's account/last-played locks before examining the
+canonical character. A predecessor that lost its CharacterDB connection must
+settle its already opened Auth transaction before this successor proceeds.
+The reconciler checks GUID/account, nondeleted state, nonempty name and the
+marker's save time against the character's signed `logout_time`. It recomputes
+the absolute realm count from Characters and enforces `realmcharacters`' uint8
+storage capacity. It preserves a genuinely newer last-played row, replaces an
+older one, inserts absence and recognizes the exact already-applied receipt.
+Equal-time/different-identity or inconsistent-name state remains fenced.
+Nullable/invalid rows and failed queries cannot become absence. Only a
+confirmed Auth projection permits exact-marker removal; failure/cancellation
+retains the local fence and any remaining durable evidence. Recovery never
+constructs a Player or allocates replacement GUIDs. The method is not wired
+into startup yet; no runtime creator may bypass the pending-marker guard or
+publish startup state before the accepted recovery sequence.
+
+**Bounded Auth recovery hold:** format 1 covers only the represented
+last-played/realm-count Auth batch. It cannot recover the additional account
+effects required by `Player.cpp:21053–21055`:
+`CollectionMgr.cpp:118–127,161–167`, `BattlePetMgr.cpp:329–363` and
+`WorldSession.cpp:1080–1124` demonstrate separate collection, pet and
+account-data writes owned by the Battle.net account. The current lease and
+admission identify/lock only the WoW game account; that does not exclude
+another game account under the same Battle.net owner. No extra Auth group
+may be attached to the current header-only batch and called recoverable.
+The chosen extension constraint is a versioned durable, typed Auth intent in
+the same CharacterDB transaction, with complete replay/idempotence receipts
+and canonical Battle.net ownership/exclusion established before enabling its
+writers. Inferring these effects from the character row loses information;
+introducing cross-server XA would change the transaction/runtime contract
+without solving the missing source-owner projection. Retain format 1 for
+its current bounded batch while auditing the complete account effects,
+identity allocation, lock order and failure/restart matrix for the extension.
+Local CharacterDB projection work may continue. Runtime creator activation
+and new account-effect writes remain forbidden until the extended recovery
+contract is implemented and exercised; no schema/runtime change is made here.
+
+The expanded source review makes the replay constraint concrete.
+`CollectionMgr.cpp:159–170,237–248,402–411,566–609,944–959,1013–1021,
+1074–1114` saves full toy/heirloom/mount snapshots as well as monotonic
+appearance/illusion blocks, favorite dirty rows, unlocked outfits and warband
+dirty rows. `LoginDatabase.cpp:160–210` uses different semantics for these:
+REPLACE, bitwise-OR upsert, plain INSERT, INSERT IGNORE and a warband New
+upsert that updates favorite only. A generic upsert or unconditional replay
+would change those contracts. `BattlePetMgr.cpp:329–439` includes plain new
+pet/declined-name inserts and an unconditional slot-set delete/reinsert;
+the constructor creates the slot vector even with no pets (`:226–234`).
+An empty pet map therefore does not establish an empty account save.
+`WorldSession.cpp:1080–1147` also saves dirty account elements and flag blocks
+with delete/nonzero-insert policies. Durable intent must preserve the complete
+source-ordered semantic batch, nullable fields, private names and identities;
+an Auth-side receipt in the same commit must distinguish an already-applied
+batch before replaying non-idempotent inserts.
+
+Full-snapshot replacement and slot-set replacement additionally require
+cross-sibling ordering: replaying an older snapshot after a newer sibling
+save could overwrite current account state even if duplicate inserts were
+avoided. Merely taking a fresh Battle.net row lock during replay is not proof
+that no newer write crossed the interruption. The extension must establish
+how every cooperating account writer discovers pending ownership across the
+participating realm databases before any such writer proceeds. The source
+battle-pet journal lock is a live world-session scan
+(`World.cpp:3392–3399`, `BattlePetMgr.h:202`), not durable cross-process
+exclusion. This is a required failure/ownership design boundary, not evidence
+that a new global fence or receipt implementation already exists. Retain the
+bounded hold while settling that protocol; safe CharacterDB work continues.
+
+These recovery semantics are an intentional extension of target
+`CharacterHandler.cpp:1000–1047` / `Player.cpp:21056–21072`, not a claim that C++
+implements this journal. At `02245dcd`, `sql/base/auth_database.sql:129–138` gives
+the nullable last-played fields and compound account/region/site key;
+`realmcharacters` stores `numchars` as TINYINT UNSIGNED. The character schema
+stores `logout_time`/`deleteDate` as signed BIGINT. Those widths/nulls govern the
+new decoder and conflict policy. Normal save and recovery now use the same
+Auth statement encoders, preserving full region/site and low-16-bit realm ID.
+
+The shared `SqlTransaction` executor has a reviewed behavior-preserving
+extraction of its statement/COMMIT body: the old pooled route still calls that
+same body and retains its existing retry policy. The new physical-connection
+route retries deadlocks on that same connection using the existing 60-second
+serialized discipline (`Transaction.cpp::TransactionTask::Execute`). The
+already-started Auth route does not replay its admission snapshot after a
+deadlock; the durable creation marker requires fresh recovery instead. Batch
+trace events alone do not prove the earlier row locks: acceptance must cover
+their real connection affinity/order and the added bound-execution paths.
+`transaction.rs` now exceeds the 1,000-line cohesion-review threshold; the focused
+review keeps one classified executor rather than duplicating it. Its existing
+advisory-lock monitor is the next natural separate responsibility if further
+growth warrants a split. No architecture ceiling/baseline was changed.
+The later mail review adds eight lines for a read-only `cfg(test)` parameter
+inspector, making `transaction.rs` 1,037 physical lines. Its classified
+production executor remains one implementation; the existing cohesion review
+and named next split still apply, with no ceiling or baseline increase.
+
+Authored Session regression cases cover success/error mapping,
+unknown commits, cancellation, owner/name substitution, constructor absence
+and failure, early admission failures/cancellation and constructor identity/item
+allocation. Those Session cases remain **unexecuted**. Database cases cover
+GUID bounds, column/value alignment and equipment-cache bindings;
+primary-row scalar/vector/float/version
+serialization, wide actions and dependent favorites, item primary rows and
+reference validation, inventory-before-item statement order, and the commit
+coordinator's order, rollback, unknown-outcome and cancellation boundaries.
+The coordinator cases now include cancellation during any of its three steps
+and failed/unknown cleanup. Journal bindings/one-row deletion, the real pure
+reservation/generator owner and reservation preflight also have database cases.
+Reservation preflight rejects invalid Login timestamps and short taxi routes
+before durable work. The previous lazy-pool fixture was replaced by direct
+reservation tests when the real lease began requiring owned SQL resources;
+these tests do not establish that SQL resource lifetime. New recovery-policy
+and shared-Auth-binding cases cover absent/already-applied/older/newer receipts,
+equal-time conflicts, canonical row mismatches, deletion, count bounds and
+Unicode names. The physical writer, started transactions and actual recovery
+failure/restart paths still require real DB acceptance.
+The existing Session test repositories implement the operation-based port.
+The `NewItem` input no longer derives `Copy` while owning a `String`.
+Navigation CLI parsing consumes the flag plus all three values, rejects
+truncation without indexing past the argument slice, and preserves a following
+capture option. Three unexecuted CLI cases cover those boundaries. Raw bootstrap,
+ticket-decoder and GameUtilities error-chain rendering has been removed so
+database/configuration errors and user-provided ticket fields are not logged.
+The edited Rust files have been formatted; this is not compilation or
+acceptance evidence.
+
+The resumed bounded worker's coding feedback on the dirty `03eb9b532`
+checkout found and repaired the creation module's `SqlTransaction` import
+(`crate::transaction`, not `super`). With `CARGO_BUILD_JOBS=1` and
+`CARGO_TARGET_DIR=/home/joe/projects/dream/wow/rustycore/target`,
+`/home/joe/.cargo/bin/cargo check -p wow-database` then exited 0 (two reported
+dead-code warnings outside the creation change). The initial attempt exited
+101 on that import; PATH-only Cargo invocation exited 127. The worker also
+reported `cargo test -p wow-database creation` exiting 0 with 7 passed and 505
+filtered out. That filter does **not** select the full `forever::create::`
+module tree, so it does not establish passing creation regressions. These are
+worker feedback on uncommitted inputs, not final acceptance or publication
+evidence. Protobuf-dependent targets were not exercised by those commands.
+After the base auxiliary item implementation, the scoped check found a helper
+SQL-string lifetime error (exit 101), repaired it with the actual static SQL
+contract and exited 0. The corrected focused command
+`/home/joe/.cargo/bin/cargo test -p wow-database forever::create:: --lib`
+exited 0 with **52 passed**, 0 failed and 469 filtered out. This covers the
+current database creation module tree, including the auxiliary cases; it does
+not execute the Session/CLI cases or real SQL transactions. This remains
+worker coding feedback at dirty `03eb9b532`, without a committed candidate,
+final manifest, production integration or live durability evidence.
+After adding both subtype saves, the same scoped check exited 0 and the same
+focused library command exited 0 with **60 passed**, 0 failed and 469 filtered
+out (the previous 52 plus eight subtype cases). After restoring the three
+represented-group deletes, scoped check feedback found/fixed a missing import
+(initial exit 101, then 0), and focused test feedback found/fixed a tuple-pattern
+error (initial exit 101, then 0). The same focused library command now reports
+**62 passed**, 0 failed and 469 filtered out. These inputs remain uncommitted;
+the physical SQL/lifecycle and downstream Session/server acceptance remain
+unexecuted. The parent reviewed the production calls and helpers against the
+source anchors above; no Git publication or runtime mutation occurred.
+After the fishing/battleground change, the same scoped check exited 0 (the
+same two reported warnings) and focused library command exited 0 with
+**67 passed**, 0 failed and 469 filtered out: the previous 62 plus five new
+character-auxiliary cases. The updated Session fixture has been inspected,
+but its compilation/execution remains deferred with the downstream acceptance.
+After status/reward queue implementation, the same scoped check exited 0
+(the same two reported warnings) and focused library command exited 0 with
+**74 passed**, 0 failed and 469 filtered out: seven new quest cases plus the
+previous 67. No runtime factory, live SQL or downstream Session/server
+acceptance was exercised by those commands.
+After periodic quest implementation, the same scoped check and focused
+library command both exited 0 with **79 passed**, 0 failed and 469 filtered
+out (five new periodic cases). A subsequent source correction narrowed fishing
+state to uint8 while retaining uint32 SQL binding; both commands again exited
+0 with the same 79 passing cases, without a compiler/test repair. These
+Linux x86_64 results used one Cargo job and the same absolute checkout-local
+target on dirty `03eb9b532`; the two existing warnings remained. They are
+worker feedback, not committed-candidate acceptance or live persistence proof.
+After glyph/normal/PvP talent implementation, the same scoped check exited 0
+(the same two reported warnings) and focused library command exited 0 with
+**84 passed**, 0 failed and 469 filtered out. The focused tests passed again
+with 84 after correcting a positive normal-talent fixture to unique map keys;
+its supplied unsorted order remains explicit. These are Linux x86_64 dirty
+coding results; the downstream Session/server and real SQL remain unexecuted.
+After trait implementation, the same scoped check exited 0 (the same two
+reported warnings), and the focused library command exited 0 with **90
+passed**, 0 failed and 469 filtered out: six new trait cases plus the previous
+84, without a compiler/test repair. These remain Linux x86_64 dirty coding
+results, without downstream, committed-candidate or live acceptance.
+After Player spell-history projection, the same scoped check exited 0 (the
+same two reported warnings), and the focused library command exited 0 with
+**95 passed**, 0 failed and 469 filtered out: five history cases plus the
+previous 90. These sequential one-job Linux x86_64 results use the same dirty
+`03eb9b532` checkout/local target; they do not execute canonical Clock
+conversion, a runtime factory, downstream composition or real SQL. Current
+source inspection still finds `attach_creator` used only by the test fixture.
+After aura projection, the same scoped check exited 0 (the same two reported
+warnings), and focused library command exited 0 with **101 passed**, 0 failed
+and 469 filtered out: six aura cases plus the previous 95, without a
+compiler/test repair. These Linux x86_64 dirty results consume frozen
+eligibility/masks; they do not prove `CanBeSaved`, `GenerateKey`, downstream
+composition or real SQL.
+After stored-location projection, the same scoped check exited 0 (the same
+two reported warnings), and focused library command exited 0 with **106
+passed**, 0 failed and 469 filtered out: five stored-location cases plus the
+previous 101. Linux x86_64 dirty coding feedback does not establish canonical
+Deleted-entry erasure, live SQL, downstream composition or final acceptance.
+After achievement/reputation/quest-criteria projection, the same scoped check
+exited 0 (the same two reported warnings), and focused library command exited
+0 with **112 passed**, 0 failed and 469 filtered out: six progress cases plus
+the previous 106. The later test-name/comment clarification explicitly limits
+flag-preservation claims to frozen snapshots; test bodies and production
+behavior did not change, and no rerun followed that wording-only delta.
+These Linux x86_64 dirty results are not final/publication evidence; canonical
+flag application, downstream composition and real SQL remain unexecuted.
+After equipment/legacy-transmog projection, the same sequential scoped check
+exited 0 (two reported existing warnings), and focused library command exited
+0 with **118 passed**, 0 failed and 469 filtered out: six new cases plus the
+previous 112. No compiler/test repair was needed. This is Linux x86_64 dirty
+coding feedback on base `03eb9b532`, not final or publication evidence; no
+world/downstream check, real SQL or canonical set-identity/state acceptance
+was run.
+After modern-outfit projection, the same sequential scoped check exited 0
+(two reported existing warnings), and focused library command exited 0 with
+**124 passed**, 0 failed and 469 filtered out: six new cases plus the previous
+118. No compiler/test repair was needed. This Linux x86_64 dirty result on
+base `03eb9b532` remains coding feedback; world/downstream, canonical outfit
+initialization/acknowledgement, live SQL and final acceptance remain open.
+After tutorial/restriction projection, the same sequential scoped check exited
+0 (two reported existing warnings), and focused library command exited 0 with
+**129 passed**, 0 failed and 469 filtered out: five new cases plus the previous
+124. The positive placement fixture's counter was corrected to
+`0x12_0000_0009` before that first test run; the check preceded only that
+test-fixture correction, with production code unchanged. These Linux x86_64
+dirty results on base `03eb9b532` remain coding feedback, not final or live
+evidence.
+After currency projection, the same sequential scoped check exited 0 (two
+reported existing warnings), and focused library command exited 0 with **135
+passed**, 0 failed and 469 filtered out: six new cases plus the previous 129.
+No compiler/test repair was needed. This Linux x86_64 dirty feedback on base
+`03eb9b532` consumes frozen store outcomes; it does not prove actual currency
+lookup/construction, canonical acknowledgement, downstream/world composition,
+real persistence or final acceptance. No Git or runtime operation was performed.
+After CUF projection, the same scoped check exited 0 (two reported existing
+warnings). The first focused library run exited 101 with 139 passed and two
+failed because CUF rows had been added to session-only test expectations at
+the wrong boundary. Those expectations were corrected while retaining the
+full-builder CUF suffix; the rerun exited 0 with **141 passed**, 0 failed and
+469 filtered out. The six new CUF cases and previous 135 are Linux x86_64
+dirty coding feedback on base `03eb9b532`, not downstream/world, canonical
+profile loading/construction, real SQL or final acceptance evidence.
+After character-data projection, the same sequential scoped check exited 0
+(two reported existing warnings), and focused library command exited 0 with
+**148 passed**, 0 failed and 469 filtered out: seven new cases plus the previous
+141, without a check/test repair. A later comment-only correction identifies
+flag keys as word indexes; encoder and test bodies were unchanged and no
+rerun followed it. These Linux x86_64 dirty results on base `03eb9b532` are
+coding feedback, not actual DB2 resolution/conversion, canonical construction
+or acknowledgement, downstream/world, live SQL or final acceptance evidence.
+After character-bank projection, the same sequential scoped check exited 0
+(two reported existing warnings), and focused library command exited 0 with
+**153 passed**, 0 failed and 469 filtered out: five new cases plus the previous
+148. No failed run or subsequent code/test edit occurred. These Linux x86_64
+dirty results on base `03eb9b532` remain coding feedback. Canonical bank
+construction/admission, downstream/world, live persistence and completed-
+delivery acceptance were not run; no Git, DB or runtime mutation occurred.
+After Garrison projection, the same sequential scoped check exited 0 (two
+reported existing warnings), and focused library command exited 0 with **159
+passed**, 0 failed and 469 filtered out: six new cases plus the previous 153.
+No failed run or subsequent code/test edit occurred. This Linux x86_64 dirty
+feedback on base `03eb9b532` does not establish Garrison construction,
+site/ability selection, follower identity reservation, downstream/world,
+live DB or completed-delivery acceptance.
+After statistics projection, the same sequential scoped check exited 0 (two
+reported existing warnings), and focused library command exited 0 with **164
+passed**, 0 failed and 469 filtered out: five new cases plus the previous 159.
+No failed run or subsequent code/test edit occurred. This Linux x86_64 dirty
+feedback on base `03eb9b532` consumes frozen setter/eligibility inputs; it does
+not establish canonical config/level decisions, scalar conversion or stat
+initialization, downstream/world, live SQL or final acceptance.
+After mail projection, the same scoped check exited 0 (two reported existing
+warnings), and the initial focused library command exited 0 with **171 passed**,
+0 failed and 469 filtered out: seven new cases plus the previous 164. Review
+then added a test-only read-only transaction parameter inspector and actual
+attachment/link binding assertions; the focused suite rerun exited 0 with the
+same counts. A final fixture-only correction gave the later Changed message
+ID 91 instead of duplicating 90; its focused rerun also exited 0 with those
+counts. Production code was unchanged after the check; no check was repeated
+for these two test-only deltas, and no code/test edits followed the final run.
+All three runs are Linux x86_64 dirty coding feedback on base `03eb9b532`,
+not canonical mail ownership/lifetime, downstream/world, live SQL or final
+acceptance evidence.
+
+The owned-construction unit's first `cargo check -p wow-world` exited 101 on
+six existing creation-consumer errors: a catalog import, GUID argument types,
+and the stale initial-actions-to-save-row projection. The bounded repair also
+had one check failure for an incorrect HighGuid import path, then the same
+check exited 0. Both used one Cargo job, the checkout-local target and the
+absolute Cargo binary. Initial `cargo test -p wow-world forever:: --lib`
+exited 101 with 469 passed, one failed and 4,173 filtered: the exact registry
+expectation omitted the already-registered create handler. The subsequent
+focused creation run exited 0 with 14 passed and 4,629 filtered after its last
+test-only realm-case lifecycle assertions. The explicit registry tuple was
+then added without weakening exact-set/deduplication assertions; the same
+broader Forever command exited 0 with **470 passed**, 0 failed and 4,173
+filtered. No production check was repeated for the test-only deltas, and no
+code/test edits followed that final run. These Linux x86_64 dirty results at
+base `03eb9b532` are worker coding feedback, not a full wow-world suite,
+production-linked server build, native creation, or completed acceptance.
+
+The later signed-XP preparation correction used the same one-job/local-target
+environment. `cargo check -p wow-world` exited 0. The first
+`cargo test -p wow-world forever::creation::vitals --lib` exited 101 with
+8 passed, one failed and 4,636 filtered: the existing progression gap fill
+replaced the fixture's zero level-one override. A legal level-zero override
+now exercises the source's unsigned gap-fill wrap to zero. The focused command
+then exited 0 with **9 passed**, no failures and 4,636 filtered; no code/test
+edits followed it and the production check was not repeated for that fixture
+correction. These Linux x86_64 dirty results at base `03eb9b532` are coding
+feedback. The earlier 470-case run predates this change; broader/downstream,
+native and final acceptance remain unexecuted for the new candidate.
+
+The subsequent PowerType correction has worker coding feedback from sequential
+`cargo check -p world-server` (exit 0, 3m26s),
+`cargo test -p wow-constants power_type --lib` (exit 0, **2 passed**, 5 filtered)
+and `cargo test -p wow-entities power --lib` (exit 0, **14 passed**, 1,055 filtered).
+All used one job, the checkout-local target and the available protoc 28.3.
+There were no failures or subsequent code/test edits in that unit. The cases
+exercise raw IDs 4/14 against distinct canonical Player slots, all 26 kinds,
+invalid bytes and Creature combo behavior. The unit's changed-file snapshot
+SHA256 is `8222f00bf6d7db3438e1c8f6eaf7f2ae48d3dd3e0c3bdad261872691423bbeee`
+(sorted path names and file bytes, NUL-separated). These Linux x86_64 dirty
+results on base `03eb9b532` include production-linked compilation; they do not
+include world-server tests, native creation, database/restart execution or
+final/publication acceptance.
+
+The subsequent armor float-rounding correction has sequential worker feedback:
+`cargo check -p wow-world` exited 0 and
+`cargo test -p wow-world forever::creation::vitals --lib` exited 0 with
+**11 passed**, no failures and 4,636 filtered. There were no failed runs or
+subsequent code/test edits in that unit. Both commands, and the preceding
+world-server check, used
+`PROTOC=/home/joe/projects/dream/wow/rustycore-extractor-work/cache/devdeps/protoc-28.3/extracted/bin/protoc`,
+`CARGO_BUILD_JOBS=1` and
+`CARGO_TARGET_DIR=/home/joe/projects/dream/wow/rustycore/target`.
+These Linux x86_64 dirty results at base `03eb9b532` cover the signed-XP and
+armor cases through the actual preparation API. They remain coding feedback;
+the preceding world-server check is not relabeled as a check of this later
+armor candidate, and no final/runtime/database acceptance is claimed.
+
+The skill-source boundary's first World-owned form has sequential worker
+feedback: `cargo check -p wow-world` exited 0 and
+`cargo test -p wow-world forever::player::skills --lib` exited 0 with
+**48 passed**, no failures and 4,599 filtered. Existing cases and assertions
+were preserved; only test imports and explicit Arc borrowing changed.
+The changed-file snapshot SHA256 is
+`bf98f3decb5f4b0a7b8dd82b368ca423385c107020f45ab5c23d668975f4c599`
+(sorted path names and current bytes, NUL-separated). These Linux x86_64 dirty
+results at base `03eb9b532` use the same one-job/local-target/protoc environment
+as the preceding feedback. They predate the subsequent lower-layer interface
+move and do not prove canonical skill-owner replacement or final acceptance.
+
+The subsequent interface extraction now places the pure contracts, scalar
+metadata, SetSkill input and generic source/effect error in
+`wow-entities/src/player/skill_sources.rs`. The sole actual BirthCatalog
+implementation lives in `wow-data/src/forever_birth/skill_sources.rs`; the two
+superseded World interface/adapter files are removed. Existing dependencies
+are unchanged, with no Entity-to-Data/World/Persistence edge. World preserves
+the concrete readiness adapter and public error alias. The same sequential
+commands both exited 0, again with **48 passed**, no failures and 4,599
+filtered for the focused skill run; no failures, test edits or subsequent
+code edits occurred in this extraction. Its changed-path snapshot SHA256 is
+`c5fdc37fb377c10cf37c04078576207daff72c09d7aaf963d76922abc73dfa6d`
+(sorted paths/current bytes, NUL-separated, `<deleted>` for removed files).
+These dirty results retain the same host/base/environment limits. At that
+snapshot, skill state/algorithms were still World-owned and the old canonical
+vector was still present; this was source-interface integration, not completion
+of creation.
+
+The complete target skill-family move now has sequential worker feedback from
+`cargo check -p wow-world` (exit 0) and
+`cargo test -p wow-entities player::skills --lib` (exit 0, **38 passed**,
+1,069 filtered). The first
+`cargo test -p wow-world forever::player::skills --lib` exited 101 on two
+missing `Unchanged` test imports, with no cases executed. After that test-only
+repair the same command exited 0 with **13 passed**, no failures and 4,599
+filtered. Neither production compilation nor Entity tests were repeated for
+the World test-import delta, and no source edits followed the final run.
+The 48 original identities remain as 38 Entity and ten World cases; three
+World adapter splits retain the mixed-case source assertions, giving 51.
+All use the preceding one-job/local-target/protoc environment on Linux x86_64
+dirty base `03eb9b532`. Unit snapshot SHA256:
+`5bbb2c926d9a56223354c19041ef4581012479dcf47480ac5e96c87aaa7c5492`.
+Parent inspection of the actual production move found import, test mounting,
+formatting and the ordered-ID initializer boundary changes; private operation
+bodies and state remained unchanged. These are worker coding results, not
+the full Entity/World suites, server/runtime/DB evidence or final acceptance.
+
+The separate profession-classification correction has a passing
+`cargo check -p wow-world` (exit 0). Its first
+`cargo test -p wow-world forever::player::spell_book::learning --lib` exited
+101 with 61 passed and one failed: the new higher-rank case incorrectly
+expected AddSpell to return true when superseding an old rank. The target's
+return at `Player.cpp:3122–3127` is false in that case even though the new
+spell is active. Only that test assertion was repaired; the same focused
+command then exited 0 with **62 passed**, no failures and 4,552 filtered.
+No production check was repeated for that test-only delta and no source edits
+followed the final run. These use the same one-job/local-target/protoc setup
+on Linux x86_64 dirty base `03eb9b532`; unit snapshot SHA256 is
+`b2d2de075d73481507ac119f0bcf72537b8cf21dfbcd12612625efc692f2b03c`.
+The new complete Add/Remove cases cover primary/secondary/child classification,
+the unranked-first fallback, higher-rank exclusion and point ordering around
+skill/pet/aura effects. One existing secondary-skill fixture also expected an
+incorrect point event; its unchanged category-9 input now correctly keeps its
+free points. This is coding feedback for the behavior fix, not runtime parity
+or the future spell-book source/ownership extraction.
+
+The subsequent lower definition-source/view boundary and complete generic
+cast resolver have sequential worker feedback: `cargo check -p wow-world`
+first exited 0; `cargo test -p wow-world
+forever::player::spell_book::cast --lib` then exited 101 on E0477 in the
+new borrowed-source probe, with no tests executed. Making the existing GAT
+`Self: 'a` requirement explicit on `owns` and its implementations repaired
+that input contract. The same check then exited 0, and the same focused test
+command exited 0 with **22 passed**, no failures, none ignored and 4,595
+filtered. All 19 original cases remain. Three new cases exercise non-Clone
+borrowed views through Player/aura/reentry phases, distinct concrete source
+errors and foreign derived definitions sharing the same raw catalog. The
+existing identity case now asserts absent learning phases; the generic probe
+also rejects a non-aura effect carrying an aura number.
+The commands used the preceding one-job/local-target/protoc environment on
+Linux x86_64 dirty base `03eb9b532`; changed-path snapshot SHA256 is
+`e288d8b4e9bd58538f581beffe418eec867e76413428f10d561f65449338dfae`.
+Parent review checked the complete unit diff, source anchors, all new cases,
+logs and current per-file hashes. The return comment now correctly records
+the definition's retained immutable borrow. No code edits followed the final
+run. This is coding feedback for this source boundary, not full learning,
+book ownership, production producers/executors, native/runtime or final
+acceptance. The preceding 62-case learning result predates this extraction.
+
+The complete learning source/view boundary now has sequential worker feedback:
+`cargo check -p wow-world` exited 0. The first
+`cargo test -p wow-world forever::player::spell_book::learning --lib` exited
+101 on a missing explicit `SpellDefinitionView` fixture import, with no tests
+executed. Only that test import was repaired; the same command then exited 0
+with **63 passed**, no failures, none ignored and 4,555 filtered. The affected
+`cargo test -p wow-world forever::player::spell_book::cast --lib` then exited 0
+with **22 passed**, no failures, none ignored and 4,596 filtered. No production
+edits followed the passing check and no source edits followed the passing
+tests within this unit. All 62 original learning cases remain; the added case
+checks the actual borrowed World view's difficulty and exact derived owner
+inside the item-fit callback, followed by the original aura/mount ordering.
+This does not implement or prove the actual target item-fit predicate.
+The commands retain the same one-job/local-target/protoc environment on Linux
+x86_64 dirty base `03eb9b532`; changed-path snapshot SHA256 is
+`4b7347153fc0c38768c264e1f352e4aa744bd5dd8af9d65d944c884dc4140772`.
+Parent review inspected the complete algorithm deltas, actual adapters,
+private helper relocation, test delta, logs and current per-file hashes.
+This remains worker coding feedback. At that snapshot the book/state/effect
+family was still World-owned; complete movement, legacy Player replacement, production effects/
+factory, native/runtime/database and final acceptance remain open.
+
+The complete private PlayerSpellBook family has now moved to Entities, with
+the concrete adapter moved intact to `forever/player/spell_learning_sources.rs`
+and the existing World facade/aliases retained. Sequential worker feedback:
+`cargo check -p wow-world` exited 0; the first
+`cargo test -p wow-entities player::spell_book --lib` exited 101 on two uses
+of a missing private `panic_order` test helper, with no tests executed. That
+test-only repair was followed by exit 0 with **52 passed**, none failed or
+ignored and 1,107 filtered. The first
+`cargo test -p wow-world forever::player::spell_book --lib` exited 101 on a
+missing `SkillUpdate` fixture import, with no tests executed. After that
+test-only repair and two unused-import removals, it exited 0 with **45 passed**,
+none failed or ignored and 4,525 filtered. Parent review found one remaining
+unused `SpellBookDefinition` test import; removing only that import and
+rerunning the same World filter again produced **45 passed**, with the same
+filtered/ignored results. The production check and Entity suite were not
+repeated for the World test-import delta. No source edits followed that run.
+All commands retain the preceding one-job/local-target/protoc environment on
+Linux x86_64 dirty base `03eb9b532`. Final unit snapshot SHA256:
+`3891102f76033275c0d0afce8e38f02672dbdfc24f8d130300e1d9f5ba743691`.
+The 97-case union preserves all 93 original identities as 52 Entity-private
+and 41 World actual-source cases, plus four World source-projection splits.
+Parent compared all 15 mapped production files: only imports, alias/facade
+placement and private test mounts differ. Comparison of assertion text across
+all original cases found only the two approved rank-source assertions moved
+to the World projection; all operation assertions remain. Private state and
+algorithm bodies are unchanged. Literal lower fixtures contain no startup/
+default/rank/fallback/aura-classification recipes; new World projections label
+synthetic zero-ID/helper, missing-definition and override/auto injections.
+These are worker coding results, not full suites, native-consumer execution,
+canonical Player integration, production effects/factory, DB/runtime or final
+acceptance. The earlier World-only 63/22 results retain their own snapshots.
+
+The subsequent private skill-status insertion witness and borrowed traversal
+have sequential worker feedback: `cargo check -p wow-world` exited 0, followed
+by `cargo test -p wow-entities player::skills --lib` exiting 0 with **46 passed**,
+none failed or ignored and 1,121 filtered. No failed loop or source edit after
+the passing runs occurred. All 38 original Entity cases remain; eight new
+cases cover duplicate initialization, zero/full-width/inactive/Deleted keys,
+canonical borrowed fields, malformed providers, child-before-parent slot
+aliasing, payload/deactivation stability and failure before actual insertion.
+The occupied insertion helper case is explicit: existing effect callbacks do
+not manufacture reentry at that earlier insertion gap. The thirteen World
+source cases remain byte-identical and were not rerun. Commands retain the
+preceding one-job/local-target/protoc environment on Linux x86_64 dirty base
+`03eb9b532`; unit snapshot SHA256:
+`1ab744f196984435277b0899a650673b7c3b523d63d8fc960176f25f33ee7349`.
+Parent reviewed all nine changed paths, the actual unit patch, logs and current
+per-file hashes. `SkillStatusEntry` privately borrows canonical status/field
+values; it grants no mutation or Clone requirement. The provider receives
+successful insertion history and physical map length, including for an empty
+owner. Exact-set admission rejects missing, foreign and duplicate output keys;
+it does not prove native order. Native source-container proof, load/save/ACK,
+packet masks, canonical-vector retirement and effects/factory integration
+remain unfinished. These are coding results, not completed acceptance.
+
+The separate skill-specific numeric producer now has worker feedback on the
+actual Forever binary. Both commands use
+`-p world-server --bin forever-world-server --features forever-name-regex,forever-spell-traversal,forever-spell-random,forever-navigation`
+with the preceding one-job/local-target/protoc environment on Linux x86_64
+dirty base `03eb9b532`. `cargo check` exited 0 in 3m 01s; the subsequent
+`cargo test` with filter `skill_status_order` exited 0 in 4m 46s, with **5 passed**,
+none failed or ignored and 106 filtered. Both completed normally on the first
+attempt, with no signal, timeout, duplicate invocation or compile repair.
+No source edits followed the passing feedback. These compilation costs are
+worker coding feedback, not an ordinary warm final-acceptance campaign.
+Final native-unit snapshot SHA256:
+`ba675f8b01a664bdf132c4ee8ee3b21c2725e437f64ac10fa4ba26c519e54e63`.
+Parent reviewed the nine-path unit patch, actual ABI/adapter/tests and source
+oracle wiring, logs and current hashes; the preceding skill-domain snapshot
+also remains unchanged. The ABI rejects duplicate successful-insert histories,
+wrong physical counts and invalid null buffers with zero written count and
+unchanged output. It retains no payload/owner and has no 300-key restriction.
+The tests exercise canonical borrowed views, full-width/zero keys, invalid
+histories/counts/nulls, source-error propagation and independent large replays.
+Allocation-failure injection was not executed. Existing compiler warnings,
+including the configured unsafe boundary and unattached adapter, remain.
+The independent QA extension extracts the actual SkillUpdateState,
+SkillStatusData and SkillStatusMap declarations from pinned Git objects and
+compares their container with the numeric producer. Neither that extraction
+nor the new oracle translation unit was compiled/executed by these Cargo
+commands. Source-order proof remains deferred to completed-delivery acceptance;
+no load/save/ACK, runtime, factory or production effect integration is claimed.
+
+The subsequent `ItemStorageView` extraction has worker coding feedback on
+the same dirty base/environment. The first `cargo check -p wow-entities`
+exited 101 on missing explicit imports and elided impl lifetimes; repairing
+those together produced exit 0. The requested
+`cargo test -p wow-entities player_tests::item --lib` exited 0 but ran **zero**
+cases (1,167 filtered), so it is not credited. The actual mounted
+`player::tests::item_2` and `player::tests::item_3` filters then each exited 0
+with **13 passed**, none failed or ignored and 1,154 filtered. No test or
+expectation changed. The eight-path unit patch SHA256 is
+`8f04a1ec8ddb60db279ecdd47815b79d4e2531257404b3732eaf1ffc653c9f6a`;
+its exact before bytes, after hashes and logs are retained in
+`/tmp/rustycore-item-storage-view-20261106`.
+Parent inspected the actual view/wrappers/exports and independently compared
+all seven moved bodies after the two approved receiver substitutions; all
+75 unmoved function texts remain verbatim. `ItemStorageView` borrows the
+inventory plus GUID/backpack givens, with private fields and no Clone/Copy
+or mutation. Only its constructor and main query are public; six helpers stay
+within the private storage module. Existing Player signatures delegate.
+The new files contain 36/260/119/517 lines; the original storage file falls
+from 3,298 to 2,574, retaining its unrelated bank/mutation responsibilities
+and existing `584:C4` split obligation. This is not terminal physical closeout.
+At this snapshot the real trade consumer still copies whole Players; its
+complete inventory-snapshot replacement is the following implementation.
+These checks are coding feedback, not architecture acceptance, native target
+inventory proof or completed constructor/creation acceptance. The successful
+`luna_worker` selection trace records the requested route; the worker exposes
+no independent engine/effort telemetry.
+
+The complete trade inventory-snapshot replacement now has worker feedback on
+the same dirty base and one-job/local-target/protoc environment. The initial
+`cargo check -p wow-world` exited 101 because the proposed direct Player helper
+path was private. Reusing the existing exported
+`is_bag_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot))` reaches exactly the same
+private predicate; no visibility/root export change remains. The repaired
+check exited 0. Sequential library feedback then passed:
+
+- `wow-entities player::tests::item`: **124 passed**, 1,043 filtered;
+- `wow-entities player::trade_transfer`: **3 passed**, 1,164 filtered;
+- `wow-world-inventory trade_storage`: **9 passed**, 33 filtered;
+- `wow-world-social trade_commit::planning`: **6 passed**, none filtered;
+- `wow-world trade::commit`: **9 passed**, 4,561 filtered.
+
+All 151 observed cases passed with no failed/ignored cases. The last World
+test target compiled in 3m 42s. Its tool wait returned 143 while the original
+host Cargo process continued; authoritative process inspection retained that
+same invocation, whose runner later recorded Cargo exit 0. No replacement
+command ran. Exact command environment/times/exits, original/final bytes,
+case identities, source comparisons and this handle distinction are retained
+in `/tmp/rustycore-trade-inventory-snapshot-20261106`.
+The 12-path unit-only patch SHA256 is
+`31f93ff9009f4eb5505e43a93ddbae81e6b0ff34758417918d9305b5496c6fa8`.
+Parent independently matched all 12 tested source hashes and the patch hash,
+reviewed the complete producer/consumer/test delta, compared all six moved
+shared bodies after receiver/borrow substitutions, and confirmed all 26
+remaining Social function texts, the other eight transfer functions and the
+original nine-case World integration file remain verbatim. The original
+inventory cases and expectations are retained. Player root remains at 4,816
+lines with its pre-unit hash unchanged; storage falls to 2,545 lines after
+the view and three native-bag body extractions.
+The snapshot has only private GUID/capacity/native/runtime inventory fields,
+no Clone/Copy/writeback path and one consuming planner. Social captures the
+unchanged acceptance gate and original outgoing/bag/money SQL facts inside
+the same pair read, then releases the guard before planning. Its SQL keeps
+original bag precedence, counts/wrapped conversions and both-side order.
+The outgoing-bag regression preserves the native registry clearing boundary;
+partial merges, later incoming observations, binding/first failures and the
+one-empty-destination guard also have authored cases. Omitted scratch Player
+mask/duration lists are neither read by these represented planning queries
+nor published; real canonical transfer/application remains unchanged.
+This is reviewed implementation and coding feedback, not a committed-candidate
+final campaign, native `CanStoreItems` proof, real DB/live durability or
+completed creation acceptance. The source inventory gaps below remain open.
+
+The following direct quest/gameplay capture and fixture unit is also complete
+as level-1 implementation/coding feedback. Its `cargo check -p wow-world`
+exited 0, followed by **26** Entity `player::tests::misc` cases and **3** Core
+`quest_sharing_snapshot` cases. The prescribed World `quest_tests` filter
+exited 0 but executed **zero** cases (4,576 filtered), so it is not credited.
+Source inspection established the actual `handlers::quest::tests` mount;
+that corrected filter passed **252** cases, 4,324 filtered. These are 281
+observed passing cases, none failed or ignored, including eleven new cases.
+There was no compile/test failure, source/expectation repair or source edit
+after feedback began; the zero-filter correction remains in its original
+record. Commands used the same one-job/local-target/protoc environment,
+sequentially. Their wall times were 20.91s / 6.30s / 49.35s / 128.39s / 0.21s
+respectively, not a final acceptance campaign.
+Exact before/after bytes, hashes, case identities, commands/times/exits and
+the filter correction are in `/tmp/rustycore-narrow-quest-capture-20261106`.
+The seven-path unit-only patch SHA256 is
+`4aa94d4eb73dcf7fcb355786467069b877a9fc6768c03b96c45d08edd68dda4a`.
+Parent independently matched its seven tested source hashes and actual patch
+hash, inspected all changed code and new cases, and compared all 72 unaffected
+function texts against the original five-file parent baseline. Existing Core
+tests are append-only; all 23 original Entity misc cases and seven retained
+World fixture helpers remain verbatim. The twelve trade-unit source hashes
+are unchanged; its earlier feedback is not relabeled as testing the later
+whole worktree.
+Quest capture now copies the five selected facts inside the original read,
+then converts outside its guard; directory admission and the separate
+reputation read remain intact. The empty predicate keeps its all-None capacity
+semantics without cloning gameplay. The private quest-log fixture now moves
+the same boxed Player through existing detach/attach APIs, retaining its Arc,
+generation, allocation and loaded quest/item/money data. Its missing/stale
+inputs intentionally fail as fixture errors; this is a test-only ownership
+migration, not a production lifecycle change. Aggregate Clone derives remain
+for the separately traced map and inventory-projection consumers. No final,
+architecture/census/native/live/DB or constructor activation result is added.
+
+The subsequent loaded-grid fact unit is **partial and NOT VALIDATED**. Luna
+worker `01a1b2c1-e96e-7ce0-a3b5-96370380d415` stopped at its usage limit; the
+service indicated November 11, 2026, 7:39 AM without a timezone. The parent
+closed that errored worker after recovering its original runner records. No
+replacement model/provider or parent routine implementation was used.
+The original server test process completed at 2026-11-06T22:58:09Z, and later
+host inspection found no active Cargo/rustc/rustdoc. No duplicate process ran.
+Its production `world-server --bin world-server` Cargo check exited 0 in
+176.14s. Entity `object_accessor` passed **34** cases, Map `loaded_grid` passed
+**34**, and the same-GUID authority-refresh filter passed **1**. These 69 cases
+are worker coding feedback only. The server `loaded_grid --bin world-server`
+invocation exited 0 after 294.84s but ran **zero cases and zero filtered**:
+`main.rs` is a thin entry point and `lib.rs` owns the runtime and test modules.
+It supplies no case evidence and did not compile the two new consumer tests
+under cfg(test). The correct pending target is
+`cargo test -p world-server loaded_grid --lib`, with the same one-job/local-
+target/protoc environment. The agreed World `trade::commit --lib` regression
+was not started. Neither command is reported as passing.
+The parent recovered exact before/after bytes, source/test comparisons,
+command records and logs in `/tmp/rustycore-loaded-grid-facts-20261106`;
+`parent-rescue.md` records the partial state and remaining work. Actual
+15-path partial patch SHA256:
+`0298d0c1b355057d3a1ecbfa39c81eae19476e4e41a3de28a1568085bf880803`.
+All fifteen final feedback-bound source hashes still match. All 26 protected
+source checks match, including the B/C unit hashes. Comparison preserves 530
+function texts and matches the eight selected constructor/producer/consumer/
+fixture substitutions. All nine Clone-derive retirements are metadata-only;
+Player, gameplay and load-record derives remain intact. This is source-review
+evidence, not completed delivery or target map/ownership parity.
+One physical finding remains: `spawn_groups.rs` grows 2,384 -> 2,385 through
+a wrapped local binding. The queued `primary_facts` local-name repair was not
+applied. Preserve capture/push order and normal formatting while removing
+that avoidable growth; do not increase its ceiling. The actual reviewed Map
+root reduction 5,135 -> 5,122 is tightened separately with its existing C4 exits
+preserved. Architecture/census/final/native/live/DB acceptance remains deferred.
+
+Parent physical review also measured `wow-entities/src/player/mod.rs` at
+4,807 lines against its prior 4,791-line ceiling. The exact +16 Git delta
+contains only three private module declarations and explicit skill/spell
+family re-exports; the PowerType substitutions are line-neutral. Only that
+physical-policy row is adjusted with this reviewed rationale and its existing
+`584:C4` / C4-6a extraction exit retained. No root algorithm/field is added,
+logical ownership debt is not retired and no terminal exception is claimed.
+This later policy/document delta has not run the architecture checks; those
+remain part of the completed-delivery campaign, not worker coding evidence.
+The subsequent complete book move adds exactly seven further root wiring
+lines (one private module declaration and its explicit re-export block), now
+4,814. Parent inspected that incremental delta and adjusted only the same row
+to 4,814, retaining its existing extraction exit and no terminal exemption.
+These later policy/document changes likewise remain unvalidated by architecture
+acceptance; they do not relabel the worker's source/test snapshot.
+The status traversal adds exactly one further root re-export line, now 4,815.
+Parent reviewed that line and updated only the same bounded policy row; no
+field, operation body or additional general growth is admitted. Its existing
+`584:C4` / C4-6a exit and deferred architecture acceptance remain unchanged.
+The item-storage view adds one root type re-export (4,815 -> 4,816); removing
+two now-unused imports is line-neutral. Parent reviewed that exact delta and
+updates only this root ceiling with the same retained extraction obligation.
+The coherent consumer replacement review tightens the storage-file physical
+ratchet from 3,298 to the measured 2,545 lines. Remaining mutation/bank/destruction
+responsibilities and its `584:C4` exit are retained; no policy/architecture
+acceptance or terminal debt retirement is inferred here.
+
+The repair's GUID wire contract is separately anchored at
+`ObjectGuid.cpp:887–912` and `ObjectGuid.h:332`: Player uses all sixteen realm
+bits. The private `forever/guid.rs` factory now serves selection and creation;
+it preserves raw counter bits while the creation owner validates generator
+bounds before construction/save. Literal high-word and Session response cases
+cover realm `0x8001`, independent of region/site. Legacy GUID factory/getter
+thirteen-bit assumptions remain a comparison point for future canonical-model
+integration, not evidence of target compatibility. The initial-actions API
+now returns narrowed ordered `InitialAction` preparation requests, following
+`ObjectMgr.cpp:4241–4276` / `ObjectMgr.h:636–643`. It supplies no SQL spec or
+trait configuration; actual PlayerInfo and AddActionButton admission/state
+mutation still belong to the constructor. Duplicate button requests retain
+source order for that later mutation.
+
+Registry opcode and metadata have different evidence anchors: the native
+70170 capture recorded below supports existing opcode `0x440070` (106 bytes,
+SHA `4472b82df9bced5198974c58fdeaea8c26b5d675fb7cf10a4ea3c7f2f6e607f5`),
+while `Opcodes.cpp:421` supplies authenticated/thread-unsafe metadata. The
+reference header's `0x430070` is not the captured target opcode and must not
+replace it. The registry correction changes an expected tuple only; no new
+runtime creator or native acceptance is implied.
+
+Remaining boundary: complete source-backed Player construction and admission,
+all save dependencies/defaults, cross-session/cross-process writer exclusion,
+durable reconciliation after interruption or partial two-database save, and
+fresh native action evidence. In particular, restarting the process is **not**
+proof of recovery. No production creator may be attached until that recovery
+contract is implemented and exercised. This hold does not prevent further
+local implementation. Build-70450 transport changes also require their own
+target evidence and are not covered by historical build-70170 captures.
+Canonical identity is now reserved before the constructor through the owned
+operation; this implementation still needs acceptance. Complete early
+admission/error precedence, actual Player/item initialization and dependent
+save groups must use that operation faithfully before a runtime creator can
+be supplied. Zero/placeholder GUID construction followed by patching is not
+an accepted substitute. These are local implementation decisions, not operator
+questions.
+
+The renewed source review fixes the remaining admission cut points at
+`CharacterHandler.cpp:668–1066`: team restriction, class/race presence,
+race-availability presence, expansion requirements (including class fallback),
+race/class restrictions, name policy, timerunning rejection, name collision,
+account/realm limits, then account-character/PvP/hero/cinematic decisions before
+Player allocation. The current handler's name-first prototype does not establish
+that precedence. A follow-up comparison with
+`ObjectMgr.cpp:10596–10769` / `ObjectMgr.h:927–946` corrects the earlier
+interpretation of unlock presence: `GetRaceUnlockRequirement` returns the
+embedded requirement whenever the race-availability row exists. The row can
+come from valid class requirements alone; value initialization leaves its
+unlock scalars zero when no valid unlock SQL row replaces them. An absent
+unlock SQL row therefore does not by itself reject Create. A missing race
+availability row does. Keep the catalog's source zero-default behavior rather
+than introduce an extra SQL-presence admission gate. The class fallback takes
+the first matching class in stored race order: its account requirement comes
+from that row, while `MinActiveExpansionLevel` is the class-wide minimum.
+Do not replace both with independent minima. Target's first-row/iteration
+behavior and query-shortcut condition
+must be reviewed together before changing their hero/cinematic semantics.
+`Player.cpp:391–575` then requires appearance validation, effective NPE/normal
+map/transport/location, homebind, initial state and stats, taxi/talents/skills,
+learning, actions, specialization, outfit and both equipment passes in that
+order. `SetHomebind` (`:18169–18185`) queues an UPDATE outside `SaveToDB`; it is
+not evidence of a homebind INSERT in the creation transaction. `SaveToDB`
+(`:20676–20705,21008–21072`) also includes a fishing-step delete before the
+primary row and additional dependent groups around the represented subset.
+These are unresolved implementation obligations; the existing snapshot is not
+silently declared complete by an empty constructor.
+The canonical-constructor integration review has a concrete lifetime
+constraint: `CharacterHandler.cpp:992–1047` keeps the constructed Player alive
+through character completion and confirmed creation callbacks, using a cleanup
+deleter; returning only `NewCharacter` and destroying the Player before save
+would not preserve that operation. Keep one canonical constructed owner alive
+across the classified save/publication boundary, deriving the immutable save
+projection from it and running source cleanup on every exit. The former
+DTO-only `CharacterCreator` seam could not express that lifetime. The authored
+`ConstructedCharacter` result now carries the projection and a guarded
+`PlayerCreationLifecycle` adapter with mandatory confirmed/cleanup operations.
+It has no DTO-only conversion, default owner or production no-op implementation.
+The handler retains that owner across save, validates before persistence,
+notifies only a matching confirmed identity, builds the response while the
+owner is retained and cleans up before restoring authenticated admission.
+Cancellation and error exits also drop the guard. A factory that returns Err
+must clean up any partial construction it allocated; no real canonical factory,
+hook/cache implementation or runtime creator was added. This expresses local
+callback/lifetime ordering, not durable exactly-once script delivery across a
+crash. Do not give a factory the entire mutable Session or hold synchronous
+map/entity guards across the save await to compensate.
+
+Map/transport context is also operational, not a guessed position tuple.
+`Player.cpp:427–445` selects NPE/normal position, acquires the map, optionally
+boards a live transport and then sets homebind. Normal starts reject
+instanceable maps in `ObjectMgr.cpp:3890–3901`, but NPE handling at
+`:3918–3938` checks map/spawn presence differently; do not impose the normal
+restriction on NPE as a convenience. Transport boarding invokes a script
+callback (`Transport.cpp:278–292`), and cleanup interrupts spells/removes
+auras and transport membership (`Unit.cpp:10376–10410`,
+`Object.cpp:333–341`). These phase/lifetime effects require the actual owners
+or explicit narrow capabilities before activation. A detached Rust Player may
+be a valid constructor input, but detachment alone does not supply these
+target-version dependencies or make cleanup optional.
+
+The bounded Rust constructor exploration at dirty base `03eb9b532` confirms
+that `wow-entities/src/player/mod.rs::Player::new` can construct detached local
+state, and `create_from_lifecycle`/`PlayerCreateLifecycleRecord` can apply a
+supplied base record without a Session, map handle or repository. That is not
+the target birth operation: the record is partial and its creation metadata
+has no account identity; relocation is numeric binding,
+not map admission. Do not describe these APIs as requiring an attached live
+Player, or treat them as complete initialization. Existing race/class enums
+already include Dracthyr/Evoker/Adventurer and GUIDs already have two uint64
+words; generic “WotLK-only enums/64-bit GUID” objections would be inaccurate.
+The fixed entity update masks and scalar/power mappings still need actual
+target-version comparison before reuse.
+
+The follow-up numerical review selects the existing `wow_entities::Player`
+as the base-state owner wherever the target contract is represented. Signed
+XP is not a model incompatibility: at source `02245dcd245e7433e524577656177723d3e4992e`,
+`Entities/Object/Updates/UpdateFields.h:1376–1377` declares both XP fields as
+int32, matching the entity setters. `Player.cpp:2411–2413` assigns the XP-table
+bits to signed NextLevelXP, compares initial signed XP zero, then subtracts
+one when zero is greater than or equal to that signed value. The preparation
+helper previously compared the unsigned table result and missed negative
+NextLevelXP values. Its correction preserves raw uint32 projection bits while
+performing the source signed comparison. A raw `0x80000000` would require
+`INT32_MIN - 1`, undefined in this reference C++; preparation now returns
+`SourceError::StatsOverflow` at that boundary. This is a bounded unsupported-input
+guard, not a claim that C++ rejects it. Do not admit metadata at that boundary
+or claim its native behavior until compiler/native evidence settles it.
+Base/create stats and armor initialization still need coherent entity APIs;
+the item-bonus base accumulators are not birth stats.
+`Unit.cpp:341–348,5307–5316,9627–9650` keeps create stats in the float modifier
+BASE_VALUE cells, initially zero with stat recalculation disabled; SetCreateStat
+adds through that owner. Current integer stats are separate source update
+fields. Do not replace this with an untracked integer create-stat copy or feed
+the target's signed int32 stats through the older `PlayerLevelStats` u16
+projection (`ObjectMgr.h:629–632`). The creation initialization API must preserve
+those distinctions and the subsequent spell/item recalculation owner.
+This decision introduces
+no second Player or mutable skill/spell authority and does not complete
+`InitStatsForLevel` or permit creator activation.
+
+Armor preparation now preserves that float create-stat path as well:
+`Player.cpp:2394–2580` converts GetCreateStat(Agility) times two to int32.
+Agility `16,777,217` therefore produces armor `33,554,432`, while its current
+integer stat remains `16,777,217`. Integer checked multiplication was not an
+equivalent operation. Negative agility `-1,073,741,825` rounds into legal
+armor `INT32_MIN`; positive `1,073,741,823` rounds outside signed int32.
+Preparation checks the float conversion domain before casting and returns
+`StatsOverflow` outside it. That is an unsupported-input guard on undefined
+C++ conversions, not an invented native rejection or saturation. Health, mana,
+power and signed-XP formulas are unchanged by this armor correction.
+
+The same pinned source's `SharedDefines.h:292–324` exposes an actual canonical
+power mismatch: ComboPoints is ID 4, BurningEmbers is obsolete ID 14, and no
+Happiness kind exists. The shared enum and its six byte decoders now use that
+contract, with one const mapping for all IDs 0–25. The Unit display helper
+previously stopped at 19; it now represents 20–25 as well. Existing decoders
+that fell back to Mana for invalid bytes retain that fallback, while the
+optional display helper still rejects sentinels/out-of-range bytes. The Player
+class resolver visits every represented kind once in numeric order; logical
+ComboPoints consumers now use ID 4 rather than being relabeled BurningEmbers.
+`StatSystem.cpp:328–335,1013–1032` anchors the distinct class resolver and
+Creature combo slot. This is a target behavior correction, not a move-only
+refactor or evidence that the complete power/update-field/runtime contract is
+ported. No new class layout, creature slot policy or creator is enabled.
+
+Target `PlayerSkills` and `PlayerSpellBook` now live in Entities and are
+re-exported by World. Both have owned source state
+and effect/source capabilities, but neither is integrated into the ordinary
+Player aggregate. The current integration route retains that existing entity
+and replaces its skill/spell representation together with the real consumers.
+It must not instantiate a generic Player plus second mutable maps. A separate
+target aggregate could reuse Unit, but would also require adapting the existing
+Player inventory/lifecycle and cross-crate consumers; current evidence does
+not justify that additional split. Fabricating the save DTO directly is rejected
+because it cannot preserve construction lifetime, state selection and effects.
+The selected route does not prove the remaining scalar/update-field contracts
+or complete the construction seam. No new Player type, mirror, crate or
+factory has been introduced.
+The initial dependency inspection confirmed an actual cycle obstacle:
+`wow-data/Cargo.toml` already depends on `wow-entities`; concrete imports in
+quest, creature/gameobject templates, vehicles, pet-aura data and the power
+resolver use entity types. The target skill/spell implementations depended on
+`wow-data::forever_birth` and prepared creation/spell interfaces in wow-world.
+Moving them into wow-entities with those dependencies would create
+a cycle. Do not solve that by public mutable fields, cloned state, an unchecked
+catalog bag or a crate per helper. The skill-source interfaces now have the
+lower-layer ownership described above, and the complete private skill family
+has moved with them. Remaining model integration needs canonical-vector
+retirement, actual effect composition and an equivalent cut for the spell
+book's typed definition/effect dependencies.
+The application-owned lifetime adapter was corrected independently because it
+must retain the constructed owner whichever concrete representation is selected.
+
+The behavior-preserving source boundary covers the complete target skill
+operations under the Entity state/algorithm owner; World retains its concrete
+readiness adapter. Basic normalization, profession queries
+and bonus propagation need only an admitted skill catalog; SetSkill, default
+learning and rewards additionally need race/class, tier, rank/definition and
+default-request sources. Keep those as two related capabilities so a bonus
+query does not acquire a new rank/RC readiness requirement. Adapters borrow
+the final immutable catalogs and project selected scalar metadata lazily.
+They preserve the distinct storage, admitted equal-range, child and ability
+orders. The existing effect capability still receives the same mutable
+PlayerSkills and executes effects immediately. Default-request derivation
+keeps its existing source owner; a second starting-rank recipe is unnecessary.
+This cut does not add a second skill state or expose private fields. Canonical
+vector retirement and the production constructor/effect executor remain open.
+
+The canonical-vector replacement must include its real consumers, not merely
+change the capacity constant. `wow-entities/player/progression.rs:802–949`
+owns row replacement, occupancy, normalization and save acknowledgement;
+`player/save_ack.rs` captures and conditionally acknowledges the saved rows.
+WorldCore `session/player_spell_records.rs`, `session/player_save_owner.rs`
+and `session/progression/skills/publication.rs`, WorldApplication's login
+hydration, acquisition/conditions and WorldCharacter's self-create projection
+all consume that representation. Publication currently sorts/reconstructs
+256 slots instead of reading the target owner's 300 fields and live bonuses.
+The pinned `UpdateFields.h:679–687` requires 300 entries in each of seven
+arrays and a 2,101-bit mask. A source-model change alone does not prove that wire.
+The mask is also a setter-history contract: `UpdateField.h:351–377` marks
+parent/element bits when ModifyValue is obtained, before the value setter's
+equality test at `:139–146`. `BaseEntity.h:221–225` separately admits the
+object-update queue only when the setter reports a changed value. Equal
+writes can therefore leave mask bits, and a changed-then-restored field cannot
+be recovered from final-value differences alone. The new skill component
+currently owns values/statuses, not that live publication history. Preserve
+both mask and queue semantics when replacing the old publication path.
+The old vector's loaded/complete/occupancy/tombstone evidence must move into
+the sole skill owner or its explicit admission/save boundary; it must not
+become a synchronized second authority.
+
+Further source contrasts are explicit behavior work outside that portable
+boundary: `Player.cpp:27517–27670::_LoadSkills` inserts a Deleted status for a
+forbidden persisted row and marks a zero-valued row Deleted, retaining the
+source status/slot sequence. Older login comments describing zero rows as
+Unchanged are not target proof. `:21721–21772::_SaveSkills` preserves full
+uint32 status identity until its SQL uint16 narrowing and does not erase
+status nodes after a delete; dropping wide keys before save is not equivalent.
+Its source dirty acknowledgement occurs while appending statements. The
+established Rust confirmed-commit acknowledgement fence remains an explicit
+contract to preserve and review when that owner changes, not a reason to clear
+the new owner early. Do not hide these load/save/publication repairs inside the
+source-boundary refactor or preserve incompatible behavior for 3.4.3.
+The inherited durable skill adapter is specifically a complete-set replacement:
+WorldCore `session/player_save_owner.rs:740–766` selects sorted active rows,
+and Database `player/lifecycle_adapter/save_plan.rs:163–174` selects delete-all
+then inserts, bound by `save_steps.rs:441–460`. Its Entity acknowledgement at
+`player/save_ack.rs:184–197`
+clears only equal captured rows; the regression at `save_ack/tests.rs:684–714`
+intentionally keeps an edited in-flight New row as New because that next
+complete-set save remains valid. That is not the target incremental contract.
+`CharacterDatabase.cpp:697–699` uses plain per-key DELETE/INSERT/UPDATE, so
+canonical integration must review the receipt's confirmed-insert/delete effects
+on later mutations, including deactivation/relearning and shared slots. It
+cannot copy that replacement acknowledgement unchanged or acknowledge before
+COMMIT. No new receipt/state-machine implementation or durability result is
+claimed by the ordered status view.
+
+The target login path also preallocates the skill fields before applying DB
+rows: `Player.cpp:18523–18529` validates homebind/race-class and initializes
+skills/professions; `:18865–18874` resets stats, then loads skills and updates
+their level-dependent values. Default learning follows spell/quest loading
+at `:18924–18927`. Keep that same owner through all phases. Replacing it with
+only the persisted-row vector loses preallocated inactive statuses, capacity
+and slot history even when its loaded ranks match. The constructor's empty
+state and the login initializer are distinct entry phases, not permission to
+reinitialize a live skill owner after load.
+
+The future skill save projection also needs an admitted native status-map
+order. The target status map keeps uint32 keys and does not erase them on save;
+neither Rust HashMap traversal nor the legacy sorted/u16 projection establishes
+its C++ iteration order. Slot numbers cannot reconstruct insertion history:
+the source SetSkill absent-parent/child path can associate multiple identities
+with the same captured slot, as the retained aliasing regression demonstrates.
+Keep any numeric insertion witness with the private skill owner and record only
+actual successful insertions; it is not another mutable rank map. Do not add
+save-order claims or emit all fields as NEW SQL rows from this interface-only
+step. Native order admission and dirty-state snapshot/acknowledgement still
+belong to the complete canonical-to-save operation.
+The renewed source review at the same pin confirms successful insertions at
+`Player.cpp:5759,5999,27548,27580,27643`; payload changes and deactivation do
+not erase members, and `_SaveSkills` leaves every status node in place. The
+current lower component has only initializer/SetSkill insertion sites and no
+in-place clear/reset API. It now owns a private insertion-only uint32 witness
+plus an exact-set admitted traversal returning borrowed status/field views.
+Duplicate attempts retain their first status slot and add no event;
+an effect failure before actual insertion adds no event either. Native output
+capacity follows physical status membership, not field capacity or slot count.
+The login-local `loadedSkillValues` map (`:27523,27622–27625`) has its own
+membership and traversal; this status witness cannot stand in for that order.
+The native producer now uses a skill-specific numeric entry point under the
+existing pinned container capability. Its minimal temporary mapped payload
+still needs the authored independent oracle using the actual `SkillUpdateState`,
+`SkillStatusData` and `SkillStatusMap` declarations (`Player.h:687–704`) to
+establish payload-size independence; existing PlayerSpell oracle results do
+not establish that SkillStatusMap result. The five native adapter cases above
+do not execute that oracle. No native skill-order proof or source
+save/acknowledgement integration is claimed yet.
+
+The renewed complete `_LoadSkills` trace also fixes the next loader's phase
+contract (`Player.cpp:27517–27661`). Its capacity check precedes every input
+row, even a duplicate, using physical status-map size. Rows retain query order
+and source uint16 skill/value/max plus signed int8 professionSlot widths.
+Forbidden rows insert a Deleted node at current map size without writing its
+fields; an occupied node remains unchanged. Admitted missing nodes use current
+map size as their slot, not a free-slot search. Each admitted row writes its
+line before the zero-value branch. A zero row marks Deleted without clearing
+the other fields, and a later nonzero duplicate writes fields without restoring
+that status to Unchanged. Calling SetSkill for every DB row would change these
+contracts and is not the selected loader.
+`ObjectMgr.cpp:9076–9099::GetSkillRangeType` selects an existing tier before
+runeforging/category defaults. Rank loading searches the first equal max in
+all sixteen uint32 tier values (`ObjectMgr.h:875–884`), retaining step zero
+on no match; secondary/primary fallback then uses max/75. Source profession
+assignments and the old-character missing-slot fixup retain row order and
+duplicates. An invalid explicit profession index lies outside the represented
+two-field operation and needs an explicit unsupported-input error, rather
+than unchecked indexing or an invented successful slot assignment.
+The separate local `loadedSkillValues` map overwrites values on repeated keys
+while keeping its own successful insertion history. Its source traversal
+drives reward learning only after every DB row, then parent enabling and child
+preallocation for that same key. Those callbacks may reenter the sole skill/
+book owners; statuses and capacity must be reread at the source points.
+Missing-slot profession fixups follow that complete traversal, and the final
+fist-weapons synchronization uses live unarmed skill value and level cap.
+This is a reviewed loader contract, not an implemented loader, admitted native
+order for its local map, DB/relogin evidence or authority to activate it.
+
+The entire private target skill family now lives in
+`wow-entities/src/player/skills.rs` and its child modules: fields/status/
+professions, queries, normalization, bonus traversal, SetSkill and all default/
+reward/effect coordination. World keeps the concrete source-readiness adapter
+and its existing public facade; old private algorithm bodies are removed in
+the same change. Initialization accepts ordered IDs through the lower owner,
+with the existing InitialSkillFields bridge supplying them. No private state
+is widened for tests, and no additional Player skill field, clone or execution
+owner is introduced. This is a boundary/ownership move with unchanged C++
+anchors and frozen phase/error/ordering/narrowing contracts above; packet
+registrations, wire/SQL, commit fences, clocks and runtime admission do not
+change. The canonical vector replacement remains separate behavior work.
+Test placement preserves all 48 original case identities: 38 private domain
+cases beside the Entity owner and ten actual-source integration cases in
+World. Three World split cases retain mixed-case catalog ordering, first-RC/
+tier and effective reward-definition assertions. The executed 51-case union
+and its failed-import/repair history are recorded above. The ordinary Player
+still uses its old skill vector; the move adds no parallel field or production
+effect executor and does not establish the complete constructor.
+
+The spell book keeps the complete read-only cast
+resolver generic with the private book owner. A weaker definition-source/view
+contract serves cast lookup; the full learning source adds its existing phase
+readiness and relations. Do not make cast require learning/rank/RC readiness.
+The associated view remains the actual borrowed World SpellDefinitionView,
+with exact derived-definition and raw-catalog ownership checks. No Clone/Copy
+requirement is added to that view. Aura amounts remain borrowed live values,
+physical effect positions include gaps, and the shared five-slot cast context
+and flag/order/error behavior remain unchanged. Keeping that resolver with the
+owner lets the eventual Entity Player use the same operation without a World
+dependency or an organizational extension trait.
+The full learning-effect contract receives the source's associated real
+definition view for item-fit checks; replacing it with an ID-only result would
+prematurely constrain the unimplemented executor. Current recording effects
+do not prove the real target item-fit predicate. Concrete World aliases
+preserve public paths while lower errors retain source/effect provenance.
+The definition boundary uses a lower source with an associated
+borrowed view and a separate effect view. The actual World implementations
+delegate lookup, ownership and aura classification to their existing owners;
+they do not reconstruct a catalog or classify an aura from its numeric aura
+field alone (`SpellInfo.cpp:465–472`). All seventeen attribute words and all
+four family-mask words retain their source widths. The cast operation needs
+no item, birth, race/class, rank or learning-phase dependency.
+The complete learning boundary retains ordered required/
+forward/reverse relations, the full `(spell, difficulty)` first-rank identity,
+and separate World/definition/validity errors. Learned-skill range arithmetic
+belongs with the book algorithms, including its lazy live-level query; the
+World adapter reuses the existing default-skill recipe. The constructor's
+readiness and exact BirthCatalog identity checks remain at that concrete
+adapter. Entities owns the immutable source/view contracts, scalar facts and
+generic errors. World keeps
+the same admitted constructor with private fields and lazy projections over
+the existing indexes; its concrete error aliases preserve World/definition/
+validity provenance. Complete Add/Learn/Remove and their private phases are
+generic over that source. Passive, primary-profession and range helpers move
+once into private `learning/facts.rs`; the source adapter no longer owns
+those algorithms. The default request returns the existing lower SkillUpdate
+directly. Required effects retain the same mutable book for reentry and receive
+the source's actual associated definition view for item-fit. No new state,
+executor, lock, dependency edge or runtime admission is introduced. The coding
+source-boundary results above retain their own snapshot; canonical Player
+integration remains unfinished.
+The complete family move transfers the mutating book, its witnesses and
+private operations together into Entities. The existing canonical spell-runtime
+collections must now be retired with their consumers, not co-instantiated.
+Private query/mutation tests must move beneath that owner, preserving raw
+state and membership-history assertions without a public fixture API.
+Actual World-source admission, definition identity and metadata projection
+cases remain in World. Mixed cases need both their lower operation assertions
+and actual-source assertions retained; lower fixtures supply explicit admitted
+facts, not another implementation of rank loading, learned-skill preparation
+or the default-skill recipe. No Entity-to-World/Data test dependency is selected.
+Existing complete-operation cases using only the public book API and real
+World sources can remain in World as integration cases. The family move must
+retain that effective startup/adapter coverage instead of replacing all such
+cases with lower synthetic sources. Only cases requiring private state/history
+setup or private cast-context access need an Entity-owned fixture; any mixed
+real-source assertions need a preserved World split. This selects test owners
+by the boundary exercised, without adding mutable fixture access to production.
+That placement is now implemented as the 52 Entity / 45 World executed union
+above. The old World production algorithms and private test files are removed
+in the same change; World retains complete-operation/source integration tests
+and the four mixed-case projection splits. This transfers the component,
+not the ordinary Player's storage field or its live/save/publication consumers.
+
+The following canonical integration must also replace the inherited load/save
+consumers, not only their storage field. At pin `02245dcd`,
+`Player.cpp:20187–20205::_LoadSpells` passes each ordered uint32 spell row
+through AddSpell with `learning=false`, `dependent=false` and `loading=true`,
+then applies favorite rows to physically present entries without dirtying them.
+The current inherited `wow-world-character/login_session/spell_loading.rs`
+instead drops spell IDs outside positive int32, and
+`wow-world-core/session/player_save_owner.rs` captures rows through a sorted
+BTreeMap. Neither is the target contract or proof that the new book is wired.
+`Player.cpp:21772–21823::_SaveSpells` traverses source map order: Changed/
+Removed delete the primary row; New/Changed insert only nondependent spell
+rows but always process favorite deletes and optional inserts. Removed entries
+are then physically erased; other nontemporary entries become Unchanged.
+`CharacterDatabase.cpp:641,700–703` preserves distinct spell/GUID parameter
+orders. The pinned base favorite schema (`characters_database.sql:1914–1918`)
+has no foreign key; this source path does not add a favorite delete for Removed.
+Preserve these distinctions and the established intentional confirmed-commit
+acknowledgement fence, including its cancellation/unknown outcome handling.
+Trait-config records and load-completeness evidence remain real responsibilities;
+retiring the old spell collections must not discard those unrelated records or
+retain a second mutable known/dependent/favorite/override representation.
+Current `Player` and `PlayerGameplayState` still derive Clone/PartialEq, while
+the new private skill/book owners deliberately do not. Before the completed
+trade extraction recorded above, Social copied both whole Players in
+`trade_commit.rs:456–466`, and `trade_storage.rs:71` cloned each receiver
+again. Those three statements are now retired through scoped inventory/SQL
+captures; no Clone or parallel field was added to the skill/book owners.
+The original receive operation registered runtime-only bags, removed outgoing
+items and simulated incoming merge/store in trade-slot order. Removing only
+the Social copies would have left its nested Clone dependency. The borrowed
+`CanStoreItem` view uses GUID/binding, represented inventory/counts, bag views
+and backpack capacity; it does not need the spell/skill owners.
+`TradePairAccessLikeCpp::read_both` provides the scoped immutable pair borrow,
+but the complete simulation remains outside that map lock. The completed
+extraction shares the existing storage algorithms and preserves runtime-bag
+registration, outgoing removal, first-failure precedence and sequential
+merge/store observations.
+It must not construct a mostly default Player, add Clone to the new components,
+publish simulated masks/durations or replace canonical state with its copy.
+`TradeHandler.cpp:445–485,488–547` at the target pin fixes partner-first checks,
+own-first failure reporting, remove-before-store and commit/publication order.
+This trace defines the structural extraction's contract; it does not establish
+target trade parity. Cancellation and confirmed-commit fences remain unchanged.
+The aggregate Clone trace was not limited to trade: before the completed direct
+capture unit above, `PlayerGameplayState::is_empty` cloned the whole state merely
+to clear an all-None void-storage allocation before comparing with Default. Its existing
+Player construction regression (`player_tests/misc.rs:249`) preserves that
+empty/load-presence behavior. The predicate now compares against Default with
+an equally sized all-None vector, preserving that behavior without a copy.
+Canonical integration must still distinguish preallocated inactive skill
+fields from evidence of an authoritative DB load.
+The completed trade dependency repair is a boundary extraction with complete
+consumer replacement. A borrowed Entity item-storage view owns
+the seven existing read-only query bodies; the public Player methods retain
+their signatures and delegate. The disposable receive simulation captures
+the existing inventory topology/runtime, owner GUID and backpack capacity.
+Shared runtime position/bag/item lookups and the pure native-bag operations
+serve both the canonical Player and simulation, preserving one copy of
+those rules; canonical mask/duration bookkeeping stays with Player. Social
+captures the original outgoing-item/bag/money facts for SQL in the same
+admitted pair read, then plans outside the map lock. Neither
+simulation nor its SQL facts may be installed back into a canonical Player.
+Retaining aggregate Clone would prevent the intended non-Clone components;
+moving simulation under `read_both` would extend the blocking scope. The
+selected boundary avoids both costs while preserving actual read/plan/commit/
+application/publication owners. A mostly default Player is not the selected
+simulation representation.
+The renewed source contrast anchors the query family at
+`Player.cpp:9647–9688,10155–10212,10272–10733` and trade planning at
+`TradeHandler.cpp:108–190,445–547` at pin `02245dcd`. Existing represented
+queries differ from that target in gem counting, the currently looted item,
+effective item limit category/quantity and some backpack/reagent rules.
+`CanStoreItems` also has its own source mock-inventory pass, distinct from
+the subsequent `moveItems` calls. This structural work preserves the existing
+Rust bodies and selected SQL/fence behavior; it does not repair those gameplay
+differences or make inventory/creation target-ready. Those differences remain
+part of the full port, and a production target constructor remains forbidden
+until its required inventory contracts are implemented and accepted.
+The wider trace found the quest-sharing whole-gameplay copy and two quest-log
+fixture Player copies. The completed direct-capture unit above retires all
+four statements, including the emptiness predicate's copy. It preserves the
+separate canonical reputation read and unresolved-owner behavior, and transfers
+the actual fixture owner instead of fabricating a replacement or dropping its
+loaded state. The quest capture now copies only the pending-share value and
+the four quest collections within the same canonical read, preserving the
+existing conversion of status **values** by `record.quest_id` after the guard
+is released. The separate reputation read remains separate. A provided manager
+with no resolvable Player still returns unknown; no manager still returns the
+registered identity/placement with empty quest facts. Target
+`QuestHandler.cpp:571–735` and `Player.cpp:16219–16228` anchor that responsibility;
+this does not introduce a new eligibility algorithm. The empty-state predicate
+compares against Default with an equally sized all-None void-storage vector,
+without copying the aggregate or changing any other field's equality rule.
+For the quest-log fixture, keep the same manager Arc and generation-checked
+handle: use its existing detach/attach operations when the actual owner must
+enter map 571, instance 0, and retain the already-resident early return. The old
+no-manager branch immediately calls `with_owned_player_like_cpp`, which cannot
+resolve without that manager; it is not a valid source of a replacement Player.
+Missing/stale owners must fail as fixture errors. Do not re-adopt an already
+owned Player or rebind the registry's OnceLock to another manager.
+`PlayerGameplayLoadRecord` currently embeds `PlayerGameplayState`, and
+`player/vitals.rs:19–20` replaces the entire state from that record. Current
+direct callers are Entity tests. Integrating the non-Clone components also
+requires auditing those derives and this whole-state load boundary: the target
+login's initialized skill/book owners must survive their ordered load phases,
+not be replaced by an empty aggregate after preallocation. This remains an
+unfinished canonical-integration dependency, not a new mirror or activation.
+The indirect Clone audit also reaches `object_accessor/state.rs`: both
+`AccessorPlayerBody` and `MapObjectBody` contain boxed Players, so their
+parent wrappers' derives impose the same requirement. Map's private
+`EntityWorld` itself has no Clone requirement. Four production sites formerly
+cloned whole primary records only to return loaded-grid summaries
+(`map/respawn.rs`, `map/spawn_groups.rs` twice and `map/game_object.rs`).
+Their actual binary consumers use the object GUID for area-trigger reporting
+and an optional typed Creature GUID for default-motion initialization; the
+latter already resolves the canonical Creature again. The input
+`LoadedGridRespawnRecordsLikeCpp` and derived summary types inherited Clone
+through their record fields. The partial fact unit above replaces those copies
+and the audited wrapper derives, but remains unfinished. A custom Clone
+that drops Player components, panics on Players or fabricates a different
+payload is not selected. The partial structural change is not target runtime
+or actor-ownership acceptance.
+The selected loaded-grid output is the original object GUID plus an optional
+typed Creature GUID captured before insertion and emitted only on the same
+successful AddToMap branch. A WorldObject stub tagged Creature must not become
+a typed Creature result. Preserve output order/multiplicity, pre-add insertion,
+timer/pool mutations and every existing success/error counter. The four sites
+need no copied actor payload; consumers already reacquire the canonical actor
+for motion initialization. The target source anchors are
+`Map.cpp:2232–2314,2382–2484`, `Creature.cpp:344–361`,
+`Unit.cpp:10310–10316`, `MotionMaster.cpp:107–125,1240–1247` and
+`WaypointMovementGenerator.cpp:138–157` at `02245dcd`. In particular, the
+AddToWorld path reaches MotionMaster::AddToWorld/DirectInitialize; it must not
+be documented as an unconditional call to MotionMaster::Initialize.
+`PoolMgr.cpp:337–370` also adds pool membership before the loaded-grid spawn
+call and keeps its type-specific AddToMap path. The summary-only repair must
+not move those pool or timer effects behind successful insertion.
+Retire the input/wrapper Clone derives only after reviewing their concrete
+factories and callers. The inspected map regression fixtures construct fresh
+loaded-grid records; two instance-refresh cases separately clone typed Creature
+and GameObject records and require explicit typed fixture construction. This
+representation repair does not accept the inherited map runtime for Forever.
+The three binary loader result wrappers (`CreatureLoadedGridResolvedLikeCpp`,
+`GameObjectLoadedGridResolvedLikeCpp`, `AreaTriggerLoadedGridResolvedLikeCpp`)
+also derive Clone through optional records. Their inspected factories return
+owned results; no wrapper-copy operation is required by those factories.
+Their existing typed actor/lifecycle projections are separate from the output
+summary repair and must not be silently discarded. Keep the loaded-grid input
+and immutable output-fact definitions in one private Map child with the existing
+public type paths preserved; moving the input definitions out of the oversized
+root pays for its narrow module/export wiring without general root growth.
+`RemoveFromMapOutcome` also derives Clone through the exact boxed Player it
+returns for a non-delete transfer. Its explicit consumers move that value;
+retiring the unused derive must preserve the value and every lifecycle effect.
+The renewed method-pointer audit found an additional real whole-Player copy:
+`canonical_access/owned_inventory.rs:150` passes `Clone::clone` into the owned
+read, then wraps it in `InventoryPlayerProjectionLikeCpp`. That private Player
+payload serves both inventory/equipment/bank queries and scratch values-update
+publication, including WorldApplication void-storage consumers. The completed
+trade extraction does not retire this separate producer. Before removing the
+aggregate derives, prepare and implement its complete read-planning and
+publication boundaries with their actual consumers, masks and update order;
+do not replace the copied Player with a mostly default production Player or
+move an unresolved simulation under the map lock. This remains a local
+integration dependency; safe record-summary and quest work can proceed.
+The first concrete producer trace reaches Inventory's slot/catalog/equipment/
+swap queries, WorldPlayerConditions valuation/direct-storage overlays,
+WorldApplication bank planning and values publication/void unlock. Capture
+timing matters: today's projection freezes its Player facts before the later
+catalog/condition/runtime reads. Narrowing it must preserve that observation
+point rather than silently re-reading the canonical Player after those inputs.
+The publication consumer edits a disposable copy, clears its masks, applies
+and explicitly marks requested deltas, then publishes PlayerValuesUpdate;
+that needs a separate complete field/mask contract from storage queries.
+The inspected query bodies consume native topology, GUID/backpack capacity,
+bank-slot count and explicit caller arguments; primary specialization reads
+`PlayerData.current_spec_id`, and the two-hand helper reads the captured Titan
+Grip capability. Their existing skill/spell eligibility inputs are separate
+caller projections, not a reason to copy those owners into an inventory view.
+Preserve the current pure bodies and all actual overlay/bag operations when
+making that read snapshot. Publication needs the complete represented field
+payloads and shared mutation/mask rules, without a copied Player or Unit actor.
+In particular, `Player::clear_data_changes` also clears quest-row/rest masks
+and sets `ActivePlayerData.self_res_spells_update_mask` to a correctly sized
+Some(all-zero words), even when that vector is empty. Resetting only the three
+outer masks would not reproduce the current payload. Equal-value explicit
+mark operations, invalid-index behavior, include-active filtering, type masks
+and the derived-stat projection must be frozen and covered with actual update
+models/bytes before replacing the publication consumer. This boundary remains
+unfinished; the current record/quest work does not authorize a shortcut.
+Renewed target `Player.cpp:11224–11491` also establishes additional retained
+version gaps: CanBankItem uses CharacterBankTabCount/CharacterBankTabSettings
+and its reagent-only policy, while the represented Rust query still uses the
+older bank-slot/direct-storage model. CanUseItem(template) examines every
+on-learn effect and returns its all-learned result; Rust retains its older
+two-effect recipe branch. A later query-family extraction must preserve and
+label those current bodies, with gameplay repairs separately evidenced before
+target inventory/constructor acceptance. Neither this trace nor the prior
+trade extraction accepts those inherited algorithms for Forever.
+Target `Player.h:1403–1463` and `Player.cpp:9965–10016` likewise iterate bank
+contents through bank bags and omit the old keyring/direct-bank-slot admission;
+the current Rust traversal/position methods retain those older ranges and
+clamp backpack arithmetic. These are retained version differences, not evidence
+that a narrower projection may silently change traversal or failure order.
+The complete FindEquipSlot contrast (`Player.cpp:9367–9568`) also shows six
+candidate positions, Classic ranged-slot routing and special bank/reagent-bag
+candidates. Current `equip_slot_candidates` still uses four candidates and
+older routing. Its profession-gear comment incorrectly attributes two writes
+to slots[0] to C++; the pinned source assigns gear1 to slots[0] and gear2 to
+slots[1]. That comment must be corrected when touching this family. Preserve
+the distinction between a labeled structural move of the represented rules
+and a separately evidenced complete candidate-selection repair; the existing
+test names are not target-build parity proof.
+The narrower new-row projection contract above still requires actual creation
+state selection or an explicitly audited extension; it is not a general save
+API. No load/save consumer repair is hidden in the family move.
+
+The final campaign also checks the maintained #1442 World test census.
+Family moves change its paths and owners; the committed-candidate ledger must
+be refreshed with a reviewed semantic delta and the preserved cross-crate test
+identity mapping. Do not infer coverage loss from the reduced World count,
+blindly raise a ceiling, or regenerate the ledger as an internal validation
+loop. No census refresh or acceptance result is claimed for this worktree yet.
+Parent inspection matched all 48 skill and 87 book case names in that ledger
+to the preserved pre-move identity maps, with none missing. The book's
+pre-move 93 already include six cases newer than the ledger. The reviewed
+post-move union is 51 skills plus 97 book cases; the later eight Entity status
+cases make 156 across both owners. These source/name mappings explain the
+expected owner/count delta; they neither regenerate the classified ledger nor
+replace its committed-candidate check or the actual assertion review above.
+The later six World quest-log owner cases also belong to the reviewed candidate
+ledger delta; that classified ledger has not yet been regenerated or accepted.
+
+That review found and corrected a separate existing behavior defect before
+the book refactor: `learning/sources.rs::primary_profession_first` checked
+category 9, which the
+pinned `SharedDefines.h:6376–6385` defines as secondary. Primary is 11.
+`SpellMgr.cpp:107–111` additionally excludes child lines, and
+`SpellInfo.cpp:1666–1685` requires the first rank. Its `GetRank` at
+`:4428–4434` returns one without a ChainEntry, so the Rust unranked fallback
+is correct and remains unchanged. Category 11 now selects root primary
+professions; `Player.cpp:3010–3017,3274–3288` anchors consumption before skill
+learning and refund after pet-aura removal. Correct classification and its
+Add/Remove regressions remain a distinct behavior change from the subsequent
+source/view extraction, with their coding results recorded above.
+
+Concrete consumers for that next integration are the creator contract and
+`handlers::create`, Forever Session's account/load/acknowledgement owners,
+`world-server::forever::bootstrap::Runtime` and connection composition, entity/
+birth/power adapters, and the canonical-to-save projection. Runtime already
+holds birth catalogs, initialization/spell/item inputs and starting policy,
+but connection composition attaches no creator. The preparation APIs
+`WorldSources::normal_start`, `StartingPolicy::select` and
+`pre_equipment_vitals` supply inputs, not an instantiated Player. Existing
+Session tutorial flags and Player-backed collections/instance state likewise
+cannot be assumed to exist in Forever Session simply because their older
+owners have those fields. The initial composition exploration was read-only;
+the subsequent scoped coding checks are recorded above. No runtime or database
+action was part of this integration work.
+Fishing and battleground persistence are now authored from the reviewed source:
+`Player.cpp:20699–20703,21003–21010` deletes fishing steps before the primary
+row and conditionally inserts nonzero uint8 steps, widened to SQL uint32,
+after it;
+`Player.cpp:28722–28744` deletes/reinserts battleground data after
+customizations and before inventory, including the initial empty state.
+The battleground snapshot requires uint32 instance, uint16 team, four raw
+float position/orientation values, uint16 map, two uint32 taxi nodes, uint32
+mount spell and uint64 packed queue ID. Unlike the primary-row serializer,
+this source method does not apply `finiteAlways`. `Player.h:1132–1157`
+initializes `BGData` with `TEAM_OTHER`, a default `WorldLocation`, cleared taxi
+and no queue; absence is not permission for SQL to fabricate a zero map/team.
+The constructor must supply canonical initialized state. Source statements
+are `CharacterDatabase.cpp:456–457,714–715`. The mandatory `fishing_steps` and
+`NewBattlegroundData` snapshot fields have no fabricated SQL defaults. The new
+private `create/auxiliary_character.rs` appends these groups in the existing
+character transaction, and `append_character_and_inventory` preserves their
+order around the primary row, customizations and inventory. The InnoDB guard
+now includes both tables. Five authored cases cover the whole prefix order,
+conditional fishing insert, all twelve battleground bindings/GUID scope and raw
+float payloads. Initial fixture values are source-backed by `BGData`,
+`SharedDefines.h:1311` (`TEAM_OTHER = 0`) and `Position.h:188–194`
+(`MAPID_INVALID = 0xFFFFFFFF`, narrowed to uint16 for SQL). A further field/DDL
+review (`Player.h:3367`, `characters_database.sql:901–905`) established the
+canonical uint8 fishing range. The snapshot and helper inputs now enforce it,
+and SQL explicitly widens with `u32::from(steps)`; the regression uses 255,
+replacing the earlier impossible uint32-maximum fixture. Runtime construction
+and real DB evidence remain absent; scoped worker feedback is recorded in
+this checkpoint.
+
+The quest-save contract is source-reviewed at the same pin:
+`Player.cpp:21490–21720`, `Player.h:659–667,3136–3139,3260–3263`,
+`QuestDef.h:903–910`, and `CharacterDatabase.cpp:144–151,683–692`.
+Quest-status and rewarded-save queues are ordered maps, distinct from final
+membership. A default status change with missing state emits nothing; with
+present state it writes only when abandoned quests are retained or status is
+nonzero. It then replaces the status, deletes/repopulates nonzero objective
+counts in template order and deletes/repopulates spawn tracking in its supplied
+source iteration order. Explicit removal deletes status, objectives and spawn
+tracking for that quest. Rewarded defaults use INSERT IGNORE; ordinary removals
+delete only when abandoned retention is disabled, while forced removals always
+delete. Signed accept/end times and objective counts must not be narrowed.
+These groups run immediately after inventory, before daily/weekly/seasonal/
+monthly groups and glyphs/talents/traits. Periodic change flags are not
+interchangeable: daily and seasonal changed-empty states still delete; weekly
+and monthly changed-empty states emit nothing. Daily normal entries precede
+the ordered dungeon-finder set. Seasonal iteration is supplied by the source
+unordered maps; its uint32 event key narrows through the method's uint16 local
+before being bound as uint32. No sorted or deduplicated substitute is implied.
+Quest construction, template/objective lookup and the canonical dirty queues
+remain constructor responsibilities. Status/reward projection is now authored
+in private `create/quests.rs`, with mandatory SQL-free `NewQuestSave` inputs
+and ordered `BTreeMap` queues. It follows the inventory prefix and precedes
+the represented specialization/spell groups. The InnoDB guard includes its
+four status/reward tables. Seven
+authored cases cover the policies, scoped deletes, scalar widths, zero filtering, source
+iteration/map ordering and actual prefix placement. This is not real-DB or
+complete quest construction evidence; scoped feedback is recorded in this
+checkpoint.
+
+Periodic quest persistence is now authored in private
+`create/quests/periodic.rs`. Required `NewQuestSave` fields distinguish
+unchanged state from changed-empty state, keep daily list order before the
+ordered dungeon set without cross-source deduplication, retain ordered weekly/
+monthly sets, and preserve supplied seasonal iteration with the source event
+narrowing. These groups follow both status/reward queues and precede spells
+in the current prefix; specialization and trait groups now follow them.
+The schema guard includes all four periodic tables. Five
+authored cases cover the full 16-case empty/change matrix, populated daily
+source combinations/time bounds, ordered sets, seasonal narrowing/order and
+the production-prefix call sequence. Real DB and canonical quest construction
+evidence remain absent; the recorded worker feedback is narrower.
+
+Further source-reviewed save dependencies are glyphs/talents/traits
+(`Player.cpp:28816–28839,29043–29177`) and Player spell history
+(`SpellHistory.cpp:36–94,182–219`). `MAX_SPECIALIZATIONS` is **five**
+(`SharedDefines.h:1063`), with four PvP slots (`DBCEnums.h:2810`): talent save
+deletes normal/PvP rows and inserts a PvP row for every group even when all
+four IDs are zero. Glyph IDs narrow from uint32 to uint16 at SQL binding.
+Traits preserve state-specific entries/config/action deletes and nullable
+Combat/Profession/Generic projections; these cannot be replaced with a flat
+membership list. Player spell history deletes cooldowns, inserts only those
+not on hold, then deletes/repopulates charges, using signed epoch times from
+the actual Clock conversion and supplied owner iteration order. These remain
+source contracts, not evidence that empty rows may be omitted.
+
+Glyph/normal/PvP persistence is now authored in private
+`create/specializations.rs`, with required `NewSpecializations` fields and
+five fixed groups. Glyph/normal vectors retain supplied source iteration;
+normal entries marked Removed are skipped, and all five PvP rows are always
+present. The prefix places these groups after all quest groups and before
+spells. All three tables are guarded as InnoDB, matching pinned DDL
+`characters_database.sql:1082–1087,1311–1319,1994–1999`. Five cases cover
+the empty eight-statement sequence, group/order/binding/narrowing behavior,
+removed entries, all twenty PvP slots and actual prefix placement. Positive
+talent fixtures use unique keys, as required by the source unordered map.
+Canonical specialization construction and real-DB proof remain open.
+
+The trait projection contract is now resolved from the same pin's
+`Player.cpp:29087–29177,29530–29533`, `Player.h:204–211,3278`,
+`UpdateFields.h:950–990,1460`, and `DBCEnums.h:2866–2872`.
+The dirty map is unordered: preserve its supplied iteration order. Changed
+state deletes entries then config for the dirty-map key, and inserts only if
+the keyed config lookup exists; Removed also deletes that key's actions.
+Unchanged/New/Temporary states emit no statements. The dirty-map key and
+the config's own signed ID remain distinct source values: deletes use the
+former, inserts and entry rows use the latter. Combat/Profession/Generic
+types (1/2/3) set only their source columns and bind NULL to the rest.
+For other signed type values, the C++ switch leaves six parameters at their
+prepared-statement defaults. `PreparedStatement.h:31–50`,
+`PreparedStatement.cpp:25–26` and `MySQLPreparedStatement.cpp:74–86,126–149`
+show that those defaults are variant `bool(false)`, bound as uint8 zero;
+they are **not NULL**. This source behavior must be explicit, not repaired or
+guessed during the port. Signed config/node/entry/rank fields, ordered entry
+vectors and exact config-name strings must be preserved. These are selected
+implementation semantics, without real-DB/native acceptance yet.
+Trait persistence is now authored in private `create/traits.rs`, with required
+SQL-free dirty changes and full config/entry projections in `save/traits.rs`.
+The prefix places it after all PvP rows and before spells. Two source InnoDB
+tables (`characters_database.sql:2018–2030,2049–2056`) are guarded; action
+deletes use the already guarded action table. Six cases cover all state
+policies, known/unknown kind fields, signed widths/name preservation,
+key-versus-config-ID scope, supplied iteration order and actual prefix calls.
+Canonical trait state/lookup construction and real SQL proof remain open.
+
+Player spell-history projection is now authored in private
+`create/spell_history.rs`, with mandatory `NewSpellHistory` inputs from
+`save/spell_history.rs`. The production prefix puts it after saved spells and
+before actions: cooldown delete, all unheld cooldown rows, charge delete,
+then supplied category/deque rows. Expired-looking values are not pruned by
+this save method. Snapshot times are already signed epoch seconds from the
+future canonical `Clock::to_time_t` projection, not milliseconds to convert
+in SQL. Both source InnoDB tables are guarded, matching
+`characters_database.sql:1862–1868,1887–1895`. Five authored cases cover empty
+deletes, held-state filtering, order/GUID/scalar bindings, category/deque
+iteration and the actual through-actions production builder. Integer-bound
+binding cases explicitly do not execute or prove the C++ Clock conversion.
+Canonical history/clock construction and real SQL proof remain open.
+
+The following aura-save responsibility is source-reviewed at
+`Player.cpp:21196–21248`, `SpellAuras.cpp:1168–1208,1252–1270`,
+`SpellAuras.h:362–373`, `Unit.h:653`, `ObjectGuid.h:319–326`, and
+`CharacterDatabase.cpp:397–400,654–655`. It follows actions and precedes
+skills: effect rows are deleted before aura rows, then each admitted aura
+row precedes its effects. Both caster/item keys retain all sixteen raw GUID
+bytes; owner identity remains the uint64 character counter. Masks/IDs are
+uint32, scalar durations/item level signed int32, difficulty/stack/charges and
+effect index uint8, and effect amounts raw doubles. The owned aura map is a
+spell-keyed multimap, with existing effect-vector iteration retained.
+Canonical `CanBeSaved` and `GenerateKey` decisions require actual aura/spell/
+owner state: passive/channelled, external area/single-target, cannot-save,
+exhausted-charge and permanent-item conditions cannot be replaced with an
+assumed empty aura list. This responsibility and its source admission/key
+construction remain unported; no real-DB/native evidence is claimed.
+Aura SQL projection is now authored in private `create/auras.rs`, with
+mandatory `NewAuraSave` fields. Eligibility and masks are explicitly frozen
+inputs from the future canonical owner, not computed by this adapter.
+The existing production builder places aura deletes/parent/effects between
+actions and skills. Both source InnoDB tables are guarded, matching
+`characters_database.sql:509–524,543–553`. Six cases cover empty deletes,
+supplied saveability outcomes, complete GUID/scalar bindings, multimap/effect
+order, raw doubles and actual builder placement. The outcome-consumption test
+does not prove `CanBeSaved`; encoder bounds are not canonical key fixtures.
+
+Stored aura teleport locations (`Player.cpp:21826–21859`,
+`Player.h:231–240,3273`, `CharacterDatabase.cpp:818–820`) have a separate
+source edge: the delete SQL has Guid and Spell parameters, but both Changed
+and Deleted branches set **only Guid**. The second parameter therefore uses
+the same prepared-statement `bool(false)` default described above, rather
+than the dirty map's spell key. Changed then inserts the actual spell key,
+uint32 map and four raw floats. The map is unordered; Unchanged emits nothing,
+and Changed is not reset by this source method. Do not silently repair that
+delete key or flag behavior while adding the creation projection. Any later
+intentional repair needs its own contract/evidence. This group follows skills
+and is now authored in private `create/stored_locations.rs`, with required
+SQL-free state/location projections and source-table guarding. The through-cache
+builder places it after skills and before the represented cache group. Five
+cases cover all state branches, the deliberately untouched Spell-default
+binding, exact insert fields/raw float payloads, supplied order and builder
+placement. Canonical state lookup/removal lifecycle and real SQL remain open.
+
+The following progress-save contract is source-reviewed at the same pin:
+`AchievementMgr.cpp:310–360` / `.h:42–47,73`,
+`CriteriaHandler.h:79–85,255`, `ReputationMgr.cpp:794–814` /
+`.h:31–64`, and `QuestObjectiveCriteriaMgr.cpp:124–170` / `.h:63`.
+Changed completions delete then insert, with achievement-ID-before-GUID
+delete binding. Achievement and quest criteria changed rows always delete
+and reinsert only nonzero uint64 counters, retaining signed dates and source
+unordered iteration. Reputation uses ordered RepListID keys but narrows the
+value's uint32 faction ID to SQL uint16; only `needSave` rows write, with
+signed standings and uint16 flags. Quest-objective completion always deletes
+the whole owner set before inserting its supplied unique IDs, then processes
+its dirty progress. The three owners run after stored locations and before
+equipment/outfit/cache groups. Canonical criteria updates, faction initialization
+and dirty-flag application remain necessary; empty source state cannot be
+inferred from missing construction. Their SQL projection is now authored in
+private `create/progress.rs`, with mandatory typed achievement/criteria
+inputs and a reputation `BTreeMap` keyed by RepListID. The existing
+through-cache builder places these groups after stored locations and before
+the represented cache, with the equipment/outfit projections described below
+between progress and cache.
+All five source tables are guarded as InnoDB, matching
+`characters_database.sql:409–414,433–439,1439–1468,1586–1592`. Six authored
+cases cover dirty-state/zero-counter matrices, reversed achievement delete
+bindings, reputation key-versus-value order/narrowing, objective iteration,
+scalar/GUID scopes and actual builder placement. Unchanged frozen input flags
+are not evidence of canonical flag acknowledgement/clearing; those owner
+transitions, gameplay criteria and real SQL remain open.
+
+Equipment/outfit save responsibility is source-reviewed at
+`Player.cpp:28563–28720`, `EquipmentSet.h:27–70` and
+`CharacterDatabase.cpp:373–394`. The legacy equipment-set map is ordered by
+its uint64 key, while SQL uses each value's set GUID/index and type-specific
+data. Equipment and legacy transmog branches have distinct insert/update
+field orders; removal is scoped by set GUID in the source SQL. Modern
+transmog dirty IDs form an ordered uint32 set: each deletes slot, situation
+and outfit rows before optional lookup-based insertion, then saves situations
+before slots. Their identities must already exist before persistence.
+`EquipTransmogOutfit(0)` (`Player.cpp:31570–31646`) updates viewing state;
+that call alone does not establish a dirty persisted outfit-zero row. Do not
+fabricate one or conflate the two transmog table families.
+The equipment/legacy-transmog SQL projection is authored in private
+`create/equipment_sets.rs`, with an explicit ordered-map input and no default
+constructor or Debug exposure of names/icons. Its six cases cover the four
+states and both kinds, all 26/27 parameters, 19 item/appearance slots, both
+enchants, optional signed specialization, value-GUID versus map-key identity,
+delete scope and placement after progress/before cache. Both tables are now
+in the InnoDB guard (46 tables at that handoff). Canonical set-ID allocation, dirty-state
+acknowledgement/erasure and actual factory construction remain open; the
+projection does not supply them.
+
+The modern outfit projection has separately verified field types at
+`Entities/Object/Updates/UpdateFields.h:1226–1275`: uint32 situation fields,
+signed int8 slot, uint8 slot options/display types and uint32 appearance,
+enchantment and flags. SQL binds the dirty lookup key, not the object's `Id`,
+and does not persist the outfit-level `SetType` or `Flags` (slot flags are
+saved). Preserve situation/slot vector
+order and the slot → situation → outfit delete order even for missing lookup
+results. The three singular-family tables are InnoDB at
+`characters_database.sql:2075–2140`; their signed DDL columns do not authorize
+changing the C++ unsigned parameter bindings or inventing admission rules.
+The private `create/transmog_outfits.rs` now implements that projection from
+an explicit `BTreeMap<u32, Option<NewTransmogOutfit>>` snapshot. Six authored cases
+cover no-op/missing lookup, exact parent/situation/slot SQL and parameters,
+signed slot bounds, bool values, ordered dirty keys including explicit zero,
+supplied vector order and actual equipment → modern outfit → cache placement.
+It introduces no outfit-zero default or canonical state clearing. Its three
+tables bring the guard to 49; actual construction, identity ownership and
+canonical dirty acknowledgements still require integration and acceptance.
+
+The remaining CharacterDB tail is source-reviewed at
+`Player.cpp:21037–21050,7100–7144,21384–21423,21863–21992` and
+`WorldSession.cpp:960–1010`. After selection cache, tutorial saves are
+changed-only with insert/update selected by the loaded flag; instance
+restrictions skip an empty map and otherwise replace the account's rows in
+source unordered iteration. Both are game-account-owned session state in
+CharacterDB, not new last-played Auth effects. Currency saves first require
+a valid currency-store entry, preserve unordered traversal, narrow the key
+to uint16 and use distinct new/changed parameter orders. CUF profiles process
+all five indexed slots, deleting every absent slot. Player-data element and
+flag dirty sets are ordered; every dirty key deletes before optional nonzero
+insertion, with type-specific SQL nulls. Bank settings always delete the
+owner's rows before vector-indexed inserts. None of these inputs may be
+presumed empty merely because the Player/session constructor is missing.
+Garrison, conditional statistics and mail/pet paths
+also retain their own construction, transaction and save-policy review.
+The session projection is now authored in private `create/session.rs`, using
+required explicit tutorials/restrictions input. Five cases cover the tutorial
+state/loaded matrix, all eight uint32 flags plus account, empty versus
+nonempty restrictions, unique supplied instance order, raw uint64 times and
+actual cache → tutorial → restriction placement. Account comes from the
+reservation-validated character account rather than a second owner field.
+The builder was renamed `append_character_save` with its four test consumers
+and no extra cursor wrapper. Both session tables are now in the 51-table
+guard. Actual session loading, clock conversion, canonical flag acknowledgement
+and exclusion of all cooperating session writers still need integration and
+acceptance; no runtime Session state or Auth recovery capability was added.
+Construction-context review confirms the adapter inputs are not yet wired:
+`CharacterCreator::construct` receives identities, payload, catalog, expansion
+and latency, while the Session's `AccountSnapshot` separately owns tutorial
+values and instance times. That snapshot does not represent tutorial
+loaded/changed flags, and no constructor receives these session projections.
+Do not populate the new mandatory fields with fixture defaults in a production
+factory. Integration must obtain them through the actual source-owned loading
+and flag/clock transitions and pass a narrow construction/save view, without
+giving a factory the whole mutable Session or introducing a second mutable
+account mirror. `CharacterHandler.cpp:992–1016` constructs a detached Player
+with a session relationship; `Player.cpp:166–172` stores that relationship.
+The missing source-owner relationship cannot be replaced by SQL defaults.
+The present raw account loader (`wow-database/src/forever.rs:108–123`) also
+retains instance times without the source loader's clock conversion/expiry
+filter (`WorldSession.cpp:979–991`); its `AccountSnapshot` uses signed times
+and a sorted map. That raw read is not yet the canonical restriction owner
+consumed by this save projection. Resolve loading, clock and iteration policy
+together before connecting a production constructor; do not silently pass the
+raw map through as though that operation had already been ported.
+`Player.h:331–354` confirms currency state `REMOVED` emits no delete here
+(its comment describes zeroing the count); missing currency-store entries
+skip before dirty-state acknowledgement. The uint32 map key narrows only at
+the SQL uint16 setter. `CurrencyDbFlags` is uint8
+(`SharedDefines.h:7285–7298`). CUF booleans come from an actual 27-bit bitset,
+not an unrestricted 32-bit canonical value (`CUFProfile.h:26–60,109–111`);
+its SQL conversion widens that result to uint32. Player-data persistence uses
+the DB2 entry's type/storage index, not the update-field `Type` member
+(`UpdateFields.h:715–720`). Float zero, including negative zero, suppresses
+insertion after delete; this method applies no finite-value sanitizer.
+Missing/unsupported element types also leave only the delete. These lookup
+outcomes must come from canonical data owners rather than SQL inventing them.
+Canonical dirty-key construction is separately anchored at
+`Player.cpp:30702–30724,30780–30798`: element changes enqueue the DB2 element
+ID after typed value conversion, while flag changes enqueue the bitvector word
+offset (`DB2 StorageIndex / PLAYER_DATA_FLAG_VALUE_BITS`), not the flag ID or
+raw DB2 bit offset. That word offset is called `storageIndex` in the save SQL.
+The save DTO's values therefore cannot stand in for those unresolved lookup,
+conversion and bit-setting operations.
+Currency SQL projection is now authored in private `create/currency.rs`, after
+session saves in `append_character_save`. Six cases cover the complete
+state/lookup matrix, exact eight-parameter REPLACE/UPDATE orders, zero writes,
+uint32-to-uint16 key narrowing, widths, unique supplied iteration and actual
+cache/session/currency placement. The mandatory input explicitly freezes
+lookup availability without performing or claiming a real store lookup. Its
+table brings the InnoDB guard to 52. Canonical currency initialization,
+membership validation and acknowledgement remain open. The pre-inventory
+mail source contract is recorded below.
+The CUF projection is now authored in private `create/cuf_profiles.rs` after
+currency. Its required input is exactly five optional profiles, each with 27
+explicit booleans and no default constructor or Debug exposure of names.
+Every slot emits one statement, including all five deletes for absent
+profiles; an allocated empty profile still replaces. Six cases cover those
+policies, mixed slots, all 14 REPLACE fields/types, every boolean bit and the
+all-bits mask, and actual currency → CUF placement. Existing builder tests
+retain their exact expected sequences with the five new deletes; session-only
+tests retain only their own statements. The table brings the guard to 53.
+Canonical construction/loading and actual live profile behavior remain open;
+character-data projection follows.
+The private `create/player_data.rs` now projects required ordered dirty
+element-ID and bitvector-word maps after CUF. Every key deletes before an
+optional nonzero insert; elements use int64/float with the opposite column
+explicitly null, and flag masks retain uint64. Float positive/negative zero
+suppresses insertion; raw nonfinite float binding is not sanitized or claimed
+to be accepted by MariaDB. Seven cases cover empty/missing/zero decisions,
+typed nulls/widths, raw float bits, ascending element then word order and actual
+CUF → elements → flags placement. The two tables bring the guard to 55.
+Lookup outcomes and already-resolved values are frozen inputs; canonical DB2
+lookup/storage resolution, value conversion, bit setting and dirty-set
+acknowledgement still require implementation and acceptance.
+Character-bank SQL projection is now authored in private `create/bank_tabs.rs`
+after character-data. It always deletes the owner's set before inserting each
+supplied vector position, retaining uint8 index narrowing, three non-null
+strings and signed deposit flags. Five cases cover empty deletes, complete
+six-field binding and supplied order, signed flags/empty strings, explicitly
+encoder-only oversized-index narrowing and actual CUF → elements/flags → bank
+placement. Existing builder sequences retain the added unconditional delete.
+Only character-bank settings are represented; account-bank state is a separate
+owner. The table brings the guard to 56. Canonical vector initialization,
+unlocked-tab count and admission remain unimplemented; the explicit fixture
+empty vector is not a production default.
+
+The statistics review has a concrete source anomaly to preserve explicitly
+until that responsibility is implemented: `Player.cpp:21899–21901` binds
+resilience without incrementing the parameter index, then overwrites that
+same parameter with mastery. With the source constants (10 powers, five
+stats, seven schools; `SharedDefines.h:289,324,336`) and 36-column SQL at
+`CharacterDatabase.cpp:705–707`, versatility shifts into the mastery column
+and the last parameter remains the prepared statement's default. Do not
+silently repair this while porting the projection or claim that the nominal
+SQL column names describe what the C++ writer actually sends. Any intentional
+repair needs its own recorded behavior contract and regression evidence.
+The resulting zero-based SQL parameter layout is GUID at 0, max health at 1,
+ten powers at 2–11, five stats at 12–16, seven resistances at 17–23, six raw
+float percentages at 24–29, and three uint32 power values at 30–32. Index 33
+ends as float mastery, 34 as int32 versatility, and 35 as the default boolean
+false (`PreparedStatement.h:31–48`, `.cpp:25–26`). Rust's current
+`PreparedStatement::new` already preallocates that same boolean default per
+placeholder (`wow-database/src/params.rs`); a future statistics encoder should
+bind the final default explicitly to document this source anomaly. Canonical numeric projection also remains
+separate: `Unit.h:784,793,801` returns stat as float, resistance as int32 and
+max health as uint64, while the writer uses uint32 setters. A uint32 DTO alone
+would not prove those source conversions or actual stat initialization.
+The private `create/statistics.rs` now projects required optional statistics
+after Garrison. None explicitly freezes source ineligibility; Some deletes
+and inserts all 36 source parameters, including the overwrite and explicit
+final Bool(false). Five cases cover absent/present-zero state, every array/
+scalar position and type, distinct resilience/mastery/versatility, raw float
+bits and actual bank → Garrison → statistics placement. `character_stats`
+(`characters_database.sql:1937–1975`) brings the InnoDB guard to 62. Canonical
+eligibility/config loading, source numeric conversions and actual stat
+initialization remain open; None is not permission to skip unsupported state.
+
+Garrison and mail tail contracts have concrete source anchors for subsequent
+implementation. `Garrison.cpp:145–225` deletes garrison, blueprints, buildings
+and the source follower/ability join before inserting the root, unordered
+blueprints/plots/followers and each follower's ordered abilities. The last
+delete is specifically `DELETE gfab, gf FROM ... INNER JOIN ... WHERE
+gf.guid = ?` (`CharacterDatabase.cpp:805`), not two unconditional deletes;
+do not broaden its scope during the port. Follower DB IDs are supplied values,
+and ability slots use an incrementing uint8. `_garrison` absence skips this
+entire responsibility; its actual construction cannot be inferred from the
+nullable member alone.
+The private `create/garrison.rs` now projects a required optional Garrison
+snapshot after bank settings. None skips everything; Some always emits the
+four exact source deletes and root insert, then supplied unordered-container
+traversals for blueprints/plots/followers and each follower's ordered abilities.
+Optional plots without packet data emit nothing; ability slots retain uint8
+narrowing. Six cases cover absence versus empty state, exact join-delete
+scope/order, all 3/2/5/11/3 insert fields and widths, optional/supplied order,
+raw time/bool, slot encoding and actual bank → Garrison placement. Its five
+InnoDB tables (`characters_database.sql:924–1037`) bring the guard to 61.
+These frozen values do not implement a site lookup, ability roll, canonical
+Garrison lifecycle or follower allocation; those responsibilities remain open.
+`Player.cpp:21420–21499` runs mail only under `m_mailsUpdated`, before
+customizations. Changed mail updates then deletes removed item links;
+Deleted mail calls the static `Item::DeleteFromDB` for each attachment,
+then the static Azerite and empowered deletions, before deleting mail and
+mail links. Those static paths (`Item.cpp:1180–1209`,
+`AzeriteItem/AzeriteItem.cpp:195–208`,
+`AzeriteItem/AzeriteEmpoweredItem.cpp:103–108`) include gift and all represented
+item-subtype rows; they do not invoke the instance-only stored-loot cleanup.
+Neither source branch inserts new mail here. Canonical mail state/lifetime,
+attachment identities and any pet's separate transaction remain unported.
+The private `create/mail.rs` now projects the required updated flag and deque
+snapshot between fishing and customizations. Unchanged entries emit nothing;
+Changed updates then removes links only, while Deleted runs each attachment's
+eleven deletes before message/link deletes. A narrow `items.rs` operation
+owns those item statements and reuses existing base/subtype SQL constants;
+existing item save bodies are unchanged. Seven cases cover the updated/state
+matrix, all seven update bindings and checked narrowing, actual ordered
+attachment/link parameters, empty/multiple attachment deletion, deque order
+with unique message IDs and actual fishing → mail → customization/BG/inventory
+placement. The three new InnoDB tables bring the guard to 65. Test-only
+`SqlTransaction::params_for_test` borrows existing prepared parameters; it
+does not change executor, transaction or production visibility semantics.
+Canonical ownership, identities, lifetime cleanup and acknowledgement remain
+open; no mail subject/body, new-message creation or account-level bank state
+was added by this projection.
+The mail binding contract is additionally fixed at `Mail.h:87–92,180–220`:
+the source deque (`Player.h:150`) preserves message order; `HasItems()` is
+the attachment vector's nonempty predicate. Changed mail binds uint8 has-items,
+signed int64 expiry/delivery, uint64 money/COD, and `uint32(uint8(checked))`
+before the uint64 message ID. Removed links delete by item GUID only, not
+by message/owner; deleting a message deletes each attachment's eleven base/
+gift/Azerite/empowered rows before mail and mail-link rows. All new mail/gift
+tables are InnoDB at `characters_database.sql:1056–1063,3470–3513`. The save
+operation does not insert new messages or write subject/body, and this
+projection must not invent either responsibility or an ownership proof from
+those globally scoped WHERE clauses.
+Follower DB identity is a separate source sequence:
+`Garrison.cpp:503–506` allocates from
+`GarrisonMgr.cpp:150–158,335–338`, seeded by
+`MAX(character_garrison_followers.dbId)`. It is not a character/item GUID;
+the current creation identity capability does not reserve it. Frozen follower
+IDs in a future projection would not establish canonical allocation or writer
+exclusion for that namespace.
+
+The pet tail also has an explicit durability boundary. `Pet.cpp:451–534`
+checks controlled/player ownership and temporary-unsummoned state, then
+commits a separate aura/spell/history transaction and, for a retained pet,
+another delete/insert pet transaction. `Player::SaveToDB` invokes it before
+the caller commits the parent character transaction. Neither independent
+commit is covered by the current creation journal. Do not silently fold them
+into the parent transaction or call them recoverable from its header marker.
+Before enabling any constructor path that can produce such a pet, establish
+the complete source creation/effect path, namespace reservation, cancellation
+and restart contract for these commits. This holds that future writer while
+the remaining safe projection work continues; absence of a pet cannot be
+inferred merely from the currently missing constructor.
+
+At completed-delivery acceptance, schedule one sequential campaign for the
+affected persistence/database/world/server targets and downstream consumers,
+with one Cargo job and the checkout-local target directory. Include the real
+`forever-world-server` feature configuration, the new regressions, final
+architecture/publication checks and the required isolated DB/restart/client
+scenarios. Record exact tested SHA, commands, exits and the complete measured
+duration; none of that evidence exists for this checkpoint yet.
+
+The required real-database failure matrix is bounded to disposable,
+operator-authorized target-schema fixtures, with no production credentials or
+accounts. Use the pinned base DDL plus the explicit journal migration; a thin
+mock schema cannot prove this contract. Drive barriers on actual connection/
+transaction phases and inspect committed rows from a separate connection:
+
+| Boundary | Required evidence |
+| --- | --- |
+| Admission or constructor cancellation | No character/projection/marker mutation; Auth locks and the physical advisory owner settle before a successor proceeds. |
+| Definite CharacterDB rollback | Every represented group and marker rolls back together; Auth projection is not executed; a fresh admitted operation can proceed. |
+| CharacterDB COMMIT acknowledgement loss | A committed character has a marker and no success packet; a fresh repository detects it before admission; recovery never allocates another character. |
+| Character connection loss while Auth is pending | A second process acquiring the advisory key still waits for the predecessor's Auth account lock; it cannot project from an unsettled predecessor. |
+| Auth rollback or acknowledgement loss | Marker remains; recovery computes the absolute count and recognizes already-applied versus missing projection without incrementing twice. |
+| Cleanup rollback or acknowledgement loss | Both databases' accepted rows remain; an exact pending marker is removed after reconciliation, or an already-empty journal is accepted without replaying a projection. |
+| Recovery interruption/restart | Completed markers stay completed; pending markers remain discoverable; a second recovery run reaches the same final rows. |
+| Conflicting recovery inputs | Wrong realm/version/account, deleted/missing canonical character, timestamp mismatch, malformed Auth row or equal-time/different identity leaves evidence fenced without destructive repair. |
+| Ownership and resource limits | Two processes and pool capacity one prove connection affinity, no hidden pooled reacquisition, bounded GET_LOCK failure, GUID reseeding and retained process-local allocation holes. |
+
+The lock test must inspect the real waiting transaction, not merely a trace
+label. COMMIT-loss cases need a controlled acknowledgement barrier/proxy; an
+arbitrary socket kill does not prove which side of COMMIT was exercised. The
+scope and resource restoration report belong to that authorized live campaign.
+No row above has been executed by the current worktree.
+The database acceptance must also establish the journal/character atomicity,
+all three acknowledgement/cancellation windows, missing/nontransactional schema
+rejection, pending-marker detection by a fresh repository, and actual
+reconciliation/restart behavior. Include a predecessor connection loss while
+Auth remains open, a successor waiting for that transaction, both COMMIT-ACK
+losses, cleanup cancellation, counter reseeding across owners, and unchanged
+legacy transaction classifications/traces. A formatting pass or reservation unit case is
+not that evidence.
+
 ## Selected Linux navigation library candidate — 2026-10-20
 
 Extractor issue 104 supplies the shared Linux V23 package admission API. The
@@ -210,9 +2350,10 @@ statements below retain their historical scope.
 ## Working spell-container build prerequisite
 
 The unpublished creation candidate requires `forever-name-regex`,
-`forever-spell-traversal` and `forever-spell-random` for `forever-world-server`.
-The traversal adapter replays
-only startup keys using the target source's std/Boost container shapes; domain
+`forever-spell-traversal` and `forever-spell-random`; the selected
+`forever-world-server` binary also requires `forever-navigation`, as declared
+by Cargo. The traversal adapter replays numeric startup keys and private
+domain membership histories using the target source's std/Boost shapes; domain
 corrections and raw records remain in Rust. This is an explicit **fresh-startup
 reference-server contract**: Linux x86_64 GNU, GCC 15.2.0, libstdc++ release 15
 headers dated `20260321`, Boost 1.83.0 and non-debug containers. It is not a
@@ -270,7 +2411,7 @@ the affected library/actual-file/final/live evidence:
 python3 tools/wow-test-bot/test_forever_spell_traversal_oracle.py
 python3 tools/wow-test-bot/test_forever_spell_random_oracle.py
 cargo test --locked -p world-server --bin forever-world-server \
-  --features forever-name-regex,forever-spell-traversal,forever-spell-random --timings -- --quiet
+  --features forever-name-regex,forever-spell-traversal,forever-spell-random,forever-navigation --timings -- --quiet
 ```
 
 These commands are **not executed for the working candidate**. The native
@@ -286,7 +2427,9 @@ below retain their dated published-code feature sets.
 ## Native Forever name engine
 
 The name adapter uses `--features forever-name-regex`; the current working
-Forever binary additionally requires the two spell adapters documented above.
+Forever binary additionally requires the two spell adapters documented above
+and `forever-navigation`, as declared by its Cargo required-features. Compiling
+that optional resource capability does not activate navigation or gameplay.
 Its composition adapter uses Boost.Regex 1.83, pinned to official source commit
 `4cbcd3078e6ae10d05124379623a1bf03fcb9350` (tag `boost-1.83.0`). Builds never
 download headers and reject a different commit or modified/untracked include
@@ -296,7 +2439,7 @@ files. Prepare that source separately; do not commit it or client data:
 git clone --branch boost-1.83.0 --depth 1 https://github.com/boostorg/regex.git \
   target/forever-login/boost-regex-1.83
 cargo build --locked -p world-server --bin forever-world-server \
-  --features forever-name-regex,forever-spell-traversal,forever-spell-random --timings
+  --features forever-name-regex,forever-spell-traversal,forever-spell-random,forever-navigation --timings
 ```
 
 If the checkout already exists, inspect its identity instead of overwriting it.

@@ -6,6 +6,7 @@
 mod item_templates;
 mod items;
 mod progression;
+mod service;
 mod skill_tiers;
 mod skills;
 mod starting;
@@ -15,6 +16,9 @@ pub use item_templates::{
     ItemTemplateError, ItemTemplateMetadata, ItemTemplateNumericView, NumericItemTemplates,
 };
 pub use items::{InitialItem, InitialItems};
+pub use service::{
+    CharacterCreator, ConstructedCharacter, CreationFailure, PlayerCreationLifecycle,
+};
 pub use skills::{DefaultSkillRequest, InitialSkillFields, SkillFieldSeed, SkillLookupCounts};
 pub use starting::{StartingConfig, StartingPolicy, StartingValues};
 pub use templates::{CharacterTemplate, CharacterTemplates, TemplateClass};
@@ -85,6 +89,29 @@ struct SupplementarySources {
     items: Vec<ItemOverride>,
     custom_spells: Vec<CustomSpell>,
     cast_spells: Vec<CastSpell>,
+}
+
+/// Ordered birth action request, before AddActionButton admission and before
+/// default specialization selection. Not an admitted action or a SQL save row.
+/// ObjectMgr's constructor narrows the loaded uint16 button/type to uint8.
+/// The caller must first establish actual PlayerInfo(race, class), then execute
+/// AddActionButton validation/mutation; filtering alone establishes neither.
+pub struct InitialAction {
+    button: u8,
+    action: u32,
+    kind: u8,
+}
+
+impl InitialAction {
+    pub fn button(&self) -> u8 {
+        self.button
+    }
+    pub fn action(&self) -> u32 {
+        self.action
+    }
+    pub fn kind(&self) -> u8 {
+        self.kind
+    }
 }
 
 impl WorldSources {
@@ -276,6 +303,24 @@ impl WorldSources {
         level: u8,
     ) -> Result<u32, SourceError> {
         self.progression.base_mana(tables, class, level)
+    }
+
+    /// ObjectMgr.cpp4241–4276/ObjectMgr.h636–643 preparation, retaining request
+    /// order for Player.cpp518–523 AddActionButton before default spec selection.
+    /// Race/class filtering is raw preparation, not PlayerInfo validation or
+    /// action admission. The caller must establish PlayerInfo and run AddActionButton;
+    /// these requests never supply SQL trait/spec defaults.
+    pub fn initial_actions(&self, race: u8, class: u8) -> Vec<InitialAction> {
+        self.remaining
+            .actions
+            .iter()
+            .filter(|action| action.race == race && action.class == class)
+            .map(|action| InitialAction {
+                button: action.button as u8,
+                action: action.action,
+                kind: action.kind as u8,
+            })
+            .collect()
     }
 
     pub fn progression_counts(&self) -> [usize; 2] {

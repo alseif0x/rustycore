@@ -1,7 +1,13 @@
 use super::super::*;
-/// Initialize one loaded-grid creature's default waypoint movement on its
-/// canonical incarnation (C++ `Creature::AddToWorld` → `MotionMaster::Initialize`
-/// → `WaypointMovementGenerator::DoInitialize` with the spawn's `PathId`).
+
+#[cfg(test)]
+#[path = "loaded_grid_tests.rs"]
+mod tests;
+
+/// Initialize the represented loaded-grid creature's default waypoint movement
+/// on its canonical incarnation. C++ `Creature::AddToWorld` reaches
+/// `MotionMaster::AddToWorld`/`DirectInitialize`; this adapter explicitly
+/// resolves the spawn's `PathId` for the represented waypoint initialization.
 ///
 /// #1263 F6-8D3b-2: this used to happen only on the legacy compatibility copy
 /// the canonical→legacy mirror built for every loaded-grid creature; the mirror
@@ -28,11 +34,11 @@ pub(crate) fn initialize_loaded_grid_creature_default_motion_like_cpp(
 pub(crate) fn initialize_loaded_grid_primary_records_default_motion_like_cpp(
     map: &mut wow_map::ManagedMapInnerLikeCpp,
     waypoint_paths: &spawn_store_loader::WaypointPathStoreLikeCpp,
-    records: &[wow_entities::MapObjectRecord],
+    records: &[wow_map::map::LoadedGridObjectFacts],
 ) -> usize {
     records
         .iter()
-        .filter_map(|record| record.creature().map(wow_entities::Creature::guid))
+        .filter_map(|record| record.typed_creature_guid())
         .filter(|guid| {
             map.get_typed_creature_mut(*guid).is_some_and(|creature| {
                 initialize_loaded_grid_creature_default_motion_like_cpp(creature, waypoint_paths)

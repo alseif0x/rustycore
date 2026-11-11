@@ -97,14 +97,33 @@ impl WorldSources {
         // representability rather than infer a negative maximum on corrupt GT.
         let mana_maximum =
             i32::try_from(base_mana).map_err(|_| SourceError::InvalidGameTableValue)?;
-        let armor = stats[1].checked_mul(2).ok_or(SourceError::StatsOverflow)?;
+        // SetCreateStat stores float BASE_VALUE before GetCreateStat(AGILITY)*2.
+        // Preserve that rounding without changing the signed current stat fields.
+        let armor = (stats[1] as f32) * 2.0;
+        // C++ float-to-int32 outside this domain is undefined. This rejection is
+        // a bounded guard, not a claim that the native implementation returns an error.
+        if !armor.is_finite() || armor < -2_147_483_648.0 || armor >= 2_147_483_648.0 {
+            return Err(SourceError::StatsOverflow);
+        }
+        let armor = armor as i32;
         // Missing HpPerSta row has a pinned fallback of TEN, not unknown zero.
         let ratio = tables
             .hp_per_sta(u32::from(level))
             .map_or(10.0, |row| row.health);
         let health = u64::from(unsigned(stats[2] as f32 * ratio)?.max(1));
         let next_level_xp = self.experience_for_level(level);
-        let experience = if next_level_xp == 0 { u32::MAX } else { 0 };
+        // XP/NextLevelXP are signed int32 fields. Preserve their raw bits and
+        // compare initial XP=0 against signed NextLevelXP, not uint32 saturation.
+        let signed_next = next_level_xp as i32;
+        let experience = if 0 >= signed_next {
+            // INT32_MIN - 1 is undefined in the reference C++; reject this
+            // unproven metadata boundary rather than invent native wrapping.
+            signed_next
+                .checked_sub(1)
+                .ok_or(SourceError::StatsOverflow)? as u32
+        } else {
+            0
+        };
         let mut powers = Vec::new();
         for (index, kind) in initialization
             .class_power_types(u32::from(class))

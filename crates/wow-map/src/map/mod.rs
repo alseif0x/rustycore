@@ -13,6 +13,7 @@
 mod entity_world;
 mod game_object;
 mod lent_creature;
+mod loaded_grid;
 mod object_update_selection;
 mod pet_combat;
 mod relocation;
@@ -35,6 +36,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use self::entity_world::EntityWorld;
 pub use self::lent_creature::{LentCreatureOriginLikeCpp, LentCreatureReturnLikeCpp};
+pub use self::loaded_grid::{LoadedGridObjectFacts, LoadedGridRespawnRecordsLikeCpp};
 pub use self::pet_combat::MapPetCombatStopOutcomeLikeCpp;
 pub use self::runtime::{
     MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
@@ -1629,7 +1631,7 @@ pub struct SpawnGroupSpawnOutcomeLikeCpp {
     pub blocked_loaded_grid_gameobject_loads: usize,
     pub unsupported_spawn_types: usize,
     pub load_plans: Vec<SpawnGroupSpawnLoadPlanLikeCpp>,
-    pub loaded_grid_primary_records: Vec<MapObjectRecord>,
+    pub loaded_grid_primary_records: Vec<LoadedGridObjectFacts>,
     pub applied_active_change: Option<SpawnGroupActiveChange>,
 }
 
@@ -1667,21 +1669,6 @@ pub struct SpawnGroupConditionUpdateOutcomeLikeCpp {
     pub spawn_outcome: Option<SpawnGroupSpawnOutcomeLikeCpp>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct LoadedGridRespawnRecordsLikeCpp {
-    pub pre_add_records: Vec<MapObjectRecord>,
-    pub primary_record: MapObjectRecord,
-}
-
-impl LoadedGridRespawnRecordsLikeCpp {
-    pub fn primary_only(primary_record: MapObjectRecord) -> Self {
-        Self {
-            pre_add_records: Vec::new(),
-            primary_record,
-        }
-    }
-}
-
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct LoadedGridAreaTriggerRecordsSummaryLikeCpp {
     pub grid_not_loaded: bool,
@@ -1692,7 +1679,7 @@ pub struct LoadedGridAreaTriggerRecordsSummaryLikeCpp {
     pub skipped_difficulty_mismatch: usize,
     pub load_record_missing: usize,
     pub pre_add_records_added: usize,
-    pub loaded_grid_primary_records: Vec<MapObjectRecord>,
+    pub loaded_grid_primary_records: Vec<LoadedGridObjectFacts>,
     pub add_to_map_errors: usize,
 }
 
@@ -1736,7 +1723,7 @@ pub struct ProcessRespawnsSafeSideEffectsSummaryLikeCpp {
     /// therefore stays removed and pool state is not reverted even when Rust
     /// `AddToMap` rejects it.
     pub blocked_loaded_grid_respawn_add_to_map: usize,
-    pub loaded_grid_primary_records: Vec<MapObjectRecord>,
+    pub loaded_grid_primary_records: Vec<LoadedGridObjectFacts>,
     /// Legacy compatibility counter for the pre-#390 seam where any pooled timer
     /// blocked `ProcessRespawns`. New pooled-timer planner errors are reported in
     /// `blocked_pool_plan_errors`; successful pooled timers increment
@@ -3983,7 +3970,7 @@ pub struct RemoveFromMapVisibilityOnDestroyOutcomeLikeCpp {
     pub update_object_visibility_on_destroy_runtime_gap: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct RemoveFromMapOutcome {
     pub guid: ObjectGuid,
     pub cell: CellCoord,

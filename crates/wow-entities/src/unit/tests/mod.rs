@@ -11,6 +11,7 @@ use crate::{
 };
 
 mod health_aura_state;
+mod power_type;
 mod scenarios_1;
 mod scenarios_2;
 mod scenarios_3;

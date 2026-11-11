@@ -33,6 +33,19 @@ mod vehicle;
 mod world_object;
 
 pub use character_rules::represented_character_rename_name_result_like_cpp;
+pub use player::ItemStorageView;
+pub use player::{
+    AddPlayerSpell, CastOverrideAura, CastSpellAuras, CastSpellError, CastSpellResult,
+    LearnPlayerSpell, PLAYER_MAX_SKILLS, PlayerSkills, PlayerSpellBook, PlayerSpellEntry,
+    PlayerSpellState, PlayerSpellTrait, ProfessionItemMove, RemovePlayerSpell,
+    SkillAbilityMetadata, SkillBonusError, SkillCatalog, SkillCriteria, SkillFields,
+    SkillLineMetadata, SkillRaceClassMetadata, SkillRewardSpellMetadata, SkillSetEffects,
+    SkillSetError, SkillSetOutcome, SkillSetSource, SkillStatusEntry, SkillStatusOrderError,
+    SkillUpdate, SkillUpdateState, SpellBookDefinition, SpellBookEffect, SpellBookMessage,
+    SpellBookMutation, SpellBookOrderError, SpellDefinitionSource, SpellLearnCriterion,
+    SpellLearningAbility, SpellLearningEffects, SpellLearningError, SpellLearningNode,
+    SpellLearningRank, SpellLearningSkill, SpellLearningSource, SpellLearningSourceError,
+};
 pub use player::{
     QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp, is_buyback_slot,
 };
