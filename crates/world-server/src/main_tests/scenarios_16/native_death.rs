@@ -342,6 +342,41 @@ fn creature_attacker_state_packet(packet_bytes: &[u8], creature: ObjectGuid) -> 
     packet.read_packed_guid().unwrap() == creature
 }
 
+fn decode_attacker_state_update_prefix_like_cpp(
+    packet_bytes: &[u8],
+) -> Option<(u32, ObjectGuid, ObjectGuid, i32)> {
+    let mut packet = wow_packet::WorldPacket::from_bytes(packet_bytes);
+    if packet.server_opcode() != Some(ServerOpcodes::AttackerStateUpdate) {
+        return None;
+    }
+    packet.skip_opcode();
+    let _log_data = packet.read_uint8().ok()?;
+    let round_size = packet.read_uint32().ok()? as usize;
+    let round_info_bytes = packet.read_bytes(round_size).ok()?;
+    let mut round_info = wow_packet::WorldPacket::from_bytes(&round_info_bytes);
+    Some((
+        round_info.read_uint32().ok()?,
+        round_info.read_packed_guid().ok()?,
+        round_info.read_packed_guid().ok()?,
+        round_info.read_int32().ok()?,
+    ))
+}
+
+fn creature_attacker_state_metadata(
+    packets: &[Vec<u8>],
+    creature: ObjectGuid,
+) -> Vec<(usize, ObjectGuid, ObjectGuid, u32, i32)> {
+    packets
+        .iter()
+        .enumerate()
+        .filter_map(|(index, packet)| {
+            let (hit_info, attacker, victim, damage) =
+                decode_attacker_state_update_prefix_like_cpp(packet)?;
+            (attacker == creature).then_some((index, attacker, victim, hit_info, damage))
+        })
+        .collect()
+}
+
 fn health_update_packet(packet_bytes: &[u8], player: ObjectGuid, health: i64) -> bool {
     let mut packet = wow_packet::WorldPacket::from_bytes(packet_bytes);
     if packet.server_opcode() != Some(ServerOpcodes::HealthUpdate) {
@@ -413,6 +448,7 @@ fn install_aura_lifetime_human_race(session: &mut wow_world::session::WorldSessi
 
 #[tokio::test]
 async fn secondary_split_deaths_finish_before_each_log_and_primary_hit() {
+    use wow_constants::CreatureFlagsExtra;
     let _tracing = tracing::subscriber::set_default(
         tracing_subscriber::fmt()
             .with_test_writer()
@@ -421,9 +457,17 @@ async fn secondary_split_deaths_finish_before_each_log_and_primary_hit() {
     );
     const SPLIT_ONE: i32 = 96_481;
     const SPLIT_TWO: i32 = 96_482;
+    const NORMAL_HIT: i32 = 96_483;
+    // A fixed 10,000 damage range still permits random misses and critical hits.
+    // These existing aura and template inputs select a normal swing so this
+    // fixture measures split-death/log/primary-hit ordering.
     let split = wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT;
-    let (spell_store, spell_class_options_store) =
-        damage_aura_spell_catalog(&[(SPLIT_ONE, split, 50), (SPLIT_TWO, split, 50)]);
+    let hit_chance = wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE;
+    let (spell_store, spell_class_options_store) = damage_aura_spell_catalog(&[
+        (SPLIT_ONE, split, 50),
+        (SPLIT_TWO, split, 50),
+        (NORMAL_HIT, hit_chance, 100),
+    ]);
     let (world, mut primary_session, primary_send, _peer, primary) =
         native_map_fixture(96_510).await;
     attach_test_spell_catalog(
@@ -458,6 +502,23 @@ async fn secondary_split_deaths_finish_before_each_log_and_primary_hit() {
     set_player_health(&world, secondary_two, 1);
     install_player_damage_aura(&world, primary, secondary_one, 10, SPLIT_ONE, split, 50);
     install_player_damage_aura(&world, primary, secondary_two, 11, SPLIT_TWO, split, 50);
+    install_player_damage_aura(&world, primary, primary, 12, NORMAL_HIT, hit_chance, 100);
+    {
+        let mut manager = world.canonical.lock().unwrap();
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        let attacker = map.get_typed_creature_mut(world.creature).unwrap();
+        let flags = attacker.lifecycle_metadata().flags_extra
+            | (CreatureFlagsExtra::NO_CRIT | CreatureFlagsExtra::NO_CRUSHING_BLOWS).bits();
+        attacker.set_flags_extra_runtime_like_cpp(flags);
+        let stats = map
+            .get_typed_player(primary)
+            .unwrap()
+            .effective_combat_stats_like_cpp();
+        assert_eq!(
+            (stats.dodge_pct, stats.parry_pct, stats.block_pct),
+            (0.0, 0.0, 0.0)
+        );
+    }
     primary_session.refresh_visibility_for_test_like_cpp().await;
     assert!(primary_session.client_sees_guid_for_test_like_cpp(secondary_one));
     assert!(primary_session.client_sees_guid_for_test_like_cpp(secondary_two));
@@ -514,12 +575,17 @@ async fn secondary_split_deaths_finish_before_each_log_and_primary_hit() {
         ));
         assert_eq!(state.3, None, "the exact native operation was acknowledged");
     }
-    assert_eq!(player_state(&world, primary).0, 47_500);
     let split_logs = primary_packets
         .iter()
         .enumerate()
         .filter_map(|(index, packet)| split_damage_log_target(packet).map(|target| (index, target)))
         .collect::<Vec<_>>();
+    assert_eq!(
+        player_state(&world, primary).0,
+        47_500,
+        "creature updates (index, attacker, victim, hit_info, damage)={:?}; split logs={split_logs:?}",
+        creature_attacker_state_metadata(&primary_packets, world.creature),
+    );
     assert_eq!(
         split_logs
             .iter()
@@ -532,7 +598,11 @@ async fn secondary_split_deaths_finish_before_each_log_and_primary_hit() {
         .iter()
         .position(|packet| creature_attacker_state_packet(packet, world.creature))
         .expect("primary AttackerStateUpdate follows all split bodies and logs");
-    assert!(split_logs.iter().all(|(index, _)| *index < attacker_state));
+    assert!(
+        split_logs.iter().all(|(index, _)| *index < attacker_state),
+        "split logs must precede the selected creature attacker-state packet; updates (index, attacker, victim, hit_info, damage)={:?}; split logs={split_logs:?}",
+        creature_attacker_state_metadata(&primary_packets, world.creature),
+    );
     for (guid, packets) in [
         (secondary_one, &secondary_one_packets),
         (secondary_two, &secondary_two_packets),

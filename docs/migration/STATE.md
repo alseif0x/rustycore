@@ -64,6 +64,37 @@ for the complete batch lifetime. The pure planning fixtures retain private
 recorders. This is test isolation only; production tracing and all SQL/assertions
 remain unchanged, and publication acceptance is still pending.
 
+At c5ece0ba5 the Database suite passed (631 passed, nine ignored), including
+the recording guards, and the remaining final checks passed except the existing
+native split-death ordering fixture. A diagnostic reproduced a zero-damage MISS
+packet at index 1, split logs at indices 2/3, and the normal 2,500-damage primary
+packet at index 4: the original selector picked the earlier miss. Production
+ordering was correct in that witness. The fixture now requests a normal swing
+using its existing hit-chance aura and creature no-crit/no-crushing flags, asserts
+zero avoidance, and retains the original selector, damage and ordering checks.
+Packet-prefix diagnostics are test-only; no gameplay implementation is changed.
+The first fixture repair failed to compile because it used the wrong flag owner;
+the correction uses the existing lifecycle getter and runtime setter. That failed
+attempt executed no tests and is not acceptance evidence. Corrected coding
+feedback passed one exact case and 100/100 direct binary repetitions, each
+executing one case. The tested fixture SHA256 is
+4dcf42c1e22c18cbde432f79f0e2f76422e332890e93b1e317f854ed17249f7f;
+commands, binary hash and preserved failure witnesses are recorded in
+target/publication-20261111/native-death-diagnostic/fixture-normal-accessor/.
+
+Additional acceptance at c5ece0ba5 passed: the feature-enabled Forever binary
+(110 passed, one ignored), bnet-server binary (134 passed), synthetic source
+container traversal oracle, and C# client-key probe compilation (five existing
+nullable-context warnings, no errors). Logs and exact commands are retained in
+target/publication-20261111/additional-results.json. The fixture-only follow-up
+does not change any of those production inputs; their evidence retains its
+original SHA. No client, service, schema or database operation was performed.
+The c5ece0ba5 final attempt ended 101 after 182.983 seconds. The complete
+publication elapsed time includes host waits and coding/error repair, measured
+separately from acceptance commands. The 853.244-second attempt alone exceeded
+the 600-second acceptance target; a later green rerun cannot erase that overrun.
+Corrected committed-candidate acceptance is pending.
+
 ## Forever character creation resumed — 2026-11-06
 
 The active worktree at `03eb9b532` contains uncommitted login/build-70450 and
