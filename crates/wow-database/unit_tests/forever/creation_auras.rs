@@ -39,7 +39,7 @@ fn empty_aura_projection_deletes_effects_before_parents_with_reserved_guid_scope
         for row in &rows {
             assert_eq!(row.params(), &[SqlParam::U64(guid)]);
         }
-        let mut transaction = SqlTransaction::new();
+        let mut transaction = crate::forever::create::tests::isolated_transaction();
         append(&mut transaction, guid, &[]);
         assert_eq!(
             transaction.sqls_for_test(),
@@ -251,7 +251,7 @@ fn production_builder_orders_actions_then_aura_parents_and_effects_then_skills()
         maximum: 2,
         profession_slot: -1,
     }];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_creation_through_skills(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let start = sqls

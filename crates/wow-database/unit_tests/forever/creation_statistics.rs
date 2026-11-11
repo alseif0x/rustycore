@@ -51,7 +51,7 @@ fn frozen_ineligible_skips_all_sql_but_present_zero_statistics_delete_and_insert
             SqlParam::Bool(false),
         ]
     );
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 17, None);
     assert!(transaction.sqls_for_test().is_empty());
     append(&mut transaction, 17, Some(&data));
@@ -164,7 +164,7 @@ fn character_save_places_statistics_after_bank_and_optional_garrison() {
         followers: Vec::new(),
     });
     character.statistics = Some(zero());
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let bank = sqls

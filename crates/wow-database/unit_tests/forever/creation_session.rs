@@ -138,7 +138,7 @@ fn tutorial_and_restriction_input_matrix_keeps_source_order_and_frozen_tutorial_
                 rows.iter().map(|row| row.sql()).collect::<Vec<_>>(),
                 expected
             );
-            let mut transaction = SqlTransaction::new();
+            let mut transaction = crate::forever::create::tests::isolated_transaction();
             append(&mut transaction, 29, &data);
             assert_eq!(transaction.sqls_for_test(), expected);
             // Snapshot preservation is not canonical loaded/changed-flag acknowledgement.
@@ -173,7 +173,7 @@ fn character_save_places_characterdb_account_session_writes_after_cache() {
             },
         ],
     };
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let cache = super::super::visual_statement(character.guid, &character.visual_items);

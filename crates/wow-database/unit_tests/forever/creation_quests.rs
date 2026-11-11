@@ -256,7 +256,7 @@ fn ordered_status_queue_finishes_before_ordered_reward_queue_regardless_of_inser
                 &[SqlParam::U64(29), SqlParam::U32(quest)]
             );
         }
-        let mut transaction = SqlTransaction::new();
+        let mut transaction = crate::forever::create::tests::isolated_transaction();
         append(&mut transaction, 29, &save);
         assert_eq!(
             transaction.sqls_for_test(),
@@ -288,7 +288,7 @@ fn quest_queues_follow_all_inventory_items_and_precede_spells_in_the_production_
         dependent: false,
         favorite: false,
     }];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_creation_prefix(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let inventory: Vec<_> = sqls

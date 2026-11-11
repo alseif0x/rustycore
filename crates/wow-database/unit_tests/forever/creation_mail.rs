@@ -44,7 +44,7 @@ fn frozen_updated_gate_skips_every_state_and_unchanged_never_emits_sql() {
             NewMailSaveEntry::Unchanged,
         ],
     };
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, &data);
     assert!(transaction.sqls_for_test().is_empty());
     let unchanged = NewMailSave {
@@ -123,7 +123,7 @@ fn changed_removals_delete_only_links_in_supplied_order_without_item_deletion() 
         updated: true,
         messages: vec![changed(vec![17], vec![90, 2, 7])],
     };
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, &data);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -177,7 +177,7 @@ fn deleted_mail_empty_has_two_rows_and_each_attachment_has_all_eleven_before_mes
                 items: attachments,
             }],
         };
-        let mut transaction = SqlTransaction::new();
+        let mut transaction = crate::forever::create::tests::isolated_transaction();
         append(&mut transaction, &data);
         let mut expected = Vec::new();
         for _ in 0..count {
@@ -221,7 +221,7 @@ fn mixed_deque_order_keeps_changed_links_deleted_attachments_and_later_updates_t
             final_message,
         ],
     };
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, &data);
     let mut expected = vec![UPDATE, LINK_DELETE];
     expected.extend(attachment_sqls());
@@ -246,7 +246,7 @@ fn production_prefix_places_fishing_then_mail_then_customizations_battleground_a
         choice: 2,
     }];
     character.items = vec![super::super::items::tests::item()];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_and_inventory(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let fishing = sqls

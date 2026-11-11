@@ -246,7 +246,7 @@ fn trait_change_vector_order_is_retained_without_sorting_dirty_keys_or_config_id
     for (row, id) in rows.iter().zip([90, 90, -10, -10, -10, 30, 30, 100, 100]) {
         assert_eq!(&row.params()[..2], &[SqlParam::U64(31), SqlParam::I32(id)]);
     }
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 31, &changes);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -280,7 +280,7 @@ fn production_prefix_places_trait_changes_after_all_pvp_rows_and_before_spells()
         dependent: false,
         favorite: false,
     }];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_creation_prefix(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let start = sqls

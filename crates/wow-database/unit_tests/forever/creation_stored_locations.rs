@@ -132,7 +132,7 @@ fn unordered_projection_order_and_guid_scope_preserve_frozen_snapshot_states() {
     for row in &rows {
         assert_eq!(row.params()[0], SqlParam::U64(31));
     }
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 31, &locations);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -177,7 +177,7 @@ fn production_builder_orders_skills_then_stored_locations_then_equipment_cache()
             state: NewStoredAuraLocationState::Deleted,
         },
     ];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let cache = super::super::visual_statement(character.guid, &character.visual_items);

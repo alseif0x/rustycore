@@ -13,7 +13,7 @@ fn empty() -> NewPlayerDataSave {
 fn empty_dirty_maps_emit_nothing() {
     let data = empty();
     assert_eq!(statements(17, &data).count(), 0);
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 17, &data);
     assert!(transaction.sqls_for_test().is_empty());
 }
@@ -176,7 +176,7 @@ fn character_save_places_player_data_elements_then_flags_immediately_after_five_
         elements: BTreeMap::from([(90, Some(NewPlayerDataValue::Int64(-7)))]),
         flags: BTreeMap::from([(2, 5)]),
     };
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let cuf = sqls

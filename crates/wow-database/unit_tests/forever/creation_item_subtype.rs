@@ -257,7 +257,7 @@ fn creation_item_mixed_subtypes_save_after_inventory_and_before_each_base_row() 
     let items = [azerite_item, base_item, empowered_item];
     assert_eq!(super::super::validate(&items), Ok(()));
 
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append(&mut transaction, 41, &items);
     assert_eq!(
         transaction.sqls_for_test(),

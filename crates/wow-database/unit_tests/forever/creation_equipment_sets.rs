@@ -269,7 +269,7 @@ fn ordered_map_keys_control_iteration_but_value_guids_control_all_sql_identity()
         "DELETE FROM character_equipmentsets WHERE setguid=?"
     );
     assert_eq!(rows[2].params(), &[SqlParam::U64(11)]);
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 29, &sets);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -295,7 +295,7 @@ fn existing_through_cache_orders_progress_then_saved_sets_then_visual_cache() {
     let mut deleted = saved_set(true, NewSavedSetState::Deleted);
     deleted.guid = 888;
     character.equipment_sets.insert(7, deleted);
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let start = sqls

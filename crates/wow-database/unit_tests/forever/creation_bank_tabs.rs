@@ -22,7 +22,7 @@ fn empty_tabs_always_delete_only_the_character_owner() {
             "DELETE FROM character_bank_tab_settings WHERE characterGuid = ?"
         );
         assert_eq!(rows[0].params(), &[SqlParam::U64(guid)]);
-        let mut transaction = SqlTransaction::new();
+        let mut transaction = crate::forever::create::tests::isolated_transaction();
         append(&mut transaction, guid, &[]);
         assert_eq!(transaction.sqls_for_test(), [DELETE]);
     }
@@ -109,7 +109,7 @@ fn character_save_places_bank_delete_and_tabs_after_cuf_elements_and_flag_words(
         flags: BTreeMap::from([(2, 5)]),
     };
     character.bank_tabs = vec![tab("Raid", "INV_Sword_01", "Réserve", 3)];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let cuf = sqls

@@ -42,7 +42,7 @@ fn empty_specializations_always_emit_three_deletes_and_five_zero_pvp_rows() {
                 ]
             );
         }
-        let mut transaction = SqlTransaction::new();
+        let mut transaction = crate::forever::create::tests::isolated_transaction();
         append(&mut transaction, guid, &data);
         assert_eq!(
             transaction.sqls_for_test(),
@@ -171,7 +171,7 @@ fn production_prefix_places_glyphs_normal_and_pvp_talents_after_quests_before_sp
         dependent: false,
         favorite: false,
     }];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_creation_prefix(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let start = sqls

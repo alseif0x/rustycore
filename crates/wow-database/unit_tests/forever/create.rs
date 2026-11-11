@@ -12,6 +12,13 @@ use wow_persistence::forever::creation::save::{
     NewVisualItem,
 };
 
+pub(super) fn isolated_transaction() -> SqlTransaction {
+    SqlTransaction::new().with_trace(
+        crate::persistence_trace::PersistenceRecorder::new(),
+        crate::persistence_trace::LogicalDatabase::Character,
+    )
+}
+
 #[test]
 fn action_save_keeps_full_action_width_and_the_selected_trait_configuration() {
     let statement = action_statement(
@@ -39,7 +46,7 @@ fn action_save_keeps_full_action_width_and_the_selected_trait_configuration() {
 
 #[test]
 fn customizations_delete_even_when_empty_then_insert_choices_in_source_order() {
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = isolated_transaction();
     append_customizations(&mut transaction, 17, &[]);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -60,7 +67,7 @@ fn customizations_delete_even_when_empty_then_insert_choices_in_source_order() {
             choice: 202,
         },
     ];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = isolated_transaction();
     append_customizations(&mut transaction, 19, &customizations);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -88,7 +95,7 @@ fn customizations_delete_even_when_empty_then_insert_choices_in_source_order() {
 fn every_spell_deletes_favorite_after_optional_spell_insert_and_before_optional_favorite_insert() {
     for dependent in [false, true] {
         for favorite in [false, true] {
-            let mut transaction = SqlTransaction::new();
+            let mut transaction = isolated_transaction();
             append_spells(
                 &mut transaction,
                 17,
@@ -172,7 +179,7 @@ fn multiple_spells_keep_each_favorite_delete_scoped_and_ordered_with_its_spell()
             favorite: true,
         },
     ];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = isolated_transaction();
     append_spells(&mut transaction, 29, &spells);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -525,7 +532,7 @@ fn equipment_cache_preserves_first_and_last_slot_bindings_and_signed_appearance(
     assert_eq!(statement.params()[152], SqlParam::U8(7));
     assert_eq!(visual_statement(24, &items).params()[0], SqlParam::U64(24));
 
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = isolated_transaction();
     append_visual_cache(&mut transaction, 23, &items);
     assert_eq!(
         transaction.sqls_for_test(),

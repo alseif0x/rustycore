@@ -41,6 +41,20 @@ visibility unchanged. The recorded host wait was 3,088.14 seconds; the attempted
 campaign itself ran 295.34 seconds. Those costs and the earlier failed campaign
 remain separate recorded attempts, not a green ten-minute acceptance result.
 
+At 4dd0ccd81 the full workspace/all-target check passed. The complete selected
+library suites and contract checker reported 10,632 passing cases and six
+Database failures: five legacy SQL contrasts were incorrectly pointed at the
+sparse Forever reference, and one ambient recording test received events from
+the new parallel SQL fixtures. The corrected setup uses CI's legacy reference
+92796557f9b0ba3d2d1c7c770f535153154cf83e with both published CI SHA256 checks;
+Forever source evidence remains separately pinned at 02245dcd. The 49 new
+creation-fixture constructors now use one private helper with their own recorder;
+all SQL, parameters, assertions, identities and production tracing stay unchanged.
+The QA-bot check also required missing OpenSSL development headers; these are
+prepared privately from the package matching the installed runtime, without a
+system package change. That campaign ended 101 after 853.244 seconds, exceeding
+the 600-second target. A corrected committed-candidate campaign remains required.
+
 ## Forever character creation resumed — 2026-11-06
 
 The active worktree at `03eb9b532` contains uncommitted login/build-70450 and

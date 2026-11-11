@@ -23,7 +23,7 @@ fn empty_spell_history_always_deletes_cooldowns_then_charges_with_guid_scope() {
         for row in &rows {
             assert_eq!(row.params(), &[SqlParam::U64(guid)]);
         }
-        let mut transaction = SqlTransaction::new();
+        let mut transaction = crate::forever::create::tests::isolated_transaction();
         append(&mut transaction, guid, &history);
         assert_eq!(
             transaction.sqls_for_test(),
@@ -240,7 +240,7 @@ fn production_builder_places_history_after_traits_and_spells_before_actions() {
         action: 42,
         kind: 0,
     }];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_creation_through_actions(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let start = sqls

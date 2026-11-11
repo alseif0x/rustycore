@@ -50,7 +50,7 @@ fn absent_skips_everything_but_present_empty_deletes_four_groups_then_inserts_ro
         rows[4].params(),
         &[SqlParam::U64(17), SqlParam::U32(7), SqlParam::U32(3)]
     );
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 17, None);
     assert!(transaction.sqls_for_test().is_empty());
     append(&mut transaction, 17, Some(&data));
@@ -277,7 +277,7 @@ fn character_save_places_optional_garrison_immediately_after_bank_tabs() {
         },
     ];
     character.garrison = Some(empty());
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let bank = sqls

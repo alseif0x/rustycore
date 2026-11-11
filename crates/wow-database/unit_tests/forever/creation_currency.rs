@@ -173,7 +173,7 @@ fn unique_source_ids_keep_supplied_order_and_frozen_currency_states() {
         &rows[2].params()[..2],
         &[SqlParam::U64(31), SqlParam::U16(7)]
     );
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 31, &data);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -199,7 +199,7 @@ fn character_save_places_currency_after_cache_and_account_session_saves() {
         release_time: 0,
     }];
     character.currencies = vec![currency(17, NewCurrencySaveState::New)];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let cache = super::super::visual_statement(character.guid, &character.visual_items);

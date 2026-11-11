@@ -179,7 +179,7 @@ fn zero_items_dangling_references_self_references_and_cycles_fail_before_binding
 fn inventory_primary_and_all_base_group_deletes_keep_the_source_order() {
     let items = [item()];
     assert_eq!(validate(&items), Ok(()));
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 41, &items);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -225,7 +225,7 @@ fn multiple_items_keep_each_inventory_primary_and_auxiliary_group_before_the_nex
     let items = [first, second];
     assert_eq!(validate(&items), Ok(()));
 
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 41, &items);
     assert_eq!(
         transaction.sqls_for_test(),

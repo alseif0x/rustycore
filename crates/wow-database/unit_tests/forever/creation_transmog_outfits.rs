@@ -193,7 +193,7 @@ fn dirty_keys_are_ascending_including_explicit_zero_without_clearing_frozen_snap
         assert_eq!(rows[index].sql(), OUTFIT_INSERT);
         assert_eq!(rows[index].params()[2], SqlParam::String(name.into()));
     }
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(&mut transaction, 37, &data);
     assert_eq!(
         transaction.sqls_for_test(),
@@ -228,7 +228,7 @@ fn existing_through_cache_orders_equipment_then_modern_outfits_then_visual_cache
     present.slots = vec![slot(0)];
     character.transmog_outfits.insert(7, Some(present));
     character.transmog_outfits.insert(9, None);
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let equipment = sqls

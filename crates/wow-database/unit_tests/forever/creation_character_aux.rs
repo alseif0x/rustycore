@@ -12,7 +12,7 @@ fn fishing_primary_customizations_battleground_and_inventory_keep_source_order()
             choice: 22,
         }];
         character.items = vec![super::super::items::tests::item()];
-        let mut transaction = SqlTransaction::new();
+        let mut transaction = crate::forever::create::tests::isolated_transaction();
         super::super::append_character_and_inventory(&mut transaction, character.guid, &character);
         let mut expected = vec![
             "DELETE FROM character_fishingsteps WHERE guid = ?",
@@ -36,7 +36,7 @@ fn fishing_primary_customizations_battleground_and_inventory_keep_source_order()
 
 #[test]
 fn fishing_zero_skips_insert_and_u8_max_widens_to_sql_u32_with_guid_scope() {
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append_fishing(&mut transaction, 17, 0);
     assert!(transaction.is_empty());
     append_fishing(&mut transaction, u64::MAX, u8::MAX);
@@ -62,7 +62,7 @@ fn battleground_initial_snapshot_always_deletes_then_inserts_with_its_guid() {
     // BGData uses TEAM_OTHER and a default WorldLocation, whose invalid map
     // is narrowed to uint16 by _SaveBGData rather than replaced with zero.
     for guid in [17, u64::MAX] {
-        let mut transaction = SqlTransaction::new();
+        let mut transaction = crate::forever::create::tests::isolated_transaction();
         append_battleground(&mut transaction, guid, &character.battleground);
         assert_eq!(
             transaction.sqls_for_test(),

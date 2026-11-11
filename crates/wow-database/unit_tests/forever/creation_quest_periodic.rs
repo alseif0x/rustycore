@@ -223,7 +223,7 @@ fn production_prefix_orders_status_reward_daily_weekly_seasonal_monthly_before_s
         dependent: false,
         favorite: false,
     }];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::super::append_creation_prefix(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let start = sqls

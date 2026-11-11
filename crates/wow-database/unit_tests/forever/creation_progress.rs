@@ -309,7 +309,7 @@ fn entire_writer_orders_progress_groups_and_preserves_frozen_snapshot_flags() {
         let owner_index = usize::from(row.sql() == ACHIEVEMENT_DELETE);
         assert_eq!(row.params()[owner_index], SqlParam::U64(37));
     }
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     append(
         &mut transaction,
         37,
@@ -378,7 +378,7 @@ fn production_through_cache_places_all_progress_groups_after_skills_and_location
         counter: 1,
         date: 3,
     }];
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let cache = super::super::visual_statement(character.guid, &character.visual_items);

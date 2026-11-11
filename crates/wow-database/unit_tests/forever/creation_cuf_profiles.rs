@@ -35,7 +35,7 @@ fn absent_profiles_always_delete_all_five_slots_in_owner_order() {
                 &[SqlParam::U64(guid), SqlParam::U8(index as u8)]
             );
         }
-        let mut transaction = SqlTransaction::new();
+        let mut transaction = crate::forever::create::tests::isolated_transaction();
         append(&mut transaction, guid, &profiles);
         assert_eq!(transaction.sqls_for_test(), vec![DELETE; 5]);
     }
@@ -171,7 +171,7 @@ fn character_save_places_all_five_cuf_slots_immediately_after_currency() {
         flags: 0,
     }];
     character.cuf_profiles[2] = Some(profile("Raid"));
-    let mut transaction = SqlTransaction::new();
+    let mut transaction = crate::forever::create::tests::isolated_transaction();
     super::super::append_character_save(&mut transaction, character.guid, &character);
     let sqls = transaction.sqls_for_test();
     let currency = sqls
