@@ -120,14 +120,18 @@ impl CharacterEnumerationPersistencePortLikeCpp
             // C++ `HandleCharEnumOpcode` runs `CHAR_SEL_ENUM_CUSTOMIZATIONS`
             // after `CHAR_SEL_ENUM` and groups the pairs per GUID; a query
             // failure degrades to the pre-customization list (empty entries).
-            let mut customization_statement = self.character_db.prepare(CharStatements::SEL_ENUM_CUSTOMIZATIONS);
+            let mut customization_statement = self
+                .character_db
+                .prepare(CharStatements::SEL_ENUM_CUSTOMIZATIONS);
             customization_statement.set_u32(0, request.account_id);
-            if let Ok(mut customizations) = self.character_db.query(&customization_statement).await {
+            if let Ok(mut customizations) = self.character_db.query(&customization_statement).await
+            {
                 if !customizations.is_empty() {
                     loop {
                         let guid: u64 = customizations.read(0);
-                        let option_id: i32 = customizations.read(1);
-                        let choice_id: i32 = customizations.read(2);
+                        // columns are INT UNSIGNED; decode as u32 then widen
+                        let option_id = customizations.read::<u32>(1) as i32;
+                        let choice_id = customizations.read::<u32>(2) as i32;
                         if let Some(row) = rows.iter_mut().find(|row| row.guid_low == guid) {
                             row.customizations.push((option_id, choice_id));
                         }
