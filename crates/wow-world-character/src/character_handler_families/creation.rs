@@ -119,6 +119,18 @@ impl CharacterHandlerCxLikeCpp<'_> {
             .unwrap_or_default()
             .as_secs() as i64;
 
+        // C++ `Player::Create` equips the new-character loadout
+        // (`ObjectMgr::LoadPlayerCreateInfo`: CharacterLoadout Purpose == 9)
+        // and the enum reads the resulting visual block back through
+        // `characters.equipmentCache`.
+        let equipment_cache = self
+            .hub
+            .catalogs
+            .character_creation
+            .as_ref()
+            .map(|creation| build_starting_equipment_cache_like_cpp(creation, pkt.race, pkt.class))
+            .unwrap_or_default();
+
         let request = wow_persistence::CharacterCreatePersistenceRequestLikeCpp {
             guid: new_guid_counter as u64,
             account_id: self.hub.shared().core.account_id,
@@ -146,6 +158,7 @@ impl CharacterHandlerCxLikeCpp<'_> {
                     },
                 )
                 .collect(),
+            equipment_cache,
         };
 
         match port.create_character_like_cpp(request).await {
@@ -199,4 +212,80 @@ impl CharacterHandlerCxLikeCpp<'_> {
         )
         .player_stat_system_projection_like_cpp(race, class, level, gear)
     }
+}
+
+/// Equipment-slot resolution mirroring the C++ `InventoryType` auto-equip in
+/// `Player::Create` (head/neck/.../robe/tabard fixed, finger/trinket first
+/// free, weapons main-hand then off-hand).
+fn equip_slot_for_inventory_type_like_cpp(inventory_type: i8, taken: &[bool; 34]) -> Option<u8> {
+    let first_free = |candidates: &[u8]| candidates.iter().copied().find(|s| !taken[*s as usize]);
+    match inventory_type {
+        1 => Some(0),                          // head
+        2 => Some(1),                          // neck
+        3 => Some(2),                          // shoulders
+        4 => Some(3),                          // body (shirt)
+        5 | 21 => Some(4),                     // chest / robe
+        6 => Some(5),                          // waist
+        7 => Some(6),                          // legs
+        8 => Some(7),                          // feet
+        9 => Some(8),                          // wrist
+        10 => Some(9),                         // hands
+        11 => first_free(&[10, 11]),           // finger
+        12 => first_free(&[12, 13]),           // trinket
+        13 | 17 => first_free(&[15, 16]),      // one-hand / two-hand weapon
+        14 | 23 | 26 => first_free(&[16, 15]), // shield / held / off-hand
+        15 | 25 => Some(17),                   // ranged / thrown
+        16 => Some(14),                        // cloak
+        20 => Some(18),                        // tabard
+        _ => None,
+    }
+}
+
+/// Build the 34-slot `equipmentCache` string for the select screen from the
+/// new-character CharacterLoadout chain; slots left empty write zeros.
+fn build_starting_equipment_cache_like_cpp(
+    creation: &wow_world_core::session::CharacterCreationCatalogsLikeCpp,
+    race: u8,
+    class: u8,
+) -> String {
+    let mut taken = [false; 34];
+    // (inv_type, display_id, subclass) per equipment slot
+    let mut visual = [(0u32, 0u32, 0u32); 34];
+
+    for loadout in creation.loadouts.new_character_loadouts_for(race, class) {
+        for item_id in creation.loadout_items.items_for_loadout(loadout.id) {
+            let sparse = creation.item_stats.sparse_template(item_id);
+            let inventory_type = sparse.map(|s| s.inventory_type).unwrap_or(0);
+            let slot = match equip_slot_for_inventory_type_like_cpp(inventory_type, &taken) {
+                Some(slot) => slot,
+                None => continue,
+            };
+            let display_id = creation
+                .modified_appearances
+                .get_default_for_item(item_id)
+                .and_then(|appearance| {
+                    creation
+                        .appearances
+                        .item_display_info_id(appearance.item_appearance_id as u32)
+                })
+                .unwrap_or(0);
+            taken[slot as usize] = true;
+            visual[slot as usize] = (
+                u32::from(inventory_type.unsigned_abs()),
+                display_id,
+                0, // subclass: not in the ItemSparse subset; the reader tolerates 0
+            );
+        }
+    }
+
+    let mut cache = String::new();
+    for slot in 0..34 {
+        if slot > 0 {
+            cache.push(' ');
+        }
+        let (inv_type, display_id, subclass) = visual[slot];
+        // invType displayId enchant subclass secondaryModifiedAppearance
+        cache.push_str(&format!("{inv_type} {display_id} 0 {subclass} 0"));
+    }
+    cache
 }

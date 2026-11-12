@@ -9,6 +9,14 @@ impl WorldSession {
     pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {
         self.catalogs.trainer_store_like_cpp = Some(store);
     }
+    /// C++ `ObjectMgr::LoadPlayerCreateInfo` starting-gear chain for
+    /// `Player::Create`; see `CharacterCreationCatalogsLikeCpp`.
+    pub fn set_character_creation_catalogs_like_cpp(
+        &mut self,
+        catalogs: Arc<crate::session::CharacterCreationCatalogsLikeCpp>,
+    ) {
+        self.catalogs.character_creation = Some(catalogs);
+    }
     pub fn set_trinity_string_store(&mut self, store: Arc<TrinityStringStoreLikeCpp>) {
         self.catalogs.trinity_string_store = Some(store);
     }

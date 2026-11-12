@@ -163,6 +163,18 @@ pub struct ItemValuationCatalogsLikeCpp {
     pub disenchant_loot: Arc<ItemDisenchantLootStore>,
 }
 
+/// C++ `ObjectMgr::LoadPlayerCreateInfo` + `Player::Create` starting-gear
+/// sources: the new-character CharacterLoadout chain (Purpose == 9) and the
+/// item stores needed to resolve inventory type, stack count and the
+/// default-appearance display chain for `equipmentCache`.
+pub struct CharacterCreationCatalogsLikeCpp {
+    pub loadouts: Arc<wow_data::character_progression::CharacterLoadoutStore>,
+    pub loadout_items: Arc<wow_data::character_progression::CharacterLoadoutItemStore>,
+    pub item_stats: Arc<wow_data::item::stats::ItemStatsStore>,
+    pub modified_appearances: Arc<wow_data::item::modified_appearance::ItemModifiedAppearanceStore>,
+    pub appearances: Arc<wow_data::item::appearance::ItemAppearanceStore>,
+}
+
 /// Process-owned player-level and exploration XP catalogs plus immutable World policy.
 ///
 /// C++ resolves these through ObjectMgr world tables and `sWorld` while
