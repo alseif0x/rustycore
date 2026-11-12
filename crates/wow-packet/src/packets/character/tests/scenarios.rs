@@ -16,6 +16,50 @@ fn set_title_reads_cpp_int32_title_id() {
 }
 
 #[test]
+fn enum_characters_result_serializes_customizations_like_cpp() {
+    // C++ `CharacterInfo::Write`: after SexID comes the customization count
+    // followed by {ChrCustomizationOptionID, ChrCustomizationChoiceID} pairs.
+    let character = CharacterInfo {
+        customizations: vec![
+            ChrCustomizationChoice {
+                option_id: 9,
+                choice_id: 17166,
+            },
+            ChrCustomizationChoice {
+                option_id: 10,
+                choice_id: 17179,
+            },
+        ],
+        ..CharacterInfo::default()
+    };
+    let bytes = EnumCharactersResult {
+        success: true,
+        characters: vec![character],
+        race_unlock_data: vec![],
+    }
+    .to_bytes();
+
+    let sequences: [&[u8]; 5] = [
+        &[0x02, 0x00, 0x00, 0x00], // Customizations.Count = 2
+        &[0x09, 0x00, 0x00, 0x00], // option 9
+        &[0x0E, 0x43, 0x00, 0x00], // choice 17166 (0x430E)
+        &[0x0A, 0x00, 0x00, 0x00], // option 10
+        &[0x1B, 0x43, 0x00, 0x00], // choice 17179 (0x431B)
+    ];
+    for (idx, sequence) in sequences.iter().enumerate() {
+        assert_eq!(
+            bytes
+                .windows(sequence.len())
+                .filter(|w| *w == *sequence)
+                .count(),
+            1,
+            "missing sequence idx={idx} in enum bytes, len={}",
+            bytes.len()
+        );
+    }
+}
+
+#[test]
 fn enum_characters_result_empty_list() {
     let pkt_data = EnumCharactersResult {
         success: true,

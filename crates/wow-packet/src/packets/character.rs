@@ -69,6 +69,11 @@ pub struct CharacterInfo {
     pub spec_id: i16,
     pub last_login_version: i32,
     pub override_select_screen_file_data_id: u32,
+    /// `ChrCustomizationChoice` entries for this character. C++
+    /// `CharacterInfo::Write` serializes the count right after `SexID`
+    /// followed by the `{ChrCustomizationOptionID, ChrCustomizationChoiceID}`
+    /// pairs; empty for builds without the modern customization system.
+    pub customizations: Vec<ChrCustomizationChoice>,
 }
 
 impl Default for CharacterInfo {
@@ -100,6 +105,7 @@ impl Default for CharacterInfo {
             spec_id: 0,
             last_login_version: 54261,
             override_select_screen_file_data_id: 0,
+            customizations: Vec::new(),
         }
     }
 }
@@ -165,7 +171,11 @@ impl ServerPacket for EnumCharactersResult {
             pkt.write_uint8(ch.race_id);
             pkt.write_uint8(ch.class_id);
             pkt.write_uint8(ch.sex_id);
-            pkt.write_int32(0); // Customizations.Count (no customizations)
+            pkt.write_int32(ch.customizations.len() as i32);
+            for choice in &ch.customizations {
+                pkt.write_int32(choice.option_id);
+                pkt.write_int32(choice.choice_id);
+            }
 
             pkt.write_uint8(ch.experience_level);
             pkt.write_int32(ch.zone_id);

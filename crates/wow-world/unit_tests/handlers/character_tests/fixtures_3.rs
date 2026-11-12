@@ -888,6 +888,7 @@ pub(super) fn character_enumeration_row_like_cpp() -> CharacterEnumerationRowLik
         active_talent_group: 0,
         last_login_build: 54261,
         declined_genitive: "PortBoundaryGenitive".to_owned(),
+        customizations: Vec::new(),
     }
 }
 
