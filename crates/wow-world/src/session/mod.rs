@@ -144,6 +144,7 @@ pub use catalog_capabilities::{CreatureSpawnCatalogsLikeCpp, ProgressionCatalogs
 pub use catalog_capabilities::{ItemValuationCatalogsLikeCpp, ObjectMgrCatalogsLikeCpp};
 pub use catalog_capabilities::{PlayerBootstrapCatalogsLikeCpp, PlayerRestRatePolicyLikeCpp};
 pub use catalog_capabilities::{SessionHandlerCatalogsLikeCpp, SessionIdGeneratorsLikeCpp};
+pub use wow_world_core::session::CharacterCreationCatalogsLikeCpp;
 pub use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 pub use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 pub use wow_world_social::TradePolicyLikeCpp;

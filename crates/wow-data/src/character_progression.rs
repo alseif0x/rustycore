@@ -370,6 +370,34 @@ impl CharacterLoadoutItemStore {
     }
 }
 
+impl CharacterLoadoutStore {
+    /// C++ `ObjectMgr::LoadPlayerCreateInfo` new-character filter:
+    /// `IsForNewCharacter()` (Purpose == 9, DB2Structure.h:568) + RaceMask
+    /// (bit `1 << (race - 1)`) + ChrClassID.
+    pub fn new_character_loadouts_for(&self, race: u8, class: u8) -> Vec<&CharacterLoadoutEntry> {
+        let race_bit = 1i64 << (i64::from(race) - 1);
+        self.entries
+            .values()
+            .filter(|entry| {
+                entry.purpose == 9
+                    && (entry.race_mask & race_bit) != 0
+                    && entry.chr_class_id == class as i8
+            })
+            .collect()
+    }
+}
+
+impl CharacterLoadoutItemStore {
+    /// Item IDs of one loadout, in store order.
+    pub fn items_for_loadout(&self, loadout_id: u32) -> Vec<u32> {
+        self.entries
+            .values()
+            .filter(|entry| entry.character_loadout_id == loadout_id)
+            .map(|entry| entry.item_id)
+            .collect()
+    }
+}
+
 impl ChrClassUiDisplayStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "ChrClassUIDisplay.db2", |id, idx, r| {
