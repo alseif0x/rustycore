@@ -182,7 +182,24 @@ pub async fn handle_quest_giver_hello<H: QuestHandlerSessionHostLikeCpp>(
             creature_entry = access.entry,
             "QuestGiverHello represented Creature questgiver seam consumed"
         );
+        return;
     }
+
+    // C++ `Player::SendPreparedGossip` (called by `HandleQuestgiverHelloOpcode`)
+    // always ends in `PlayerTalkClass->SendGossipMenu(textId, guid)` when there
+    // is no quest menu to send, even if the gossip menu is empty, so the client
+    // always gets SMSG_GOSSIP_MESSAGE. Without this the hello had no reply at all
+    // for a quest giver with no available quest. Same represented prepared-empty
+    // message as `handle_gossip_hello`'s final fallback (menu 0, text 1); the
+    // creature's own gossip_menu text (C++ `GetGossipTextId`) is not resolved here.
+    debug!(
+        account = host.core().account_id,
+        creature_entry = access.entry,
+        "QuestGiverHello found no quest menu; sending prepared empty gossip like C++"
+    );
+    host.send_packet(&wow_packet::packets::gossip::GossipMessage::empty(
+        guid, 0, 1,
+    ));
 }
 
 /// CMSG_QUEST_GIVER_QUERY_QUEST — player clicks a quest name in the list.
