@@ -171,11 +171,9 @@ impl ServerPacket for EnumCharactersResult {
             pkt.write_uint8(ch.race_id);
             pkt.write_uint8(ch.class_id);
             pkt.write_uint8(ch.sex_id);
+            // C++ `CharacterInfo::Write` (CharacterPackets.cpp): only the COUNT
+            // follows SexID; the pairs come after OverrideSelectScreenFileDataID.
             pkt.write_int32(ch.customizations.len() as i32);
-            for choice in &ch.customizations {
-                pkt.write_int32(choice.option_id);
-                pkt.write_int32(choice.choice_id);
-            }
 
             pkt.write_uint8(ch.experience_level);
             pkt.write_int32(ch.zone_id);
@@ -214,7 +212,12 @@ impl ServerPacket for EnumCharactersResult {
             pkt.write_int32(0); // MailSenderTypes.Count
             pkt.write_uint32(ch.override_select_screen_file_data_id);
 
-            // Customizations array (empty, count=0 above)
+            // Customizations array: {ChrCustomizationOptionID, ChrCustomizationChoiceID}
+            // pairs, here (not after the count) like C++ CharacterInfo::Write.
+            for choice in &ch.customizations {
+                pkt.write_int32(choice.option_id);
+                pkt.write_int32(choice.choice_id);
+            }
             // MailSenderTypes array (empty, count=0 above)
 
             // Bit-packed fields
