@@ -52,6 +52,10 @@ impl QuestHandlerSessionHostLikeCpp for WorldSession {
     ) {
         WorldSession::record_represented_adventure_map_start_quest_like_cpp(self, request)
     }
+    fn close_gossip_like_cpp(&mut self) {
+        let (interaction, hub) = crate::session::split_interaction(self);
+        interaction.send_close_gossip_like_cpp(hub);
+    }
     fn reward_represented_quest_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
