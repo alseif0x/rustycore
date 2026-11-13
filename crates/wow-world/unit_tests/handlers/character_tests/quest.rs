@@ -392,6 +392,31 @@ async fn quest_giver_hello_trainer_questgiver_sends_mixed_gossip_like_cpp() {
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
+async fn quest_giver_hello_without_available_quest_sends_prepared_gossip_like_cpp() {
+    // C++ `HandleQuestgiverHelloOpcode` -> `Player::SendPreparedGossip`: with no
+    // quest menu and no gossip options it still calls `SendGossipMenu`, so the
+    // client always gets SMSG_GOSSIP_MESSAGE (previously: no reply at all).
+    for npc_flags in [
+        NPCFlags1::QUEST_GIVER.bits(),
+        NPCFlags1::GOSSIP.bits() | NPCFlags1::QUEST_GIVER.bits(),
+    ] {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 9296;
+        let guid = creature_guid(entry, 296);
+        session.set_quest_store(Arc::new(store_with_quests(&[])));
+        attach_npc_creature(&mut session, guid, entry, npc_flags);
+
+        wow_world_quest::handle_quest_giver_hello(&mut session, quest_giver_hello_packet(guid))
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::GossipMessage],
+            "npc_flags=0x{npc_flags:X}: a quest giver without quests must still answer"
+        );
+    }
+}
+#[tokio::test]
 async fn quest_giver_hello_plain_questgiver_keeps_direct_quest_open_like_cpp() {
     let (mut session, send_rx) = make_quest_status_session();
     let entry = 9308;
