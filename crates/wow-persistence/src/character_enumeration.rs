@@ -39,6 +39,10 @@ pub struct CharacterEnumerationRowLikeCpp {
     pub active_talent_group: i16,
     pub last_login_build: u32,
     pub declined_genitive: String,
+    /// `(ChrCustomizationOptionID, ChrCustomizationChoiceID)` pairs loaded by
+    /// C++ `CHAR_SEL_ENUM_CUSTOMIZATIONS` and grouped per GUID in
+    /// `HandleCharEnumOpcode`. Empty when the character has none stored.
+    pub customizations: Vec<(i32, i32)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
