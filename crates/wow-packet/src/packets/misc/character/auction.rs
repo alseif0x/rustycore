@@ -36,7 +36,7 @@ impl ClientPacket for AuctionReplicateItems {
     const OPCODE: ClientOpcodes = ClientOpcodes::AuctionReplicateItems;
 
     fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
-        let auctioneer = pkt.read_guid()?;
+        let auctioneer = pkt.read_packed_guid()?;
         let change_number_global = pkt.read_uint32()?;
         let change_number_cursor = pkt.read_uint32()?;
         let change_number_tombstone = pkt.read_uint32()?;
@@ -58,7 +58,10 @@ impl ClientPacket for AuctionReplicateItems {
     }
 }
 
-/// C++ `WorldPackets::AuctionHouse::AuctionRemoveItem`.
+/// C++ `WorldPackets::AuctionHouse::AuctionRemoveItem`. The 3.4.3.54261 client writes
+/// `guid, u32 AuctionID, bit TaintedBy, flush, [AddOnInfo]` (verified in IDA and by a live
+/// capture of 14 bytes); TC's extra `i32 ItemID` is the retail layout and is not on this
+/// client's wire, so `item_id` stays 0.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuctionRemoveItem {
     pub auctioneer: ObjectGuid,
@@ -71,9 +74,9 @@ impl ClientPacket for AuctionRemoveItem {
     const OPCODE: ClientOpcodes = ClientOpcodes::AuctionRemoveItem;
 
     fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
-        let auctioneer = pkt.read_guid()?;
+        let auctioneer = pkt.read_packed_guid()?;
         let auction_id = pkt.read_int32()?;
-        let item_id = pkt.read_int32()?;
+        let item_id = 0;
         let tainted_by = if pkt.read_bit()? {
             Some(AuctionAddonInfo::read(pkt)?)
         } else {
@@ -99,7 +102,7 @@ pub struct AuctionItemForSale {
 impl AuctionItemForSale {
     fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
         Ok(Self {
-            guid: pkt.read_guid()?,
+            guid: pkt.read_packed_guid()?,
             use_count: pkt.read_uint32()?,
         })
     }
@@ -120,7 +123,7 @@ impl ClientPacket for AuctionSellItem {
     const OPCODE: ClientOpcodes = ClientOpcodes::AuctionSellItem;
 
     fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
-        let auctioneer = pkt.read_guid()?;
+        let auctioneer = pkt.read_packed_guid()?;
         let min_bid = pkt.read_uint64()?;
         let buyout_price = pkt.read_uint64()?;
         let runtime = pkt.read_uint32()?;

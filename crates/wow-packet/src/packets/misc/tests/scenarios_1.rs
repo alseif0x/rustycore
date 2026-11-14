@@ -17,11 +17,10 @@ fn auction_hello_response_writes_cpp_layout_without_auction_house_id() {
     assert_eq!(packet.read_packed_guid().expect("auctioneer guid"), guid);
     assert_eq!(packet.read_uint32().expect("purchased delivery delay"), 0);
     assert_eq!(packet.read_uint32().expect("cancelled delivery delay"), 0);
+    // 3.4.3.54261 reads a third u32 (AuctionHouseID) before OpenForBusiness.
+    assert_eq!(packet.read_uint32().expect("auction house id"), 7);
     assert!(packet.read_bit().expect("open for business"));
-    assert!(
-        packet.is_empty(),
-        "C++ AuctionHelloResponse does not serialize AuctionHouseID"
-    );
+    assert!(packet.is_empty());
 }
 
 #[test]
