@@ -7,6 +7,7 @@
 //! Operation booleans request update admission; they do not report value change or
 //! delivery. The bank-flag setter's `Option` separately reports index validity.
 
+use super::quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP;
 use super::{
     ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT,
     ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT, ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
@@ -20,6 +21,25 @@ use super::{
 };
 use crate::UpdateMask;
 use wow_core::ObjectGuid;
+
+pub(super) fn clear_player_data_changes_like_cpp(
+    player_data_changes: &mut UpdateMask,
+    quest_log_change_masks: &mut [u32; MAX_QUEST_LOG_SIZE_LIKE_CPP],
+) {
+    player_data_changes.reset_all();
+    *quest_log_change_masks = [0; MAX_QUEST_LOG_SIZE_LIKE_CPP];
+}
+
+pub(super) fn clear_active_player_data_changes_like_cpp(
+    active_player_data_changes: &mut UpdateMask,
+    active_player_data: &mut ActivePlayerDataValues,
+    rest_info_change_masks: &mut [u8; 2],
+) {
+    active_player_data_changes.reset_all();
+    *rest_info_change_masks = [0; 2];
+    let self_res_spells_mask_len = active_player_data.self_res_spells.len().div_ceil(32);
+    active_player_data.self_res_spells_update_mask = Some(vec![0; self_res_spells_mask_len]);
+}
 
 pub(super) struct InventoryValuesMut<'a> {
     player_data: &'a mut PlayerDataValues,

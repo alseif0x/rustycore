@@ -5,7 +5,7 @@
 
 //! Canonical Player update-field values for the independent native QuestLog.
 
-use super::Player;
+use super::{Player, PlayerDataValues};
 
 pub(super) const MAX_QUEST_LOG_SIZE_LIKE_CPP: usize = 25;
 pub(super) const MAX_QUEST_COUNTS_LIKE_CPP: usize = 24;
@@ -238,16 +238,7 @@ impl Player {
     pub(super) fn quest_log_rows_for_update_like_cpp(
         &self,
     ) -> [QuestLogRowUpdateLikeCpp; MAX_QUEST_LOG_SIZE_LIKE_CPP] {
-        std::array::from_fn(|slot| {
-            QuestLogRowUpdateLikeCpp::new(
-                self.data.quest_log[slot],
-                self.quest_log_change_masks[slot],
-            )
-        })
-    }
-
-    pub(super) fn reset_quest_log_change_masks_like_cpp(&mut self) {
-        self.quest_log_change_masks = [0; MAX_QUEST_LOG_SIZE_LIKE_CPP];
+        quest_log_rows_for_update_like_cpp(&self.data, &self.quest_log_change_masks)
     }
 
     fn mark_quest_log_nested_bits_like_cpp(&mut self, slot: u8, nested_bits: u32) {
@@ -257,6 +248,15 @@ impl Player {
         self.player_data_changes
             .set(QUEST_LOG_FIRST_SLOT_BIT + slot);
     }
+}
+
+pub(super) fn quest_log_rows_for_update_like_cpp(
+    player_data: &PlayerDataValues,
+    quest_log_change_masks: &[u32; MAX_QUEST_LOG_SIZE_LIKE_CPP],
+) -> [QuestLogRowUpdateLikeCpp; MAX_QUEST_LOG_SIZE_LIKE_CPP] {
+    std::array::from_fn(|slot| {
+        QuestLogRowUpdateLikeCpp::new(player_data.quest_log[slot], quest_log_change_masks[slot])
+    })
 }
 
 #[cfg(test)]

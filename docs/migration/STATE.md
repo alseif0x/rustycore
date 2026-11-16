@@ -46,9 +46,16 @@ cases, including one new public validity/mask/queue regression. The eight
 slot/visible/buyback rules also passed the Entity check and four existing
 one-case filters for visible bits, inventory bits, buyback and forced markers.
 They retain guards, integer/GUID widths, value-before-mask order and array bits
-without adding scalar root bits. Nested resets, shared quest/stat projections,
-Unit virtual-item rules, raw aura capture, the detached payload and Core producer
-replacement remain unfinished; committed-candidate acceptance is still pending.
+without adding scalar root bits.
+
+Shared Player/Active resets and quest/stat projectors now retain their actual
+operation order, complete predicate bit sets, cached/filtered Mana index and
+receiver filtering. A new nested regression preserves quest/rest values,
+clears their nested masks, checks both `Some(empty)` and a two-word zero self-
+resurrection mask, and retains an unrelated toy mask. Worker check and six
+nonzero focused cases passed; the added empty branch reran only its affected
+case. Unit virtual-item rules, raw aura capture, the detached payload and Core
+producer replacement remain unfinished; committed-candidate acceptance is pending.
 
 ## Forever publication candidate — 2026-11-11
 

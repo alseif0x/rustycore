@@ -12,6 +12,7 @@
 //! vitals and are therefore not duplicated here.
 
 use super::Player;
+use crate::UpdateMask;
 use wow_constants::PowerType;
 
 const UNIT_DAMAGE_PARENT_BIT: usize = 32;
@@ -780,39 +781,53 @@ impl Player {
             .unit
             .get_power_index(PowerType::Mana)
             .filter(|index| *index < super::MAX_POWERS_PER_CLASS);
-        let unit_mask = self.unit.unit_data_changes_mask();
-        let unit_derived_changed = [
-            52, 53, 54, 55, 76, 81, 82, 83, 84, 85, 86, 87, 88, 91, 92, 175, 176, 177, 178, 179,
-            180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 191, 192, 193, 194, 195, 196, 197,
-        ]
-        .into_iter()
-        .any(|bit| unit_mask.is_set(bit))
-            || mana_power_index.is_some_and(|index| {
-                [
-                    UNIT_POWER_REGEN_FLAT_FIRST_BIT,
-                    UNIT_POWER_REGEN_INTERRUPTED_FIRST_BIT,
-                ]
-                .into_iter()
-                .any(|first_bit| unit_mask.is_set(first_bit + index))
-            });
-        let active_mask = &self.active_player_data_changes;
-        let active_derived_changed = include_active_player
-            && ([
-                36, 37, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 56, 59, 61, 65, 66, 67, 68,
-            ]
-            .into_iter()
-            .any(|bit| active_mask.is_set(bit))
-                || (270..298).any(|bit| active_mask.is_set(bit))
-                || (575..607).any(|bit| active_mask.is_set(bit)));
-
-        (unit_derived_changed || active_derived_changed).then_some(PlayerDerivedStatValuesUpdate {
-            effective_combat_stats: self.effective_combat_stats,
+        derived_stats_values_update_like_cpp(
+            include_active_player,
             mana_power_index,
-        })
+            self.unit.unit_data_changes_mask(),
+            &self.active_player_data_changes,
+            self.effective_combat_stats,
+        )
     }
 
     /// Discard derived stats when the Player lifecycle starts over.
     pub fn clear_effective_combat_stats_like_cpp(&mut self) {
         self.effective_combat_stats = PlayerEffectiveCombatStatsLikeCpp::default();
     }
+}
+
+pub(super) fn derived_stats_values_update_like_cpp(
+    include_active_player: bool,
+    mana_power_index: Option<usize>,
+    unit_mask: &UpdateMask,
+    active_mask: &UpdateMask,
+    effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp,
+) -> Option<PlayerDerivedStatValuesUpdate> {
+    let unit_derived_changed = [
+        52, 53, 54, 55, 76, 81, 82, 83, 84, 85, 86, 87, 88, 91, 92, 175, 176, 177, 178, 179, 180,
+        181, 182, 183, 184, 185, 186, 187, 188, 189, 191, 192, 193, 194, 195, 196, 197,
+    ]
+    .into_iter()
+    .any(|bit| unit_mask.is_set(bit))
+        || mana_power_index.is_some_and(|index| {
+            [
+                UNIT_POWER_REGEN_FLAT_FIRST_BIT,
+                UNIT_POWER_REGEN_INTERRUPTED_FIRST_BIT,
+            ]
+            .into_iter()
+            .any(|first_bit| unit_mask.is_set(first_bit + index))
+        });
+    let active_derived_changed = include_active_player
+        && ([
+            36, 37, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 56, 59, 61, 65, 66, 67, 68,
+        ]
+        .into_iter()
+        .any(|bit| active_mask.is_set(bit))
+            || (270..298).any(|bit| active_mask.is_set(bit))
+            || (575..607).any(|bit| active_mask.is_set(bit)));
+
+    (unit_derived_changed || active_derived_changed).then_some(PlayerDerivedStatValuesUpdate {
+        effective_combat_stats,
+        mana_power_index,
+    })
 }

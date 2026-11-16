@@ -175,3 +175,53 @@ fn quest_log_rows_queue_object_updates_and_preserve_exact_nested_masks() {
     let cleared = player.values_update(false).player_data.unwrap();
     assert!(cleared.quest_log.iter().all(|row| row.change_mask() == 0));
 }
+
+#[test]
+fn clear_data_changes_resets_nested_quest_rest_and_spell_masks() {
+    let mut empty_player = Player::new(None, false);
+    assert!(empty_player.self_res_spells().is_empty());
+    empty_player.clear_data_changes();
+    assert_eq!(
+        empty_player.active_data().self_res_spells_update_mask,
+        Some(vec![])
+    );
+
+    let mut player = Player::new(None, false);
+    assert!(player.set_quest_slot_like_cpp(4, 702));
+    player.set_rest_info_like_cpp(0, 120, 2);
+    player.set_rest_info_like_cpp(1, 240, 3);
+    for spell_id in 0..34 {
+        player.add_self_res_spell(spell_id);
+    }
+    player.add_toy_like_cpp(44_000);
+
+    player.clear_data_changes();
+
+    assert_eq!(
+        player.active_data().self_res_spells_update_mask,
+        Some(vec![0, 0])
+    );
+    assert_eq!(player.active_data().toys_update_mask, Some(vec![1]));
+    assert_eq!(player.active_data().rest_info[0].threshold, 120);
+    assert_eq!(player.active_data().rest_info[0].state_id, 2);
+    assert_eq!(player.active_data().rest_info[1].threshold, 240);
+    assert_eq!(player.active_data().rest_info[1].state_id, 3);
+
+    player.set_inebriation_like_cpp(18);
+    let player_update = player.values_update(false).player_data.unwrap();
+    assert_eq!(player_update.quest_log[4].values().quest_id(), 702);
+    assert_eq!(player_update.quest_log[4].change_mask(), 0);
+
+    player.mark_money_changed();
+    let active_update = player.values_update(true).active_player_data.unwrap();
+    assert_eq!(active_update.rest_info_change_masks, [0, 0]);
+    assert_eq!(
+        active_update.values.self_res_spells_update_mask,
+        Some(vec![0, 0])
+    );
+    assert_eq!(active_update.values.toys_update_mask, Some(vec![1]));
+    assert_eq!(active_update.values.rest_info[0].threshold, 120);
+    assert_eq!(active_update.values.rest_info[0].state_id, 2);
+    assert_eq!(active_update.values.rest_info[1].threshold, 240);
+    assert_eq!(active_update.values.rest_info[1].state_id, 3);
+}

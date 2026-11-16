@@ -3961,15 +3961,18 @@ impl Player {
     }
 
     pub fn clear_player_data_changes(&mut self) {
-        self.player_data_changes.reset_all();
-        self.reset_quest_log_change_masks_like_cpp();
+        inventory_values::clear_player_data_changes_like_cpp(
+            &mut self.player_data_changes,
+            &mut self.quest_log_change_masks,
+        );
     }
 
     pub fn clear_active_player_data_changes(&mut self) {
-        self.active_player_data_changes.reset_all();
-        self.rest_info_change_masks = [0; 2];
-        self.active_data.self_res_spells_update_mask =
-            Some(vec![0; self.active_data.self_res_spells.len().div_ceil(32)]);
+        inventory_values::clear_active_player_data_changes_like_cpp(
+            &mut self.active_player_data_changes,
+            &mut self.active_data,
+            &mut self.rest_info_change_masks,
+        );
     }
 
     pub fn clear_data_changes(&mut self) {
