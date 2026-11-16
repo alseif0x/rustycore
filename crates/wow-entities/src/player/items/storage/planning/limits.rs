@@ -1,5 +1,5 @@
 use super::ItemStorageView;
-use crate::Item;
+use crate::ItemReadView;
 use crate::player::{
     CanTakeMoreSimilarItemsArgs, CanTakeMoreSimilarItemsOutcome, ITEM_LIMIT_CATEGORY_MODE_HAVE,
     ItemStorageRef, can_take_more_similar_ok, is_bank_pos, is_equipment_pos, is_inventory_pos,
@@ -19,7 +19,7 @@ impl ItemStorageView<'_> {
             };
         };
 
-        if args.source_item.is_some_and(Item::loot_generated) {
+        if args.source_item.is_some_and(|item| item.loot_generated()) {
             return CanTakeMoreSimilarItemsOutcome {
                 result: InventoryResult::LootGone,
                 no_space_count: None,
@@ -78,7 +78,7 @@ impl ItemStorageView<'_> {
         &self,
         entry: u32,
         in_bank_also: bool,
-        skip_item: Option<&Item>,
+        skip_item: Option<ItemReadView<'_>>,
         stored_items: &[ItemStorageRef<'_>],
     ) -> u32 {
         stored_items
@@ -99,7 +99,7 @@ impl ItemStorageView<'_> {
     pub(in crate::player::items::storage) fn item_count_with_limit_category(
         &self,
         limit_category: u32,
-        skip_item: Option<&Item>,
+        skip_item: Option<ItemReadView<'_>>,
         stored_items: &[ItemStorageRef<'_>],
     ) -> u32 {
         stored_items

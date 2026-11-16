@@ -123,7 +123,7 @@ fn can_take_more_similar_items_matches_cpp_max_count_guards() {
         player.can_take_more_similar_items(CanTakeMoreSimilarItemsArgs {
             proto: Some(&unlimited),
             count: 3,
-            source_item: Some(&source),
+            source_item: Some(source.read_view()),
             current_item_count: 0,
             limit_category: None,
             current_limit_category_count: 0,

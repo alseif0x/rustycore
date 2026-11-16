@@ -88,6 +88,18 @@ impl<'a> ItemReadView<'a> {
         self.data
     }
 
+    pub const fn count(&self) -> u32 {
+        self.data.stack_count
+    }
+
+    /// Whether these views borrow the same Item data representation.
+    ///
+    /// This is intentionally referent identity rather than GUID or value
+    /// equality. Revisit it if Item data moves to shared storage such as `Arc`.
+    pub fn shares_read_source(&self, other: &Self) -> bool {
+        std::ptr::eq(self.data, other.data)
+    }
+
     pub const fn item_data_changes_mask(&self) -> &'a UpdateMask {
         self.item_data_changes
     }

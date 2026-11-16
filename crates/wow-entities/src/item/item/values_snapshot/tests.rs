@@ -281,6 +281,34 @@ fn live_and_captured_views_share_item_rules_and_external_inputs() {
 }
 
 #[test]
+fn read_views_compare_item_data_referents_not_guid_or_value_equality() {
+    let first = seeded_item();
+    let equal_but_distinct = seeded_item();
+    let first_view = first.read_view();
+
+    assert_eq!(first.object().guid(), equal_but_distinct.object().guid());
+    assert_eq!(first.data(), equal_but_distinct.data());
+    assert!(first_view.shares_read_source(&first.read_view()));
+    assert!(!first_view.shares_read_source(&equal_but_distinct.read_view()));
+
+    let snapshot = ItemValuesSnapshot::capture(&first);
+    assert!(
+        snapshot
+            .read_view()
+            .shares_read_source(&snapshot.read_view())
+    );
+    assert!(!first_view.shares_read_source(&snapshot.read_view()));
+
+    let cloned_snapshot = snapshot.clone();
+    assert_eq!(snapshot.data(), cloned_snapshot.data());
+    assert!(
+        !snapshot
+            .read_view()
+            .shares_read_source(&cloned_snapshot.read_view())
+    );
+}
+
+#[test]
 fn item_projection_keeps_empty_masks_and_raw_values_separate() {
     let mut item = seeded_item();
     item.clear_item_data_changes();

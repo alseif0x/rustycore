@@ -246,8 +246,12 @@ impl Player {
         skip_item: Option<&Item>,
         stored_items: &[ItemStorageRef<'_>],
     ) -> u32 {
-        self.item_storage_view()
-            .item_count_by_entry(entry, in_bank_also, skip_item, stored_items)
+        self.item_storage_view().item_count_by_entry(
+            entry,
+            in_bank_also,
+            skip_item.map(Item::read_view),
+            stored_items,
+        )
     }
 
     pub fn item_count_with_limit_category(
@@ -258,7 +262,7 @@ impl Player {
     ) -> u32 {
         self.item_storage_view().item_count_with_limit_category(
             limit_category,
-            skip_item,
+            skip_item.map(Item::read_view),
             stored_items,
         )
     }

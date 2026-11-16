@@ -3,8 +3,11 @@ use crate::Item;
 use crate::player::{
     BANK_SLOT_BAG_START, CanBankItemArgs, CanEquipItemArgs, CanEquipUniqueItemArgs,
     CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
+    EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HEAD, EquippedGemRef,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START,
-    ItemSearchCallbackResult, ItemSearchLocation, PLAYER_SLOT_END, Player, PlayerStorageError,
+    ITEM_LIMIT_CATEGORY_MODE_HAVE, ItemLimitCategoryTemplate, ItemSearchCallbackResult,
+    ItemSearchLocation, ItemSlotRef, ItemStorageRef, PLAYER_SLOT_END, Player, PlayerStorageError,
+    SocketedGemUniqueRef,
 };
 use crate::{ItemReadView, ItemStorageTemplate, ItemValuesSnapshot};
 use wow_constants::{
@@ -195,6 +198,46 @@ fn can_equip_args() -> CanEquipItemArgs<'static> {
     }
 }
 
+fn can_equip_args_with_source<'a>(
+    slot: u8,
+    proto: &'a ItemStorageTemplate,
+    source_item: ItemReadView<'a>,
+    swap: bool,
+    can_equip_unique_result: InventoryResult,
+    equipped_items: &'a [ItemSlotRef<'a>],
+    stored_items: &'a [ItemStorageRef<'a>],
+) -> CanEquipItemArgs<'a> {
+    CanEquipItemArgs {
+        slot,
+        proto: Some(proto),
+        source_item: Some(source_item),
+        source_bop_trade_allowed_for_player: false,
+        swap,
+        not_loading: true,
+        is_stunned: false,
+        is_charmed: false,
+        is_in_combat: false,
+        is_in_progress_arena: false,
+        weapon_change_timer_active: false,
+        current_generic_spell_allows_equip: None,
+        current_channeled_spell_allows_equip: None,
+        heirloom_required_level_failed: false,
+        can_use_result: InventoryResult::Ok,
+        can_equip_unique_result,
+        can_dual_wield: false,
+        can_titan_grip: false,
+        is_two_hand_used: false,
+        proto_always_allow_dual_wield: false,
+        has_required_profession_skill: false,
+        profession_slot: None,
+        offhand_can_unequip_result: InventoryResult::Ok,
+        offhand_can_store_result: InventoryResult::Ok,
+        limit_category: None,
+        equipped_items,
+        stored_items,
+    }
+}
+
 fn can_equip_unique_args() -> CanEquipUniqueItemArgs<'static> {
     CanEquipUniqueItemArgs {
         source_item: None,
@@ -206,6 +249,26 @@ fn can_equip_unique_args() -> CanEquipUniqueItemArgs<'static> {
         equipped_items: &[],
         equipped_gems: &[],
         socketed_gems: &[],
+    }
+}
+
+fn can_equip_unique_args_with_source<'a>(
+    source_item: ItemReadView<'a>,
+    proto: &'a ItemStorageTemplate,
+    limit_category: Option<&'a ItemLimitCategoryTemplate>,
+    equipped_gems: &'a [EquippedGemRef],
+    socketed_gems: &'a [SocketedGemUniqueRef<'a>],
+) -> CanEquipUniqueItemArgs<'a> {
+    CanEquipUniqueItemArgs {
+        source_item: Some(source_item),
+        proto: Some(proto),
+        except_slot: crate::player::NULL_SLOT,
+        limit_count: 1,
+        unique_equippable: false,
+        limit_category,
+        equipped_items: &[],
+        equipped_gems,
+        socketed_gems,
     }
 }
 
@@ -521,6 +584,242 @@ fn captured_item_read_view_keeps_usability_binding_facts() {
     assert_eq!(
         player.can_use_item(level_args),
         InventoryResult::CantEquipLevelI
+    );
+}
+
+#[test]
+fn equipment_identity_branches_compare_read_referents() {
+    let player = query_player();
+    let snapshot = InventoryPlayerSnapshotLikeCpp::capture(&player);
+    let finger = ItemStorageTemplate {
+        inventory_type: InventoryType::Finger,
+        ..ItemStorageTemplate::regular_item(20_020, 1)
+    };
+    let shared_guid = ObjectGuid::create_item(17, 520);
+    let mut ring_source = Item::default();
+    ring_source.object_mut().create(shared_guid);
+    ring_source.set_count(1);
+    let mut equal_but_distinct_ring = Item::default();
+    equal_but_distinct_ring.object_mut().create(shared_guid);
+    equal_but_distinct_ring.set_count(1);
+    assert_eq!(ring_source.data(), equal_but_distinct_ring.data());
+
+    let shared_paired_ring = [ItemSlotRef::new(
+        INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_FINGER2,
+        &ring_source,
+    )];
+    let shared_args = can_equip_args_with_source(
+        EQUIPMENT_SLOT_FINGER1,
+        &finger,
+        ring_source.read_view(),
+        true,
+        InventoryResult::ItemUniqueEquippable,
+        &shared_paired_ring,
+        &[],
+    );
+    assert_eq!(
+        player.can_equip_item(shared_args).unique_ignore_slot,
+        Some(EQUIPMENT_SLOT_FINGER2)
+    );
+    assert_eq!(
+        snapshot.can_equip_item(shared_args).unique_ignore_slot,
+        Some(EQUIPMENT_SLOT_FINGER2)
+    );
+
+    let distinct_paired_ring = [ItemSlotRef::new(
+        INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_FINGER2,
+        &equal_but_distinct_ring,
+    )];
+    let distinct_args = can_equip_args_with_source(
+        EQUIPMENT_SLOT_FINGER1,
+        &finger,
+        ring_source.read_view(),
+        true,
+        InventoryResult::ItemUniqueEquippable,
+        &distinct_paired_ring,
+        &[],
+    );
+    assert_eq!(
+        player.can_equip_item(distinct_args).unique_ignore_slot,
+        Some(EQUIPMENT_SLOT_FINGER1)
+    );
+    assert_eq!(
+        snapshot.can_equip_item(distinct_args).unique_ignore_slot,
+        Some(EQUIPMENT_SLOT_FINGER1)
+    );
+
+    let empty_player = Player::new(None, false);
+    let empty_snapshot = InventoryPlayerSnapshotLikeCpp::capture(&empty_player);
+    let quiver = ItemStorageTemplate {
+        class_id: ItemClass::Quiver,
+        subclass_id: crate::player::ItemSubClassQuiver::AmmoPouch as u32,
+        inventory_type: InventoryType::Bag,
+        ..ItemStorageTemplate::regular_item(20_021, 1)
+    };
+    let quiver_guid = ObjectGuid::create_item(17, 521);
+    let mut quiver_source = Item::default();
+    quiver_source.object_mut().create(quiver_guid);
+    quiver_source.set_count(1);
+    let mut equal_but_distinct_quiver = Item::default();
+    equal_but_distinct_quiver.object_mut().create(quiver_guid);
+    equal_but_distinct_quiver.set_count(1);
+    assert_eq!(quiver_source.data(), equal_but_distinct_quiver.data());
+
+    let shared_quiver_storage = [ItemStorageRef::new(
+        INVENTORY_SLOT_BAG_0,
+        INVENTORY_SLOT_BAG_START,
+        &quiver_source,
+        Some(&quiver),
+    )];
+    let shared_quiver_args = can_equip_args_with_source(
+        crate::player::NULL_SLOT,
+        &quiver,
+        quiver_source.read_view(),
+        false,
+        InventoryResult::Ok,
+        &[],
+        &shared_quiver_storage,
+    );
+    assert_eq!(
+        empty_player.can_equip_item(shared_quiver_args).result,
+        InventoryResult::Ok
+    );
+    assert_eq!(
+        empty_snapshot.can_equip_item(shared_quiver_args).result,
+        InventoryResult::Ok
+    );
+
+    let distinct_quiver_storage = [ItemStorageRef::new(
+        INVENTORY_SLOT_BAG_0,
+        INVENTORY_SLOT_BAG_START,
+        &equal_but_distinct_quiver,
+        Some(&quiver),
+    )];
+    let distinct_quiver_args = can_equip_args_with_source(
+        crate::player::NULL_SLOT,
+        &quiver,
+        quiver_source.read_view(),
+        false,
+        InventoryResult::Ok,
+        &[],
+        &distinct_quiver_storage,
+    );
+    assert_eq!(
+        empty_player.can_equip_item(distinct_quiver_args).result,
+        InventoryResult::OnlyOneAmmo
+    );
+    assert_eq!(
+        empty_snapshot.can_equip_item(distinct_quiver_args).result,
+        InventoryResult::OnlyOneAmmo
+    );
+}
+
+#[test]
+fn captured_item_read_view_drives_equipment_and_unique_queries() {
+    let player = query_player();
+    let snapshot = InventoryPlayerSnapshotLikeCpp::capture(&player);
+    let head = ItemStorageTemplate {
+        class_id: ItemClass::Armor,
+        inventory_type: InventoryType::Head,
+        ..ItemStorageTemplate::regular_item(20_022, 1)
+    };
+    let player_guid = ObjectGuid::create_player(17, 0xC8B);
+    let mut source = Item::default();
+    source.set_count(1);
+    source.set_item_flag(ItemFieldFlags::SOULBOUND);
+    source.set_owner_guid(player_guid);
+    let captured_source = ItemValuesSnapshot::capture(&source);
+    source.set_owner_guid(ObjectGuid::create_player(17, 0xC8C));
+
+    let captured_args = can_equip_args_with_source(
+        EQUIPMENT_SLOT_HEAD,
+        &head,
+        captured_source.read_view(),
+        false,
+        InventoryResult::Ok,
+        &[],
+        &[],
+    );
+    assert_eq!(
+        player.can_equip_item(captured_args).result,
+        InventoryResult::Ok
+    );
+    assert_eq!(
+        snapshot.can_equip_item(captured_args).result,
+        InventoryResult::Ok
+    );
+
+    let live_args = can_equip_args_with_source(
+        EQUIPMENT_SLOT_HEAD,
+        &head,
+        source.read_view(),
+        false,
+        InventoryResult::Ok,
+        &[],
+        &[],
+    );
+    assert_eq!(
+        player.can_equip_item(live_args).result,
+        InventoryResult::NotOwner
+    );
+    assert_eq!(
+        snapshot.can_equip_item(live_args).result,
+        InventoryResult::NotOwner
+    );
+
+    let mut unique_source = Item::default();
+    unique_source.set_slot(EQUIPMENT_SLOT_HEAD);
+    let captured_unique_source = ItemValuesSnapshot::capture(&unique_source);
+    unique_source.set_slot(INVENTORY_SLOT_ITEM_START);
+    let source_proto = ItemStorageTemplate::regular_item(20_023, 1);
+    let gem_proto = ItemStorageTemplate {
+        item_limit_category: 77,
+        ..ItemStorageTemplate::regular_item(20_024, 1)
+    };
+    let gem_limit_category = ItemLimitCategoryTemplate {
+        id: 77,
+        quantity: 2,
+        flags: ITEM_LIMIT_CATEGORY_MODE_HAVE,
+    };
+    let equipped_gems = [EquippedGemRef::new(EQUIPMENT_SLOT_FINGER1, 20_024, 77)];
+    let socketed_gems = [SocketedGemUniqueRef::new(
+        Some(&gem_proto),
+        false,
+        Some(&gem_limit_category),
+        3,
+    )];
+    let captured_unique_args = can_equip_unique_args_with_source(
+        captured_unique_source.read_view(),
+        &source_proto,
+        None,
+        &equipped_gems,
+        &socketed_gems,
+    );
+    assert_eq!(
+        player.can_equip_unique_item(captured_unique_args),
+        InventoryResult::Ok
+    );
+    assert_eq!(
+        snapshot.can_equip_unique_item(captured_unique_args),
+        InventoryResult::Ok
+    );
+
+    let live_unique_args = can_equip_unique_args_with_source(
+        unique_source.read_view(),
+        &source_proto,
+        None,
+        &equipped_gems,
+        &socketed_gems,
+    );
+    assert_eq!(
+        player.can_equip_unique_item(live_unique_args),
+        InventoryResult::ItemMaxLimitCategoryEquippedExceededIs
+    );
+    assert_eq!(
+        snapshot.can_equip_unique_item(live_unique_args),
+        InventoryResult::ItemMaxLimitCategoryEquippedExceededIs
     );
 }
 

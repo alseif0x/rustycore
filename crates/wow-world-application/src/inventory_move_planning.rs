@@ -172,7 +172,7 @@ impl<'cx, 'owner> InventoryMovePlanningCxLikeCpp<'cx, 'owner> {
         let outcome = wow_world_player_conditions::can_equip_inventory_item_like_cpp(
             self.conditions,
             &inventory_item,
-            &runtime_item,
+            runtime_item.read_view(),
             requested_slot,
             swap,
             true,

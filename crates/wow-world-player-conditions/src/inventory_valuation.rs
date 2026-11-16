@@ -105,7 +105,7 @@ pub fn can_use_inventory_item_represented_with_loading_like_cpp(
 pub fn can_equip_unique_item_like_cpp(
     player_conditions: &PlayerConditionProjectionCxLikeCpp<'_>,
     entry_id: u32,
-    runtime_item: &Item,
+    runtime_item: ItemReadView<'_>,
     except_slot: u8,
 ) -> InventoryResult {
     let player = player_conditions.player_access_like_cpp();
@@ -129,7 +129,7 @@ pub fn can_equip_unique_item_like_cpp(
 pub fn can_equip_inventory_item_like_cpp(
     player_conditions: &PlayerConditionProjectionCxLikeCpp<'_>,
     inventory_item: &InventoryItem,
-    runtime_item: &Item,
+    runtime_item: ItemReadView<'_>,
     requested_slot: u8,
     swap: bool,
     not_loading: bool,
@@ -278,7 +278,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             {
                 return;
             }
-            if self.can_equip_unique_item_like_cpp(entry_id, runtime_item, NULL_SLOT)
+            if self.can_equip_unique_item_like_cpp(entry_id, runtime_item.read_view(), NULL_SLOT)
                 != InventoryResult::Ok
             {
                 return;
@@ -527,7 +527,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
     fn can_equip_unique_item_like_cpp(
         &self,
         entry_id: u32,
-        runtime_item: &Item,
+        runtime_item: ItemReadView<'_>,
         except_slot: u8,
     ) -> InventoryResult {
         let Some(player) = self
@@ -682,7 +682,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         };
         self.can_equip_inventory_item_like_cpp(
             &inventory_item,
-            runtime_item,
+            runtime_item.read_view(),
             NULL_SLOT,
             true,
             false,
@@ -696,7 +696,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
     fn can_equip_inventory_item_like_cpp(
         &self,
         inventory_item: &InventoryItem,
-        runtime_item: &Item,
+        runtime_item: ItemReadView<'_>,
         requested_slot: u8,
         swap: bool,
         not_loading: bool,
@@ -811,7 +811,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         let is_two_hand_used =
             player.is_two_hand_used_template_like_cpp(mainhand_template.as_ref());
         let can_use_result =
-            self.can_use_item_like_cpp(inventory_item, Some(runtime_item.read_view()), not_loading);
+            self.can_use_item_like_cpp(inventory_item, Some(runtime_item), not_loading);
         let proto_always_allow_dual_wield = self
             .catalogs
             .item_stats_store_like_cpp()

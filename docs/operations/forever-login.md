@@ -637,9 +637,11 @@ coding feedback, not a full suite/final manifest, runtime or DB acceptance.
 Whole runtime/map copies remain, including the runtime producer's fixture
 mutation mirror; retiring it needs its actual test consumers without snapshot-
 to-actor reconstruction. The typed query input boundary includes ItemSlotRef,
-ItemStorageRef and seven source_item argument types still tied to Item, not just
-the two slice records. Writable plans and side-effecting Item references retain
-their separate retirement obligation before native Item attachment. This
+ItemStorageRef and originally seven Item-bound source_item argument types, not
+just the two slice records. After the input migrations below, storage, bank and
+unequip sources and both slice records still require actors. Writable plans and
+side-effecting Item references retain their separate retirement obligation before
+native Item attachment. This
 selected-read migration does not attach BonusData or activate creation.
 
 CanUseItemArgs now accepts a borrowed ItemReadView instead of an Item actor
@@ -666,16 +668,42 @@ bare rustfmt command failed because PATH lacked Cargo's bin directory; the
 configured retry succeeded. These nine distinct cases remain level-1 coding
 feedback, not completed-delivery acceptance, native input/wire or DB proof.
 
-The remaining equipment migration must retain referent identity. The current
-Rust query compares Item pointers for paired unique-slot ignore and skipping
+Equipment, unique-item and their shared similar-count input now accept the
+same borrowed ItemReadView. The public/private World equipment providers forward
+that view into usability and unique checks. Existing actor-backed average-level,
+store/bank and standalone Player count callers convert at their old delegation;
+the Application producer retains its current capture and converts at the provider.
+No whole runtime/map producer or canonical mutation changes in this boundary.
+
+The equipment migration retains referent identity. The old Rust query compared
+Item pointers for paired unique-slot ignore and skipping
 the source quiver; native Player.cpp:11073/:11084 also compares pItem/pBag
 pointers. Equal GUIDs or field values are not interchangeable with that test.
-ItemReadView can compare the identity of its existing borrowed ItemDataValues
+ItemReadView compares the identity of its existing borrowed ItemDataValues
 referent: Item and ItemValuesSnapshot each own that struct, and views keep its
 source lifetime. A live Item, its capture and a capture's clone remain distinct
 read representations. No stored actor pointer/address/handle or new identity
-state is needed. This decision must be exercised at both actual equipment
-branches, not only through a helper test, before their inputs migrate.
+state is introduced. The view's comment names shared data storage as a reason
+to revisit this assumption. The count helpers retain their different GUID-based
+skip rule, filter order and arithmetic. Parent comparison confirms that the
+equipment body differs only at the two declared identity substitutions; the
+remaining represented predicates are not newly proven native behavior.
+
+Worker Entity, World Conditions and World Application checks pass. Fifteen
+Entity cases pass: six projection queries, one read-identity matrix, two
+existing paired-ignore/quiver cases, four similar-count/skip cases and two
+existing unique-object cases. The two new query regressions exercise both Player
+and inventory-snapshot equipment entry points, distinct equal-GUID referents,
+frozen binding and the captured equipped-state input to socketed-gem limits.
+Twelve existing World average-total-item-level cases pass, including the actual
+unique-limit, socketed-gem and same-ring consumers. These are 27 distinct cases.
+Every Cargo command used --locked, one job, cached PROTOC and the checkout
+target; Application and World tests used the pinned read-only extractor overlay.
+Warnings were emitted without a warning-baseline comparison. This is level-1
+worker coding feedback on the implementation inputs, not a final manifest,
+native table/wire, live DB or runtime acceptance. Remaining typed references,
+runtime/map copies, writable query overlays and native Item/Player attachment
+retain their full integration obligation.
 
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are

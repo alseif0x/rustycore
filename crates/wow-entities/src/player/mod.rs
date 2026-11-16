@@ -1309,7 +1309,7 @@ pub struct FindEquipSlotArgs<'a> {
 pub struct CanEquipItemArgs<'a> {
     pub slot: u8,
     pub proto: Option<&'a ItemStorageTemplate>,
-    pub source_item: Option<&'a Item>,
+    pub source_item: Option<ItemReadView<'a>>,
     pub source_bop_trade_allowed_for_player: bool,
     pub swap: bool,
     pub not_loading: bool,
@@ -1461,7 +1461,7 @@ impl<'a> SocketedGemUniqueRef<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CanEquipUniqueItemArgs<'a> {
-    pub source_item: Option<&'a Item>,
+    pub source_item: Option<ItemReadView<'a>>,
     pub proto: Option<&'a ItemStorageTemplate>,
     pub except_slot: u8,
     pub limit_count: u32,
@@ -1489,7 +1489,7 @@ pub struct ItemLimitCategoryTemplate {
 pub struct CanTakeMoreSimilarItemsArgs<'a> {
     pub proto: Option<&'a ItemStorageTemplate>,
     pub count: u32,
-    pub source_item: Option<&'a Item>,
+    pub source_item: Option<ItemReadView<'a>>,
     pub current_item_count: u32,
     pub limit_category: Option<&'a ItemLimitCategoryTemplate>,
     pub current_limit_category_count: u32,

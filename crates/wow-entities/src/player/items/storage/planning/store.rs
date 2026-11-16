@@ -1,4 +1,5 @@
 use super::ItemStorageView;
+use crate::Item;
 use crate::player::{
     CHILD_EQUIPMENT_SLOT_END, CHILD_EQUIPMENT_SLOT_START, CanStoreItemArgs, CanStoreItemOutcome,
     CanTakeMoreSimilarItemsArgs, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
@@ -48,17 +49,17 @@ impl ItemStorageView<'_> {
         let similar_result = self.can_take_more_similar_items(CanTakeMoreSimilarItemsArgs {
             proto: args.proto,
             count,
-            source_item: args.source_item,
+            source_item: args.source_item.map(Item::read_view),
             current_item_count: self.item_count_by_entry(
                 proto.entry,
                 true,
-                args.source_item,
+                args.source_item.map(Item::read_view),
                 args.stored_items,
             ),
             limit_category: args.limit_category,
             current_limit_category_count: self.item_count_with_limit_category(
                 proto.item_limit_category,
-                args.source_item,
+                args.source_item.map(Item::read_view),
                 args.stored_items,
             ),
         });

@@ -308,7 +308,7 @@ fn can_equip_args<'a>(
     CanEquipItemArgs {
         slot,
         proto,
-        source_item,
+        source_item: source_item.map(Item::read_view),
         source_bop_trade_allowed_for_player: false,
         swap: false,
         not_loading: true,
@@ -423,7 +423,7 @@ fn can_equip_unique_args<'a>(
     proto: Option<&'a ItemStorageTemplate>,
 ) -> CanEquipUniqueItemArgs<'a> {
     CanEquipUniqueItemArgs {
-        source_item,
+        source_item: source_item.map(Item::read_view),
         proto,
         except_slot: NULL_SLOT,
         limit_count: 1,
