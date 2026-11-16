@@ -133,6 +133,143 @@ fn values_update_sets_unit_object_type_bit() {
 }
 
 #[test]
+fn unit_values_snapshot_matches_and_freezes_canonical_projection() {
+    use crate::update_fields::{TYPEID_OBJECT, TYPEID_UNIT};
+
+    let owner = ObjectGuid::new(0, 501);
+    let caster = ObjectGuid::new(0, 502);
+    let replacement_owner = ObjectGuid::new(0, 503);
+    let mut unit = Unit::new(true);
+    unit.world_mut().object_mut().create(owner);
+    unit.world_mut().object_mut().set_scale(1.25);
+    unit.set_level(20);
+    unit.set_virtual_item(
+        1,
+        Some(VisibleItemValues {
+            item_id: 19_019,
+            item_appearance_mod_id: 2,
+            item_visual: 3,
+        }),
+    );
+    unit.subsystems_mut().auras.aura_state_mask = 1 | crate::PER_CASTER_AURA_STATE_MASK;
+    unit.subsystems_mut().auras.aura_state_auras.insert(
+        14,
+        vec![
+            AppliedAuraRef::new(800, owner, 0, 1),
+            AppliedAuraRef::new(801, caster, 0, 1),
+        ],
+    );
+    unit.subsystems_mut()
+        .auras
+        .aura_state_auras
+        .insert(16, vec![AppliedAuraRef::new(802, owner, 0, 1)]);
+
+    let expected = unit.values_update();
+    let mut snapshot = UnitValuesSnapshot::capture(&unit);
+    assert_eq!(snapshot.values_update(), expected);
+    assert_eq!(
+        expected.changed_object_type_mask,
+        (1 << TYPEID_OBJECT) | (1 << TYPEID_UNIT)
+    );
+    assert_eq!(
+        expected.unit_data.as_ref().unwrap().aura_state,
+        1 | (1 << 13) | (1 << 15)
+    );
+
+    unit.clear_unit_data_changes();
+    unit.world_mut().object_mut().clear_update_mask(false);
+    unit.world_mut().object_mut().create(replacement_owner);
+    unit.world_mut().object_mut().set_scale(2.0);
+    unit.set_level(29);
+    unit.set_virtual_item(1, None);
+    unit.subsystems_mut().auras.aura_state_mask = 0;
+    unit.subsystems_mut().auras.aura_state_auras.clear();
+    assert_ne!(unit.values_update(), expected);
+    assert_eq!(snapshot.values_update(), expected);
+
+    snapshot.clear_unit_data_changes();
+    assert!(!snapshot.unit_data_changes_mask().is_any_set());
+    let object_only = snapshot.values_update();
+    assert_eq!(object_only.changed_object_type_mask, 1 << TYPEID_OBJECT);
+    assert_eq!(object_only.object_data, expected.object_data);
+    assert!(object_only.unit_data.is_none());
+
+    let virtual_item = VisibleItemValues {
+        item_id: 20_000,
+        item_appearance_mod_id: 4,
+        item_visual: 5,
+    };
+    snapshot.set_virtual_item(2, Some(virtual_item));
+    let item_update = snapshot.values_update();
+    assert_eq!(
+        item_update.changed_object_type_mask,
+        (1 << TYPEID_OBJECT) | (1 << TYPEID_UNIT)
+    );
+    let item_data = item_update.unit_data.unwrap();
+    assert_eq!(item_data.values.virtual_items[2], virtual_item);
+    assert!(item_data.mask.is_set(UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT));
+    assert!(item_data.mask.is_set(UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT + 2));
+
+    snapshot.clear_unit_data_changes();
+    snapshot.mark_virtual_item_changed(2);
+    let marked_update = snapshot.values_update().unit_data.unwrap();
+    assert!(
+        marked_update
+            .mask
+            .is_set(UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT)
+    );
+    assert!(
+        marked_update
+            .mask
+            .is_set(UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT + 2)
+    );
+
+    snapshot.clear_object_data_changes();
+    let unit_only = snapshot.values_update();
+    assert_eq!(unit_only.changed_object_type_mask, 1 << TYPEID_UNIT);
+    assert!(unit_only.object_data.is_none());
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn unit_values_snapshot_defers_invalid_aura_state_until_unit_data_update() {
+    use crate::update_fields::TYPEID_OBJECT;
+
+    let mut unit = Unit::new(true);
+    unit.world_mut()
+        .object_mut()
+        .create(ObjectGuid::new(0, 601));
+    unit.world_mut().object_mut().set_scale(1.5);
+    unit.subsystems_mut()
+        .auras
+        .aura_state_auras
+        .insert(crate::AURA_STATE_NONE, Vec::new());
+
+    let mut snapshot = UnitValuesSnapshot::capture(&unit);
+    assert!(!snapshot.unit_data_changes_mask().is_any_set());
+    let object_only = snapshot.values_update();
+    assert_eq!(object_only.changed_object_type_mask, 1 << TYPEID_OBJECT);
+    assert!(object_only.object_data.is_some());
+    assert!(object_only.unit_data.is_none());
+
+    snapshot.clear_object_data_changes();
+    assert_eq!(snapshot.values_update().changed_object_type_mask, 0);
+    snapshot.set_virtual_item(
+        0,
+        Some(VisibleItemValues {
+            item_id: 19_019,
+            item_appearance_mod_id: 2,
+            item_visual: 3,
+        }),
+    );
+    assert!(snapshot.unit_data_changes_mask().is_any_set());
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| snapshot.values_update()))
+            .is_err()
+    );
+}
+
+#[test]
 fn emote_state_marks_cpp_nested_unit_data_bits() {
     let mut unit = Unit::new(true);
     unit.clear_unit_data_changes();

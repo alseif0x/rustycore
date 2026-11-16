@@ -63,7 +63,10 @@ old borrowed canonical path and deferred snapshot calculation. Frozen-owner and
 debug-only empty-invalid-state regressions passed with the Entity check (four
 focused executions). Parent contrasted Unit.cpp:6159–6167 and the two caster-
 dependent states at 02245dcd; this is not full target-wire acceptance. The detached
-Unit/Player payloads and Core producer replacement remain unfinished;
+Unit payload now captures only owned values, masks and raw aura facts, with no
+Unit actor. Its lazy Unit branch preserves deferred aura projection; complete
+DTO/frozen-owner and debug invalid-state tests both passed with the Entity check.
+The Player payload and Core producer replacement remain unfinished;
 committed-candidate acceptance is pending.
 
 ## Forever publication candidate — 2026-11-11

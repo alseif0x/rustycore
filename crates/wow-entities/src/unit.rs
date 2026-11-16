@@ -20,6 +20,7 @@ mod ops_1;
 mod ops_2;
 mod ops_3;
 mod state;
+mod values_snapshot;
 mod virtual_items;
 #[allow(unused_imports)]
 pub use ops_1::*;
@@ -29,6 +30,7 @@ pub use ops_2::*;
 pub use ops_3::*;
 #[allow(unused_imports)]
 pub use state::*;
+pub(crate) use values_snapshot::UnitValuesSnapshot;
 
 #[cfg(test)]
 #[path = "unit/tests/mod.rs"]
