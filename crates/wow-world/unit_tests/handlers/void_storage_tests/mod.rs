@@ -340,5 +340,6 @@ fn install_void_test_bag_and_child_templates(
     ])));
 }
 
+mod overlay_values;
 mod scenarios_1;
 mod scenarios_2;

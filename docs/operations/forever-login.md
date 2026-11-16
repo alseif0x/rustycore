@@ -761,6 +761,38 @@ read-only extractor overlay. Warnings were not compared against a baseline.
 These 27 distinct cases are level-1 coding feedback, not final acceptance,
 native ItemBonusData integration, runtime/DB or target-wire proof.
 
+Direct-storage reservations now capture ItemValuesSnapshot instead of cloning
+the selected Item actor. A consuming query projection applies entry/count/slot
+in the old setter order and preserves masks, represented Object update facts,
+container/state/queue and other values. Entry/count value rules are shared with
+canonical setters, whose existing Object admission adapter stays in place.
+The result remains query data with no canonical restoration or admission API.
+The missing-selection branch retains its existing fresh placeholder constructor,
+GUID formula and initial entry call before capture. Template/cache, bag/slot and
+late category observations stay in order; whole runtime/map copies are unchanged.
+
+Entity and Conditions checks pass. Four Entity cases cover the new projection,
+existing Object masks, merge count and Item update payload. The new matrix has
+twelve subcases within one Rust test, with independent entry/count bits and
+lifecycle assertions. Two new World queries pass against a detached canonical
+Player with coherent runtime records and native topology: a different entry
+reuses a vacated slot, and a full backpack forces a temporary bag destination
+without admitting that bag to the real owner. The ten-case withdrawal filter
+also passes, including both old reserved-storage cases and eight broader cases.
+These are sixteen distinct passing cases; rerunning the two new cases after
+fixture correction is not additional coverage.
+
+The first World builds failed on private test-helper access and then on getters
+called on the wrong receiver; neither ran tests. The next run executed two
+failures because the old fixture had no generation-checked Player. The new local
+fixture installs that owner before inserts, then aligns canonical topology and
+runtime records; corrected cases pass. All failed logs are retained, and no
+production rule changed to repair these test fixtures. Green production checks
+were not repeated. Commands used --locked, one job, cached PROTOC, the checkout
+target and the pinned extractor overlay for World; warnings were not compared
+to a baseline. This is level-1 coding feedback, not final/native storage, Void,
+wire, runtime or DB acceptance.
+
 Duration writers require their own canonical transition. The current World/Core
 chain mutates Player lists against an external Item copy, then reinserts a whole
 post-image or replays duration fields in another owner callback. Reinsertion also
@@ -774,6 +806,11 @@ The current Rust duration setter does not establish that status/queue authority.
 Integrate the complete same-owner operation and caller phases before retiring
 these copied writers; do not hide order/queue repairs in a readonly map-type
 change or claim the current packet plans prove native execution.
+WorldSession.cpp:303 also invokes ScriptMgr::OnPacketSend before socket enqueue;
+ScriptMgr.cpp:1503–1512 runs registered hooks synchronously. Preserving only a
+final packet vector therefore does not prove the same observer phase. Rust's
+current send can block on channel capacity and must not run under a Map guard;
+the native effect host must preserve logical observation separately from delivery.
 
 The later whole-map capture must retain original map keys and the observed
 entry sequence. Quest-reward nested lookup selects the first matching value;

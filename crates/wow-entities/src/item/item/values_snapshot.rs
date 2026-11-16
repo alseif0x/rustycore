@@ -7,7 +7,7 @@ use crate::{ItemDataValues, ItemReadView, ObjectValuesSnapshot, UpdateMask};
 
 use super::Item;
 
-/// Complete immutable Item/Object values captured from one admitted owner read.
+/// Immutable Item/Object facts captured from an owner read or projected for a disposable query.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemValuesSnapshot {
     object: ObjectValuesSnapshot,
@@ -50,6 +50,15 @@ impl ItemValuesSnapshot {
             soulbound_trade_allowed_guids: item.soulbound_trade_allowed_guids.clone(),
             text: item.text.clone(),
         }
+    }
+
+    /// Consume captured facts into the direct-storage overlay in entry/count/slot setter order.
+    /// The result is query data; it does not restore a canonical Item or perform owner admission.
+    pub fn for_storage_query_overlay(mut self, entry: u32, count: u32, slot: u8) -> Self {
+        self.object = self.object.with_storage_query_entry(entry);
+        super::set_stack_count_value_and_mask(&mut self.data, &mut self.item_data_changes, count);
+        self.slot = slot;
+        self
     }
 
     pub const fn object(&self) -> &ObjectValuesSnapshot {

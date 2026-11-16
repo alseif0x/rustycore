@@ -9,7 +9,7 @@ use wow_constants::InventoryResult;
 use wow_core::ObjectGuid;
 use wow_entities::{
     BagTemplateRef, CanStoreItemArgs, INVENTORY_SLOT_BAG_0, Item, ItemSlotRef, ItemStorageRef,
-    is_buyback_slot,
+    ItemValuesSnapshot, is_buyback_slot,
 };
 use wow_world_inventory::is_represented_bag_slot;
 
@@ -61,7 +61,7 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
             .resolved_inventory_item_objects_with_access_like_cpp(&self.inventory_access)?;
         let mut overlay_items = Vec::with_capacity(overlays.len());
         for (index, overlay) in overlays.iter().enumerate() {
-            let mut item = self
+            let item = self
                 .inventory
                 .get_inventory_item_by_pos_with_access_like_cpp(
                     &self.inventory_access,
@@ -71,20 +71,19 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
                     overlay.slot,
                 )
                 .and_then(|inventory_item| item_objects.get(&inventory_item.guid))
-                .cloned()
+                .map(ItemValuesSnapshot::capture)
                 .unwrap_or_else(|| {
                     let mut item = Item::default();
                     let placeholder_counter = i64::MAX.saturating_sub(index as i64);
                     item.object_mut()
                         .create(ObjectGuid::create_item(realm_id, placeholder_counter));
                     item.object_mut().set_entry(overlay.entry_id);
-                    item
+                    ItemValuesSnapshot::capture(&item)
                 });
             // An overlay can reuse a slot vacated by an earlier deposit, so its
             // planned entry is authoritative over the stale runtime item until COMMIT.
-            item.object_mut().set_entry(overlay.entry_id);
-            item.set_count(overlay.count);
-            item.set_slot(overlay.slot);
+            let item =
+                item.for_storage_query_overlay(overlay.entry_id, overlay.count, overlay.slot);
             overlay_items.push((overlay.bag, overlay.slot, item));
         }
 

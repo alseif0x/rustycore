@@ -36,6 +36,23 @@ bitflags! {
     }
 }
 
+fn set_entry_value_and_mask(
+    entry: &mut u32,
+    changed_fields: &mut ObjectChangedFields,
+    value: u32,
+) -> bool {
+    if *entry == value {
+        return false;
+    }
+    *entry = value;
+    changed_fields.insert(ObjectChangedFields::ENTRY_ID);
+    true
+}
+
+const fn object_update_admission_needed(in_world: bool, object_updated: bool) -> bool {
+    in_world && !object_updated
+}
+
 bitflags! {
     /// Changed subset of C++ `UF::ObjectData`.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -243,9 +260,7 @@ impl EntityObject {
     }
 
     pub fn set_entry(&mut self, entry: u32) {
-        if self.entry != entry {
-            self.entry = entry;
-            self.changed_fields.insert(ObjectChangedFields::ENTRY_ID);
+        if set_entry_value_and_mask(&mut self.entry, &mut self.changed_fields, entry) {
             self.add_to_object_update_if_needed();
         }
     }
@@ -340,7 +355,7 @@ impl EntityObject {
     }
 
     pub(crate) fn add_to_object_update_if_needed(&mut self) {
-        if self.in_world && !self.object_updated {
+        if object_update_admission_needed(self.in_world, self.object_updated) {
             self.object_updated = self.add_to_object_update();
         }
     }

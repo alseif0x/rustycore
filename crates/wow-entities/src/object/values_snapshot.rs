@@ -50,6 +50,16 @@ impl ObjectValuesSnapshot {
         self.guid
     }
 
+    pub(crate) fn with_storage_query_entry(mut self, entry: u32) -> Self {
+        if super::set_entry_value_and_mask(&mut self.entry, &mut self.changed_fields, entry)
+            && super::object_update_admission_needed(self.state.in_world, self.state.object_updated)
+        {
+            // EntityObject::add_to_object_update currently admits this request.
+            self.state.object_updated = true;
+        }
+        self
+    }
+
     pub const fn type_id(&self) -> TypeId {
         self.type_id
     }

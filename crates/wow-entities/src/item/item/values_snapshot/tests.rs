@@ -7,8 +7,9 @@ use wow_constants::{
 use wow_core::ObjectGuid;
 
 use crate::{
-    ArtifactPower, ITEM_DATA_GEMS_BIT, Item, ItemBonusKey, ItemStorageTemplate, ItemValuesSnapshot,
-    ObjectNotifyFlags, SocketedGem,
+    ArtifactPower, ITEM_DATA_GEMS_BIT, ITEM_DATA_PARENT_BIT, ITEM_DATA_STACK_COUNT_BIT, Item,
+    ItemBonusKey, ItemStorageTemplate, ItemValuesSnapshot, ObjectChangedFields, ObjectNotifyFlags,
+    SocketedGem,
 };
 
 fn seeded_item() -> Item {
@@ -79,6 +80,85 @@ fn seeded_item() -> Item {
     item.set_soulbound_tradeable([looter]);
     item.set_text("captured text");
     item
+}
+
+fn storage_overlay_item(in_world: bool, already_updated: bool) -> Item {
+    let mut item = Item::new(73);
+    item.object_mut().create(ObjectGuid::create_item(1, 919));
+    item.object_mut().set_entry(10);
+    item.set_count(4);
+    item.set_slot(2);
+    item.set_container_guid_and_slot(ObjectGuid::create_item(1, 920), 5);
+    item.set_binding(true);
+    item.force_state(ItemUpdateState::Changed);
+    item.set_queue_pos(6);
+    item.set_loot_generated(true);
+    item.set_in_trade(true);
+    item.clear_item_data_changes();
+    item.object_mut().clear_update_mask(false);
+    if in_world {
+        item.object_mut().add_to_world();
+    }
+    if already_updated {
+        assert!(in_world);
+        item.object_mut().set_scale(1.5);
+    }
+    item
+}
+
+#[test]
+fn storage_query_overlay_matches_ordered_live_setters_and_preserves_other_facts() {
+    for (entry, count, changes_entry, changes_count) in [
+        (20, 9, true, true),
+        (20, 4, true, false),
+        (10, 9, false, true),
+        (10, 4, false, false),
+    ] {
+        for (in_world, already_updated) in [(false, false), (true, false), (true, true)] {
+            let source = storage_overlay_item(in_world, already_updated);
+            let mut live = storage_overlay_item(in_world, already_updated);
+
+            let projected =
+                ItemValuesSnapshot::capture(&source).for_storage_query_overlay(entry, count, 7);
+            live.object_mut().set_entry(entry);
+            live.set_count(count);
+            live.set_slot(7);
+            let expected = ItemValuesSnapshot::capture(&live);
+
+            assert_eq!(projected, expected);
+            assert_eq!(projected.object().entry(), entry);
+            assert_eq!(projected.data().stack_count, count);
+            assert_eq!(
+                projected
+                    .item_data_changes_mask()
+                    .is_set(ITEM_DATA_PARENT_BIT),
+                changes_count
+            );
+            assert_eq!(
+                projected
+                    .item_data_changes_mask()
+                    .is_set(ITEM_DATA_STACK_COUNT_BIT),
+                changes_count
+            );
+            assert_eq!(
+                projected
+                    .object()
+                    .changed_fields()
+                    .contains(ObjectChangedFields::ENTRY_ID),
+                changes_entry
+            );
+            assert_eq!(projected.container_guid(), ObjectGuid::create_item(1, 920));
+            assert_eq!(projected.container_slot(), 5);
+            assert_eq!(projected.update_state(), ItemUpdateState::Changed);
+            assert_eq!(projected.queue_pos(), 6);
+            assert!(projected.loot_generated());
+            assert!(projected.is_in_trade());
+            assert_eq!(
+                projected.object().state().object_updated,
+                already_updated || (in_world && changes_entry)
+            );
+        }
+    }
 }
 
 #[test]

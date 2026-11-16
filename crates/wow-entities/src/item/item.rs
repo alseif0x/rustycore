@@ -38,6 +38,18 @@ impl Default for Item {
     }
 }
 
+fn set_stack_count_value_and_mask(
+    data: &mut ItemDataValues,
+    item_data_changes: &mut UpdateMask,
+    count: u32,
+) {
+    if data.stack_count != count {
+        data.stack_count = count;
+        item_data_changes.set(ITEM_DATA_PARENT_BIT);
+        item_data_changes.set(ITEM_DATA_STACK_COUNT_BIT);
+    }
+}
+
 impl Item {
     pub fn new(last_played_time_update: i64) -> Self {
         Self {
@@ -322,9 +334,7 @@ impl Item {
     }
 
     pub fn set_count(&mut self, count: u32) {
-        self.set_u32_field(ITEM_DATA_STACK_COUNT_BIT, count, |data| {
-            &mut data.stack_count
-        });
+        set_stack_count_value_and_mask(&mut self.data, &mut self.item_data_changes, count);
     }
 
     pub fn set_expiration(&mut self, expiration: u32) {
