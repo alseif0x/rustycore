@@ -74,7 +74,13 @@ fixture power calls; the first test attempt failed to compile and ran no tests.
 Coverage includes independent seeded owners, nested masks, receiver filtering,
 frozen values/Mana inputs and deferred debug aura failure. The cached Mana
 setter normalizes the out-of-range test input before capture. Entity check
-passed; query overlays and the Core producer replacement remain unfinished.
+passed. Query overlays now delegate through ItemStorageView using those captured
+facts, and disposable/canonical top-level placement share narrow native store/
+take primitives while retaining field/visible/bag-clear order. Seven snapshot
+cases passed; three strengthened query cases passed again after correcting test
+index types. They cover ordered/early-stop traversal, distinct native/field GUIDs,
+count/Titan overlays, invalid removal and visible clearing even with an empty
+native equipment slot. The Core producer replacement remains unfinished.
 Committed-candidate acceptance is pending.
 
 ## Forever publication candidate — 2026-11-11

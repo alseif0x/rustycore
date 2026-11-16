@@ -38,6 +38,8 @@ pub struct InventoryPlayerSnapshotLikeCpp {
     unit: UnitValuesSnapshot,
 }
 
+mod queries;
+
 impl InventoryPlayerSnapshotLikeCpp {
     pub fn capture(player: &Player) -> Self {
         Self {
@@ -227,3 +229,7 @@ impl InventoryPlayerSnapshotLikeCpp {
 #[cfg(test)]
 #[path = "projection/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "projection/query_tests.rs"]
+mod query_tests;

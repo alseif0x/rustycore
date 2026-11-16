@@ -1,10 +1,35 @@
 use crate::MAX_BAG_SIZE;
 use crate::player::{
-    PlayerBagStorage, PlayerInventoryStorage, PlayerStorageError, is_bag_storage_slot,
+    PLAYER_SLOT_END, PlayerBagStorage, PlayerInventoryStorage, PlayerStorageError,
+    is_bag_storage_slot,
 };
 use wow_core::ObjectGuid;
 
 impl PlayerInventoryStorage {
+    pub(in crate::player::items::storage) fn store_top_level_item_native_like_cpp(
+        &mut self,
+        slot: u8,
+        guid: ObjectGuid,
+    ) -> Result<(), PlayerStorageError> {
+        if slot as usize >= PLAYER_SLOT_END {
+            return Err(PlayerStorageError::InvalidPlayerSlot(slot));
+        }
+
+        self.items[slot as usize] = Some(guid);
+        Ok(())
+    }
+
+    pub(in crate::player::items::storage) fn take_top_level_item_native_like_cpp(
+        &mut self,
+        slot: u8,
+    ) -> Result<Option<ObjectGuid>, PlayerStorageError> {
+        if slot as usize >= PLAYER_SLOT_END {
+            return Err(PlayerStorageError::InvalidPlayerSlot(slot));
+        }
+
+        Ok(self.items[slot as usize].take())
+    }
+
     pub fn register_bag_storage(
         &mut self,
         bag_slot: u8,

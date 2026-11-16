@@ -377,11 +377,8 @@ impl Player {
         slot: u8,
         guid: ObjectGuid,
     ) -> Result<(), PlayerStorageError> {
-        if slot as usize >= PLAYER_SLOT_END {
-            return Err(PlayerStorageError::InvalidPlayerSlot(slot));
-        }
-
-        self.inventory.items[slot as usize] = Some(guid);
+        self.inventory
+            .store_top_level_item_native_like_cpp(slot, guid)?;
         self.set_inv_slot(slot as usize, guid);
         Ok(())
     }
@@ -518,11 +515,7 @@ impl Player {
         &mut self,
         slot: u8,
     ) -> Result<Option<ObjectGuid>, PlayerStorageError> {
-        if slot as usize >= PLAYER_SLOT_END {
-            return Err(PlayerStorageError::InvalidPlayerSlot(slot));
-        }
-
-        let removed = self.inventory.items[slot as usize].take();
+        let removed = self.inventory.take_top_level_item_native_like_cpp(slot)?;
         self.set_inv_slot(slot as usize, ObjectGuid::EMPTY);
         if slot < EQUIPMENT_SLOT_END {
             self.set_visible_item_slot(slot, None);
