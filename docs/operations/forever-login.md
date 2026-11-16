@@ -207,6 +207,83 @@ not admit an in-world adapter: its immediate publication and external-effect
 lock contract must be satisfied separately. The concrete body effects and their
 reader/writer migration remain unimplemented, rather than defaulting to no-op.
 
+The condition effect is also a target dependency. Parent source comparison at
+9073a0fa4 finds that ConditionMgr.cpp:2903ff evaluates the non-grouped SQL
+PlayerCondition source before the DB2 row and applies its Invert flag afterward;
+condition ID zero passes before either lookup. The target DB2 body begins with
+Disabled, expansion-level and ContentTuning rules. The inherited
+wow-data/player/condition entry/evaluator has different field widths, no target
+ContentTuning input and no such prefix, while World's represented ID helper
+does not perform the target SQL-prefix/Invert operation. The native closed
+spell-table schema currently admits UnitCondition but not PlayerCondition.
+Do not substitute that represented helper for the mandatory native callback.
+Missing admitted rows and unavailable catalogs remain different outcomes; full
+target data/evaluation and same-owner condition inputs are still required.
+
+K9's source/consumer map at 9073a0fa4 separately freezes the complete enchantment
+effect family: UpdateSkillEnchantments (Player.cpp:14025–14068) scans through
+reagent slot 34, invokes ApplyEnchantment immediately, and retains ordinary
+missing-row prefix returns. The old plan ends at 34 exclusive and has no
+production skill-threshold consumer. Native ApplyEnchantment (:13669–14023)
+runs three effect columns before permanent visualization and duration, including
+the visual/duration tail for broken items. Source damage/totem and scaling rules
+are not the inherited action planner's flat-damage/random-suffix projection.
+Existing World routes reacquire canonical Player access and may return
+unrepresented actions; they are not a complete same-owner target executor.
+
+Entities now implements the complete isolated native operation in private
+player/enchantments children: live 35-slot scan, both ApplyEnchantment overloads,
+all three columns, exact stat/rating groups and native attack routing, scaling,
+permanent visual and duration tail. These are Player use-case functions over
+the supplied canonical skill owner, not inventory/stat methods on PlayerSkills.
+Every required gameplay callback executes synchronously; the small per-column
+typed operation sequence does not defer later source reads or whole-item success.
+Queries are gameplay-read-only, and items are resolved through immutable facts
+without retaining an Item borrow across callbacks. Item invalidation and
+undefined float-to-int conversion become explicit errors retaining the completed
+prefix and forbidding admission/save/retry of that construction. Source absent
+rows, no-op effect kinds and unknown-stat branches retain their ordinary returns;
+unknown outer effects require their diagnostic callback.
+Parent compared the actual implementation and tests to Player.cpp:13663–14068,
+GetAttackBySlot:9892ff, DB2Structure.h:3987ff and DBCEnums.h:2457 (ScaleAsAGem
+0x020), including source ranged slot 17 rather than the incomplete old helper.
+Worker Entity check passes, and 27 focused native enchantment tests pass after
+fixing test-only GUID widths/private fixture construction and three incomplete
+expected operation sequences. Parent also corrected missing fixture admission,
+broken-item expectations and the condition-ignore assertion before accepting
+this coding feedback. Tests cover downward/equal threshold boundaries, slot 34
+inclusion/35 exclusion, missing-row prefixes, live item/level/skill reentry,
+full-width required skills, effect dispatch/order and scaling failures. Their
+recording executor proves coordinator dispatch, not actual Unit stat, caster,
+aura, packet or duration-reference execution. This is a level-1 checkpoint;
+the real World catalog bridge, gem conditions, body effects and canonical Player
+integration remain required before final/publication/runtime acceptance.
+
+EnchantmentFitsRequirements (:24373–24442) is a separate gem-color condition,
+not PlayerCondition. It reads actual unbroken equipped items and every socketed
+gem; the four counters wrap as uint8, and condition zero or a genuinely absent
+admitted condition row passes before inventory traversal. A missing catalog is
+not evidence of such a missing row. The represented World route currently
+conflates those absences, saturates gem counts and filters signed gem IDs; that
+route must not stand in for target bit-preserving, same-owner evaluation.
+Native ItemSpecCatalog already owns GemProperties, but the native closed schemas
+do not yet admit SpellItemEnchantmentCondition. The complete source operation,
+target bridge and actual body effects remain in this same integration scope.
+Parent offline inspection identifies that missing table's complete contract:
+DB2Metadata.h:21431–21452 has six five-element arrays (8/32/8/8/8/8 bits),
+file data ID 1121834 and layout D5348137; DB2LoadInfo.h:5525–5562 and
+DB2Structure.h:4018–4027 retain all thirty unsigned operands/operations/logic
+values plus the uint32 ID. HotfixDatabase.cpp:1670–1674 selects those same
+31 columns from spell_item_enchantment_condition with the existing official/
+custom VerifiedBuild partition. The retained offline runtime-data file is
+228 bytes, SHA256 b7ed365fa6dc5c2f8f79b0d44420a433cd5a6a923f35ba67a4d8d15248053d3d;
+its WDC5 header reports hash F9513930, the same layout, six fields, flags 4,
+locale FFFFFFFF and zero records/sections. This observation neither admits a
+new table nor proves an effective empty store after SQL overlays/removals.
+The native schema, numeric loader, effective catalog, hotfix serialization and
+SQL DTO/bridge must be extended together before the body treats a missing row
+as source absence; no legacy-store fallback or permissive readiness is allowed.
+
 The next skill persistence operation will capture immutable dirty-node rows in
 admitted native status order, without changing any status during capture. The
 provider still sees all physical keys, including Unchanged and Deleted; filter

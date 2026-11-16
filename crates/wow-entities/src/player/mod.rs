@@ -27,7 +27,16 @@ mod collection_state;
 mod combat;
 mod difficulty;
 mod effective_stats;
+mod enchantments;
 mod equipment_sets;
+pub use enchantments::{
+    SkillEnchantmentApplyArgs, SkillEnchantmentAttackPowerIndex,
+    SkillEnchantmentAttackPowerModifier, SkillEnchantmentEffectOperation, SkillEnchantmentEffects,
+    SkillEnchantmentError, SkillEnchantmentItemFacts, SkillEnchantmentItemTemplate,
+    SkillEnchantmentRating, SkillEnchantmentRecord, SkillEnchantmentSource,
+    SkillEnchantmentUnitMod, SkillEnchantmentUnitModifier, apply_all_enchantments_native_like_cpp,
+    apply_enchantment_native_like_cpp, update_skill_enchantments_native_like_cpp,
+};
 mod item_modifiers;
 mod items;
 mod location;
