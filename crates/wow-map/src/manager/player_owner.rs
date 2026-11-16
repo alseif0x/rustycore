@@ -559,7 +559,7 @@ mod tests {
                 .unwrap();
             let operation = begin_native_death_operation(&mut manager, handle, in_flight);
 
-            assert_eq!(manager.retire_player_like_cpp(handle), None);
+            assert!(manager.retire_player_like_cpp(handle).is_none());
             assert_eq!(
                 manager.player_residence_like_cpp(handle),
                 Some(PlayerResidenceLikeCpp::Active(key)),

@@ -3970,7 +3970,7 @@ pub struct RemoveFromMapVisibilityOnDestroyOutcomeLikeCpp {
     pub update_object_visibility_on_destroy_runtime_gap: bool,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct RemoveFromMapOutcome {
     pub guid: ObjectGuid,
     pub cell: CellCoord,

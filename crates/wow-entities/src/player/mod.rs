@@ -3603,7 +3603,7 @@ impl PlayerValuesUpdate {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Player {
     unit: Unit,
     session_id: Option<u64>,

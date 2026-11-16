@@ -3,7 +3,7 @@
 use wow_core::ObjectGuid;
 use wow_entities::MapObjectRecord;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct LoadedGridRespawnRecordsLikeCpp {
     pub pre_add_records: Vec<MapObjectRecord>,
     pub primary_record: MapObjectRecord,

@@ -405,10 +405,8 @@ fn remove_from_map_like_cpp_can_delete_object_and_reports_missing_guid() {
     assert!(removed.object.is_none());
     assert_eq!(map.map_object_count(), 0);
 
-    assert_eq!(
-        map.remove_from_map_like_cpp(guid, false),
-        Err(RemoveFromMapError::ObjectNotFound { guid })
-    );
+    let error = map.remove_from_map_like_cpp(guid, false).unwrap_err();
+    assert_eq!(error, RemoveFromMapError::ObjectNotFound { guid });
 }
 #[test]
 fn process_map_object_move_list_like_cpp_relocates_active_entries_and_resets_inactive() {

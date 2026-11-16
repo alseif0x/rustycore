@@ -183,6 +183,17 @@ initialization remains distinct from source InitializeSkillFields in Create
 does not permit a second active skill/book field during migration or an empty-
 owner swap to bypass same-owner reentry.
 
+The aggregate equality prerequisite is now retired from Player, its four
+accessor aggregates, LoadedGridRespawnRecordsLikeCpp and RemoveFromMapOutcome.
+Debug and the separate GameplayState/default predicate remain unchanged.
+Two existing assertions now check absence or the exact extracted error, without
+requiring a Player value comparison; no gameplay body or test identity changes.
+Worker Entity check and 34 accessor cases pass. The initial Map check exposed
+the two additional containing aggregates; after their same-rule retirement,
+Map check and 38 player-owner cases pass. The changed movement error case was
+compiled but not selected by that filter. This is level-1 coding feedback;
+canonical fields and complete downstream/final acceptance still remain.
+
 For synchronous skill/book reentry, use disjoint borrows of those two canonical
 owners. The skill-effect adapter borrows the book; when its callback receives
 the same mutable skills, it lends those skills to the spell-effect adapter for
