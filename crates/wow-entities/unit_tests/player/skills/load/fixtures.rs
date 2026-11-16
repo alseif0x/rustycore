@@ -162,6 +162,7 @@ pub(super) struct Effects<'a> {
     pub level_after_reward: Option<u8>,
     pub reenter: Option<SkillUpdate>,
     pub fail_learning: bool,
+    pub requests: usize,
     sources: &'a Sources,
 }
 
@@ -176,6 +177,7 @@ impl<'a> Effects<'a> {
             level_after_reward: None,
             reenter: None,
             fail_learning: false,
+            requests: 0,
             sources,
         }
     }
@@ -183,6 +185,9 @@ impl<'a> Effects<'a> {
 
 impl SkillSetEffects for Effects<'_> {
     type Error = &'static str;
+    fn request_client_update(&mut self) {
+        self.requests += 1;
+    }
     fn player_level(&self) -> u8 {
         self.level
     }

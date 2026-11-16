@@ -7,7 +7,7 @@ pub use wow_entities::{
     SkillLoadRow, SkillLoadSource, SkillRaceClassMetadata, SkillRewardSpellMetadata,
     SkillSaveBatch, SkillSaveRow, SkillSetEffects, SkillSetError as SkillSetDomainError,
     SkillSetOutcome, SkillSetSource, SkillStatusEntry, SkillStatusOrderError, SkillUpdate,
-    SkillUpdateState,
+    SkillUpdateState, SkillValuesSnapshot,
 };
 /// Compatibility error for the concrete World/Data source adapter.
 pub type SkillSetError<E> = SkillSetDomainError<E, SkillSetInputError>;

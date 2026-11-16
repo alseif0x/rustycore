@@ -60,6 +60,7 @@ pub use skills::{
     PLAYER_MAX_SKILLS, PlayerSkills, ProfessionItemMove, SkillBonusError, SkillCriteria,
     SkillFields, SkillLoadError, SkillLoadOutcome, SkillLoadRow, SkillSaveBatch, SkillSaveRow,
     SkillSetEffects, SkillSetOutcome, SkillStatusEntry, SkillStatusOrderError, SkillUpdateState,
+    SkillValuesSnapshot,
 };
 mod pvp;
 mod quest_log;

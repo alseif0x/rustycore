@@ -12,7 +12,7 @@ fn source_preallocation_activation_orders_rewards_enchants_criteria_status_then_
         vec![1],
     );
     let initial = fixture.world.initial_skill_fields(1, 1, 1).unwrap();
-    let mut skills = initial.initialize_player_skills();
+    let mut skills = initial.initialize_player_skills(|| {});
     let mut effects = Effects {
         bonus: Some((&fixture.birth, 5)),
         ..Default::default()

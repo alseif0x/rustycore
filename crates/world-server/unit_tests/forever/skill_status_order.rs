@@ -4,7 +4,7 @@ use wow_entities::{PlayerSkills, SkillStatusOrderError, SkillUpdateState};
 
 #[test]
 fn canonical_borrowed_statuses_use_native_replay_with_duplicate_zero_and_wide_ids() {
-    let skills = PlayerSkills::initialize([10, 10, 0, 65536, u32::MAX]);
+    let skills = PlayerSkills::initialize([10, 10, 0, 65536, u32::MAX], || {});
     let entries = skills.source_statuses(order).unwrap();
     assert_eq!(entries.len(), 4);
     let keys = entries
@@ -144,7 +144,7 @@ fn rust_adapter_surfaces_native_duplicate_and_count_rejections() {
     assert!(order(&[7], 0).is_err());
     assert!(order(&[7], 2).is_err());
     assert!(order(&[], 1).is_err());
-    let skills = PlayerSkills::initialize([7, 8]);
+    let skills = PlayerSkills::initialize([7, 8], || {});
     assert!(matches!(
         skills.source_statuses(|_, count| order(&[7, 7], count)),
         Err(SkillStatusOrderError::Source(_))

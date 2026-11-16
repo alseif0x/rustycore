@@ -208,7 +208,7 @@ pub(super) fn update(skill: u32, step: u16, value: u16, maximum: u16) -> SkillUp
     }
 }
 pub(super) fn allocated(ids: impl IntoIterator<Item = u32>) -> PlayerSkills {
-    PlayerSkills::initialize(ids)
+    PlayerSkills::initialize(ids, || {})
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Event {
@@ -237,6 +237,7 @@ pub(super) struct Effects<'a> {
     pub add_false: bool,
     pub flip_world_after_grant: bool,
     pub grants: Vec<(u32, u32, bool)>,
+    pub requests: usize,
     pub level_queries: Cell<usize>,
     pub world_queries: Cell<usize>,
     pub level_after_grant: Option<u8>,
@@ -279,6 +280,9 @@ impl Effects<'_> {
 }
 impl SkillSetEffects for Effects<'_> {
     type Error = &'static str;
+    fn request_client_update(&mut self) {
+        self.requests += 1;
+    }
     fn player_level(&self) -> u8 {
         self.level_queries.set(self.level_queries.get() + 1);
         self.level.unwrap_or(1)
@@ -355,7 +359,7 @@ impl SkillSetEffects for Effects<'_> {
             && aura_type == 30
         {
             skills
-                .modify_bonus(birth, skill, bonus, false)
+                .modify_bonus(birth, skill, bonus, false, || self.request_client_update())
                 .map_err(|_| "bonus mutation failed")?;
         }
         Ok(())

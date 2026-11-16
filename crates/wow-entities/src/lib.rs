@@ -43,11 +43,11 @@ pub use player::{
     SkillLineMetadata, SkillLoadError, SkillLoadOutcome, SkillLoadRow, SkillLoadSource,
     SkillRaceClassMetadata, SkillRewardSpellMetadata, SkillSaveBatch, SkillSaveRow,
     SkillSetEffects, SkillSetError, SkillSetOutcome, SkillSetSource, SkillStatusEntry,
-    SkillStatusOrderError, SkillUpdate, SkillUpdateState, SpellBookDefinition, SpellBookEffect,
-    SpellBookMessage, SpellBookMutation, SpellBookOrderError, SpellDefinitionSource,
-    SpellLearnCriterion, SpellLearningAbility, SpellLearningEffects, SpellLearningError,
-    SpellLearningNode, SpellLearningRank, SpellLearningSkill, SpellLearningSource,
-    SpellLearningSourceError, SpellLoadRow,
+    SkillStatusOrderError, SkillUpdate, SkillUpdateState, SkillValuesSnapshot, SpellBookDefinition,
+    SpellBookEffect, SpellBookMessage, SpellBookMutation, SpellBookOrderError,
+    SpellDefinitionSource, SpellLearnCriterion, SpellLearningAbility, SpellLearningEffects,
+    SpellLearningError, SpellLearningNode, SpellLearningRank, SpellLearningSkill,
+    SpellLearningSource, SpellLearningSourceError, SpellLoadRow,
 };
 pub use player::{
     QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp, is_buyback_slot,

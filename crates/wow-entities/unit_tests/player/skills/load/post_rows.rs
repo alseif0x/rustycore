@@ -13,7 +13,7 @@ fn provider_order_controls_reward_order_after_all_rows_and_exact_set_is_required
         sources.add_rc(skill as u16, 0);
         sources.add_ability(skill, skill + 1000, 0);
     }
-    let mut skills = PlayerSkills::initialize([]);
+    let mut skills = PlayerSkills::initialize([], || {});
     let mut effects = Effects::new(&sources, 20);
     effects.observe_skill = Some(10);
     let mut received = None;
@@ -37,7 +37,7 @@ fn provider_order_controls_reward_order_after_all_rows_and_exact_set_is_required
     assert_eq!(effects.observed_skill, Some(true));
 
     for malformed in [vec![10, 10], vec![10, 30], vec![10]] {
-        let mut skills = PlayerSkills::initialize([]);
+        let mut skills = PlayerSkills::initialize([], || {});
         let mut effects = Effects::new(&sources, 20);
         let error = skills.load_skills(
             &[row(10, 5, 10, -1), row(20, 6, 10, -1)],
@@ -51,7 +51,7 @@ fn provider_order_controls_reward_order_after_all_rows_and_exact_set_is_required
         assert_eq!(skills.status(20).unwrap().1, SkillUpdateState::Unchanged);
     }
 
-    let mut empty_skills = PlayerSkills::initialize([]);
+    let mut empty_skills = PlayerSkills::initialize([], || {});
     let mut empty_effects = Effects::new(&sources, 20);
     let mut empty_provider_called = false;
     assert_eq!(
@@ -75,7 +75,7 @@ fn provider_errors_and_source_or_effect_errors_keep_the_applied_prefix() {
     sources.add_rc(10, 0);
     sources.add_ability(10, 1010, 0);
 
-    let mut skills = PlayerSkills::initialize([]);
+    let mut skills = PlayerSkills::initialize([], || {});
     let mut effects = Effects::new(&sources, 10);
     let order_error = skills.load_skills(&[row(10, 7, 50, -1)], &sources, &mut effects, |_, _| {
         Err::<Vec<u32>, _>("order unavailable")
@@ -85,13 +85,19 @@ fn provider_errors_and_source_or_effect_errors_keep_the_applied_prefix() {
         Err(SkillLoadError::Order("order unavailable"))
     ));
     assert_eq!(skills.fields()[0].rank(), 7);
+    let mut expected = [0; 66];
+    for bit in [0, 1, 301, 601, 901, 1201, 1501, 1801] {
+        expected[bit / 32] |= 1 << (bit % 32);
+    }
+    assert_eq!(skills.field_changes(), &expected);
+    assert_eq!(effects.requests, 4);
     assert!(effects.events.is_empty());
 
     let mut row_error_sources = Sources::default();
     row_error_sources.add_line(10, 4, 0, 0);
     row_error_sources.add_rc(10, 0);
     row_error_sources.rc_error = Some(20);
-    let mut row_error_skills = PlayerSkills::initialize([]);
+    let mut row_error_skills = PlayerSkills::initialize([], || {});
     let mut row_error_effects = Effects::new(&row_error_sources, 10);
     let row_error = row_error_skills.load_skills(
         &[row(10, 7, 50, -1), row(20, 9, 50, -1)],
@@ -107,7 +113,7 @@ fn provider_errors_and_source_or_effect_errors_keep_the_applied_prefix() {
 
     let mut effects = Effects::new(&sources, 10);
     effects.fail_learning = true;
-    let mut effect_skills = PlayerSkills::initialize([]);
+    let mut effect_skills = PlayerSkills::initialize([], || {});
     let effect_error =
         effect_skills.load_skills(&[row(10, 7, 50, -1)], &sources, &mut effects, ordered);
     assert!(matches!(
@@ -122,7 +128,7 @@ fn provider_errors_and_source_or_effect_errors_keep_the_applied_prefix() {
     let mut missing_line_sources = Sources::default();
     missing_line_sources.add_rc(42, 0);
     missing_line_sources.add_ability(42, 1042, 0);
-    let mut missing_line_skills = PlayerSkills::initialize([]);
+    let mut missing_line_skills = PlayerSkills::initialize([], || {});
     let mut missing_line_effects = Effects::new(&missing_line_sources, 10);
     let missing_line = missing_line_skills.load_skills(
         &[row(42, 7, 50, -1)],
@@ -153,7 +159,7 @@ fn capacity_stops_before_duplicate_but_still_runs_post_row_rewards() {
             parent_tier_index: 0,
         },
     );
-    let mut skills = PlayerSkills::initialize(0..299);
+    let mut skills = PlayerSkills::initialize(0..299, || {});
     let mut effects = Effects::new(&sources, 10);
     let mut received = None;
     let outcome = skills
@@ -199,7 +205,7 @@ fn callbacks_reenter_the_same_owner_before_parent_and_live_level_phases() {
         },
     );
 
-    let mut skills = PlayerSkills::initialize([]);
+    let mut skills = PlayerSkills::initialize([], || {});
     seed(&mut skills, 200, 0, 5, 50, 0, 0, SkillUpdateState::Changed);
     seed(
         &mut skills,
@@ -265,7 +271,7 @@ fn parent_tier_clamps_and_backtracks_then_narrows_to_skill_field_width() {
     let mut tier = [0; 16];
     tier[13] = 70_000;
     sources.tiers.insert(8, tier);
-    let mut skills = PlayerSkills::initialize([]);
+    let mut skills = PlayerSkills::initialize([], || {});
     seed(&mut skills, 200, 0, 7, 50, 0, 0, SkillUpdateState::Changed);
     let mut effects = Effects::new(&sources, 10);
 
@@ -300,7 +306,7 @@ fn ordered_full_width_children_preserve_other_slot_fields_and_profession_fixups_
             parent_tier_index: 0,
         },
     );
-    let mut skills = PlayerSkills::initialize([]);
+    let mut skills = PlayerSkills::initialize([], || {});
     skills.fields[1] = SkillFields {
         line: 1,
         step: 9,
@@ -311,6 +317,7 @@ fn ordered_full_width_children_preserve_other_slot_fields_and_profession_fixups_
         permanent_bonus: 4,
     };
     let mut effects = Effects::new(&sources, 10);
+    skills.clear_changes();
     skills
         .load_skills(&[row(100, 2, 10, -1)], &sources, &mut effects, ordered)
         .unwrap();
@@ -322,11 +329,17 @@ fn ordered_full_width_children_preserve_other_slot_fields_and_profession_fixups_
     assert_eq!((child.step(), child.rank(), child.maximum()), (9, 8, 6));
     assert_eq!(child.temporary_bonus(), 5);
     assert_eq!(child.permanent_bonus(), 4);
+    for bit in [2, 902] {
+        assert_ne!(skills.field_changes()[bit / 32] & (1 << (bit % 32)), 0);
+    }
+    for bit in [302, 602, 1202, 1502, 1802] {
+        assert_eq!(skills.field_changes()[bit / 32] & (1 << (bit % 32)), 0);
+    }
 
     let mut profession_sources = Sources::default();
     profession_sources.add_line(500, 11, 0, 0);
     profession_sources.add_rc(500, 0);
-    let mut profession_skills = PlayerSkills::initialize([]);
+    let mut profession_skills = PlayerSkills::initialize([], || {});
     let mut profession_effects = Effects::new(&profession_sources, 15);
     profession_skills
         .load_skills(
@@ -355,7 +368,7 @@ fn ordered_full_width_children_preserve_other_slot_fields_and_profession_fixups_
     let mut explicit_sources = Sources::default();
     explicit_sources.add_line(501, 11, 0, 0);
     explicit_sources.add_rc(501, 0);
-    let mut explicit_skills = PlayerSkills::initialize([]);
+    let mut explicit_skills = PlayerSkills::initialize([], || {});
     let mut explicit_effects = Effects::new(&explicit_sources, 15);
     explicit_skills
         .load_skills(
@@ -371,4 +384,9 @@ fn ordered_full_width_children_preserve_other_slot_fields_and_profession_fixups_
         SkillUpdateState::Deleted
     );
     assert_eq!(explicit_skills.fields()[0].line(), 501);
+    let mut expected = [0; 66];
+    expected[0] = (1 << 0) | (1 << 1);
+    assert_eq!(explicit_skills.field_changes(), &expected);
+    assert_eq!(explicit_skills.profession_changes(), 1 << 1);
+    assert_eq!(explicit_effects.requests, 2);
 }

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 #[test]
 fn duplicate_initialization_keeps_first_status_slot_and_logs_only_successful_keys() {
-    let skills = PlayerSkills::initialize([10, 10, 65536, 0]);
+    let skills = PlayerSkills::initialize([10, 10, 65536, 0], || {});
     assert_eq!(skills.insertions, [10, 65536, 0]);
     assert_eq!(skills.status(10), Some((0, Unchanged)));
     assert_eq!(skills.status(65536), Some((2, Unchanged)));
@@ -21,7 +21,7 @@ fn duplicate_initialization_keeps_first_status_slot_and_logs_only_successful_key
         assert_eq!(field.rank(), 0);
     }
     assert!(!skills.has_skill(10) && !skills.has_skill(65536));
-    let limited = PlayerSkills::initialize(std::iter::repeat_n(9, 300).chain([20]));
+    let limited = PlayerSkills::initialize(std::iter::repeat_n(9, 300).chain([20]), || {});
     assert_eq!(limited.insertions, [9]);
     assert_eq!(limited.status(9), Some((0, Unchanged)));
     assert!(limited.status(20).is_none());
@@ -176,9 +176,11 @@ fn payload_bonus_noop_and_deactivation_retain_status_membership_without_new_even
         .unwrap();
     assert_eq!(skills.status(10), Some((0, Changed)));
     skills
-        .modify_bonus(fixture.sources(), 10, 3, false)
+        .modify_bonus(fixture.sources(), 10, 3, false, || {})
         .unwrap();
-    skills.modify_bonus(fixture.sources(), 10, 4, true).unwrap();
+    skills
+        .modify_bonus(fixture.sources(), 10, 4, true, || {})
+        .unwrap();
     assert_eq!(
         (skills.temporary_bonus(10), skills.permanent_bonus(10)),
         (3, 4)

@@ -18,6 +18,8 @@ fn deactivate_preserves_line_resets_all_other_fields_and_keeps_source_spell_remo
         skills.fields[0].temporary_bonus = -5;
         skills.fields[0].permanent_bonus = 10;
         skills.fields[0].starting_rank = 3;
+        skills.professions = [10, 0];
+        skills.clear_changes();
         let mut effects = Effects::default();
         skills
             .set_skill(update(10, 20, 0, 300), fixture.sources(), &mut effects)
@@ -25,6 +27,9 @@ fn deactivate_preserves_line_resets_all_other_fields_and_keeps_source_spell_remo
         assert_eq!(
             effects.events,
             [
+                Event::Store(19),
+                Event::Store(20),
+                Event::Store(21),
                 Event::Enchant(10, 7, 0, if state == Deleted { 0 } else { 7 }),
                 Event::Remove(100),
                 Event::Remove(u32::MAX),
@@ -48,6 +53,13 @@ fn deactivate_preserves_line_resets_all_other_fields_and_keeps_source_spell_remo
             ),
             (10, 0, 0, 1, 0, 0, 0)
         );
+        assert_eq!(effects.requests, 7);
+        assert_eq!(effects.request_positions, [3, 4, 4, 4, 4, 4, 4]);
+        for bit in [0, 301, 601, 901, 1201, 1501, 1801] {
+            assert!(skills.field_changes()[bit / 32] & (1 << (bit % 32)) != 0);
+        }
+        assert_eq!(skills.field_changes()[0] & (1 << 1), 0); // SkillLineID retained without a setter.
+        assert_eq!(skills.profession_changes(), 1);
     }
 }
 

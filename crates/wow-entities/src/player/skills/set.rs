@@ -36,6 +36,9 @@ pub enum ProfessionItemMove {
 /// There is no production implementation yet: creation stays disabled.
 pub trait SkillSetEffects {
     type Error;
+    /// Synchronously request the canonical Object update admission. This leaf
+    /// must not reenter skill/book operations, perform I/O, or deliver packets.
+    fn request_client_update(&mut self);
     /// Unit.h:769 returns uint8, not the wider stored Level field.
     fn player_level(&self) -> u8;
     fn is_in_world(&self) -> bool;

@@ -4,6 +4,7 @@ mod bonus;
 mod load;
 mod order;
 mod save;
+mod values;
 use super::skill_sources::{SkillCatalog, SkillLineMetadata, SkillSetSource, SkillUpdate};
 #[cfg(test)]
 #[path = "../../unit_tests/player/skills/load/mod.rs"]
@@ -20,6 +21,10 @@ pub use load::{SkillLoadError, SkillLoadOutcome, SkillLoadRow};
 pub use order::{SkillStatusEntry, SkillStatusOrderError};
 pub use save::{SkillSaveBatch, SkillSaveRow};
 pub use set::{ProfessionItemMove, SkillCriteria, SkillSetEffects, SkillSetOutcome};
+pub use values::SkillValuesSnapshot;
+#[cfg(test)]
+#[path = "../../unit_tests/player/skills/values.rs"]
+mod values_tests;
 use std::collections::HashMap;
 
 // Source PLAYER_MAX_SKILLS and UF::SkillInfo array width. Not independent
@@ -82,6 +87,8 @@ pub struct PlayerSkills {
     insertions: Vec<u32>,
     // Source ActivePlayerData::ProfessionSkillLine, not a Session/inventory mirror.
     professions: [i32; 2],
+    field_changes: [u32; 66],
+    profession_changes: u8,
 }
 impl PlayerSkills {
     /// Player.cpp:5780-5793: Classic child admission uses the parent's pure
@@ -123,19 +130,21 @@ impl PlayerSkills {
     /// Execute InitializeSkillFields only. Blueprint default requests are NOT
     /// applied or saved; HasSkill stays false until real SetSkill effects run.
     /// Caller owns this component as part of the in-construction Player.
-    pub fn initialize(ids: impl IntoIterator<Item = u32>) -> Self {
-        Self::from_ids(ids)
+    pub fn initialize(ids: impl IntoIterator<Item = u32>, request: impl FnMut()) -> Self {
+        Self::from_ids(ids, request)
     }
-    fn from_ids(ids: impl IntoIterator<Item = u32>) -> Self {
+    fn from_ids(ids: impl IntoIterator<Item = u32>, mut request: impl FnMut()) -> Self {
         let mut result = Self {
             fields: Box::new([SkillFields::default(); PLAYER_MAX_SKILLS]),
             status: HashMap::new(),
             insertions: Vec::new(),
             professions: [0; 2],
+            field_changes: [0; 66],
+            profession_changes: 0,
         };
         for (slot, skill) in ids.into_iter().take(PLAYER_MAX_SKILLS).enumerate() {
-            result.fields[slot].line = skill as u16;
-            result.fields[slot].starting_rank = 1;
+            result.set_line(slot, skill as u16, &mut request);
+            result.set_starting_rank(slot, 1, &mut request);
             result.try_insert_status(
                 skill,
                 Status {

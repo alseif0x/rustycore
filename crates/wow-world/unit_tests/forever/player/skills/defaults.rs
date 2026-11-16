@@ -22,7 +22,7 @@ fn defaults_execute_language_mono_level_and_tier_on_canonical_fields_in_rc_stora
         vec![1, 2, 3, 4],
     );
     let initial = fixture.world.initial_skill_fields(1, 1, 1).unwrap();
-    let mut skills = initial.initialize_player_skills();
+    let mut skills = initial.initialize_player_skills(|| {});
     let mut effects = Effects::default();
     skills
         .learn_default_skills(&fixture.sources(), &mut effects)
@@ -65,7 +65,7 @@ fn duplicate_requests_and_a_skill_learned_by_an_earlier_reward_are_checked_live_
     );
     let initial = fixture.world.initial_skill_fields(1, 1, 1).unwrap();
     assert_eq!(initial.default_requests().len(), 3);
-    let mut skills = initial.initialize_player_skills();
+    let mut skills = initial.initialize_player_skills(|| {});
     let sources = fixture.sources();
     let mut effects = Effects {
         reenter: Some((&sources, update(20, 3, 60, 150))),
@@ -104,7 +104,7 @@ fn level_changed_by_a_prior_grant_admits_later_rc_that_the_initial_plan_could_no
     );
     let initial = fixture.world.initial_skill_fields(1, 1, 1).unwrap();
     assert_eq!(initial.default_requests().len(), 1);
-    let mut skills = initial.initialize_player_skills();
+    let mut skills = initial.initialize_player_skills(|| {});
     let mut effects = Effects {
         level_after_grant: Some(2),
         ..Default::default()
@@ -133,7 +133,7 @@ fn signed_min_level_unavailable_and_orphan_rc_preserve_source_filters_without_ex
         vec![1, 2, 3],
     );
     let initial = fixture.world.initial_skill_fields(1, 1, 1).unwrap();
-    let mut skills = initial.initialize_player_skills();
+    let mut skills = initial.initialize_player_skills(|| {});
     let mut effects = Effects::default();
     skills
         .learn_default_skills(&fixture.sources(), &mut effects)
@@ -156,7 +156,7 @@ fn required_effect_error_aborts_default_learning_after_its_completed_field_prefi
         vec![1, 2],
     );
     let initial = fixture.world.initial_skill_fields(1, 1, 1).unwrap();
-    let mut skills = initial.initialize_player_skills();
+    let mut skills = initial.initialize_player_skills(|| {});
     let mut effects = Effects {
         fail_at: Some(0),
         ..Default::default()

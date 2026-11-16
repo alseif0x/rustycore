@@ -86,7 +86,7 @@ fn source_preallocation_is_sorted_capped_and_does_not_apply_default_filters_or_l
         [(10, 0, 10, 1), (20, 1, 20, 1)]
     );
     assert!(result.default_requests().is_empty()); // no learned skill from StartingRank=1
-    let mut state = result.initialize_player_skills();
+    let mut state = result.initialize_player_skills(|| {});
     assert_eq!(
         state.status(10),
         Some((0, crate::forever::player::SkillUpdateState::Unchanged))
@@ -94,8 +94,12 @@ fn source_preallocation_is_sorted_capped_and_does_not_apply_default_filters_or_l
     assert_eq!(state.fields()[0].line(), 10);
     assert_eq!(state.fields()[0].starting_rank(), 1);
     assert!(!state.has_skill(10));
-    state.modify_bonus(catalog.as_ref(), 10, 50, false).unwrap();
-    state.modify_bonus(catalog.as_ref(), 10, 50, true).unwrap();
+    state
+        .modify_bonus(catalog.as_ref(), 10, 50, false, || {})
+        .unwrap();
+    state
+        .modify_bonus(catalog.as_ref(), 10, 50, true, || {})
+        .unwrap();
     assert_eq!(state.fields()[0].temporary_bonus(), 0);
     assert_eq!(state.fields()[0].permanent_bonus(), 0);
     assert!(!state.has_skill(10)); // Bonuses cannot learn a preallocated skill.

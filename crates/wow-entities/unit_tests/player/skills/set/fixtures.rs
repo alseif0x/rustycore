@@ -148,7 +148,7 @@ pub(super) fn update(skill: u32, step: u16, value: u16, maximum: u16) -> SkillUp
     }
 }
 pub(super) fn allocated(ids: impl IntoIterator<Item = u32>) -> PlayerSkills {
-    PlayerSkills::initialize(ids)
+    PlayerSkills::initialize(ids, || {})
 }
 pub(super) fn activate(
     skills: &mut PlayerSkills,

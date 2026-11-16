@@ -9,7 +9,7 @@ fn birth(category: i8, parent_exists: bool) -> Catalog {
     Catalog::new(lines, vec![])
 }
 fn active(skill: u32, rank: u16, maximum: u16, temporary: i16, permanent: u16) -> PlayerSkills {
-    let mut state = PlayerSkills::from_ids([skill]);
+    let mut state = PlayerSkills::from_ids([skill], || {});
     state.fields[0].step = 7;
     state.fields[0].rank = rank;
     state.fields[0].maximum = maximum;
@@ -33,7 +33,7 @@ fn query(state: &PlayerSkills, skill: u32) -> (bool, u16, u16, u16, u16, u16, u1
 
 #[test]
 fn preallocation_sets_only_line_and_starting_rank_without_learning_or_a_save_mutation() {
-    let state = PlayerSkills::from_ids([10, 20]);
+    let state = PlayerSkills::from_ids([10, 20], || {});
     assert_eq!(state.status(10), Some((0, SkillUpdateState::Unchanged)));
     assert_eq!(state.status(20), Some((1, SkillUpdateState::Unchanged)));
     assert_eq!(
@@ -54,7 +54,7 @@ fn preallocation_sets_only_line_and_starting_rank_without_learning_or_a_save_mut
 
 #[test]
 fn capacity_and_uint16_field_narrowing_do_not_truncate_the_status_identity() {
-    let state = PlayerSkills::from_ids(1..=301);
+    let state = PlayerSkills::from_ids(1..=301, || {});
     assert_eq!(state.status.len(), 300);
     assert_eq!(state.status(300), Some((299, SkillUpdateState::Unchanged)));
     assert!(state.status(301).is_none());
@@ -137,7 +137,7 @@ fn missing_zero_rank_or_deleted_profession_parent_disables_a_nonzero_child_reque
     let mut deleted = active(10, 75, 150, 0, 0);
     deleted.status.get_mut(&10).unwrap().state = SkillUpdateState::Deleted;
     for state in [
-        PlayerSkills::from_ids([]),
+        PlayerSkills::from_ids([], || {}),
         active(10, 0, 150, 0, 0),
         deleted,
     ] {

@@ -20,9 +20,14 @@ impl PlayerSkills {
         // Despite its source comment, this does NOT first deduplicate skill ID.
         self.professions.iter().position(|&line| line == 0)
     }
-    pub(super) fn assign_profession<C: SkillCatalog>(&mut self, birth: &C, skill: u32) {
+    pub(super) fn assign_profession<C: SkillCatalog>(
+        &mut self,
+        birth: &C,
+        skill: u32,
+        request: impl FnMut(),
+    ) {
         if let Some(slot) = self.free_profession_slot(birth, skill) {
-            self.professions[slot] = skill as i32;
+            self.set_profession_line(slot, skill as i32, request);
         }
     }
 
@@ -30,9 +35,10 @@ impl PlayerSkills {
         &mut self,
         birth: &C,
         skill: u32,
+        request: impl FnMut(),
     ) {
         if let Some(slot) = self.free_profession_slot(birth, skill) {
-            self.professions[slot] = skill as i32;
+            self.set_profession_line(slot, skill as i32, request);
             self.status
                 .get_mut(&skill)
                 .expect("loaded profession retains its status node")

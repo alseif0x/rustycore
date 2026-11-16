@@ -115,7 +115,7 @@ fn bonus_and_starting_rank_changes_do_not_block_matching_ack() {
         })
         .unwrap();
 
-    skills.modify_bonus(&sources, 10, 4, false).unwrap();
+    skills.modify_bonus(&sources, 10, 4, false, || {}).unwrap();
     let slot = skills.status(10).unwrap().0 as usize;
     skills.fields[slot].starting_rank = 7;
     assert_eq!(skills.fields()[slot].temporary_bonus(), 4);

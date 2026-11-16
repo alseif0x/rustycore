@@ -94,6 +94,42 @@ is allowed; copying a PlayerSkills actor or retaining a parallel mutable skill
 array in ActivePlayerData is not. Omitting this existing consumer could turn a
 pending skill mask into a zero/default payload during inventory publication.
 
+The selected field boundary keeps one 300-slot array in PlayerSkills, with its
+2101-bit SkillInfo mask and two profession-array change bits. Private setters
+mark the source parent/index bits on every call, including equal assignments;
+only a changed scalar requests the canonical Object update. Add that mandatory
+leaf request to SkillSetEffects; initialization and ModifySkillBonus take an
+explicit synchronous request callback rather than a default production no-op.
+The request may only perform same-owner Object update admission, without skill/
+book reentry, I/O or packet delivery. Constructors use the actual off-world Unit;
+in-world admission remains its separate adapter/lifecycle responsibility.
+
+Preserve each writer's source setter set and order: InitializeSkillFields writes
+line/starting rank; an existing nonzero SetSkill writes step/rank/max; removal
+writes step/rank/starting/max/temp/perm and preserves line without calling its
+setter; new-slot SetSkill and complete nonzero load write all seven fields.
+Zero load writes only line; forbidden load writes none; child preallocation
+writes line/starting only; ModifySkillBonus writes only its selected bonus field.
+Profession writes retain their source positions before field clearing/fixup.
+Route all existing writers through those setters, including equal bonus deltas,
+without changing SQL states or query arithmetic. Clearing publication masks must
+not acknowledge persistence; acknowledgement must not clear publication masks.
+An owned values snapshot may copy the fields, raw masks and profession facts for
+later projection; it must not retain or clone PlayerSkills or run a wire/query
+calculation during capture. Entities now implements these private field writers,
+raw masks and immutable snapshot, and all existing native initialization/bonus/
+effect callers require the explicit request. Parent source review preserves the
+writer sets and ordering above. Worker Entity coding feedback passes 75 native
+skill cases, including full initializer masks, equal writes, new/removal writers,
+zero/forbidden load, child preallocation and retained failure prefixes. The first
+two test runs failed on fixture admission and expected mask/effect assertions;
+those tests were corrected before the passing run. Worker World check and its
+13 native skill plus 11 creation skill cases also pass with the pinned read-only
+extractor overlay for tests. Target codec, canonical
+Player/inventory snapshot integration and actual Object/map queue admission are
+still unimplemented or unproven. These are level-1 coding results, not final,
+protocol or queue acceptance evidence.
+
 Player.cpp::_SaveSkills:21721–21772 reads rank/max by physical slot, narrows the
 DB key to uint16, appends the statement and marks the status Unchanged; it never
 erases a Deleted status node. Preserve physical membership and distinguish it
@@ -182,6 +218,59 @@ aliasing, unchanged-field preservation and bonus-versus-step/profession changes.
 They do not establish actual COMMIT, incarnation, SQL or live durability proof.
 The canonical Player receipt, SQL consumer, final campaign and runtime
 integration remain unimplemented or unvalidated at this boundary.
+
+The subsequent read-only spell-save concurrency review found a distinct case
+that must be settled before copying the legacy acknowledgement into the native
+book. Capture a nondependent New INSERT, remove its live New node, then add a
+Temporary entry with the same ID before confirmation. player/save_ack.rs:312–335
+skips the current Temporary row; removing that Temporary later can leave the
+committed permanent DB row with no delete intent. Player.cpp:3130–3153 and
+3227–3269 plus _SaveSpells:21772–21824 establish the difference: C++ changes
+New to Unchanged during statement construction, so removal retains a Removed
+node and same-ID AddTemporary is refused by physical membership. The native book
+is not production-integrated, and the money-save lock is not evidence of a
+spell-write freeze across await. Any native persistence design must preserve the
+confirmed-commit fence while accounting for this temporary/absent-key cleanup,
+later relearn and native membership/order history; it may not silently delete a
+current desired permanent row or turn primary cleanup into favorite cleanup.
+This is a source/code trace and an implementation constraint, not a reproduced
+live failure or a completed persistence repair.
+
+The selected book-save boundary is a pending operation owned by PlayerSpellBook,
+not a blind copy of the legacy immutable late ACK. An immutable capture plus
+delete debt could repair the DB row, but would still admit a same-ID Temporary
+that C++ rejects and could change rehash/membership history on successful saves.
+Preparing the native operation will therefore retain immutable dirty-row facts
+inside the same book, emit owned semantic persistence actions and return an
+opaque single-use operation token. Only one operation may be pending. This
+requires a mutable admitted capture at the eventual Player save boundary; no
+map/entity guard is retained across the database await.
+
+During preparation, captured Removed nodes leave the live map through its
+canonical erase primitive in source traversal order, as C++ does. Their dirty
+intent remains owned by the pending operation until confirmation. Captured New
+and Changed live entries keep their unconfirmed dirty tags. Mutating operations
+must nevertheless treat a captured New as the already-staged entry for source
+transition decisions: removal retains Removed instead of erasing it, and later
+favorite/active/dependent/disabled changes become Changed. The existing plain
+temporary-admission rule then rejects the retained Removed node. Do not maintain
+a second mutable known/dependent/favorite/override map or acknowledge an entry
+as persisted merely to obtain this behavior. Exact payload comparison at the
+confirmed finish still protects later changes.
+
+Known rollback retains current dirty rows and any primary DELETE obligation for
+captured Removed nodes that already left the live map. Such retry obligations
+are numeric persistence metadata, not live spell membership, and may coexist
+with a Temporary or absent key. A later permanent re-learn must be left durable:
+apply its outstanding primary delete before the appropriate insert, never after
+it. Ordinary live rows retain native traversal and per-key action order; orphan
+retry deletes use their retained deterministic order before those live rows.
+Do not add favorite cleanup that _SaveSpells does not perform. Only the matching
+confirmed finish consumes captured retry obligations; a dropped/unknown token
+keeps the operation unresolved under the existing quarantine rule. The concrete
+prepare/success/rollback reconciliation and mutation-reader audit remain to be
+implemented and tested. No transaction, native-order, packet or runtime proof is
+established by this design decision.
 
 ## Canonical inventory capture continuation — 2026-11-16
 

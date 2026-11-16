@@ -3,7 +3,7 @@ use super::super::skill_sources::{
     SkillLoadSource, SkillRaceClassMetadata, SkillSetError, SkillUpdate,
 };
 use super::set::SkillSetEffects;
-use super::{PLAYER_MAX_SKILLS, PlayerSkills, SkillFields, SkillUpdateState, Status};
+use super::{PLAYER_MAX_SKILLS, PlayerSkills, SkillUpdateState, Status};
 use std::collections::{HashMap, HashSet};
 
 const SKILL_CATEGORY_ARMOR_LIKE_CPP: i8 = 8;
@@ -140,7 +140,9 @@ impl PlayerSkills {
                                 .ok_or(SkillLoadError::InvalidProfessionSlot(
                                     row.profession_slot,
                                 ))?;
-                            self.professions[profession_slot] = i32::from(row.skill);
+                            self.set_profession_line(profession_slot, i32::from(row.skill), || {
+                                effects.request_client_update()
+                            });
                         } else {
                             // Repeated rows intentionally remain repeated fixups.
                             // Accumulate them after status creation below.
@@ -150,7 +152,7 @@ impl PlayerSkills {
                 }
             }
 
-            self.fields[slot].line = row.skill;
+            self.set_line(slot, row.skill, || effects.request_client_update());
             if value == 0 {
                 self.status
                     .get_mut(&skill)
@@ -159,15 +161,12 @@ impl PlayerSkills {
                 continue;
             }
 
-            self.fields[slot] = SkillFields {
-                line: row.skill,
-                step,
-                rank: value,
-                starting_rank: 1,
-                maximum,
-                temporary_bonus: 0,
-                permanent_bonus: 0,
-            };
+            self.set_step(slot, step, || effects.request_client_update());
+            self.set_rank(slot, value, || effects.request_client_update());
+            self.set_starting_rank(slot, 1, || effects.request_client_update());
+            self.set_maximum(slot, maximum, || effects.request_client_update());
+            self.set_temporary_bonus(slot, 0, || effects.request_client_update());
+            self.set_permanent_bonus(slot, 0, || effects.request_client_update());
             match loaded_skill_values.entry(skill) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
                     *entry.get_mut() = u32::from(value);
@@ -225,8 +224,8 @@ impl PlayerSkills {
                     continue;
                 }
                 let slot = self.status.len();
-                self.fields[slot].line = child.id as u16;
-                self.fields[slot].starting_rank = 1;
+                self.set_line(slot, child.id as u16, || effects.request_client_update());
+                self.set_starting_rank(slot, 1, || effects.request_client_update());
                 self.try_insert_status(
                     child.id,
                     Status {
@@ -238,7 +237,7 @@ impl PlayerSkills {
         }
 
         for skill in pending_professions {
-            self.assign_loaded_profession(sources, skill);
+            self.assign_loaded_profession(sources, skill, || effects.request_client_update());
         }
 
         if self.has_skill(SKILL_FIST_WEAPONS_LIKE_CPP) {

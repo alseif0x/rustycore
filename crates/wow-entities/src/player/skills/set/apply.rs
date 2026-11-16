@@ -1,6 +1,6 @@
 //! Source stored/absent branches; source final synchronization is in set.rs.
 use super::super::SkillLineMetadata;
-use super::super::{SkillFields, SkillUpdateState, Status};
+use super::super::{SkillUpdateState, Status};
 use super::{
     PlayerSkills, ProfessionItemMove, SkillCriteria, SkillSetEffects, SkillSetError,
     SkillSetOutcome, SkillSetSource, SkillUpdate,
@@ -32,10 +32,10 @@ impl PlayerSkills {
                         .update_enchantments(self, input.skill, old, input.value)
                         .map_err(SkillSetError::Effect)?;
                 }
-                let field = &mut self.fields[usize::from(slot)];
-                field.step = input.step;
-                field.rank = input.value;
-                field.maximum = input.maximum;
+                let slot = usize::from(slot);
+                self.set_step(slot, input.step, || effects.request_client_update());
+                self.set_rank(slot, input.value, || effects.request_client_update());
+                self.set_maximum(slot, input.maximum, || effects.request_client_update());
                 self.learn_skill_rewards(
                     input.skill,
                     u32::from(input.value),
@@ -68,7 +68,9 @@ impl PlayerSkills {
                         } else {
                             SkillUpdateState::New
                         };
-                        self.assign_profession(sources, input.skill);
+                        self.assign_profession(sources, input.skill, || {
+                            effects.request_client_update()
+                        });
                         self.refresh_skill_auras::<E, S::Error>(input.skill, effects)?;
                     } else {
                         status.state = SkillUpdateState::Changed;
@@ -89,17 +91,18 @@ impl PlayerSkills {
                             return Ok(SkillSetOutcome::InventoryFull);
                         }
                     }
-                    self.professions[profession] = 0;
+                    self.set_profession_line(profession, 0, || effects.request_client_update());
                 }
                 effects
                     .update_enchantments(self, input.skill, old, 0)
                     .map_err(SkillSetError::Effect)?;
-                let field = &mut self.fields[usize::from(slot)];
-                *field = SkillFields {
-                    line: field.line,
-                    starting_rank: 1,
-                    ..Default::default()
-                };
+                let slot = usize::from(slot);
+                self.set_step(slot, 0, || effects.request_client_update());
+                self.set_rank(slot, 0, || effects.request_client_update());
+                self.set_starting_rank(slot, 1, || effects.request_client_update());
+                self.set_maximum(slot, 0, || effects.request_client_update());
+                self.set_temporary_bonus(slot, 0, || effects.request_client_update());
+                self.set_permanent_bonus(slot, 0, || effects.request_client_update());
                 let status = self
                     .status
                     .get_mut(&input.skill)
@@ -157,16 +160,15 @@ impl PlayerSkills {
                         )?;
                     }
                 }
-                self.assign_profession(sources, input.skill);
+                self.assign_profession(sources, input.skill, || effects.request_client_update());
             }
-            self.fields[slot] = SkillFields {
-                line: input.skill as u16,
-                step: input.step,
-                rank: input.value,
-                starting_rank: 1,
-                maximum: input.maximum,
-                ..Default::default()
-            };
+            self.set_line(slot, input.skill as u16, || effects.request_client_update());
+            self.set_step(slot, input.step, || effects.request_client_update());
+            self.set_rank(slot, input.value, || effects.request_client_update());
+            self.set_starting_rank(slot, 1, || effects.request_client_update());
+            self.set_maximum(slot, input.maximum, || effects.request_client_update());
+            self.set_temporary_bonus(slot, 0, || effects.request_client_update());
+            self.set_permanent_bonus(slot, 0, || effects.request_client_update());
             effects
                 .update_enchantments(self, input.skill, 0, input.value)
                 .map_err(SkillSetError::Effect)?;

@@ -15,13 +15,18 @@ fn missing_line_returns_before_effects_and_empty_slot_zero_is_source_no_free_slo
         Ok(SkillSetOutcome::NoFreeSlot)
     );
     assert!(effects.events.is_empty());
+    assert_eq!(effects.requests, 0);
+    assert_eq!(skills.field_changes(), &[0; 66]);
     assert!(skills.status(10).is_none());
     let mut skills = allocated(1..=300);
+    let changes_before = *skills.field_changes();
     assert_eq!(
         skills.set_skill(update(301, 1, 1, 75), fixture.sources(), &mut effects),
         Ok(SkillSetOutcome::NoFreeSlot)
     );
     assert!(effects.events.is_empty());
+    assert_eq!(effects.requests, 0);
+    assert_eq!(skills.field_changes(), &changes_before);
 }
 
 #[test]
@@ -80,6 +85,7 @@ fn no_free_slot_return_still_runs_profession_final_sync_and_high_id_retains_iden
 fn required_effect_failure_retains_prefix_without_success_status_or_final_child_sync() {
     let fixture = Fixture::new(vec![line(10, 11, 0, 0), line(20, 6, 10, 4)], rewards(&[10]));
     let mut skills = allocated([10, 20]);
+    skills.clear_changes();
     let mut effects = Effects {
         fail_at: Some(0),
         ..Default::default()
@@ -93,6 +99,12 @@ fn required_effect_failure_retains_prefix_without_success_status_or_final_child_
     assert_eq!(skills.status(10), Some((0, Unchanged)));
     assert_eq!(skills.profession_lines(), &[0, 0]);
     assert_eq!(effects.events, [Event::Learn(10, 7, Some(Unchanged))]);
+    assert_eq!(effects.requests, 3);
+    assert_eq!(effects.request_positions, [0, 0, 0]);
+    for bit in [0, 301, 601, 1201] {
+        assert!(skills.field_changes()[bit / 32] & (1 << (bit % 32)) != 0);
+    }
+    assert_eq!(skills.field_changes()[0] & (1 << 1), 0);
 }
 
 #[test]

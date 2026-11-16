@@ -16,7 +16,7 @@ fn row_prefix_preserves_occupied_forbidden_nodes_and_last_nonzero_payload() {
     sources.add_ability(100, 1100, 5);
     sources.abilities.get_mut(&100).unwrap()[0].acquire_method = 1;
 
-    let mut skills = PlayerSkills::initialize([]);
+    let mut skills = PlayerSkills::initialize([], || {});
     seed(&mut skills, 777, 6, 42, 55, 7, 9, SkillUpdateState::Changed);
     let mut effects = Effects::new(&sources, 12);
     let mut provider_history = Vec::new();
@@ -63,7 +63,7 @@ fn allowed_rows_update_fields_without_resetting_new_deleted_or_changed_status() 
         (201, SkillUpdateState::Deleted),
         (202, SkillUpdateState::Changed),
     ];
-    let mut skills = PlayerSkills::initialize([]);
+    let mut skills = PlayerSkills::initialize([], || {});
     for (skill, state) in states {
         sources.add_line(skill, 4, 0, 0);
         sources.add_rc(skill as u16, 0);
@@ -123,7 +123,7 @@ fn raw_first_exact_tier_and_fixed_range_priority_match_the_row_contract() {
     armor_tier[0] = 100;
     sources.tiers.insert(8, armor_tier);
 
-    let mut skills = PlayerSkills::initialize([]);
+    let mut skills = PlayerSkills::initialize([], || {});
     let mut effects = Effects::new(&sources, 30);
     skills
         .load_skills(
@@ -184,7 +184,7 @@ fn invalid_profession_index_keeps_the_prefix_and_new_status_node() {
     sources.add_line(11, 11, 0, 0);
     sources.add_rc(11, 0);
     for invalid_slot in [2, -2] {
-        let mut skills = PlayerSkills::initialize([]);
+        let mut skills = PlayerSkills::initialize([], || {});
         let mut effects = Effects::new(&sources, 10);
         let mut provider_called = false;
 
@@ -208,4 +208,32 @@ fn invalid_profession_index_keeps_the_prefix_and_new_status_node() {
         assert_eq!(skills.status(11).unwrap().1, SkillUpdateState::Unchanged);
         assert_eq!(skills.fields()[1].line(), 0);
     }
+}
+
+#[test]
+fn forbidden_row_writes_no_fields_and_zero_row_writes_only_line() {
+    let mut sources = Sources::default();
+    sources.add_line(10, 4, 0, 0);
+    sources.add_rc(10, 0);
+    let mut skills = PlayerSkills::initialize([], || {});
+    let mut effects = Effects::new(&sources, 12);
+
+    skills
+        .load_skills(&[row(99, 7, 50, -1)], &sources, &mut effects, ordered)
+        .unwrap();
+
+    assert_eq!(skills.field_changes(), &[0; 66]);
+    assert_eq!(effects.requests, 0);
+
+    let mut skills = PlayerSkills::initialize([], || {});
+    let mut effects = Effects::new(&sources, 12);
+    skills
+        .load_skills(&[row(10, 0, 50, -1)], &sources, &mut effects, ordered)
+        .unwrap();
+
+    let mut expected = [0; 66];
+    expected[0] = (1 << 0) | (1 << 1);
+    assert_eq!(skills.field_changes(), &expected);
+    assert_eq!(effects.requests, 1);
+    assert_eq!(skills.status(10).unwrap().1, SkillUpdateState::Deleted);
 }

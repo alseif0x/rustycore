@@ -31,6 +31,7 @@ impl PlayerSkills {
         skill: u32,
         delta: i32,
         permanent: bool,
+        mut request: impl FnMut(),
     ) -> Result<(), SkillBonusError> {
         let mut active = BTreeSet::new();
         let mut frames = Vec::new();
@@ -45,7 +46,8 @@ impl PlayerSkills {
                     if !active.insert(skill) {
                         return Err(SkillBonusError::RecursiveChildCycle);
                     }
-                    let field = &mut self.fields[usize::from(status.slot)];
+                    let slot = usize::from(status.slot);
+                    let field = &self.fields[slot];
                     let previous = if permanent {
                         i32::from(field.permanent_bonus)
                     } else {
@@ -57,9 +59,9 @@ impl PlayerSkills {
                     // Both source setters take uint16; TempBonus stores int16.
                     // Preserve narrowing bits, never saturate or clamp bonuses.
                     if permanent {
-                        field.permanent_bonus = value as u16;
+                        self.set_permanent_bonus(slot, value as u16, &mut request);
                     } else {
-                        field.temporary_bonus = value as u16 as i16;
+                        self.set_temporary_bonus(slot, value as u16 as i16, &mut request);
                     }
                     frames.push((skill, birth.child_lines(skill)));
                 }

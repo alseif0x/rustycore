@@ -1,6 +1,62 @@
 use super::*;
 use crate::SkillUpdateState::{Changed, Deleted, New, Unchanged};
 
+fn has_field_bit(words: &[u32; 66], bit: usize) -> bool {
+    words[bit / 32] & (1 << (bit % 32)) != 0
+}
+
+#[test]
+fn equal_set_skill_marks_only_written_field_bits_without_queue_requests() {
+    let fixture = Fixture::new(vec![line(10, 6, 0, 0)], vec![]);
+    let mut skills = allocated([10]);
+    activate(&mut skills, 10, 10, 75, Unchanged);
+    skills.clear_changes();
+    let mut effects = Effects::default();
+
+    skills
+        .set_skill(update(10, 1, 10, 75), fixture.sources(), &mut effects)
+        .unwrap();
+
+    assert_eq!(effects.requests, 0);
+    assert!(effects.request_positions.is_empty());
+    assert!(has_field_bit(skills.field_changes(), 0));
+    assert!(has_field_bit(skills.field_changes(), 301));
+    assert!(has_field_bit(skills.field_changes(), 601));
+    assert!(has_field_bit(skills.field_changes(), 1201));
+    assert!(!has_field_bit(skills.field_changes(), 1));
+    assert!(!has_field_bit(skills.field_changes(), 901));
+    assert!(!has_field_bit(skills.field_changes(), 1501));
+    assert!(!has_field_bit(skills.field_changes(), 1801));
+}
+
+#[test]
+fn new_profession_slot_marks_all_seven_fields_and_the_profession_before_effects() {
+    let fixture = Fixture::new(vec![line(10, 11, 0, 0)], vec![]);
+    let mut skills = allocated([1]);
+    skills.clear_changes();
+    let mut effects = Effects::default();
+
+    skills
+        .set_skill(update(10, 2, 7, 75), fixture.sources(), &mut effects)
+        .unwrap();
+
+    assert_eq!(skills.status(10), Some((1, New)));
+    assert_eq!(skills.profession_lines(), &[10, 0]);
+    assert_eq!(skills.profession_changes(), 1);
+    let expected_bits = [0, 2, 302, 602, 902, 1202, 1502, 1802];
+    for bit in expected_bits {
+        assert!(has_field_bit(skills.field_changes(), bit));
+    }
+    let expected_mask = expected_bits.into_iter().fold([0; 66], |mut words, bit| {
+        words[bit / 32] |= 1 << (bit % 32);
+        words
+    });
+    assert_eq!(skills.field_changes(), &expected_mask);
+    assert_eq!(effects.requests, 6);
+    assert_eq!(effects.request_positions, [0; 6]);
+    assert_eq!(effects.events.first(), Some(&Event::Enchant(10, 0, 7, 0)));
+}
+
 #[test]
 fn decreases_enchant_before_field_writes_and_riding_increases_enchant_before_mount_update() {
     for (id, new, expected) in [
@@ -45,6 +101,15 @@ fn decreases_enchant_before_field_writes_and_riding_increases_enchant_before_mou
         assert_eq!(effects.events, expected);
         assert_eq!(skills.status(id), Some((0, Changed)));
         assert_eq!((skills.step(id), skills.pure_maximum(id)), (3, 100));
+        assert_eq!(
+            effects.request_positions,
+            match (id, new) {
+                (10, 5) => vec![1, 1, 1],
+                (762, 12) => vec![0, 0, 0],
+                (762, 10) => vec![0, 0],
+                _ => unreachable!(),
+            }
+        );
     }
 }
 
@@ -266,15 +331,15 @@ fn profession_projection_uses_signed_id_bits_first_empty_slot_and_no_duplicate_f
     );
     let mut skills = allocated([10, u32::MAX, 20, 30]);
     assert_eq!(skills.profession_slot(0), Some(0));
-    skills.assign_profession(&fixture.birth, 20); // Secondary is not profession.
-    skills.assign_profession(&fixture.birth, 30); // Child is not root profession.
+    skills.assign_profession(&fixture.birth, 20, || {}); // Secondary is not profession.
+    skills.assign_profession(&fixture.birth, 30, || {}); // Child is not root profession.
     assert_eq!(skills.profession_lines(), &[0, 0]);
-    skills.assign_profession(&fixture.birth, u32::MAX);
+    skills.assign_profession(&fixture.birth, u32::MAX, || {});
     assert_eq!(skills.profession_lines(), &[-1, 0]);
     assert_eq!(skills.profession_slot(u32::MAX), Some(0));
-    skills.assign_profession(&fixture.birth, u32::MAX); // Source comment != code.
+    skills.assign_profession(&fixture.birth, u32::MAX, || {}); // Source comment != code.
     assert_eq!(skills.profession_lines(), &[-1, -1]);
-    skills.assign_profession(&fixture.birth, 10);
+    skills.assign_profession(&fixture.birth, 10, || {});
     assert_eq!(skills.profession_slot(10), None);
     assert_eq!(skills.profession_slot(0), None);
 }
