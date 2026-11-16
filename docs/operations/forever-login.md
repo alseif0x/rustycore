@@ -81,6 +81,12 @@ ActivePlayerData parent 32/field 63, and :1488 declares ProfessionSkillLine at
 parent 371/first field 372. The current packet writer's Skill dispatch is field
 32. Merely widening its nested arrays would therefore leave an incompatible
 outer update format. Target publication must use the complete admitted schema.
+The mismatch covers the outer mask too: target ActivePlayerData is
+HasChangesMask<398> (UpdateFields.h:1319), whereas the current Entity constant is
+1525 and the generic packet DTO carries 48 words. Neither the old field dispatch
+nor those 48 words may be reused as target evidence merely because the nested
+SkillInfo becomes 300 slots. Preserve unported domain state without emitting an
+obsolete outer wire layout; the complete target projection remains in scope.
 UpdateField.h:351–378 marks nested/array masks when ModifyValue is evaluated,
 including equal assignments; :139–149 returns false for an equal scalar write,
 so BaseEntity.h:221–225 does not request queue admission for that write alone.
@@ -166,6 +172,16 @@ entries remain their separate source authority, and hydration/completeness and
 confirmed-commit/unknown-outcome fences remain explicit admission metadata.
 This partition is a design decision with identified consumers, not evidence that
 their migration, native persistence or runtime integration has been completed.
+The selected canonical placement is private Player fields for PlayerSkills and
+PlayerSpellBook, with the legacy rows/projections removed from PlayerGameplayState
+as their readers and writers migrate. A gameplay-state load assignment must not
+replace either actor. Retire aggregate Player equality and its accessor-body
+derives rather than imposing equality on the native owners; retain the separate
+GameplayState::is_empty semantics until its own consumers change. Constructor
+initialization remains distinct from source InitializeSkillFields in Create
+(:497) and LoadFromDB (:18528), after race/class initialization. This placement
+does not permit a second active skill/book field during migration or an empty-
+owner swap to bypass same-owner reentry.
 
 For synchronous skill/book reentry, use disjoint borrows of those two canonical
 owners. The skill-effect adapter borrows the book; when its callback receives
@@ -267,10 +283,26 @@ it. Ordinary live rows retain native traversal and per-key action order; orphan
 retry deletes use their retained deterministic order before those live rows.
 Do not add favorite cleanup that _SaveSpells does not perform. Only the matching
 confirmed finish consumes captured retry obligations; a dropped/unknown token
-keeps the operation unresolved under the existing quarantine rule. The concrete
-prepare/success/rollback reconciliation and mutation-reader audit remain to be
-implemented and tested. No transaction, native-order, packet or runtime proof is
-established by this design decision.
+keeps the operation unresolved under the existing quarantine rule.
+
+Entities now implements that isolated prepare/confirmed-finish/known-rollback
+operation in spell_book/save.rs. Its immutable actions retain full uint32 IDs,
+native per-key order and retry-delete-before-insert semantics. Pending-aware
+learning, removal, favorite and rank writers retain unconfirmed dirty intent;
+the ordinary no-pending paths remain covered by the complete native book family.
+Parent actual-diff review corrected test expectations for supplied provider order,
+complete membership history and independent active/dependent mutations; opaque
+tokens were exercised without widening their private fields. Source-order errors
+retain Removed nodes and retry obligations, while dropped tokens stay pending.
+Worker Entity check passes, and the corrected focused family passes 73 cases,
+including 17 new save-operation cases. Its first test build failed on a missing
+test import and ran no tests; the preserved follow-up passes. World's public
+facade also exposes the native load/save/snapshot types, with source review only
+for that facade delta. These are level-1 coding results at the dirty candidate,
+not final evidence at a later commit. Canonical Player fields, receipt/GUID and
+confirmed-group binding, known-failure/cancellation integration, SQL consumers,
+native-order driver and target publication remain required. No transaction,
+native-order, packet or runtime proof is established by this isolated operation.
 
 ## Canonical inventory capture continuation — 2026-11-16
 

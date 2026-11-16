@@ -61,9 +61,7 @@ impl PlayerSpellBook {
             let target = if higher { id } else { spell };
             let current = self.entries.get_mut(&target).unwrap();
             current.active = false;
-            if current.state != State::New {
-                current.state = State::Changed;
-            }
+            self.mark_persisted_spell_changed(target);
             if higher {
                 superseded_old = true;
             }

@@ -5,6 +5,7 @@ mod cast;
 mod learning;
 mod order;
 mod overrides;
+mod save;
 #[cfg(test)]
 #[path = "../../unit_tests/player/spell_book/root.rs"]
 mod tests;
@@ -14,6 +15,7 @@ pub use learning::{
     SpellLearningEffects, SpellLoadRow,
 };
 pub use order::SpellBookOrderError;
+pub use save::{SpellSaveAction, SpellSaveBatch, SpellSaveFinishError, SpellSavePrepareError};
 use std::collections::HashMap;
 
 #[repr(u8)]
@@ -91,6 +93,9 @@ pub struct PlayerSpellBook {
     entries: HashMap<u32, PlayerSpellEntry>,
     membership: Vec<SpellBookMutation>,
     overrides: HashMap<u32, overrides::OverrideSet>,
+    save_sequence: u64,
+    pending_save: Option<save::PendingSpellSave>,
+    primary_delete_obligations: Vec<u32>,
 }
 impl PlayerSpellBook {
     pub fn spell(&self, id: u32) -> Option<&PlayerSpellEntry> {
@@ -135,11 +140,23 @@ impl PlayerSpellBook {
     }
     /// Even assigning the existing favorite dirties an Unchanged source entry.
     pub fn set_spell_favorite(&mut self, id: u32, favorite: bool) {
+        let captured_new = self.pending_captured_new(id);
         let Some(entry) = self.entries.get_mut(&id) else {
             return;
         };
         entry.favorite = favorite;
-        if entry.state == PlayerSpellState::Unchanged {
+        if entry.state == PlayerSpellState::Unchanged
+            || (entry.state == PlayerSpellState::New && captured_new)
+        {
+            entry.state = PlayerSpellState::Changed;
+        }
+    }
+
+    pub(super) fn mark_persisted_spell_changed(&mut self, id: u32) {
+        let captured_new = self.pending_captured_new(id);
+        if let Some(entry) = self.entries.get_mut(&id)
+            && (entry.state != PlayerSpellState::New || captured_new)
+        {
             entry.state = PlayerSpellState::Changed;
         }
     }

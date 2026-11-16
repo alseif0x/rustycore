@@ -43,7 +43,8 @@ pub use spell_book::{
     AddPlayerSpell, CastOverrideAura, CastSpellAuras, CastSpellError, CastSpellResult,
     LearnPlayerSpell, PlayerSpellBook, PlayerSpellEntry, PlayerSpellState, PlayerSpellTrait,
     RemovePlayerSpell, SpellBookMessage, SpellBookMutation, SpellBookOrderError,
-    SpellLearnCriterion, SpellLearningEffects, SpellLoadRow,
+    SpellLearnCriterion, SpellLearningEffects, SpellLoadRow, SpellSaveAction, SpellSaveBatch,
+    SpellSaveFinishError, SpellSavePrepareError,
 };
 mod spell_sources;
 pub use spell_sources::{

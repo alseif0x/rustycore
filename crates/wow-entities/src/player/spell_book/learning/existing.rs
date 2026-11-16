@@ -46,7 +46,10 @@ impl PlayerSpellBook {
             && entry.dependent == request.dependent
             && entry.disabled == request.disabled
         {
-            if !effects.is_in_world() && !request.learning {
+            if !effects.is_in_world()
+                && !request.learning
+                && !self.pending_protects_unconfirmed_intent(request.spell)
+            {
                 self.entries.get_mut(&request.spell).unwrap().state = State::Unchanged;
             }
             return Ok(Existing::Done(false)); // Trait/favorite unchanged on this path.
@@ -55,9 +58,7 @@ impl PlayerSpellBook {
         if entry.state != State::Removed && !entry.dependent && request.dependent {
             let current = self.entries.get_mut(&request.spell).unwrap();
             current.dependent = true;
-            if current.state != State::New {
-                current.state = State::Changed;
-            }
+            self.mark_persisted_spell_changed(request.spell);
             dependent_set = true;
         }
         if entry.trait_data != request.trait_data {
@@ -73,12 +74,18 @@ impl PlayerSpellBook {
         }
         self.entries.get_mut(&request.spell).unwrap().favorite = request.favorite;
         if entry.active != request.active && entry.state != State::Removed && !entry.disabled {
-            let current = self.entries.get_mut(&request.spell).unwrap();
-            current.active = request.active;
-            if !effects.is_in_world() && !request.learning && !dependent_set {
-                current.state = State::Unchanged;
-            } else if current.state != State::New {
-                current.state = State::Changed;
+            let clear_offline_state = !effects.is_in_world()
+                && !request.learning
+                && !dependent_set
+                && !self.pending_protects_unconfirmed_intent(request.spell);
+            {
+                let current = self.entries.get_mut(&request.spell).unwrap();
+                current.active = request.active;
+            }
+            if clear_offline_state {
+                self.entries.get_mut(&request.spell).unwrap().state = State::Unchanged;
+            } else {
+                self.mark_persisted_spell_changed(request.spell);
             }
             if request.active {
                 if super::facts::passive(sources, request.spell).map_err(source)? {
@@ -106,11 +113,8 @@ impl PlayerSpellBook {
             return Ok(Existing::Done(request.active));
         }
         if entry.disabled != request.disabled && entry.state != State::Removed {
-            let current = self.entries.get_mut(&request.spell).unwrap();
-            if current.state != State::New {
-                current.state = State::Changed;
-            }
-            current.disabled = request.disabled;
+            self.entries.get_mut(&request.spell).unwrap().disabled = request.disabled;
+            self.mark_persisted_spell_changed(request.spell);
             return Ok(if request.disabled {
                 Existing::Done(false)
             } else {
@@ -127,7 +131,11 @@ impl PlayerSpellBook {
                 state = State::Changed;
             }
             _ => {
-                if !effects.is_in_world() && !request.learning && !dependent_set {
+                if !effects.is_in_world()
+                    && !request.learning
+                    && !dependent_set
+                    && !self.pending_protects_unconfirmed_intent(request.spell)
+                {
                     self.entries.get_mut(&request.spell).unwrap().state = State::Unchanged;
                 }
                 return Ok(Existing::Done(false));

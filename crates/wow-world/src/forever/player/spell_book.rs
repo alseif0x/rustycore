@@ -7,7 +7,8 @@ pub use wow_entities::{
     CastSpellAuras as GenericCastSpellAuras, CastSpellError as GenericCastSpellError,
     CastSpellResult as GenericCastSpellResult, LearnPlayerSpell, PlayerSpellBook, PlayerSpellEntry,
     PlayerSpellState, PlayerSpellTrait, RemovePlayerSpell, SpellBookMessage, SpellBookMutation,
-    SpellBookOrderError, SpellLearnCriterion, SpellLearningEffects, SpellLoadRow,
+    SpellBookOrderError, SpellLearnCriterion, SpellLearningEffects, SpellLoadRow, SpellSaveAction,
+    SpellSaveBatch, SpellSaveFinishError, SpellSavePrepareError,
 };
 pub type CastOverrideAura<'a> =
     GenericCastOverrideAura<'a, crate::forever::spells::SpellDefinitionView<'a>>;

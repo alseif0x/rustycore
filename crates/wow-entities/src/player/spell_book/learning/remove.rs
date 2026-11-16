@@ -79,11 +79,13 @@ impl PlayerSpellBook {
         if request.disabled {
             let current = self.entries.get_mut(&request.spell).unwrap();
             current.disabled = true;
-            if current.state != State::New {
-                current.state = State::Changed;
-            }
+            self.mark_persisted_spell_changed(request.spell);
         } else if before.state == State::New {
-            self.erase(request.spell);
+            if self.pending_captured_new(request.spell) {
+                self.entries.get_mut(&request.spell).unwrap().state = State::Removed;
+            } else {
+                self.erase(request.spell);
+            }
         } else {
             self.entries.get_mut(&request.spell).unwrap().state = State::Removed;
         }
@@ -124,17 +126,27 @@ impl PlayerSpellBook {
         let previous = sources.previous_spell_in_chain(request.spell);
         let mut activated = false;
         if previous != 0 && before.active && sources.spell_rank_node(request.spell).is_some() {
-            if let Some(entry) = self.entries.get_mut(&previous) {
-                if entry.dependent != before.dependent {
+            let reactivation = self.entries.get_mut(&previous).map(|entry| {
+                let dependent_changed = entry.dependent != before.dependent;
+                if dependent_changed {
                     entry.dependent = before.dependent;
-                    if entry.state != State::New {
-                        entry.state = State::Changed;
-                    }
                 }
-                if !entry.active && request.learn_low_rank {
-                    let mut lower = AddPlayerSpell::learned(previous, true, entry.dependent);
+                (
+                    dependent_changed,
+                    !entry.active && request.learn_low_rank,
+                    entry.dependent,
+                    entry.disabled,
+                )
+            });
+            if let Some((dependent_changed, should_reactivate, dependent, disabled)) = reactivation
+            {
+                if dependent_changed {
+                    self.mark_persisted_spell_changed(previous);
+                }
+                if should_reactivate {
+                    let mut lower = AddPlayerSpell::learned(previous, true, dependent);
                     lower.learning = false;
-                    lower.disabled = entry.disabled;
+                    lower.disabled = disabled;
                     if self.add_spell(lower, sources, effects)? {
                         // No IsInWorld gate here in source, unlike AddSpell's rank loop.
                         effect(effects.publish(
