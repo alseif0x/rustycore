@@ -10,6 +10,7 @@ mod corrections;
 mod custom;
 mod custom_sql;
 mod diminishing;
+mod enchantment_sources;
 mod global;
 mod immunities;
 mod learn_skills;

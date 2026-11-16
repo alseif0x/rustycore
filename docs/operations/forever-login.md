@@ -256,8 +256,33 @@ inclusion/35 exclusion, missing-row prefixes, live item/level/skill reentry,
 full-width required skills, effect dispatch/order and scaling failures. Their
 recording executor proves coordinator dispatch, not actual Unit stat, caster,
 aura, packet or duration-reference execution. This is a level-1 checkpoint;
-the real World catalog bridge, gem conditions, body effects and canonical Player
+gem conditions, body effects and canonical Player
 integration remain required before final/publication/runtime acceptance.
+
+World now supplies the immutable metadata bridge in
+forever/player/enchantment_sources.rs. SkillEnchantmentSources borrows the
+existing SpellDefinitionSeeds, NumericItemTemplates and those seeds' own
+SpellValueGameTables; absent game tables reject construction explicitly.
+One crate-private borrowed enchant-record accessor avoids catalog copying.
+All thirteen consumed field groups retain their source widths, signed amounts
+and float bits. ItemTemplate.h:397/:861 casts ExtendedData.InventoryType into
+the uint8 enum, so the bridge converts the stored sparse int8 through uint8
+before widening; it does not read BasicData's separate inventory type.
+Required skill/rank also use ExtendedData (:866–867). Scaling uses physical
+row count including zero and the existing GameTables.h:256ff class selectors.
+Lookup None is scoped to the currently admitted loaded/effective catalog, not
+proof of complete underlying client-ID coverage. Existing unknown-baseline
+accounting and startup admission remain unchanged; DB2FileLoader.cpp:1919–1926
+itself distinguishes skipping an unknown encrypted section from loading it.
+No second catalog, permissive fallback or production effect executor is added.
+Worker World check and all five focused source-adapter tests pass on this
+x86_64 host (4,576 other World cases filtered), using one Cargo job and the
+pinned read-only extractor overlay for the tests. The fixture changes native
+rows before catalog admission; it does not mutate finished catalogs or expose
+new production state. Parent reviewed signed/unsigned/float-bit mapping,
+conflicting BasicData/ExtendedData inventory types, row-zero/missing scaling,
+and pointers binding the bridge to its existing seeds/tables/catalog. These
+are level-1 coding results, not final or runtime/complete-ID/parity acceptance.
 
 EnchantmentFitsRequirements (:24373–24442) is a separate gem-color condition,
 not PlayerCondition. It reads actual unbroken equipped items and every socketed
@@ -283,6 +308,17 @@ new table nor proves an effective empty store after SQL overlays/removals.
 The native schema, numeric loader, effective catalog, hotfix serialization and
 SQL DTO/bridge must be extended together before the body treats a missing row
 as source absence; no legacy-store fallback or permissive readiness is allowed.
+The native gem-condition operation reads current canonical top-level topology
+and live Item objects. It must not demand the persisted-equipment-query flag:
+LoadFromDB loads skills at :18873 and spells at :18891 before _LoadInventory
+at :18937, whose final _ApplyAllItemMods occurs at :19601. An empty canonical
+inventory in that phase is real source state, not proof that the later inventory
+query completed. Preserve those phase positions and the existing completion
+flag's meaning. A present topology GUID without its required live Item remains
+an explicit unavailable-state error; do not silently skip it or manufacture
+an empty successful inventory. The operation must also evaluate all five
+nonzero-left conditions even after an earlier comparison is false, preserving
+source bitwise-AND order and explicit errors for undefined operand indices.
 
 The next skill persistence operation will capture immutable dirty-node rows in
 admitted native status order, without changing any status during capture. The

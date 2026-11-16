@@ -13,6 +13,37 @@ use wow_data::{
 fn removals() -> Db2HotfixRemovalStoreLikeCpp {
     Default::default()
 }
+
+impl NumericItemTemplates {
+    pub(crate) fn enchantment_source_test_templates(
+        id: u32,
+        basic_inventory_type: i8,
+        sparse_inventory_type: i8,
+        required_skill: u16,
+        required_skill_rank: u16,
+    ) -> Self {
+        let mut basic = basic(id);
+        basic.inventory_type = basic_inventory_type;
+        let mut extended = sparse(id);
+        extended.inventory_type = sparse_inventory_type;
+        extended.required_skill = required_skill;
+        extended.required_skill_rank = required_skill_rank;
+        let data = ItemRecords {
+            items: vec![basic],
+            sparse: vec![extended],
+            ..Default::default()
+        }
+        .finish(Default::default(), Default::default(), &removals())
+        .unwrap();
+        let specs = ItemSpecRecords::default()
+            .finish(Default::default(), Default::default(), &removals())
+            .unwrap();
+        let initialization = InitializationRecords::default()
+            .finish(Default::default(), Default::default(), &removals())
+            .unwrap();
+        Self::load(data, &specs, &initialization, Vec::new()).unwrap()
+    }
+}
 fn spec(id: u32, class: u8, index: i8) -> SpecializationRecord {
     SpecializationRecord {
         id,

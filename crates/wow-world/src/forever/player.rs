@@ -1,8 +1,10 @@
 //! Target Player-owned domain state, not a legacy Player or Session mirror.
 //! Construction/learning/equipment/save/world admission are still incomplete.
+mod enchantment_sources;
 mod skills;
 mod spell_book;
 mod spell_learning_sources;
+pub use enchantment_sources::{SkillEnchantmentSources, SkillEnchantmentSourcesError};
 pub use skills::{
     PLAYER_MAX_SKILLS, PlayerSkills, ProfessionItemMove, SkillAbilityMetadata, SkillBonusError,
     SkillCatalog, SkillCriteria, SkillFields, SkillLineMetadata, SkillLoadError, SkillLoadOutcome,
