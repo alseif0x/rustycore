@@ -1,16 +1,18 @@
 use std::collections::HashSet;
 
 use wow_constants::{
-    BagFamilyMask, EnchantmentSlot, InventoryResult, InventoryType, ItemBondingType, ItemClass,
-    ItemContext, ItemFieldFlags, ItemFieldFlags2, ItemFlags, ItemModifier, ItemSubClassContainer,
+    BagFamilyMask, EnchantmentSlot, InventoryType, ItemBondingType, ItemClass, ItemContext,
+    ItemFieldFlags, ItemFieldFlags2, ItemFlags, ItemModifier, ItemSubClassContainer,
     ItemSubClassQuiver, ItemUpdateState, TypeId, TypeMask,
 };
 use wow_core::ObjectGuid;
 
-use crate::{
-    EntityObject, ObjectDataUpdate, UpdateMask,
-    update_fields::{ITEM_DATA_BITS, TYPEID_ITEM},
-};
+use crate::{EntityObject, ObjectDataUpdate, UpdateMask, update_fields::ITEM_DATA_BITS};
+
+#[cfg(test)]
+use crate::update_fields::TYPEID_ITEM;
+#[cfg(test)]
+use wow_constants::InventoryResult;
 
 mod bonuses;
 mod item;

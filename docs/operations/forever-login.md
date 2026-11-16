@@ -539,6 +539,18 @@ The real copy boundary includes Core's whole PlayerInventoryRuntime snapshot
 as well as individual Item/map snapshots and mutable detached plans; changing
 only the visible map getter would not retire those actor copies.
 
+The realm-provider follow-up pins RealmList.cpp:102–201's four nullable address
+columns, resolved-address deduplication, empty-address rejection and replacement
+publication, including refresh of the selected current ID's metadata. Realm.h:
+110–112 compares only the Realm field despite carrying Region/Site; a full
+tuple key must not be invented from those additional fields. The existing
+private world-server snapshot's realm-ID comparison is therefore not itself a
+target incompatibility. Its older address/query shape still does not provide
+the native admitted current realm. BNet's loaded-build helper is a separate
+consumer; neither its existence nor the exact-row GameUtilities query closes
+the native World source composition. This is offline source review, not a
+current database/DNS observation or a newly admitted production provider.
+
 The bounded consumer map at 35311dbca confirms that Core copies every Item
 inside its runtime snapshot, and World's map adapter can copy them again.
 Selected-item reads have a separate producer. Void storage also retains writable
@@ -574,14 +586,60 @@ crate-private import passes. This is level-1 coding feedback, not a final
 manifest, real COMMIT or complete target Item durability acceptance. Whole
 runtime/map copies and detached writable Item plans remain.
 
-The subsequent selected-item read boundary will use one complete actor-free
-ItemValuesSnapshot with shared pure queries. It must retain raw values even
-with clean masks, exact Object float bits/lifecycle flags and explicit external
-query inputs. The inspected with_access consumers read position, entry and
-broken-state facts only; keep repeated observations before/after equipment
-mutations. Fixture capture is allowed only for an absent owner handle, never
-for a stale installed incarnation. Whole runtime/map copies and writable plans
-retain their separate retirement obligation before native Item attachment.
+The Entity read kernel now defines opaque ObjectValuesSnapshot and
+ItemValuesSnapshot facts plus a borrowed ItemReadView. The complete capture
+retains every current represented Item field, raw Object values/lifecycle and
+both mask sources, including clean-mask values and exact float bits. It owns
+no Item, EntityObject, Player, BonusData, catalog or runtime handle and offers
+no canonical mutation/restoration API. Live Item and captured values share
+the nontrivial pure position, merge, binding/trade/time, appearance and lazy
+update rules. Existing Item public signatures and its const scalar flags
+getter remain; canonical setters/admission and their order are unchanged.
+Object's raw-value/mask/update projection is likewise shared. Parent textual
+comparison finds forty matching read bodies after namespace/whitespace
+normalization; the six reviewed differences are borrowed-field returns,
+inline owner access and the equivalent ordered short-circuit merge guards.
+That comparison is source review, not native gameplay or acceptance proof.
+
+Worker Entity check passes, as do three new Item capture cases, two new Object
+capture cases, twenty existing Item cases and nine existing Object cases.
+The object::tests substring filter also executed 114 other object-family
+cases (nine DynamicObject, 71 GameObject, four SceneObject and thirty
+WorldObject); all passed. Those incidental cases are recorded separately,
+not relabeled as 123 core Object tests. The first crate check failed on a
+non-const String dereference in a new getter; it was corrected before the
+green check. The first test build failed before
+execution because moved production imports had also supplied test names and
+the new test used the wrong bit-constant import path. Restoring the two names
+under cfg(test) and fixing that test import produced the green runs. Parent
+review corrected clean-mask capacity, world-admission fixture order and NaN
+bit comparisons before execution. This remains level-1 worker feedback on
+the pre-commit inputs, not a final manifest, native packet proof or activation.
+
+Core/World selected-item producer migration remains the next consumer boundary.
+Its inspected with_access consumers read position, entry and broken-state
+facts only; use the captured read view and keep repeated observations before/
+after equipment mutations. Fixture capture is allowed only for an absent owner
+handle, never for a stale installed incarnation. The whole runtime producer's
+fixture mutation mirror also copies Items; retiring it needs its actual test
+consumers, without snapshot-to-actor reconstruction. Whole runtime/map copies
+and writable plans retain their separate retirement obligation before native
+Item attachment. This kernel does not attach BonusData or activate creation.
+
+Writable Void plans require a target-version decision before migration.
+At 02245dcd the old VoidStorageHandler path and client request handlers are
+absent; exact source searches for HandleVoidStorageTransfer, _SaveVoidStorage
+and CMSG_VOID_STORAGE_TRANSFER have no hits. Opcodes.cpp:2561–2563 nevertheless
+retains three instance-connection STATUS_UNHANDLED server responses, with IDs
+0x680001/0x680000/0x680002 in Opcodes.h:2482–2484. Those facts do not establish
+client UI behavior or a native replacement operation. The old Rust route's
+#114 atomic-failure contract remains represented behavior, and the isolated
+Forever Session does not register that legacy WorldSession route. Do not port
+its old random-properties/SQL/wire flow merely to preserve an Item Clone
+dependency. Settle its exact target responsibility when attaching the native
+Item owner, then retire the incompatible typed dependency or implement a
+source-supported native operation. This does not authorize unrelated deletion,
+activation or a hidden change to whole-post-image concurrency semantics.
 
 The next skill persistence operation will capture immutable dirty-node rows in
 admitted native status order, without changing any status during capture. The

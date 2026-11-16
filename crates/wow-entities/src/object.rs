@@ -2,10 +2,13 @@ use bitflags::bitflags;
 use wow_constants::{TypeId, TypeMask};
 use wow_core::ObjectGuid;
 
-use crate::update_fields::{
-    OBJECT_DATA_BITS, OBJECT_DATA_DYNAMIC_FLAGS_BIT, OBJECT_DATA_ENTRY_ID_BIT,
-    OBJECT_DATA_PARENT_BIT, OBJECT_DATA_SCALE_BIT, ObjectDataUpdate, ObjectDataValues,
-    TYPEID_OBJECT, UpdateMask, ValuesUpdate,
+use crate::update_fields::{ObjectDataValues, UpdateMask, ValuesUpdate};
+
+mod values_snapshot;
+pub use values_snapshot::ObjectValuesSnapshot;
+use values_snapshot::{
+    changed_object_type_mask_for, object_data_changes_mask_for, object_data_values_for,
+    values_update_for,
 };
 
 bitflags! {
@@ -189,54 +192,28 @@ impl EntityObject {
     }
 
     pub fn object_data_values(&self) -> ObjectDataValues {
-        ObjectDataValues {
-            entry_id: self.entry as i32,
-            dynamic_flags: self.dynamic_flags,
-            scale: self.scale,
-        }
+        object_data_values_for(self.entry, self.dynamic_flags, self.scale)
     }
 
     pub fn object_data_changes_mask(&self) -> UpdateMask {
-        let mut mask = UpdateMask::new(OBJECT_DATA_BITS);
-        if !self.changed_fields.is_empty() {
-            mask.set(OBJECT_DATA_PARENT_BIT);
-        }
-        if self.changed_fields.contains(ObjectChangedFields::ENTRY_ID) {
-            mask.set(OBJECT_DATA_ENTRY_ID_BIT);
-        }
-        if self
-            .changed_fields
-            .contains(ObjectChangedFields::DYNAMIC_FLAGS)
-        {
-            mask.set(OBJECT_DATA_DYNAMIC_FLAGS_BIT);
-        }
-        if self.changed_fields.contains(ObjectChangedFields::SCALE) {
-            mask.set(OBJECT_DATA_SCALE_BIT);
-        }
-        mask
+        object_data_changes_mask_for(self.changed_fields)
     }
 
     pub fn changed_object_type_mask(&self) -> u32 {
-        if self.changed_fields.is_empty() {
-            0
-        } else {
-            1 << TYPEID_OBJECT
-        }
+        changed_object_type_mask_for(self.changed_fields)
     }
 
     pub fn values_update(&self) -> ValuesUpdate {
-        let changed_object_type_mask = self.changed_object_type_mask();
-        if changed_object_type_mask == 0 {
-            return ValuesUpdate::empty();
-        }
+        values_update_for(
+            self.changed_fields,
+            self.entry,
+            self.dynamic_flags,
+            self.scale,
+        )
+    }
 
-        ValuesUpdate {
-            changed_object_type_mask,
-            object_data: Some(ObjectDataUpdate {
-                mask: self.object_data_changes_mask(),
-                values: self.object_data_values(),
-            }),
-        }
+    pub fn values_snapshot(&self) -> ObjectValuesSnapshot {
+        ObjectValuesSnapshot::capture(self)
     }
 
     pub const fn map_id(&self) -> Option<u32> {
@@ -399,6 +376,10 @@ impl From<&EntityObject> for EntityObjectState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::update_fields::{
+        OBJECT_DATA_DYNAMIC_FLAGS_BIT, OBJECT_DATA_ENTRY_ID_BIT, OBJECT_DATA_PARENT_BIT,
+        OBJECT_DATA_SCALE_BIT, TYPEID_OBJECT,
+    };
 
     #[test]
     fn default_object_matches_cpp_constructor_state() {

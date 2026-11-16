@@ -6,6 +6,10 @@ use super::*;
 
 mod save_ack;
 pub(crate) use save_ack::ItemPersistentSaveStateLikeCpp;
+mod read_view;
+pub use read_view::ItemReadView;
+mod values_snapshot;
+pub use values_snapshot::ItemValuesSnapshot;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Item {
@@ -166,18 +170,6 @@ impl Item {
         };
     }
 
-    pub fn is_in_bag(&self) -> bool {
-        !self.container.is_empty()
-    }
-
-    pub fn bag_slot(&self) -> u8 {
-        if self.is_in_bag() {
-            self.container_slot
-        } else {
-            INVENTORY_SLOT_BAG_0
-        }
-    }
-
     pub const fn bonding(&self) -> ItemBondingType {
         self.bonding
     }
@@ -203,32 +195,6 @@ impl Item {
         {
             self.set_binding(true);
         }
-    }
-
-    pub fn can_be_merged_partly_with(&self, entry: u32, max_stack_size: u32) -> InventoryResult {
-        if self.loot_generated {
-            return InventoryResult::LootGone;
-        }
-
-        if self.object.entry() != entry {
-            return InventoryResult::CantStack;
-        }
-
-        if self.count() >= max_stack_size {
-            return InventoryResult::CantStack;
-        }
-
-        InventoryResult::Ok
-    }
-
-    pub fn position(&self) -> u16 {
-        u16::from(self.bag_slot()) << 8 | u16::from(self.slot)
-    }
-
-    pub fn is_equipped(&self) -> bool {
-        !self.is_in_bag()
-            && (self.slot < EQUIPMENT_SLOT_END
-                || (self.slot >= PROFESSION_SLOT_START && self.slot < PROFESSION_SLOT_END))
     }
 
     pub const fn update_state(&self) -> ItemUpdateState {
@@ -389,10 +355,6 @@ impl Item {
         self.data.dynamic_flags
     }
 
-    pub fn has_item_flag(&self, flag: ItemFieldFlags) -> bool {
-        (self.data.dynamic_flags & flag.bits()) != 0
-    }
-
     pub fn set_binding(&mut self, bind: bool) {
         if bind {
             self.set_item_flag(ItemFieldFlags::SOULBOUND);
@@ -419,28 +381,8 @@ impl Item {
         });
     }
 
-    pub fn has_item_flag2(&self, flag: ItemFieldFlags2) -> bool {
-        (self.data.dynamic_flags2 & flag.bits()) != 0
-    }
-
-    pub fn is_soul_bound(&self) -> bool {
-        self.has_item_flag(ItemFieldFlags::SOULBOUND)
-    }
-
-    pub fn is_refundable(&self) -> bool {
-        self.has_item_flag(ItemFieldFlags::REFUNDABLE)
-    }
-
-    pub fn is_bop_tradeable(&self) -> bool {
-        self.has_item_flag(ItemFieldFlags::BOP_TRADEABLE)
-    }
-
     pub fn soulbound_trade_allowed_guids(&self) -> &HashSet<ObjectGuid> {
         &self.soulbound_trade_allowed_guids
-    }
-
-    pub fn is_soulbound_trade_allowed_for(&self, player_guid: ObjectGuid) -> bool {
-        self.soulbound_trade_allowed_guids.contains(&player_guid)
     }
 
     pub fn set_soulbound_tradeable<I>(&mut self, allowed_looters: I)
@@ -452,79 +394,11 @@ impl Item {
         self.soulbound_trade_allowed_guids.extend(allowed_looters);
     }
 
-    pub fn is_binded_not_with(
-        &self,
-        player_guid: ObjectGuid,
-        template: &ItemStorageTemplate,
-        bop_trade_allowed_for_player: bool,
-    ) -> bool {
-        if !self.is_soul_bound() {
-            return false;
-        }
-
-        if self.owner_guid() == player_guid {
-            return false;
-        }
-
-        if self.is_bop_tradeable() && bop_trade_allowed_for_player {
-            return false;
-        }
-
-        if template.is_bound_account_wide() {
-            return false;
-        }
-
-        true
-    }
-
-    pub fn is_binded_not_with_using_allowed_guids(
-        &self,
-        player_guid: ObjectGuid,
-        template: &ItemStorageTemplate,
-    ) -> bool {
-        self.is_binded_not_with(
-            player_guid,
-            template,
-            self.is_soulbound_trade_allowed_for(player_guid),
-        )
-    }
-
     pub fn clear_soulbound_tradeable(&mut self) -> bool {
         self.remove_item_flag(ItemFieldFlags::BOP_TRADEABLE);
         let had_allowed_guids = !self.soulbound_trade_allowed_guids.is_empty();
         self.soulbound_trade_allowed_guids.clear();
         had_allowed_guids
-    }
-
-    pub fn played_time(&self, now_secs: i64) -> u32 {
-        let elapsed = now_secs
-            .saturating_sub(self.last_played_time_update)
-            .try_into()
-            .unwrap_or(u32::MAX);
-        self.data.create_played_time.saturating_add(elapsed)
-    }
-
-    pub fn is_refund_expired_at(&self, now_secs: i64) -> bool {
-        self.played_time(now_secs) > BOP_TRADEABLE_DURATION_SECS
-    }
-
-    pub fn is_soulbound_trade_expired(&self, owner_total_played_time: u32) -> bool {
-        self.data
-            .create_played_time
-            .saturating_add(BOP_TRADEABLE_DURATION_SECS)
-            < owner_total_played_time
-    }
-
-    pub fn is_wrapped(&self) -> bool {
-        self.has_item_flag(ItemFieldFlags::WRAPPED)
-    }
-
-    pub fn is_locked(&self) -> bool {
-        !self.has_item_flag(ItemFieldFlags::UNLOCKED)
-    }
-
-    pub fn is_broken(&self) -> bool {
-        self.data.max_durability > 0 && self.data.durability == 0
     }
 
     pub fn set_property_seed(&mut self, seed: i32) {
@@ -693,7 +567,7 @@ impl Item {
     }
 
     pub fn get_modifier(&self, modifier: ItemModifier) -> u32 {
-        self.data.modifiers[modifier as usize]
+        self.read_view().get_modifier(modifier)
     }
 
     pub fn set_modifier(&mut self, modifier: ItemModifier, value: u32) {
@@ -701,113 +575,6 @@ impl Item {
         if *target != value {
             *target = value;
             self.mark_modifiers_changed();
-        }
-    }
-
-    /// Item.cpp:1985 resolves the selected transmog display directly, then
-    /// falls back to this physical item's appearance independently of entry.
-    pub fn display_id_like_cpp(
-        &self,
-        active_talent_group: usize,
-        modified_appearance_display: impl Fn(u32) -> Option<u32>,
-        physical_item_display: impl Fn(u32, u32) -> Option<u32>,
-    ) -> Option<u32> {
-        modified_appearance_display(self.visible_modified_appearance_modifier(active_talent_group))
-            .or_else(|| {
-                physical_item_display(
-                    self.object.entry(),
-                    u32::from(self.data.item_appearance_mod_id),
-                )
-            })
-    }
-
-    pub fn visible_entry(
-        &self,
-        active_talent_group: usize,
-        item_modified_appearance: impl Fn(u32) -> Option<(u32, u16)>,
-    ) -> u32 {
-        let item_modified_appearance_id =
-            self.visible_modified_appearance_modifier(active_talent_group);
-
-        if let Some((item_id, _)) = item_modified_appearance(item_modified_appearance_id) {
-            item_id
-        } else {
-            self.object.entry()
-        }
-    }
-
-    pub fn visible_appearance_mod_id(
-        &self,
-        active_talent_group: usize,
-        item_modified_appearance: impl Fn(u32) -> Option<(u32, u16)>,
-    ) -> u16 {
-        let item_modified_appearance_id =
-            self.visible_modified_appearance_modifier(active_talent_group);
-
-        if let Some((_, item_appearance_modifier_id)) =
-            item_modified_appearance(item_modified_appearance_id)
-        {
-            item_appearance_modifier_id
-        } else {
-            u16::from(self.data.item_appearance_mod_id)
-        }
-    }
-
-    pub fn visible_enchantment_id(&self, active_talent_group: usize) -> u32 {
-        let mut enchantment_id = self.get_modifier(spec_modifier(
-            active_talent_group,
-            &ILLUSION_MODIFIER_SLOT_BY_SPEC,
-        ));
-        if enchantment_id == 0 {
-            enchantment_id = self.get_modifier(ItemModifier::EnchantIllusionAllSpecs);
-        }
-        if enchantment_id == 0 {
-            enchantment_id = u32::try_from(
-                self.data.enchantments[EnchantmentSlot::EnhancementPermanent as usize].id,
-            )
-            .unwrap_or(0);
-        }
-        enchantment_id
-    }
-
-    pub fn visible_item_visual(
-        &self,
-        active_talent_group: usize,
-        spell_item_enchantment_visual: impl Fn(u32) -> Option<u16>,
-    ) -> u16 {
-        spell_item_enchantment_visual(self.visible_enchantment_id(active_talent_group)).unwrap_or(0)
-    }
-
-    pub fn visible_secondary_modified_appearance_id(&self, active_talent_group: usize) -> u32 {
-        let mut item_modified_appearance_id = self.get_modifier(spec_modifier(
-            active_talent_group,
-            &SECONDARY_APPEARANCE_MODIFIER_SLOT_BY_SPEC,
-        ));
-        if item_modified_appearance_id == 0 {
-            item_modified_appearance_id =
-                self.get_modifier(ItemModifier::TransmogSecondaryAppearanceAllSpecs);
-        }
-        item_modified_appearance_id
-    }
-
-    pub fn changed_object_type_mask(&self) -> u32 {
-        self.object.changed_object_type_mask()
-            | if self.item_data_changes.is_any_set() {
-                1 << TYPEID_ITEM
-            } else {
-                0
-            }
-    }
-
-    pub fn values_update(&self) -> ItemValuesUpdate {
-        let object_update = self.object.values_update();
-        ItemValuesUpdate {
-            changed_object_type_mask: self.changed_object_type_mask(),
-            object_data: object_update.object_data,
-            item_data: self.item_data_changes.is_any_set().then(|| ItemDataUpdate {
-                mask: self.item_data_changes.clone(),
-                values: self.data.clone(),
-            }),
         }
     }
 
@@ -910,17 +677,5 @@ impl Item {
     fn mark_item_data_array(&mut self, parent_bit: usize, first_element_bit: usize, index: usize) {
         self.item_data_changes.set(parent_bit);
         self.item_data_changes.set(first_element_bit + index);
-    }
-
-    fn visible_modified_appearance_modifier(&self, active_talent_group: usize) -> u32 {
-        let mut item_modified_appearance_id = self.get_modifier(spec_modifier(
-            active_talent_group,
-            &APPEARANCE_MODIFIER_SLOT_BY_SPEC,
-        ));
-        if item_modified_appearance_id == 0 {
-            item_modified_appearance_id =
-                self.get_modifier(ItemModifier::TransmogAppearanceAllSpecs);
-        }
-        item_modified_appearance_id
     }
 }
