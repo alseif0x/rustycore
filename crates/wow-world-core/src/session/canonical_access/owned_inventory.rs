@@ -1,9 +1,11 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+use std::collections::HashMap;
+
 use wow_entities::{
-    INVENTORY_SLOT_BAG_0, InventoryPlayerSnapshotLikeCpp, ItemValuesSnapshot,
-    PlayerInventoryRuntime,
+    INVENTORY_SLOT_BAG_0, InventoryPlayerSnapshotLikeCpp, ItemValuesMapSnapshot,
+    ItemValuesSnapshot, PlayerInventoryRuntime,
 };
 
 use crate::session::{InventoryPlayerProjectionLikeCpp, SessionCore};
@@ -230,6 +232,25 @@ impl OwnedInventoryAccessLikeCpp<'_> {
     pub fn inventory_runtime_snapshot_like_cpp(&self) -> Option<PlayerInventoryRuntime> {
         self.core
             .with_owned_player_like_cpp(|player| player.inventory_runtime_like_cpp().clone())
+    }
+
+    /// Capture ordered immutable item values while their canonical Player owner is held.
+    pub fn inventory_item_values_snapshot_like_cpp(&self) -> Option<ItemValuesMapSnapshot> {
+        self.core.with_owned_player_like_cpp(|player| {
+            ItemValuesMapSnapshot::capture(player.inventory_runtime_like_cpp().item_objects())
+        })
+    }
+
+    /// Capture inventory records without cloning the Item-object map or runtime aggregate.
+    pub fn inventory_items_snapshot_like_cpp(
+        &self,
+    ) -> Option<HashMap<u8, wow_entities::PlayerInventoryItem>> {
+        self.core.with_owned_player_like_cpp(|player| {
+            player
+                .inventory_runtime_like_cpp()
+                .inventory_items()
+                .clone()
+        })
     }
 
     /// Clone only the selected canonical inventory slot while its Player owner is held.

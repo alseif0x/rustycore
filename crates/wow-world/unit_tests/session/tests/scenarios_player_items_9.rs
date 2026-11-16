@@ -11,3 +11,5 @@ mod durability_scenarios;
 mod inventory_position_and_open_item;
 #[path = "scenarios_player_items_9/item_template_rules.rs"]
 mod item_template_rules;
+#[path = "scenarios_player_items_9/ordered_item_values.rs"]
+mod ordered_item_values;

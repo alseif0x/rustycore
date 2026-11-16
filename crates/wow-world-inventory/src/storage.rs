@@ -14,8 +14,9 @@ use wow_core::ObjectGuid;
 use wow_data::{ItemStatsStore, ItemStore};
 use wow_entities::{
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, Item,
-    ItemObjectUpdateLikeCpp, PLAYER_SLOT_END, PlayerEnchantDuration, PlayerEnchantTimeUpdate,
-    PlayerInventoryItem as InventoryItem, PlayerInventoryRuntime, PlayerItemTimeUpdate,
+    ItemObjectUpdateLikeCpp, ItemValuesMapSnapshot, PLAYER_SLOT_END, PlayerEnchantDuration,
+    PlayerEnchantTimeUpdate, PlayerInventoryItem as InventoryItem, PlayerInventoryRuntime,
+    PlayerItemTimeUpdate,
 };
 use wow_world_core::session::{
     HubMut, HubRef, InventoryPlayerProjectionLikeCpp, OwnedInventoryAccessLikeCpp,
@@ -600,8 +601,39 @@ impl crate::InventoryState {
         &self,
         access: &OwnedInventoryAccessLikeCpp<'_>,
     ) -> Option<HashMap<u8, InventoryItem>> {
-        self.resolved_player_inventory_runtime_with_access_like_cpp(access)
-            .map(|inventory| inventory.inventory_items().clone())
+        if let Some(items) = access.inventory_items_snapshot_like_cpp() {
+            return Some(items);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if access.owner_handle_absent_like_cpp() {
+            let mut items = HashMap::new();
+            items.extend(self.inventory_items_like_cpp().clone());
+            return Some(items);
+        }
+        None
+    }
+
+    pub fn resolved_inventory_item_values_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+    ) -> Option<ItemValuesMapSnapshot> {
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.resolved_inventory_item_values_with_access_like_cpp(&access)
+    }
+
+    pub fn resolved_inventory_item_values_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+    ) -> Option<ItemValuesMapSnapshot> {
+        if let Some(items) = access.inventory_item_values_snapshot_like_cpp() {
+            return Some(items);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if access.owner_handle_absent_like_cpp() {
+            let inventory = self.represented_player_inventory_runtime_like_cpp();
+            return Some(ItemValuesMapSnapshot::capture(inventory.item_objects()));
+        }
+        None
     }
 
     pub fn resolved_inventory_item_with_access_like_cpp(

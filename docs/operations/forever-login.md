@@ -812,16 +812,77 @@ final packet vector therefore does not prove the same observer phase. Rust's
 current send can block on channel capacity and must not run under a Map guard;
 the native effect host must preserve logical observation separately from delivery.
 
-The later whole-map capture must retain original map keys and the observed
-entry sequence. Quest-reward nested lookup selects the first matching value;
-collecting captures into a newly randomized HashMap is not order-preservation
-proof. The selected immutable representation keeps ordered captured entries and
-a private derived GUID lookup index, with no canonical handle or mutable mirror.
-Compare its observation with the actual old clone on the pinned runtime before
-replacement; direct canonical-map versus clone iteration equivalence has not
-yet been independently established. DestroyItemCountItemRef has only the two
-Entity plan tests as consumers and imposes no Clone bound. Its canonical Item
-borrow is not itself a copied-map migration blocker.
+Trade has three separate Item-copy responsibilities. Planning captures both
+inventories and outgoing SQL/simulation facts through the current pair read,
+then mutates disposable storage outside the guard. After classified COMMIT,
+the canonical take already returns the actual removed Item; the receiver store
+still clones it, and a further clone becomes the mailbox publication payload.
+The latter is only read by the World publisher for create/slot facts; container
+metadata and other owner reads happen later and must retain their timing.
+Native Item integration must consume the transferred actor once and capture
+publication values, preserving paired application, fences and unknown-COMMIT
+quarantine rather than restoring an actor from a DTO. At 02245dcd,
+Player.cpp:10731–10941 CanStoreItems uses local count/pointer tables; it does
+not mutate copied actors. The inherited sequential CanStoreItem simulation
+remains a separately documented behavior boundary. Replacing its algorithm
+requires native operation evidence and cannot be hidden in a readonly map
+refactor. This source review ran no tests and establishes no live trade parity.
+
+The equip/real-swap disposable copies are different again: they derive binding
+flags and mutable SQL facts, then use narrow canonical flag/clear commands after
+COMMIT. The exact whole-Item Replace command's production constructor is in
+Void transfer; ReplaceAllItemFlags is a separate operation. Replacing the former
+also clears pending durability. The SQL projector receives its enchantment text
+explicitly rather than reading the disposable Item's enchantment array, but its
+local clear setters still assert valid slots. Preserve those represented failure
+points when retiring the SQL copies; do not reconstruct canonical Items from facts.
+
+Entities now supplies ItemValuesMapSnapshot: ordered original-key/value captures
+plus a private immutable GUID index, with no actor, owner handle, restoration or
+mutable map API. Core captures it under one generation-checked Player read;
+World preserves the absent-handle-only fixture fallback and canonical Some(empty).
+Both durability-target and repair-cost queries now consume these facts. Their
+complete production bodies match the previous file after only the two declared
+producer substitutions. Their separate inventory-record read now captures only
+the record map, globally retiring that producer's whole-runtime/Item copy while
+preserving its read position and fixture fresh-map/extend construction. The
+remaining slot-count read and late catalog calculations are unchanged.
+
+Worker coding feedback passes four crate checks (Entities, Core, Inventory and
+World) and nine distinct tests: three Entity capture cases, two Core owner cases,
+two actual World durability/repair queries and two existing regressions. One
+Entity case compares the actual old two-clone sequence with direct capture over
+96 fresh randomized insertion/removal/reinsertion/reserve/shrink histories. Raw
+keys remain independent from embedded GUIDs; colliding positions, NaN bits,
+masks, Clone/index coherence and frozen facts are covered. This is empirical
+evidence on this pinned runtime, not a universal HashMap or native order claim.
+Core also compares nonmonotonic/reinserted record keys and covers active,
+detached, empty, missing and stale/current same-GUID generations. World ignores
+poisoned fixture facts for a real owner, checks actual 200-unit repair costs,
+carried-bag contents and the distinct raw-key/embedded-GUID outputs.
+
+The first Entity attempt failed on the missing root re-export and ran no tests.
+The first World run passed the empty/stale case but failed the ordered-target
+expectation: the represented equipment predicate also includes the carried bag,
+even with zero maximum durability. Corrected expectations pass; the cost query
+still excludes that zero-durability bag. Production predicates did not change,
+failed logs are retained and green checks were not repeated. Commands used
+--locked, one Cargo job, cached PROTOC and the checkout target; World used the
+pinned extractor overlay. Warnings were not compared against a baseline.
+This remains level-1 coding feedback, not final/native Item, DB, wire or runtime
+acceptance. Old-clone diagnostic fixtures must migrate with retirement of those
+old actor producers before Item becomes non-Clone; they are not new production
+copy authority.
+
+The old actor-map producer still serves the unmoved query, publication and
+item-session families; its temporary removal condition is migration of those
+actual callers to this same collection/views. Selected actor reads, full-runtime
+slot/buyback/authority consumers, the writable fixture mirror, trade simulation
+and Void post-images remain distinct unfinished dependencies. Quest-reward
+nested lookup selects the first matching value: never collect these captures
+into a newly randomized map or normalize their keys. DestroyItemCountItemRef
+has only the two Entity plan tests as consumers and imposes no Clone bound; its
+canonical borrow is not itself a copied-map migration blocker.
 
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are

@@ -31,7 +31,7 @@ impl crate::InventoryState {
         hub: HubRef<'_>,
         inventory: bool,
     ) -> Vec<(ObjectGuid, u8, bool)> {
-        let Some(items) = self.resolved_inventory_item_objects_like_cpp(hub) else {
+        let Some(items) = self.resolved_inventory_item_values_like_cpp(hub) else {
             return Vec::new();
         };
         let Some(inventory_items) = self.resolved_inventory_items_like_cpp(hub) else {
@@ -73,7 +73,7 @@ impl crate::InventoryState {
         repair_cost_rate: f32,
     ) -> Option<Vec<(ObjectGuid, u64)>> {
         let mut repair_items = Vec::new();
-        let item_objects = self.resolved_inventory_item_objects_like_cpp(hub)?;
+        let item_objects = self.resolved_inventory_item_values_like_cpp(hub)?;
         let inventory_items = self.resolved_inventory_items_like_cpp(hub)?;
         let inventory_end = INVENTORY_SLOT_ITEM_START
             .saturating_add(INVENTORY_DEFAULT_SIZE)

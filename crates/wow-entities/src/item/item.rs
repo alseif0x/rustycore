@@ -8,6 +8,8 @@ mod save_ack;
 pub(crate) use save_ack::ItemPersistentSaveStateLikeCpp;
 mod read_view;
 pub use read_view::ItemReadView;
+mod values_map_snapshot;
+pub use values_map_snapshot::ItemValuesMapSnapshot;
 mod values_snapshot;
 pub use values_snapshot::ItemValuesSnapshot;
 
