@@ -4057,53 +4057,27 @@ impl Player {
     }
 
     pub fn set_buyback_price(&mut self, slot: usize, price: u32) {
-        if slot >= BUYBACK_SLOT_COUNT || self.active_data.buyback_price[slot] == price {
-            return;
-        }
-
-        self.active_data.buyback_price[slot] = price;
-        self.mark_active_player_data_array(
-            ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
-            ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT,
-            slot,
-        );
+        let update_requested = self.inventory_values_mut().set_buyback_price(slot, price);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn mark_buyback_price_changed(&mut self, slot: usize) {
-        if slot >= BUYBACK_SLOT_COUNT {
-            return;
-        }
-
-        self.mark_active_player_data_array(
-            ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
-            ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT,
-            slot,
-        );
+        let update_requested = self.inventory_values_mut().mark_buyback_price_changed(slot);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn set_buyback_timestamp(&mut self, slot: usize, timestamp: i64) {
-        if slot >= BUYBACK_SLOT_COUNT || self.active_data.buyback_timestamp[slot] == timestamp {
-            return;
-        }
-
-        self.active_data.buyback_timestamp[slot] = timestamp;
-        self.mark_active_player_data_array(
-            ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
-            ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT,
-            slot,
-        );
+        let update_requested = self
+            .inventory_values_mut()
+            .set_buyback_timestamp(slot, timestamp);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn mark_buyback_timestamp_changed(&mut self, slot: usize) {
-        if slot >= BUYBACK_SLOT_COUNT {
-            return;
-        }
-
-        self.mark_active_player_data_array(
-            ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
-            ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT,
-            slot,
-        );
+        let update_requested = self
+            .inventory_values_mut()
+            .mark_buyback_timestamp_changed(slot);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub const fn can_titan_grip(&self) -> bool {

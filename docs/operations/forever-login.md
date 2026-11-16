@@ -49,6 +49,16 @@ payload. Queries read captured bank/backpack counts and specialization from the
 same value payload used for publication; overlays therefore keep one authority
 inside the disposable projection, without a second mutable scalar mirror.
 
+Aura capture must retain the raw mask and per-state caster GUID lists, including
+empty state keys. The current Unit update projects those lists only when a Unit
+mask is nonempty; capture must not introduce that computation or an earlier
+invalid-state failure into query-only paths. Perform the existing target-mask
+calculation and sorted/deduplicated contribution projection after the owner guard
+is released, at the original values-update phase. These facts are owned scalars/
+vectors, not live shared callbacks. Mana power-index lookup is a cached array
+read, and Object data projection is a scalar copy/cast; both can be frozen at
+the admitted capture without a later owner read.
+
 Target reference remains `02245dcd245e7433e524577656177723d3e4992e`:
 Player.cpp:9367–9568,10224–10733,10958–11491,27663–27755 and
 Player.h:1403–1463 anchor inventory admission/traversal; Player.cpp:3626–3699

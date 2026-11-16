@@ -9,12 +9,17 @@
 
 use super::{
     ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT,
-    ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT, ACTIVE_PLAYER_DATA_COINAGE_BIT,
-    ACTIVE_PLAYER_DATA_NUM_BACKPACK_SLOTS_BIT, ACTIVE_PLAYER_DATA_PARENT_BIT,
-    ActivePlayerDataValues, PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_NUM_BANK_SLOTS_BIT,
-    PLAYER_DATA_PARENT_BIT, Player, PlayerDataValues,
+    ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT, ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
+    ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT, ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT,
+    ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT,
+    ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT, ACTIVE_PLAYER_DATA_NUM_BACKPACK_SLOTS_BIT,
+    ACTIVE_PLAYER_DATA_PARENT_BIT, ActivePlayerDataValues, BUYBACK_SLOT_COUNT, EQUIPMENT_SLOT_END,
+    PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_NUM_BANK_SLOTS_BIT, PLAYER_DATA_PARENT_BIT,
+    PLAYER_DATA_VISIBLE_ITEMS_FIRST_BIT, PLAYER_DATA_VISIBLE_ITEMS_PARENT_BIT, PLAYER_SLOT_END,
+    Player, PlayerDataValues, VisibleItemValues,
 };
 use crate::UpdateMask;
+use wow_core::ObjectGuid;
 
 pub(super) struct InventoryValuesMut<'a> {
     player_data: &'a mut PlayerDataValues,
@@ -122,6 +127,142 @@ impl<'a> InventoryValuesMut<'a> {
             .set(ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT);
         self.active_player_data_changes
             .set(ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT + index);
+        true
+    }
+
+    pub(super) fn set_visible_item_slot(
+        &mut self,
+        slot: u8,
+        item: Option<VisibleItemValues>,
+    ) -> bool {
+        if slot >= EQUIPMENT_SLOT_END {
+            return false;
+        }
+
+        let value = item.unwrap_or_default();
+        let index = slot as usize;
+        let target = &mut self.player_data.visible_items[index];
+        if *target != value {
+            *target = value;
+            self.mark_player_data_array(
+                PLAYER_DATA_VISIBLE_ITEMS_PARENT_BIT,
+                PLAYER_DATA_VISIBLE_ITEMS_FIRST_BIT,
+                index,
+            )
+        } else {
+            false
+        }
+    }
+
+    pub(super) fn mark_visible_item_slot_changed(&mut self, slot: u8) -> bool {
+        if slot >= EQUIPMENT_SLOT_END {
+            return false;
+        }
+
+        self.mark_player_data_array(
+            PLAYER_DATA_VISIBLE_ITEMS_PARENT_BIT,
+            PLAYER_DATA_VISIBLE_ITEMS_FIRST_BIT,
+            slot as usize,
+        )
+    }
+
+    pub(super) fn set_inv_slot(&mut self, slot: usize, guid: ObjectGuid) -> bool {
+        if slot >= PLAYER_SLOT_END || self.active_player_data.inv_slots[slot] == guid {
+            return false;
+        }
+
+        self.active_player_data.inv_slots[slot] = guid;
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT,
+            slot,
+        )
+    }
+
+    pub(super) fn mark_inv_slot_changed(&mut self, slot: usize) -> bool {
+        if slot >= PLAYER_SLOT_END {
+            return false;
+        }
+
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT,
+            slot,
+        )
+    }
+
+    pub(super) fn set_buyback_price(&mut self, slot: usize, price: u32) -> bool {
+        if slot >= BUYBACK_SLOT_COUNT || self.active_player_data.buyback_price[slot] == price {
+            return false;
+        }
+
+        self.active_player_data.buyback_price[slot] = price;
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT,
+            slot,
+        )
+    }
+
+    pub(super) fn mark_buyback_price_changed(&mut self, slot: usize) -> bool {
+        if slot >= BUYBACK_SLOT_COUNT {
+            return false;
+        }
+
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT,
+            slot,
+        )
+    }
+
+    pub(super) fn set_buyback_timestamp(&mut self, slot: usize, timestamp: i64) -> bool {
+        if slot >= BUYBACK_SLOT_COUNT
+            || self.active_player_data.buyback_timestamp[slot] == timestamp
+        {
+            return false;
+        }
+
+        self.active_player_data.buyback_timestamp[slot] = timestamp;
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT,
+            slot,
+        )
+    }
+
+    pub(super) fn mark_buyback_timestamp_changed(&mut self, slot: usize) -> bool {
+        if slot >= BUYBACK_SLOT_COUNT {
+            return false;
+        }
+
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT,
+            slot,
+        )
+    }
+
+    fn mark_player_data_array(
+        &mut self,
+        parent_bit: usize,
+        first_element_bit: usize,
+        index: usize,
+    ) -> bool {
+        self.player_data_changes.set(parent_bit);
+        self.player_data_changes.set(first_element_bit + index);
+        true
+    }
+
+    fn mark_active_player_data_array(
+        &mut self,
+        parent_bit: usize,
+        first_element_bit: usize,
+        index: usize,
+    ) -> bool {
+        self.active_player_data_changes.set(parent_bit);
+        self.active_player_data_changes
+            .set(first_element_bit + index);
         true
     }
 }

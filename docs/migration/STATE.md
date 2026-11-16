@@ -4,11 +4,8 @@
 
 Resumed from published d91650024. The complete inventory query/publication
 projection must stop copying Player before non-Clone skill/book integration.
-The first implementation moves position validation, packed positions and item
-traversal to the existing borrowed Entity ItemStorageView, with public Player
-delegations. Parent comparison preserves all five operation/helper bodies after
-the one backpack-count receiver substitution and whitespace normalization.
-The complete read-only query preparation now also moves use, bank, equipment,
+The complete read-only query preparation moves position validation, traversal,
+use, bank, equipment,
 two-hand and swap-preflight rules to private children of that same view: thirteen
 public Player queries delegate, and two traversal helpers move with their owner.
 Bank-slot count and Titan Grip are explicit inputs rather than new view state.
@@ -24,19 +21,19 @@ explicit out-of-bag-size fixture slot is populated and asserted before checking
 traversal. Equipment feedback first failed on test-only imports, then passed
 after their cfg(test) retention. Parent subsequently applied canonical import
 formatting; those dirty-tree coding results are not final evidence at a later
-commit. No full acceptance or new publication is claimed. Complete values/mask
-preparation still uses the original Player-backed projection; its Clone producer
-is not retired. The owning runbook's November 16 contract preserves observation
-timing, source-version gaps and the disabled runtime constructor.
+commit. No full acceptance or new publication is claimed. The Core projection
+still holds a copied Player; its Clone producer is not retired. The owning
+runbook's November 16 contract preserves observation timing, source-version
+gaps and the disabled runtime constructor.
 
-The first shared values boundary now serves the canonical money and ordinary
-Player-flag setters through borrowed data/mask references. A boolean requests
+Sixteen shared value operations now serve canonical money, ordinary flags,
+counts, bank flags, inventory/visible slots and buyback through borrowed
+data/mask references. A boolean requests
 the existing Object update admission; one private Player adapter owns that call.
 Equal setters preserve existing masks, while explicit money marking always marks
 and requests admission. No copied Player/Unit, new state or Core producer change
 is introduced. Worker coding feedback passed the Entity check and nonzero money,
-flag and receiver-split filters; final acceptance remains pending. The complete
-slot/count/nested-mask preparation and detached payload capture are unfinished.
+flag and receiver-split filters; final acceptance remains pending.
 
 Count and bank-flag value rules now share the same borrowed owner. The flag
 setter's validity result remains separate from update admission: invalid returns
@@ -45,8 +42,13 @@ mark the existing array bits. Its explicit marker retains the original unguarded
 index and parent-before-index-addition order; that overflow path is source-reviewed,
 not separately tested. The two newly dead scalar helpers are removed. Worker
 feedback passed the Entity check, two existing count filters and two bank-flag
-cases, including one new public validity/mask/queue regression. Slot/visible/
-buyback rules, nested resets and detached capture remain unfinished.
+cases, including one new public validity/mask/queue regression. The eight
+slot/visible/buyback rules also passed the Entity check and four existing
+one-case filters for visible bits, inventory bits, buyback and forced markers.
+They retain guards, integer/GUID widths, value-before-mask order and array bits
+without adding scalar root bits. Nested resets, shared quest/stat projections,
+Unit virtual-item rules, raw aura capture, the detached payload and Core producer
+replacement remain unfinished; committed-candidate acceptance is still pending.
 
 ## Forever publication candidate — 2026-11-11
 

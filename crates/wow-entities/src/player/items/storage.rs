@@ -115,32 +115,17 @@ impl Player {
     }
 
     pub fn set_visible_item_slot(&mut self, slot: u8, item: Option<VisibleItemValues>) {
-        if slot >= EQUIPMENT_SLOT_END {
-            return;
-        }
-
-        let value = item.unwrap_or_default();
-        let target = &mut self.data.visible_items[slot as usize];
-        if *target != value {
-            *target = value;
-            self.mark_player_data_array(
-                PLAYER_DATA_VISIBLE_ITEMS_PARENT_BIT,
-                PLAYER_DATA_VISIBLE_ITEMS_FIRST_BIT,
-                slot as usize,
-            );
-        }
+        let update_requested = self
+            .inventory_values_mut()
+            .set_visible_item_slot(slot, item);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn mark_visible_item_slot_changed(&mut self, slot: u8) {
-        if slot >= EQUIPMENT_SLOT_END {
-            return;
-        }
-
-        self.mark_player_data_array(
-            PLAYER_DATA_VISIBLE_ITEMS_PARENT_BIT,
-            PLAYER_DATA_VISIBLE_ITEMS_FIRST_BIT,
-            slot as usize,
-        );
+        let update_requested = self
+            .inventory_values_mut()
+            .mark_visible_item_slot_changed(slot);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn set_inventory_slot_count(&mut self, count: u8) {
@@ -149,28 +134,13 @@ impl Player {
     }
 
     pub fn set_inv_slot(&mut self, slot: usize, guid: ObjectGuid) {
-        if slot >= PLAYER_SLOT_END || self.active_data.inv_slots[slot] == guid {
-            return;
-        }
-
-        self.active_data.inv_slots[slot] = guid;
-        self.mark_active_player_data_array(
-            ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT,
-            ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT,
-            slot,
-        );
+        let update_requested = self.inventory_values_mut().set_inv_slot(slot, guid);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn mark_inv_slot_changed(&mut self, slot: usize) {
-        if slot >= PLAYER_SLOT_END {
-            return;
-        }
-
-        self.mark_active_player_data_array(
-            ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT,
-            ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT,
-            slot,
-        );
+        let update_requested = self.inventory_values_mut().mark_inv_slot_changed(slot);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn can_store_item_in_specific_slot(
