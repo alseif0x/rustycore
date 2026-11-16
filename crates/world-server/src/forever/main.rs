@@ -10,6 +10,7 @@ mod game_utilities;
 mod initialization;
 mod item_specs;
 mod items;
+mod loaded_skill_values_order;
 mod name_regex;
 mod names;
 mod navigation;

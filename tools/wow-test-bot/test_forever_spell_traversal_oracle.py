@@ -59,10 +59,10 @@ def unique_source(data: bytes, pattern: bytes, responsibility: str) -> bytes:
     return matches[0]
 
 
-def source_function(data: bytes, signature: bytes) -> bytes:
+def source_function(data: bytes, signature: bytes, responsibility: str = "cast function") -> bytes:
     # Top-level function closing braces have no indentation in this pin.
     # Matching a complete unique body is fail-closed, not a line-number slice.
-    return unique_source(data, re.escape(signature) + rb"\n\{.*?\n\}", "cast function")
+    return unique_source(data, re.escape(signature) + rb"\n\{.*?\n\}", responsibility)
 
 
 def run(args: argparse.Namespace) -> int:
@@ -108,6 +108,17 @@ def run(args: argparse.Namespace) -> int:
         )
     ]
     directory = ROOT / "crates/world-server/src/forever/spell_traversal"
+    player_cpp = source_file(args.reference_root, "src/server/game/Entities/Player/Player.cpp")
+    load_skills = source_function(
+        player_cpp,
+        b"void Player::_LoadSkills(PreparedQueryResult result)",
+        "Player::_LoadSkills",
+    )
+    loaded_skill_values = unique_source(
+        load_skills,
+        rb"std::unordered_map<uint32, uint32> loadedSkillValues;",
+        "Player::_LoadSkills loadedSkillValues declaration",
+    )
     overrides = re.findall(
         rb"std::unordered_map<uint32 /\*overridenSpellId\*/, std::unordered_set<uint32> /\*newSpellId\*/> m_overrideSpells;",
         player,
@@ -171,6 +182,11 @@ def run(args: argparse.Namespace) -> int:
             b"#include <cstdint>\n#include <unordered_map>\nusing uint32 = std::uint32_t;\n"
             + b"\n".join(skill_status_declarations) + b"\n"
         )
+        (staging_root / "SourceLoadedSkillValues.hpp").write_bytes(
+            b"#include <cstdint>\n#include <unordered_map>\nusing uint32 = std::uint32_t;\n"
+            b"struct SourceLoadedSkillValues {\n"
+            + loaded_skill_values + b"\n};\n"
+        )
         (staging_root / "SourceCastContext.hpp").write_bytes(context + b"\n")
         (staging_root / "SourceCastFunctions.hpp").write_bytes(b"\n".join(functions) + b"\n")
         (staging_root / "SourceCastEnums.hpp").write_bytes(
@@ -190,6 +206,8 @@ def run(args: argparse.Namespace) -> int:
             str(directory / "bridge.cpp"), str(directory / "oracle.cpp"),
             str(directory / "birth_lookup.cpp"), str(directory / "birth_lookup_oracle.cpp"),
             str(directory / "skill_status_order.cpp"), str(directory / "skill_status_order_oracle.cpp"),
+            str(directory / "loaded_skill_values_order.cpp"),
+            str(directory / "loaded_skill_values_order_oracle.cpp"),
             str(directory / "book_order.cpp"), str(directory / "book_order_oracle.cpp"),
             str(directory / "override_order.cpp"), str(directory / "override_order_oracle.cpp"),
             str(directory / "cast_oracle.cpp"),

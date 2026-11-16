@@ -21,6 +21,7 @@
 bool birth_lookup_source_oracle(std::size_t& cases);
 bool spell_book_source_oracle(std::size_t& cases);
 bool skill_status_source_oracle(std::size_t& cases);
+bool loaded_skill_values_source_oracle(std::size_t& cases);
 bool override_set_source_oracle(std::size_t& cases);
 bool source_cast_resolver_oracle(std::size_t& cases);
 
@@ -217,6 +218,9 @@ int main()
         std::size_t skillStatusCases = 0;
         if (!skill_status_source_oracle(skillStatusCases))
             return 1;
+        std::size_t loadedSkillValuesCases = 0;
+        if (!loaded_skill_values_source_oracle(loadedSkillValuesCases))
+            return 1;
         std::size_t overrideCases = 0;
         if (!override_set_source_oracle(overrideCases))
             return 1;
@@ -227,6 +231,7 @@ int main()
             << " birth-equal-range=" << birthCases
             << " player-book-history=" << bookCases
             << " player-skill-status-history=" << skillStatusCases
+            << " player-loaded-skill-values-history=" << loadedSkillValuesCases
             << " player-override-history=" << overrideCases
             << " source-cast-resolution=" << castCases
             << " primary+secondary+equal-range+book+trait-bits+override-set+cast; synthetic-source-only\n";

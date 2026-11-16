@@ -46,6 +46,14 @@ extern "C" int rustycore_forever_skill_status_order(
     std::uint32_t const* insertions, std::size_t length,
     std::uint32_t* output, std::size_t capacity, std::size_t* written) noexcept;
 
+// Successful first assignments to Player::_LoadSkills' separate local map.
+// Duplicate histories and capacity != physical map size are invalid. The
+// default uint32/uint32 unordered_map is temporary; no Player/status payload
+// crosses this ABI. Same failure contract as the other numeric replays.
+extern "C" int rustycore_forever_loaded_skill_values_order(
+    std::uint32_t const* first_assignments, std::size_t length,
+    std::uint32_t* output, std::size_t capacity, std::size_t* written) noexcept;
+
 struct ForeverSpellBookMutation
 {
     std::uint32_t spell;
