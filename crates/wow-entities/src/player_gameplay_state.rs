@@ -15,7 +15,7 @@ use crate::{
     PlayerWorldLocalState,
 };
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub struct PlayerGameplayState {
     /// C++ `Player::m_createMode`.
     pub create_mode: u8,

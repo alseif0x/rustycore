@@ -95,8 +95,14 @@ Core test compile failed on a missing test-only trait import and ran no tests;
 the corrected/final filter passed. Core coverage compares independent owners'
 complete models and bytes, actual NaN/-0 fields, active/detached and stale
 generations, frozen values and the deferred aura panic outside an unpoisoned
-manager mutex. These are coding results; aggregate Clone retirement and
-committed-candidate acceptance remain pending.
+manager mutex. Player, PlayerGameplayState and PlayerGameplayLoadRecord no longer
+derive Clone. Their only aggregate gameplay-copy fixture now moves one state
+and compares independently built expected buckets; its focused case and Entity
+check passed. Narrow state/DTO clones remain unchanged. These are coding results;
+committed-candidate acceptance remains pending. Root/storage physical ceilings
+are reviewed at 4,699/1,904 lines; the logical Player row's reviewed source delta
+is 24,021 production + 19,432 tests = 43,453 lines, to be confirmed by the final
+parser-backed campaign. No gameplay/architecture debt or target parity is closed.
 
 ## Forever publication candidate — 2026-11-11
 

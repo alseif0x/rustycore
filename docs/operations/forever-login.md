@@ -9,8 +9,9 @@ The whole-Player copy in
 is now replaced by an Entity-owned inventory facts snapshot. Its query/planning
 and values-publication families share canonical pure rules, and Core wraps the
 captured facts after the existing generation-checked read releases its guard.
-Aggregate Clone retirement and committed-candidate acceptance are still pending.
-Creation stays disabled.
+Player, PlayerGameplayState and PlayerGameplayLoadRecord now move without an
+aggregate Clone API. Committed-candidate acceptance is still pending. Creation
+stays disabled.
 
 The selected boundary preserves one canonical Player and captures only inventory
 query facts and represented update-field payloads at the existing owned read.
@@ -98,6 +99,15 @@ tests must not introduce another whole-Player Clone dependency. Source/consumer
 review precedes the completed-delivery campaign; local worker feedback remains
 distinct from final acceptance. No service/client/schema/database operation is
 authorized by the renewed Git publication authority.
+
+The physical review tightens only Player root (4816 -> 4699) and inventory
+storage (2548 -> 1904). New private production/test files stay below 1000 lines.
+The other touched files above 1000 lines do not grow: progression remains 1245,
+Unit ops_2 falls 1072 -> 1062 and aura falls 1276 -> 1270. Their broader remaining
+responsibility splits stay under #584/C4; this capture boundary does not close
+that owner or its lifecycle/load-record, application and destruction work. The
+logical Player delta is explicitly reviewed as +802 production/+1240 tests from
+d91650024, pending confirmation by the committed-candidate parser-backed final.
 
 The parallel source review also reconfirms the later canonical skill-loader
 prerequisite: Player.cpp:27523 uses a distinct

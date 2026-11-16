@@ -98,14 +98,13 @@ fn player_owns_exact_skill_rows_and_persistence_authority_like_cpp() {
 fn player_gameplay_apply_load_record_stores_every_major_bucket() {
     let mut player = Player::new(None, false);
     let state = player_gameplay_sample_state();
+    let expected = player_gameplay_sample_state();
 
-    player.apply_gameplay_state_from_load(PlayerGameplayLoadRecord {
-        state: state.clone(),
-    });
+    player.apply_gameplay_state_from_load(PlayerGameplayLoadRecord { state });
 
     assert_eq!(
         player.gameplay_state().quests.statuses,
-        state.quests.statuses
+        expected.quests.statuses
     );
     // The objective progress the Player owns is the per-status counter keyed by
     // `storage_index`, which is what the stored row carries and what the load
@@ -120,30 +119,36 @@ fn player_gameplay_apply_load_record_stores_every_major_bucket() {
             .map(|status| status.objective_counts.clone()),
         Some(vec![4])
     );
-    assert_eq!(player.gameplay_state().skills, state.skills);
-    assert_eq!(player.gameplay_state().spells, state.spells);
-    assert_eq!(player.gameplay_state().talents, state.talents);
-    assert_eq!(player.gameplay_state().action_buttons, state.action_buttons);
-    assert_eq!(player.gameplay_state().taxi, state.taxi);
-    assert_eq!(player.gameplay_state().social, state.social);
-    assert_eq!(player.gameplay_state().mails, state.mails);
-    assert_eq!(player.gameplay_state().group, state.group);
-    assert_eq!(player.gameplay_state().guild, state.guild);
-    assert_eq!(player.gameplay_state().battleground, state.battleground);
-    assert_eq!(player.gameplay_state().menu, state.menu);
-    assert_eq!(player.gameplay_state().reputation, state.reputation);
-    assert_eq!(player.gameplay_state().achievements, state.achievements);
+    assert_eq!(player.gameplay_state().skills, expected.skills);
+    assert_eq!(player.gameplay_state().spells, expected.spells);
+    assert_eq!(player.gameplay_state().talents, expected.talents);
+    assert_eq!(
+        player.gameplay_state().action_buttons,
+        expected.action_buttons
+    );
+    assert_eq!(player.gameplay_state().taxi, expected.taxi);
+    assert_eq!(player.gameplay_state().social, expected.social);
+    assert_eq!(player.gameplay_state().mails, expected.mails);
+    assert_eq!(player.gameplay_state().group, expected.group);
+    assert_eq!(player.gameplay_state().guild, expected.guild);
+    assert_eq!(player.gameplay_state().battleground, expected.battleground);
+    assert_eq!(player.gameplay_state().menu, expected.menu);
+    assert_eq!(player.gameplay_state().reputation, expected.reputation);
+    assert_eq!(player.gameplay_state().achievements, expected.achievements);
     assert_eq!(
         player.gameplay_state().achievement_criteria,
-        state.achievement_criteria
+        expected.achievement_criteria
     );
-    assert_eq!(player.gameplay_state().currencies, state.currencies);
+    assert_eq!(player.gameplay_state().currencies, expected.currencies);
     assert_eq!(
         player.gameplay_state().spell_cooldowns,
-        state.spell_cooldowns
+        expected.spell_cooldowns
     );
-    assert_eq!(player.gameplay_state().spell_charges, state.spell_charges);
-    assert_eq!(player.gameplay_state().rest, state.rest);
+    assert_eq!(
+        player.gameplay_state().spell_charges,
+        expected.spell_charges
+    );
+    assert_eq!(player.gameplay_state().rest, expected.rest);
 }
 #[test]
 fn player_gameplay_load_plan_preserves_trinity_order() {

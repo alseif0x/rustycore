@@ -916,7 +916,7 @@ pub struct PlayerDuelInfoLikeCpp {
 /// This state is intentionally independent from update masks. Runtime managers, DB loaders,
 /// packet serializers/delivery, spell/aura execution, social/mail managers and session queues
 /// remain separate layers and should consume/produce these buckets explicitly.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub struct PlayerGameplayLoadRecord {
     pub state: PlayerGameplayState,
 }
@@ -3601,7 +3601,7 @@ impl PlayerValuesUpdate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Player {
     unit: Unit,
     session_id: Option<u64>,
