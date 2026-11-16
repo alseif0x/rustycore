@@ -1031,13 +1031,13 @@ impl Player {
     }
 
     pub fn set_money(&mut self, value: u64) {
-        self.set_active_u64(ACTIVE_PLAYER_DATA_COINAGE_BIT, value, |data| {
-            &mut data.coinage
-        });
+        let update_requested = self.inventory_values_mut().set_money(value);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn mark_money_changed(&mut self) {
-        self.mark_active_player_data(ACTIVE_PLAYER_DATA_COINAGE_BIT);
+        let update_requested = self.inventory_values_mut().mark_money_changed();
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn modify_money(&mut self, amount: i64) -> bool {

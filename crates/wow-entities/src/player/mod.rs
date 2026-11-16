@@ -19,6 +19,7 @@ mod deferred_save;
 mod identity;
 mod inebriation;
 mod inventory_runtime;
+mod inventory_values;
 pub use inventory_runtime::{ItemObjectUpdateLikeCpp, PlayerInventoryRuntime};
 mod battleground;
 mod cinematic;

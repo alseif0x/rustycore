@@ -34,6 +34,13 @@ Titan Grip are separate captured scalar facts. Keep those inputs explicit rather
 than copying gameplay, skills or spells into the view. The old public storage-view
 constructor and trade simulation do not gain new readiness requirements.
 
+The shared values boundary preserves the represented Rust distinction between
+ordinary equal-value setters (no new mask or update admission) and explicit
+mark operations (mark/admit even for the same value). This is not proof of the
+target ModifyValue setter-history contract described below; target field-format
+and history completion remain activation prerequisites. Keep that behavior work
+separate from retiring the copied actor.
+
 Target reference remains `02245dcd245e7433e524577656177723d3e4992e`:
 Player.cpp:9367–9568,10224–10733,10958–11491,27663–27755 and
 Player.h:1403–1463 anchor inventory admission/traversal; Player.cpp:3626–3699

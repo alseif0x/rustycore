@@ -29,6 +29,15 @@ preparation still uses the original Player-backed projection; its Clone producer
 is not retired. The owning runbook's November 16 contract preserves observation
 timing, source-version gaps and the disabled runtime constructor.
 
+The first shared values boundary now serves the canonical money and ordinary
+Player-flag setters through borrowed data/mask references. A boolean requests
+the existing Object update admission; one private Player adapter owns that call.
+Equal setters preserve existing masks, while explicit money marking always marks
+and requests admission. No copied Player/Unit, new state or Core producer change
+is introduced. Worker coding feedback passed the Entity check and nonzero money,
+flag and receiver-split filters; final acceptance remains pending. The complete
+slot/count/nested-mask preparation and detached payload capture are unfinished.
+
 ## Forever publication candidate — 2026-11-11
 
 The operator requested a commit and push of the preserved experimental worktree.

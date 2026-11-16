@@ -54,7 +54,8 @@ impl Player {
     }
 
     pub fn replace_all_player_flags(&mut self, flags: u32) {
-        self.set_player_u32(PLAYER_DATA_FLAGS_BIT, flags, |data| &mut data.player_flags);
+        let update_requested = self.inventory_values_mut().replace_all_player_flags(flags);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn replace_all_player_flags_ex(&mut self, flags: u32) {
