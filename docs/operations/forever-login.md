@@ -539,6 +539,50 @@ The real copy boundary includes Core's whole PlayerInventoryRuntime snapshot
 as well as individual Item/map snapshots and mutable detached plans; changing
 only the visible map getter would not retire those actor copies.
 
+The bounded consumer map at 35311dbca confirms that Core copies every Item
+inside its runtime snapshot, and World's map adapter can copy them again.
+Selected-item reads have a separate producer. Void storage also retains writable
+post-images and Replace(Box<Item>); those must preserve its existing #114
+failure contract and distinct create/post-store publication points. The
+new-identity clone_item_for_store constructor remains a different operation.
+ItemSlotRef/ItemStorageRef currently borrow Item, so retiring the full map
+producer also requires their typed query consumers, not just a return-type edit.
+
+The first retirement replaces the full-save receipt's Vec<(Guid, Item)> with
+opaque crate-private ItemPersistentSaveStateLikeCpp values. Its private Item
+child captures exactly the existing persistent-state comparison facts and
+matches the current Item directly without allocating another projection. The
+same selected GUID/group reconciliation retains New-to-Changed fallback and
+Removed deletion. No Item, EntityObject, native BonusData or owner handle is
+retained. Masks/queue bookkeeping and
+every currently excluded field stay excluded; this structural step does not
+repair or establish target persistence. Item.cpp:639–848 at 02245dcd independently
+shows that the complete target SaveToDB also needs bonus EffectCount, create
+time, raw bonus-list IDs, gem scaling and artifact/modifier paths. Those remain
+part of the later canonical Item save integration; a narrower receipt is not
+evidence that the existing full-save projection already covers them.
+
+Worker Entity check and eighteen focused cases pass with one Cargo job on this
+x86_64 host: fifteen existing/expanded Player save-ACK cases and three private
+Item comparison cases. Independent gem-only/text-only mutations preserve the
+selected New-to-Changed fallback while missing/unselected rows and disabled
+groups stay inert. Removed payload mismatch is retained, matching removal is
+covered by the existing consumed-item case, and the private cases cover all
+twenty-two saved modifiers, an excluded modifier and queue-only changes. The
+first check failed on a crate-root import path before tests; its corrected
+crate-private import passes. This is level-1 coding feedback, not a final
+manifest, real COMMIT or complete target Item durability acceptance. Whole
+runtime/map copies and detached writable Item plans remain.
+
+The subsequent selected-item read boundary will use one complete actor-free
+ItemValuesSnapshot with shared pure queries. It must retain raw values even
+with clean masks, exact Object float bits/lifecycle flags and explicit external
+query inputs. The inspected with_access consumers read position, entry and
+broken-state facts only; keep repeated observations before/after equipment
+mutations. Fixture capture is allowed only for an absent owner handle, never
+for a stale installed incarnation. Whole runtime/map copies and writable plans
+retain their separate retirement obligation before native Item attachment.
+
 The next skill persistence operation will capture immutable dirty-node rows in
 admitted native status order, without changing any status during capture. The
 provider still sees all physical keys, including Unchanged and Deleted; filter

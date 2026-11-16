@@ -337,6 +337,110 @@ fn item_save_ack_ignores_wire_masks_and_retains_new_persistent_values() {
 }
 
 #[test]
+fn selected_item_receipt_owns_gems_and_text_and_promotes_new_mismatch() {
+    for mutate_text in [false, true] {
+        let mut p = player();
+        let selected = ObjectGuid::create_item(1, if mutate_text { 1101 } else { 1102 });
+        let unselected = ObjectGuid::create_item(1, if mutate_text { 1103 } else { 1104 });
+        let missing = ObjectGuid::create_item(1, if mutate_text { 1105 } else { 1106 });
+        dirty_item(&mut p, selected);
+        dirty_item(&mut p, unselected);
+
+        let item = p
+            .inventory_runtime_mut_like_cpp()
+            .item_objects_mut()
+            .get_mut(&selected)
+            .unwrap();
+        item.set_gems(vec![crate::SocketedGem {
+            item_id: 7001,
+            context: 3,
+            bonus_list_ids: vec![8, 13],
+        }]);
+        item.set_text("captured item text");
+
+        let receipt = p.capture_save_acknowledgement_with_inventory_like_cpp(
+            &[selected, missing, selected],
+            &[],
+        );
+        p.acknowledge_saved_projection_like_cpp(receipt, PlayerSavedGroupsLikeCpp::default());
+        assert_eq!(
+            p.inventory_runtime_like_cpp().item_objects()[&selected].update_state(),
+            ItemUpdateState::New,
+            "a disabled inventory group cannot acknowledge a selected item"
+        );
+        assert_eq!(
+            p.inventory_runtime_like_cpp().item_objects()[&unselected].update_state(),
+            ItemUpdateState::New,
+            "an unselected item is not captured"
+        );
+
+        let receipt = p.capture_save_acknowledgement_with_inventory_like_cpp(
+            &[selected, missing, selected],
+            &[],
+        );
+        let item = p
+            .inventory_runtime_mut_like_cpp()
+            .item_objects_mut()
+            .get_mut(&selected)
+            .unwrap();
+        if mutate_text {
+            item.set_text("changed after capture");
+        } else {
+            item.set_gems(Vec::new());
+        }
+
+        p.acknowledge_saved_projection_like_cpp(
+            receipt,
+            PlayerSavedGroupsLikeCpp {
+                inventory_items: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            p.inventory_runtime_like_cpp().item_objects()[&selected].update_state(),
+            ItemUpdateState::Changed,
+            "owned {} facts detect the New item mutation made during the save",
+            if mutate_text { "text" } else { "gem" }
+        );
+        assert_eq!(
+            p.inventory_runtime_like_cpp().item_objects()[&unselected].update_state(),
+            ItemUpdateState::New,
+            "the receipt continues to leave unselected items untouched"
+        );
+    }
+}
+
+#[test]
+fn item_save_ack_retains_removed_item_when_saved_values_change_in_flight() {
+    let mut p = player();
+    let guid = ObjectGuid::create_item(1, 1107);
+    dirty_item(&mut p, guid);
+    p.inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&guid)
+        .unwrap()
+        .force_state(ItemUpdateState::Removed);
+
+    let receipt = p.capture_save_acknowledgement_with_inventory_like_cpp(&[guid], &[]);
+    p.inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&guid)
+        .unwrap()
+        .set_count(2);
+
+    p.acknowledge_saved_projection_like_cpp(
+        receipt,
+        PlayerSavedGroupsLikeCpp {
+            inventory_items: true,
+            ..Default::default()
+        },
+    );
+    let item = &p.inventory_runtime_like_cpp().item_objects()[&guid];
+    assert_eq!(item.update_state(), ItemUpdateState::Removed);
+    assert_eq!(item.count(), 2);
+}
+
+#[test]
 fn quest_status_ack_requires_commit_and_the_captured_status_and_native_projection() {
     let mut p = player();
     let quest_id = 81_001;

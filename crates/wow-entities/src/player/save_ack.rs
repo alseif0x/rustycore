@@ -6,6 +6,7 @@
 //! The application binds this single-use receipt to a generation-checked PlayerHandle.
 
 use super::*;
+use crate::item::ItemPersistentSaveStateLikeCpp;
 use crate::{PlayerCurrency, PlayerCurrencyState, PlayerQuestStatusSaveTypeLikeCpp};
 
 /// One objective value read using `_SaveQuestStatus`'s pinned native getter.
@@ -51,7 +52,7 @@ pub struct PlayerSaveAcknowledgementLikeCpp {
     skills: Vec<PlayerSkillRecord>,
     equipment: BTreeMap<u64, PlayerEquipmentSetLikeCpp>,
     reputations: Vec<PlayerFactionStateLikeCpp>,
-    inventory_items: Vec<(ObjectGuid, Item)>,
+    inventory_items: Vec<(ObjectGuid, ItemPersistentSaveStateLikeCpp)>,
     currencies: Vec<(u32, PlayerCurrency)>,
     quest_statuses: Vec<SavedQuestStatusLikeCpp>,
 }
@@ -118,8 +119,7 @@ impl Player {
                     self.inventory_runtime_like_cpp()
                         .item_objects()
                         .get(guid)
-                        .cloned()
-                        .map(|item| (*guid, item))
+                        .map(|item| (*guid, item.persistent_save_state_like_cpp()))
                 })
                 .collect(),
             currencies: currency_ids
@@ -218,7 +218,7 @@ impl Player {
                     .inventory_runtime_like_cpp()
                     .item_objects()
                     .get(&guid)
-                    .filter(|current| current.has_same_persistent_save_state_like_cpp(&captured))
+                    .filter(|current| captured.matches_item(current))
                     .map(|current| current.update_state())
                 else {
                     if let Some(current) = self

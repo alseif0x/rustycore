@@ -19,6 +19,7 @@ mod templates;
 mod values;
 
 pub use bonuses::*;
+pub(crate) use item::ItemPersistentSaveStateLikeCpp;
 pub use item::*;
 pub use slots::*;
 pub use templates::*;
