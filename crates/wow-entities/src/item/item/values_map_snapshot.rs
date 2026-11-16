@@ -34,6 +34,10 @@ impl ItemValuesMapSnapshot {
             .map(|&index| &self.ordered_items[index].1)
     }
 
+    pub fn contains_key(&self, guid: &ObjectGuid) -> bool {
+        self.indices.contains_key(guid)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (&ObjectGuid, &ItemValuesSnapshot)> {
         self.ordered_items.iter().map(|(guid, item)| (guid, item))
     }

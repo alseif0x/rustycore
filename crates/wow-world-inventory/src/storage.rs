@@ -351,12 +351,12 @@ impl crate::InventoryState {
                 self.resolved_player_bank_bag_slot_count_with_access_like_cpp(access)?,
             );
 
-            let item_objects = self.resolved_inventory_item_objects_with_access_like_cpp(access)?;
+            let item_values = self.resolved_inventory_item_values_with_access_like_cpp(access)?;
             for (&slot, item) in &self.resolved_inventory_items_with_access_like_cpp(access)? {
                 if (slot as usize) < PLAYER_SLOT_END && !wow_entities::is_buyback_slot(slot) {
                     let _ = player.store_top_level_item_like_cpp(slot, item.guid);
                     if crate::is_represented_bag_slot(slot)
-                        && item_objects.contains_key(&item.guid)
+                        && item_values.contains_key(&item.guid)
                         && let Some(template) =
                             wow_world_core::catalogs::item::item_storage_template_like_cpp(
                                 _item_store,

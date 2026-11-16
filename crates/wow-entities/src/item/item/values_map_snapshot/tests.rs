@@ -89,6 +89,9 @@ fn capture_preserves_original_keys_colliding_slots_and_frozen_raw_facts() {
     source.insert(other_key, second);
 
     let captured = ItemValuesMapSnapshot::capture(&source);
+    assert!(captured.contains_key(&key));
+    assert!(captured.contains_key(&other_key));
+    assert!(!captured.contains_key(&embedded_guid));
     let first_snapshot = captured.get(&key).expect("original map key");
     assert_eq!(first_snapshot.object().guid(), embedded_guid);
     assert_eq!(first_snapshot.object().scale().to_bits(), 0x7FC0_1234);
@@ -133,6 +136,7 @@ fn empty_capture_is_successful_and_clones_with_an_empty_index() {
     assert_eq!(captured.iter().count(), 0);
     assert_eq!(captured.values().count(), 0);
     assert!(captured.get(&ObjectGuid::create_item(1, 5)).is_none());
+    assert!(!captured.contains_key(&ObjectGuid::create_item(1, 5)));
 
     let cloned = captured.clone();
     assert!(cloned.is_empty());

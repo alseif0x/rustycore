@@ -118,7 +118,7 @@ impl crate::InventoryState {
         access: &OwnedInventoryAccessLikeCpp<'_>,
         item_guid: ObjectGuid,
     ) -> bool {
-        self.resolved_inventory_item_objects_with_access_like_cpp(access)
+        self.resolved_inventory_item_values_with_access_like_cpp(access)
             .is_some_and(|items| {
                 items
                     .values()

@@ -163,8 +163,7 @@ impl InventoryState {
                 return None;
             }
             return self
-                .resolved_player_inventory_runtime_with_access_like_cpp(access)?
-                .inventory_items()
+                .resolved_inventory_items_with_access_like_cpp(access)?
                 .get(&slot)
                 .cloned();
         }
@@ -174,16 +173,12 @@ impl InventoryState {
         }
 
         let bag_item = self
-            .resolved_player_inventory_runtime_with_access_like_cpp(access)?
-            .inventory_items()
+            .resolved_inventory_items_with_access_like_cpp(access)?
             .get(&bag)?
             .clone();
         let bag_guid = bag_item.guid;
-        let item_objects = self
-            .resolved_player_inventory_runtime_with_access_like_cpp(access)?
-            .item_objects()
-            .clone();
-        let nested = item_objects
+        let item_values = self.resolved_inventory_item_values_with_access_like_cpp(access)?;
+        let nested = item_values
             .values()
             .find(|item| item.container_guid() == bag_guid && item.slot() == slot)?;
         let guid = nested.object().guid();

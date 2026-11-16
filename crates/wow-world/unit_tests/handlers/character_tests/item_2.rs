@@ -268,6 +268,9 @@ fn inventory_move_planning_does_not_fall_back_after_same_guid_owner_replacement(
     assert!(send_rx.try_recv().is_err());
 }
 
+#[path = "item_2/bank_capture.rs"]
+mod bank_capture;
+
 #[cfg(test)]
 fn relocate_bag_exchange_child_like_cpp(
     item: &mut wow_entities::Item,

@@ -835,7 +835,20 @@ Void transfer; ReplaceAllItemFlags is a separate operation. Replacing the former
 also clears pending durability. The SQL projector receives its enchantment text
 explicitly rather than reading the disposable Item's enchantment array, but its
 local clear setters still assert valid slots. Preserve those represented failure
-points when retiring the SQL copies; do not reconstruct canonical Items from facts.
+points unless the actual typed producer proves them unreachable, as below;
+do not reconstruct canonical Items from facts.
+The native contrast is explicit: Item.cpp:1558 onward ClearEnchantment returns
+when its ID is zero, clears Inactive too and marks state through the owner.
+Rust currently delegates its local three-field clear to set_enchantment, whose
+index assertion runs even for zero fields. The actual SQL-preparation cleared
+vector, however, only contains successful enum conversions from indices of the
+same fixed thirteen-entry array (enchantment.rs:180–196). All thirteen valid
+EnchantmentSlot variants are 0–12; there is no Max sentinel. Those local-copy
+assertions cannot fail for the actual typed input. SQL-copy retirement may
+discard the unconsumed local clear loops, while retaining live canonical
+assertions and clearing. It does not implement native clear effects,
+logging/artifact work from SetEnchantment:1511, or BonusData-backed bonding
+(Item.h:215). Those remain canonical Item integration responsibilities.
 
 Entities now supplies ItemValuesMapSnapshot: ordered original-key/value captures
 plus a private immutable GUID index, with no actor, owner handle, restoration or
@@ -883,6 +896,34 @@ nested lookup selects the first matching value: never collect these captures
 into a newly randomized map or normalize their keys. DestroyItemCountItemRef
 has only the two Entity plan tests as consumers and imposes no Clone bound; its
 canonical borrow is not itself a copied-map migration blocker.
+
+Bank planning now captures its selected source through the existing K21 values
+resolver and consumes the ordered collection for all slot/storage references.
+The shared position lookup also uses record captures and ordered nested values,
+preserving its separate bag-record and nested-map reads and first-match result.
+The late contained-item check and absent-handle Player-projection bag check use
+that same collection; index-backed contains_key retains original keys. Catalog
+lookups, Player projection, source use checks, category timing and query bodies
+retain their old order. Store/Equip's separate actor-returning App resolver and
+the other old map/runtime consumers remain unfinished; no canonical writer or
+native banking predicate was repaired here.
+
+Worker Inventory/Application checks pass, followed by ten distinct cases:
+three Entity map cases, four existing movement-planning cases and three new
+bank-capture cases. The new cases use active/detached canonical Players with
+poisoned fixture facts, verify empty/stale versus current owner binding, retain
+the old two-clone nested collision winner, and execute a successful nested bank
+plan without values/topology/packet mutation. A malformed raw-key/embedded-GUID
+case still fails its subsequent selected-key lookup rather than normalizing it.
+The first existing-case command failed on a missing ItemPosCount import in the
+new child and ran no tests. After the fix, the new cases passed; the four still-
+unexecuted existing cases were then explicitly scheduled and also passed. That
+compilation failure was not treated as reusable green evidence. Commands used
+--locked, one job, cached PROTOC and the checkout target; Application/World used
+the pinned extractor overlay. Warnings were not compared against a baseline.
+This is level-1 coding feedback, not final/native Item, DB, runtime or wire
+acceptance. The 1,147-line item_2 test parent gains only a child mount; its four
+old planning cases are a natural later split at full macro cohesion review.
 
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are

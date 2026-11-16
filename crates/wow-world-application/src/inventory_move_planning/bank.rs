@@ -20,12 +20,13 @@ impl InventoryMovePlanningCxLikeCpp<'_, '_> {
         swap: bool,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>)> {
         let inventory_item = self.get_inventory_item_by_pos(source_bag, source_slot)?;
-        let source_item = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)?;
         let access = self
             .conditions
             .player_access_like_cpp()
             .owned_inventory_access_like_cpp();
         let inventory = self.conditions.inventory;
+        let source_item = inventory
+            .resolved_inventory_item_object_with_access_like_cpp(&access, inventory_item.guid)?;
         let catalogs = self.conditions.valuation_catalogs;
         let player = inventory.direct_inventory_player_snapshot_with_access_like_cpp(
             &access,
@@ -35,7 +36,7 @@ impl InventoryMovePlanningCxLikeCpp<'_, '_> {
         let proto = catalogs.item_storage_template_like_cpp(inventory_item.entry_id);
         let inventory_items = inventory.resolved_inventory_items_with_access_like_cpp(&access)?;
         let item_objects =
-            inventory.resolved_inventory_item_objects_with_access_like_cpp(&access)?;
+            inventory.resolved_inventory_item_values_with_access_like_cpp(&access)?;
         let mut template_cache = HashMap::new();
         for item in item_objects.values() {
             let entry_id = item.object().entry();
