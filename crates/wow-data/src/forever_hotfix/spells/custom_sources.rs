@@ -13,6 +13,21 @@ pub(super) fn unit_condition(row: &UnitConditionRecord) -> Vec<u8> {
     bytes
 }
 
+pub(super) fn spell_item_enchantment_condition(
+    row: &SpellItemEnchantmentConditionRecord,
+) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(45);
+    bytes.extend_from_slice(&row.lt_operand_type);
+    for value in row.lt_operand {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    bytes.extend_from_slice(&row.operator);
+    bytes.extend_from_slice(&row.rt_operand_type);
+    bytes.extend_from_slice(&row.rt_operand);
+    bytes.extend_from_slice(&row.logic);
+    bytes
+}
+
 fn plain_text(bytes: &mut Vec<u8>, value: &[u8]) {
     let end = value
         .iter()

@@ -15,6 +15,20 @@ pub(super) fn unit_condition(row: UnitConditionRow) -> Result<UnitConditionRecor
     })
 }
 
+pub(super) fn spell_item_enchantment_condition(
+    row: SpellItemEnchantmentConditionRow,
+) -> Result<SpellItemEnchantmentConditionRecord> {
+    Ok(SpellItemEnchantmentConditionRecord {
+        id: row.id,
+        lt_operand_type: row.lt_operand_type,
+        lt_operand: row.lt_operand,
+        operator: row.operator,
+        rt_operand_type: row.rt_operand_type,
+        rt_operand: row.rt_operand,
+        logic: row.logic,
+    })
+}
+
 pub(super) fn talent(row: TalentRow) -> Result<TalentRecord> {
     Ok(TalentRecord {
         id: row.id,

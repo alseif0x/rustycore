@@ -339,5 +339,15 @@ pub(super) fn records(directory: &Path, baseline: SpellBaseline) -> Result<Spell
         .map(|id| custom_sources::unit_condition(&table, id))
         .collect::<Result<Vec<_>>>()?;
     result.unknown_baseline_records[48] = unknown;
+    let (table, unknown) = CreationDb2::open_spell(
+        directory,
+        SpellTable::SpellItemEnchantmentCondition,
+        available,
+    )?;
+    result.spell_item_enchantment_conditions = table
+        .ids()
+        .map(|id| custom_sources::spell_item_enchantment_condition(&table, id))
+        .collect::<Result<Vec<_>>>()?;
+    result.unknown_baseline_records[49] = unknown;
     Ok(result)
 }

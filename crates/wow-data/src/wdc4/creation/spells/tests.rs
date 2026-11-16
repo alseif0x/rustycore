@@ -142,9 +142,13 @@ fn empty_spell_files_require_primitive_metadata_and_never_fall_back_to_available
         SpellTable::SpellReagentsCurrency,
         SpellTable::SpellScaling,
         SpellTable::SpellProcsPerMinuteMod,
+        SpellTable::SpellItemEnchantmentCondition,
     ] {
         let path = directory.join(format!("{}.db2", table.name()));
         let bytes = empty_file(table);
+        if table == SpellTable::SpellItemEnchantmentCondition {
+            assert_eq!(bytes.len(), 228);
+        }
         std::fs::write(&path, &bytes).unwrap();
         let (value, unknown) = CreationDb2::open_spell(&directory, table, false).unwrap();
         assert_eq!(value.ids().count(), 0);
@@ -166,7 +170,7 @@ fn empty_spell_files_require_primitive_metadata_and_never_fall_back_to_available
 }
 
 #[test]
-fn public_raw_spell_batch_decodes_all_forty_nine_source_record_types() {
+fn public_raw_spell_batch_decodes_all_fifty_source_record_types() {
     use crate::forever_spells::{SpellBaseline, SpellRecords};
     let directory =
         std::env::temp_dir().join(format!("forever-raw-spell-batch-{}", std::process::id()));

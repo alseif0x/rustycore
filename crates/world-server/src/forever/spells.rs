@@ -258,7 +258,12 @@ pub(super) fn records(rows: SpellRows) -> Result<SpellRecords> {
             .into_iter()
             .map(custom_sources::unit_condition)
             .collect::<Result<Vec<_>>>()?,
-        unknown_baseline_records: [0; 49],
+        spell_item_enchantment_conditions: rows
+            .spell_item_enchantment_conditions
+            .into_iter()
+            .map(custom_sources::spell_item_enchantment_condition)
+            .collect::<Result<Vec<_>>>()?,
+        unknown_baseline_records: [0; 50],
         rand_prop_points_storage_last_index: None,
         rand_prop_points_sql_index_size: rows.rand_prop_points_sql_index_size,
     })

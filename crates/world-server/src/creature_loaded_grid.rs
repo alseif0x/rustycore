@@ -142,7 +142,7 @@ pub struct ResolvedCreatureRuntimeSelectionLikeCpp {
     pub selected_virtual_items: [(i32, u16, u16); 3],
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct CreatureLoadedGridResolvedLikeCpp {
     pub lifecycle_record: CreatureLoadFromDbLifecycleRecord,
     pub creature: Creature,

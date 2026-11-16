@@ -11,6 +11,24 @@ pub(crate) fn unit_condition(id: u32) -> UnitConditionRecord {
     }
 }
 
+pub(crate) fn spell_item_enchantment_condition(id: u32) -> SpellItemEnchantmentConditionRecord {
+    SpellItemEnchantmentConditionRecord {
+        id,
+        lt_operand_type: [0x80, 0x81, 0x82, 0x83, 0x84],
+        lt_operand: [
+            0x8000_0000,
+            0x8000_0001,
+            0x8000_0002,
+            0x8000_0003,
+            0x8000_0004,
+        ],
+        operator: [0x90, 0x91, 0x92, 0x93, 0x94],
+        rt_operand_type: [0xa0, 0xa1, 0xa2, 0xa3, 0xa4],
+        rt_operand: [0xb0, 0xb1, 0xb2, 0xb3, 0xb4],
+        logic: [0xc0, 0xc1, 0xc2, 0xc3, 0xc4],
+    }
+}
+
 pub fn talent(id: u32, locale: u8, text: &[u8]) -> TalentRecord {
     let _ = (locale, text);
     TalentRecord {

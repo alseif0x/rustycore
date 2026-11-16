@@ -9,6 +9,16 @@ pub struct UnitConditionRow {
     pub value: [i32; 8],
 }
 
+pub struct SpellItemEnchantmentConditionRow {
+    pub id: u32,
+    pub lt_operand_type: [u8; 5],
+    pub lt_operand: [u32; 5],
+    pub operator: [u8; 5],
+    pub rt_operand_type: [u8; 5],
+    pub rt_operand: [u8; 5],
+    pub logic: [u8; 5],
+}
+
 pub struct TalentRow {
     pub id: u32,
     pub description: Vec<u8>,

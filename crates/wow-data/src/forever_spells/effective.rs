@@ -13,7 +13,7 @@ use crate::{Db2HotfixRemovalStoreLikeCpp, wdc4::creation::SpellTable};
 use anyhow::{Result, ensure};
 use std::collections::BTreeMap;
 
-pub const SPELL_TABLE_HASHES: [u32; 49] = [
+pub const SPELL_TABLE_HASHES: [u32; 50] = [
     SpellTable::SpellName.table_hash(),
     SpellTable::SpellEffect.table_hash(),
     SpellTable::SpellMisc.table_hash(),
@@ -63,6 +63,7 @@ pub const SPELL_TABLE_HASHES: [u32; 49] = [
     SpellTable::RandPropPoints.table_hash(),
     SpellTable::MythicPlusSeason.table_hash(),
     SpellTable::UnitCondition.table_hash(),
+    SpellTable::SpellItemEnchantmentCondition.table_hash(),
 ];
 
 /// One effective record authority. Startup DTOs/raw vectors are consumed;
@@ -122,15 +123,16 @@ pub struct SpellCatalog {
     rand_prop_points_storage_last_index: u32,
     mythic_plus_seasons: BTreeMap<u32, MythicPlusSeasonRecord>,
     unit_conditions: BTreeMap<u32, UnitConditionRecord>,
+    spell_item_enchantment_conditions: BTreeMap<u32, SpellItemEnchantmentConditionRecord>,
     // Final canonical IDs only; never copied stat/modifier rows.
     expected_stat_by_level: BTreeMap<(u32, i32), u32>,
     expected_mods_by_content_tuning: BTreeMap<u32, Vec<u32>>,
-    unknown_baseline_records: [usize; 49],
+    unknown_baseline_records: [usize; 50],
 }
 
 impl SpellRecords {
     /// Main/enUS official -> custom, then selected locale official -> custom,
-    /// then final removals. All 49 stores complete before catalog publication.
+    /// then final removals. All 50 stores complete before catalog publication.
     pub fn finish(
         self,
         official: Self,
@@ -142,8 +144,8 @@ impl SpellRecords {
     ) -> Result<SpellCatalog> {
         ensure!(locale < 12 && locale != 9, "Invalid target spell locale");
         ensure!(
-            official.unknown_baseline_records == [0; 49]
-                && custom.unknown_baseline_records == [0; 49]
+            official.unknown_baseline_records == [0; 50]
+                && custom.unknown_baseline_records == [0; 50]
                 && official.rand_prop_points_storage_last_index.is_none()
                 && custom.rand_prop_points_storage_last_index.is_none(),
             "SQL spell overlays cannot assert unknown baseline coverage"
@@ -476,6 +478,12 @@ impl SpellRecords {
                 custom.unit_conditions,
                 |r| r.id,
             )?,
+            spell_item_enchantment_conditions: compose::numeric(
+                self.spell_item_enchantment_conditions,
+                official.spell_item_enchantment_conditions,
+                custom.spell_item_enchantment_conditions,
+                |r| r.id,
+            )?,
         };
         for batch in [official_locale, custom_locale] {
             for row in batch.talents {
@@ -672,6 +680,9 @@ impl SpellRecords {
         result
             .unit_conditions
             .retain(|&id, _| !removals.contains_like_cpp(SPELL_TABLE_HASHES[48], id as i32));
+        result
+            .spell_item_enchantment_conditions
+            .retain(|&id, _| !removals.contains_like_cpp(SPELL_TABLE_HASHES[49], id as i32));
         // 02245dcd DB2Stores.cpp:1565-1566, after effective hotfix/removal.
         // DB2Storage iterates ascending storage ID, including readable copies.
         for (&id, row) in &result.spell_visual_missiles {
@@ -692,6 +703,17 @@ impl SpellCatalog {
     }
     pub fn unit_condition_records(&self) -> impl Iterator<Item = &UnitConditionRecord> {
         self.unit_conditions.values()
+    }
+    pub fn spell_item_enchantment_condition(
+        &self,
+        id: u32,
+    ) -> Option<&SpellItemEnchantmentConditionRecord> {
+        self.spell_item_enchantment_conditions.get(&id)
+    }
+    pub fn spell_item_enchantment_condition_records(
+        &self,
+    ) -> impl Iterator<Item = &SpellItemEnchantmentConditionRecord> {
+        self.spell_item_enchantment_conditions.values()
     }
     /// Final set membership in source ascending-ID order. Borrow canonical
     /// records; no duplicated mutable missiles or invented unknown membership.
@@ -981,7 +1003,7 @@ impl SpellCatalog {
     }
     /// Counts describe known effective records and unknown direct baseline rows.
     /// They do not certify complete ID coverage or missing-spell absence.
-    pub fn counts(&self) -> [(&'static str, usize, usize); 49] {
+    pub fn counts(&self) -> [(&'static str, usize, usize); 50] {
         [
             (
                 "SpellName",
@@ -1227,6 +1249,11 @@ impl SpellCatalog {
                 "UnitCondition",
                 self.unit_conditions.len(),
                 self.unknown_baseline_records[48],
+            ),
+            (
+                "SpellItemEnchantmentCondition",
+                self.spell_item_enchantment_conditions.len(),
+                self.unknown_baseline_records[49],
             ),
         ]
     }

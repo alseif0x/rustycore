@@ -72,6 +72,7 @@ pub struct SpellRows {
     pub rand_prop_points: Vec<RandPropPointsRow>,
     pub mythic_plus_seasons: Vec<MythicPlusSeasonRow>,
     pub unit_conditions: Vec<UnitConditionRow>,
+    pub spell_item_enchantment_conditions: Vec<SpellItemEnchantmentConditionRow>,
     /// Source MAX(ID)+1 query, issued separately after each nonempty
     /// RandPropPoints row result. None for an unqueried empty/synthetic batch.
     /// The uint64 SQL result is narrowed to uint32 as in DB2DatabaseLoader.

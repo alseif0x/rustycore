@@ -16,6 +16,23 @@ pub(super) fn unit_condition(result: &SqlResult) -> Result<UnitConditionRow, Loa
     Ok(row)
 }
 
+pub(super) fn spell_item_enchantment_condition(
+    result: &SqlResult,
+) -> Result<SpellItemEnchantmentConditionRow, LoadError> {
+    let mut r = SpellRow::new(result, 31)?;
+    let row = SpellItemEnchantmentConditionRow {
+        id: r.read()?,
+        lt_operand_type: r.array()?,
+        lt_operand: r.array()?,
+        operator: r.array()?,
+        rt_operand_type: r.array()?,
+        rt_operand: r.array()?,
+        logic: r.array()?,
+    };
+    r.finish()?;
+    Ok(row)
+}
+
 pub(super) fn talent(result: &SqlResult) -> Result<TalentRow, LoadError> {
     let mut r = SpellRow::new(result, 28)?;
     let row = TalentRow {

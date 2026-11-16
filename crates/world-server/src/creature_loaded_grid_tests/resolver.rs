@@ -356,8 +356,10 @@ fn loaded_grid_creature_lifecycle_resolver_errors_without_dummy_for_missing_inpu
     let missing_spawn =
         CreatureLoadedGridLifecycleResolverLikeCpp::new([template(entry)], [], [selection(entry)]);
     assert_eq!(
-        missing_spawn.resolve_loaded_grid_creature_like_cpp(57, map_object_guid),
-        Err(CreatureLoadedGridResolveErrorLikeCpp::MissingSpawnData { spawn_id: 57 })
+        missing_spawn
+            .resolve_loaded_grid_creature_like_cpp(57, map_object_guid)
+            .unwrap_err(),
+        CreatureLoadedGridResolveErrorLikeCpp::MissingSpawnData { spawn_id: 57 }
     );
 
     let missing_template = CreatureLoadedGridLifecycleResolverLikeCpp::new(
@@ -366,8 +368,10 @@ fn loaded_grid_creature_lifecycle_resolver_errors_without_dummy_for_missing_inpu
         [selection(entry)],
     );
     assert_eq!(
-        missing_template.resolve_loaded_grid_creature_like_cpp(58, map_object_guid),
-        Err(CreatureLoadedGridResolveErrorLikeCpp::MissingTemplate { entry })
+        missing_template
+            .resolve_loaded_grid_creature_like_cpp(58, map_object_guid)
+            .unwrap_err(),
+        CreatureLoadedGridResolveErrorLikeCpp::MissingTemplate { entry }
     );
 
     let missing_selection = CreatureLoadedGridLifecycleResolverLikeCpp::new(
@@ -376,8 +380,10 @@ fn loaded_grid_creature_lifecycle_resolver_errors_without_dummy_for_missing_inpu
         [],
     );
     assert_eq!(
-        missing_selection.resolve_loaded_grid_creature_like_cpp(59, map_object_guid),
-        Err(CreatureLoadedGridResolveErrorLikeCpp::MissingRuntimeSelection { entry })
+        missing_selection
+            .resolve_loaded_grid_creature_like_cpp(59, map_object_guid)
+            .unwrap_err(),
+        CreatureLoadedGridResolveErrorLikeCpp::MissingRuntimeSelection { entry }
     );
 }
 #[test]
@@ -390,28 +396,28 @@ fn loaded_grid_creature_lifecycle_resolver_rejects_wrong_map_or_high_guid() {
     );
     let wrong_map_guid = map_creature_guid(entry, 530, 99_004);
     assert_eq!(
-        resolver.resolve_loaded_grid_creature_like_cpp(62, wrong_map_guid),
-        Err(
-            CreatureLoadedGridResolveErrorLikeCpp::InvalidMapObjectGuid {
-                guid: wrong_map_guid,
-                expected_high: HighGuid::Creature,
-                expected_map_id: 571,
-                expected_entry: entry,
-            }
-        )
+        resolver
+            .resolve_loaded_grid_creature_like_cpp(62, wrong_map_guid)
+            .unwrap_err(),
+        CreatureLoadedGridResolveErrorLikeCpp::InvalidMapObjectGuid {
+            guid: wrong_map_guid,
+            expected_high: HighGuid::Creature,
+            expected_map_id: 571,
+            expected_entry: entry,
+        }
     );
 
     let wrong_high_guid = ObjectGuid::create_gameobject_like_cpp(571, entry, 99_005);
     assert_eq!(
-        resolver.resolve_loaded_grid_creature_like_cpp(62, wrong_high_guid),
-        Err(
-            CreatureLoadedGridResolveErrorLikeCpp::InvalidMapObjectGuid {
-                guid: wrong_high_guid,
-                expected_high: HighGuid::Creature,
-                expected_map_id: 571,
-                expected_entry: entry,
-            }
-        )
+        resolver
+            .resolve_loaded_grid_creature_like_cpp(62, wrong_high_guid)
+            .unwrap_err(),
+        CreatureLoadedGridResolveErrorLikeCpp::InvalidMapObjectGuid {
+            guid: wrong_high_guid,
+            expected_high: HighGuid::Creature,
+            expected_map_id: 571,
+            expected_entry: entry,
+        }
     );
 }
 #[test]
@@ -426,15 +432,15 @@ fn loaded_grid_creature_lifecycle_resolver_rejects_same_map_wrong_entry_guid() {
     let wrong_entry_guid = map_creature_guid(wrong_entry, 571, 99_008);
 
     assert_eq!(
-        resolver.resolve_loaded_grid_creature_like_cpp(64, wrong_entry_guid),
-        Err(
-            CreatureLoadedGridResolveErrorLikeCpp::InvalidMapObjectGuid {
-                guid: wrong_entry_guid,
-                expected_high: HighGuid::Creature,
-                expected_map_id: 571,
-                expected_entry: entry,
-            }
-        )
+        resolver
+            .resolve_loaded_grid_creature_like_cpp(64, wrong_entry_guid)
+            .unwrap_err(),
+        CreatureLoadedGridResolveErrorLikeCpp::InvalidMapObjectGuid {
+            guid: wrong_entry_guid,
+            expected_high: HighGuid::Creature,
+            expected_map_id: 571,
+            expected_entry: entry,
+        }
     );
 }
 #[test]
@@ -488,15 +494,15 @@ fn loaded_grid_creature_lifecycle_resolver_rejects_creature_guid_for_vehicle_tem
     );
 
     assert_eq!(
-        resolver.resolve_loaded_grid_creature_like_cpp(65, wrong_guid),
-        Err(
-            CreatureLoadedGridResolveErrorLikeCpp::InvalidMapObjectGuid {
-                guid: wrong_guid,
-                expected_high: HighGuid::Vehicle,
-                expected_map_id: 571,
-                expected_entry: entry,
-            }
-        )
+        resolver
+            .resolve_loaded_grid_creature_like_cpp(65, wrong_guid)
+            .unwrap_err(),
+        CreatureLoadedGridResolveErrorLikeCpp::InvalidMapObjectGuid {
+            guid: wrong_guid,
+            expected_high: HighGuid::Vehicle,
+            expected_map_id: 571,
+            expected_entry: entry,
+        }
     );
 }
 #[test]

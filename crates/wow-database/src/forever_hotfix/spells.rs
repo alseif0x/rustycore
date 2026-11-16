@@ -12,7 +12,7 @@ use super::{ForeverHotfixRepository, LoadError, PreparedStatement};
 use row::SpellRow;
 use wow_persistence::forever::spells::{SpellOverlays, SpellRows};
 
-const QUERIES: [&str; 49] = [
+const QUERIES: [&str; 50] = [
     "SELECT ID, Name FROM spell_name WHERE (`VerifiedBuild` > 0) = ?",
     "SELECT ID, EffectAura, DifficultyID, EffectIndex, Effect, EffectAmplitude, EffectAttributes, EffectAuraPeriod, EffectBonusCoefficient, EffectChainAmplitude, EffectChainTargets, EffectItemType, EffectMechanic, EffectPointsPerResource, EffectPosFacing, EffectRealPointsPerLevel, EffectTriggerSpell, BonusCoefficientFromAP, PvpMultiplier, Coefficient, Variance, ResourceCoefficient, GroupSizeBasePointsCoefficient, EffectBasePoints, ScalingClass, TargetNodeGraph, EffectMiscValue1, EffectMiscValue2, EffectRadiusIndex1, EffectRadiusIndex2, EffectSpellClassMask1, EffectSpellClassMask2, EffectSpellClassMask3, EffectSpellClassMask4, ImplicitTarget1, ImplicitTarget2, SpellID FROM spell_effect WHERE (`VerifiedBuild` > 0) = ?",
     "SELECT ID, Attributes1, Attributes2, Attributes3, Attributes4, Attributes5, Attributes6, Attributes7, Attributes8, Attributes9, Attributes10, Attributes11, Attributes12, Attributes13, Attributes14, Attributes15, Attributes16, Attributes17, DifficultyID, CastingTimeIndex, DurationIndex, PvPDurationIndex, RangeIndex, SchoolMask, Speed, LaunchDelay, MinDuration, SpellIconFileDataID, ActiveIconFileDataID, ContentTuningID, ShowFutureSpellPlayerConditionID, SpellVisualScript, ActiveSpellVisualScript, SpellID FROM spell_misc WHERE (`VerifiedBuild` > 0) = ?",
@@ -62,6 +62,7 @@ const QUERIES: [&str; 49] = [
     "SELECT ID, DamageReplaceStatF, DamageSecondaryF, DamageReplaceStat, DamageSecondary, EpicF1, EpicF2, EpicF3, EpicF4, EpicF5, SuperiorF1, SuperiorF2, SuperiorF3, SuperiorF4, SuperiorF5, GoodF1, GoodF2, GoodF3, GoodF4, GoodF5, Epic1, Epic2, Epic3, Epic4, Epic5, Superior1, Superior2, Superior3, Superior4, Superior5, Good1, Good2, Good3, Good4, Good5 FROM rand_prop_points WHERE (`VerifiedBuild` > 0) = ?",
     "SELECT ID, MilestoneSeason, StartTimeEvent, ExpansionLevel, HeroicLFGDungeonMinGear FROM mythic_plus_season WHERE (`VerifiedBuild` > 0) = ?",
     "SELECT ID, Flags, Variable1, Variable2, Variable3, Variable4, Variable5, Variable6, Variable7, Variable8, Op1, Op2, Op3, Op4, Op5, Op6, Op7, Op8, Value1, Value2, Value3, Value4, Value5, Value6, Value7, Value8 FROM unit_condition WHERE (`VerifiedBuild` > 0) = ?",
+    "SELECT ID, LtOperandType1, LtOperandType2, LtOperandType3, LtOperandType4, LtOperandType5, LtOperand1, LtOperand2, LtOperand3, LtOperand4, LtOperand5, Operator1, Operator2, Operator3, Operator4, Operator5, RtOperandType1, RtOperandType2, RtOperandType3, RtOperandType4, RtOperandType5, RtOperand1, RtOperand2, RtOperand3, RtOperand4, RtOperand5, Logic1, Logic2, Logic3, Logic4, Logic5 FROM spell_item_enchantment_condition WHERE (`VerifiedBuild` > 0) = ?",
 ];
 
 impl ForeverHotfixRepository {
@@ -229,6 +230,9 @@ impl ForeverHotfixRepository {
                         48 => target
                             .unit_conditions
                             .push(custom_sources::unit_condition(&result)?),
+                        49 => target
+                            .spell_item_enchantment_conditions
+                            .push(custom_sources::spell_item_enchantment_condition(&result)?),
                         _ => unreachable!(),
                     }
                     if !result.next_row() {

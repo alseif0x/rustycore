@@ -301,7 +301,7 @@ fn table_hashes_are_distinct_and_signed_removal_ids_do_not_alias_families() {
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>()
             .len(),
-        49
+        50
     );
     let base = SpellRecords {
         spell_cast_times: vec![cast(u32::MAX, 1)],

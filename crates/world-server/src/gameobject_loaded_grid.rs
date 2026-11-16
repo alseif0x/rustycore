@@ -72,7 +72,7 @@ pub struct ResolvedGameObjectSpawnLikeCpp {
     pub string_id: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct GameObjectLoadedGridResolvedLikeCpp {
     pub lifecycle_record: GameObjectLoadFromDbLifecycleRecord,
     pub game_object: GameObject,

@@ -26,6 +26,36 @@ fn unit_condition_sql_conversion_retains_every_source_width_and_array() {
 }
 
 #[test]
+fn enchantment_condition_conversion_retains_all_unsigned_arrays() {
+    let input = SpellItemEnchantmentConditionRow {
+        id: u32::MAX,
+        lt_operand_type: [0x80, 0x81, 0x82, 0x83, 0x84],
+        lt_operand: [u32::MIN, 0x8000_0001, 0x8000_0002, 0x8000_0003, u32::MAX],
+        operator: [0x90, 0x91, 0x92, 0x93, 0x94],
+        rt_operand_type: [0xa0, 0xa1, 0xa2, 0xa3, 0xa4],
+        rt_operand: [0xb0, 0xb1, 0xb2, 0xb3, 0xb4],
+        logic: [0xc0, 0xc1, 0xc2, 0xc3, 0xc4],
+    };
+    let result = super::super::records(SpellRows {
+        spell_item_enchantment_conditions: vec![input],
+        ..Default::default()
+    })
+    .unwrap();
+    let row = &result.spell_item_enchantment_conditions[0];
+    assert_eq!(row.id, u32::MAX);
+    assert_eq!(row.lt_operand_type, [0x80, 0x81, 0x82, 0x83, 0x84]);
+    assert_eq!(
+        row.lt_operand,
+        [u32::MIN, 0x8000_0001, 0x8000_0002, 0x8000_0003, u32::MAX]
+    );
+    assert_eq!(row.operator, [0x90, 0x91, 0x92, 0x93, 0x94]);
+    assert_eq!(row.rt_operand_type, [0xa0, 0xa1, 0xa2, 0xa3, 0xa4]);
+    assert_eq!(row.rt_operand, [0xb0, 0xb1, 0xb2, 0xb3, 0xb4]);
+    assert_eq!(row.logic, [0xc0, 0xc1, 0xc2, 0xc3, 0xc4]);
+    assert_eq!(result.unknown_baseline_records[49], 0);
+}
+
+#[test]
 fn talent_moves_every_field_without_narrowing_or_float_canonicalization() {
     let id = 0xF1234567;
     let text: &[u8] = b"t\xFF\0ignored";

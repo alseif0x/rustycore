@@ -11,6 +11,16 @@ pub struct UnitConditionRecord {
     pub value: [i32; 8],
 }
 
+pub struct SpellItemEnchantmentConditionRecord {
+    pub id: u32,
+    pub lt_operand_type: [u8; 5],
+    pub lt_operand: [u32; 5],
+    pub operator: [u8; 5],
+    pub rt_operand_type: [u8; 5],
+    pub rt_operand: [u8; 5],
+    pub logic: [u8; 5],
+}
+
 pub struct TalentRecord {
     pub id: u32,
     pub description: SpellText,

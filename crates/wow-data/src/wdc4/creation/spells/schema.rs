@@ -53,6 +53,7 @@ pub(crate) enum SpellTable {
     RandPropPoints,
     MythicPlusSeason,
     UnitCondition,
+    SpellItemEnchantmentCondition,
 }
 
 pub(in crate::wdc4) struct SpellSchema {
@@ -65,7 +66,7 @@ pub(in crate::wdc4) struct SpellSchema {
 
 impl SpellTable {
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 49] = [
+    pub(crate) const ALL: [Self; 50] = [
         Self::SpellName,
         Self::SpellEffect,
         Self::SpellMisc,
@@ -115,6 +116,7 @@ impl SpellTable {
         Self::RandPropPoints,
         Self::MythicPlusSeason,
         Self::UnitCondition,
+        Self::SpellItemEnchantmentCondition,
     ];
     pub(crate) fn name(self) -> &'static str {
         self.schema().base.name
@@ -174,6 +176,7 @@ impl SpellTable {
             Self::RandPropPoints => ("RandPropPoints", 0x5D8CEFA6, 0x4FD22743, 10, None, None, &[(32, 1), (32, 1), (32, 1), (32, 1), (32, 5), (32, 5), (32, 5), (32, 5), (32, 5), (32, 5)], 0, 4, 0xFFFFFFFF),
             Self::MythicPlusSeason => ("MythicPlusSeason", 0x2AD89A7A, 0xDC94262F, 5, Some(0), None, &[(32, 1), (32, 1), (32, 1), (32, 1), (32, 1)], 0, 0, 0xFFFFFFFF),
             Self::UnitCondition => ("UnitCondition", 0x0E540EFD, 0x215FAF83, 4, None, None, &[(32, 1), (8, 8), (8, 8), (32, 8)], 0, 4, 0xFFFFFFFF),
+            Self::SpellItemEnchantmentCondition => ("SpellItemEnchantmentCondition", 0xF9513930, 0xD5348137, 6, None, None, &[(8, 5), (32, 5), (8, 5), (8, 5), (8, 5), (8, 5)], 0, 4, 0xFFFFFFFF),
         };
         SpellSchema {
             base: Schema {

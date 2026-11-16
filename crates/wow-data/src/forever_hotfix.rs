@@ -166,7 +166,7 @@ impl ForeverHotfixCatalog {
     pub fn with_spell_stores(mut self, data: Arc<SpellCatalog>) -> Result<Self> {
         ensure!(
             SPELL_TABLE_HASHES.iter().all(|&hash| self.has_store(hash)),
-            "All 36 spell stores must be registered before hotfix metadata loading"
+            "All 50 spell stores must be registered before hotfix metadata loading"
         );
         self.spell_stores = Some(spells::SpellHotfixStores { data });
         Ok(self)

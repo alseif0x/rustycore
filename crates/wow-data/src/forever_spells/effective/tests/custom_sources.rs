@@ -67,6 +67,94 @@ fn unit_condition_uses_final_canonical_rows_ordered_overwrites_and_signed_remova
 }
 
 #[test]
+fn enchantment_conditions_compose_all_arrays_and_remove_only_from_the_final_catalog() {
+    let make = |marker: u8| {
+        let mut row = rows::spell_item_enchantment_condition(u32::MAX);
+        row.lt_operand_type = [marker; 5];
+        row.lt_operand = [0x8000_0000 | u32::from(marker); 5];
+        row.operator = [marker.wrapping_add(1); 5];
+        row.rt_operand_type = [marker.wrapping_add(2); 5];
+        row.rt_operand = [marker.wrapping_add(3); 5];
+        row.logic = [marker.wrapping_add(4); 5];
+        row
+    };
+    let mut baseline = SpellRecords {
+        spell_item_enchantment_conditions: vec![make(1)],
+        ..Default::default()
+    };
+    baseline.unknown_baseline_records[49] = 11;
+    let mut official_only = make(6);
+    official_only.id = 12;
+    let official = SpellRecords {
+        spell_item_enchantment_conditions: vec![make(2), make(3), official_only],
+        ..Default::default()
+    };
+    let custom = SpellRecords {
+        spell_item_enchantment_conditions: vec![make(4), make(5)],
+        ..Default::default()
+    };
+    let result = finish(baseline, official, custom).unwrap();
+    let row = result.spell_item_enchantment_condition(u32::MAX).unwrap();
+    assert_eq!(row.lt_operand_type, [5; 5]);
+    assert_eq!(row.lt_operand, [0x8000_0005; 5]);
+    assert_eq!(row.operator, [6; 5]);
+    assert_eq!(row.rt_operand_type, [7; 5]);
+    assert_eq!(row.rt_operand, [8; 5]);
+    assert_eq!(row.logic, [9; 5]);
+    assert_eq!(
+        result.counts()[49],
+        ("SpellItemEnchantmentCondition", 2, 11)
+    );
+    let official_row = result.spell_item_enchantment_condition(12).unwrap();
+    assert_eq!(official_row.lt_operand_type, [6; 5]);
+    assert_eq!(official_row.lt_operand, [0x8000_0006; 5]);
+    assert!(std::ptr::eq(
+        row,
+        result
+            .spell_item_enchantment_condition_records()
+            .find(|record| record.id == u32::MAX)
+            .unwrap()
+    ));
+
+    let removed = SpellRecords {
+        spell_item_enchantment_conditions: vec![make(1)],
+        ..Default::default()
+    }
+    .finish(
+        Default::default(),
+        Default::default(),
+        6,
+        Default::default(),
+        Default::default(),
+        &removals([(SPELL_TABLE_HASHES[49], -1, 2)]),
+    )
+    .unwrap();
+    assert!(removed.spell_item_enchantment_condition(u32::MAX).is_none());
+    assert_eq!(
+        removed.spell_item_enchantment_condition_records().count(),
+        0
+    );
+
+    assert!(
+        finish(
+            SpellRecords {
+                spell_item_enchantment_conditions: vec![make(1), make(2)],
+                ..Default::default()
+            },
+            Default::default(),
+            Default::default(),
+        )
+        .is_err()
+    );
+    let mut invalid_official = SpellRecords::default();
+    invalid_official.unknown_baseline_records[49] = 1;
+    assert!(finish(Default::default(), invalid_official, Default::default()).is_err());
+    let mut invalid_custom = SpellRecords::default();
+    invalid_custom.unknown_baseline_records[49] = 1;
+    assert!(finish(Default::default(), Default::default(), invalid_custom).is_err());
+}
+
+#[test]
 fn missile_set_index_borrows_only_final_records_in_ascending_storage_id_order() {
     let missile = |id, set| {
         let mut row = rows::spell_visual_missile(id, 6, b"");

@@ -41,6 +41,46 @@ fn unit_condition_serializes_all_52_bytes_and_dispatches_without_external_id_or_
 }
 
 #[test]
+fn enchantment_condition_serializes_45_bytes_and_dispatches_without_id_or_locale() {
+    let row = rows::spell_item_enchantment_condition(0xf1234567);
+    let expected: [u8; 45] = [
+        0x80, 0x81, 0x82, 0x83, 0x84, 0x00, 0x00, 0x00, 0x80, 0x01, 0x00, 0x00, 0x80, 0x02, 0x00,
+        0x00, 0x80, 0x03, 0x00, 0x00, 0x80, 0x04, 0x00, 0x00, 0x80, 0x90, 0x91, 0x92, 0x93, 0x94,
+        0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4,
+    ];
+    assert_eq!(expected.len(), 45);
+    assert_eq!(
+        super::super::custom_sources::spell_item_enchantment_condition(&row),
+        expected
+    );
+    let data = Arc::new(
+        SpellRecords {
+            spell_item_enchantment_conditions: vec![row],
+            ..Default::default()
+        }
+        .finish(
+            Default::default(),
+            Default::default(),
+            6,
+            Default::default(),
+            Default::default(),
+            &Db2HotfixRemovalStoreLikeCpp::default(),
+        )
+        .unwrap(),
+    );
+    let stores = super::super::SpellHotfixStores { data };
+    for locale in [0, 6, 255] {
+        assert_eq!(
+            stores
+                .record(SPELL_TABLE_HASHES[49], 0xf1234567, locale)
+                .unwrap(),
+            expected
+        );
+    }
+    assert!(stores.record(SPELL_TABLE_HASHES[49], 7, 6).is_none());
+}
+
+#[test]
 fn talent_serializes_every_source_cell_including_arrays_and_native_widths() {
     let row = rows::talent(0xF1234567, 6, b"t\xFF\0ignored");
     let bytes = super::super::custom_sources::talent(&row, 6);

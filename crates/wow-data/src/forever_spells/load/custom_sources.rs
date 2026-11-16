@@ -21,6 +21,35 @@ pub(super) fn unit_condition(table: &CreationDb2, id: u32) -> Result<UnitConditi
     })
 }
 
+pub(super) fn spell_item_enchantment_condition(
+    table: &CreationDb2,
+    id: u32,
+) -> Result<SpellItemEnchantmentConditionRecord> {
+    let mut lt_operand_type = [0; 5];
+    let mut lt_operand = [0; 5];
+    let mut operator = [0; 5];
+    let mut rt_operand_type = [0; 5];
+    let mut rt_operand = [0; 5];
+    let mut logic = [0; 5];
+    for index in 0..5 {
+        lt_operand_type[index] = table.bits(id, 0, index)? as u8;
+        lt_operand[index] = table.bits(id, 1, index)?;
+        operator[index] = table.bits(id, 2, index)? as u8;
+        rt_operand_type[index] = table.bits(id, 3, index)? as u8;
+        rt_operand[index] = table.bits(id, 4, index)? as u8;
+        logic[index] = table.bits(id, 5, index)? as u8;
+    }
+    Ok(SpellItemEnchantmentConditionRecord {
+        id,
+        lt_operand_type,
+        lt_operand,
+        operator,
+        rt_operand_type,
+        rt_operand,
+        logic,
+    })
+}
+
 pub(super) fn talent(table: &CreationDb2, id: u32) -> Result<TalentRecord> {
     Ok(TalentRecord {
         id: id,

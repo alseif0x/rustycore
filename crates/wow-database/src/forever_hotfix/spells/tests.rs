@@ -22,17 +22,18 @@ fn six_dependency_decoders_reject_missing_rows_instead_of_defaulting_fields() {
     assert!(custom_sources::spell_visual_effect_name(&empty).is_err());
     assert!(custom_sources::liquid_type(&empty).is_err());
     assert!(custom_sources::unit_condition(&empty).is_err());
+    assert!(custom_sources::spell_item_enchantment_condition(&empty).is_err());
     assert_eq!(
         QUERIES
             .iter()
             .map(|query| query.split(" FROM ").next().unwrap().split(',').count())
             .sum::<usize>(),
-        668
+        699
     );
 }
 
 #[test]
-fn all_forty_nine_queries_preserve_exact_source_projection_and_batch_predicate() {
+fn all_fifty_queries_preserve_exact_source_projection_and_batch_predicate() {
     let expected = [
         ("spell_name", "ID,Name"),
         (
@@ -208,6 +209,10 @@ fn all_forty_nine_queries_preserve_exact_source_projection_and_batch_predicate()
         (
             "unit_condition",
             "ID,Flags,Variable1,Variable2,Variable3,Variable4,Variable5,Variable6,Variable7,Variable8,Op1,Op2,Op3,Op4,Op5,Op6,Op7,Op8,Value1,Value2,Value3,Value4,Value5,Value6,Value7,Value8",
+        ),
+        (
+            "spell_item_enchantment_condition",
+            "ID,LtOperandType1,LtOperandType2,LtOperandType3,LtOperandType4,LtOperandType5,LtOperand1,LtOperand2,LtOperand3,LtOperand4,LtOperand5,Operator1,Operator2,Operator3,Operator4,Operator5,RtOperandType1,RtOperandType2,RtOperandType3,RtOperandType4,RtOperandType5,RtOperand1,RtOperand2,RtOperand3,RtOperand4,RtOperand5,Logic1,Logic2,Logic3,Logic4,Logic5",
         ),
     ];
     assert_eq!(QUERIES.len(), expected.len());

@@ -84,6 +84,7 @@ pub struct SpellRecords {
     pub spell_category_definitions: Vec<SpellCategoryRecord>,
     pub talents: Vec<TalentRecord>,
     pub spell_item_enchantments: Vec<SpellItemEnchantmentRecord>,
+    pub spell_item_enchantment_conditions: Vec<SpellItemEnchantmentConditionRecord>,
     pub spell_visuals: Vec<SpellVisualRecord>,
     pub spell_visual_missiles: Vec<SpellVisualMissileRecord>,
     pub spell_visual_effect_names: Vec<SpellVisualEffectNameRecord>,
@@ -104,7 +105,7 @@ pub struct SpellRecords {
     pub rand_prop_points_sql_index_size: Option<u32>,
     /// Counts of unknown direct baseline rows in source table order. This is
     /// not complete ID coverage, unknown copy coverage or effective absence.
-    pub unknown_baseline_records: [usize; 49],
+    pub unknown_baseline_records: [usize; 50],
 }
 
 impl Default for SpellRecords {
@@ -148,6 +149,7 @@ impl Default for SpellRecords {
             spell_category_definitions: Vec::new(),
             talents: Vec::new(),
             spell_item_enchantments: Vec::new(),
+            spell_item_enchantment_conditions: Vec::new(),
             spell_visuals: Vec::new(),
             spell_visual_missiles: Vec::new(),
             spell_visual_effect_names: Vec::new(),
@@ -161,20 +163,20 @@ impl Default for SpellRecords {
             unit_conditions: Vec::new(),
             rand_prop_points_storage_last_index: None,
             rand_prop_points_sql_index_size: None,
-            unknown_baseline_records: [0; 49],
+            unknown_baseline_records: [0; 50],
         }
     }
 }
 
 impl SpellRecords {
-    /// All forty-nine checked reads finish before publishing the raw batch.
+    /// All fifty checked reads finish before publishing the raw batch.
     pub fn load(directory: &Path, baseline: SpellBaseline) -> Result<Self> {
         load::records(directory, baseline)
     }
 
     /// Materialized known rows (including copies), unknown direct rows.
     /// Only public schema names/counts; no values, text or identifiers.
-    pub fn counts(&self) -> [(&'static str, usize, usize); 49] {
+    pub fn counts(&self) -> [(&'static str, usize, usize); 50] {
         [
             (
                 "SpellName",
@@ -420,6 +422,11 @@ impl SpellRecords {
                 "UnitCondition",
                 self.unit_conditions.len(),
                 self.unknown_baseline_records[48],
+            ),
+            (
+                "SpellItemEnchantmentCondition",
+                self.spell_item_enchantment_conditions.len(),
+                self.unknown_baseline_records[49],
             ),
         ]
     }

@@ -1,4 +1,4 @@
-//! 49 target spell serializers; one shared immutable effective record owner.
+//! 50 target spell serializers; one shared immutable effective record owner.
 //! 02245dcd DB2StorageBase::WriteRecord: external ID excluded, full metadata
 //! arrays/parents and inline IDs included; selected locale without fallback.
 mod core;
@@ -96,6 +96,9 @@ impl SpellHotfixStores {
                 46 => value_inputs::rand_prop_points(self.data.rand_prop_points(id)?, locale),
                 47 => value_inputs::mythic_plus_season(self.data.mythic_plus_season(id)?, locale),
                 48 => custom_sources::unit_condition(self.data.unit_condition(id)?),
+                49 => custom_sources::spell_item_enchantment_condition(
+                    self.data.spell_item_enchantment_condition(id)?,
+                ),
                 _ => unreachable!(),
             },
         )

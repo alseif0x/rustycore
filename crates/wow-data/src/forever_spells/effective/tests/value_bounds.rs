@@ -294,7 +294,7 @@ fn tuning_expansion_preserves_signed_bits_and_unknown_is_not_missing_minus_two()
     .unwrap();
     assert_eq!(c.content_tuning_expansion(7).unwrap(), i32::MIN);
     assert_eq!(c.content_tuning_expansion(9).unwrap(), -2);
-    assert_eq!(c.counts().len(), 49);
+    assert_eq!(c.counts().len(), 50);
     let mut raw = SpellRecords::default();
     raw.unknown_baseline_records[44] = 1;
     let c = finish(raw, Default::default(), Default::default()).unwrap();

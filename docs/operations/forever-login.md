@@ -193,6 +193,17 @@ the two additional containing aggregates; after their same-rule retirement,
 Map check and 38 player-owner cases pass. The changed movement error case was
 compiled but not selected by that filter. This is level-1 coding feedback;
 canonical fields and complete downstream/final acceptance still remain.
+The later native-condition pipeline's required-feature world-server check
+exposed three remaining containing aggregates: AreaTriggerLoadedGridResolvedLikeCpp,
+CreatureLoadedGridResolvedLikeCpp and GameObjectLoadedGridResolvedLikeCpp.
+Only their PartialEq derives are retired; Debug, value/error equality and all
+gameplay bodies remain unchanged. The initial check's four type errors are
+preserved in its log, and the affected follow-up feature check passes. This
+closes that compile dependency, not runtime or final acceptance.
+Seven existing creature-resolver failure assertions now unwrap and compare
+their original exact errors. Parent reviewed their calls and payloads; the
+selected Forever binary test does not compile or execute that owning library
+test module, which remains required at completed-delivery acceptance.
 
 For synchronous skill/book reentry, use disjoint borrows of those two canonical
 owners. The skill-effect adapter borrows the book; when its callback receives
@@ -291,10 +302,11 @@ admitted condition row passes before inventory traversal. A missing catalog is
 not evidence of such a missing row. The represented World route currently
 conflates those absences, saturates gem counts and filters signed gem IDs; that
 route must not stand in for target bit-preserving, same-owner evaluation.
-Native ItemSpecCatalog already owns GemProperties, but the native closed schemas
-do not yet admit SpellItemEnchantmentCondition. The complete source operation,
-target bridge and actual body effects remain in this same integration scope.
-Parent offline inspection identifies that missing table's complete contract:
+Native ItemSpecCatalog already owns GemProperties. The native closed schemas
+now also include SpellItemEnchantmentCondition at index 49, preserving every
+older spell-table index. Its complete evaluator, target bridge and actual body
+effects remain in this same integration scope.
+Parent offline inspection freezes that table's complete contract:
 DB2Metadata.h:21431–21452 has six five-element arrays (8/32/8/8/8/8 bits),
 file data ID 1121834 and layout D5348137; DB2LoadInfo.h:5525–5562 and
 DB2Structure.h:4018–4027 retain all thirty unsigned operands/operations/logic
@@ -303,11 +315,29 @@ values plus the uint32 ID. HotfixDatabase.cpp:1670–1674 selects those same
 custom VerifiedBuild partition. The retained offline runtime-data file is
 228 bytes, SHA256 b7ed365fa6dc5c2f8f79b0d44420a433cd5a6a923f35ba67a4d8d15248053d3d;
 its WDC5 header reports hash F9513930, the same layout, six fields, flags 4,
-locale FFFFFFFF and zero records/sections. This observation neither admits a
-new table nor proves an effective empty store after SQL overlays/removals.
-The native schema, numeric loader, effective catalog, hotfix serialization and
-SQL DTO/bridge must be extended together before the body treats a missing row
-as source absence; no legacy-store fallback or permissive readiness is allowed.
+locale FFFFFFFF and zero records/sections. Those header facts alone do not prove
+an effective empty store after SQL overlays/removals. The extension covers the
+native schema, numeric loader, effective catalog, hotfix serialization and SQL
+DTO/bridge together; no legacy-store fallback or permissive readiness is allowed.
+The source-only extension uses the same effective SpellCatalog for gameplay and
+hotfix lookup: full fifty-table file loading, official/custom numeric overlays,
+final removals, 31-field SQL selection/decoding, DTO conversion and 45-byte
+external-ID-free serialization are implemented. The pinned SQL base DDL at
+sql/base/dev/hotfixes_database.sql:9015–9049 independently confirms INT UNSIGNED
+for ID/LtOperand and TINYINT UNSIGNED for the other 25 values. This is source
+evidence, not observation of the current database schema. Real positive SQLx
+row decoding, DB integration and fresh client hotfix capture remain unexecuted;
+missing-row/query-contract and DTO/golden tests do not stand in for them.
+Worker coding feedback passes Data, Persistence, Database and the required-
+feature world-server checks. Eleven WDC spell-admission cases pass, including
+the fifty-record-type batch and strict empty-table/metadata cases; the two
+new effective-catalog/hotfix cases and four SQL-family contract cases also
+pass. The actual selected server target is --bin forever-world-server with
+all four native features and the pinned read-only extractor overlay: its new
+condition-conversion case passes (116 others filtered). Two expanded-count
+test names change from forty_nine to fifty; their old coverage is retained.
+These 18 selected cases are level-1 coding feedback, not a final candidate
+manifest, successful real SQL decoding, fresh client capture or activation.
 The native gem-condition operation reads current canonical top-level topology
 and live Item objects. It must not demand the persisted-equipment-query flag:
 LoadFromDB loads skills at :18873 and spells at :18891 before _LoadInventory

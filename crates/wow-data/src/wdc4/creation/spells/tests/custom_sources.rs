@@ -2,6 +2,16 @@ use super::{CreationDb2, CreationTable, SpellTable, cell, reader};
 
 pub(super) fn prepare(table: SpellTable, source: &mut crate::wdc4::Wdc4Reader) {
     match table {
+        SpellTable::SpellItemEnchantmentCondition => {
+            for index in 0..5 {
+                cell(source, 0, index, 8, 0x80 + index as u32);
+                cell(source, 1, index, 32, 0x8000_0000 + index as u32);
+                cell(source, 2, index, 8, 0x90 + index as u32);
+                cell(source, 3, index, 8, 0xa0 + index as u32);
+                cell(source, 4, index, 8, 0xb0 + index as u32);
+                cell(source, 5, index, 8, 0xc0 + index as u32);
+            }
+        }
         SpellTable::UnitCondition => {
             cell(source, 0, 0, 32, 0x80000020);
             for index in 0..8 {
@@ -214,6 +224,23 @@ pub(super) fn prepare(table: SpellTable, source: &mut crate::wdc4::Wdc4Reader) {
 }
 
 pub(super) fn assert_records(batch: &crate::forever_spells::SpellRecords) {
+    let value = &batch.spell_item_enchantment_conditions[0];
+    assert_eq!(value.id, 7);
+    assert_eq!(value.lt_operand_type, [0x80, 0x81, 0x82, 0x83, 0x84]);
+    assert_eq!(
+        value.lt_operand,
+        [
+            0x8000_0000,
+            0x8000_0001,
+            0x8000_0002,
+            0x8000_0003,
+            0x8000_0004
+        ]
+    );
+    assert_eq!(value.operator, [0x90, 0x91, 0x92, 0x93, 0x94]);
+    assert_eq!(value.rt_operand_type, [0xa0, 0xa1, 0xa2, 0xa3, 0xa4]);
+    assert_eq!(value.rt_operand, [0xb0, 0xb1, 0xb2, 0xb3, 0xb4]);
+    assert_eq!(value.logic, [0xc0, 0xc1, 0xc2, 0xc3, 0xc4]);
     let value = &batch.unit_conditions[0];
     assert_eq!(value.id, 7);
     assert_eq!(value.flags, 0x80000020u32 as i32);
