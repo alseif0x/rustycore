@@ -471,11 +471,15 @@ fn can_store_item_in_inventory_slots_merges_matching_stacks_like_cpp() {
     wrong_entry.object_mut().set_entry(6949);
     wrong_entry.set_count(1);
     let slot_items = [
-        ItemSlotRef::new(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START, &matching),
+        ItemSlotRef::new(
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            matching.read_view(),
+        ),
         ItemSlotRef::new(
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_ITEM_START + 1,
-            &wrong_entry,
+            wrong_entry.read_view(),
         ),
     ];
     let mut dest = Vec::new();
@@ -519,7 +523,7 @@ fn can_store_item_in_inventory_slots_allocates_empty_slots_like_cpp() {
     let slot_items = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_ITEM_START,
-        &occupied,
+        occupied.read_view(),
     )];
     let mut dest = vec![ItemPosCount::new(
         make_item_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1),
@@ -587,7 +591,7 @@ fn can_store_item_in_inventory_slots_applies_cpp_source_and_skip_rules() {
     let slot_items = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_ITEM_START,
-        &source,
+        source.read_view(),
     )];
     let mut dest = Vec::new();
     let mut count = 1;

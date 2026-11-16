@@ -22,7 +22,7 @@ fn can_bank_item_fills_specific_slot_then_continues_bank_search_like_cpp() {
     let slot_items = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         BANK_SLOT_ITEM_START,
-        &existing,
+        existing.read_view(),
     )];
     let mut args = can_bank_args(
         INVENTORY_SLOT_BAG_0,
@@ -84,7 +84,11 @@ fn can_bank_item_general_search_and_full_bank_match_cpp() {
         .iter()
         .enumerate()
         .map(|(idx, item)| {
-            ItemSlotRef::new(INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START + idx as u8, item)
+            ItemSlotRef::new(
+                INVENTORY_SLOT_BAG_0,
+                BANK_SLOT_ITEM_START + idx as u8,
+                item.read_view(),
+            )
         })
         .collect::<Vec<_>>();
     let mut full_args = can_bank_args(NULL_BAG, NULL_SLOT, Some(&proto), Some(&source));

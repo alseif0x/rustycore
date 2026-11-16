@@ -73,7 +73,7 @@ pub(super) fn plan_trade_receive_snapshot_like_cpp(
                     entry,
                     count: item.count(),
                     proto: proto.as_ref(),
-                    source_item: Some(item),
+                    source_item: Some(item.read_view()),
                     source_is_not_empty_bag: false,
                     source_bop_trade_allowed_for_player: item
                         .is_soulbound_trade_allowed_for(snapshot.owner_guid),
@@ -311,7 +311,7 @@ impl<'p> StorageViewsLikeCpp<'p> {
     fn slot_items(&self) -> Vec<ItemSlotRef<'_>> {
         self.positioned
             .iter()
-            .map(|(bag, slot, item)| ItemSlotRef::new(*bag, *slot, item))
+            .map(|(bag, slot, item)| ItemSlotRef::new(*bag, *slot, item.read_view()))
             .collect()
     }
 
@@ -322,7 +322,7 @@ impl<'p> StorageViewsLikeCpp<'p> {
                 ItemStorageRef::new(
                     *bag,
                     *slot,
-                    item,
+                    item.read_view(),
                     self.templates.get(&item.object().entry()),
                 )
             })

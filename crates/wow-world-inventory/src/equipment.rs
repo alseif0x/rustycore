@@ -92,7 +92,7 @@ impl crate::InventoryState {
 
         player.can_unequip_item_like_cpp(CanUnequipItemArgs {
             pos,
-            source_item,
+            source_item: source_item.map(Item::read_view),
             proto,
             swap,
             source_is_not_empty_bag,

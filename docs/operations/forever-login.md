@@ -638,10 +638,10 @@ Whole runtime/map copies remain, including the runtime producer's fixture
 mutation mirror; retiring it needs its actual test consumers without snapshot-
 to-actor reconstruction. The typed query input boundary includes ItemSlotRef,
 ItemStorageRef and originally seven Item-bound source_item argument types, not
-just the two slice records. After the input migrations below, storage, bank and
-unequip sources and both slice records still require actors. Writable plans and
-side-effecting Item references retain their separate retirement obligation before
-native Item attachment. This
+just the two slice records. The Entity storage-query family now consumes views
+after the input migrations below. Remaining actor-backed World producer facades,
+writable plans and side-effecting Item references retain their separate integration
+obligation before native Item attachment. This
 selected-read migration does not attach BonusData or activate creation.
 
 CanUseItemArgs now accepts a borrowed ItemReadView instead of an Item actor
@@ -701,9 +701,41 @@ Every Cargo command used --locked, one job, cached PROTOC and the checkout
 target; Application and World tests used the pinned read-only extractor overlay.
 Warnings were emitted without a warning-baseline comparison. This is level-1
 worker coding feedback on the implementation inputs, not a final manifest,
-native table/wire, live DB or runtime acceptance. Remaining typed references,
-runtime/map copies, writable query overlays and native Item/Player attachment
-retain their full integration obligation.
+native table/wire, live DB or runtime acceptance. This checkpoint alone does not
+retire the remaining typed references, runtime/map copies, writable query overlays
+or native Item/Player attachment; the typed-reference migration follows below.
+
+ItemSlotRef and ItemStorageRef now store ItemReadView by value and retain their
+const constructors and other fields. Storage, bank and unequip source arguments
+complete the seven view-backed query input families. The position lookup copies
+the first matching record's view with its source lifetime. Shared slot helpers
+consume those views; public Player actor-backed helpers convert at their existing
+delegation. World Conditions, Application bank planning and Inventory trade
+simulation/unequip producers convert the same already-observed sources without
+changing metadata queries, map captures, ordering or mutations. The four planning
+bodies match their declared type/forwarding substitutions after whitespace
+normalization, including retained GUID skips and the two read-identity checks.
+
+The new small projection test child exercises captured source and occupied-stack
+facts through actual Player and inventory-snapshot store, bank and unequip
+queries. After the live merge target changes, the captured count still leaves two
+spaces; the remaining four items reuse the source slot under the existing GUID
+skip. Captured ownership/count/loot facts stay frozen. Parent review corrected
+the lifetime annotation, an early facade conversion, a test helper's wrong
+receiver and its incorrect source-slot expectation before compiler feedback.
+No production rule changed to satisfy that fixture.
+
+Worker Entity, Inventory, Application and Conditions checks pass. The 124
+existing Entity item-family cases, seven projection queries, nine Inventory
+trade-storage cases, four real World inventory-move planning cases and twelve
+World average-equipment condition cases all pass: 156 distinct cases, with no
+failed Cargo run. The new projection child is 245 lines and its existing parent
+is 982; no existing case or gate moved. All Cargo commands used --locked,
+one job and the checkout target with cached PROTOC; World feedback used the
+pinned read-only extractor overlay. Warnings were emitted without a baseline
+comparison. These remain level-1 pre-commit coding results, not final acceptance,
+native storage/wire or live durability proof. Whole runtime/map captures, the
+fixture mutation mirror, mutable overlays and native owners remain unfinished.
 
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are

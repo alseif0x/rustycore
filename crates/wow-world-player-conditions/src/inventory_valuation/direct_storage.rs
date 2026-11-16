@@ -177,11 +177,15 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
             let Some(item) = item_objects.get(&inventory_item.guid) else {
                 continue;
             };
-            slot_items.push(ItemSlotRef::new(INVENTORY_SLOT_BAG_0, inventory_slot, item));
+            slot_items.push(ItemSlotRef::new(
+                INVENTORY_SLOT_BAG_0,
+                inventory_slot,
+                item.read_view(),
+            ));
             stored_items.push(ItemStorageRef::new(
                 INVENTORY_SLOT_BAG_0,
                 inventory_slot,
-                item,
+                item.read_view(),
                 template_cache.get(&inventory_item.entry_id),
             ));
         }
@@ -201,21 +205,25 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
                 continue;
             }
             let item_entry = item.object().entry();
-            slot_items.push(ItemSlotRef::new(bag_slot, item.slot(), item));
+            slot_items.push(ItemSlotRef::new(bag_slot, item.slot(), item.read_view()));
             stored_items.push(ItemStorageRef::new(
                 bag_slot,
                 item.slot(),
-                item,
+                item.read_view(),
                 template_cache.get(&item_entry),
             ));
         }
         for (overlay_bag, overlay_slot, item) in &overlay_items {
             let item_entry = item.object().entry();
-            slot_items.push(ItemSlotRef::new(*overlay_bag, *overlay_slot, item));
+            slot_items.push(ItemSlotRef::new(
+                *overlay_bag,
+                *overlay_slot,
+                item.read_view(),
+            ));
             stored_items.push(ItemStorageRef::new(
                 *overlay_bag,
                 *overlay_slot,
-                item,
+                item.read_view(),
                 template_cache.get(&item_entry),
             ));
         }
@@ -234,7 +242,7 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
                 entry: entry_id,
                 count,
                 proto: proto.as_ref(),
-                source_item,
+                source_item: source_item.map(Item::read_view),
                 source_is_not_empty_bag: source_item.is_some_and(|item| {
                     self.inventory
                         .direct_item_contains_items_with_access_like_cpp(

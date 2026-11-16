@@ -4,7 +4,7 @@ use crate::player::{
     PLAYER_SLOT_END, REAGENT_BAG_SLOT_START, cpp_keyring_family_gate_applies, is_bag_pos,
     is_child_equipment_pos, is_equipment_pos, item_can_go_into_bag, item_ref_by_pos, make_item_pos,
 };
-use crate::{Item, ItemStorageTemplate};
+use crate::{ItemReadView, ItemStorageTemplate};
 use wow_constants::{
     BagFamilyMask, InventoryResult, ItemClass, ItemFieldFlags, ItemSubClassContainer,
 };
@@ -18,8 +18,8 @@ impl ItemStorageView<'_> {
         proto: &ItemStorageTemplate,
         count: &mut u32,
         swap: bool,
-        existing_item: Option<&Item>,
-        source_item: Option<&Item>,
+        existing_item: Option<ItemReadView<'_>>,
+        source_item: Option<ItemReadView<'_>>,
         source_is_not_empty_bag: bool,
         bag_proto: Option<&ItemStorageTemplate>,
     ) -> InventoryResult {
@@ -106,7 +106,7 @@ impl ItemStorageView<'_> {
         proto: &ItemStorageTemplate,
         count: &mut u32,
         merge: bool,
-        source_item: Option<&Item>,
+        source_item: Option<ItemReadView<'_>>,
         source_is_not_empty_bag: bool,
         skip_bag: u8,
         skip_slot: u8,
@@ -170,7 +170,7 @@ impl ItemStorageView<'_> {
         count: &mut u32,
         merge: bool,
         non_specialized: bool,
-        source_item: Option<&Item>,
+        source_item: Option<ItemReadView<'_>>,
         source_is_not_empty_bag: bool,
         skip_bag: u8,
         skip_slot: u8,

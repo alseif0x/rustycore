@@ -15,6 +15,9 @@ use wow_constants::{
 };
 use wow_core::ObjectGuid;
 
+#[path = "storage_read_inputs_tests.rs"]
+mod storage_read_inputs_tests;
+
 fn query_player() -> Player {
     let mut player = Player::new(Some(17), false);
     player
@@ -100,7 +103,7 @@ fn can_bank_bag_args<'a>(
         bag: INVENTORY_SLOT_BAG_0,
         slot,
         proto: Some(proto),
-        source_item: Some(source),
+        source_item: Some(source.read_view()),
         source_is_not_empty_bag: false,
         source_is_bag: true,
         source_is_currency_token: false,
@@ -607,7 +610,7 @@ fn equipment_identity_branches_compare_read_referents() {
     let shared_paired_ring = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         EQUIPMENT_SLOT_FINGER2,
-        &ring_source,
+        ring_source.read_view(),
     )];
     let shared_args = can_equip_args_with_source(
         EQUIPMENT_SLOT_FINGER1,
@@ -630,7 +633,7 @@ fn equipment_identity_branches_compare_read_referents() {
     let distinct_paired_ring = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         EQUIPMENT_SLOT_FINGER2,
-        &equal_but_distinct_ring,
+        equal_but_distinct_ring.read_view(),
     )];
     let distinct_args = can_equip_args_with_source(
         EQUIPMENT_SLOT_FINGER1,
@@ -670,7 +673,7 @@ fn equipment_identity_branches_compare_read_referents() {
     let shared_quiver_storage = [ItemStorageRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_BAG_START,
-        &quiver_source,
+        quiver_source.read_view(),
         Some(&quiver),
     )];
     let shared_quiver_args = can_equip_args_with_source(
@@ -694,7 +697,7 @@ fn equipment_identity_branches_compare_read_referents() {
     let distinct_quiver_storage = [ItemStorageRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_BAG_START,
-        &equal_but_distinct_quiver,
+        equal_but_distinct_quiver.read_view(),
         Some(&quiver),
     )];
     let distinct_quiver_args = can_equip_args_with_source(

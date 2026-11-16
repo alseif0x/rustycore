@@ -31,8 +31,8 @@ fn can_store_item_in_bag_scans_slots_like_cpp_merge_and_empty_modes() {
     wrong_entry.object_mut().set_entry(6949);
     wrong_entry.set_count(1);
     let slot_items = [
-        ItemSlotRef::new(INVENTORY_SLOT_BAG_START, 0, &matching),
-        ItemSlotRef::new(INVENTORY_SLOT_BAG_START, 1, &wrong_entry),
+        ItemSlotRef::new(INVENTORY_SLOT_BAG_START, 0, matching.read_view()),
+        ItemSlotRef::new(INVENTORY_SLOT_BAG_START, 1, wrong_entry.read_view()),
     ];
     let mut merge_dest = Vec::new();
     let mut merge_count = 6;
@@ -258,14 +258,19 @@ fn item_count_by_entry_matches_cpp_locations_and_skip_item() {
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_ITEM_START,
-            &inventory_item,
+            inventory_item.read_view(),
             None,
         ),
-        ItemStorageRef::new(INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, &bank_item, None),
+        ItemStorageRef::new(
+            INVENTORY_SLOT_BAG_0,
+            BANK_SLOT_ITEM_START,
+            bank_item.read_view(),
+            None,
+        ),
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_ITEM_START + 1,
-            &other_item,
+            other_item.read_view(),
             None,
         ),
     ];
@@ -310,19 +315,19 @@ fn item_count_with_limit_category_matches_cpp_everywhere_and_skip_item() {
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_ITEM_START,
-            &limited_item,
+            limited_item.read_view(),
             Some(&limited_template),
         ),
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             BANK_SLOT_ITEM_START,
-            &bank_limited_item,
+            bank_limited_item.read_view(),
             Some(&limited_template),
         ),
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_ITEM_START + 1,
-            &other_item,
+            other_item.read_view(),
             Some(&other_template),
         ),
     ];
@@ -364,21 +369,31 @@ fn item_by_entry_matches_cpp_for_each_item_order_and_stop() {
         .unwrap();
 
     let stored = [
-        ItemStorageRef::new(INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, &bank_item, None),
-        ItemStorageRef::new(INVENTORY_SLOT_BAG_START, 0, &bag_item, None),
+        ItemStorageRef::new(
+            INVENTORY_SLOT_BAG_0,
+            BANK_SLOT_ITEM_START,
+            bank_item.read_view(),
+            None,
+        ),
+        ItemStorageRef::new(INVENTORY_SLOT_BAG_START, 0, bag_item.read_view(), None),
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_ITEM_START,
-            &inventory_item,
+            inventory_item.read_view(),
             None,
         ),
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_BAG_START,
-            &inventory_bag,
+            inventory_bag.read_view(),
             None,
         ),
-        ItemStorageRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_CHEST, &equipped, None),
+        ItemStorageRef::new(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_CHEST,
+            equipped.read_view(),
+            None,
+        ),
     ];
 
     let default_found = player
@@ -435,19 +450,34 @@ fn item_list_by_entry_matches_cpp_locations_bank_and_reagent_order() {
         .unwrap();
 
     let stored = [
-        ItemStorageRef::new(REAGENT_BAG_SLOT_START, 1, &reagent_item, None),
-        ItemStorageRef::new(INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, &bank_item, None),
+        ItemStorageRef::new(
+            REAGENT_BAG_SLOT_START,
+            1,
+            reagent_item.read_view(),
+            None,
+        ),
+        ItemStorageRef::new(
+            INVENTORY_SLOT_BAG_0,
+            BANK_SLOT_ITEM_START,
+            bank_item.read_view(),
+            None,
+        ),
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_ITEM_START,
-            &inventory_item,
+            inventory_item.read_view(),
             None,
         ),
-        ItemStorageRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_HEAD, &equipped, None),
+        ItemStorageRef::new(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_HEAD,
+            equipped.read_view(),
+            None,
+        ),
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_ITEM_START + 1,
-            &other_item,
+            other_item.read_view(),
             None,
         ),
     ];
@@ -513,7 +543,7 @@ fn can_store_item_preflight_matches_cpp_template_source_and_similar_guards() {
         Some(&proto),
         3,
     );
-    loot_args.source_item = Some(&source);
+    loot_args.source_item = Some(source.read_view());
     assert_eq!(
         player.can_store_item(&mut Vec::new(), loot_args),
         CanStoreItemOutcome {
@@ -531,7 +561,7 @@ fn can_store_item_preflight_matches_cpp_template_source_and_similar_guards() {
         Some(&proto),
         3,
     );
-    bound_args.source_item = Some(&source);
+    bound_args.source_item = Some(source.read_view());
     assert_eq!(
         player.can_store_item(&mut Vec::new(), bound_args),
         CanStoreItemOutcome {
@@ -559,7 +589,7 @@ fn can_store_item_preflight_matches_cpp_template_source_and_similar_guards() {
     let stored_limited = [ItemStorageRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_ITEM_START + 1,
-        &existing_limited,
+        existing_limited.read_view(),
         Some(&limited_proto),
     )];
     similar_args.stored_items = &stored_limited;
@@ -589,7 +619,7 @@ fn can_store_item_reports_item_max_count_after_partial_similar_limit_like_cpp() 
     let stored_limited = [ItemStorageRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_ITEM_START + 1,
-        &existing_limited,
+        existing_limited.read_view(),
         Some(&proto),
     )];
     args.stored_items = &stored_limited;
@@ -624,7 +654,7 @@ fn can_store_item_fills_specific_slot_then_continues_search_like_cpp() {
     let slot_items = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_ITEM_START,
-        &existing,
+        existing.read_view(),
     )];
     let mut args = can_store_args(
         INVENTORY_SLOT_BAG_0,
@@ -690,7 +720,7 @@ fn can_store_item_general_search_handles_new_bag_direct_equip_and_bag_in_bag() {
 
     let source = Item::default();
     let mut bag_in_bag_args = can_store_args(NULL_BAG, NULL_SLOT, Some(&bag_proto), 1);
-    bag_in_bag_args.source_item = Some(&source);
+    bag_in_bag_args.source_item = Some(source.read_view());
     bag_in_bag_args.source_is_not_empty_bag = true;
     assert_eq!(
         player.can_store_item(&mut Vec::new(), bag_in_bag_args),
@@ -803,7 +833,7 @@ fn can_bank_item_preflight_matches_cpp_item_template_and_source_guards() {
     let stored = [ItemStorageRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_ITEM_START,
-        &existing,
+        existing.read_view(),
         Some(&limited_proto),
     )];
     let mut limit_args = can_bank_args(

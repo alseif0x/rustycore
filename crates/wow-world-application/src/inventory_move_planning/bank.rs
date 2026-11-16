@@ -69,11 +69,15 @@ impl InventoryMovePlanningCxLikeCpp<'_, '_> {
             let Some(item) = item_objects.get(&stored.guid) else {
                 continue;
             };
-            slot_items.push(ItemSlotRef::new(INVENTORY_SLOT_BAG_0, slot, item));
+            slot_items.push(ItemSlotRef::new(
+                INVENTORY_SLOT_BAG_0,
+                slot,
+                item.read_view(),
+            ));
             stored_items.push(ItemStorageRef::new(
                 INVENTORY_SLOT_BAG_0,
                 slot,
-                item,
+                item.read_view(),
                 template_cache.get(&stored.entry_id),
             ));
         }
@@ -86,11 +90,11 @@ impl InventoryMovePlanningCxLikeCpp<'_, '_> {
                 continue;
             };
             let entry_id = item.object().entry();
-            slot_items.push(ItemSlotRef::new(bag_slot, item.slot(), item));
+            slot_items.push(ItemSlotRef::new(bag_slot, item.slot(), item.read_view()));
             stored_items.push(ItemStorageRef::new(
                 bag_slot,
                 item.slot(),
-                item,
+                item.read_view(),
                 template_cache.get(&entry_id),
             ));
         }
@@ -112,7 +116,7 @@ impl InventoryMovePlanningCxLikeCpp<'_, '_> {
                 bag: destination_bag,
                 slot: destination_slot,
                 proto: proto.as_ref(),
-                source_item: Some(&source_item),
+                source_item: Some(source_item.read_view()),
                 source_is_not_empty_bag: inventory
                     .direct_item_contains_items_with_access_like_cpp(&access, inventory_item.guid),
                 source_is_bag: proto

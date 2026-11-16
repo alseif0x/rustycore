@@ -189,7 +189,7 @@ impl ItemStorageView<'_> {
         let mut ignore = paired_unique_ignore_slot(eslot).unwrap_or(NULL_SLOT);
         if ignore == NULL_SLOT
             || !item_ref_by_pos(args.equipped_items, INVENTORY_SLOT_BAG_0, ignore)
-                .is_some_and(|equipped| equipped.read_view().shares_read_source(&source))
+                .is_some_and(|equipped| equipped.shares_read_source(&source))
         {
             ignore = eslot;
         }
@@ -206,7 +206,7 @@ impl ItemStorageView<'_> {
             for stored in args.stored_items {
                 if stored.bag != INVENTORY_SLOT_BAG_0
                     || !(INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&stored.slot)
-                    || stored.item.read_view().shares_read_source(&source)
+                    || stored.item.shares_read_source(&source)
                 {
                     continue;
                 }

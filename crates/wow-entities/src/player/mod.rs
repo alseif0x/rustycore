@@ -1212,11 +1212,11 @@ impl ItemPosCount {
 pub struct ItemSlotRef<'a> {
     pub bag: u8,
     pub slot: u8,
-    pub item: &'a Item,
+    pub item: ItemReadView<'a>,
 }
 
 impl<'a> ItemSlotRef<'a> {
-    pub const fn new(bag: u8, slot: u8, item: &'a Item) -> Self {
+    pub const fn new(bag: u8, slot: u8, item: ItemReadView<'a>) -> Self {
         Self { bag, slot, item }
     }
 }
@@ -1225,7 +1225,7 @@ impl<'a> ItemSlotRef<'a> {
 pub struct ItemStorageRef<'a> {
     pub bag: u8,
     pub slot: u8,
-    pub item: &'a Item,
+    pub item: ItemReadView<'a>,
     pub template: Option<&'a ItemStorageTemplate>,
 }
 
@@ -1233,7 +1233,7 @@ impl<'a> ItemStorageRef<'a> {
     pub const fn new(
         bag: u8,
         slot: u8,
-        item: &'a Item,
+        item: ItemReadView<'a>,
         template: Option<&'a ItemStorageTemplate>,
     ) -> Self {
         Self {
@@ -1264,7 +1264,7 @@ pub struct CanStoreItemArgs<'a> {
     pub entry: u32,
     pub count: u32,
     pub proto: Option<&'a ItemStorageTemplate>,
-    pub source_item: Option<&'a Item>,
+    pub source_item: Option<ItemReadView<'a>>,
     pub source_is_not_empty_bag: bool,
     pub source_bop_trade_allowed_for_player: bool,
     pub swap: bool,
@@ -1279,7 +1279,7 @@ pub struct CanBankItemArgs<'a> {
     pub bag: u8,
     pub slot: u8,
     pub proto: Option<&'a ItemStorageTemplate>,
-    pub source_item: Option<&'a Item>,
+    pub source_item: Option<ItemReadView<'a>>,
     pub source_is_not_empty_bag: bool,
     pub source_is_bag: bool,
     pub source_is_currency_token: bool,
@@ -1352,7 +1352,7 @@ pub enum EquipItemObjectOutcome {
 #[derive(Debug, Clone, Copy)]
 pub struct CanUnequipItemArgs<'a> {
     pub pos: u16,
-    pub source_item: Option<&'a Item>,
+    pub source_item: Option<ItemReadView<'a>>,
     pub proto: Option<&'a ItemStorageTemplate>,
     pub swap: bool,
     pub source_is_not_empty_bag: bool,
@@ -2475,7 +2475,11 @@ pub enum TitanGripPenaltyAction {
     Remove(u32),
 }
 
-fn item_ref_by_pos<'a>(items: &'a [ItemSlotRef<'a>], bag: u8, slot: u8) -> Option<&'a Item> {
+fn item_ref_by_pos<'a>(
+    items: &[ItemSlotRef<'a>],
+    bag: u8,
+    slot: u8,
+) -> Option<ItemReadView<'a>> {
     items
         .iter()
         .find(|slot_item| slot_item.bag == bag && slot_item.slot == slot)

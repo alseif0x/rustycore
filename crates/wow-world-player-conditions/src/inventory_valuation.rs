@@ -592,7 +592,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
                 wow_entities::ItemStorageRef::new(
                     wow_entities::INVENTORY_SLOT_BAG_0,
                     *slot,
-                    *item,
+                    item.read_view(),
                     Some(template),
                 )
             })
@@ -769,7 +769,11 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             };
             storage_rows.push((INVENTORY_SLOT_BAG_0, slot, item, template));
             if slot < EQUIPMENT_SLOT_END {
-                equipped_items.push(ItemSlotRef::new(INVENTORY_SLOT_BAG_0, slot, item));
+                equipped_items.push(ItemSlotRef::new(
+                    INVENTORY_SLOT_BAG_0,
+                    slot,
+                    item.read_view(),
+                ));
             }
         }
         for item in item_objects.values() {
@@ -792,7 +796,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         let stored_items: Vec<_> = storage_rows
             .iter()
             .map(|(bag, slot, item, template)| {
-                ItemStorageRef::new(*bag, *slot, *item, Some(template))
+                ItemStorageRef::new(*bag, *slot, item.read_view(), Some(template))
             })
             .collect();
 

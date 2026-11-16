@@ -110,8 +110,8 @@ fn find_equip_slot_requested_free_and_swap_paths_match_cpp() {
     let mut ring2 = Item::default();
     ring2.set_debug_item_level(45);
     let equipped = [
-        ItemSlotRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FINGER1, &ring1),
-        ItemSlotRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FINGER2, &ring2),
+        ItemSlotRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FINGER1, ring1.read_view()),
+        ItemSlotRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FINGER2, ring2.read_view()),
     ];
 
     assert_eq!(
@@ -140,7 +140,7 @@ fn find_equip_slot_requested_free_and_swap_paths_match_cpp() {
     let equipped = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         EQUIPMENT_SLOT_FINGER1,
-        &ring1,
+        ring1.read_view(),
     )];
     assert_eq!(
         player.find_equip_slot(find_equip_args(&finger, NULL_SLOT, false, &equipped)),
@@ -159,7 +159,7 @@ fn find_equip_slot_twohand_offhand_and_professions_match_cpp_edges() {
     let equipped = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         EQUIPMENT_SLOT_MAINHAND,
-        &mainhand,
+        mainhand.read_view(),
     )];
     let mut args = find_equip_args(&weapon, NULL_SLOT, false, &equipped);
     args.can_dual_wield = true;
@@ -258,7 +258,7 @@ fn can_equip_item_preflight_and_runtime_guards_match_cpp_order() {
     let stored_items = [ItemStorageRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_ITEM_START,
-        &stored,
+        stored.read_view(),
         Some(&limited),
     )];
     let mut limit_args = can_equip_args(NULL_SLOT, Some(&limited), Some(&source));
@@ -321,7 +321,7 @@ fn can_equip_item_destination_use_and_unique_paths_match_cpp() {
     let equipped = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         EQUIPMENT_SLOT_HEAD,
-        &equipped_head,
+        equipped_head.read_view(),
     )];
 
     let outcome = player.can_equip_item(can_equip_args(NULL_SLOT, Some(&head), Some(&source)));
@@ -350,8 +350,16 @@ fn can_equip_item_destination_use_and_unique_paths_match_cpp() {
     source_ring.set_count(1);
     let other_ring = Item::default();
     let rings = [
-        ItemSlotRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FINGER1, &other_ring),
-        ItemSlotRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FINGER2, &source_ring),
+        ItemSlotRef::new(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_FINGER1,
+            other_ring.read_view(),
+        ),
+        ItemSlotRef::new(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_FINGER2,
+            source_ring.read_view(),
+        ),
     ];
     let mut unique = can_equip_args(EQUIPMENT_SLOT_FINGER1, Some(&finger), Some(&source_ring));
     unique.swap = true;
@@ -376,7 +384,7 @@ fn can_equip_item_quiver_offhand_and_twohand_edges_match_cpp() {
     let stored_items = [ItemStorageRef::new(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_BAG_START,
-        &existing_quiver,
+        existing_quiver.read_view(),
         Some(&bag_quiver),
     )];
     let mut quiver_args = can_equip_args(NULL_SLOT, Some(&bag_quiver), Some(&source));
@@ -431,7 +439,7 @@ fn can_equip_item_quiver_offhand_and_twohand_edges_match_cpp() {
     let equipped_offhand = [ItemSlotRef::new(
         INVENTORY_SLOT_BAG_0,
         EQUIPMENT_SLOT_OFFHAND,
-        &offhand_item,
+        offhand_item.read_view(),
     )];
     let mut twohand_args = can_equip_args(NULL_SLOT, Some(&twohand), Some(&source));
     twohand_args.equipped_items = &equipped_offhand;
@@ -790,7 +798,7 @@ fn can_equip_unique_item_template_matches_cpp_unique_entry_guards() {
     let equipped_items = [ItemStorageRef::new(
         INVENTORY_SLOT_BAG_0,
         EQUIPMENT_SLOT_FINGER1,
-        &equipped,
+        equipped.read_view(),
         Some(&proto),
     )];
 
@@ -835,7 +843,7 @@ fn can_equip_unique_item_template_matches_cpp_limit_category_guards() {
     let equipped_items = [ItemStorageRef::new(
         INVENTORY_SLOT_BAG_0,
         EQUIPMENT_SLOT_TRINKET1,
-        &equipped,
+        equipped.read_view(),
         Some(&proto),
     )];
     let equipped_gems = [EquippedGemRef::new(EQUIPMENT_SLOT_CHEST, 703, 10)];

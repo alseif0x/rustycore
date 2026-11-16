@@ -267,7 +267,7 @@ fn can_bank_args<'a>(
         bag,
         slot,
         proto,
-        source_item,
+        source_item: source_item.map(Item::read_view),
         source_is_not_empty_bag: false,
         source_is_bag: false,
         source_is_currency_token: false,
@@ -343,7 +343,7 @@ fn can_unequip_args<'a>(
 ) -> CanUnequipItemArgs<'a> {
     CanUnequipItemArgs {
         pos,
-        source_item,
+        source_item: source_item.map(Item::read_view),
         proto,
         swap: false,
         source_is_not_empty_bag: false,
