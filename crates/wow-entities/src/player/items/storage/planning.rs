@@ -1,10 +1,12 @@
 use crate::player::{PlayerInventoryStorage, is_bag_storage_slot};
 use wow_core::ObjectGuid;
 
+mod bank;
 mod limits;
 mod queries;
 mod slots;
 mod store;
+mod use_item;
 
 /// Read-only storage planning over one Player's borrowed inventory state.
 pub struct ItemStorageView<'a> {
