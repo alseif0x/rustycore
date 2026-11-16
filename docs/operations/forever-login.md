@@ -389,8 +389,64 @@ uint16 lookup, and its permissive loader is not target admission evidence.
 Rust Item currently owns/publishes the raw bonus key but no native BonusData
 owner. The full initializer/list/mutation operation and its real metadata inputs
 remain required; a base-template socket projection cannot stand in for that
-owner. ItemSparse.SocketType is source uint8 (DB2Structure.h:2657), so a raw
-Rust int8 representation must pass through uint8 at this boundary.
+owner. ItemSparse.SocketType is source uint8 (DB2Structure.h:2657). The native
+SparseItemRecord already stores [u8; 3]; an int8 legacy representation must pass
+through uint8 if used at a reviewed boundary, rather than sign-extending colors.
+
+The complete BonusData dependency review also identifies SetGem's derived gem
+level/relic fields, temporary gem BonusData instances and the Azerite selected-
+power writers (Item.cpp:1577–1630/:1674–1689/:2840–2843 and
+AzeriteEmpoweredItem.cpp:116–149). The planned Item owner must preserve those
+writers as well as creation, loading and raw-key changes. Its direct metadata
+inputs are ItemBonus, AzeriteEmpoweredItem, ItemEffect, ItemScalingConfig,
+ItemOffsetCurve and ItemSquishEra. Only ItemEffect is currently admitted in the
+native ItemCatalog; matching legacy stores are not native composition evidence.
+ItemBonusMgr's order is ascending surviving record ID via DBStorageIterator,
+independent of OrderIndex. The Azerite item index likewise walks record IDs and
+retains the last row naming an item (DB2Stores.cpp:1104–1105/:2044).
+
+Crafted item-level bonuses require the optional actual realm and converted
+build plus the ItemSquishEra storage-index extent. The first nonmissing row
+without Flags&1 determines the result, even when its Patch is later than the
+realm patch. ClientBuildInfo.cpp:200–203 uses lower_bound on loaded build info;
+neither a hardcoded build nor a count of surviving squish rows reproduces it.
+DB2DatabaseLoader.cpp:27–174 publishes a larger index extent only when a SQL
+batch adds a row; an overwrite-only batch can grow its allocation without
+publishing that bound, and final removals do not shrink it. This observation
+must survive native data composition. Base-item bonus-list persistence also
+remains unported: the source stores space-separated signed IDs in nullable
+TEXT (characters_database.sql:3052; Item.cpp:683–697/:995–1000). These are
+implementation inputs and outstanding integration boundaries, not new runtime
+observations or permission to query or mutate a live database.
+
+The isolated Entity ItemBonusData kernel now implements the zeroed constructor,
+complete template/instance initialization and every AddBonus/AddBonusList branch
+from Item.cpp:2918–3266. It owns all values and private priority state without
+Clone, exposes immutable getters, and reads owned template facts and an iterator
+over consumed bonus rows. No second raw-row catalog is required by that source
+interface. Nested lists use an explicit depth-first stack, preserve repetitions
+and full-width IDs, and reject only active-path cycles. Strict priorities,
+first-assignment latches, float32 repair multiplication, signed narrowing,
+missing-row behavior, sticky scaling flags and the type49 priority non-update
+remain source-based. Source errors retain the completed mutation prefix.
+Signed arithmetic overflow, out-of-range bonding conversions and a fourteenth
+effect write are explicit errors at undefined-source boundaries, not successful
+parity claims for those inputs.
+
+Worker Entity check and 17 focused cases pass on this x86_64 host with one Cargo
+job. The first test run passed 15 and failed two: the fixtures incorrectly
+expected a nonzero socket to be replaced and missing config to clear template
+values. Parent comparison retained the implementation and corrected those
+expectations before the green rerun. The cases include 4,096 nested lists,
+repeated instance lists, full-width IDs, shared/equal priorities, stat-slot
+selection, effect capacity, overflow, missing templates/sources and squish index
+holes/first-future-row behavior. This is level-1 coding feedback. The kernel is
+not attached to legacy Item: native metadata admission, creation/load, raw-key
+and gem/Azerite writers, readers, persistence and actual realm/build composition
+remain required before its canonical Player effect integration and final
+acceptance. Existing same-GUID Item copies and Replace(Box<Item>) consumers
+must migrate to captured facts/canonical mutation when attaching the owner;
+adding Clone to the new owner would conceal that dependency.
 
 The next skill persistence operation will capture immutable dirty-node rows in
 admitted native status order, without changing any status during capture. The

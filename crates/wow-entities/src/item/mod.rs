@@ -12,11 +12,13 @@ use crate::{
     update_fields::{ITEM_DATA_BITS, TYPEID_ITEM},
 };
 
+mod bonuses;
 mod item;
 mod slots;
 mod templates;
 mod values;
 
+pub use bonuses::*;
 pub use item::*;
 pub use slots::*;
 pub use templates::*;
