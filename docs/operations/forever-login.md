@@ -737,6 +737,55 @@ comparison. These remain level-1 pre-commit coding results, not final acceptance
 native storage/wire or live durability proof. Whole runtime/map captures, the
 fixture mutation mirror, mutable overlays and native owners remain unfinished.
 
+Represented item-level providers now accept ItemReadView by value through the
+same debug-level, Timewalker curve, bonus and cap chain. Existing actor-backed
+aggregate/candidate callers and the Core facade convert at their original calls;
+the old bonus-list narrowing and table semantics are unchanged. The normal
+spell physical-item provider now captures ItemValuesSnapshot inside its unchanged
+generation-checked owner callback, GUID lookup and owner/trade/Removed filter.
+It retains the later player/catalog reads and tuple result without an Item copy.
+Parent comparison confirms the four main production files differ only at the
+declared input/capture substitutions and import changes.
+
+Core, Inventory, Conditions and World-library checks pass. Twenty-three
+represented item-level cases and four OnPickup cases pass, including both
+existing real physical-facts consumers and two new regressions. Captured curve/
+bonus inputs retain result 205 while live debug/changed inputs return 180/222.
+Admission rejects wrong owner, in-trade, Removed, missing and stale-generation
+items, then accepts the retained item under its detached replacement generation.
+Parent review corrected the old actor helper's mistaken snapshot adapter,
+mutable HashMap test indexing and missing Option wrappers before coding checks,
+and added positive generation controls. All six Cargo commands exited zero with
+--locked, one job, cached PROTOC and the checkout target; World used the pinned
+read-only extractor overlay. Warnings were not compared against a baseline.
+These 27 distinct cases are level-1 coding feedback, not final acceptance,
+native ItemBonusData integration, runtime/DB or target-wire proof.
+
+Duration writers require their own canonical transition. The current World/Core
+chain mutates Player lists against an external Item copy, then reinserts a whole
+post-image or replays duration fields in another owner callback. Reinsertion also
+clears pending durability. Native Player.cpp:13553–13579/:13639–13663 instead
+restores duration on the same Item before erasing the old reference; positive
+enchantment updates are sent before the new reference is appended. Item-duration
+addition at :26383–26393 appends before its time packet, a different order.
+Item.cpp:1539–1547 uses the explicit owner for SetState and forbids an owner
+lookup; :1258–1330 includes native New-state and nullable update-queue behavior.
+The current Rust duration setter does not establish that status/queue authority.
+Integrate the complete same-owner operation and caller phases before retiring
+these copied writers; do not hide order/queue repairs in a readonly map-type
+change or claim the current packet plans prove native execution.
+
+The later whole-map capture must retain original map keys and the observed
+entry sequence. Quest-reward nested lookup selects the first matching value;
+collecting captures into a newly randomized HashMap is not order-preservation
+proof. The selected immutable representation keeps ordered captured entries and
+a private derived GUID lookup index, with no canonical handle or mutable mirror.
+Compare its observation with the actual old clone on the pinned runtime before
+replacement; direct canonical-map versus clone iteration equivalence has not
+yet been independently established. DestroyItemCountItemRef has only the two
+Entity plan tests as consumers and imposes no Clone bound. Its canonical Item
+borrow is not itself a copied-map migration blocker.
+
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are
 absent; exact source searches for HandleVoidStorageTransfer, _SaveVoidStorage

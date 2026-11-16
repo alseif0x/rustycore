@@ -549,6 +549,150 @@ async fn normal_onpickup_execution_reports_unimplemented_create_item_effect_at_a
     assert!(spell_go_ids(&send_rx).is_empty());
 }
 
+#[test]
+fn normal_physical_item_facts_require_the_current_owned_item_like_cpp() {
+    let (mut session, _packet_tx, _send_rx, _save, _corpse, _reagent) =
+        setup_registered_self_res(true, 61_069);
+    install_self_res_onpickup_spell_fixture(&mut session, CREATE_ITEM_EFFECT_TYPE, 0);
+    install_onpickup_item_catalogs(&mut session);
+    let item_guid = install_onpickup_item(&mut session, 61_070);
+    let owner_guid = session.player_guid().expect("canonical Player GUID");
+    let facts = |session: &WorldSession| {
+        wow_world_spell::SpellExecutionHostLikeCpp::server_normal_physical_item_facts_like_cpp(
+            session, item_guid,
+        )
+    };
+
+    assert_eq!(facts(&session), Some((ON_PICKUP_ITEM, 50)));
+
+    let other_owner = ObjectGuid::create_player(1, 61_071);
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .inventory_runtime_mut_like_cpp()
+                .item_objects_mut()
+                .get_mut(&item_guid)
+                .expect("fixture Item remains present")
+                .set_owner_guid(other_owner);
+        })
+        .expect("canonical Player owns the test item");
+    assert_eq!(facts(&session), None, "wrong-owner Items are refused");
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .inventory_runtime_mut_like_cpp()
+                .item_objects_mut()
+                .get_mut(&item_guid)
+                .expect("fixture Item remains present")
+                .set_owner_guid(owner_guid);
+        })
+        .expect("canonical Player owns the test item");
+
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .inventory_runtime_mut_like_cpp()
+                .item_objects_mut()
+                .get_mut(&item_guid)
+                .expect("fixture Item remains present")
+                .set_in_trade(true);
+        })
+        .expect("canonical Player owns the test item");
+    assert_eq!(facts(&session), None, "Items in trade are refused");
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .inventory_runtime_mut_like_cpp()
+                .item_objects_mut()
+                .get_mut(&item_guid)
+                .expect("fixture Item remains present")
+                .set_in_trade(false);
+        })
+        .expect("canonical Player owns the test item");
+
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .inventory_runtime_mut_like_cpp()
+                .item_objects_mut()
+                .get_mut(&item_guid)
+                .expect("fixture Item remains present")
+                .force_state(wow_constants::ItemUpdateState::Removed);
+        })
+        .expect("canonical Player owns the test item");
+    assert_eq!(facts(&session), None, "Removed Items are refused");
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .inventory_runtime_mut_like_cpp()
+                .item_objects_mut()
+                .get_mut(&item_guid)
+                .expect("fixture Item remains present")
+                .force_state(wow_constants::ItemUpdateState::New);
+        })
+        .expect("canonical Player owns the test item");
+    assert_eq!(
+        facts(&session),
+        Some((ON_PICKUP_ITEM, 50)),
+        "restored item admission remains valid before testing the owner generation"
+    );
+
+    assert_eq!(
+        wow_world_spell::SpellExecutionHostLikeCpp::server_normal_physical_item_facts_like_cpp(
+            &session,
+            ObjectGuid::create_item(1, 61_072),
+        ),
+        None,
+        "missing Items are refused"
+    );
+
+    let stale_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("current Player handle");
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .expect("canonical MapManager")
+        .clone();
+    let replacement_handle = {
+        let mut manager = manager.lock().expect("canonical MapManager lock");
+        let player = manager
+            .retire_player_like_cpp(stale_handle)
+            .expect("the fixture Player can be reinstalled");
+        manager
+            .install_detached_player_like_cpp(player)
+            .expect("the same Player receives a new owner generation")
+    };
+    assert_ne!(replacement_handle, stale_handle);
+    assert_eq!(
+        manager
+            .lock()
+            .expect("canonical MapManager lock")
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.guid() == owner_guid
+                    && player
+                        .inventory_runtime_like_cpp()
+                        .item_objects()
+                        .contains_key(&item_guid)
+            }),
+        Some(true),
+        "the same physical item is present under the replacement generation"
+    );
+    assert_eq!(
+        facts(&session),
+        None,
+        "the session's stale handle is refused"
+    );
+    session.core.player_handle_like_cpp = Some(replacement_handle);
+    assert_eq!(
+        facts(&session),
+        Some((ON_PICKUP_ITEM, 50)),
+        "the replacement generation can read the retained physical item"
+    );
+}
+
 #[tokio::test]
 async fn registered_self_res_completes_after_source_inert_onpickup_effect() {
     let (mut session, _packet_tx, send_rx, save, corpse_port, _reagent) =

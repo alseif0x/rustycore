@@ -4,7 +4,7 @@
 use wow_constants::{InventoryType, ItemFlags3, ItemModifier};
 use wow_entities::{
     EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
-    EQUIPMENT_SLOT_RANGED, EQUIPMENT_SLOT_TABARD, Item,
+    EQUIPMENT_SLOT_RANGED, EQUIPMENT_SLOT_TABARD, ItemReadView,
 };
 use wow_world_core::session::{
     InventoryValuationAccessLikeCpp, InventoryValuationCatalogViewLikeCpp,
@@ -39,7 +39,9 @@ impl crate::InventoryState {
             }
 
             if let Some(inventory_item) = inventory_items.get(&slot) {
-                let runtime_item = item_objects.get(&inventory_item.guid);
+                let runtime_item = item_objects
+                    .get(&inventory_item.guid)
+                    .map(wow_entities::Item::read_view);
                 if let Some(item_level) = self.represented_item_level_with_access_like_cpp(
                     valuation,
                     modifiers,
@@ -67,7 +69,7 @@ impl crate::InventoryState {
         modifiers: &OwnedItemModifiersAccessLikeCpp<'_>,
         catalogs: &InventoryValuationCatalogViewLikeCpp<'_>,
         entry_id: u32,
-        runtime_item: Option<&Item>,
+        runtime_item: Option<ItemReadView<'_>>,
         min_item_level: u32,
         max_item_level: u32,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_player_level: &u8,
@@ -170,7 +172,7 @@ impl crate::InventoryState {
                 modifiers,
                 catalogs,
                 inventory_item.entry_id,
-                runtime_item.as_ref(),
+                runtime_item.as_ref().map(wow_entities::Item::read_view),
                 min_item_level,
                 max_item_level,
                 #[cfg(any(test, feature = "test-fixtures"))]
@@ -199,7 +201,7 @@ pub(super) fn represented_player_level_curve_item_level_like_cpp(
     access: &InventoryValuationAccessLikeCpp<'_>,
     catalogs: &InventoryValuationCatalogViewLikeCpp<'_>,
     template: &wow_data::item::stats::ItemSparseTemplateEntry,
-    runtime_item: Option<&Item>,
+    runtime_item: Option<ItemReadView<'_>>,
     #[cfg(any(test, feature = "test-fixtures"))] fixture_player_level: &u8,
 ) -> Option<i64> {
     let curve_id = template.player_level_to_item_level_curve_id_like_cpp();

@@ -12,7 +12,7 @@ use wow_data::{
     ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemSearchNameStore, ItemStatsStore,
     ItemStore, MapStore, PlayerConditionStore, PvpItemStore,
 };
-use wow_entities::ItemStorageTemplate;
+use wow_entities::{ItemReadView, ItemStorageTemplate};
 
 use crate::session::state::SessionCatalogs;
 
@@ -156,7 +156,7 @@ impl InventoryValuationCatalogViewLikeCpp<'_> {
 
     pub fn represented_item_level_bonus_like_cpp(
         &self,
-        runtime_item: Option<&wow_entities::Item>,
+        runtime_item: Option<ItemReadView<'_>>,
     ) -> i64 {
         let Some(item) = runtime_item else {
             return 0;

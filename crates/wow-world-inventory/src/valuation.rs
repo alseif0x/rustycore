@@ -1,7 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use wow_entities::Item;
+use wow_entities::ItemReadView;
 use wow_world_core::session::{
     HubMut, HubRef, InventoryValuationAccessLikeCpp, OwnedItemModifiersAccessLikeCpp,
 };
@@ -117,7 +117,7 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
         template: &wow_data::item::stats::ItemSparseTemplateEntry,
-        runtime_item: Option<&Item>,
+        runtime_item: Option<ItemReadView<'_>>,
     ) -> Option<i64> {
         let access = hub.core.inventory_valuation_access_like_cpp();
         let catalogs = hub.catalogs.inventory_valuation_catalog_view_like_cpp();

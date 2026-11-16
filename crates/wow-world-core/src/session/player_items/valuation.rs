@@ -190,7 +190,7 @@ impl crate::session::state::SessionCatalogs {
 
     pub fn represented_item_level_bonus_like_cpp(&self, runtime_item: Option<&Item>) -> i64 {
         self.inventory_valuation_catalog_view_like_cpp()
-            .represented_item_level_bonus_like_cpp(runtime_item)
+            .represented_item_level_bonus_like_cpp(runtime_item.map(Item::read_view))
     }
 
     pub fn represented_pvp_item_level_bonus_like_cpp(&self, entry_id: u32) -> u8 {

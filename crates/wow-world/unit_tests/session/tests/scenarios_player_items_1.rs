@@ -644,6 +644,102 @@ fn represented_item_level_uses_player_level_curve_like_cpp() {
         "C++ Item::GetItemLevel replaces template item level with DB2Manager::GetCurveValueAt(PlayerLevelToItemLevelCurveId, owner level) before bonus/caps"
     );
 }
+
+#[test]
+fn represented_item_level_reads_frozen_item_values_like_cpp() {
+    let (mut session, _, _send_rx) = make_session();
+    let item_id = 30_162_u32;
+    let curve_id = 9_006;
+    session.set_player_level_like_cpp(50);
+    install_represented_item_level_curve_fixture_like_cpp(&mut session, item_id, 0, curve_id);
+    session.set_item_bonus_db2_store(Arc::new(ItemBonusDb2Store::from_entries([
+        ItemBonusDb2Entry {
+            id: 1,
+            value: [55, 0, 0, 0],
+            parent_item_bonus_list_id: 77,
+            bonus_type: ItemBonusType::ItemLevel as u8,
+            order_index: 0,
+        },
+        ItemBonusDb2Entry {
+            id: 2,
+            value: [70, 0, 0, 0],
+            parent_item_bonus_list_id: 78,
+            bonus_type: ItemBonusType::ItemLevel as u8,
+            order_index: 0,
+        },
+    ])));
+    let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+    let mut item = session.make_inventory_item_object(
+        ObjectGuid::create_item(1, 30_162),
+        item_id,
+        owner,
+        1,
+        0,
+        ItemContext::None,
+        EQUIPMENT_SLOT_CHEST,
+    );
+    item.set_modifier(ItemModifier::TimewalkerLevel, 50);
+    item.set_item_bonus_key(ItemBonusKey {
+        item_id: item_id as i32,
+        bonus_list_ids: vec![77],
+    });
+    let captured = wow_entities::ItemValuesSnapshot::capture(&item);
+
+    assert_eq!(captured.data().debug_item_level, 0);
+    assert_eq!(
+        captured
+            .read_view()
+            .get_modifier(ItemModifier::TimewalkerLevel),
+        50
+    );
+    assert_eq!(captured.data().item_bonus_key.bonus_list_ids, vec![77]);
+    assert_eq!(
+        represented_item_level_for_view(&session, item_id, Some(captured.read_view())),
+        Some(205)
+    );
+
+    item.set_debug_item_level(180);
+    item.set_modifier(ItemModifier::TimewalkerLevel, 52);
+    item.set_item_bonus_key(ItemBonusKey {
+        item_id: item_id as i32,
+        bonus_list_ids: vec![78],
+    });
+    assert_eq!(
+        represented_item_level_for_view(&session, item_id, Some(captured.read_view())),
+        Some(205),
+        "the captured curve modifier and bonus key remain unchanged after owner mutation"
+    );
+    assert_eq!(
+        represented_item_level_for_view(&session, item_id, Some(item.read_view())),
+        Some(180),
+        "the live debug item level takes precedence"
+    );
+    item.set_debug_item_level(0);
+    assert_eq!(
+        represented_item_level_for_view(&session, item_id, Some(item.read_view())),
+        Some(222),
+        "the live curve modifier and bonus key are observed when debug level is clear"
+    );
+}
+
+fn represented_item_level_for_view(
+    session: &WorldSession,
+    item_id: u32,
+    item: Option<wow_entities::ItemReadView<'_>>,
+) -> Option<u32> {
+    let (inventory, hub) = crate::session::split_inventory_ref(session);
+    inventory.represented_item_level_with_access_like_cpp(
+        &hub.core.inventory_valuation_access_like_cpp(),
+        &hub.core.owned_item_modifiers_access_like_cpp(),
+        &hub.catalogs.inventory_valuation_catalog_view_like_cpp(),
+        item_id,
+        item,
+        WorldSession::MIN_ITEM_LEVEL_LIKE_CPP,
+        WorldSession::MAX_ITEM_LEVEL_LIKE_CPP,
+        &hub.fixtures.identity.player_level,
+    )
+}
+
 #[test]
 fn represented_item_level_curve_clamps_owner_level_by_content_tuning_like_cpp() {
     let (mut session, _, _send_rx) = make_session();

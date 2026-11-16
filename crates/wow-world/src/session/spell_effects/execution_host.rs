@@ -20,7 +20,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
                         && !item.is_in_trade()
                         && item.update_state() != wow_constants::ItemUpdateState::Removed
                 })
-                .cloned()
+                .map(wow_entities::ItemValuesSnapshot::capture)
         })??;
         let entry_id = item.object().entry();
         let item_level = self.inventory.represented_item_level_with_access_like_cpp(
@@ -28,7 +28,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
             &self.core.owned_item_modifiers_access_like_cpp(),
             &self.catalogs.inventory_valuation_catalog_view_like_cpp(),
             entry_id,
-            Some(&item),
+            Some(item.read_view()),
             Self::MIN_ITEM_LEVEL_LIKE_CPP,
             Self::MAX_ITEM_LEVEL_LIKE_CPP,
             #[cfg(any(test, feature = "test-fixtures"))]

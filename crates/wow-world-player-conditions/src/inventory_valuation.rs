@@ -241,7 +241,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             &self.modifier_access,
             &self.catalogs,
             entry_id,
-            runtime_item,
+            runtime_item.map(Item::read_view),
             MIN_ITEM_LEVEL_LIKE_CPP,
             MAX_ITEM_LEVEL_LIKE_CPP,
             #[cfg(any(test, feature = "test-fixtures"))]

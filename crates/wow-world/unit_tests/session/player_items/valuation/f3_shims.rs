@@ -70,7 +70,7 @@ impl WorldSession {
             &modifier_access,
             &catalogs,
             entry_id,
-            runtime_item,
+            runtime_item.map(Item::read_view),
             Self::MIN_ITEM_LEVEL_LIKE_CPP,
             Self::MAX_ITEM_LEVEL_LIKE_CPP,
             #[cfg(any(test, feature = "test-fixtures"))]
