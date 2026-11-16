@@ -156,12 +156,21 @@ pub fn set_player_visible_item_values_like_cpp(
     slot: u8,
     (item_id, item_appearance_mod_id, item_visual): (i32, u16, u16),
 ) {
+    player.set_visible_item_slot(
+        slot,
+        visible_item_values_from_tuple_like_cpp((item_id, item_appearance_mod_id, item_visual)),
+    );
+}
+
+pub(crate) fn visible_item_values_from_tuple_like_cpp(
+    (item_id, item_appearance_mod_id, item_visual): (i32, u16, u16),
+) -> Option<VisibleItemValues> {
     let item = VisibleItemValues {
         item_id,
         item_appearance_mod_id,
         item_visual,
     };
-    player.set_visible_item_slot(slot, (item != VisibleItemValues::default()).then_some(item));
+    (item != VisibleItemValues::default()).then_some(item)
 }
 
 fn power_kind_from_u8_like_cpp(power: u8) -> PowerType {

@@ -374,10 +374,17 @@ fn inventory_player_snapshot_delegates_storage_queries_and_bank_count() {
 
     let mut source = Item::default();
     source.object_mut().create(ObjectGuid::create_item(17, 210));
-    source.object_mut().set_entry(proto.entry);
+    let bank_bag_proto = ItemStorageTemplate {
+        class_id: ItemClass::Container,
+        subclass_id: ItemSubClassContainer::Container as u32,
+        inventory_type: InventoryType::Bag,
+        container_slots: 4,
+        ..ItemStorageTemplate::regular_item(20_011, 1)
+    };
+    source.object_mut().set_entry(bank_bag_proto.entry);
     source.set_count(1);
     let bank_slot = BANK_SLOT_BAG_START + 1;
-    let bank_args = can_bank_bag_args(&proto, &source, bank_slot);
+    let bank_args = can_bank_bag_args(&bank_bag_proto, &source, bank_slot);
     let mut snapshot = snapshot;
     let mut canonical = canonical;
     assert_eq!(

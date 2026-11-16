@@ -4,10 +4,13 @@
 
 Resumed from published `d91650024` on `forever`. The November 11 publication
 acceptance is recorded in STATE.md; it does not complete character construction.
-The next local dependency is the whole-Player copy in
-`OwnedInventoryAccessLikeCpp::inventory_player_projection_snapshot_like_cpp`.
-Its shared projection supports query/planning and values publication; both
-families must be replaced before retiring that producer. Creation stays disabled.
+The whole-Player copy in
+`OwnedInventoryAccessLikeCpp::inventory_player_projection_snapshot_like_cpp`
+is now replaced by an Entity-owned inventory facts snapshot. Its query/planning
+and values-publication families share canonical pure rules, and Core wraps the
+captured facts after the existing generation-checked read releases its guard.
+Aggregate Clone retirement and committed-candidate acceptance are still pending.
+Creation stays disabled.
 
 The selected boundary preserves one canonical Player and captures only inventory
 query facts and represented update-field payloads at the existing owned read.

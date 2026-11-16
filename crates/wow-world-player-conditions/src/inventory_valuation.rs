@@ -718,8 +718,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             return item_not_found_can_equip_outcome_like_cpp();
         };
 
-        player.set_can_dual_wield_like_cpp(can_dual_wield);
-        player.set_can_titan_grip_like_cpp(can_titan_grip, 0);
+        player.set_can_titan_grip_like_cpp(can_titan_grip);
 
         let Some(item_objects) = self
             .inventory

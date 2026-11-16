@@ -1,7 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use wow_entities::{INVENTORY_SLOT_BAG_0, PlayerInventoryRuntime};
+use wow_entities::{INVENTORY_SLOT_BAG_0, InventoryPlayerSnapshotLikeCpp, PlayerInventoryRuntime};
 
 use crate::session::{InventoryPlayerProjectionLikeCpp, SessionCore};
 
@@ -142,13 +142,13 @@ impl OwnedInventoryAccessLikeCpp<'_> {
         })
     }
 
-    /// Return the current canonical Player as a detached inventory projection.
+    /// Capture current canonical Player values as a detached inventory projection.
     pub fn inventory_player_projection_snapshot_like_cpp(
         &self,
     ) -> Option<InventoryPlayerProjectionLikeCpp> {
         self.core
-            .with_owned_player_like_cpp(Clone::clone)
-            .map(InventoryPlayerProjectionLikeCpp::from_player)
+            .with_owned_player_like_cpp(InventoryPlayerSnapshotLikeCpp::capture)
+            .map(InventoryPlayerProjectionLikeCpp::from_snapshot)
     }
 
     /// Read the bound player GUID for fixture reconstruction and publication.

@@ -3,7 +3,8 @@
 ## Forever canonical inventory capture resumed — 2026-11-16
 
 Resumed from published d91650024. The complete inventory query/publication
-projection must stop copying Player before non-Clone skill/book integration.
+projection now captures owned facts instead of copying Player, preparing the
+later non-Clone skill/book integration.
 The complete read-only query preparation moves position validation, traversal,
 use, bank, equipment,
 two-hand and swap-preflight rules to private children of that same view: thirteen
@@ -21,8 +22,8 @@ explicit out-of-bag-size fixture slot is populated and asserted before checking
 traversal. Equipment feedback first failed on test-only imports, then passed
 after their cfg(test) retention. Parent subsequently applied canonical import
 formatting; those dirty-tree coding results are not final evidence at a later
-commit. No full acceptance or new publication is claimed. The Core projection
-still holds a copied Player; its Clone producer is not retired. The owning
+commit. No full acceptance or new publication is claimed. The later Core
+producer replacement is recorded below. The owning
 runbook's November 16 contract preserves observation timing, source-version
 gaps and the disabled runtime constructor.
 
@@ -80,8 +81,22 @@ take primitives while retaining field/visible/bag-clear order. Seven snapshot
 cases passed; three strengthened query cases passed again after correcting test
 index types. They cover ordered/early-stop traversal, distinct native/field GUIDs,
 count/Titan overlays, invalid removal and visible clearing even with an empty
-native equipment slot. The Core producer replacement remains unfinished.
-Committed-candidate acceptance is pending.
+native equipment slot.
+
+The Core facade now owns only the Entity inventory snapshot. Its producer
+captures facts under the existing generation-checked owned read and wraps them
+after the manager guard is released; the whole-Player Clone producer is removed.
+The unused projection Dual Wield setter and Titan Grip penalty argument are
+retired with their single valuation caller; canonical capability APIs stay
+unchanged. A shared pure tuple conversion retains visible-item input widths and
+the all-zero default rule. Worker Core and player-conditions checks passed, as
+did the affected consistent-bag Entity case and four Core regressions. The first
+Core test compile failed on a missing test-only trait import and ran no tests;
+the corrected/final filter passed. Core coverage compares independent owners'
+complete models and bytes, actual NaN/-0 fields, active/detached and stale
+generations, frozen values and the deferred aura panic outside an unpoisoned
+manager mutex. These are coding results; aggregate Clone retirement and
+committed-candidate acceptance remain pending.
 
 ## Forever publication candidate — 2026-11-11
 
