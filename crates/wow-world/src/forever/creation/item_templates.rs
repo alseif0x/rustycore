@@ -1,11 +1,13 @@
 //! Target template numeric rules, not strings/wire/use/equip/item instances.
 //! 02245dcd ObjectMgr.cpp:3020-3442. Raw rows have one nested immutable owner;
 //! derived templates/effects contain IDs/metadata, not duplicated item records.
+mod bonus_sources;
 mod durability;
 mod spec_stats;
 mod specializations;
 #[cfg(test)]
 mod tests;
+pub use bonus_sources::ItemBonusSources;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use wow_data::forever_birth::{

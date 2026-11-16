@@ -443,7 +443,7 @@ expectations before the green rerun. The cases include 4,096 nested lists,
 repeated instance lists, full-width IDs, shared/equal priorities, stat-slot
 selection, effect capacity, overflow, missing templates/sources and squish index
 holes/first-future-row behavior. This is level-1 coding feedback. The kernel is
-not attached to legacy Item: the real source binding, creation/load, raw-key
+not attached to legacy Item: binding to the real runtime caller, creation/load, raw-key
 and gem/Azerite writers, readers, persistence and actual realm/build composition
 remain required before its canonical Player effect integration and final
 acceptance. The native table-input implementation and its file-loading evidence
@@ -510,6 +510,34 @@ All failed/zero-case logs are retained separately from green evidence.
 Positive real SQL decoding, fresh client/native capture and runtime evidence
 remain unexecuted. No Item/Player binding or creation admission is established
 by this data implementation, and final candidate acceptance remains pending.
+
+The concrete World ItemBonusSources adapter now lives as a private child of
+the NumericItemTemplates owner. It borrows that same owner's private ItemCatalog
+and resolves template facts through its admitted template lookup; no raw-catalog
+getter, visibility widening, second catalog or mutable row cache is introduced.
+The adapter preserves int8 quality sign extension into uint32, all ten raw
+float socket-cost multipliers, the five source flag meanings, ordinary zero/
+full-width keys and the existing lower_bound effect order, including repeated
+effects and distinct effects in the same legacy slot. It returns all template
+effects, leaving the undefined fourteenth-write guard to the Entity owner.
+Its index bound is the validated last index plus one, rather than surviving
+record count. Reads are Infallible over already-bound immutable inputs;
+absence remains scoped to that admitted view, not proof of full client-ID
+coverage. The explicit optional realm-patch input preserves Some(0) versus
+None and is not a default implementation of the real current-realm provider.
+
+Worker World check and five focused cases pass with one Cargo job and the
+pinned read-only extractor overlay. The cases cover raw/sign/float facts,
+source identity and missing rows, loaded zero keys and inverse capability flags,
+effect order/duplicates/capacity and a complete nested-list scaling/crafted-
+level operation through the actual Entity kernel. Fixtures configure raw input
+before finishing/loading catalogs; none mutates the published template owner.
+This remains level-1 coding feedback. The native current-realm/build owner,
+canonical Item attachment and its creation/load/writers/readers/save consumers,
+Player skills/book effects and full candidate acceptance remain unfinished.
+The real copy boundary includes Core's whole PlayerInventoryRuntime snapshot
+as well as individual Item/map snapshots and mutable detached plans; changing
+only the visible map getter would not retire those actor copies.
 
 The next skill persistence operation will capture immutable dirty-node rows in
 admitted native status order, without changing any status during capture. The

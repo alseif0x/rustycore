@@ -16,6 +16,29 @@ fn removals() -> Db2HotfixRemovalStoreLikeCpp {
     Default::default()
 }
 
+pub(crate) fn bonus_source_test_templates(
+    item_id: u32,
+    final_removals: &Db2HotfixRemovalStoreLikeCpp,
+    configure: impl FnOnce(&mut ItemRecords),
+) -> NumericItemTemplates {
+    let mut records = ItemRecords {
+        items: vec![basic(item_id)],
+        sparse: vec![sparse(item_id)],
+        ..Default::default()
+    };
+    configure(&mut records);
+    let data = records
+        .finish(Default::default(), Default::default(), final_removals)
+        .unwrap();
+    let specs = ItemSpecRecords::default()
+        .finish(Default::default(), Default::default(), &removals())
+        .unwrap();
+    let initialization = InitializationRecords::default()
+        .finish(Default::default(), Default::default(), &removals())
+        .unwrap();
+    NumericItemTemplates::load(data, &specs, &initialization, Vec::new()).unwrap()
+}
+
 impl NumericItemTemplates {
     pub(crate) fn enchantment_source_test_templates(
         id: u32,

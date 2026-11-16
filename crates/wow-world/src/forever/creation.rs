@@ -13,7 +13,8 @@ mod starting;
 mod templates;
 mod vitals;
 pub use item_templates::{
-    ItemTemplateError, ItemTemplateMetadata, ItemTemplateNumericView, NumericItemTemplates,
+    ItemBonusSources, ItemTemplateError, ItemTemplateMetadata, ItemTemplateNumericView,
+    NumericItemTemplates,
 };
 pub use items::{InitialItem, InitialItems};
 pub use service::{
