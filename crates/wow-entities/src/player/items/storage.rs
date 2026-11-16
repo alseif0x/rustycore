@@ -88,33 +88,30 @@ impl Player {
     }
 
     pub fn set_bank_bag_slot_count(&mut self, count: u8) {
-        self.set_player_u8(PLAYER_DATA_NUM_BANK_SLOTS_BIT, count, |data| {
-            &mut data.num_bank_slots
-        });
+        let update_requested = self.inventory_values_mut().set_bank_bag_slot_count(count);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn mark_bank_bag_slot_count_changed_like_cpp(&mut self) {
-        self.mark_player_data(PLAYER_DATA_NUM_BANK_SLOTS_BIT);
+        let update_requested = self
+            .inventory_values_mut()
+            .mark_bank_bag_slot_count_changed_like_cpp();
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn set_bank_bag_slot_flag_value_like_cpp(&mut self, index: usize, value: u32) -> bool {
-        if index >= self.active_data.bank_bag_slot_flags.len() {
-            return false;
-        }
-
-        if self.active_data.bank_bag_slot_flags[index] != value {
-            self.active_data.bank_bag_slot_flags[index] = value;
-            self.mark_bank_bag_slot_flag_changed_like_cpp(index);
-        }
-        true
+        let update_request = self
+            .inventory_values_mut()
+            .set_bank_bag_slot_flag_value_like_cpp(index, value);
+        self.apply_inventory_value_update_request(update_request.unwrap_or(false));
+        update_request.is_some()
     }
 
     pub fn mark_bank_bag_slot_flag_changed_like_cpp(&mut self, index: usize) {
-        self.mark_active_player_data_array(
-            ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT,
-            ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT,
-            index,
-        );
+        let update_requested = self
+            .inventory_values_mut()
+            .mark_bank_bag_slot_flag_changed_like_cpp(index);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn set_visible_item_slot(&mut self, slot: u8, item: Option<VisibleItemValues>) {
@@ -147,9 +144,8 @@ impl Player {
     }
 
     pub fn set_inventory_slot_count(&mut self, count: u8) {
-        self.set_active_u8(ACTIVE_PLAYER_DATA_NUM_BACKPACK_SLOTS_BIT, count, |data| {
-            &mut data.num_backpack_slots
-        });
+        let update_requested = self.inventory_values_mut().set_inventory_slot_count(count);
+        self.apply_inventory_value_update_request(update_requested);
     }
 
     pub fn set_inv_slot(&mut self, slot: usize, guid: ObjectGuid) {

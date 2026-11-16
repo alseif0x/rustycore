@@ -38,6 +38,16 @@ is introduced. Worker coding feedback passed the Entity check and nonzero money,
 flag and receiver-split filters; final acceptance remains pending. The complete
 slot/count/nested-mask preparation and detached payload capture are unfinished.
 
+Count and bank-flag value rules now share the same borrowed owner. The flag
+setter's validity result remains separate from update admission: invalid returns
+false, valid unchanged returns true without new masks/queue, and changed values
+mark the existing array bits. Its explicit marker retains the original unguarded
+index and parent-before-index-addition order; that overflow path is source-reviewed,
+not separately tested. The two newly dead scalar helpers are removed. Worker
+feedback passed the Entity check, two existing count filters and two bank-flag
+cases, including one new public validity/mask/queue regression. Slot/visible/
+buyback rules, nested resets and detached capture remain unfinished.
+
 ## Forever publication candidate — 2026-11-11
 
 The operator requested a commit and push of the preserved experimental worktree.

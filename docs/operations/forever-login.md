@@ -41,6 +41,14 @@ target ModifyValue setter-history contract described below; target field-format
 and history completion remain activation prerequisites. Keep that behavior work
 separate from retiring the copied actor.
 
+The first detached replacement retains the existing public Core projection
+facade and its single capture point, with separate private query and publication
+implementations over the complete union of required data. This preserves the
+fallible fixture lookups and caller observation order while retiring the actor
+payload. Queries read captured bank/backpack counts and specialization from the
+same value payload used for publication; overlays therefore keep one authority
+inside the disposable projection, without a second mutable scalar mirror.
+
 Target reference remains `02245dcd245e7433e524577656177723d3e4992e`:
 Player.cpp:9367–9568,10224–10733,10958–11491,27663–27755 and
 Player.h:1403–1463 anchor inventory admission/traversal; Player.cpp:3626–3699

@@ -4192,19 +4192,6 @@ impl Player {
         }
     }
 
-    fn set_active_u64(
-        &mut self,
-        bit: usize,
-        value: u64,
-        field: impl FnOnce(&mut ActivePlayerDataValues) -> &mut u64,
-    ) {
-        let target = field(&mut self.active_data);
-        if *target != value {
-            *target = value;
-            self.mark_active_player_data(bit);
-        }
-    }
-
     fn set_active_i32(
         &mut self,
         bit: usize,
@@ -4229,19 +4216,6 @@ impl Player {
         if *target != value {
             *target = value;
             self.mark_active_player_data_section(parent_bit, bit);
-        }
-    }
-
-    fn set_active_u8(
-        &mut self,
-        bit: usize,
-        value: u8,
-        field: impl FnOnce(&mut ActivePlayerDataValues) -> &mut u8,
-    ) {
-        let target = field(&mut self.active_data);
-        if *target != value {
-            *target = value;
-            self.mark_active_player_data(bit);
         }
     }
 

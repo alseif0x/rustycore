@@ -87,3 +87,69 @@ fn money_matches_cpp_modify_clamps_and_active_playerdata_coinage_bit() {
     assert!(player.modify_money(1));
     assert_eq!(player.active_data().coinage, MAX_MONEY_AMOUNT);
 }
+
+#[test]
+fn bank_bag_slot_flag_setter_preserves_validity_and_mask_contract() {
+    let mut invalid = Player::new(None, false);
+    invalid.unit_mut().world_mut().object_mut().add_to_world();
+
+    assert!(!invalid.set_bank_bag_slot_flag_value_like_cpp(7, 0x10));
+    assert_eq!(invalid.bank_bag_slot_flag_value_like_cpp(7), None);
+    assert!(!invalid.active_player_data_changes_mask().is_any_set());
+    assert!(!invalid.unit().world().object().is_object_updated());
+
+    let mut changed = Player::new(None, false);
+    changed.unit_mut().world_mut().object_mut().add_to_world();
+
+    assert!(changed.set_bank_bag_slot_flag_value_like_cpp(0, 0x10));
+    assert_eq!(changed.bank_bag_slot_flag_value_like_cpp(0), Some(0x10));
+    assert!(
+        changed
+            .active_player_data_changes_mask()
+            .is_set(ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT)
+    );
+    assert!(
+        changed
+            .active_player_data_changes_mask()
+            .is_set(ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT)
+    );
+    assert!(
+        !changed
+            .active_player_data_changes_mask()
+            .is_set(ACTIVE_PLAYER_DATA_PARENT_BIT)
+    );
+    assert!(changed.unit().world().object().is_object_updated());
+
+    let mut unchanged = Player::new(None, false);
+    assert!(unchanged.set_bank_bag_slot_flag_value_like_cpp(0, 0x10));
+    unchanged.clear_data_changes();
+    unchanged.unit_mut().world_mut().object_mut().add_to_world();
+
+    assert!(unchanged.set_bank_bag_slot_flag_value_like_cpp(0, 0x10));
+    assert!(!unchanged.active_player_data_changes_mask().is_any_set());
+    assert!(!unchanged.unit().world().object().is_object_updated());
+
+    let mut explicit_mark = Player::new(None, false);
+    explicit_mark
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .add_to_world();
+    explicit_mark.mark_bank_bag_slot_flag_changed_like_cpp(7);
+    assert!(
+        explicit_mark
+            .active_player_data_changes_mask()
+            .is_set(ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT)
+    );
+    assert!(
+        explicit_mark
+            .active_player_data_changes_mask()
+            .is_set(ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT + 7)
+    );
+    assert!(
+        !explicit_mark
+            .active_player_data_changes_mask()
+            .is_set(ACTIVE_PLAYER_DATA_PARENT_BIT)
+    );
+    assert!(explicit_mark.unit().world().object().is_object_updated());
+}
