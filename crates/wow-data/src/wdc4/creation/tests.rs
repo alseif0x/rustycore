@@ -1,6 +1,8 @@
 use super::super::{CompressionType, FieldStorageInfo, Wdc4Header, Wdc4Reader};
 use super::{CreationDb2, CreationTable};
 use std::collections::HashMap;
+#[path = "tests/item_bonus_tables.rs"]
+mod item_bonus_tables;
 
 const FIELDS: usize = 9;
 

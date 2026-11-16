@@ -3,12 +3,8 @@ use super::character_capture::CharacterCapture;
 use super::navigation::NavigationRuntime;
 use anyhow::{Context, Result, bail, ensure};
 use std::{env, fs, path::Path, sync::Arc};
-use wow_data::forever_birth::item_records::{
-    ITEM_EFFECT_HASH, ITEM_HASH, ITEM_RELATION_HASH, ITEM_SPARSE_HASH, ItemRecords,
-};
-use wow_data::forever_birth::item_specs::{
-    GEM_PROPERTIES_HASH, ITEM_SPEC_HASH, ITEM_SPEC_OVERRIDE_HASH, ItemSpecRecords,
-};
+use wow_data::forever_birth::item_records::ItemRecords;
+use wow_data::forever_birth::item_specs::ItemSpecRecords;
 use wow_data::forever_birth::{
     ABILITY_HASH, AbilityBaseline, BirthRecords, LOADOUT_HASH, LOADOUT_ITEM_HASH, RACE_CLASS_HASH,
     SKILL_LINE_HASH,
@@ -387,8 +383,8 @@ pub(super) async fn load() -> Result<Runtime> {
     let hotfix_adapter = MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new(hotfix);
     let mut hotfixes = HotfixBlobCache::new();
     hotfixes.register_typed_table(TACT_KEY_TABLE_HASH);
-    // Register effective stores as known. Tact, seven item stores and all 42
-    // spell stores have full serializers; the Valid-status guard retains the
+    // Register effective stores as known. Tact, twelve item stores and all
+    // declared spell stores have full serializers; the Valid-status guard retains the
     // other stores' explicit unported boundary instead of claiming absence.
     for hash in [
         0x49349C6E,
@@ -411,14 +407,10 @@ pub(super) async fn load() -> Result<Runtime> {
         ABILITY_HASH,
         LOADOUT_HASH,
         LOADOUT_ITEM_HASH,
-        ITEM_HASH,
-        ITEM_SPARSE_HASH,
-        ITEM_EFFECT_HASH,
-        ITEM_RELATION_HASH,
-        ITEM_SPEC_HASH,
-        ITEM_SPEC_OVERRIDE_HASH,
-        GEM_PROPERTIES_HASH,
     ] {
+        hotfixes.register_typed_table(hash);
+    }
+    for hash in ITEM_TABLE_HASHES {
         hotfixes.register_typed_table(hash);
     }
     for hash in SPELL_TABLE_HASHES {

@@ -1,10 +1,17 @@
-use super::{ItemEffectRecord, ItemRecord, ItemRecords};
+use super::{
+    AzeriteEmpoweredItemRecord, ItemBonusRecord, ItemEffectRecord, ItemOffsetCurveRecord,
+    ItemRecord, ItemRecords, ItemScalingConfigRecord, ItemSquishEraRecord,
+};
 use crate::{
     forever_birth::{item_quantities::ItemEffectRelationRecord, item_sparse::SparseItemRecords},
     wdc4::creation::{CreationDb2, CreationTable},
 };
 use anyhow::Result;
 use std::path::Path;
+
+#[cfg(test)]
+#[path = "load_tests.rs"]
+mod tests;
 
 pub(super) fn available(directory: &Path) -> Result<ItemRecords> {
     let table = CreationDb2::open_item_prefix(directory, CreationTable::Item)?;
@@ -62,11 +69,86 @@ pub(super) fn available(directory: &Path) -> Result<ItemRecords> {
             })
         })
         .collect::<Result<Vec<_>>>()?;
+    let table = CreationDb2::open(directory, CreationTable::ItemBonus)?;
+    let item_bonuses = table
+        .ids()
+        .map(|id| {
+            Ok(ItemBonusRecord {
+                id,
+                values: [
+                    table.bits(id, 0, 0)? as i32,
+                    table.bits(id, 0, 1)? as i32,
+                    table.bits(id, 0, 2)? as i32,
+                    table.bits(id, 0, 3)? as i32,
+                ],
+                parent: table.bits(id, 1, 0)? as u16,
+                bonus_type: table.bits(id, 2, 0)? as u8,
+                order: table.bits(id, 3, 0)? as u8,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let table = CreationDb2::open(directory, CreationTable::AzeriteEmpoweredItem)?;
+    let azerite_empowered_items = table
+        .ids()
+        .map(|id| {
+            Ok(AzeriteEmpoweredItemRecord {
+                id,
+                item: table.bits(id, 0, 0)? as i32,
+                tier_unlock_set: table.bits(id, 1, 0)?,
+                power_set: table.bits(id, 2, 0)?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let table = CreationDb2::open(directory, CreationTable::ItemScalingConfig)?;
+    let item_scaling_configs = table
+        .ids()
+        .map(|id| {
+            Ok(ItemScalingConfigRecord {
+                id,
+                offset_curve: table.bits(id, 0, 0)? as i32,
+                item_level: table.bits(id, 1, 0)? as i32,
+                required_level: table.bits(id, 2, 0)? as i32,
+                squish_era: table.bits(id, 3, 0)? as i32,
+                flags: table.bits(id, 4, 0)? as i32,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let table = CreationDb2::open(directory, CreationTable::ItemOffsetCurve)?;
+    let item_offset_curves = table
+        .ids()
+        .map(|id| {
+            Ok(ItemOffsetCurveRecord {
+                id,
+                curve: table.bits(id, 0, 0)? as i32,
+                offset: table.bits(id, 1, 0)? as i32,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let table = CreationDb2::open(directory, CreationTable::ItemSquishEra)?;
+    let item_squish_era_file_last_index = Some(table.storage_last_index());
+    let item_squish_eras = table
+        .ids()
+        .map(|id| {
+            Ok(ItemSquishEraRecord {
+                id,
+                patch: table.bits(id, 1, 0)? as i32,
+                curve: table.bits(id, 2, 0)? as i32,
+                flags: table.bits(id, 3, 0)? as i32,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
     Ok(ItemRecords {
         items,
         sparse: sparse.records,
         effects,
         relations,
-        unknown_baseline_records: [59, sparse.unknown_baseline_records, 40, 40],
+        item_bonuses,
+        azerite_empowered_items,
+        item_scaling_configs,
+        item_offset_curves,
+        item_squish_eras,
+        item_squish_era_file_last_index,
+        item_squish_era_sql_index_size: None,
+        unknown_baseline_records: [59, sparse.unknown_baseline_records, 40, 40, 0, 0, 0, 0, 0],
     })
 }

@@ -1,12 +1,20 @@
-//! Four numeric item sources for 70170, before template/equip/instance rules.
-//! 02245dcd DB2LoadInfo::{Item,ItemSparse,ItemEffect,ItemXItemEffect}.
+//! Nine numeric item sources for 70170, before template/equip/instance rules.
+//! 02245dcd DB2LoadInfo::{Item,ItemSparse,ItemEffect,ItemXItemEffect,ItemBonus,
+//! AzeriteEmpoweredItem,ItemScalingConfig,ItemOffsetCurve,ItemSquishEra}.
+mod bonus_records;
 mod effective;
 mod load;
 use super::item_quantities::ItemEffectRelationRecord;
 use super::item_sparse::SparseItemRecord;
 use anyhow::Result;
+pub use bonus_records::{
+    AzeriteEmpoweredItemRecord, ItemBonusRecord, ItemOffsetCurveRecord, ItemScalingConfigRecord,
+    ItemSquishEraRecord,
+};
 pub use effective::{
-    ITEM_EFFECT_HASH, ITEM_HASH, ITEM_RELATION_HASH, ITEM_SPARSE_HASH, ItemCatalog,
+    AZERITE_EMPOWERED_ITEM_HASH, ITEM_BONUS_HASH, ITEM_EFFECT_HASH, ITEM_HASH,
+    ITEM_OFFSET_CURVE_HASH, ITEM_RELATION_HASH, ITEM_SCALING_CONFIG_HASH, ITEM_SPARSE_HASH,
+    ITEM_SQUISH_ERA_HASH, ItemCatalog,
 };
 use std::path::Path;
 
@@ -51,13 +59,22 @@ pub struct ItemRecords {
     pub sparse: Vec<SparseItemRecord>,
     pub effects: Vec<ItemEffectRecord>,
     pub relations: Vec<ItemEffectRelationRecord>,
+    pub item_bonuses: Vec<ItemBonusRecord>,
+    pub azerite_empowered_items: Vec<AzeriteEmpoweredItemRecord>,
+    pub item_scaling_configs: Vec<ItemScalingConfigRecord>,
+    pub item_offset_curves: Vec<ItemOffsetCurveRecord>,
+    pub item_squish_eras: Vec<ItemSquishEraRecord>,
+    /// Source GetMaxId before copies/removals; None only for synthetic input.
+    pub item_squish_era_file_last_index: Option<u32>,
+    /// SQL MAX(ID)+1 observed separately after each nonempty overlay batch.
+    pub item_squish_era_sql_index_size: Option<u32>,
     /// Excluded direct baseline rows, never unresolved effective-ID coverage.
-    pub unknown_baseline_records: [usize; 4],
+    pub unknown_baseline_records: [usize; 9],
 }
 
 impl ItemRecords {
-    /// Explicit, exact esES prefix batch. No full-file fallback or implicit
-    /// encryption waiver. All four checked reads finish before returning.
+    /// Explicit acquired item input plus strict numeric bonus tables. No
+    /// full-file fallback or implicit encryption waiver.
     pub fn load_available(directory: &Path) -> Result<Self> {
         load::available(directory)
     }

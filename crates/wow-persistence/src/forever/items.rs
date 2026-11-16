@@ -37,6 +37,38 @@ pub struct ItemRelationRow {
     pub effect: i32,
     pub item: u32,
 }
+pub struct ItemBonusRow {
+    pub id: u32,
+    pub values: [i32; 4],
+    pub parent: u16,
+    pub bonus_type: u8,
+    pub order: u8,
+}
+pub struct AzeriteEmpoweredItemRow {
+    pub id: u32,
+    pub item: i32,
+    pub tier_unlock_set: u32,
+    pub power_set: u32,
+}
+pub struct ItemScalingConfigRow {
+    pub id: u32,
+    pub offset_curve: i32,
+    pub item_level: i32,
+    pub required_level: i32,
+    pub squish_era: i32,
+    pub flags: i32,
+}
+pub struct ItemOffsetCurveRow {
+    pub id: u32,
+    pub curve: i32,
+    pub offset: i32,
+}
+pub struct ItemSquishEraRow {
+    pub id: u32,
+    pub patch: i32,
+    pub curve: i32,
+    pub flags: i32,
+}
 pub struct SparseItemRow {
     pub id: u32,
     pub strings: [Vec<u8>; 5],
@@ -110,6 +142,13 @@ pub struct ItemRows {
     pub sparse: Vec<SparseItemRow>,
     pub effects: Vec<ItemEffectRow>,
     pub relations: Vec<ItemRelationRow>,
+    pub item_bonuses: Vec<ItemBonusRow>,
+    pub azerite_empowered_items: Vec<AzeriteEmpoweredItemRow>,
+    pub item_scaling_configs: Vec<ItemScalingConfigRow>,
+    pub item_offset_curves: Vec<ItemOffsetCurveRow>,
+    pub item_squish_eras: Vec<ItemSquishEraRow>,
+    /// Source MAX(ID)+1 queried after this batch when nonempty.
+    pub item_squish_era_sql_index_size: Option<u32>,
 }
 pub struct ItemOverlays {
     pub official: ItemRows,

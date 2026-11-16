@@ -1,7 +1,10 @@
 use super::*;
 use crate::forever_birth::{
     item_quantities::ItemEffectRelationRecord,
-    item_records::ItemRecords,
+    item_records::{
+        AzeriteEmpoweredItemRecord, ItemBonusRecord, ItemOffsetCurveRecord, ItemRecords,
+        ItemScalingConfigRecord, ItemSquishEraRecord,
+    },
     item_sparse::SparseItemStrings,
     item_specs::{GemPropertiesRecord, ItemSpecOverrideRecord, ItemSpecRecord, ItemSpecRecords},
 };
@@ -194,6 +197,39 @@ fn stores() -> ItemHotfixStores {
             effect: -1,
             item: 0x0102_0304,
         }],
+        item_bonuses: vec![ItemBonusRecord {
+            id: 7,
+            values: [i32::MIN, -1, 0x0102_0304, i32::MAX],
+            parent: 0x0506,
+            bonus_type: 7,
+            order: 8,
+        }],
+        azerite_empowered_items: vec![AzeriteEmpoweredItemRecord {
+            id: 7,
+            item: -1,
+            tier_unlock_set: u32::MAX,
+            power_set: 0x0102_0304,
+        }],
+        item_scaling_configs: vec![ItemScalingConfigRecord {
+            id: 7,
+            offset_curve: -1,
+            item_level: i32::MIN,
+            required_level: 0x0102_0304,
+            squish_era: i32::MAX,
+            flags: 0,
+        }],
+        item_offset_curves: vec![ItemOffsetCurveRecord {
+            id: 7,
+            curve: -1,
+            offset: i32::MIN,
+        }],
+        item_squish_eras: vec![ItemSquishEraRecord {
+            id: 7,
+            patch: -1,
+            curve: 0x0102_0304,
+            flags: i32::MIN,
+        }],
+        item_squish_era_file_last_index: Some(7),
         ..Default::default()
     }
     .finish(Default::default(), Default::default(), &removals)
@@ -240,6 +276,52 @@ fn relationship_parent_fields_and_spec_gem_records_are_not_physical_db2_bytes() 
         assert!(stores.record(hash, 99, 6).is_none());
     }
     assert!(stores.record(ITEM_SPARSE_HASH, 8, 6).is_none());
+}
+
+#[test]
+fn five_bonus_tables_keep_exact_payload_width_order_and_inline_squish_id() {
+    let stores = stores();
+    assert_eq!(ITEM_TABLE_HASHES.len(), 12);
+    assert_eq!(
+        &ITEM_TABLE_HASHES[7..],
+        &[
+            ITEM_BONUS_HASH,
+            AZERITE_EMPOWERED_ITEM_HASH,
+            ITEM_SCALING_CONFIG_HASH,
+            ITEM_OFFSET_CURVE_HASH,
+            ITEM_SQUISH_ERA_HASH,
+        ]
+    );
+    for (hash, expected) in [
+        (
+            ITEM_BONUS_HASH,
+            vec![
+                0, 0, 0, 128, 255, 255, 255, 255, 4, 3, 2, 1, 255, 255, 255, 127, 6, 5, 7, 8,
+            ],
+        ),
+        (
+            AZERITE_EMPOWERED_ITEM_HASH,
+            vec![255, 255, 255, 255, 255, 255, 255, 255, 4, 3, 2, 1],
+        ),
+        (
+            ITEM_SCALING_CONFIG_HASH,
+            vec![
+                255, 255, 255, 255, 0, 0, 0, 128, 4, 3, 2, 1, 255, 255, 255, 127, 0, 0, 0, 0,
+            ],
+        ),
+        (
+            ITEM_OFFSET_CURVE_HASH,
+            vec![255, 255, 255, 255, 0, 0, 0, 128],
+        ),
+        (
+            ITEM_SQUISH_ERA_HASH,
+            vec![7, 0, 0, 0, 255, 255, 255, 255, 4, 3, 2, 1, 0, 0, 0, 128],
+        ),
+    ] {
+        let payload = stores.record(hash, 7, 0).unwrap();
+        assert_eq!(payload, expected);
+        assert!(stores.record(hash, 99, 0).is_none());
+    }
 }
 
 #[test]

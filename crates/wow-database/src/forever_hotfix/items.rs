@@ -2,13 +2,15 @@
 //! Target source 02245dcd HotfixDatabase.cpp:870-872,980-981,1067-1081,1104.
 mod locales;
 mod sparse;
+mod storage_bounds;
 use super::{ForeverHotfixRepository, LoadError, PreparedStatement};
 use crate::SqlResult;
 use wow_persistence::forever::items::{
-    ItemEffectRow, ItemOverlays, ItemRelationRow, ItemRow, ItemRows,
+    AzeriteEmpoweredItemRow, ItemBonusRow, ItemEffectRow, ItemOffsetCurveRow, ItemOverlays,
+    ItemRelationRow, ItemRow, ItemRows, ItemScalingConfigRow, ItemSquishEraRow,
 };
 
-const QUERIES: [&str; 4] = [
+const QUERIES: [&str; 9] = [
     "SELECT ID,ClassID,SubclassID,Material,InventoryType,SheatheType,ItemPetFoodID,SoundOverrideSubclassID,IconFileDataID,ItemGroupSoundsID,ContentTuningID,ModifiedCraftingReagentItemID,Unknown1200,CraftingQualityID,ItemSquishEraID,RecraftReagentCountPercentage,OrderSource FROM item WHERE (VerifiedBuild>0)=?",
     concat!(
         "SELECT ID,Description,Display3,Display2,Display1,Display,ExpansionID,DmgVariance,LimitCategory,DurationInInventory,QualityModifier,BagFamily,StartQuestID,LanguageID,ItemRange,",
@@ -21,6 +23,11 @@ const QUERIES: [&str; 4] = [
     ),
     "SELECT ID,LegacySlotIndex,TriggerType,Charges,CoolDownMSec,CategoryCoolDownMSec,SpellCategoryID,SpellID,ChrSpecializationID,PlayerConditionID FROM item_effect WHERE (VerifiedBuild>0)=?",
     "SELECT ID,ItemEffectID,ItemID FROM item_x_item_effect WHERE (VerifiedBuild>0)=?",
+    "SELECT ID,Value1,Value2,Value3,Value4,ParentItemBonusListID,Type,OrderIndex FROM item_bonus WHERE (VerifiedBuild>0)=?",
+    "SELECT ID,ItemID,AzeriteTierUnlockSetID,AzeritePowerSetID FROM azerite_empowered_item WHERE (VerifiedBuild>0)=?",
+    "SELECT ID,ItemOffsetCurveID,ItemLevel,RequiredLevel,ItemSquishEraID,Flags FROM item_scaling_config WHERE (VerifiedBuild>0)=?",
+    "SELECT ID,CurveID,`Offset` FROM item_offset_curve WHERE (VerifiedBuild>0)=?",
+    "SELECT ID,Patch,CurveID,Flags FROM item_squish_era WHERE (VerifiedBuild>0)=?",
 ];
 
 struct NumericRow<'a> {
@@ -84,8 +91,8 @@ impl<'a> NumericRow<'a> {
 }
 
 impl ForeverHotfixRepository {
-    /// Eight queries finish before publication. Legal repeated overlay IDs
-    /// keep query order, never sort by ID/build or swallow failed queries.
+    /// Official and custom nine-table batches finish before publication.
+    /// Repeated overlay IDs keep query order; failures are never swallowed.
     pub async fn load_item_overlays(&self) -> Result<ItemOverlays, LoadError> {
         Ok(ItemOverlays {
             official: self.item_batch(false).await?,
@@ -106,11 +113,23 @@ impl ForeverHotfixRepository {
             if result.is_empty() {
                 continue;
             }
+            if table == 8 {
+                if result.field_count() != 4 {
+                    return Err(LoadError::InvalidRow);
+                }
+                let statement = PreparedStatement::new(storage_bounds::ITEM_SQUISH_SIZE_QUERY);
+                let size = self
+                    .0
+                    .query(&statement)
+                    .await
+                    .map_err(|_| LoadError::Database)?;
+                rows.item_squish_era_sql_index_size = Some(storage_bounds::decode(&size)?);
+            }
             loop {
                 if table == 1 {
                     rows.sparse.push(sparse::read(&result)?);
                 } else {
-                    let mut r = NumericRow::new(&result, [17, 104, 10, 3][table])?;
+                    let mut r = NumericRow::new(&result, [17, 104, 10, 3, 8, 4, 6, 3, 4][table])?;
                     match table {
                         0 => rows.items.push(ItemRow {
                             id: r.read()?,
@@ -147,6 +166,38 @@ impl ForeverHotfixRepository {
                             id: r.read()?,
                             effect: r.read()?,
                             item: r.read()?,
+                        }),
+                        4 => rows.item_bonuses.push(ItemBonusRow {
+                            id: r.read()?,
+                            values: r.array()?,
+                            parent: r.read()?,
+                            bonus_type: r.read()?,
+                            order: r.read()?,
+                        }),
+                        5 => rows.azerite_empowered_items.push(AzeriteEmpoweredItemRow {
+                            id: r.read()?,
+                            item: r.read()?,
+                            tier_unlock_set: r.read()?,
+                            power_set: r.read()?,
+                        }),
+                        6 => rows.item_scaling_configs.push(ItemScalingConfigRow {
+                            id: r.read()?,
+                            offset_curve: r.read()?,
+                            item_level: r.read()?,
+                            required_level: r.read()?,
+                            squish_era: r.read()?,
+                            flags: r.read()?,
+                        }),
+                        7 => rows.item_offset_curves.push(ItemOffsetCurveRow {
+                            id: r.read()?,
+                            curve: r.read()?,
+                            offset: r.read()?,
+                        }),
+                        8 => rows.item_squish_eras.push(ItemSquishEraRow {
+                            id: r.read()?,
+                            patch: r.read()?,
+                            curve: r.read()?,
+                            flags: r.read()?,
                         }),
                         _ => unreachable!(),
                     }

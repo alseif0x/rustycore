@@ -138,13 +138,13 @@ impl NumericItemTemplates {
             .quantity_projection()
             .map_err(|_| ItemTemplateError::InvalidQuantityProjection)
     }
-    pub fn counts(&self) -> [usize; 4] {
+    pub fn counts(&self) -> [usize; 9] {
         self.data.counts()
     }
     pub fn template_count(&self) -> usize {
         self.metadata.len()
     }
-    pub fn unknown_baseline_records(&self) -> [usize; 4] {
+    pub fn unknown_baseline_records(&self) -> [usize; 9] {
         self.data.unknown_baseline_records()
     }
 }

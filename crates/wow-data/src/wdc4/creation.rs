@@ -27,13 +27,16 @@ impl CreationDb2 {
         } else {
             Wdc4Reader::open(&path)?
         };
-        if empty_item_template(&reader, table) || spells::empty(&reader, table) {
+        if empty_item_template(&reader, table)
+            || empty_bonus_table(&reader, table)
+            || spells::empty(&reader, table)
+        {
             // Source LoadHeaders reads the primitive metadata even when
             // ColumnMetaSize=0. Require the complete file, not header-only
             // false absence through the older regular reader's empty shortcut.
             ensure!(
                 std::fs::metadata(&path)?.len() == 204 + schema.fields as u64 * 4,
-                "Incomplete empty item template table metadata"
+                "Incomplete empty creation table metadata"
             );
         }
         Self::checked(reader, table)
@@ -72,13 +75,16 @@ impl CreationDb2 {
             reader.format_version() == 5
                 && reader.table_hash() == schema.hash
                 && reader.layout_hash() == schema.layout
+                && valid_bonus_table_header(&reader, table)
                 && (reader.field_count() == schema.fields
                     || empty_item_template(&reader, table)
+                    || empty_bonus_table(&reader, table)
                     || spells::empty(&reader, table))
                 && reader.declared_field_count() as usize == schema.fields
                 && reader.inline_id_field() == schema.id
-                && (reader.parent_lookup_count() == table.parent_lookup_count()
+                && (valid_parent_lookup_count(&reader, table)
                     || empty_item_template(&reader, table)
+                    || empty_bonus_table(&reader, table)
                     || spells::empty(&reader, table)),
             "Wrong creation DB2 schema"
         );
@@ -116,6 +122,11 @@ impl CreationDb2 {
                     | CreationTable::ItemSpec
                     | CreationTable::ItemSpecOverride
                     | CreationTable::GemProperties
+                    | CreationTable::ItemBonus
+                    | CreationTable::AzeriteEmpoweredItem
+                    | CreationTable::ItemScalingConfig
+                    | CreationTable::ItemOffsetCurve
+                    | CreationTable::ItemSquishEra
                     | CreationTable::Spell(_)
             ) {
                 ensure!(
@@ -161,6 +172,11 @@ impl CreationDb2 {
                     | CreationTable::ItemSpec
                     | CreationTable::ItemSpecOverride
                     | CreationTable::GemProperties
+                    | CreationTable::ItemBonus
+                    | CreationTable::AzeriteEmpoweredItem
+                    | CreationTable::ItemScalingConfig
+                    | CreationTable::ItemOffsetCurve
+                    | CreationTable::ItemSquishEra
                     | CreationTable::Spell(_)
             ) || records.len() == reader.total_count(),
             "Incomplete creation IDs"
@@ -218,6 +234,31 @@ impl CreationDb2 {
     }
 }
 
+fn valid_parent_lookup_count(reader: &Wdc4Reader, table: CreationTable) -> bool {
+    if matches!(table, CreationTable::ItemBonus) {
+        reader.parent_lookup_count() <= 1
+    } else {
+        reader.parent_lookup_count() == table.parent_lookup_count()
+    }
+}
+
+fn valid_bonus_table_header(reader: &Wdc4Reader, table: CreationTable) -> bool {
+    if matches!(
+        table,
+        CreationTable::ItemBonus
+            | CreationTable::AzeriteEmpoweredItem
+            | CreationTable::ItemScalingConfig
+            | CreationTable::ItemOffsetCurve
+            | CreationTable::ItemSquishEra
+    ) {
+        reader.header._locale == u32::MAX
+            && reader.header.id_index == 0
+            && reader.header.flags == if table.schema().id.is_some() { 0 } else { 4 }
+    } else {
+        true
+    }
+}
+
 fn empty_item_template(reader: &Wdc4Reader, table: CreationTable) -> bool {
     matches!(
         table,
@@ -234,6 +275,35 @@ fn empty_item_template(reader: &Wdc4Reader, table: CreationTable) -> bool {
         && reader.header._parent_lookup_count <= 1
         && reader.field_info.is_empty()
         && (table.schema().parent.is_some() || reader.header._parent_lookup_count == 0)
+}
+
+fn empty_bonus_table(reader: &Wdc4Reader, table: CreationTable) -> bool {
+    let is_bonus_table = matches!(
+        table,
+        CreationTable::ItemBonus
+            | CreationTable::AzeriteEmpoweredItem
+            | CreationTable::ItemScalingConfig
+            | CreationTable::ItemOffsetCurve
+            | CreationTable::ItemSquishEra
+    );
+    is_bonus_table
+        && reader.header.record_count == 0
+        && reader.header.section_count == 0
+        && reader.header.record_size == 0
+        && reader.header.string_table_size == 0
+        && reader.header.field_storage_info_size == 0
+        && reader.header.common_data_size == 0
+        && reader.header.pallet_data_size == 0
+        && reader.header.flags == if table.schema().id.is_some() { 0 } else { 4 }
+        && reader.header.id_index == 0
+        && reader.header.field_count as usize == table.schema().fields
+        && reader.header.total_field_count as usize == table.schema().fields
+        && (if matches!(table, CreationTable::ItemBonus) {
+            reader.header._parent_lookup_count <= 1
+        } else {
+            reader.header._parent_lookup_count == 0
+        })
+        && reader.field_info.is_empty()
 }
 
 fn validate_blobs(reader: &Wdc4Reader) -> Result<()> {

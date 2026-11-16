@@ -399,8 +399,10 @@ power writers (Item.cpp:1577–1630/:1674–1689/:2840–2843 and
 AzeriteEmpoweredItem.cpp:116–149). The planned Item owner must preserve those
 writers as well as creation, loading and raw-key changes. Its direct metadata
 inputs are ItemBonus, AzeriteEmpoweredItem, ItemEffect, ItemScalingConfig,
-ItemOffsetCurve and ItemSquishEra. Only ItemEffect is currently admitted in the
-native ItemCatalog; matching legacy stores are not native composition evidence.
+ItemOffsetCurve and ItemSquishEra. The native ItemCatalog already owns ItemEffect;
+the five additional native table paths are implemented below, with their coding
+feedback and acceptance boundary recorded separately. Matching legacy stores
+are not native composition evidence.
 ItemBonusMgr's order is ascending surviving record ID via DBStorageIterator,
 independent of OrderIndex. The Azerite item index likewise walks record IDs and
 retains the last row naming an item (DB2Stores.cpp:1104–1105/:2044).
@@ -441,12 +443,73 @@ expectations before the green rerun. The cases include 4,096 nested lists,
 repeated instance lists, full-width IDs, shared/equal priorities, stat-slot
 selection, effect capacity, overflow, missing templates/sources and squish index
 holes/first-future-row behavior. This is level-1 coding feedback. The kernel is
-not attached to legacy Item: native metadata admission, creation/load, raw-key
+not attached to legacy Item: the real source binding, creation/load, raw-key
 and gem/Azerite writers, readers, persistence and actual realm/build composition
 remain required before its canonical Player effect integration and final
-acceptance. Existing same-GUID Item copies and Replace(Box<Item>) consumers
+acceptance. The native table-input implementation and its file-loading evidence
+are recorded below. Existing same-GUID Item copies and Replace(Box<Item>) consumers
 must migrate to captured facts/canonical mutation when attaching the owner;
 adding Clone to the new owner would conceal that dependency.
+
+The same native ItemCatalog now has the ItemBonus, AzeriteEmpoweredItem,
+ItemScalingConfig, ItemOffsetCurve and ItemSquishEra record/input paths alongside
+its four existing tables. Existing count/unknown-baseline indices remain 0–3;
+the five additions occupy 4–8. ItemBonus lookup widens each uint16 parent into
+its uint32 list key and retains ascending surviving record IDs, without sorting
+OrderIndex or narrowing the lookup. Azerite's reverse item index likewise
+retains the last surviving record in source iteration order. These are derived
+ID indexes over one immutable raw authority, not copied row catalogs.
+
+The added files use strict ordinary numeric WDC5 loading, without a new encrypted
+prefix policy. New-file admission also pins the acquired locale mask, ID-index
+header and external/inline flags; those are this input profile's conditions,
+not a claim that C++ rejects every other numeric-file variant.
+Source DB2FileLoader.cpp:1767–1779 permits an ItemBonus in-record
+parent with zero or one relationship; both modes are retained. The four
+no-parent tables reject relationships. Empty files require their complete
+primitive metadata and the correct external/inline ID shape. ItemSquishEra's
+file storage bound includes unresolved copy targets and is retained separately
+from surviving rows. Official and custom nonempty squish batches observe their
+separate unfiltered MAX(ID)+1 allocation query; only insertion of a previously
+missing row publishes the new bound, and final removal never shrinks it.
+Reallocation compares against the published bound, so a later MAX query can
+replace an earlier overwrite-only allocation with a smaller physical array.
+Wrong file/SQL bound provenance, missing nonempty bound observations and
+undefined file-index overflow fail composition.
+
+The SQL-free DTO, typed query cursor, consuming server conversion and native
+hotfix serializer paths retain all fields. Each official/custom batch has nine
+row queries, plus the squish allocation query only when that batch is nonempty;
+they do not establish a transactional SQL snapshot. The existing seven item/
+spec/gem hotfix hashes retain their indices, followed by the five new hashes.
+The bootstrap registers that one canonical list before hotfix metadata loading.
+DB2Store.cpp:43–93 excludes external IDs but includes inline IDs, so the five
+new payload widths are respectively 20, 12, 20, 8 and 16 bytes.
+
+Worker Data and Database checks pass, as does the server production check with
+all four required native features and the pinned read-only extractor overlay.
+Focused feedback passed 19 WDC, 11 effective-catalog, five hotfix-payload and
+four Database cases plus the existing server item-conversion case. An explicitly
+executed ignored private-corpus case also passed: the public nine-file loader
+read all 1,124 ItemBonus rows, the four new empty files and the real file bound,
+then retained a complete selected row through catalog lookup and list indexing.
+That test requires an explicit data-directory environment variable; it never
+turns missing private input into a skipped success. Its normal ignored status
+is retained for environments without those files. The inputs are the acknowledged
+70450 acquisition with matching pinned layouts, not a fresh 70170 capture.
+These are 41 selected level-1 coding-feedback cases, not a full acceptance run.
+
+The first effective-catalog run passed seven and failed one because its fixture
+expected an earlier physical allocation to survive a later reallocation. The
+source-based implementation was retained, and separate fixtures now cover the
+invalid row, valid published growth and retained but lookup-inaccessible rows.
+The first server check did not reach Cargo because of a malformed bwrap command;
+its corrected invocation passed. The first server test filter matched zero cases
+and is compile-only evidence; the corrected item-conversion filter ran one case.
+All failed/zero-case logs are retained separately from green evidence.
+Positive real SQL decoding, fresh client/native capture and runtime evidence
+remain unexecuted. No Item/Player binding or creation admission is established
+by this data implementation, and final candidate acceptance remains pending.
 
 The next skill persistence operation will capture immutable dirty-node rows in
 admitted native status order, without changing any status during capture. The

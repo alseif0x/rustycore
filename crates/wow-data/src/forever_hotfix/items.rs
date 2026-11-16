@@ -1,17 +1,18 @@
-//! 02245dcd DB2StorageBase::WriteRecord and seven Item* / GemProperties Meta.
+//! 02245dcd DB2StorageBase::WriteRecord and twelve Item* / GemProperties Meta.
 //! External IDs are excluded. Parent fields are serialized even when physically
 //! stored in a DB2 relationship. No cached byte mirror or optional-data waiver.
 use crate::forever_birth::{
     item_records::{
-        ITEM_EFFECT_HASH, ITEM_HASH, ITEM_RELATION_HASH, ITEM_SPARSE_HASH, ItemCatalog,
-        ItemEffectRecord, ItemRecord,
+        AZERITE_EMPOWERED_ITEM_HASH, ITEM_BONUS_HASH, ITEM_EFFECT_HASH, ITEM_HASH,
+        ITEM_OFFSET_CURVE_HASH, ITEM_RELATION_HASH, ITEM_SCALING_CONFIG_HASH, ITEM_SPARSE_HASH,
+        ITEM_SQUISH_ERA_HASH, ItemBonusRecord, ItemCatalog, ItemEffectRecord, ItemRecord,
     },
     item_sparse::SparseItemRecord,
     item_specs::{GEM_PROPERTIES_HASH, ITEM_SPEC_HASH, ITEM_SPEC_OVERRIDE_HASH, ItemSpecCatalog},
 };
 use std::sync::Arc;
 
-pub const ITEM_TABLE_HASHES: [u32; 7] = [
+pub const ITEM_TABLE_HASHES: [u32; 12] = [
     ITEM_HASH,
     ITEM_SPARSE_HASH,
     ITEM_EFFECT_HASH,
@@ -19,6 +20,11 @@ pub const ITEM_TABLE_HASHES: [u32; 7] = [
     ITEM_SPEC_HASH,
     ITEM_SPEC_OVERRIDE_HASH,
     GEM_PROPERTIES_HASH,
+    ITEM_BONUS_HASH,
+    AZERITE_EMPOWERED_ITEM_HASH,
+    ITEM_SCALING_CONFIG_HASH,
+    ITEM_OFFSET_CURVE_HASH,
+    ITEM_SQUISH_ERA_HASH,
 ];
 
 pub(super) struct ItemHotfixStores {
@@ -63,6 +69,41 @@ impl ItemHotfixStores {
                 ]
                 .concat()
             }
+            ITEM_BONUS_HASH => item_bonus(self.data.item_bonus(id)?),
+            AZERITE_EMPOWERED_ITEM_HASH => {
+                let r = self.data.azerite_empowered_item(id)?;
+                [
+                    r.item.to_le_bytes().as_slice(),
+                    r.tier_unlock_set.to_le_bytes().as_slice(),
+                    r.power_set.to_le_bytes().as_slice(),
+                ]
+                .concat()
+            }
+            ITEM_SCALING_CONFIG_HASH => {
+                let r = self.data.item_scaling_config(id)?;
+                [
+                    r.offset_curve.to_le_bytes().as_slice(),
+                    r.item_level.to_le_bytes().as_slice(),
+                    r.required_level.to_le_bytes().as_slice(),
+                    r.squish_era.to_le_bytes().as_slice(),
+                    r.flags.to_le_bytes().as_slice(),
+                ]
+                .concat()
+            }
+            ITEM_OFFSET_CURVE_HASH => {
+                let r = self.data.item_offset_curve(id)?;
+                [r.curve.to_le_bytes(), r.offset.to_le_bytes()].concat()
+            }
+            ITEM_SQUISH_ERA_HASH => {
+                let r = self.data.item_squish_era(id)?;
+                [
+                    r.id.to_le_bytes().as_slice(),
+                    r.patch.to_le_bytes().as_slice(),
+                    r.curve.to_le_bytes().as_slice(),
+                    r.flags.to_le_bytes().as_slice(),
+                ]
+                .concat()
+            }
             _ => return None,
         })
     }
@@ -92,6 +133,12 @@ fn effect(r: &ItemEffectRecord) -> Vec<u8> {
     let mut b = Vec::with_capacity(24);
     fields!(b; r.legacy_slot, r.trigger, r.charges, r.cooldown, r.category_cooldown,
         r.spell_category, r.spell, r.specialization, r.player_condition);
+    b
+}
+fn item_bonus(r: &ItemBonusRecord) -> Vec<u8> {
+    let mut b = Vec::with_capacity(20);
+    array!(b; r.values);
+    fields!(b; r.parent, r.bonus_type, r.order);
     b
 }
 fn sparse(r: &SparseItemRecord, locale: u8) -> Vec<u8> {

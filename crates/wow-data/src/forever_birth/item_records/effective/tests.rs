@@ -1,4 +1,5 @@
 use super::*;
+mod bonus_tables;
 
 fn item(id: u32, class: i32) -> ItemRecord {
     ItemRecord {
@@ -29,7 +30,7 @@ fn removals(rows: impl IntoIterator<Item = (u32, i32, u8)>) -> Db2HotfixRemovalS
 fn official_custom_repeated_rows_and_final_removals_are_sequential_not_sorted() {
     let baseline = ItemRecords {
         items: vec![item(1, 1), item(2, 2)],
-        unknown_baseline_records: [59, 69, 40, 40],
+        unknown_baseline_records: [59, 69, 40, 40, 0, 0, 0, 0, 0],
         ..Default::default()
     };
     let official = ItemRecords {
@@ -46,7 +47,10 @@ fn official_custom_repeated_rows_and_final_removals_are_sequential_not_sorted() 
     assert_eq!(final_rows.item(1).unwrap().class, 6);
     assert!(final_rows.item(2).is_none());
     assert_eq!(final_rows.item(3).unwrap().class, 9);
-    assert_eq!(final_rows.unknown_baseline_records(), [59, 69, 40, 40]);
+    assert_eq!(
+        final_rows.unknown_baseline_records(),
+        [59, 69, 40, 40, 0, 0, 0, 0, 0]
+    );
     // Item-only IDs must not become template/quantity existence.
     assert!(!final_rows.quantity_projection().unwrap().contains(1));
 }

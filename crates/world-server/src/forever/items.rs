@@ -1,7 +1,10 @@
 //! Consuming SQL DTO -> item composition. Main text belongs to enUS only.
 use wow_data::forever_birth::{
     item_quantities::ItemEffectRelationRecord,
-    item_records::{ItemEffectRecord, ItemRecord, ItemRecords},
+    item_records::{
+        AzeriteEmpoweredItemRecord, ItemBonusRecord, ItemEffectRecord, ItemOffsetCurveRecord,
+        ItemRecord, ItemRecords, ItemScalingConfigRecord, ItemSquishEraRecord,
+    },
     item_sparse::{SparseItemRecord, SparseItemStrings},
 };
 use wow_persistence::forever::items::{ItemRows, SparseItemRow};
@@ -61,7 +64,61 @@ pub(super) fn records(rows: ItemRows) -> ItemRecords {
                 item: r.item,
             })
             .collect(),
-        unknown_baseline_records: [0; 4], // Overlay batches do not certify unknown baseline IDs.
+        item_bonuses: rows
+            .item_bonuses
+            .into_iter()
+            .map(|r| ItemBonusRecord {
+                id: r.id,
+                values: r.values,
+                parent: r.parent,
+                bonus_type: r.bonus_type,
+                order: r.order,
+            })
+            .collect(),
+        azerite_empowered_items: rows
+            .azerite_empowered_items
+            .into_iter()
+            .map(|r| AzeriteEmpoweredItemRecord {
+                id: r.id,
+                item: r.item,
+                tier_unlock_set: r.tier_unlock_set,
+                power_set: r.power_set,
+            })
+            .collect(),
+        item_scaling_configs: rows
+            .item_scaling_configs
+            .into_iter()
+            .map(|r| ItemScalingConfigRecord {
+                id: r.id,
+                offset_curve: r.offset_curve,
+                item_level: r.item_level,
+                required_level: r.required_level,
+                squish_era: r.squish_era,
+                flags: r.flags,
+            })
+            .collect(),
+        item_offset_curves: rows
+            .item_offset_curves
+            .into_iter()
+            .map(|r| ItemOffsetCurveRecord {
+                id: r.id,
+                curve: r.curve,
+                offset: r.offset,
+            })
+            .collect(),
+        item_squish_eras: rows
+            .item_squish_eras
+            .into_iter()
+            .map(|r| ItemSquishEraRecord {
+                id: r.id,
+                patch: r.patch,
+                curve: r.curve,
+                flags: r.flags,
+            })
+            .collect(),
+        item_squish_era_sql_index_size: rows.item_squish_era_sql_index_size,
+        item_squish_era_file_last_index: None,
+        unknown_baseline_records: [0; 9], // Overlay batches do not certify unknown baseline IDs.
     }
 }
 
@@ -138,7 +195,10 @@ fn sparse(r: SparseItemRow) -> SparseItemRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wow_persistence::forever::items::{ItemEffectRow, ItemRelationRow, ItemRow};
+    use wow_persistence::forever::items::{
+        AzeriteEmpoweredItemRow, ItemBonusRow, ItemEffectRow, ItemOffsetCurveRow, ItemRelationRow,
+        ItemRow, ItemScalingConfigRow, ItemSquishEraRow,
+    };
     #[test]
     fn signed_masks_and_consumed_item_effect_relation_widths_are_not_narrowed() {
         assert_eq!(mask([-1, i32::MIN]), 0x8000_0000_FFFF_FFFF);
@@ -179,6 +239,39 @@ mod tests {
                 effect: -1,
                 item: u32::MAX,
             }],
+            item_bonuses: vec![ItemBonusRow {
+                id: u32::MAX,
+                values: [i32::MIN, -1, 0x0102_0304, i32::MAX],
+                parent: u16::MAX,
+                bonus_type: u8::MAX,
+                order: u8::MAX,
+            }],
+            azerite_empowered_items: vec![AzeriteEmpoweredItemRow {
+                id: u32::MAX,
+                item: -1,
+                tier_unlock_set: u32::MAX,
+                power_set: u32::MAX,
+            }],
+            item_scaling_configs: vec![ItemScalingConfigRow {
+                id: u32::MAX,
+                offset_curve: i32::MIN,
+                item_level: -1,
+                required_level: i32::MAX,
+                squish_era: 0x8000_0001u32 as i32,
+                flags: -1,
+            }],
+            item_offset_curves: vec![ItemOffsetCurveRow {
+                id: u32::MAX,
+                curve: i32::MIN,
+                offset: i32::MAX,
+            }],
+            item_squish_eras: vec![ItemSquishEraRow {
+                id: u32::MAX,
+                patch: i32::MIN,
+                curve: -1,
+                flags: i32::MAX,
+            }],
+            item_squish_era_sql_index_size: Some(12),
             ..Default::default()
         });
         assert_eq!(result.items[0].class, i32::MIN);
@@ -193,6 +286,21 @@ mod tests {
         assert_eq!(result.effects[0].spell, -1);
         assert_eq!(result.relations[0].item, u32::MAX);
         assert_eq!(result.relations[0].effect, -1);
-        assert_eq!(result.unknown_baseline_records, [0; 4]);
+        assert_eq!(
+            result.item_bonuses[0].values,
+            [i32::MIN, -1, 0x0102_0304, i32::MAX]
+        );
+        assert_eq!(result.item_bonuses[0].parent, u16::MAX);
+        assert_eq!(result.azerite_empowered_items[0].item, -1);
+        assert_eq!(result.azerite_empowered_items[0].tier_unlock_set, u32::MAX);
+        assert_eq!(
+            result.item_scaling_configs[0].squish_era,
+            0x8000_0001u32 as i32
+        );
+        assert_eq!(result.item_offset_curves[0].offset, i32::MAX);
+        assert_eq!(result.item_squish_eras[0].id, u32::MAX);
+        assert_eq!(result.item_squish_era_sql_index_size, Some(12));
+        assert_eq!(result.item_squish_era_file_last_index, None);
+        assert_eq!(result.unknown_baseline_records, [0; 9]);
     }
 }

@@ -149,7 +149,7 @@ impl ForeverHotfixCatalog {
     ) -> Result<Self> {
         ensure!(
             ITEM_TABLE_HASHES.iter().all(|&hash| self.has_store(hash)),
-            "All seven item stores must be registered before hotfix metadata loading"
+            "All twelve item stores must be registered before hotfix metadata loading"
         );
         self.item_stores = Some(items::ItemHotfixStores { data, specs });
         Ok(self)

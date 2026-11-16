@@ -31,6 +31,11 @@ pub(crate) enum CreationTable {
     ItemSpec,
     ItemSpecOverride,
     GemProperties,
+    ItemBonus,
+    AzeriteEmpoweredItem,
+    ItemScalingConfig,
+    ItemOffsetCurve,
+    ItemSquishEra,
     Spell(super::spells::SpellTable),
 }
 
@@ -136,6 +141,18 @@ impl CreationTable {
                 ("ItemSpecOverride", 0x149AAE79, 0xB292998C, 1, None, Some(1))
             }
             Self::GemProperties => ("GemProperties", 0x9C00EA6D, 0x86487AD2, 2, None, None),
+            Self::ItemBonus => ("ItemBonus", 0x8318900A, 0x79CD4525, 4, None, Some(1)),
+            Self::AzeriteEmpoweredItem => (
+                "AzeriteEmpoweredItem",
+                0xAFB1B60F,
+                0x48AC4E05,
+                3,
+                None,
+                None,
+            ),
+            Self::ItemScalingConfig => ("ItemScalingConfig", 0xF6AA409E, 0x7BEABE68, 5, None, None),
+            Self::ItemOffsetCurve => ("ItemOffsetCurve", 0x899363A4, 0x6F2157CA, 2, None, None),
+            Self::ItemSquishEra => ("ItemSquishEra", 0xACAAF53B, 0xED6F4ECF, 4, Some(0), None),
             Self::Spell(table) => return table.schema().base,
         };
         Schema {
@@ -232,6 +249,13 @@ impl CreationTable {
             (Self::ItemSpecOverride, 1) => Some((32, 1)),
             (Self::GemProperties, 0) => Some((16, 1)),
             (Self::GemProperties, 1) => Some((32, 1)),
+            (Self::ItemBonus, 0) => Some((32, 4)),
+            (Self::ItemBonus, 1) => Some((16, 1)),
+            (Self::ItemBonus, 2 | 3) => Some((8, 1)),
+            (Self::AzeriteEmpoweredItem, 0..=2) => Some((32, 1)),
+            (Self::ItemScalingConfig, 0..=4) => Some((32, 1)),
+            (Self::ItemOffsetCurve, 0..=1) => Some((32, 1)),
+            (Self::ItemSquishEra, 0..=3) => Some((32, 1)),
             _ => None,
         }
     }

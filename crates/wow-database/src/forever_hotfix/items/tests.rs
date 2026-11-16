@@ -2,12 +2,23 @@ use super::*;
 
 #[test]
 fn full_queries_keep_source_order_strings_arrays_five_flags_and_overlay_predicate() {
-    let tables = ["item", "item_sparse", "item_effect", "item_x_item_effect"];
+    let tables = [
+        "item",
+        "item_sparse",
+        "item_effect",
+        "item_x_item_effect",
+        "item_bonus",
+        "azerite_empowered_item",
+        "item_scaling_config",
+        "item_offset_curve",
+        "item_squish_era",
+    ];
+    let columns_per_table = [17, 104, 10, 3, 8, 4, 6, 3, 4];
     for (i, query) in QUERIES.iter().enumerate() {
         assert!(query.ends_with(&format!(" FROM {} WHERE (VerifiedBuild>0)=?", tables[i])));
         assert_eq!(
             query.split(" FROM ").next().unwrap().split(',').count(),
-            [17, 104, 10, 3][i]
+            columns_per_table[i]
         );
         assert!(!query.contains("ORDER BY") && !query.contains("locale") && !query.contains('*'));
     }
@@ -61,6 +72,26 @@ fn full_queries_keep_source_order_strings_arrays_five_flags_and_overlay_predicat
         ]
     );
     assert!(!columns.contains(&"VerifiedBuild"));
+    assert_eq!(
+        QUERIES[4],
+        "SELECT ID,Value1,Value2,Value3,Value4,ParentItemBonusListID,Type,OrderIndex FROM item_bonus WHERE (VerifiedBuild>0)=?"
+    );
+    assert_eq!(
+        QUERIES[5],
+        "SELECT ID,ItemID,AzeriteTierUnlockSetID,AzeritePowerSetID FROM azerite_empowered_item WHERE (VerifiedBuild>0)=?"
+    );
+    assert_eq!(
+        QUERIES[6],
+        "SELECT ID,ItemOffsetCurveID,ItemLevel,RequiredLevel,ItemSquishEraID,Flags FROM item_scaling_config WHERE (VerifiedBuild>0)=?"
+    );
+    assert_eq!(
+        QUERIES[7],
+        "SELECT ID,CurveID,`Offset` FROM item_offset_curve WHERE (VerifiedBuild>0)=?"
+    );
+    assert_eq!(
+        QUERIES[8],
+        "SELECT ID,Patch,CurveID,Flags FROM item_squish_era WHERE (VerifiedBuild>0)=?"
+    );
 }
 
 #[test]
@@ -72,4 +103,7 @@ fn missing_numeric_rows_cannot_decode_or_finish_as_valid_sparse_records() {
     assert!(cursor.read::<u32>().is_err());
     assert!(cursor.array::<i32, 5>().is_err());
     assert!(cursor.text().is_err());
+    for columns in [8, 4, 6, 3, 4] {
+        assert!(NumericRow::new(&empty, columns).is_err());
+    }
 }
