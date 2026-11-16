@@ -204,6 +204,10 @@ impl WorldSources {
         self.skill_tiers.value(tier, index)
     }
 
+    pub(super) fn skill_tier_values(&self, tier: u32) -> Option<&[u32; 16]> {
+        self.skill_tiers.values(tier)
+    }
+
     /// ObjectMgr.cpp:3881-3928, MapManager.h:93-95/MapManager.cpp:377,
     /// GridDefines.h:199-216 and Position.cpp:207-214 at target 02245dcd.
     /// Reuses only source-contrasted pure coordinate/orientation math, not

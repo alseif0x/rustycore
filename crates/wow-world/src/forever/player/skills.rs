@@ -3,10 +3,10 @@ mod sources;
 pub use sources::{SkillSetInputError, SkillSetSources};
 pub use wow_entities::{
     PLAYER_MAX_SKILLS, PlayerSkills, ProfessionItemMove, SkillAbilityMetadata, SkillBonusError,
-    SkillCatalog, SkillCriteria, SkillFields, SkillLineMetadata, SkillRaceClassMetadata,
-    SkillRewardSpellMetadata, SkillSetEffects, SkillSetError as SkillSetDomainError,
-    SkillSetOutcome, SkillSetSource, SkillStatusEntry, SkillStatusOrderError, SkillUpdate,
-    SkillUpdateState,
+    SkillCatalog, SkillCriteria, SkillFields, SkillLineMetadata, SkillLoadError, SkillLoadOutcome,
+    SkillLoadRow, SkillLoadSource, SkillRaceClassMetadata, SkillRewardSpellMetadata,
+    SkillSetEffects, SkillSetError as SkillSetDomainError, SkillSetOutcome, SkillSetSource,
+    SkillStatusEntry, SkillStatusOrderError, SkillUpdate, SkillUpdateState,
 };
 /// Compatibility error for the concrete World/Data source adapter.
 pub type SkillSetError<E> = SkillSetDomainError<E, SkillSetInputError>;

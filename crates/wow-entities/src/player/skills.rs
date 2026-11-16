@@ -1,8 +1,12 @@
 //! 02245dcd Player.cpp:5750-5764,6077-6189; Player.h:687-704,2409-2422.
 //! One owned field array and ID/slot/status index; no rank-value mirror.
 mod bonus;
+mod load;
 mod order;
 use super::skill_sources::{SkillCatalog, SkillLineMetadata, SkillSetSource, SkillUpdate};
+#[cfg(test)]
+#[path = "../../unit_tests/player/skills/load/mod.rs"]
+mod load_tests;
 mod set;
 #[cfg(test)]
 #[path = "../../unit_tests/player/skills/catalog.rs"]
@@ -11,6 +15,7 @@ mod test_catalog;
 #[path = "../../unit_tests/player/skills/queries.rs"]
 mod tests;
 pub use bonus::SkillBonusError;
+pub use load::{SkillLoadError, SkillLoadOutcome, SkillLoadRow};
 pub use order::{SkillStatusEntry, SkillStatusOrderError};
 pub use set::{ProfessionItemMove, SkillCriteria, SkillSetEffects, SkillSetOutcome};
 use std::collections::HashMap;

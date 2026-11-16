@@ -53,13 +53,13 @@ pub use spell_sources::{
 };
 mod skills;
 pub use skill_sources::{
-    SkillAbilityMetadata, SkillCatalog, SkillLineMetadata, SkillRaceClassMetadata,
+    SkillAbilityMetadata, SkillCatalog, SkillLineMetadata, SkillLoadSource, SkillRaceClassMetadata,
     SkillRewardSpellMetadata, SkillSetError, SkillSetSource, SkillUpdate,
 };
 pub use skills::{
     PLAYER_MAX_SKILLS, PlayerSkills, ProfessionItemMove, SkillBonusError, SkillCriteria,
-    SkillFields, SkillSetEffects, SkillSetOutcome, SkillStatusEntry, SkillStatusOrderError,
-    SkillUpdateState,
+    SkillFields, SkillLoadError, SkillLoadOutcome, SkillLoadRow, SkillSetEffects, SkillSetOutcome,
+    SkillStatusEntry, SkillStatusOrderError, SkillUpdateState,
 };
 mod pvp;
 mod quest_log;

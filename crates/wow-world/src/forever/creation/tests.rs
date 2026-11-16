@@ -118,6 +118,8 @@ fn composed_world_sources_retain_skill_tiers_without_fabricating_missing_rows() 
         .skill_tiers
         .push(wow_persistence::forever::creation::SkillTierRow { id: 8, values });
     let sources = load(input).unwrap();
+    assert_eq!(sources.skill_tier_values(8), Some(&values));
+    assert_eq!(sources.skill_tier_values(9), None);
     assert_eq!(sources.skill_tier_value(8, 15), Some(70000));
     assert_eq!(sources.skill_tier_value(9, 0), None);
     assert_eq!(sources.counts()[8], 1);

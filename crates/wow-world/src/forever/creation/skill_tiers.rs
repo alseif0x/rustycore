@@ -31,6 +31,10 @@ impl SkillTiers {
         }
         Some(values[index])
     }
+
+    pub(super) fn values(&self, id: u32) -> Option<&[u32; 16]> {
+        self.0.get(&id)
+    }
 }
 
 #[cfg(test)]

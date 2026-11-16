@@ -1,6 +1,6 @@
 //! Concrete World/Data readiness and lazy source projections for SetSkill.
 use super::{
-    SkillAbilityMetadata, SkillCatalog, SkillLineMetadata, SkillRaceClassMetadata,
+    SkillAbilityMetadata, SkillCatalog, SkillLineMetadata, SkillLoadSource, SkillRaceClassMetadata,
     SkillRewardSpellMetadata, SkillSetSource, SkillUpdate,
 };
 use crate::forever::{
@@ -150,5 +150,11 @@ impl SkillSetSource for SkillSetSources<'_> {
 
     fn race_in_mask(&self, mask: u64, race: u32) -> bool {
         race_in_mask(mask, race)
+    }
+}
+
+impl SkillLoadSource for SkillSetSources<'_> {
+    fn skill_tier_values(&self, tier: u32) -> Option<&[u32; 16]> {
+        self.world.skill_tier_values(tier)
     }
 }

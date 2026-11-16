@@ -83,3 +83,9 @@ pub trait SkillSetSource: SkillCatalog {
     fn first_spell_in_chain(&self, id: u32) -> u32;
     fn race_in_mask(&self, mask: u64, race: u32) -> bool;
 }
+
+/// Raw SkillTiers columns required by the source Player::_LoadSkills row pass.
+/// This is separate from SetSkill's clamped/backtracking tier-value lookup.
+pub trait SkillLoadSource: SkillSetSource {
+    fn skill_tier_values(&self, tier: u32) -> Option<&[u32; 16]>;
+}

@@ -68,7 +68,18 @@ fn skill_set_source_preserves_first_rc_match_and_selected_tier() {
     assert_eq!((selected.id, selected.skill, selected.tier), (2, 10, 2));
     assert_eq!(sources.skill_tier_value(selected.tier as u32, 0), Some(75));
     assert_eq!(sources.skill_tier_value(selected.tier as u32, 1), Some(150));
+    assert_eq!(
+        sources.skill_tier_value(selected.tier as u32, u32::MAX),
+        Some(150)
+    );
     assert_eq!(sources.skill_tier_value(1, 0), Some(999));
+    let raw = SkillLoadSource::skill_tier_values(&sources, selected.tier as i32 as u32).unwrap();
+    assert_eq!(raw, &[75, 150, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert!(std::ptr::eq(
+        raw,
+        SkillLoadSource::skill_tier_values(&sources, selected.tier as i32 as u32).unwrap()
+    ));
+    assert!(SkillLoadSource::skill_tier_values(&sources, 99).is_none());
     assert_eq!(sources.skill_line(20).unwrap().parent_tier_index, 2);
 }
 

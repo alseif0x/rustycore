@@ -1,5 +1,144 @@
 # WoW Forever 1.60.1 login-only runbook
 
+## Canonical skill/book integration contract — 2026-11-16
+
+Continued from published 2cb94768d after the inventory capture dependency was
+accepted. Player still stores legacy skill records and spell runtime rows;
+PlayerSkills/PlayerSpellBook are not its canonical owners. Their integration
+must replace the old authority through load, reentrant effects, save/ack and
+publication, rather than add a second mutable field. No integration or runtime
+activation is established by this contract; CharacterCreator remains None.
+
+The initial source-order dependency is Player.cpp::_LoadSkills at 02245dcd:
+27523 declares a separate std::unordered_map<uint32, uint32> loadedSkillValues.
+Each completed nonzero normalized row assigns its value at 27617. Repeated
+assignments replace the value without reinserting a node; a later skipped/zero
+row does not erase a previous assignment. Traversal occurs after the complete
+or capacity-stopped row prefix, before profession/fist fixups. Preserve database
+row order before this phase: the current HashMap conversion and ID sorting in
+skill_loading.rs/continue_login are not target evidence.
+
+The selected order capability replays only unique first-assignment keys in the
+exact default uint32/uint32 container under the existing pinned GNU contract.
+It is distinct from skill-status traversal. No Player/status payload crosses
+the ABI, and no native owner survives it. Capacity must equal physical local-map
+membership; invalid input or exception leaves output untouched and reports zero
+written values. An independent oracle must extract the actual declaration from
+the pinned _LoadSkills function and contrast insertion/overwrite/rehash cases.
+Numeric stress cases do not prove DB-row, skill, loader or gameplay admission.
+The capability is a loader prerequisite, not complete canonical integration.
+Local checkpoint 24e19d376 contains this capability and the independent oracle.
+Worker coding feedback passed the required-feature world-server check and five
+focused adapter tests, including the corrected independent-call order assertion.
+The extracted-source oracle and committed-candidate final campaign have not run;
+this is a level-1 implementation checkpoint, not publication evidence.
+
+The next isolated operation is the complete PlayerSkills load coordinator, not
+an alternate row normalizer. Player.cpp:27517–27661 checks physical status
+membership against 300 before processing each row, preserves an occupied node's
+state, and assigns profession slots before the line/zero-value branch. Forbidden
+rows only try-insert a Deleted node; zero rows mark Deleted after assigning the
+line and retain the other old fields. Neither branch erases an earlier local
+loaded-value assignment. Rank inference searches all sixteen raw uint32 tier
+columns for the first exact match; it must not use the backtracking tier getter.
+ObjectMgr.cpp:9076–9097 selects missing-line/NONE, existing-tier/RANK, then
+Runeforging (960)/armor (8)/MONO, language (10), or LEVEL. LEVEL uses the live
+uint8 Player level times five, not the stored wider level field.
+
+After admitting the local map's exact key set and native order, rewards execute
+against the same skill owner before parent enablement and ordered child inserts.
+Parent maximum uses ObjectMgr.cpp:8022–8031: clamp the tier index to 15, then
+backtrack zero values; only SetSkill's uint16 parameter narrows the result.
+Pending profession fixups preserve duplicates and select the first empty slot
+without deduplicating the profession ID. The final fist (473) synchronization
+uses bonus-inclusive unarmed (162) value and live maximum. Mandatory effect,
+source or order errors preserve the completed prefix and forbid admission/save/
+success publication or retry of that construction. Invalid profession indices
+and a missing post-row skill-line definition are explicit construction errors,
+not fabricated defaults or a claim to reproduce C++ assertion/crash behavior.
+The isolated coordinator neither changes the legacy login path nor authorizes
+runtime activation; same-owner effects and output integration still follow.
+
+The isolated coordinator is now implemented in Entities' player/skills/load.rs,
+with SkillLoadSource borrowing the existing World tier array through the admitted
+SkillSetSources constructor. Parent source/diff review retains the occupied-node,
+partial-field, independent-order, reentry, profession and fist contracts above.
+Worker coding feedback on this x86_64 host passed the Entity and World checks,
+ten focused load cases and the two modified real-World tier adapter/composition
+cases. The first Entity test build failed on two test-only imports and ran no
+tests; both were corrected before those green runs. This remains a level-1 local
+checkpoint: no full acceptance, native-order oracle execution, canonical Player
+field replacement, legacy login change, DB/wire change or activation is claimed.
+
+The remaining source contract includes UpdateFields.h:679–692's seven 300-entry
+arrays and 2101 mask bits (parent 0; first bits 1/301/601/901/1201/1501/1801).
+The current ActivePlayerData model has no such SkillInfo owner/projection, and
+the separate legacy publisher still builds 256-entry fields. Owner integration
+must cover that output and its setter history without retaining the obsolete
+format for compatibility. Protocol/capture and runtime gates remain required.
+The outer target schema also differs: UpdateFields.h:1379 declares Skill at
+ActivePlayerData parent 32/field 63, and :1488 declares ProfessionSkillLine at
+parent 371/first field 372. The current packet writer's Skill dispatch is field
+32. Merely widening its nested arrays would therefore leave an incompatible
+outer update format. Target publication must use the complete admitted schema.
+UpdateField.h:351–378 marks nested/array masks when ModifyValue is evaluated,
+including equal assignments; :139–149 returns false for an equal scalar write,
+so BaseEntity.h:221–225 does not request queue admission for that write alone.
+Preserve this mask-versus-queue distinction rather than inferring dirty history
+from final field equality. No target mask or wire acceptance is claimed here.
+InventoryPlayerSnapshotLikeCpp::values_update can publish the complete pending
+ActivePlayerData mask, not only inventory bits. When skills become canonical,
+both that capture and Player::values_update must therefore capture/project raw
+skill values and masks from the same owner. Copying those immutable field facts
+is allowed; copying a PlayerSkills actor or retaining a parallel mutable skill
+array in ActivePlayerData is not. Omitting this existing consumer could turn a
+pending skill mask into a zero/default payload during inventory publication.
+
+Player.cpp::_SaveSkills:21721–21772 reads rank/max by physical slot, narrows the
+DB key to uint16, appends the statement and marks the status Unchanged; it never
+erases a Deleted status node. Preserve physical membership and distinguish it
+from the stronger existing Rust confirmed-commit/unknown-outcome acknowledgement
+fences. Spell-book removal has a different erase history. The PartialEq/bulk-load
+API and richer spell-runtime partition remain explicit integration work; callbacks
+must use the same owners without reacquiring the map-manager mutex or delivering
+packets/I/O under its guard. These are technical decisions for the parent review,
+not new permission requests or authority to enable an incomplete production path.
+
+The book load boundary is Player.cpp:20187–20206: iterate decoded spell rows in
+query order and call AddSpell(spell, active, false, false, disabled, true), then
+iterate the separate favorite result and set favorite=true only on existing
+physical entries, without changing their save state. The stale SQL comment's
+favorite column is not an input to the actual call. Do not replace this phase
+with SetSpellFavorite, a sorted/deduplicated row map, or a whole-book replacement.
+The existing native AddSpell rejects invalid out-of-world load rows with the
+explicit UnauthorizedGlobalCleanup hold: source deletes that spell for all
+characters, which remains outside runtime/database authority. That error must
+retain the prior prefix and prevent favorite fixup/success admission.
+
+The selected state partition keeps pre-load grants as entries in the same native
+book throughout AddSpell loading. Legacy fallback_rows currently bridge the
+wholesale loaded-map replacement (player/spellbook.rs::replace_loaded_spell_rows_like_cpp);
+they must retire with that replacement and its consumers, rather than remain
+a second mutable book. Known/dependent/removed/favorite projections come from
+native entries; per-entry trait data belongs there too. Trait-config headers and
+entries remain their separate source authority, and hydration/completeness and
+confirmed-commit/unknown-outcome fences remain explicit admission metadata.
+This partition is a design decision with identified consumers, not evidence that
+their migration, native persistence or runtime integration has been completed.
+
+For synchronous skill/book reentry, use disjoint borrows of those two canonical
+owners. The skill-effect adapter borrows the book; when its callback receives
+the same mutable skills, it lends those skills to the spell-effect adapter for
+that book call. A spell-to-skill callback reverses that arrangement using its
+received mutable book. Reborrow the remaining concrete Player effect inputs
+through each call; do not retain an actor copy, swap in an empty owner, use raw
+aliasing, or reacquire an owner accessor. CharacterCreator::construct is already
+synchronous and outside the map/entity guard (creation/service.rs), so its
+construction adapter has no reason to enter the map-manager mutex. This does
+not admit an in-world adapter: its immediate publication and external-effect
+lock contract must be satisfied separately. The concrete body effects and their
+reader/writer migration remain unimplemented, rather than defaulting to no-op.
+
 ## Canonical inventory capture continuation — 2026-11-16
 
 Resumed from published `d91650024` on `forever`. The November 11 publication

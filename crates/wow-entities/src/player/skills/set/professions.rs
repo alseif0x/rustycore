@@ -25,4 +25,18 @@ impl PlayerSkills {
             self.professions[slot] = skill as i32;
         }
     }
+
+    pub(in crate::player::skills) fn assign_loaded_profession<C: SkillCatalog>(
+        &mut self,
+        birth: &C,
+        skill: u32,
+    ) {
+        if let Some(slot) = self.free_profession_slot(birth, skill) {
+            self.professions[slot] = skill as i32;
+            self.status
+                .get_mut(&skill)
+                .expect("loaded profession retains its status node")
+                .state = super::super::SkillUpdateState::Changed;
+        }
+    }
 }
