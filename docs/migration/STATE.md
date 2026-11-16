@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-## Forever canonical inventory capture resumed — 2026-11-16
+## Forever canonical inventory capture accepted locally — 2026-11-16
 
 Resumed from published d91650024. The complete inventory query/publication
 projection now captures owned facts instead of copying Player, preparing the
@@ -22,8 +22,8 @@ explicit out-of-bag-size fixture slot is populated and asserted before checking
 traversal. Equipment feedback first failed on test-only imports, then passed
 after their cfg(test) retention. Parent subsequently applied canonical import
 formatting; those dirty-tree coding results are not final evidence at a later
-commit. No full acceptance or new publication is claimed. The later Core
-producer replacement is recorded below. The owning
+commit. These worker results did not establish acceptance. The later Core
+producer replacement and committed-candidate campaign are recorded below. The owning
 runbook's November 16 contract preserves observation timing, source-version
 gaps and the disabled runtime constructor.
 
@@ -98,11 +98,40 @@ generations, frozen values and the deferred aura panic outside an unpoisoned
 manager mutex. Player, PlayerGameplayState and PlayerGameplayLoadRecord no longer
 derive Clone. Their only aggregate gameplay-copy fixture now moves one state
 and compares independently built expected buckets; its focused case and Entity
-check passed. Narrow state/DTO clones remain unchanged. These are coding results;
-committed-candidate acceptance remains pending. Root/storage physical ceilings
+check passed. Narrow state/DTO clones remain unchanged. Root/storage physical ceilings
 are reviewed at 4,699/1,904 lines; the logical Player row's reviewed source delta
-is 24,021 production + 19,432 tests = 43,453 lines, to be confirmed by the final
+is 24,021 production + 19,432 tests = 43,453 lines, confirmed by the final
 parser-backed campaign. No gameplay/architecture debt or target parity is closed.
+
+Code c59d5b36b82b27eb3ebdc38151aaa38488cedc6b passed the single final campaign
+against published d91650024 on this x86_64 host, with one Cargo job, clean
+provenance and the pinned read-only d8f4044 extractor overlay. Final
+`--architecture --timings --logs --keep-going --require-changes` passed 11/11
+commands in 552.364 seconds; its manifest is
+target/creation-continuation-20261116/final-c59d5b36b.json and was verified green
+with `--require-profile final`. It checks test targets in 35 affected/reverse-
+dependent packages and runs Entity's 1187 and Core's 294 cases; player-conditions has no
+library tests and passes its compile checks. No previous Entity/Core identity or
+ignored state is lost: 1170 -> 1187 and 290 -> 294, with 17/4 additions.
+
+The same campaign then passed three actual World inventory position/publication
+regressions and the stale same-GUID committed-swap regression, in 201.366 and
+0.252 seconds. These are disjoint from final's changed-library suites, not a
+duplicate World campaign. The code-check window was 10:26:24.150–10:40:23.960 UTC
+(839.810 seconds); post-run source/reference/clean-tree provenance review ended
+at 10:43:31 UTC, making the complete evidence window 1026.850 seconds. The ordinary
+600-second performance target is NOT met. Timings, identities and exact commands
+are retained in inventory-capture-closeout.json, test-identity-review.json and
+extra-consumer-results-c59d5b36b.json under the same directory. Coding/repair was
+outside that window; no repeat or reduced acceptance is used to claim speed.
+
+This closes the copied-actor prerequisite, not character creation. Native
+skill/book canonical load/save/ack/publication/effect integration, the remaining
+bulk-load/PartialEq boundary and target field-format/history evidence are still
+unfinished; CharacterCreator stays None. No service/client/DB operation, runtime
+installation, manual-test readiness or issue/architecture closeout is claimed.
+Any documentation-only publication closeout retains this tested code SHA and
+requires its own quick manifest at its actual later SHA.
 
 ## Forever publication candidate — 2026-11-11
 

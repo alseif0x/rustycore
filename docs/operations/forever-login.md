@@ -10,8 +10,9 @@ is now replaced by an Entity-owned inventory facts snapshot. Its query/planning
 and values-publication families share canonical pure rules, and Core wraps the
 captured facts after the existing generation-checked read releases its guard.
 Player, PlayerGameplayState and PlayerGameplayLoadRecord now move without an
-aggregate Clone API. Committed-candidate acceptance is still pending. Creation
-stays disabled.
+aggregate Clone API. Code c59d5b36b passed committed-candidate final and the four
+additional World consumer regressions as recorded in STATE.md. Creation stays
+disabled; this is acceptance of the represented inventory capture boundary.
 
 The selected boundary preserves one canonical Player and captures only inventory
 query facts and represented update-field payloads at the existing owned read.
@@ -107,7 +108,17 @@ Unit ops_2 falls 1072 -> 1062 and aura falls 1276 -> 1270. Their broader remaini
 responsibility splits stay under #584/C4; this capture boundary does not close
 that owner or its lifecycle/load-record, application and destruction work. The
 logical Player delta is explicitly reviewed as +802 production/+1240 tests from
-d91650024, pending confirmation by the committed-candidate parser-backed final.
+d91650024, confirmed by the committed-candidate parser-backed final. The one-job
+x86_64 campaign used the read-only d8f4044 extractor overlay and 02245dcd Forever
+reference, preserving the real sibling checkout. Its 552.364-second final passed
+11/11 commands and was verified green; the additional disjoint World filters
+passed 3 + 1 cases. Complete evidence including post-run provenance took
+1026.850 seconds, exceeding the 600-second ordinary target. Test identities and
+ignored states are retained (Entity 1170 -> 1187, Core 290 -> 294). The exact
+candidate, commands, manifests and timing boundaries are in STATE.md and
+target/creation-continuation-20261116/inventory-capture-closeout.json. This does
+not reuse November 11 evidence as a test of the new code or imply target
+field-format, native skill/book loader, live durability or full creation parity.
 
 The parallel source review also reconfirms the later canonical skill-loader
 prerequisite: Player.cpp:27523 uses a distinct
