@@ -304,8 +304,8 @@ conflates those absences, saturates gem counts and filters signed gem IDs; that
 route must not stand in for target bit-preserving, same-owner evaluation.
 Native ItemSpecCatalog already owns GemProperties. The native closed schemas
 now also include SpellItemEnchantmentCondition at index 49, preserving every
-older spell-table index. Its complete evaluator, target bridge and actual body
-effects remain in this same integration scope.
+older spell-table index. Its evaluator/metadata bridge are now implemented
+locally; their actual body-effect and Player integration remain in this scope.
 Parent offline inspection freezes that table's complete contract:
 DB2Metadata.h:21431–21452 has six five-element arrays (8/32/8/8/8/8 bits),
 file data ID 1121834 and layout D5348137; DB2LoadInfo.h:5525–5562 and
@@ -349,6 +349,48 @@ an explicit unavailable-state error; do not silently skip it or manufacture
 an empty successful inventory. The operation must also evaluate all five
 nonzero-left conditions even after an earlier comparison is false, preserving
 source bitwise-AND order and explicit errors for undefined operand indices.
+Entities now implements this complete read-only use case in
+player/enchantments/condition.rs against borrowed PlayerInventoryStorage and
+PlayerInventoryRuntime. It reads the actual Item objects and their full gem
+vectors without an actor clone or second color authority. The zero/missing-row
+shortcuts precede inventory reads; unavailable sources, missing required Item
+objects and undefined operand indices remain typed errors. World supplies a
+separate EnchantmentConditionSources view over the same existing spell, item
+template and item-specification catalogs, with no scaling-table dependency.
+Its small Entity facts copy only the four consumed byte arrays and ID; Data
+retains every unused LtOperand/Logic value for its complete hotfix payload.
+The source bridge performs ordinary zero/full-width item and gem-property
+lookups and retains raw uint32 color bits. It does not convert absence into a
+claim of complete underlying client-ID coverage. This closes the isolated
+operation, not its invocation from the canonical Player effect receiver.
+Worker Entity/World checks and seven Entity plus four World focused cases pass
+on this x86_64 host, with one Cargo job and the pinned read-only extractor
+overlay for World tests. Two earlier Entity attempts failed on an inconsistent
+comparison fixture; parent fixed the expected truth contract before the final
+green run. The reviewed fixtures make the fifth comparison decisive, count a
+contributing fourth gem, preserve duplicates/uint32 IDs, wrap 256 contributions,
+distinguish right counters from literals and exercise real admitted zero-ID
+template/property rows. These 11 cases are level-1 coding feedback, not final
+candidate, native Player integration, client or durability acceptance.
+
+The live socket facts have a separate Item prerequisite. Item.h:359 reads
+BonusData.SocketColor; Item.cpp:527/:941 initialize BonusData during creation/
+load, and :2918ff resets its scalar/stat/socket/priority fields from the actual
+template. AddBonuses (:2613ff) suppresses a list already present in the raw
+key, whereas SetBonuses (:2628ff) replaces that key and applies its lists
+without reinitializing the derived state. ClearBonuses (:2641ff) resets it.
+Current raw bonus lists alone therefore do not reproduce every source history.
+The socket branch (:3054ff) fills zero-color slots in order; nested list bonuses
+can re-enter AddBonusList. ItemBonusMgr.cpp:49–57 appends entries while iterating
+the DB2 store, and :135 returns the resulting span without an OrderIndex sort.
+Its lookup key is uint32 even though each row's parent-list field is uint16.
+The legacy Rust ItemBonus iterator instead traverses HashMap values with a
+uint16 lookup, and its permissive loader is not target admission evidence.
+Rust Item currently owns/publishes the raw bonus key but no native BonusData
+owner. The full initializer/list/mutation operation and its real metadata inputs
+remain required; a base-template socket projection cannot stand in for that
+owner. ItemSparse.SocketType is source uint8 (DB2Structure.h:2657), so a raw
+Rust int8 representation must pass through uint8 at this boundary.
 
 The next skill persistence operation will capture immutable dirty-node rows in
 admitted native status order, without changing any status during capture. The

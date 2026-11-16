@@ -6,7 +6,9 @@ use wow_data::{
     forever_birth::{
         item_quantities::ItemEffectRelationRecord,
         item_records::{ItemEffectRecord, ItemRecords},
-        item_specs::{ItemSpecOverrideRecord, ItemSpecRecord, ItemSpecRecords},
+        item_specs::{
+            GemPropertiesRecord, ItemSpecOverrideRecord, ItemSpecRecord, ItemSpecRecords,
+        },
     },
     forever_initialization::{InitializationRecords, SpecializationRecord},
 };
@@ -42,6 +44,40 @@ impl NumericItemTemplates {
             .finish(Default::default(), Default::default(), &removals())
             .unwrap();
         Self::load(data, &specs, &initialization, Vec::new()).unwrap()
+    }
+
+    pub(crate) fn gem_condition_source_test_catalogs(
+        item_id: u32,
+        gem_properties: u16,
+        gem_color_mask: Option<u32>,
+    ) -> (Self, wow_data::forever_birth::item_specs::ItemSpecCatalog) {
+        let mut extended = sparse(item_id);
+        extended.gem_properties = gem_properties;
+        let data = ItemRecords {
+            items: vec![basic(item_id)],
+            sparse: vec![extended],
+            ..Default::default()
+        }
+        .finish(Default::default(), Default::default(), &removals())
+        .unwrap();
+        let specs = ItemSpecRecords {
+            gems: gem_color_mask
+                .into_iter()
+                .map(|kind| GemPropertiesRecord {
+                    id: u32::from(gem_properties),
+                    enchantment: 0,
+                    kind: kind as i32,
+                })
+                .collect(),
+            ..Default::default()
+        }
+        .finish(Default::default(), Default::default(), &removals())
+        .unwrap();
+        let initialization = InitializationRecords::default()
+            .finish(Default::default(), Default::default(), &removals())
+            .unwrap();
+        let templates = Self::load(data, &specs, &initialization, Vec::new()).unwrap();
+        (templates, specs)
     }
 }
 fn spec(id: u32, class: u8, index: i8) -> SpecializationRecord {

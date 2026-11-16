@@ -5,6 +5,7 @@
 //! skills/book state.
 
 mod apply;
+mod condition;
 mod effects;
 mod scaling;
 mod scan;
@@ -15,6 +16,11 @@ mod tests;
 use super::PlayerSkills;
 use wow_constants::{EnchantmentSlot, Stats, WeaponAttackType};
 use wow_core::ObjectGuid;
+
+pub use condition::{
+    EnchantmentConditionFacts, EnchantmentConditionSource, GemConditionEvaluationError,
+    GemConditionOperandSide, enchantment_condition_fits_native_like_cpp,
+};
 
 pub const SKILL_ENCHANTMENT_SLOT_COUNT_LIKE_CPP: usize = crate::MAX_ENCHANTMENT_SLOT;
 pub const SKILL_ENCHANTMENT_SLOT_PERMANENT_LIKE_CPP: u16 =

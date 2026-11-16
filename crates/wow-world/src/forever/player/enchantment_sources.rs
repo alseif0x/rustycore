@@ -1,6 +1,10 @@
 use std::convert::Infallible;
+use wow_data::forever_birth::item_specs::ItemSpecCatalog;
 use wow_data::forever_game_tables::SpellValueGameTables;
-use wow_entities::{SkillEnchantmentItemTemplate, SkillEnchantmentRecord, SkillEnchantmentSource};
+use wow_entities::{
+    EnchantmentConditionFacts, EnchantmentConditionSource, SkillEnchantmentItemTemplate,
+    SkillEnchantmentRecord, SkillEnchantmentSource,
+};
 
 use crate::forever::{creation::NumericItemTemplates, spells::SpellDefinitionSeeds};
 
@@ -17,6 +21,61 @@ pub struct SkillEnchantmentSources<'a> {
     definitions: &'a SpellDefinitionSeeds,
     item_templates: &'a NumericItemTemplates,
     value_game_tables: &'a SpellValueGameTables,
+}
+
+/// Borrowed current catalogs used by native item-gem condition evaluation.
+/// Absence is scoped to these admitted views; upstream unknown accounting
+/// remains owned by the existing catalog admission path.
+pub struct EnchantmentConditionSources<'a> {
+    definitions: &'a SpellDefinitionSeeds,
+    item_templates: &'a NumericItemTemplates,
+    item_specs: &'a ItemSpecCatalog,
+}
+
+impl<'a> EnchantmentConditionSources<'a> {
+    pub fn new(
+        definitions: &'a SpellDefinitionSeeds,
+        item_templates: &'a NumericItemTemplates,
+        item_specs: &'a ItemSpecCatalog,
+    ) -> Self {
+        Self {
+            definitions,
+            item_templates,
+            item_specs,
+        }
+    }
+}
+
+impl EnchantmentConditionSource for EnchantmentConditionSources<'_> {
+    type Error = Infallible;
+
+    fn condition(&self, id: u32) -> Result<Option<EnchantmentConditionFacts>, Self::Error> {
+        Ok(self
+            .definitions
+            .spell_item_enchantment_condition_record(id)
+            .map(|row| {
+                EnchantmentConditionFacts::new(
+                    row.id,
+                    row.lt_operand_type,
+                    row.operator,
+                    row.rt_operand_type,
+                    row.rt_operand,
+                )
+            }))
+    }
+
+    fn gem_color_mask(&self, item_entry: u32) -> Result<Option<u32>, Self::Error> {
+        let Some(template) = self.item_templates.template(item_entry) else {
+            return Ok(None);
+        };
+        let Some(gem) = self
+            .item_specs
+            .gem(u32::from(template.extended.gem_properties))
+        else {
+            return Ok(None);
+        };
+        Ok(Some(gem.kind as u32))
+    }
 }
 
 impl<'a> SkillEnchantmentSources<'a> {
@@ -86,3 +145,7 @@ impl SkillEnchantmentSource for SkillEnchantmentSources<'_> {
 #[cfg(test)]
 #[path = "../../../unit_tests/forever/player/enchantment_sources.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../../unit_tests/forever/player/enchantment_condition_sources.rs"]
+mod condition_tests;

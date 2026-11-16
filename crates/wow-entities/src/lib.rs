@@ -37,8 +37,9 @@ pub use player::InventoryPlayerSnapshotLikeCpp;
 pub use player::ItemStorageView;
 pub use player::{
     AddPlayerSpell, CastOverrideAura, CastSpellAuras, CastSpellError, CastSpellResult,
-    LearnPlayerSpell, PLAYER_MAX_SKILLS, PlayerSkills, PlayerSpellBook, PlayerSpellEntry,
-    PlayerSpellState, PlayerSpellTrait, ProfessionItemMove, RemovePlayerSpell,
+    EnchantmentConditionFacts, EnchantmentConditionSource, GemConditionEvaluationError,
+    GemConditionOperandSide, LearnPlayerSpell, PLAYER_MAX_SKILLS, PlayerSkills, PlayerSpellBook,
+    PlayerSpellEntry, PlayerSpellState, PlayerSpellTrait, ProfessionItemMove, RemovePlayerSpell,
     SkillAbilityMetadata, SkillBonusError, SkillCatalog, SkillCriteria, SkillEnchantmentApplyArgs,
     SkillEnchantmentAttackPowerIndex, SkillEnchantmentAttackPowerModifier,
     SkillEnchantmentEffectOperation, SkillEnchantmentEffects, SkillEnchantmentError,
@@ -53,7 +54,8 @@ pub use player::{
     SpellLearningError, SpellLearningNode, SpellLearningRank, SpellLearningSkill,
     SpellLearningSource, SpellLearningSourceError, SpellLoadRow, SpellSaveAction, SpellSaveBatch,
     SpellSaveFinishError, SpellSavePrepareError, apply_all_enchantments_native_like_cpp,
-    apply_enchantment_native_like_cpp, update_skill_enchantments_native_like_cpp,
+    apply_enchantment_native_like_cpp, enchantment_condition_fits_native_like_cpp,
+    update_skill_enchantments_native_like_cpp,
 };
 pub use player::{
     QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp, is_buyback_slot,
