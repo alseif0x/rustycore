@@ -760,6 +760,32 @@ fn virtual_item_mark_changed_forces_default_value_delta() {
 }
 
 #[test]
+fn virtual_item_equal_and_invalid_updates_do_not_mark_or_queue() {
+    let mut unit = Unit::new(true);
+    unit.world_mut().object_mut().add_to_world();
+    unit.clear_unit_data_changes();
+    unit.world_mut().object_mut().clear_update_mask(false);
+
+    unit.set_virtual_item(1, None);
+    unit.set_virtual_item(
+        MAX_ATTACK,
+        Some(VisibleItemValues {
+            item_id: 19_019,
+            item_appearance_mod_id: 2,
+            item_visual: 3,
+        }),
+    );
+    unit.mark_virtual_item_changed(MAX_ATTACK);
+
+    assert_eq!(
+        unit.data().virtual_items,
+        [VisibleItemValues::default(); MAX_ATTACK]
+    );
+    assert!(!unit.unit_data_changes_mask().is_any_set());
+    assert!(!unit.world().object().is_object_updated());
+}
+
+#[test]
 fn unit_collision_height_setter_delegates_to_embedded_world_object() {
     let mut unit = Unit::new(true);
 

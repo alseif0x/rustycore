@@ -925,30 +925,20 @@ impl Unit {
         }
     }
     pub fn set_virtual_item(&mut self, index: usize, visible: Option<VisibleItemValues>) {
-        if index >= MAX_ATTACK {
-            return;
-        }
-
-        let value = visible.unwrap_or_default();
-        if self.data.virtual_items[index] != value {
-            self.data.virtual_items[index] = value;
-            self.mark_unit_data_array(
-                UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT,
-                UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT,
-                index,
-            );
-        }
+        let update_requested = super::virtual_items::set_virtual_item_values_like_cpp(
+            &mut self.data,
+            &mut self.unit_data_changes,
+            index,
+            visible,
+        );
+        self.apply_virtual_item_update_request(update_requested);
     }
     pub fn mark_virtual_item_changed(&mut self, index: usize) {
-        if index >= MAX_ATTACK {
-            return;
-        }
-
-        self.mark_unit_data_array(
-            UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT,
-            UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT,
+        let update_requested = super::virtual_items::mark_virtual_item_changed_like_cpp(
+            &mut self.unit_data_changes,
             index,
         );
+        self.apply_virtual_item_update_request(update_requested);
     }
     pub fn changed_object_type_mask(&self) -> u32 {
         self.world.object().changed_object_type_mask()

@@ -54,8 +54,11 @@ receiver filtering. A new nested regression preserves quest/rest values,
 clears their nested masks, checks both `Some(empty)` and a two-word zero self-
 resurrection mask, and retains an unrelated toy mask. Worker check and six
 nonzero focused cases passed; the added empty branch reran only its affected
-case. Unit virtual-item rules, raw aura capture, the detached payload and Core
-producer replacement remain unfinished; committed-candidate acceptance is pending.
+case. Unit virtual-item setters/markers now also share pure value/mask rules,
+with the original public guards and one Unit-owned admission adapter. The Entity
+check and three nonzero filters passed, including a new equal/invalid no-mask/
+no-queue regression. Raw aura capture, the detached payload and Core producer
+replacement remain unfinished; committed-candidate acceptance is pending.
 
 ## Forever publication candidate — 2026-11-11
 

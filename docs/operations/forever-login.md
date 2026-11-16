@@ -49,6 +49,15 @@ payload. Queries read captured bank/backpack counts and specialization from the
 same value payload used for publication; overlays therefore keep one authority
 inside the disposable projection, without a second mutable scalar mirror.
 
+The projection-only Dual Wield setter has one caller in inventory valuation,
+which already supplies that capability explicitly in CanEquipItemArgs. Its
+copied Unit flag is never read by the projection's queries or update payloads.
+The copied Titan Grip penalty ID likewise has no projection reader; only its
+capability boolean feeds the two-hand query. Retire that dead projection setter
+and the unused penalty argument with their concrete caller during integration,
+while retaining the canonical Unit/Player APIs and actual query arguments.
+This avoids inventing unused snapshot state or no-op compatibility methods.
+
 Aura capture must retain the raw mask and per-state caster GUID lists, including
 empty state keys. The current Unit update projects those lists only when a Unit
 mask is nonempty; capture must not introduce that computation or an earlier
