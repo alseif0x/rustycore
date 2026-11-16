@@ -616,15 +616,31 @@ review corrected clean-mask capacity, world-admission fixture order and NaN
 bit comparisons before execution. This remains level-1 worker feedback on
 the pre-commit inputs, not a final manifest, native packet proof or activation.
 
-Core/World selected-item producer migration remains the next consumer boundary.
-Its inspected with_access consumers read position, entry and broken-state
-facts only; use the captured read view and keep repeated observations before/
-after equipment mutations. Fixture capture is allowed only for an absent owner
-handle, never for a stale installed incarnation. The whole runtime producer's
-fixture mutation mirror also copies Items; retiring it needs its actual test
-consumers, without snapshot-to-actor reconstruction. Whole runtime/map copies
-and writable plans retain their separate retirement obligation before native
-Item attachment. This kernel does not attach BonusData or activate creation.
+Core's selected-item producer now captures ItemValuesSnapshot inside the same
+generation-checked owner callback and GUID lookup. World's with_access resolver
+returns that capture and only captures fixture Item values when the owner handle
+is absent; a stale installed handle never falls back. Raw slot/entry reads
+retain their getters, and bag/broken-state queries use short-lived read views.
+All four equipment-set observations remain before/after the same mutations.
+No whole runtime/map producer or canonical mutation/COMMIT/packet call changes.
+
+Worker Core and Inventory checks pass. The new Core case covers current active
+and detached owners, frozen values/masks after a canonical mutation, a missing
+item and a same-GUID replacement with a stale generation. The new World case
+distinguishes absent-handle fixture capture from stale-handle refusal. Four
+existing World cases also pass: canonical equipment contributions, nested-bag
+lookup, primary-spec item sets and equipment-set application. These six cases
+ran with one Cargo job and the pinned read-only extractor overlay; warnings
+were emitted and were not compared against a warning baseline. They are level-1
+coding feedback, not a full suite/final manifest, runtime or DB acceptance.
+
+Whole runtime/map copies remain, including the runtime producer's fixture
+mutation mirror; retiring it needs its actual test consumers without snapshot-
+to-actor reconstruction. The typed query input boundary includes ItemSlotRef,
+ItemStorageRef and seven source_item argument types still tied to Item, not just
+the two slice records. Writable plans and side-effecting Item references retain
+their separate retirement obligation before native Item attachment. This
+selected-read migration does not attach BonusData or activate creation.
 
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are

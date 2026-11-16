@@ -116,7 +116,7 @@ impl InventoryState {
                     inventory_access,
                     src_item.guid,
                 )
-                .is_some_and(|item| !item.is_broken())
+                .is_some_and(|item| !item.read_view().is_broken())
         {
             self.record_item_mods_for_equipment_set_like_cpp(
                 inventory_access,
@@ -158,7 +158,7 @@ impl InventoryState {
                     inventory_access,
                     item.guid,
                 )
-                .is_some_and(|item_object| !item_object.is_broken())
+                .is_some_and(|item_object| !item_object.read_view().is_broken())
             })
         {
             let dst_item = dst_item.as_ref().expect("checked Some above");
@@ -204,7 +204,7 @@ impl InventoryState {
                     inventory_access,
                     src_item.guid,
                 )
-                .is_some_and(|item| !item.is_broken())
+                .is_some_and(|item| !item.read_view().is_broken())
         {
             self.record_item_mods_for_equipment_set_like_cpp(
                 inventory_access,
@@ -246,7 +246,7 @@ impl InventoryState {
                     inventory_access,
                     item.guid,
                 )
-                .is_some_and(|item_object| !item_object.is_broken())
+                .is_some_and(|item_object| !item_object.read_view().is_broken())
             })
         {
             let dst_item = dst_item.as_ref().expect("checked Some above");

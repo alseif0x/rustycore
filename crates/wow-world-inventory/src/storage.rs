@@ -296,14 +296,16 @@ impl crate::InventoryState {
             }
         }
 
-        let runtime_item =
-            self.resolved_inventory_item_object_with_access_like_cpp(access, item_guid)?;
-        if !runtime_item.is_in_bag() {
-            return None;
-        }
+        let (bag, slot) = {
+            let runtime_item =
+                self.resolved_inventory_item_object_with_access_like_cpp(access, item_guid)?;
+            let runtime_item = runtime_item.read_view();
+            if !runtime_item.is_in_bag() {
+                return None;
+            }
 
-        let bag = runtime_item.bag_slot();
-        let slot = runtime_item.slot();
+            (runtime_item.bag_slot(), runtime_item.slot())
+        };
         self.get_inventory_item_by_pos_with_access_like_cpp(
             access,
             item_store,
@@ -635,11 +637,13 @@ impl crate::InventoryState {
         &self,
         access: &OwnedInventoryAccessLikeCpp<'_>,
         guid: ObjectGuid,
-    ) -> Option<Item> {
+    ) -> Option<wow_entities::ItemValuesSnapshot> {
         let canonical = access.inventory_item_object_snapshot_like_cpp(guid);
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && access.owner_handle_absent_like_cpp() {
-            return self.inventory_item_object_for_test_like_cpp(&guid).cloned();
+            return self
+                .inventory_item_object_for_test_like_cpp(&guid)
+                .map(wow_entities::ItemValuesSnapshot::capture);
         }
         canonical
     }

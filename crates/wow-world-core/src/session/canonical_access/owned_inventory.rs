@@ -1,7 +1,10 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use wow_entities::{INVENTORY_SLOT_BAG_0, InventoryPlayerSnapshotLikeCpp, PlayerInventoryRuntime};
+use wow_entities::{
+    INVENTORY_SLOT_BAG_0, InventoryPlayerSnapshotLikeCpp, ItemValuesSnapshot,
+    PlayerInventoryRuntime,
+};
 
 use crate::session::{InventoryPlayerProjectionLikeCpp, SessionCore};
 
@@ -245,18 +248,18 @@ impl OwnedInventoryAccessLikeCpp<'_> {
             .flatten()
     }
 
-    /// Clone one live item object while the canonical Player owner is held.
+    /// Capture one live item object while the canonical Player owner is held.
     pub fn inventory_item_object_snapshot_like_cpp(
         &self,
         guid: wow_core::ObjectGuid,
-    ) -> Option<wow_entities::Item> {
+    ) -> Option<ItemValuesSnapshot> {
         self.core
             .with_owned_player_like_cpp(|player| {
                 player
                     .inventory_runtime_like_cpp()
                     .item_objects()
                     .get(&guid)
-                    .cloned()
+                    .map(ItemValuesSnapshot::capture)
             })
             .flatten()
     }

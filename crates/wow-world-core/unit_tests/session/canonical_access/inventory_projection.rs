@@ -513,3 +513,6 @@ fn inventory_player_projection_defers_invalid_aura_projection_until_after_owned_
         Some(guid)
     );
 }
+
+#[path = "inventory_projection/selected_item_capture.rs"]
+mod selected_item_capture;
