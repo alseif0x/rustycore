@@ -172,8 +172,16 @@ principle; skill UPDATE has a different SQL contract and needs its own rules.
 No status node or insertion witness is erased by skill acknowledgement. An opaque
 component batch does not establish a Player incarnation by itself: the existing
 PlayerSaveReceiptLikeCpp handle and confirmed-group fence remain mandatory.
-The native capture/ack operation, its SQL consumer and its runtime integration
-are not implemented by this contract.
+The isolated native capture/ack operation is now implemented in
+player/skills/save.rs. It reuses source_statuses admission, returns a non-Clone
+batch with borrowed immutable rows, and scopes acknowledgement to crate::player.
+Worker Entity check and twelve focused cases passed after test-only import and
+field-array assertion fixes. The cases exercise real SetSkill edit/cancel/
+reactivation while a batch is pending, source raw Deleted values, slot/key
+aliasing, unchanged-field preservation and bonus-versus-step/profession changes.
+They do not establish actual COMMIT, incarnation, SQL or live durability proof.
+The canonical Player receipt, SQL consumer, final campaign and runtime
+integration remain unimplemented or unvalidated at this boundary.
 
 ## Canonical inventory capture continuation — 2026-11-16
 
@@ -1703,8 +1711,10 @@ acknowledgement fence, including its cancellation/unknown outcome handling.
 Trait-config records and load-completeness evidence remain real responsibilities;
 retiring the old spell collections must not discard those unrelated records or
 retain a second mutable known/dependent/favorite/override representation.
-Current `Player` and `PlayerGameplayState` still derive Clone/PartialEq, while
-the new private skill/book owners deliberately do not. Before the completed
+At this earlier checkpoint, `Player` and `PlayerGameplayState` still derived
+Clone/PartialEq, while the new private skill/book owners deliberately did not.
+Aggregate Clone was subsequently retired at c59d5b36b; the current PartialEq and
+bulk-load boundary remains recorded in the November 16 contract above. Before the completed
 trade extraction recorded above, Social copied both whole Players in
 `trade_commit.rs:456–466`, and `trade_storage.rs:71` cloned each receiver
 again. Those three statements are now retired through scoped inventory/SQL

@@ -3,6 +3,7 @@
 mod bonus;
 mod load;
 mod order;
+mod save;
 use super::skill_sources::{SkillCatalog, SkillLineMetadata, SkillSetSource, SkillUpdate};
 #[cfg(test)]
 #[path = "../../unit_tests/player/skills/load/mod.rs"]
@@ -17,6 +18,7 @@ mod tests;
 pub use bonus::SkillBonusError;
 pub use load::{SkillLoadError, SkillLoadOutcome, SkillLoadRow};
 pub use order::{SkillStatusEntry, SkillStatusOrderError};
+pub use save::{SkillSaveBatch, SkillSaveRow};
 pub use set::{ProfessionItemMove, SkillCriteria, SkillSetEffects, SkillSetOutcome};
 use std::collections::HashMap;
 
