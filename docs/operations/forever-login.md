@@ -34,6 +34,17 @@ Titan Grip are separate captured scalar facts. Keep those inputs explicit rather
 than copying gameplay, skills or spells into the view. The old public storage-view
 constructor and trade simulation do not gain new readiness requirements.
 
+Capture retains the actual native inventory topology independently from the
+ActivePlayer inventory GUID fields: the old snapshot contained both even when
+they differed. Disposable top-level placement must share the native bounds/
+write/take rules with Player. Keep the represented ordering: native write then
+inventory field; native take then inventory field, visible equipment clear and
+bag-record clear. An occupied top-level slot is overwritten by the existing
+helper; adding a new occupancy rejection would change this structural slice.
+Player.cpp:11677–11678 and 12223–12228 anchor native-pointer-before-field and
+visible-clear order at 02245dcd; this does not establish the completeness of the
+surrounding Rust store/remove operation.
+
 The shared values boundary preserves the represented Rust distinction between
 ordinary equal-value setters (no new mask or update admission) and explicit
 mark operations (mark/admit even for the same value). This is not proof of the

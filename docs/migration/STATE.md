@@ -66,8 +66,16 @@ dependent states at 02245dcd; this is not full target-wire acceptance. The detac
 Unit payload now captures only owned values, masks and raw aura facts, with no
 Unit actor. Its lazy Unit branch preserves deferred aura projection; complete
 DTO/frozen-owner and debug invalid-state tests both passed with the Entity check.
-The Player payload and Core producer replacement remain unfinished;
-committed-candidate acceptance is pending.
+The detached Player inventory payload now captures complete represented values,
+nested masks, native topology and cached publication inputs without an actor.
+Its setters share canonical pure rules and its clear/update phases preserve the
+old ordering. Four focused snapshot cases passed after correcting two test-
+fixture power calls; the first test attempt failed to compile and ran no tests.
+Coverage includes independent seeded owners, nested masks, receiver filtering,
+frozen values/Mana inputs and deferred debug aura failure. The cached Mana
+setter normalizes the out-of-range test input before capture. Entity check
+passed; query overlays and the Core producer replacement remain unfinished.
+Committed-candidate acceptance is pending.
 
 ## Forever publication candidate — 2026-11-11
 

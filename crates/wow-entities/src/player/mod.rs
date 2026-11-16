@@ -88,6 +88,7 @@ pub use item_modifiers::{
     PlayerItemSetEffectLikeCpp, loaded_enchantment_effect_action_is_unrepresented_like_cpp,
     represented_item_bonus_action_updates_stats_like_cpp,
 };
+pub use items::InventoryPlayerSnapshotLikeCpp;
 pub use items::ItemStorageView;
 pub use items::{
     ExistingStorageStackUpdateLikeCpp, InventoryStorageMovePlanLikeCpp,

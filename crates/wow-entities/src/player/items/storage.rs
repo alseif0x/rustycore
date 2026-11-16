@@ -6,8 +6,10 @@
 //! Inventory and bank storage: bags, slots, stacking and destroy.
 
 mod planning;
+mod projection;
 mod topology;
 pub use planning::ItemStorageView;
+pub use projection::InventoryPlayerSnapshotLikeCpp;
 
 use super::super::*;
 

@@ -120,4 +120,5 @@ pub use storage_move::{
     plan_inventory_storage_move_like_cpp,
 };
 
+pub use storage::InventoryPlayerSnapshotLikeCpp;
 pub use storage::ItemStorageView;

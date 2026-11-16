@@ -33,6 +33,7 @@ mod vehicle;
 mod world_object;
 
 pub use character_rules::represented_character_rename_name_result_like_cpp;
+pub use player::InventoryPlayerSnapshotLikeCpp;
 pub use player::ItemStorageView;
 pub use player::{
     AddPlayerSpell, CastOverrideAura, CastSpellAuras, CastSpellError, CastSpellResult,

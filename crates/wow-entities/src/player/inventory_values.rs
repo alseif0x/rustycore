@@ -49,7 +49,7 @@ pub(super) struct InventoryValuesMut<'a> {
 }
 
 impl<'a> InventoryValuesMut<'a> {
-    fn new(
+    pub(super) fn new(
         player_data: &'a mut PlayerDataValues,
         active_player_data: &'a mut ActivePlayerDataValues,
         player_data_changes: &'a mut UpdateMask,
