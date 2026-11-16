@@ -11,7 +11,7 @@ mod tests;
 pub use cast::{CastOverrideAura, CastSpellAuras, CastSpellError, CastSpellResult};
 pub use learning::{
     AddPlayerSpell, LearnPlayerSpell, RemovePlayerSpell, SpellBookMessage, SpellLearnCriterion,
-    SpellLearningEffects,
+    SpellLearningEffects, SpellLoadRow,
 };
 pub use order::SpellBookOrderError;
 use std::collections::HashMap;

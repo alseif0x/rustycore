@@ -4,6 +4,7 @@ mod add;
 mod existing;
 mod facts;
 mod learn;
+mod load;
 mod passive;
 mod ranks;
 mod remove;
@@ -14,6 +15,7 @@ mod skills;
 mod tests;
 use super::{PlayerSpellBook, PlayerSpellTrait, SpellBookMutation};
 use crate::{SkillUpdate, SpellDefinitionSource, SpellLearningSource};
+pub use load::SpellLoadRow;
 type LearningSourceFailure<S> = crate::SpellLearningSourceError<
     <S as SpellLearningSource>::WorldError,
     <S as SpellDefinitionSource>::Error,

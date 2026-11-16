@@ -9,6 +9,7 @@ mod admission;
 mod existing;
 mod fixtures;
 mod learning;
+mod load;
 mod removal;
 mod removal_skills;
 mod skills;

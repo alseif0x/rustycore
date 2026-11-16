@@ -114,6 +114,11 @@ The existing native AddSpell rejects invalid out-of-world load rows with the
 explicit UnauthorizedGlobalCleanup hold: source deletes that spell for all
 characters, which remains outside runtime/database authority. That error must
 retain the prior prefix and prevent favorite fixup/success admission.
+Entities now implements that isolated operation in spell_book/learning/load.rs.
+Worker Entity check and four focused cases passed; parent review removed a
+duplicate fixture ID that had shadowed the custom cast-on-learn facts, and the
+corrected follow-up asserts those facts before testing loading suppression.
+These are coding results, not final/native-Player or runtime acceptance.
 
 The selected state partition keeps pre-load grants as entries in the same native
 book throughout AddSpell loading. Legacy fallback_rows currently bridge the
@@ -138,6 +143,37 @@ construction adapter has no reason to enter the map-manager mutex. This does
 not admit an in-world adapter: its immediate publication and external-effect
 lock contract must be satisfied separately. The concrete body effects and their
 reader/writer migration remain unimplemented, rather than defaulting to no-op.
+
+The next skill persistence operation will capture immutable dirty-node rows in
+admitted native status order, without changing any status during capture. The
+provider still sees all physical keys, including Unchanged and Deleted; filter
+Unchanged only after its exact-set admission. Keep the full uint32 identity and
+physical slot in acknowledgement facts, read rank/max by that slot, and narrow
+the SQL skill key to uint16 only at the output edge. Do not sort, deduplicate or
+replace the complete character_skills table. CharacterDatabase.cpp:697–699 uses
+ordinary INSERT for New, UPDATE for Changed and DELETE for Deleted, so treating
+every later dirty node as another INSERT is incorrect.
+
+Confirmation must consume the captured batch only behind the existing full-save
+gate, confirmed skill-group COMMIT and incarnation checks. Capture/rollback/drop
+does not clear state; unknown outcome retains the existing quarantine and grants
+no acknowledgement. For unchanged captured rows, confirmed persistence marks
+the retained node Unchanged, including Deleted nodes. Compare current slot,
+state, line, step, rank/max and profession selection before clearing; bonus-only
+changes do not alter the saved row. Retain later changes without making a second
+mutable field authority. If a New INSERT committed while its payload changed,
+the surviving desired row must become Changed; if the pending New was cancelled
+(Unchanged with zero rank), retain a Deleted intent for that committed INSERT.
+If a DELETE committed while its row was reactivated, the surviving Changed/New
+intent becomes New. This is deferred-COMMIT reconciliation, not C++'s immediate
+status reset during statement construction. The existing spell acknowledgement
+in player/save_ack.rs:294ff already establishes the INSERT/delete reconciliation
+principle; skill UPDATE has a different SQL contract and needs its own rules.
+No status node or insertion witness is erased by skill acknowledgement. An opaque
+component batch does not establish a Player incarnation by itself: the existing
+PlayerSaveReceiptLikeCpp handle and confirmed-group fence remain mandatory.
+The native capture/ack operation, its SQL consumer and its runtime integration
+are not implemented by this contract.
 
 ## Canonical inventory capture continuation — 2026-11-16
 

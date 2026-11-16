@@ -46,7 +46,7 @@ pub use player::{
     SkillUpdateState, SpellBookDefinition, SpellBookEffect, SpellBookMessage, SpellBookMutation,
     SpellBookOrderError, SpellDefinitionSource, SpellLearnCriterion, SpellLearningAbility,
     SpellLearningEffects, SpellLearningError, SpellLearningNode, SpellLearningRank,
-    SpellLearningSkill, SpellLearningSource, SpellLearningSourceError,
+    SpellLearningSkill, SpellLearningSource, SpellLearningSourceError, SpellLoadRow,
 };
 pub use player::{
     QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp, is_buyback_slot,
