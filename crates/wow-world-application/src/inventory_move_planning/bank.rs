@@ -102,7 +102,7 @@ impl InventoryMovePlanningCxLikeCpp<'_, '_> {
             wow_world_player_conditions::can_use_inventory_item_represented_with_loading_like_cpp(
                 self.conditions,
                 &inventory_item,
-                Some(&source_item),
+                Some(source_item.read_view()),
                 true,
             );
         let mut dest = Vec::new();

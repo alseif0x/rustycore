@@ -9,8 +9,9 @@ use wow_constants::{InventoryResult, InventoryType, ItemFlags3};
 use wow_core::ObjectGuid;
 use wow_entities::{
     BagTemplateRef, CanEquipItemArgs, CanEquipItemOutcome, EQUIPMENT_SLOT_END,
-    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0, Item, ItemSlotRef,
-    ItemStorageRef, NULL_BAG, NULL_SLOT, PlayerInventoryItem as InventoryItem, is_buyback_slot,
+    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0, Item, ItemReadView,
+    ItemSlotRef, ItemStorageRef, NULL_BAG, NULL_SLOT, PlayerInventoryItem as InventoryItem,
+    is_buyback_slot,
 };
 use wow_world_core::session::{
     InventoryValuationAccessLikeCpp, InventoryValuationCatalogViewLikeCpp,
@@ -81,7 +82,7 @@ pub fn represented_avg_total_item_level_like_cpp(
 pub fn can_use_inventory_item_represented_with_loading_like_cpp(
     player_conditions: &PlayerConditionProjectionCxLikeCpp<'_>,
     item: &InventoryItem,
-    runtime_item: Option<&Item>,
+    runtime_item: Option<ItemReadView<'_>>,
     not_loading: bool,
 ) -> InventoryResult {
     let player = player_conditions.player_access_like_cpp();
@@ -272,7 +273,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
                 db_guid: item_guid.counter() as u64,
                 inventory_type: Some(inventory_type as u8),
             };
-            if self.can_use_item_like_cpp(&represented_item, Some(runtime_item), false)
+            if self.can_use_item_like_cpp(&represented_item, Some(runtime_item.read_view()), false)
                 != InventoryResult::Ok
             {
                 return;
@@ -315,7 +316,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
     fn can_use_item_like_cpp(
         &self,
         item: &InventoryItem,
-        runtime_item: Option<&Item>,
+        runtime_item: Option<ItemReadView<'_>>,
         not_loading: bool,
     ) -> InventoryResult {
         let Some(player) = self
@@ -810,7 +811,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         let is_two_hand_used =
             player.is_two_hand_used_template_like_cpp(mainhand_template.as_ref());
         let can_use_result =
-            self.can_use_item_like_cpp(inventory_item, Some(runtime_item), not_loading);
+            self.can_use_item_like_cpp(inventory_item, Some(runtime_item.read_view()), not_loading);
         let proto_always_allow_dual_wield = self
             .catalogs
             .item_stats_store_like_cpp()

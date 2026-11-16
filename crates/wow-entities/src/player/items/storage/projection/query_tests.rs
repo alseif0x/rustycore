@@ -1,13 +1,15 @@
 use super::InventoryPlayerSnapshotLikeCpp;
 use crate::Item;
-use crate::ItemStorageTemplate;
 use crate::player::{
     BANK_SLOT_BAG_START, CanBankItemArgs, CanEquipItemArgs, CanEquipUniqueItemArgs,
     CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START,
     ItemSearchCallbackResult, ItemSearchLocation, PLAYER_SLOT_END, Player, PlayerStorageError,
 };
-use wow_constants::{InventoryResult, InventoryType, ItemClass, ItemSubClassContainer};
+use crate::{ItemReadView, ItemStorageTemplate, ItemValuesSnapshot};
+use wow_constants::{
+    InventoryResult, InventoryType, ItemClass, ItemFieldFlags, ItemSubClassContainer,
+};
 use wow_core::ObjectGuid;
 
 fn query_player() -> Player {
@@ -110,8 +112,15 @@ fn can_bank_bag_args<'a>(
 }
 
 fn can_use_args() -> CanUseItemArgs<'static> {
+    can_use_args_with_source(None, None)
+}
+
+fn can_use_args_with_source<'a>(
+    proto: Option<&'a ItemStorageTemplate>,
+    source_item: Option<ItemReadView<'a>>,
+) -> CanUseItemArgs<'a> {
     let template_args = CanUseItemTemplateArgs {
-        proto: None,
+        proto,
         skip_required_level_check: false,
         player_level: 70,
         team: 0,
@@ -138,8 +147,8 @@ fn can_use_args() -> CanUseItemArgs<'static> {
         primary_specialization: 0,
     };
     CanUseItemArgs {
-        source_item: None,
-        proto: None,
+        source_item,
+        proto,
         not_loading: true,
         is_alive: true,
         player_level: 70,
@@ -459,6 +468,59 @@ fn inventory_player_snapshot_delegates_storage_queries_and_bank_count() {
     assert_eq!(
         snapshot.swap_item_preflight_plan(0, 1, true, None, None),
         canonical.swap_item_preflight_plan(0, 1, true, None, None)
+    );
+}
+
+#[test]
+fn captured_item_read_view_keeps_usability_binding_facts() {
+    let player = query_player();
+    let snapshot = InventoryPlayerSnapshotLikeCpp::capture(&player);
+    let proto = ItemStorageTemplate::regular_item(20_012, 20);
+    let owner_guid = ObjectGuid::create_player(17, 0xC8B);
+    let mut source = Item::default();
+    source.set_item_flag(ItemFieldFlags::SOULBOUND);
+    source.set_owner_guid(owner_guid);
+    let captured_source = ItemValuesSnapshot::capture(&source);
+
+    source.set_owner_guid(ObjectGuid::create_player(17, 0xC8C));
+
+    let captured_view = captured_source.read_view();
+    let captured_args = can_use_args_with_source(Some(&proto), Some(captured_view));
+    assert_eq!(snapshot.can_use_item(captured_args), InventoryResult::Ok);
+    assert_eq!(player.can_use_item(captured_args), InventoryResult::Ok);
+
+    let live_args = can_use_args_with_source(Some(&proto), Some(source.read_view()));
+    assert_eq!(snapshot.can_use_item(live_args), InventoryResult::NotOwner);
+    assert_eq!(player.can_use_item(live_args), InventoryResult::NotOwner);
+
+    let mut missing_source_args = can_use_args_with_source(Some(&proto), None);
+    missing_source_args.is_alive = false;
+    assert_eq!(
+        snapshot.can_use_item(missing_source_args),
+        InventoryResult::ItemNotFound
+    );
+
+    let mut dead_before_template_args = can_use_args_with_source(None, Some(source.read_view()));
+    dead_before_template_args.is_alive = false;
+    assert_eq!(
+        player.can_use_item(dead_before_template_args),
+        InventoryResult::PlayerDead
+    );
+
+    let mut loading_args = can_use_args_with_source(Some(&proto), Some(source.read_view()));
+    loading_args.is_alive = false;
+    loading_args.not_loading = false;
+    loading_args.item_required_level = 71;
+    assert_eq!(
+        snapshot.can_use_item(loading_args),
+        InventoryResult::NotOwner
+    );
+
+    let mut level_args = can_use_args_with_source(Some(&proto), Some(captured_source.read_view()));
+    level_args.item_required_level = 71;
+    assert_eq!(
+        player.can_use_item(level_args),
+        InventoryResult::CantEquipLevelI
     );
 }
 

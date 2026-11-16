@@ -642,6 +642,41 @@ the two slice records. Writable plans and side-effecting Item references retain
 their separate retirement obligation before native Item attachment. This
 selected-read migration does not attach BonusData or activate creation.
 
+CanUseItemArgs now accepts a borrowed ItemReadView instead of an Item actor
+reference. The World Conditions public/private usability provider forwards the
+same view. Existing average-level/equipment, WorldSession host and bank-move
+producers convert their already-borrowed source at the original call point;
+no new lookup or second query implementation is introduced. The bank caller
+was found during the worker's consumer inspection and added to that bounded
+ownership before downstream feedback. The complete query bodies are unchanged.
+Parent target contrast confirms Player.cpp:11373–11429's source, alive/loading,
+template, binding, required-level, template and late-skill order, including the
+four class-specific heirloom exceptions. This establishes the retained order,
+not completeness of the represented World template/skill/binding inputs.
+
+Worker Entity, World Conditions and World-library checks pass, as do four
+projection query cases, the four existing item-usability cases and one real
+World equipment-set consumer case. The projection family reran after expanding
+the new regression; those repeated executions are not additional distinct
+coverage. Captured/live sources run through both Player and inventory-snapshot
+entry points, preserving frozen binding and missing-source, alive/loading,
+ownership and level order. All Cargo commands used --locked, one job and the
+checkout target; World used the pinned read-only extractor overlay. The first
+bare rustfmt command failed because PATH lacked Cargo's bin directory; the
+configured retry succeeded. These nine distinct cases remain level-1 coding
+feedback, not completed-delivery acceptance, native input/wire or DB proof.
+
+The remaining equipment migration must retain referent identity. The current
+Rust query compares Item pointers for paired unique-slot ignore and skipping
+the source quiver; native Player.cpp:11073/:11084 also compares pItem/pBag
+pointers. Equal GUIDs or field values are not interchangeable with that test.
+ItemReadView can compare the identity of its existing borrowed ItemDataValues
+referent: Item and ItemValuesSnapshot each own that struct, and views keep its
+source lifetime. A live Item, its capture and a capture's clone remain distinct
+read representations. No stored actor pointer/address/handle or new identity
+state is needed. This decision must be exercised at both actual equipment
+branches, not only through a helper test, before their inputs migrate.
+
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are
 absent; exact source searches for HandleVoidStorageTransfer, _SaveVoidStorage

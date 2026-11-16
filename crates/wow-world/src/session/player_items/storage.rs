@@ -14,7 +14,7 @@ impl WorldSession {
         wow_world_player_conditions::can_use_inventory_item_represented_with_loading_like_cpp(
             &self.player_condition_projection_cx_like_cpp(),
             item,
-            runtime_item,
+            runtime_item.map(Item::read_view),
             true,
         )
     }

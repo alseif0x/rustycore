@@ -388,7 +388,7 @@ fn can_use_args<'a>(
     source_item: Option<&'a Item>,
 ) -> CanUseItemArgs<'a> {
     CanUseItemArgs {
-        source_item,
+        source_item: source_item.map(Item::read_view),
         proto,
         not_loading: true,
         is_alive: true,
