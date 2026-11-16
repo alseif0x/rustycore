@@ -1,5 +1,56 @@
 # WoW Forever 1.60.1 login-only runbook
 
+## Canonical inventory capture continuation — 2026-11-16
+
+Resumed from published `d91650024` on `forever`. The November 11 publication
+acceptance is recorded in STATE.md; it does not complete character construction.
+The next local dependency is the whole-Player copy in
+`OwnedInventoryAccessLikeCpp::inventory_player_projection_snapshot_like_cpp`.
+Its shared projection supports query/planning and values publication; both
+families must be replaced before retiring that producer. Creation stays disabled.
+
+The selected boundary preserves one canonical Player and captures only inventory
+query facts and represented update-field payloads at the existing owned read.
+Queries continue through shared Entity rules outside the manager guard. The
+disposable publication state retains field values, nested masks, quest rows,
+aura-state contributions and derived-stat inputs required by the existing update
+model, without owning a Player or Unit actor. It must preserve explicit marking
+of equal values, clear/reset behavior, invalid-index results and active-recipient
+filtering. Nothing captured for planning/publication may be installed back into
+canonical state. Existing fixture-only missing-handle fallback remains separate
+from a stale or missing canonical owner.
+
+Retaining the whole Player would keep the non-Clone skill/book integration
+blocked. Constructing a mostly default Player would fabricate unrelated actor
+state and lose update payloads; rereading the owner later would change observation
+timing. Neither is selected. No new lock, async fence, mutable mirror or domain
+dependency on World/Data is needed for an Entity-owned borrowed query boundary.
+
+The existing Entity ItemStorageView is the selected shared query owner. Position
+validation and traversal need only its borrowed topology and backpack count;
+their original Player methods remain public delegations. The remaining bank
+query additionally needs the captured bank-slot count, while specialization and
+Titan Grip are separate captured scalar facts. Keep those inputs explicit rather
+than copying gameplay, skills or spells into the view. The old public storage-view
+constructor and trade simulation do not gain new readiness requirements.
+
+Target reference remains `02245dcd245e7433e524577656177723d3e4992e`:
+Player.cpp:9367–9568,10224–10733,10958–11491,27663–27755 and
+Player.h:1403–1463 anchor inventory admission/traversal; Player.cpp:3626–3699
+anchors update type/order and self-only ActivePlayer publication. Nested mask
+reset belongs to UpdateFields.cpp::UnitData/PlayerData/ActivePlayerData::
+ClearChangesMask (2037/3131/7147). This is a structural preservation of the
+represented Rust rules, not a claim that their already recorded target-version
+gaps are repaired. Those repairs remain explicit constructor prerequisites.
+
+Acceptance must compare captured query results and complete update models/bytes
+with independently prepared canonical fixtures, including populated nested
+state, preexisting changes, equal-value marks and later owner mutations. New
+tests must not introduce another whole-Player Clone dependency. Source/consumer
+review precedes the completed-delivery campaign; local worker feedback remains
+distinct from final acceptance. No service/client/schema/database operation is
+authorized by the renewed Git publication authority.
+
 ## Character creation worktree checkpoint — 2026-11-06
 
 The active `forever` worktree is based on

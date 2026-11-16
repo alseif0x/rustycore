@@ -20,6 +20,16 @@ impl Player {
         )
     }
 
+    pub fn is_valid_pos(&self, bag: u8, slot: u8, explicit_pos: bool) -> bool {
+        self.item_storage_view()
+            .is_valid_pos(bag, slot, explicit_pos)
+    }
+
+    pub fn is_valid_packed_pos(&self, pos: u16, explicit_pos: bool) -> bool {
+        self.item_storage_view()
+            .is_valid_packed_pos(pos, explicit_pos)
+    }
+
     pub fn inventory(&self) -> &PlayerInventoryStorage {
         &self.inventory
     }
@@ -2131,69 +2141,10 @@ impl Player {
     pub fn for_each_item_guid(
         &self,
         location: ItemSearchLocation,
-        mut callback: impl FnMut(ObjectGuid) -> ItemSearchCallbackResult,
+        callback: impl FnMut(ObjectGuid) -> ItemSearchCallbackResult,
     ) -> bool {
-        if location.contains(ItemSearchLocation::EQUIPMENT) {
-            for slot in 0..EQUIPMENT_SLOT_END {
-                if self.visit_top_slot(slot, &mut callback) {
-                    return false;
-                }
-            }
-            for slot in PROFESSION_SLOT_START..PROFESSION_SLOT_END {
-                if self.visit_top_slot(slot, &mut callback) {
-                    return false;
-                }
-            }
-        }
-
-        if location.contains(ItemSearchLocation::INVENTORY) {
-            let inventory_end = INVENTORY_SLOT_ITEM_START
-                .saturating_add(self.active_data.num_backpack_slots)
-                .min(INVENTORY_SLOT_ITEM_END);
-            for slot in INVENTORY_SLOT_BAG_START..inventory_end {
-                if self.visit_top_slot(slot, &mut callback) {
-                    return false;
-                }
-            }
-            for slot in KEYRING_SLOT_START..KEYRING_SLOT_END {
-                if self.visit_top_slot(slot, &mut callback) {
-                    return false;
-                }
-            }
-            for slot in CHILD_EQUIPMENT_SLOT_START..CHILD_EQUIPMENT_SLOT_END {
-                if self.visit_top_slot(slot, &mut callback) {
-                    return false;
-                }
-            }
-            for bag_slot in INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END {
-                if self.visit_bag_items(bag_slot, &mut callback) {
-                    return false;
-                }
-            }
-        }
-
-        if location.contains(ItemSearchLocation::BANK) {
-            for slot in BANK_SLOT_ITEM_START..BANK_SLOT_BAG_END {
-                if self.visit_top_slot(slot, &mut callback) {
-                    return false;
-                }
-            }
-            for bag_slot in BANK_SLOT_BAG_START..BANK_SLOT_BAG_END {
-                if self.visit_bag_items(bag_slot, &mut callback) {
-                    return false;
-                }
-            }
-        }
-
-        if location.contains(ItemSearchLocation::REAGENT_BANK) {
-            for bag_slot in REAGENT_BAG_SLOT_START..REAGENT_BAG_SLOT_END {
-                if self.visit_bag_items(bag_slot, &mut callback) {
-                    return false;
-                }
-            }
-        }
-
-        true
+        self.item_storage_view()
+            .for_each_item_guid(location, callback)
     }
 
     pub fn for_each_item_storage_ref<'a>(
@@ -2518,31 +2469,5 @@ impl Player {
             is_encounter_loot,
             delivery,
         })
-    }
-
-    fn visit_top_slot(
-        &self,
-        slot: u8,
-        callback: &mut impl FnMut(ObjectGuid) -> ItemSearchCallbackResult,
-    ) -> bool {
-        self.inventory.items[slot as usize]
-            .map(|guid| matches!(callback(guid), ItemSearchCallbackResult::Stop))
-            .unwrap_or(false)
-    }
-
-    fn visit_bag_items(
-        &self,
-        bag_slot: u8,
-        callback: &mut impl FnMut(ObjectGuid) -> ItemSearchCallbackResult,
-    ) -> bool {
-        let Some(bag) = self.inventory.bags[bag_slot as usize].as_ref() else {
-            return false;
-        };
-
-        bag.slots
-            .iter()
-            .take(bag.bag_size as usize)
-            .filter_map(|guid| *guid)
-            .any(|guid| matches!(callback(guid), ItemSearchCallbackResult::Stop))
     }
 }

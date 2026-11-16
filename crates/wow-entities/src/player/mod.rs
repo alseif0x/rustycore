@@ -4053,66 +4053,6 @@ impl Player {
         });
     }
 
-    pub fn is_valid_pos(&self, bag: u8, slot: u8, explicit_pos: bool) -> bool {
-        if bag == NULL_BAG && !explicit_pos {
-            return true;
-        }
-
-        if bag == INVENTORY_SLOT_BAG_0 {
-            if slot == NULL_SLOT && !explicit_pos {
-                return true;
-            }
-            if slot < EQUIPMENT_SLOT_END {
-                return true;
-            }
-            if (PROFESSION_SLOT_START..PROFESSION_SLOT_END).contains(&slot) {
-                return true;
-            }
-            if (INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&slot) {
-                return true;
-            }
-            if (REAGENT_BAG_SLOT_START..REAGENT_BAG_SLOT_END).contains(&slot) {
-                return true;
-            }
-            let backpack_end = INVENTORY_SLOT_ITEM_START
-                .saturating_add(self.active_data.num_backpack_slots)
-                .min(INVENTORY_SLOT_ITEM_END);
-            if (INVENTORY_SLOT_ITEM_START..backpack_end).contains(&slot) {
-                return true;
-            }
-            if (BANK_SLOT_ITEM_START..BANK_SLOT_ITEM_END).contains(&slot) {
-                return true;
-            }
-            if (BANK_SLOT_BAG_START..BANK_SLOT_BAG_END).contains(&slot) {
-                return true;
-            }
-            if (KEYRING_SLOT_START..KEYRING_SLOT_END).contains(&slot) {
-                return true;
-            }
-            return false;
-        }
-
-        let Some(bag_storage) = self
-            .inventory
-            .bags
-            .get(bag as usize)
-            .and_then(Option::as_ref)
-        else {
-            return false;
-        };
-
-        if slot == NULL_SLOT && !explicit_pos {
-            return true;
-        }
-
-        slot < bag_storage.bag_size
-    }
-
-    pub fn is_valid_packed_pos(&self, pos: u16, explicit_pos: bool) -> bool {
-        let [bag, slot] = pos.to_be_bytes();
-        self.is_valid_pos(bag, slot, explicit_pos)
-    }
-
     pub fn set_buyback_price(&mut self, slot: usize, price: u32) {
         if slot >= BUYBACK_SLOT_COUNT || self.active_data.buyback_price[slot] == price {
             return;

@@ -1,5 +1,22 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## Forever canonical inventory capture resumed — 2026-11-16
+
+Resumed from published d91650024. The complete inventory query/publication
+projection must stop copying Player before non-Clone skill/book integration.
+The first implementation moves position validation, packed positions and item
+traversal to the existing borrowed Entity ItemStorageView, with public Player
+delegations. Parent comparison preserves all five operation/helper bodies after
+the one backpack-count receiver substitution and whitespace normalization.
+Worker coding feedback passed `cargo check -p wow-entities` and all three new
+`player::items::storage::planning::queries::tests::` cases (1,170 filtered).
+The explicit out-of-bag-size fixture slot is populated and asserted before
+checking traversal. No full acceptance or new publication is claimed. The
+remaining admission/equipment queries and complete values/mask preparation
+still use the original Player-backed projection; its Clone producer is not
+retired. The owning runbook's November 16 contract preserves observation
+timing, source-version gaps and the disabled runtime constructor.
+
 ## Forever publication candidate — 2026-11-11
 
 The operator requested a commit and push of the preserved experimental worktree.
