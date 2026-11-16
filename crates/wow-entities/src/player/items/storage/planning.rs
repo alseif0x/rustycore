@@ -2,6 +2,7 @@ use crate::player::{PlayerInventoryStorage, is_bag_storage_slot};
 use wow_core::ObjectGuid;
 
 mod bank;
+mod equipment;
 mod limits;
 mod queries;
 mod slots;

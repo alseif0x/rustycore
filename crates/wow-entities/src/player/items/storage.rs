@@ -351,6 +351,7 @@ impl Player {
     pub fn can_use_item(&self, args: CanUseItemArgs<'_>) -> InventoryResult {
         self.item_storage_view().can_use_item(args)
     }
+
     pub fn can_bank_item(
         &self,
         dest: &mut Vec<ItemPosCount>,
@@ -358,6 +359,35 @@ impl Player {
     ) -> InventoryResult {
         self.item_storage_view()
             .can_bank_item(dest, args, self.data.num_bank_slots)
+    }
+
+    pub fn find_equip_slot(&self, args: FindEquipSlotArgs<'_>) -> u8 {
+        self.item_storage_view().find_equip_slot(args)
+    }
+
+    pub fn can_equip_item(&self, args: CanEquipItemArgs<'_>) -> CanEquipItemOutcome {
+        self.item_storage_view().can_equip_item(args)
+    }
+
+    pub fn can_unequip_item(&self, args: CanUnequipItemArgs<'_>) -> InventoryResult {
+        self.item_storage_view().can_unequip_item(args)
+    }
+
+    pub fn can_equip_unique_item_template(
+        &self,
+        args: CanEquipUniqueItemTemplateArgs<'_>,
+    ) -> InventoryResult {
+        self.item_storage_view()
+            .can_equip_unique_item_template(args)
+    }
+
+    pub fn can_equip_unique_item(&self, args: CanEquipUniqueItemArgs<'_>) -> InventoryResult {
+        self.item_storage_view().can_equip_unique_item(args)
+    }
+
+    pub fn is_two_hand_used_template(&self, main_template: Option<&ItemStorageTemplate>) -> bool {
+        self.item_storage_view()
+            .is_two_hand_used_template(main_template, self.can_titan_grip)
     }
 
     pub fn top_level_item_guid(&self, slot: u8) -> Option<ObjectGuid> {
@@ -932,113 +962,8 @@ impl Player {
         src_item: Option<SwapItemPreflightItem>,
         dst_item: Option<SwapItemPreflightItem>,
     ) -> SwapItemPreflightPlan {
-        let Some(src_item) = src_item else {
-            return SwapItemPreflightPlan {
-                result: SwapItemPreflightResult::NoSource,
-                src_unequip_swap: None,
-                dst_unequip_swap: None,
-            };
-        };
-
-        if src_item.is_child {
-            if let Some(parent_pos) = src_item.parent_pos {
-                if is_equipment_packed_pos(src) {
-                    return SwapItemPreflightPlan {
-                        result: SwapItemPreflightResult::ChildRedirect {
-                            first_src: dst,
-                            first_dst: src,
-                            second_src: parent_pos,
-                            second_dst: dst,
-                        },
-                        src_unequip_swap: None,
-                        dst_unequip_swap: None,
-                    };
-                }
-            }
-        } else if let Some(dst_item) = dst_item {
-            if dst_item.is_child {
-                if let Some(parent_pos) = dst_item.parent_pos {
-                    if is_equipment_packed_pos(dst) {
-                        return SwapItemPreflightPlan {
-                            result: SwapItemPreflightResult::ChildRedirect {
-                                first_src: src,
-                                first_dst: dst,
-                                second_src: parent_pos,
-                                second_dst: src,
-                            },
-                            src_unequip_swap: None,
-                            dst_unequip_swap: None,
-                        };
-                    }
-                }
-            }
-        }
-
-        if !is_alive {
-            return SwapItemPreflightPlan {
-                result: SwapItemPreflightResult::Error(InventoryResult::PlayerDead),
-                src_unequip_swap: None,
-                dst_unequip_swap: None,
-            };
-        }
-
-        let mut src_unequip_swap = None;
-        if is_equipment_packed_pos(src) || is_bag_pos(src) {
-            let swap = !is_bag_pos(src)
-                || is_bag_pos(dst)
-                || dst_item.is_some_and(|item| item.is_bag && item.is_empty_bag);
-            src_unequip_swap = Some(swap);
-            if src_item.can_unequip_result != InventoryResult::Ok {
-                return SwapItemPreflightPlan {
-                    result: SwapItemPreflightResult::Error(src_item.can_unequip_result),
-                    src_unequip_swap,
-                    dst_unequip_swap: None,
-                };
-            }
-        }
-
-        let [_src_bag, src_slot] = src.to_be_bytes();
-        let [dst_bag, _dst_slot] = dst.to_be_bytes();
-        if is_bag_pos(src) && src_slot == dst_bag {
-            return SwapItemPreflightPlan {
-                result: SwapItemPreflightResult::Error(InventoryResult::BagInBag),
-                src_unequip_swap,
-                dst_unequip_swap: None,
-            };
-        }
-
-        let [src_bag, _src_slot] = src.to_be_bytes();
-        let [_dst_bag, dst_slot] = dst.to_be_bytes();
-        if is_bag_pos(dst) && src_bag == dst_slot {
-            return SwapItemPreflightPlan {
-                result: SwapItemPreflightResult::Error(InventoryResult::CantSwap),
-                src_unequip_swap,
-                dst_unequip_swap: None,
-            };
-        }
-
-        let mut dst_unequip_swap = None;
-        if let Some(dst_item) = dst_item {
-            if is_equipment_packed_pos(dst) || is_bag_pos(dst) {
-                let swap = !is_bag_pos(dst)
-                    || is_bag_pos(src)
-                    || (src_item.is_bag && src_item.is_empty_bag);
-                dst_unequip_swap = Some(swap);
-                if dst_item.can_unequip_result != InventoryResult::Ok {
-                    return SwapItemPreflightPlan {
-                        result: SwapItemPreflightResult::Error(dst_item.can_unequip_result),
-                        src_unequip_swap,
-                        dst_unequip_swap,
-                    };
-                }
-            }
-        }
-
-        SwapItemPreflightPlan {
-            result: SwapItemPreflightResult::Continue,
-            src_unequip_swap,
-            dst_unequip_swap,
-        }
+        self.item_storage_view()
+            .swap_item_preflight_plan(src, dst, is_alive, src_item, dst_item)
     }
 
     pub fn swap_item_empty_destination_plan(

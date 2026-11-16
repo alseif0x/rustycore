@@ -51,6 +51,19 @@ review precedes the completed-delivery campaign; local worker feedback remains
 distinct from final acceptance. No service/client/schema/database operation is
 authorized by the renewed Git publication authority.
 
+The parallel source review also reconfirms the later canonical skill-loader
+prerequisite: Player.cpp:27523 uses a distinct
+`std::unordered_map<uint32, uint32> loadedSkillValues`, populated only after each
+complete nonzero row and traversed after the row-loading loop (27617–27647),
+including a prefix stopped by the preceding capacity check. It is not the
+physical SkillStatusMap or its insertion witness. The November 11 extracted-
+source oracle did pass the SkillStatusMap declaration contrast (246 histories)
+at c5ece0ba5, as recorded in the publication evidence; that does not establish
+the local loaded-value map's order. Future loader implementation must admit that
+separate native traversal and preserve its overwrite-without-reinsertion rule,
+reentrant reward/parent/child phases and final profession/fist fixups. No new
+loader or canonical skill field is implemented by the inventory extraction.
+
 ## Character creation worktree checkpoint — 2026-11-06
 
 The active `forever` worktree is based on

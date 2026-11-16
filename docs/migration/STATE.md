@@ -8,13 +8,25 @@ The first implementation moves position validation, packed positions and item
 traversal to the existing borrowed Entity ItemStorageView, with public Player
 delegations. Parent comparison preserves all five operation/helper bodies after
 the one backpack-count receiver substitution and whitespace normalization.
-Worker coding feedback passed `cargo check -p wow-entities` and all three new
-`player::items::storage::planning::queries::tests::` cases (1,170 filtered).
-The explicit out-of-bag-size fixture slot is populated and asserted before
-checking traversal. No full acceptance or new publication is claimed. The
-remaining admission/equipment queries and complete values/mask preparation
-still use the original Player-backed projection; its Clone producer is not
-retired. The owning runbook's November 16 contract preserves observation
+The complete read-only query preparation now also moves use, bank, equipment,
+two-hand and swap-preflight rules to private children of that same view: thirteen
+public Player queries delegate, and two traversal helpers move with their owner.
+Bank-slot count and Titan Grip are explicit inputs rather than new view state.
+Parent comparison preserves all fifteen bodies after the reviewed receiver
+substitutions and canonical call formatting. The incorrect profession-slot C++
+comment is corrected; the actual duplicate-index Rust behavior remains a named
+target-version gap, not a hidden gameplay repair.
+
+Worker coding feedback passed the affected Entity checks, 124 existing
+`player::tests::item_` cases and three new position/traversal cases. The four
+use and four bank cases are included in those 124, not additional cases. The
+explicit out-of-bag-size fixture slot is populated and asserted before checking
+traversal. Equipment feedback first failed on test-only imports, then passed
+after their cfg(test) retention. Parent subsequently applied canonical import
+formatting; those dirty-tree coding results are not final evidence at a later
+commit. No full acceptance or new publication is claimed. Complete values/mask
+preparation still uses the original Player-backed projection; its Clone producer
+is not retired. The owning runbook's November 16 contract preserves observation
 timing, source-version gaps and the disabled runtime constructor.
 
 ## Forever publication candidate — 2026-11-11

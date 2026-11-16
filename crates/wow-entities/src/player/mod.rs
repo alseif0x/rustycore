@@ -148,9 +148,11 @@ use bitflags::bitflags;
 use wow_constants::{
     EnchantmentSlot, Gender, InventoryResult, InventoryType, ItemBondingType, ItemClass,
     ItemEnchantmentType, ItemFieldFlags, ItemFieldFlags2, ItemModType, ItemModifier,
-    ItemSubClassQuiver, ItemSubClassWeapon, ItemSubclassProfession, ItemUpdateState, PowerType,
-    Stats, TypeId, TypeMask, WeaponAttackType, spell::SpellSchools,
+    ItemSubclassProfession, ItemUpdateState, PowerType, Stats, TypeId, TypeMask, WeaponAttackType,
+    spell::SpellSchools,
 };
+#[cfg(test)]
+use wow_constants::{ItemSubClassQuiver, ItemSubClassWeapon};
 use wow_core::{ObjectGuid, Position};
 
 use crate::{
@@ -4116,18 +4118,6 @@ impl Player {
         self.titan_grip_penalty_spell_id = penalty_spell_id;
     }
 
-    pub fn is_two_hand_used_template(&self, main_template: Option<&ItemStorageTemplate>) -> bool {
-        let Some(template) = main_template else {
-            return false;
-        };
-
-        (template.inventory_type == InventoryType::Weapon2Hand && !self.can_titan_grip)
-            || template.inventory_type == InventoryType::Ranged
-            || (template.inventory_type == InventoryType::RangedRight
-                && template.class_id == ItemClass::Weapon
-                && template.subclass_id != ItemSubClassWeapon::Wand as u32)
-    }
-
     pub fn check_titan_grip_penalty_action(
         &self,
         using_two_handed_weapon_in_one_hand: bool,
@@ -4402,7 +4392,7 @@ fn equip_slot_candidates(args: FindEquipSlotArgs<'_>) -> [u8; 4] {
                         slots[0] = PROFESSION_SLOT_PROFESSION1_TOOL
                             + profession_slot * PROFESSION_SLOT_MAX_COUNT;
                     } else {
-                        // C++ writes slots[0] twice here, so primary profession gear1 is unreachable.
+                        // Retained Rust version gap: this duplicates slots[0]; target C++ assigns gear1 to slots[0] and gear2 to slots[1] (Player.cpp:9511-9512).
                         slots[0] = PROFESSION_SLOT_PROFESSION1_GEAR1
                             + profession_slot * PROFESSION_SLOT_MAX_COUNT;
                         slots[0] = PROFESSION_SLOT_PROFESSION1_GEAR2
