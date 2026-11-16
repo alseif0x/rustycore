@@ -772,3 +772,25 @@ fn assistance_movement_generators_match_cpp_constructor_and_finalize_shape() {
     );
     assert!(distract_finalized.has_flag(MOVEMENTGENERATOR_FLAG_FINALIZED));
 }
+
+#[cfg(debug_assertions)]
+#[test]
+fn aura_state_values_snapshot_defers_empty_invalid_state_failure_until_projection() {
+    let mut auras = AuraSubsystem::default();
+    auras.aura_state_auras.insert(AURA_STATE_NONE, Vec::new());
+
+    let snapshot = AuraStateValuesSnapshot::capture(&auras);
+
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            snapshot.build_aura_state_update_for_target_like_cpp(guid(72))
+        }))
+        .is_err()
+    );
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            snapshot.aura_state_per_caster_contributions_like_cpp()
+        }))
+        .is_err()
+    );
+}

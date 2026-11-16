@@ -16,6 +16,7 @@ mod movement;
 mod spell;
 mod threat;
 
+pub(crate) use aura::AuraStateValuesSnapshot;
 pub use aura::*;
 pub use combat::*;
 pub use control::*;

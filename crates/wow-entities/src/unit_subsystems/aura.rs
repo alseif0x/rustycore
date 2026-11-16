@@ -9,8 +9,10 @@ use super::*;
 
 mod application_order;
 mod duration;
+mod values;
 
 pub use duration::legacy_aura_duration_pair;
+pub(crate) use values::AuraStateValuesSnapshot;
 
 /// Minimal bridge for TrinityCore `Unit` aura containers.
 ///
@@ -1173,29 +1175,21 @@ impl AuraSubsystem {
     }
 
     pub fn build_aura_state_update_for_target(&self, target: ObjectGuid) -> u32 {
-        let mut aura_states = self.aura_state_mask & !PER_CASTER_AURA_STATE_MASK;
-        for (state, auras) in &self.aura_state_auras {
-            let mask = 1 << (*state - 1);
-            if (mask & PER_CASTER_AURA_STATE_MASK) != 0
-                && auras.iter().any(|aura| aura.caster_guid == target)
-            {
-                aura_states |= mask;
-            }
-        }
-        aura_states
+        values::build_aura_state_update_for_target_like_cpp(
+            self.aura_state_mask,
+            self.aura_state_auras
+                .iter()
+                .map(|(&state, auras)| (state, auras.iter().map(|aura| aura.caster_guid))),
+            target,
+        )
     }
 
     pub(crate) fn aura_state_per_caster_contributions_like_cpp(&self) -> Vec<(ObjectGuid, u32)> {
-        let mut contributions = Vec::new();
-        for (state, auras) in &self.aura_state_auras {
-            let mask = 1_u32 << (*state - 1);
-            if mask & PER_CASTER_AURA_STATE_MASK != 0 {
-                contributions.extend(auras.iter().map(|aura| (aura.caster_guid, mask)));
-            }
-        }
-        contributions.sort_unstable();
-        contributions.dedup();
-        contributions
+        values::aura_state_per_caster_contributions_like_cpp(
+            self.aura_state_auras
+                .iter()
+                .map(|(&state, auras)| (state, auras.iter().map(|aura| aura.caster_guid))),
+        )
     }
 
     pub fn can_proc(&self) -> bool {

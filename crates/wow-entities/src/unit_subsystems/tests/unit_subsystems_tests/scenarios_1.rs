@@ -913,3 +913,66 @@ fn transform_spell_follows_cpp_handle_aura_transform_precedence() {
     auras.clear_runtime_applications_like_cpp();
     assert_eq!(auras.transform_spell_like_cpp(), 0);
 }
+
+#[test]
+fn aura_state_values_snapshot_matches_and_outlives_canonical_owner() {
+    let caster = guid(72);
+    let other = guid(73);
+    let mut auras = AuraSubsystem::default();
+    auras.aura_state_mask = (1 << (AURA_STATE_DEFENSIVE - 1)) | PER_CASTER_AURA_STATE_MASK;
+    auras.aura_state_auras.insert(
+        AURA_STATE_RAID_ENCOUNTER_2,
+        vec![
+            AppliedAuraRef::new(800, caster, 0, 1),
+            AppliedAuraRef::new(801, other, 0, 1),
+        ],
+    );
+    auras.aura_state_auras.insert(
+        AURA_STATE_ROGUE_POISONED,
+        vec![
+            AppliedAuraRef::new(802, caster, 0, 1),
+            AppliedAuraRef::new(803, caster, 0, 1),
+        ],
+    );
+    auras
+        .aura_state_auras
+        .insert(AURA_STATE_DEFENSIVE_2, Vec::new());
+
+    let expected_for_caster = auras.build_aura_state_update_for_target(caster);
+    let expected_for_other = auras.build_aura_state_update_for_target(other);
+    let expected_contributions = auras.aura_state_per_caster_contributions_like_cpp();
+    let snapshot = AuraStateValuesSnapshot::capture(&auras);
+
+    assert_eq!(expected_for_caster, (1 << 0) | (1 << 13) | (1 << 15));
+    assert_eq!(expected_for_other, (1 << 0) | (1 << 13));
+    assert_eq!(expected_contributions.len(), 3);
+    assert_eq!(
+        snapshot.build_aura_state_update_for_target_like_cpp(caster),
+        expected_for_caster
+    );
+    assert_eq!(
+        snapshot.build_aura_state_update_for_target_like_cpp(other),
+        expected_for_other
+    );
+    assert_eq!(
+        snapshot.aura_state_per_caster_contributions_like_cpp(),
+        expected_contributions
+    );
+
+    auras.aura_state_mask = 0;
+    auras.aura_state_auras.clear();
+    assert_eq!(auras.build_aura_state_update_for_target(caster), 0);
+    assert!(
+        auras
+            .aura_state_per_caster_contributions_like_cpp()
+            .is_empty()
+    );
+    assert_eq!(
+        snapshot.build_aura_state_update_for_target_like_cpp(caster),
+        expected_for_caster
+    );
+    assert_eq!(
+        snapshot.aura_state_per_caster_contributions_like_cpp(),
+        expected_contributions
+    );
+}

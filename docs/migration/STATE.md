@@ -57,8 +57,14 @@ nonzero focused cases passed; the added empty branch reran only its affected
 case. Unit virtual-item setters/markers now also share pure value/mask rules,
 with the original public guards and one Unit-owned admission adapter. The Entity
 check and three nonzero filters passed, including a new equal/invalid no-mask/
-no-queue regression. Raw aura capture, the detached payload and Core producer
-replacement remain unfinished; committed-candidate acceptance is pending.
+no-queue regression. Raw aura capture now retains the mask and every per-state
+caster list without computation or owner references; shared projectors keep the
+old borrowed canonical path and deferred snapshot calculation. Frozen-owner and
+debug-only empty-invalid-state regressions passed with the Entity check (four
+focused executions). Parent contrasted Unit.cpp:6159–6167 and the two caster-
+dependent states at 02245dcd; this is not full target-wire acceptance. The detached
+Unit/Player payloads and Core producer replacement remain unfinished;
+committed-candidate acceptance is pending.
 
 ## Forever publication candidate — 2026-11-11
 
