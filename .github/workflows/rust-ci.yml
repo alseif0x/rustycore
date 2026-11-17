@@ -54,6 +54,7 @@ jobs:
     env:
       VALIDATION_V2_PROFILE: ${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}
       VALIDATION_V2_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      VALIDATION_V2_BASE_SHA: ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.profile != 'final') && (github.event.pull_request.base.sha || github.event.before || github.sha) || '' }}
 
     steps:
       - name: Check out exact validation SHA
@@ -91,7 +92,7 @@ jobs:
             echo "::error::manual final base has no changed paths"
             exit 1
           fi
-          printf 'VALIDATED_MANUAL_BASE_SHA=%s\n' "$base_commit" >> "$GITHUB_ENV"
+          printf 'VALIDATION_V2_BASE_SHA=%s\n' "$base_commit" >> "$GITHUB_ENV"
 
       - name: Install pinned Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
@@ -167,19 +168,15 @@ jobs:
 
       - name: Run canonical Validation V2 profile
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
           VALIDATION_V2_CARGO_JOBS: "2"
           VALIDATION_V2_TIMEOUT_SECONDS: "3600"
           VALIDATION_V2_MANIFEST: ${{ runner.temp }}/validation-v2-manifest.json
           RUSTYCORE_CPP_REFERENCE_ROOT: ${{ runner.temp }}/trinity-reference
         run: |
+          : "${VALIDATION_V2_BASE_SHA:?validation base SHA is required}"
           test "$(git rev-parse HEAD)" = "$VALIDATION_V2_HEAD"
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$VALIDATION_V2_PROFILE" = "final" ]; then
-            BASE_SHA="${VALIDATED_MANUAL_BASE_SHA:?manual final base was not validated}"
-          fi
           echo "Profile: ${VALIDATION_V2_PROFILE}" >> "$GITHUB_STEP_SUMMARY"
-          args=("$VALIDATION_V2_PROFILE" --base "$BASE_SHA" --timings --logs)
+          args=("$VALIDATION_V2_PROFILE" --base "$VALIDATION_V2_BASE_SHA" --timings --logs)
           if [ "$VALIDATION_V2_PROFILE" = "final" ]; then
             args+=(--require-changes)
           fi
@@ -189,7 +186,7 @@ jobs:
         if: always()
         env:
           VALIDATION_V2_MANIFEST: ${{ runner.temp }}/validation-v2-manifest.json
-        run: ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST" --require-profile "$VALIDATION_V2_PROFILE" --require-head "$VALIDATION_V2_HEAD"
+        run: ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST" --require-profile "$VALIDATION_V2_PROFILE" --require-head "$VALIDATION_V2_HEAD" --require-base "$VALIDATION_V2_BASE_SHA"
 
       - name: Upload Validation V2 manifest
         if: always()

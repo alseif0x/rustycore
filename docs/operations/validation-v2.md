@@ -323,7 +323,8 @@ consumer rule is explicit: **a missing manifest is a failed run.** Verify one wi
 
 ```bash
 ./tools/validation-v2 verify --manifest <path>
-./tools/validation-v2 verify --manifest <path> --require-profile final --require-head "$expected_sha"
+./tools/validation-v2 verify --manifest <path> --require-profile final \
+  --require-head "$expected_sha" --require-base "$expected_base"
 ```
 
 The verifier matches each result's section and command arguments against the
@@ -331,9 +332,10 @@ plan in order. It rejects missing steps, substituted commands, and results whose
 exit code or failure fields contradict a passing status. The `self-test`
 profile records one result with no plan. Both hosted workflows require the
 manifest to record the SHA selected for checkout. Rust CI also requires its
-selected profile, and the determinism workflow requires `self-test` before it
-normalises the manifest. For local final evidence, set `expected_sha` to the
-full commit ID of the candidate you intend to verify.
+selected profile and the base commit used to plan the checks. The determinism
+workflow requires `self-test` before it normalises the manifest. For local final
+evidence, set `expected_sha` and `expected_base` to the full commit IDs of the
+candidate and its intended validation base.
 
 ## protoc
 

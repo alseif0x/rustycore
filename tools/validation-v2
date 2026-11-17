@@ -1649,6 +1649,7 @@ def verify_manifest(
     path: Path,
     required_profile: str | None = None,
     required_head: str | None = None,
+    required_base: str | None = None,
 ) -> int:
     """A missing, unreadable, or non-green manifest is a failed run."""
     try:
@@ -1671,6 +1672,14 @@ def verify_manifest(
         elif provenance_details.get("head") != required_head:
             problems.append(
                 f"provenance.head is {provenance_details.get('head')!r}; required {required_head!r}"
+            )
+    if required_base is not None and isinstance(document, dict):
+        plan = document.get("plan")
+        if not isinstance(plan, dict):
+            problems.append("plan is missing or is not an object")
+        elif plan.get("base_commit") != required_base:
+            problems.append(
+                f"plan.base_commit is {plan.get('base_commit')!r}; required {required_base!r}"
             )
     if problems:
         for problem in problems:
@@ -1728,14 +1737,17 @@ def main() -> int:
                         help="verify only: reject evidence from a different profile")
     parser.add_argument("--require-head",
                         help="verify only: require provenance from this full lowercase Git commit ID")
+    parser.add_argument("--require-base",
+                        help="verify only: require the plan base to match this full lowercase Git commit ID")
     args = parser.parse_args()
     args.profile = LEVEL_PROFILES.get(args.profile, args.profile)
     if args.require_profile and args.profile != "verify":
         return fail("--require-profile is only valid with verify")
-    if args.require_head is not None and args.profile != "verify":
-        return fail("--require-head is only valid with verify")
-    if args.require_head is not None and GIT_COMMIT_ID_PATTERN.fullmatch(args.require_head) is None:
-        return fail("--require-head must be a full lowercase 40- or 64-character Git commit ID")
+    for option, value in (("--require-head", args.require_head), ("--require-base", args.require_base)):
+        if value is not None and args.profile != "verify":
+            return fail(f"{option} is only valid with verify")
+        if value is not None and GIT_COMMIT_ID_PATTERN.fullmatch(value) is None:
+            return fail(f"{option} must be a full lowercase 40- or 64-character Git commit ID")
     if args.profile == "none":
         if any((args.logs, args.require_changes, args.keep_going, args.architecture, args.timings, args.manifest)):
             return fail("level 1/none does not run checks or produce evidence; select level 2 or 3 for validation options")
@@ -1757,7 +1769,9 @@ def main() -> int:
         if not args.manifest:
             return fail(f"{args.profile} requires --manifest")
         if args.profile == "verify":
-            return verify_manifest(Path(args.manifest), args.require_profile, args.require_head)
+            return verify_manifest(
+                Path(args.manifest), args.require_profile, args.require_head, args.require_base
+            )
         return normalise_to_stdout(Path(args.manifest))
     if args.manifest:
         return fail("--manifest is only valid with the verify and normalize profiles")

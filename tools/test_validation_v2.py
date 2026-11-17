@@ -641,6 +641,34 @@ def test_interrupt_and_verdict_contract(
     assert head_mismatch.returncode == runner.VERDICT_ERROR
     assert "provenance.head" in head_mismatch.stderr
 
+    expected_base = green["plan"]["base_commit"]
+    assert isinstance(expected_base, str)
+    base_match = verify(
+        green_manifest,
+        "--require-profile", "quick",
+        "--require-head", expected_head,
+        "--require-base", expected_base,
+    )
+    assert base_match.returncode == 0, base_match.stderr
+
+    wrong_base = ("0" if expected_base[0] != "0" else "1") + expected_base[1:]
+    base_mismatch = verify(green_manifest, "--require-base", wrong_base)
+    assert base_mismatch.returncode == runner.VERDICT_ERROR
+    assert "plan.base_commit" in base_mismatch.stderr
+
+    for name, mutate, expected in (
+        ("missing-base-field", lambda document: document["plan"].pop("base_commit"), "plan.base_commit"),
+        ("absent-base-plan", lambda document: document.pop("plan"), "plan"),
+        ("non-object-base-plan", lambda document: document.update(plan=None), "plan"),
+    ):
+        document = json.loads(json.dumps(green))
+        mutate(document)
+        target = directory / f"missing-base-{name}.json"
+        target.write_text(json.dumps(document))
+        missing_base = verify(target, "--require-base", expected_base)
+        assert missing_base.returncode == runner.VERDICT_ERROR
+        assert expected in missing_base.stderr
+
     for name, mutate in (
         ("absent", lambda document: document.pop("provenance")),
         ("non-object", lambda document: document.update(provenance=None)),
@@ -655,6 +683,11 @@ def test_interrupt_and_verdict_contract(
 
     for malformed_head in (expected_head[:12], "g" + expected_head[1:]):
         malformed = verify(green_manifest, "--require-head", malformed_head)
+        assert malformed.returncode == runner.USAGE_ERROR
+        assert "full lowercase 40- or 64-character" in malformed.stderr
+
+    for malformed_base in (expected_base[:12], "g" + expected_base[1:]):
+        malformed = verify(green_manifest, "--require-base", malformed_base)
         assert malformed.returncode == runner.USAGE_ERROR
         assert "full lowercase 40- or 64-character" in malformed.stderr
 

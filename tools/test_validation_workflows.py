@@ -108,7 +108,7 @@ def test_manual_base_validation() -> None:
         valid_env = directory / "valid.env"
         valid = invoke_base_check(script, repo, first, valid_env)
         assert valid.returncode == 0, valid.stderr
-        assert valid_env.read_text(encoding="utf-8") == f"VALIDATED_MANUAL_BASE_SHA={first}\n"
+        assert valid_env.read_text(encoding="utf-8") == f"VALIDATION_V2_BASE_SHA={first}\n"
 
         same_env = directory / "same.env"
         same = invoke_base_check(script, repo, head, same_env)
@@ -177,10 +177,16 @@ def test_rust_ci_contract() -> None:
 
     profile_expression = "${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}"
     head_expression = "${{ github.event.pull_request.head.sha || github.sha }}"
+    base_expression = (
+        "${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.profile != 'final') "
+        "&& (github.event.pull_request.base.sha || github.event.before || github.sha) || '' }}"
+    )
     assert workflow.count(f"VALIDATION_V2_PROFILE: {profile_expression}") == 1
     assert workflow.count(f"VALIDATION_V2_HEAD: {head_expression}") == 1
+    assert workflow.count(f"VALIDATION_V2_BASE_SHA: {base_expression}") == 1
     assert "    env:\n      VALIDATION_V2_PROFILE: " + profile_expression + \
-        "\n      VALIDATION_V2_HEAD: " + head_expression + "\n\n    steps:" in workflow
+        "\n      VALIDATION_V2_HEAD: " + head_expression + \
+        "\n      VALIDATION_V2_BASE_SHA: " + base_expression + "\n\n    steps:" in workflow
     assert "ref: ${{ env.VALIDATION_V2_HEAD }}" in step_block(workflow, "Check out exact validation SHA")
     assert "EXPECTED_HEAD" not in workflow
 
@@ -189,10 +195,9 @@ def test_rust_ci_contract() -> None:
     assert "${{" not in validation_run
     assert "VALIDATION_V2_PROFILE:" not in validation_step
     assert profile_expression not in validation_step
-    assert "BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}" in workflow
-    assert "BASE_SHA=\"${VALIDATED_MANUAL_BASE_SHA:?manual final base was not validated}\"" in validation_run
+    assert ': "${VALIDATION_V2_BASE_SHA:?validation base SHA is required}"' in validation_run
     assert 'test "$(git rev-parse HEAD)" = "$VALIDATION_V2_HEAD"' in validation_run
-    assert 'args=("$VALIDATION_V2_PROFILE" --base "$BASE_SHA" --timings --logs)' in validation_run
+    assert 'args=("$VALIDATION_V2_PROFILE" --base "$VALIDATION_V2_BASE_SHA" --timings --logs)' in validation_run
     assert 'if [ "$VALIDATION_V2_PROFILE" = "final" ]; then' in validation_step
     assert "args+=(--require-changes)" in validation_run
 
@@ -201,12 +206,16 @@ def test_rust_ci_contract() -> None:
     assert "${{" not in manual_run
     assert "--end-of-options" in manual_run
     assert "git merge-base --is-ancestor \"$base_commit\" \"$head_commit\"" in manual_run
+    assert "printf 'VALIDATION_V2_BASE_SHA=%s\\n' \"$base_commit\" >> \"$GITHUB_ENV\"" in manual_run
+    assert manual_run.index('git diff --quiet "$base_commit" "$head_commit" --') < manual_run.index("printf 'VALIDATION_V2_BASE_SHA=")
+    assert "VALIDATED_MANUAL_BASE_SHA" not in workflow
 
     verifier = step_block(workflow, "Verify Validation V2 manifest verdict")
     upload = step_block(workflow, "Upload Validation V2 manifest")
     assert "if: always()" in verifier
     assert '--require-profile "$VALIDATION_V2_PROFILE"' in verifier
     assert '--require-head "$VALIDATION_V2_HEAD"' in verifier
+    assert '--require-base "$VALIDATION_V2_BASE_SHA"' in verifier
     assert "if: always()" in upload
     assert "name: validation-v2-${{ env.VALIDATION_V2_PROFILE }}-${{ github.sha }}-${{ github.run_attempt }}" in upload
     assert "validation-v2-manifest.json" in upload
