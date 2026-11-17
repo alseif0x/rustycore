@@ -110,8 +110,16 @@ fn find_equip_slot_requested_free_and_swap_paths_match_cpp() {
     let mut ring2 = Item::default();
     ring2.set_debug_item_level(45);
     let equipped = [
-        ItemSlotRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FINGER1, ring1.read_view()),
-        ItemSlotRef::new(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FINGER2, ring2.read_view()),
+        ItemSlotRef::new(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_FINGER1,
+            ring1.read_view(),
+        ),
+        ItemSlotRef::new(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_FINGER2,
+            ring2.read_view(),
+        ),
     ];
 
     assert_eq!(

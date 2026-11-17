@@ -450,12 +450,7 @@ fn item_list_by_entry_matches_cpp_locations_bank_and_reagent_order() {
         .unwrap();
 
     let stored = [
-        ItemStorageRef::new(
-            REAGENT_BAG_SLOT_START,
-            1,
-            reagent_item.read_view(),
-            None,
-        ),
+        ItemStorageRef::new(REAGENT_BAG_SLOT_START, 1, reagent_item.read_view(), None),
         ItemStorageRef::new(
             INVENTORY_SLOT_BAG_0,
             BANK_SLOT_ITEM_START,

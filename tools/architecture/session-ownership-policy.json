@@ -10544,7 +10544,7 @@
           "kind": "method",
           "name": "can_use_inventory_item_represented_like_cpp",
           "visibility": "private",
-          "signature": "fn can_use_inventory_item_represented_like_cpp (& self , item : & InventoryItem , runtime_item : Option < & Item > ,) -> InventoryResult",
+          "signature": "fn can_use_inventory_item_represented_like_cpp (& self , item : & InventoryItem , runtime_item : Option < ItemReadView < '_ > > ,) -> InventoryResult",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19484,9 +19484,9 @@
           "module": "crate::handlers::split_forward_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "resolved_inventory_item_objects_like_cpp",
+          "name": "resolved_inventory_item_values_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn resolved_inventory_item_objects_like_cpp (& self ,) -> Option < std :: collections :: HashMap < wow_core :: ObjectGuid , wow_entities :: Item > >",
+          "signature": "fn resolved_inventory_item_values_like_cpp (& self ,) -> Option < wow_entities :: ItemValuesMapSnapshot >",
           "cfg": [
             "cfg (test)"
           ],
@@ -40025,7 +40025,7 @@
           "kind": "method",
           "name": "destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp",
           "visibility": "private",
-          "signature": "fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp (& mut self , bag : u8 , slot : u8 , item : InventoryItem , runtime_item : Option < Item > , expected_owner_db_guid : Option < u64 > , context : & str ,) -> impl Future < Output = bool > + Send",
+          "signature": "fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp (& mut self , bag : u8 , slot : u8 , item : InventoryItem , runtime_item : Option < ItemValuesSnapshot > , expected_owner_db_guid : Option < u64 > , context : & str ,) -> impl Future < Output = bool > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [

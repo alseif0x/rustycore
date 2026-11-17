@@ -41,10 +41,7 @@ fn store_args<'a>(
     }
 }
 
-fn bank_args<'a>(
-    source: ItemReadView<'a>,
-    proto: &'a ItemStorageTemplate,
-) -> CanBankItemArgs<'a> {
+fn bank_args<'a>(source: ItemReadView<'a>, proto: &'a ItemStorageTemplate) -> CanBankItemArgs<'a> {
     CanBankItemArgs {
         bag: INVENTORY_SLOT_BAG_0,
         slot: BANK_SLOT_ITEM_START,
@@ -137,9 +134,17 @@ fn captured_storage_bank_and_unequip_inputs_keep_item_facts_and_guid_skip() {
     let player_source_view = player_source_facts.read_view();
     assert_eq!(snapshot_source_view.count(), 6);
     assert!(!snapshot_source_view.is_binded_not_with(owner_guid, &proto, false));
-    assert!(snapshot_source.read_view().is_binded_not_with(owner_guid, &proto, false));
+    assert!(
+        snapshot_source
+            .read_view()
+            .is_binded_not_with(owner_guid, &proto, false)
+    );
     assert!(!player_source_view.is_binded_not_with(owner_guid, &proto, false));
-    assert!(player_source.read_view().is_binded_not_with(owner_guid, &proto, false));
+    assert!(
+        player_source
+            .read_view()
+            .is_binded_not_with(owner_guid, &proto, false)
+    );
 
     let mut snapshot_dest = Vec::new();
     let snapshot_outcome = snapshot.can_store_item(

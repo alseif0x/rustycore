@@ -1218,6 +1218,32 @@ level-1 coding results; committed-candidate publication acceptance follows
 separately. No runtime, database, client or full macro completion is claimed.
 CharacterCreator remains disabled.
 
+Checkpoint publication candidate a6bb72fcc ran final against origin/forever
+2cb94768d on Linux x86_64, with one Cargo job and the pinned extractor overlay.
+The first campaign passed downstream test compilation and all twelve affected
+library suites (9,459 passing tests, 18 ignored), but failed formatting and
+architecture metadata. It took 974.031 seconds before corrections, already
+exceeding the 600-second ordinary budget. That failed manifest is retained as
+target/validation-v2/manifests/20261117T210904.772117Z-1733667-final.json;
+it is not a green publication result.
+
+The correction formats four existing Entity files and updates exactly three
+reviewed WorldSession method signatures, retaining their guards and visibility.
+The physical review admits only Player root 4699 -> 4713 (+14 module/export/
+import wiring) and storage 1904 -> 1908 (+4 formatter lines at a delegation).
+The parser-backed logical review records Session +1500 test lines, character
+handlers +1030 test lines, server +100 production/+238 tests and Player +2443
+production/+1628 tests; Map tightens by two test lines. Native load/save/kernel
+responsibilities remain private to their existing owners; no live skill/book
+field, Session production authority or runtime creator is introduced. The
+World census admits exactly 31 new identities and twelve derived metadata
+changes, with no removed identity or changed class; two Data/Database test
+names change from forty_nine to fifty while extending their retained assertions
+for the additional condition table. These measured deltas grant no spare
+headroom or retirement of #584's existing ownership and physical split exits.
+The corrected committed candidate requires final acceptance below; no earlier
+test execution is relabelled as having run at that later SHA.
+
 ## Canonical inventory capture continuation — 2026-11-16
 
 Resumed from published `d91650024` on `forever`. The November 11 publication

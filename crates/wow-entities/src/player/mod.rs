@@ -2475,11 +2475,7 @@ pub enum TitanGripPenaltyAction {
     Remove(u32),
 }
 
-fn item_ref_by_pos<'a>(
-    items: &[ItemSlotRef<'a>],
-    bag: u8,
-    slot: u8,
-) -> Option<ItemReadView<'a>> {
+fn item_ref_by_pos<'a>(items: &[ItemSlotRef<'a>], bag: u8, slot: u8) -> Option<ItemReadView<'a>> {
     items
         .iter()
         .find(|slot_item| slot_item.bag == bag && slot_item.slot == slot)
