@@ -14,6 +14,8 @@ jobs:
     name: Determinism run ${{ matrix.run }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      VALIDATION_V2_HEAD: ${{ github.sha }}
     strategy:
       fail-fast: false
       matrix:
@@ -42,7 +44,7 @@ jobs:
       - name: Check out exact SHA
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.VALIDATION_V2_HEAD }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -58,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           ./tools/validation-v2 self-test
-          ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST" --require-profile self-test
+          ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST" --require-profile self-test --require-head "$VALIDATION_V2_HEAD"
           ./tools/validation-v2 normalize --manifest "$VALIDATION_V2_MANIFEST" \
             > "${RUNNER_TEMP}/normalised.json"
 

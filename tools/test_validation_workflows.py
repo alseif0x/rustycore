@@ -176,8 +176,13 @@ def test_rust_ci_contract() -> None:
     assert checkout < manual_base < toolchain < fetch
 
     profile_expression = "${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}"
+    head_expression = "${{ github.event.pull_request.head.sha || github.sha }}"
     assert workflow.count(f"VALIDATION_V2_PROFILE: {profile_expression}") == 1
-    assert "    env:\n      VALIDATION_V2_PROFILE: " + profile_expression + "\n\n    steps:" in workflow
+    assert workflow.count(f"VALIDATION_V2_HEAD: {head_expression}") == 1
+    assert "    env:\n      VALIDATION_V2_PROFILE: " + profile_expression + \
+        "\n      VALIDATION_V2_HEAD: " + head_expression + "\n\n    steps:" in workflow
+    assert "ref: ${{ env.VALIDATION_V2_HEAD }}" in step_block(workflow, "Check out exact validation SHA")
+    assert "EXPECTED_HEAD" not in workflow
 
     validation_step = step_block(workflow, "Run canonical Validation V2 profile")
     validation_run = next(iter(run_blocks(validation_step)))
@@ -186,6 +191,7 @@ def test_rust_ci_contract() -> None:
     assert profile_expression not in validation_step
     assert "BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}" in workflow
     assert "BASE_SHA=\"${VALIDATED_MANUAL_BASE_SHA:?manual final base was not validated}\"" in validation_run
+    assert 'test "$(git rev-parse HEAD)" = "$VALIDATION_V2_HEAD"' in validation_run
     assert 'args=("$VALIDATION_V2_PROFILE" --base "$BASE_SHA" --timings --logs)' in validation_run
     assert 'if [ "$VALIDATION_V2_PROFILE" = "final" ]; then' in validation_step
     assert "args+=(--require-changes)" in validation_run
@@ -200,6 +206,7 @@ def test_rust_ci_contract() -> None:
     upload = step_block(workflow, "Upload Validation V2 manifest")
     assert "if: always()" in verifier
     assert '--require-profile "$VALIDATION_V2_PROFILE"' in verifier
+    assert '--require-head "$VALIDATION_V2_HEAD"' in verifier
     assert "if: always()" in upload
     assert "name: validation-v2-${{ env.VALIDATION_V2_PROFILE }}-${{ github.sha }}-${{ github.run_attempt }}" in upload
     assert "validation-v2-manifest.json" in upload
@@ -217,8 +224,13 @@ def test_determinism_contract() -> None:
     assert "workflow_dispatch:\n" in workflow
     assert "inputs:" not in workflow
     assert "inputs.profile" not in workflow
+    assert "      VALIDATION_V2_HEAD: ${{ github.sha }}" in workflow
+    assert "ref: ${{ env.VALIDATION_V2_HEAD }}" in step_block(workflow, "Check out exact SHA")
     assert "./tools/validation-v2 self-test" in workflow
-    assert "./tools/validation-v2 verify --manifest \"$VALIDATION_V2_MANIFEST\" --require-profile self-test" in workflow
+    assert (
+        './tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST" '
+        '--require-profile self-test --require-head "$VALIDATION_V2_HEAD"'
+    ) in workflow
     assert "--base" not in workflow
     assert "--timings" not in workflow
     assert "cargo fetch" not in workflow
@@ -227,6 +239,7 @@ def test_determinism_contract() -> None:
     assert workflow.count("          - ") >= 20
     assert "uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5" in workflow
     assert "uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659" in workflow
+    assert "name: determinism-${{ matrix.run }}" in workflow
 
     for block in run_blocks(workflow):
         assert "${{" not in block

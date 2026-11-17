@@ -28,6 +28,7 @@ USAGE_ERROR = 64
 VERDICT_ERROR = 1
 RUNNER_ERROR = 70
 LOCKED_ERROR = 75
+GIT_COMMIT_ID_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 DEFAULT_JOBS = 1
 MAX_JOBS = 8
 DEFAULT_TIMEOUT = 900
@@ -1644,7 +1645,11 @@ def manifest_problems(document: object) -> list[str]:
     return problems
 
 
-def verify_manifest(path: Path, required_profile: str | None = None) -> int:
+def verify_manifest(
+    path: Path,
+    required_profile: str | None = None,
+    required_head: str | None = None,
+) -> int:
     """A missing, unreadable, or non-green manifest is a failed run."""
     try:
         raw = path.read_text(encoding="utf-8")
@@ -1659,6 +1664,14 @@ def verify_manifest(path: Path, required_profile: str | None = None) -> int:
     problems = manifest_problems(document)
     if isinstance(document, dict) and required_profile is not None and document.get("profile") != required_profile:
         problems.append(f"profile is {document.get('profile')!r}; required {required_profile!r}")
+    if required_head is not None and isinstance(document, dict):
+        provenance_details = document.get("provenance")
+        if not isinstance(provenance_details, dict):
+            problems.append("provenance is missing or is not an object")
+        elif provenance_details.get("head") != required_head:
+            problems.append(
+                f"provenance.head is {provenance_details.get('head')!r}; required {required_head!r}"
+            )
     if problems:
         for problem in problems:
             print(f"validation-v2: {path}: {problem}", file=sys.stderr)
@@ -1713,10 +1726,16 @@ def main() -> int:
     )
     parser.add_argument("--require-profile", choices=("self-test", "quick", "final", "audit"),
                         help="verify only: reject evidence from a different profile")
+    parser.add_argument("--require-head",
+                        help="verify only: require provenance from this full lowercase Git commit ID")
     args = parser.parse_args()
     args.profile = LEVEL_PROFILES.get(args.profile, args.profile)
     if args.require_profile and args.profile != "verify":
         return fail("--require-profile is only valid with verify")
+    if args.require_head is not None and args.profile != "verify":
+        return fail("--require-head is only valid with verify")
+    if args.require_head is not None and GIT_COMMIT_ID_PATTERN.fullmatch(args.require_head) is None:
+        return fail("--require-head must be a full lowercase 40- or 64-character Git commit ID")
     if args.profile == "none":
         if any((args.logs, args.require_changes, args.keep_going, args.architecture, args.timings, args.manifest)):
             return fail("level 1/none does not run checks or produce evidence; select level 2 or 3 for validation options")
@@ -1738,7 +1757,7 @@ def main() -> int:
         if not args.manifest:
             return fail(f"{args.profile} requires --manifest")
         if args.profile == "verify":
-            return verify_manifest(Path(args.manifest), args.require_profile)
+            return verify_manifest(Path(args.manifest), args.require_profile, args.require_head)
         return normalise_to_stdout(Path(args.manifest))
     if args.manifest:
         return fail("--manifest is only valid with the verify and normalize profiles")

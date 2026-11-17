@@ -80,6 +80,8 @@ def test_no_validation_level() -> None:
     for option in ("--logs", "--require-changes", "--keep-going", "--architecture", "--timings"):
         with patch.object(sys, "argv", ["validation-v2", "1", option]):
             assert runner.main() == runner.USAGE_ERROR
+    with patch.object(sys, "argv", ["validation-v2", "--require-head", ""]):
+        assert runner.main() == runner.USAGE_ERROR
 
 
 def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], directory: Path) -> None:
@@ -156,6 +158,11 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     for mode, flag in (("quick", "--keep-going"), ("audit", "--require-changes"), ("verify", "--logs")):
         invalid_option = invoke(mode, directory / "invalid-option.json", flags=[flag])
         assert invalid_option.returncode == runner.USAGE_ERROR
+    invalid_head_scope = invoke(
+        "quick", directory / "invalid-head-scope.json", flags=["--require-head", ""]
+    )
+    assert invalid_head_scope.returncode == runner.USAGE_ERROR
+    assert "--require-head is only valid with verify" in invalid_head_scope.stderr
     stable_success = stable_manifest(success)
     for run in range(2, 11):
         repeated_manifest = directory / f"success-{run}.json"
@@ -581,9 +588,9 @@ def test_interrupt_and_verdict_contract(
     workflow.unlink()
     (fake_bin / "actionlint").unlink()
 
-    def verify(target: Path) -> subprocess.CompletedProcess[str]:
+    def verify(target: Path, *options: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [str(tools / "validation-v2"), "verify", "--manifest", str(target)],
+            [str(tools / "validation-v2"), "verify", "--manifest", str(target), *options],
             cwd=repo,
             env=base_env,
             text=True,
@@ -624,6 +631,33 @@ def test_interrupt_and_verdict_contract(
     assert "required 'final'" in guarded.stderr
 
     green = json.loads(green_manifest.read_text())
+    expected_head = green["provenance"]["head"]
+    assert isinstance(expected_head, str)
+    head_match = verify(green_manifest, "--require-head", expected_head)
+    assert head_match.returncode == 0, head_match.stderr
+
+    wrong_head = ("0" if expected_head[0] != "0" else "1") + expected_head[1:]
+    head_mismatch = verify(green_manifest, "--require-head", wrong_head)
+    assert head_mismatch.returncode == runner.VERDICT_ERROR
+    assert "provenance.head" in head_mismatch.stderr
+
+    for name, mutate in (
+        ("absent", lambda document: document.pop("provenance")),
+        ("non-object", lambda document: document.update(provenance=None)),
+    ):
+        document = json.loads(json.dumps(green))
+        mutate(document)
+        target = directory / f"missing-provenance-{name}.json"
+        target.write_text(json.dumps(document))
+        missing_provenance = verify(target, "--require-head", expected_head)
+        assert missing_provenance.returncode == runner.VERDICT_ERROR
+        assert "provenance" in missing_provenance.stderr
+
+    for malformed_head in (expected_head[:12], "g" + expected_head[1:]):
+        malformed = verify(green_manifest, "--require-head", malformed_head)
+        assert malformed.returncode == runner.USAGE_ERROR
+        assert "full lowercase 40- or 64-character" in malformed.stderr
+
     assert green["plan"]["planned_steps"]
     assert len(green["commands"]) >= 2, "positional tampering needs a nonempty multi-step run"
     assert runner.manifest_problems(green) == []
