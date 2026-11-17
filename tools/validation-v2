@@ -196,7 +196,22 @@ def output(repo: Path, *command: str) -> str:
     return subprocess.check_output(command, cwd=repo, text=True).strip()
 
 
-def provenance(repo: Path) -> dict[str, object]:
+def checkout_state(repo: Path) -> tuple[str, tuple[bytes, ...], bool]:
+    """Return HEAD, tracked porcelain entries, and whether any entry is dirty."""
+    head = output(repo, "git", "rev-parse", "HEAD")
+    status = subprocess.check_output(
+        [
+            "git", "status", "--porcelain=v1", "-z", "--no-renames",
+            "--untracked-files=normal",
+        ],
+        cwd=repo,
+    )
+    entries = tuple(entry for entry in status.split(b"\0") if entry)
+    tracked = tuple(entry for entry in entries if not entry.startswith(b"?? "))
+    return head, tracked, bool(entries)
+
+
+def provenance(repo: Path) -> tuple[dict[str, object], tuple[bytes, ...]]:
     root = Path(output(repo, "git", "rev-parse", "--show-toplevel")).resolve()
     if root != repo:
         raise ValueError(f"script root {repo} differs from Git root {root}")
@@ -205,16 +220,17 @@ def provenance(repo: Path) -> dict[str, object]:
     active = output(repo, "rustc", "--version").split()[1]
     if active != pinned:
         raise ValueError(f"active Rust {active} differs from pinned Rust {pinned}")
-    dirty_lines = output(
-        repo, "git", "status", "--porcelain=v1", "--untracked-files=normal"
-    ).splitlines()
-    return {
-        "repository_root": str(repo),
-        "head": output(repo, "git", "rev-parse", "HEAD"),
-        "dirty": bool(dirty_lines),
-        "rust": {"pinned": pinned, "active": active},
-        "kernel": platform.release(),
-    }
+    head, tracked_status, dirty = checkout_state(repo)
+    return (
+        {
+            "repository_root": str(repo),
+            "head": head,
+            "dirty": dirty,
+            "rust": {"pinned": pinned, "active": active},
+            "kernel": platform.release(),
+        },
+        tracked_status,
+    )
 
 
 def lock_path(repo: Path) -> Path:
@@ -1785,7 +1801,7 @@ def main() -> int:
             30,
             3600,
         )
-        details = provenance(repo)
+        details, start_tracked_status = provenance(repo)
         started_at = utc_now()
         identifier = run_id(repo, str(details["head"]), args.profile, started_at)
         owner = {
@@ -1873,6 +1889,10 @@ def main() -> int:
                 print("validation-v2: NO CHANGED PATHS: no checks executed; not acceptance of a build", flush=True)
             _, exit_code = run_steps(repo, steps, environment, timeout, outcomes,
                                      log_directory=log_directory, keep_going=args.keep_going)
+        if exit_code == 0:
+            end_head, end_tracked_status, _ = checkout_state(repo)
+            if end_head != details["head"] or end_tracked_status != start_tracked_status:
+                raise RuntimeError("checkout state changed during validation")
     except RunnerInterrupted as error:
         exit_code = 128 + error.number
         document["runner_signal"] = error.number

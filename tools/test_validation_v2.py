@@ -809,6 +809,101 @@ def test_interrupt_and_verdict_contract(
     assert "requires --manifest" in usage.stderr
 
 
+def test_checkout_stability_contract(directory: Path) -> None:
+    """Green child commands cannot alter tracked checkout status or HEAD."""
+    for mutation in ("uncommitted", "committed"):
+        repo = directory / f"checkout-state-{mutation}"
+        tools = repo / "tools"
+        fake_bin = directory / f"checkout-state-{mutation}-bin"
+        workflow = repo / ".github" / "workflows" / "changed.yml"
+        marker = repo / "tracked.txt"
+        manifest = directory / f"checkout-state-{mutation}.json"
+        tools.mkdir(parents=True)
+        fake_bin.mkdir()
+        shutil.copy2(RUNNER_PATH, tools / "validation-v2")
+        (repo / "rust-toolchain.toml").write_text(
+            '[toolchain]\nchannel = "1.98.0"\n'
+        )
+        (repo / "Cargo.toml").write_text('[workspace]\nresolver = "2"\n')
+        marker.write_text("initial\n")
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text("name: initial\n")
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "validation-v2@example.invalid"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Validation V2"], cwd=repo, check=True
+        )
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "fixture"], cwd=repo, check=True)
+        workflow.write_text("name: changed\n")
+        start_head, start_tracked_status, start_dirty = runner.checkout_state(repo)
+        assert start_dirty
+        fake_tool(
+            fake_bin / "rustc",
+            'printf "rustc 1.98.0 (fixture 1970-01-01)\\n"\n',
+        )
+        fake_tool(
+            fake_bin / "actionlint",
+            'printf "changed\\n" > tracked.txt\n'
+            'if [ "$VALIDATION_CHECKOUT_MUTATION" = committed ]; then\n'
+            '  git add tracked.txt\n'
+            '  git commit -qm "child tracked change"\n'
+            "fi\n",
+        )
+        environment = os.environ.copy()
+        environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
+        environment["VALIDATION_V2_MANIFEST"] = str(manifest)
+        environment["VALIDATION_V2_LOCK_DIR"] = str(directory / f"locks-{mutation}")
+        environment["VALIDATION_CHECKOUT_MUTATION"] = mutation
+        result = subprocess.run(
+            [str(tools / "validation-v2"), "quick", "--base", "HEAD"],
+            cwd=repo,
+            env=environment,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert result.returncode == runner.RUNNER_ERROR, (result.stdout, result.stderr)
+        assert "checkout state changed during validation" in result.stderr
+        for private_detail in ("tracked.txt", "changed.yml", "changed\n"):
+            assert private_detail not in result.stdout + result.stderr
+        document = json.loads(manifest.read_text())
+        assert document["status"] == "failed"
+        assert document["exit_code"] == runner.RUNNER_ERROR
+        assert document["provenance"]["head"] == start_head
+        assert document["provenance"]["dirty"] is start_dirty
+        assert document["plan"]["changed_paths"] == [".github/workflows/changed.yml"]
+        actionlint = next(
+            command for command in document["commands"]
+            if command["argv"][0] == "actionlint"
+        )
+        assert actionlint["status"] == "passed" and actionlint["exit_code"] == 0
+        assert runner.manifest_problems(document)
+
+        verified = subprocess.run(
+            [str(tools / "validation-v2"), "verify", "--manifest", str(manifest)],
+            cwd=repo,
+            env=environment,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert verified.returncode == runner.VERDICT_ERROR
+        assert "status is 'failed'" in verified.stderr
+
+        end_head, end_tracked_status, _ = runner.checkout_state(repo)
+        if mutation == "uncommitted":
+            assert end_head == start_head
+            assert end_tracked_status != start_tracked_status
+        else:
+            assert end_head != start_head
+            assert end_tracked_status == start_tracked_status
+
+
 def references_checker(planned: list[list[str]]) -> bool:
     return any(runner.CHECKER_MANIFEST in command for command in planned)
 
@@ -1731,6 +1826,7 @@ def main() -> None:
         test_evidence_contract(repo, environment, directory)
         test_cargo_target_contract(repo, environment, directory)
         test_runner_contract(repo, tools, environment, directory)
+        test_checkout_stability_contract(directory)
         test_interrupt_and_verdict_contract(repo, tools, environment, directory, fake_bin)
         test_planner_contract(repo)
     print("validation-v2 self-test passed")
