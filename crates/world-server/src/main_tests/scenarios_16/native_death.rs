@@ -629,9 +629,15 @@ async fn secondary_split_deaths_finish_before_each_log_and_primary_hit() {
 async fn secondary_split_death_failure_fences_next_aura_and_primary_mutation() {
     const SPLIT_ONE: i32 = 96_483;
     const SPLIT_TWO: i32 = 96_484;
+    const NORMAL_HIT: i32 = 96_485;
     let split = wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT;
-    let (spell_store, spell_class_options_store) =
-        damage_aura_spell_catalog(&[(SPLIT_ONE, split, 50), (SPLIT_TWO, split, 50)]);
+    let hit_chance = wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE;
+    // Force a landed melee input so this assertion isolates the split-death fence.
+    let (spell_store, spell_class_options_store) = damage_aura_spell_catalog(&[
+        (SPLIT_ONE, split, 50),
+        (SPLIT_TWO, split, 50),
+        (NORMAL_HIT, hit_chance, 100),
+    ]);
     let (world, mut primary_session, primary_send, _peer, primary) =
         native_map_fixture(96_520).await;
     attach_test_spell_catalog(
@@ -664,6 +670,19 @@ async fn secondary_split_death_failure_fences_next_aura_and_primary_mutation() {
     set_player_health(&world, later_secondary, 100);
     install_player_damage_aura(&world, primary, failing_secondary, 10, SPLIT_ONE, split, 50);
     install_player_damage_aura(&world, primary, later_secondary, 11, SPLIT_TWO, split, 50);
+    install_player_damage_aura(&world, primary, primary, 12, NORMAL_HIT, hit_chance, 100);
+    {
+        let mut manager = world.canonical.lock().unwrap();
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        let stats = map
+            .get_typed_player(primary)
+            .unwrap()
+            .effective_combat_stats_like_cpp();
+        assert_eq!(
+            (stats.dodge_pct, stats.parry_pct, stats.block_pct),
+            (0.0, 0.0, 0.0)
+        );
+    }
     {
         let mut manager = world.canonical.lock().unwrap();
         let player = manager

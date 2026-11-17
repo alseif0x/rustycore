@@ -1244,6 +1244,30 @@ headroom or retirement of #584's existing ownership and physical split exits.
 The corrected committed candidate requires final acceptance below; no earlier
 test execution is relabelled as having run at that later SHA.
 
+The second final at 58ed0919a passed architecture, syntax ownership, formatting,
+test compilation and eleven library suites, but the Server suite failed its
+secondary split-death failure-fence test (644 pass, one failure, one ignored).
+Its 527.938-second manifest remains failed, not covered by inherited-debt
+publication authority. The same test passed the first campaign. Inspection
+found that its fixed damage range still admitted random misses before the
+operation failed, while it rejected every earlier attacker-state packet.
+Its adjacent positive case already supplies the appropriate +100 attacker-
+melee-hit aura; the failure case now does the same and asserts zero dodge,
+parry and block inputs. Existing health, in-flight operation, tick and packet
+assertions are retained. Unit.cpp:12539–12545 at 02245dcd subtracts this victim
+aura from miss chance and clamps at zero; wow-combat/src/facts.rs:121–128
+uses the corresponding represented rule. The failed packet's individual hit
+band was not logged, so no particular random draw is claimed as decoded proof.
+
+This test-only correction adds 19 Server test lines and no test identity or
+production change. The 1016-line native_death test family remains cohesive
+around the canonical death-operation/session-phase ordering; its next natural
+split separates shared participant/packet fixtures from scenario groups at
+the existing #584 closeout. Crossing 1000 lines is reviewed here, without a
+terminal exception. Server's exact logical ceiling becomes 37111 test / 74861
+total, with production unchanged at 37750. The complete campaign clock is not
+reset; error-repair time is retained separately in the local evidence record.
+
 ## Canonical inventory capture continuation — 2026-11-16
 
 Resumed from published `d91650024` on `forever`. The November 11 publication
