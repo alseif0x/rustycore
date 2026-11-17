@@ -1560,6 +1560,9 @@ def manifest_problems(document: object) -> list[str]:
         problems.append(f"runner error {document.get('runner_error')!r}")
     if document.get("runner_signal") is not None:
         problems.append(f"runner died by signal {document.get('runner_signal')!r}")
+    profile = document.get("profile")
+    if profile not in ("self-test", "quick", "final", "audit"):
+        problems.append(f"profile is {profile!r}; expected self-test, quick, final or audit")
     commands = document.get("commands")
     if not isinstance(commands, list):
         problems.append("commands are missing")
@@ -1573,13 +1576,71 @@ def manifest_problems(document: object) -> list[str]:
                 f"command {index} ({command.get('section')}) is {command.get('status')!r}"
                 f" [{command.get('failure_kind')}]"
             )
+        exit_code = command.get("exit_code")
+        if type(exit_code) is not int or exit_code != 0:
+            problems.append(f"command {index} exit code is {exit_code!r}; expected integer 0")
+        if "failure_kind" not in command or command["failure_kind"] is not None:
+            problems.append(f"command {index} failure kind is {command.get('failure_kind')!r}")
+        if "signal" not in command or command["signal"] is not None:
+            problems.append(f"command {index} signal is {command.get('signal')!r}")
+        if command.get("timed_out") is not False:
+            problems.append(f"command {index} timed_out is {command.get('timed_out')!r}")
+        oom_kills = command.get("oom_kills")
+        valid_oom_kills = oom_kills is None or (type(oom_kills) is int and oom_kills == 0)
+        if "oom_kills" not in command or not valid_oom_kills:
+            problems.append(f"command {index} oom_kills is {oom_kills!r}; expected 0 or None")
     plan = document.get("plan")
-    if isinstance(plan, dict):
+    if profile == "self-test":
+        if "plan" not in document or plan is not None:
+            problems.append("self-test plan must be None")
+        if len(commands) != 1:
+            problems.append(f"self-test recorded {len(commands)} commands; expected exactly one")
+    elif profile in ("quick", "final", "audit"):
+        if not isinstance(plan, dict):
+            problems.append(f"{profile} plan is missing or is not an object")
+            return problems
         planned = plan.get("planned_steps")
-        if isinstance(planned, list) and len(planned) != len(commands):
-            problems.append(
-                f"{len(commands)} of {len(planned)} planned steps were executed"
+        planned_commands = plan.get("planned_commands")
+        if not isinstance(planned, list):
+            problems.append("planned steps are missing or are not a list")
+            return problems
+        if len(planned) != len(commands):
+            problems.append(f"{len(commands)} of {len(planned)} planned steps were executed")
+        if not isinstance(planned_commands, list):
+            problems.append("planned commands are missing or are not a list")
+
+        ordered_argv: list[list[str]] = []
+        valid_steps = True
+        for index, step in enumerate(planned):
+            if not isinstance(step, dict):
+                problems.append(f"planned step {index} is not an object")
+                valid_steps = False
+                continue
+            section = step.get("section")
+            argv = step.get("argv")
+            valid_section = isinstance(section, str) and bool(section)
+            valid_argv = isinstance(argv, list) and bool(argv) and all(
+                isinstance(argument, str) for argument in argv
             )
+            if not valid_section:
+                problems.append(f"planned step {index} has an invalid section")
+            if not valid_argv:
+                problems.append(f"planned step {index} has an invalid argv")
+            if not valid_section or not valid_argv:
+                valid_steps = False
+                continue
+            ordered_argv.append(argv)
+            if index < len(commands) and isinstance(commands[index], dict):
+                outcome = commands[index]
+                if outcome.get("section") != section:
+                    problems.append(
+                        f"command {index} section {outcome.get('section')!r} does not match "
+                        f"planned section {section!r}"
+                    )
+                if outcome.get("argv") != argv:
+                    problems.append(f"command {index} argv does not match its planned step")
+        if isinstance(planned_commands, list) and valid_steps and planned_commands != ordered_argv:
+            problems.append("planned commands do not match planned step argv")
     return problems
 
 

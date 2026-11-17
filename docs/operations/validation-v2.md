@@ -326,11 +326,12 @@ consumer rule is explicit: **a missing manifest is a failed run.** Verify one wi
 ./tools/validation-v2 verify --manifest <path> --require-profile final
 ```
 
-which exits non-zero for a missing, unreadable, schema-mismatched, signalled, failed, or truncated
-manifest — including a `passed` manifest that executed fewer commands than its plan declared. Rust
-CI runs this step after every manifest-producing profile, before the artifact upload. The optional
-`--require-profile <canonical-profile>` rejects evidence from a weaker or different profile; for
-example, `--require-profile final` rejects a level-2/`quick` manifest as final evidence.
+The verifier matches each result's section and command arguments against the
+plan in order. It rejects missing steps, substituted commands, and results whose
+exit code or failure fields contradict a passing status. The `self-test`
+profile records one result with no plan. Rust CI verifies each manifest before
+uploading it. Use `--require-profile final` when consuming final evidence so a
+`quick` manifest cannot satisfy that requirement.
 
 ## protoc
 

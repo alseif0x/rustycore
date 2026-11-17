@@ -130,6 +130,7 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert success["plan"]["workspace"] is None
     assert len(success["commands"]) == 2
     assert all(command["status"] == "passed" for command in success["commands"])
+    assert runner.manifest_problems(success) == []
     alias_manifest = directory / "level-two.json"
     alias_result = invoke("2", alias_manifest, {"PROTOC": "/must-not-be-probed"})
     assert alias_result.returncode == 0, alias_result.stderr
@@ -598,6 +599,9 @@ def test_interrupt_and_verdict_contract(
     assert "runner died by signal" in rejected.stderr
 
     green_manifest = directory / "verified-green.json"
+    verifier_fixture = repo / "docs" / "verifier-contract.md"
+    verifier_fixture.parent.mkdir(exist_ok=True)
+    verifier_fixture.write_text("A changed documentation fixture makes this quick plan nonempty.\n")
     environment["VALIDATION_V2_MANIFEST"] = str(green_manifest)
     result = subprocess.run(
         [str(tools / "validation-v2"), "quick", "--base", "HEAD"],
@@ -620,6 +624,85 @@ def test_interrupt_and_verdict_contract(
     assert "required 'final'" in guarded.stderr
 
     green = json.loads(green_manifest.read_text())
+    assert green["plan"]["planned_steps"]
+    assert len(green["commands"]) >= 2, "positional tampering needs a nonempty multi-step run"
+    assert runner.manifest_problems(green) == []
+
+    def rejected_tampering(name: str, mutate, expected: str) -> None:
+        document = json.loads(json.dumps(green))
+        mutate(document)
+        target = directory / f"tampered-{name}.json"
+        target.write_text(json.dumps(document))
+        result = verify(target)
+        assert result.returncode == runner.VERDICT_ERROR, (name, result.stdout, result.stderr)
+        assert expected in result.stderr, (name, result.stderr)
+
+    # CLI verification rejects same-count substitution and reordered outcomes.
+    tampering_cases = (
+        ("substituted-argv", lambda document: document["commands"][0].update(argv=["true"]),
+         "argv does not match its planned step"),
+        ("reordered-outcomes", lambda document: document.update(commands=list(reversed(document["commands"]))),
+         "does not match"),
+        ("missing-plan", lambda document: document.update(plan=None), "plan is missing"),
+        ("exit-contradiction", lambda document: document["commands"][0].update(exit_code=1),
+         "expected integer 0"),
+        ("plan-argv-mismatch",
+         lambda document: document["plan"]["planned_commands"].__setitem__(0, ["true"]),
+         "planned commands do not match planned step argv"),
+        ("missing-planned-steps", lambda document: document["plan"].pop("planned_steps"),
+         "planned steps are missing"),
+        ("missing-planned-commands", lambda document: document["plan"].pop("planned_commands"),
+         "planned commands are missing"),
+        ("empty-step-section", lambda document: document["plan"]["planned_steps"][0].update(section=""),
+         "planned step 0 has an invalid section"),
+        ("non-string-step-section",
+         lambda document: document["plan"]["planned_steps"][0].update(section=None),
+         "planned step 0 has an invalid section"),
+        ("empty-step-argv", lambda document: document["plan"]["planned_steps"][0].update(argv=[]),
+         "planned step 0 has an invalid argv"),
+        ("non-string-step-argv",
+         lambda document: document["plan"]["planned_steps"][0].update(argv=[1]),
+         "planned step 0 has an invalid argv"),
+        ("unknown-profile", lambda document: document.update(profile="other"),
+         "expected self-test, quick, final or audit"),
+        ("self-test-plan", lambda document: document.update(profile="self-test"),
+         "self-test plan must be None"),
+        ("self-test-outcomes", lambda document: document.update(profile="self-test", plan=None),
+         "expected exactly one"),
+    )
+    for name, mutate, diagnostic in tampering_cases:
+        rejected_tampering(name, mutate, diagnostic)
+
+    for name, edit, diagnostic in (
+        ("failure-kind", lambda command: command.update(failure_kind="exit"), "failure kind is"),
+        ("missing-failure-kind", lambda command: command.pop("failure_kind"), "failure kind is"),
+        ("signal", lambda command: command.update(signal=9), "signal is"),
+        ("missing-signal", lambda command: command.pop("signal"), "signal is"),
+        ("timeout", lambda command: command.update(timed_out=True), "timed_out is"),
+        ("missing-timeout", lambda command: command.pop("timed_out"), "timed_out is"),
+        ("oom-kills", lambda command: command.update(oom_kills=1), "oom_kills is"),
+        ("missing-oom-kills", lambda command: command.pop("oom_kills"), "oom_kills is"),
+        ("boolean-exit", lambda command: command.update(exit_code=False), "expected integer 0"),
+    ):
+        rejected_tampering(name, lambda document, edit=edit: edit(document["commands"][0]), diagnostic)
+
+    # A nested child report remains diagnostic data beneath a green outer command.
+    nested_report = directory / "nested-child-report.json"
+    nested = json.loads(json.dumps(green))
+    nested["commands"][0]["child_signal_reports"] = [{"signal": 6, "name": "SIGABRT"}]
+    nested_report.write_text(json.dumps(nested))
+    assert verify(nested_report).returncode == 0
+
+    self_test_fixture = json.loads(json.dumps(green))
+    self_test_fixture.update(profile="self-test", plan=None)
+    self_test_outcome = json.loads(json.dumps(green["commands"][0]))
+    self_test_outcome.pop("section")  # Self-test uses run_one directly, without step routing.
+    self_test_outcome["argv"] = [sys.executable, str(repo / "tools" / "test_validation_v2.py")]
+    self_test_fixture["commands"] = [self_test_outcome]
+    self_test_manifest = directory / "self-test-shaped.json"
+    self_test_manifest.write_text(json.dumps(self_test_fixture))
+    assert verify(self_test_manifest).returncode == 0
+
     unreadable = directory / "unreadable.json"
     unreadable.write_text("{not json")
     assert verify(unreadable).returncode == runner.VERDICT_ERROR
@@ -1378,13 +1461,15 @@ def test_empty_scope_contract(repo: Path, tools: Path, environment: dict[str, st
         assert recorded["commands"] == []
         assert recorded["plan"]["require_changes"] is True
         assert runner.manifest_problems(recorded)
+    empty_manifest = directory / "empty-allowed.json"
     result = subprocess.run(
         [str(tools / "validation-v2"), "quick", "--base", "HEAD"], cwd=repo,
-        env={**environment, "VALIDATION_V2_MANIFEST": str(directory / "empty-allowed.json")},
+        env={**environment, "VALIDATION_V2_MANIFEST": str(empty_manifest)},
         capture_output=True, text=True,
     )
     assert result.returncode == 0
     assert "NO CHANGED PATHS" in result.stdout
+    assert runner.manifest_problems(json.loads(empty_manifest.read_text())) == []
 
 
 def test_evidence_contract(repo: Path, environment: dict[str, str], directory: Path) -> None:
@@ -1403,9 +1488,18 @@ def test_evidence_contract(repo: Path, environment: dict[str, str], directory: P
         assert message in contents
         assert json.loads(contents.splitlines()[0])["argv"] == step["argv"]
     # No caller may turn a diagnostic red run into a green manifest.
-    assert runner.manifest_problems({"schema": runner.MANIFEST_SCHEMA, "runner": "rustycore-validation-v2",
-                                    "status": "passed", "exit_code": 0, "commands": results,
-                                    "plan": {"planned_steps": steps}})
+    assert runner.manifest_problems({
+        "schema": runner.MANIFEST_SCHEMA,
+        "runner": "rustycore-validation-v2",
+        "profile": "quick",
+        "status": "passed",
+        "exit_code": 0,
+        "commands": results,
+        "plan": {
+            "planned_steps": steps,
+            "planned_commands": [step["argv"] for step in steps],
+        },
+    })
     for reason in ("oom", "timeout", "signal", "child-signal", "interrupted", "output-log"):
         def fatal(*args, sink=None, **kwargs):
             outcome = {"status": "failed", "exit_code": 137, "failure_kind": reason, "duration_seconds": 0}
