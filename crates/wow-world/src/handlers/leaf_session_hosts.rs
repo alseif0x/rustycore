@@ -16,7 +16,7 @@ use wow_data::{
     AreaTriggerDb2Store, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore,
     TavernAreaTriggerStoreLikeCpp,
 };
-use wow_entities::{Item, PlayerInventoryItem as InventoryItem};
+use wow_entities::{ItemReadView, PlayerInventoryItem as InventoryItem};
 use wow_social::group::GroupDifficultyKindLikeCpp;
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_instances::{AreaTriggerCatalogAccessLikeCpp, GroupSessionHostLikeCpp};
@@ -88,8 +88,13 @@ impl wow_world_inventory::AddToyHostLikeCpp for WorldSession {
     fn can_use_inventory_item_represented_like_cpp(
         &self,
         item: &InventoryItem,
-        runtime_item: Option<&Item>,
+        runtime_item: Option<ItemReadView<'_>>,
     ) -> InventoryResult {
-        WorldSession::can_use_inventory_item_represented_like_cpp(self, item, runtime_item)
+        wow_world_player_conditions::can_use_inventory_item_represented_with_loading_like_cpp(
+            &self.player_condition_projection_cx_like_cpp(),
+            item,
+            runtime_item,
+            true,
+        )
     }
 }

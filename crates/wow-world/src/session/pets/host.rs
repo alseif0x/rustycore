@@ -11,7 +11,7 @@
 
 use std::future::Future;
 
-use wow_entities::Item;
+use wow_entities::ItemValuesSnapshot;
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_inventory::InventoryState;
 use wow_world_lifecycle::SessionLifecycleState;
@@ -49,7 +49,7 @@ impl wow_world_inventory::BattlePetSessionHostLikeCpp for WorldSession {
         bag: u8,
         slot: u8,
         item: InventoryItem,
-        runtime_item: Option<Item>,
+        runtime_item: Option<ItemValuesSnapshot>,
         expected_owner_db_guid: Option<u64>,
         context: &str,
     ) -> impl Future<Output = bool> + Send {

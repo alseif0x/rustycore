@@ -113,9 +113,10 @@ impl crate::InventoryState {
         container_guid: ObjectGuid,
     ) -> Option<Vec<(u8, u8, InventoryItem)>> {
         let mut candidates = self
-            .resolved_inventory_item_objects_like_cpp(hub)?
+            .resolved_inventory_item_values_like_cpp(hub)?
             .values()
             .map(|item| {
+                let item = item.read_view();
                 (
                     item.container_guid(),
                     item.bag_slot(),

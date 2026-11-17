@@ -11,8 +11,8 @@ use tracing::warn;
 use wow_constants::SpellCastResult;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    Item, PlayerInventoryItem as InventoryItem, SpellCastBattlePetItemModifiersLikeCpp,
-    SpellCastMetadata,
+    ItemValuesSnapshot, PlayerInventoryItem as InventoryItem,
+    SpellCastBattlePetItemModifiersLikeCpp, SpellCastMetadata,
 };
 use wow_world_core::battle_pet_account::BattlePetAddRequestKeyLikeCpp;
 
@@ -49,9 +49,12 @@ fn get_inventory_item_by_guid_like_cpp<H: BattlePetSessionHostLikeCpp>(
 fn resolved_inventory_item_object_like_cpp<H: BattlePetSessionHostLikeCpp>(
     host: &H,
     guid: ObjectGuid,
-) -> Option<Item> {
+) -> Option<ItemValuesSnapshot> {
     let (state, hub) = host.split_inventory_ref();
-    state.resolved_inventory_item_object_like_cpp(hub, guid)
+    state.resolved_inventory_item_object_with_access_like_cpp(
+        &hub.core.owned_inventory_access_like_cpp(),
+        guid,
+    )
 }
 
 /// C++ `Spell::EffectCreateBattlePet` / `SPELL_EFFECT_UNCAGE_BATTLEPET`.

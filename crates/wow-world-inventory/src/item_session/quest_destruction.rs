@@ -211,16 +211,20 @@ async fn destroy_matching_item_at_like_cpp<H: ItemSessionHostLikeCpp>(
     };
     let runtime_item = {
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_object_like_cpp(hub, item.guid)
+        state.resolved_inventory_item_object_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(),
+            item.guid,
+        )
     }
     .ok_or("canonical quest item object is unavailable")?;
-    if runtime_item.object().entry() != item_entry {
+    let item_view = runtime_item.read_view();
+    if item_view.object().entry() != item_entry {
         return Err("canonical quest item entry authority disagrees");
     }
-    if runtime_item.is_in_trade() {
+    if item_view.is_in_trade() {
         return Ok(None);
     }
-    let current_count = runtime_item.count();
+    let current_count = item_view.count();
 
     match native_destroy_action_like_cpp(current_count, *already_removed, requested_count) {
         NativeDestroyActionLikeCpp::FullStack => {
@@ -236,14 +240,23 @@ async fn destroy_matching_item_at_like_cpp<H: ItemSessionHostLikeCpp>(
                 };
                 let unequip_result = {
                     let (state, hub) = host.split_inventory_ref();
-                    state.can_unequip_inventory_item_at_like_cpp(
-                        hub,
+                    let valuation_access = hub.core.inventory_valuation_access_like_cpp();
+                    let inventory_access = hub.core.owned_inventory_access_like_cpp();
+                    let catalogs = hub.catalogs.inventory_valuation_catalog_view_like_cpp();
+                    state.can_unequip_inventory_item_at_with_access_like_cpp(
+                        &valuation_access,
+                        &inventory_access,
+                        &catalogs,
                         bag,
                         slot,
                         false,
-                        Some(&runtime_item),
+                        Some(item_view),
                         Some(&proto),
                         source_is_not_empty_bag,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        &hub.fixtures.battleground,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        &hub.fixtures.combat.in_combat,
                     )
                 };
                 if unequip_result != InventoryResult::Ok {
@@ -306,10 +319,13 @@ fn preflight_full_destroy_graph_like_cpp<H: ItemSessionHostLikeCpp>(
     for (_, _, child) in descendants {
         let runtime_item = {
             let (state, hub) = host.split_inventory_ref();
-            state.resolved_inventory_item_object_like_cpp(hub, child.guid)
+            state.resolved_inventory_item_object_with_access_like_cpp(
+                &hub.core.owned_inventory_access_like_cpp(),
+                child.guid,
+            )
         }
         .ok_or("canonical quest item child object is unavailable")?;
-        if runtime_item.object().entry() != child.entry_id {
+        if runtime_item.read_view().object().entry() != child.entry_id {
             return Err("canonical quest item child entry authority disagrees");
         }
     }
@@ -338,10 +354,14 @@ fn native_bag_size_like_cpp<H: ItemSessionHostLikeCpp>(
     };
     let runtime_item = {
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_object_like_cpp(hub, bag_item.guid)
+        state.resolved_inventory_item_object_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(),
+            bag_item.guid,
+        )
     }
     .ok_or("canonical bag item object is unavailable")?;
-    if runtime_item.object().entry() != bag_item.entry_id {
+    let bag_item_view = runtime_item.read_view();
+    if bag_item_view.object().entry() != bag_item.entry_id {
         return Err("canonical bag item entry authority disagrees");
     }
     // PlayerBagStorage is the capacity authority. The item template is only
@@ -352,7 +372,7 @@ fn native_bag_size_like_cpp<H: ItemSessionHostLikeCpp>(
         .item_storage_template(bag_item.entry_id)
         .map(|template| template.container_slots);
     match (
-        runtime_item.object().is_type(TypeMask::CONTAINER),
+        bag_item_view.object().is_type(TypeMask::CONTAINER),
         bag_storage,
     ) {
         (true, Some((storage_guid, bag_size))) if storage_guid == bag_item.guid => {

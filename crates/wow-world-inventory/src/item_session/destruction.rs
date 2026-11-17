@@ -10,7 +10,9 @@ use std::collections::{BTreeSet, HashMap};
 use tracing::{debug, info, warn};
 use wow_constants::{InventoryResult, ItemFlags};
 use wow_core::ObjectGuid;
-use wow_entities::{INVENTORY_SLOT_BAG_0, PlayerInventoryItem as InventoryItem, is_bank_pos};
+use wow_entities::{
+    INVENTORY_SLOT_BAG_0, ItemValuesSnapshot, PlayerInventoryItem as InventoryItem, is_bank_pos,
+};
 use wow_packet::packets::item::{InventoryChangeFailure, ItemExpirePurchaseRefund};
 use wow_packet::packets::update::UpdateObject;
 
@@ -60,22 +62,35 @@ pub async fn handle_destroy_item<H: ItemSessionHostLikeCpp>(
 
     let runtime_item = {
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_object_like_cpp(hub, item.guid)
+        state.resolved_inventory_item_object_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(),
+            item.guid,
+        )
     };
     let item_proto = host.hub_ref().catalogs.item_storage_template(item.entry_id);
+    let source_is_not_empty_bag = {
+        let (state, hub) = host.split_inventory_ref();
+        state.direct_item_contains_items(hub, item.guid)
+    };
     let unequip_result = {
         let (state, hub) = host.split_inventory_ref();
-        state.can_unequip_inventory_item_at_like_cpp(
-            hub,
+        let valuation_access = hub.core.inventory_valuation_access_like_cpp();
+        let inventory_access = hub.core.owned_inventory_access_like_cpp();
+        let catalogs = hub.catalogs.inventory_valuation_catalog_view_like_cpp();
+        state.can_unequip_inventory_item_at_with_access_like_cpp(
+            &valuation_access,
+            &inventory_access,
+            &catalogs,
             bag,
             slot,
             false,
-            runtime_item.as_ref(),
+            runtime_item.as_ref().map(ItemValuesSnapshot::read_view),
             item_proto.as_ref(),
-            {
-                let (state, hub) = host.split_inventory_ref();
-                state.direct_item_contains_items(hub, item.guid)
-            },
+            source_is_not_empty_bag,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &hub.fixtures.battleground,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &hub.fixtures.combat.in_combat,
         )
     };
     if unequip_result != InventoryResult::Ok {
@@ -101,7 +116,7 @@ pub async fn handle_destroy_item<H: ItemSessionHostLikeCpp>(
         .as_ref()
         .map(|item_object| {
             destroy_item_count_action(
-                item_object.count(),
+                item_object.read_view().count(),
                 u32::try_from(destroy.count).unwrap_or(u32::MAX),
             )
         })
@@ -111,7 +126,7 @@ pub async fn handle_destroy_item<H: ItemSessionHostLikeCpp>(
         let item_entry_id = item.entry_id;
         let removed_count = runtime_item
             .as_ref()
-            .map(|item_object| item_object.count().saturating_sub(new_count))
+            .map(|item_object| item_object.read_view().count().saturating_sub(new_count))
             .unwrap_or(0);
         match apply_partial_inventory_destroy_like_cpp(
             host,
@@ -332,7 +347,7 @@ pub async fn destroy_inventory_full_stack_by_pos_like_cpp<H: ItemSessionHostLike
     bag: u8,
     slot: u8,
     item: InventoryItem,
-    runtime_item: Option<wow_entities::Item>,
+    runtime_item: Option<ItemValuesSnapshot>,
     context: &str,
 ) -> bool {
     destroy_inventory_full_stack_by_pos_common_like_cpp(
@@ -355,7 +370,7 @@ pub async fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp<
     bag: u8,
     slot: u8,
     item: InventoryItem,
-    runtime_item: Option<wow_entities::Item>,
+    runtime_item: Option<ItemValuesSnapshot>,
     expected_owner_db_guid: Option<u64>,
     context: &str,
 ) -> bool {
@@ -379,7 +394,7 @@ pub(super) async fn destroy_inventory_full_stack_by_pos_with_expected_runtime_ow
     bag: u8,
     slot: u8,
     item: InventoryItem,
-    runtime_item: Option<wow_entities::Item>,
+    runtime_item: Option<ItemValuesSnapshot>,
     expected_runtime_owner: (ObjectGuid, u64),
     context: &str,
 ) -> bool {
@@ -402,7 +417,7 @@ async fn destroy_inventory_full_stack_by_pos_common_like_cpp<H: ItemSessionHostL
     bag: u8,
     slot: u8,
     item: InventoryItem,
-    runtime_item: Option<wow_entities::Item>,
+    runtime_item: Option<ItemValuesSnapshot>,
     expected_owner_db_guid: Option<u64>,
     expected_runtime_owner: Option<(ObjectGuid, u64)>,
     context: &str,
@@ -434,7 +449,10 @@ async fn destroy_inventory_full_stack_by_pos_common_like_cpp<H: ItemSessionHostL
         .map(|(child_bag, child_slot, child)| {
             (*child_bag, *child_slot, child.clone(), {
                 let (state, hub) = host.split_inventory_ref();
-                state.resolved_inventory_item_object_like_cpp(hub, child.guid)
+                state.resolved_inventory_item_object_with_access_like_cpp(
+                    &hub.core.owned_inventory_access_like_cpp(),
+                    child.guid,
+                )
             })
         })
         .collect::<Vec<_>>();
@@ -448,7 +466,7 @@ async fn destroy_inventory_full_stack_by_pos_common_like_cpp<H: ItemSessionHostL
                 entry_id: child.entry_id,
                 count: child_runtime
                     .as_ref()
-                    .map(wow_entities::Item::count)
+                    .map(|item| item.read_view().count())
                     .unwrap_or(1),
             },
         )
@@ -459,7 +477,7 @@ async fn destroy_inventory_full_stack_by_pos_common_like_cpp<H: ItemSessionHostL
         entry_id: item.entry_id,
         count: runtime_item
             .as_ref()
-            .map(wow_entities::Item::count)
+            .map(|item| item.read_view().count())
             .unwrap_or(1),
     });
     let Some(planned_quest_statuses) =
@@ -470,7 +488,7 @@ async fn destroy_inventory_full_stack_by_pos_common_like_cpp<H: ItemSessionHostL
 
     let should_expire_refund = runtime_item
         .as_ref()
-        .is_some_and(|item_object| item_object.is_refundable());
+        .is_some_and(|item_object| item_object.read_view().is_refundable());
 
     let nodes = descendant_runtime
         .iter()
@@ -550,7 +568,7 @@ async fn destroy_inventory_full_stack_by_pos_common_like_cpp<H: ItemSessionHostL
     for (child_bag, child_slot, child, child_runtime) in descendant_runtime {
         let should_expire_child_refund = child_runtime
             .as_ref()
-            .is_some_and(|item_object| item_object.is_refundable());
+            .is_some_and(|item_object| item_object.read_view().is_refundable());
         let _ = host.apply_inventory_item_remove_side_effects_like_cpp(
             child_bag,
             child_slot,

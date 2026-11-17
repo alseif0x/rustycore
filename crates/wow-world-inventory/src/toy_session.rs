@@ -15,7 +15,7 @@
 
 use tracing::{info, warn};
 use wow_constants::InventoryResult;
-use wow_entities::{Item, PlayerInventoryItem as InventoryItem};
+use wow_entities::{ItemReadView, ItemValuesSnapshot, PlayerInventoryItem as InventoryItem};
 use wow_packet::ClientPacket;
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::misc::AddToy;
@@ -29,7 +29,7 @@ pub trait AddToyHostLikeCpp: ItemSessionHostLikeCpp {
     fn can_use_inventory_item_represented_like_cpp(
         &self,
         item: &InventoryItem,
-        runtime_item: Option<&Item>,
+        runtime_item: Option<ItemReadView<'_>>,
     ) -> InventoryResult;
 }
 
@@ -66,11 +66,13 @@ pub async fn handle_add_toy<H: AddToyHostLikeCpp>(host: &mut H, mut pkt: wow_pac
 
     let runtime_item = {
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_objects_like_cpp(hub)
+        state.resolved_inventory_item_values_like_cpp(hub)
     }
     .and_then(|items| items.get(&item.guid).cloned());
-    let can_use_result =
-        host.can_use_inventory_item_represented_like_cpp(&item, runtime_item.as_ref());
+    let can_use_result = host.can_use_inventory_item_represented_like_cpp(
+        &item,
+        runtime_item.as_ref().map(ItemValuesSnapshot::read_view),
+    );
     if can_use_result != InventoryResult::Ok {
         host.core()
             .send_equip_error(can_use_result, Some(item.guid), None, 0, 0);

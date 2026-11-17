@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "item_3/destruction_values.rs"]
+mod destruction_values;
+
 #[test]
 fn child_equip_plan_rejects_displacement_when_parent_started_equipped_like_cpp() {
     let (mut session, _send_rx) = make_session_with_send_capacity(1);
@@ -81,7 +84,8 @@ async fn recursive_destroy_commit_failure_keeps_bag_and_children_like_cpp() {
         ItemContext::None,
         INVENTORY_SLOT_ITEM_START,
     );
-    session.insert_inventory_item_object(bag.clone());
+    let bag_values = wow_entities::ItemValuesSnapshot::capture(&bag);
+    session.insert_inventory_item_object(bag);
     let mut child = session.make_inventory_item_object(
         child_guid,
         700,
@@ -106,7 +110,7 @@ async fn recursive_destroy_commit_failure_keeps_bag_and_children_like_cpp() {
             INVENTORY_SLOT_BAG_0,
             INVENTORY_SLOT_ITEM_START,
             item,
-            Some(bag),
+            Some(bag_values),
             "recursive destroy test",
         )
         .await

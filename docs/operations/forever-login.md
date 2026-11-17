@@ -1003,6 +1003,67 @@ These are level-1 coding results, not final/native Item, DB, runtime or wire
 acceptance. The complete owner integration remains unfinished and
 CharacterCreator remains disabled.
 
+The following local destruction input checkpoint replaces all four full-stack
+Item arguments with captured values and migrates their actual UI, quest, toy
+and uncage producers. Each root/child selected observation retains the existing
+Inventory resolver's absent-handle fixture rule; quest stack, graph-preflight
+and native bag-capacity reads remain distinct. Descendant traversal retains its
+sorted postorder and cycle handling over immutable facts. Toy CanUse takes a
+read view through its existing World Conditions adapter, while uncage retains
+its independent database-owner and runtime-owner guards. This is an input
+migration, not a new Item lifetime or durability authority.
+
+At 02245dcd Player.cpp:12296–12396, native DestroyItem performs recursive
+removal, duration/refund/trade cleanup, effects/hooks, topology/equipment,
+stored-loot cleanup, quest checks, destruction publication and Removed state.
+Rust's current asynchronous GraphDestroy-before-application sequence remains
+a distinct represented operation. Parent body comparison preserves its node
+construction, quest rows, commit classification, post-await owner checks,
+canonical removals, effects and publication; Failed and Unknown still take the
+same existing error path. ToyHandler.cpp:28–54 inserts the account toy before
+destroying only a newly learned item; Rust's rollback/dynamic-field tail is
+unchanged. The initial Inventory worker check failed because the child refund
+read still used an Item-only accessor on captured values. A parent-directed
+correction moves that predicate through read_view, fixes the test flag import
+and compares ordered fact entries rather than adding collection equality.
+
+Worker Inventory check and thirteen distinct World cases pass: two new
+destruction consumers, three recursive-destroy regressions, three AddToy,
+one post-COMMIT Player retirement guard and four uncage cases. The graph case
+contrasts canonical versus poisoned fixture data, exercises Failed on a detached
+owner and Unknown on an active owner, verifies child/root node order, and keeps
+canonical item values/masks, records and topology unchanged. An untouched stack
+of five makes its persisted quest count distinguish the destroyed child's
+actual count three from a default-one or fixture read. The UI partial case
+persists planned count seven from canonical nine rather than fixture one,
+then preserves that source on failure. No success destruction/refund or real
+database durability claim follows from these failure cases.
+
+The first new World run passed the partial case but failed the graph test's
+expected zero objective rows: the existing encoder deliberately omits zeros.
+Parent review retained production and added the untouched stack so the corrected
+test asserts a real nonzero row instead. Both new cases then pass; the partial
+rerun is not another identity. Eight Cargo attempts retain the initial compile
+failure and that test failure, fourteen passing test executions and one failed
+test execution. The eleven unchanged green cases and Inventory check were not
+repeated for the test-only correction. Commands used --locked, one job, cached
+PROTOC and the checkout target; World used the pinned read-only extractor
+overlay. Warnings were not baseline-compared. These are level-1 coding results,
+not final/native phase, DB, runtime or target-wire acceptance. The 1,065-line
+item_3 parent has only its child mount and capture-before-move test adaptation;
+its destruction, bank and auto-equip groups remain a natural macro-closeout
+cohesion review. CharacterCreator remains disabled.
+
+The remaining non-Clone boundary also includes the test-only runtime mirror:
+successful canonical mutations currently copy Item actors back to old fixture
+maps, and handle-less fixture mutations copy them through a temporary runtime.
+The borrowed raw fixture getter itself does not need Clone and remains useful
+for proving poisoned/stale fixtures unchanged. Tests of successful canonical
+mutations must query actual owner facts instead of relying on that mirror;
+moving real fixture actors is distinct from reconstructing actors from values.
+Read-only whole-runtime, selected actor, duration, trade and Void consumers
+still require their complete owner/phase migrations before native attachment.
+
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are
 absent; exact source searches for HandleVoidStorageTransfer, _SaveVoidStorage
