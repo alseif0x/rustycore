@@ -868,12 +868,12 @@ def test_checkout_stability_contract(directory: Path) -> None:
             stderr=subprocess.PIPE,
         )
         assert result.returncode == runner.RUNNER_ERROR, (result.stdout, result.stderr)
-        assert "checkout state changed during validation" in result.stderr
-        for private_detail in ("tracked.txt", "changed.yml", "changed\n"):
-            assert private_detail not in result.stdout + result.stderr
+        drift_error = "checkout state changed during validation"
+        assert result.stderr.splitlines().count(f"validation-v2: runner failure: {drift_error}") == 1
         document = json.loads(manifest.read_text())
         assert document["status"] == "failed"
         assert document["exit_code"] == runner.RUNNER_ERROR
+        assert document["runner_error"] == f"RuntimeError: {drift_error}"
         assert document["provenance"]["head"] == start_head
         assert document["provenance"]["dirty"] is start_dirty
         assert document["plan"]["changed_paths"] == [".github/workflows/changed.yml"]
