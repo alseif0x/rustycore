@@ -1,5 +1,37 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## Forever skill/book/item checkpoint qualified locally — 2026-11-17
+
+Code candidate `920a32e0b1cb8bcb653b5222b5019a6033f81b6a`, based on published
+`2cb94768d`, passes the complete committed-candidate final with architecture:
+16/16 commands, twelve affected library suites, 9,459 passing tests and 18
+ignored. The green manifest is
+`target/validation-v2/manifests/20261117T214132.853555Z-1784580-final.json`;
+its checkout is clean and the final profile is independently verified.
+The actual Forever binary with all four native features passes 116 tests
+(one ignored); the private nine-table Item loader passes its separately
+requested ignored case after all input hashes match the retained manifest.
+The extracted-source C++ oracle passes, including 129 distinct loaded-value
+histories, alongside its preserved skill-status/book/override/cast contrasts.
+
+The checkpoint includes isolated native skill/book load/save/field operations,
+enchantment and item-bonus kernels/data sources, and captured Item query and
+persistence inputs. It deletes both InventoryState copied Item-map producers.
+Canonical Player skill/book/Item owner integration, remaining actor/runtime
+copies, load/save/effects/publication consumers and actual character creation
+remain unfinished. CharacterCreator is still None. This is checkpoint
+qualification, not full macro, runtime, durability or target-wire acceptance.
+
+Earlier final attempts remain failed: the first found format/policy drift;
+the second found a nondeterministic failure-fence fixture. Its corrected
+landed-hit input preserves every existing assertion and changes no gameplay.
+Exact source/physical/logical reviews and failure boundaries are in the owning
+Forever runbook. Local checks ran from 21:09:04Z to 21:49:08Z (2,403.829 seconds),
+before documentation/publication closeout; repairs are recorded separately.
+The complete 600-second ordinary target is not met. No campaign clock or
+earlier failed evidence is reset, and warnings are not claimed baseline-free.
+No service, client or real database operation was performed.
+
 ## Forever canonical inventory capture accepted locally — 2026-11-16
 
 Resumed from published d91650024. The complete inventory query/publication

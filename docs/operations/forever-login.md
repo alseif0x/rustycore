@@ -1268,6 +1268,34 @@ terminal exception. Server's exact logical ceiling becomes 37111 test / 74861
 total, with production unchanged at 37750. The complete campaign clock is not
 reset; error-repair time is retained separately in the local evidence record.
 
+The final corrected code candidate `920a32e0b1cb8bcb653b5222b5019a6033f81b6a`
+passes all 16 final commands, including architecture and syntax ownership,
+and all twelve affected libraries (9,459 pass, 18 ignored). Its clean manifest
+`target/validation-v2/manifests/20261117T214132.853555Z-1784580-final.json`
+is verified green for profile final. The one-job x86_64 run uses the same
+read-only d8f4044 extractor overlay, legacy SQL reference and 02245dcd native
+reference. Final takes 129.008 seconds; it does not relabel either earlier
+failed attempt as green.
+
+The independent native traversal driver passes in 12.649 seconds: 129 new
+loadedSkillValues histories, plus 42 valid/8 invalid traversal, 84 birth
+equal-range, 420 book, 246 skill-status, 420 override and 22 cast histories.
+This remains synthetic source-container evidence. The Forever binary's full
+native-feature configuration passes 116 tests with one ignored (261.171s).
+The separate public nine-table Item loader passes its private-corpus case
+(52.925s including compilation); all nine input hashes match the retained
+70450 acquisition manifest, not a new 70170 capture. No live process or DB
+operation is involved.
+
+Complete local checks span 21:09:04Z–21:49:08Z, 2,403.829 seconds before
+documentation/publication closeout. The failed runs remain included; format/
+policy repair and fixture diagnosis/repair are separately recorded intervals.
+The 600-second ordinary target is not met. Warnings remain and are not claimed
+baseline-free. Publication qualifies this experimental checkpoint only; full
+native owner/load/save/effect/publication and creation acceptance stay open.
+The documentation-only closeout is validated separately against this exact
+code candidate, preserving its actual tested SHA.
+
 ## Canonical inventory capture continuation — 2026-11-16
 
 Resumed from published `d91650024` on `forever`. The November 11 publication
