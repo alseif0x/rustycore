@@ -811,7 +811,9 @@ def test_interrupt_and_verdict_contract(
 
 def test_checkout_stability_contract(directory: Path) -> None:
     """Green child commands cannot alter tracked checkout status or HEAD."""
-    for mutation in ("uncommitted", "committed"):
+    same_status_mutations = {"same-porcelain-unstaged", "same-porcelain-staged-readd"}
+    mutations = ("uncommitted", "committed", *sorted(same_status_mutations), "untracked-output")
+    for mutation in mutations:
         repo = directory / f"checkout-state-{mutation}"
         tools = repo / "tools"
         fake_bin = directory / f"checkout-state-{mutation}-bin"
@@ -839,19 +841,52 @@ def test_checkout_stability_contract(directory: Path) -> None:
         )
         subprocess.run(["git", "add", "."], cwd=repo, check=True)
         subprocess.run(["git", "commit", "-qm", "fixture"], cwd=repo, check=True)
+        base = "HEAD"
         workflow.write_text("name: changed\n")
-        start_head, start_tracked_status, start_dirty = runner.checkout_state(repo)
-        assert start_dirty
+        if mutation == "same-porcelain-staged-readd":
+            subprocess.run(
+                ["git", "add", str(workflow.relative_to(repo))], cwd=repo, check=True
+            )
+        elif mutation == "untracked-output":
+            base = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+            ).strip()
+            subprocess.run(
+                ["git", "add", str(workflow.relative_to(repo))], cwd=repo, check=True
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "changed workflow"], cwd=repo, check=True
+            )
+        start_tracked_state, start_dirty = runner.checkout_state(repo)
+        start_head, start_tracked_status, start_digests = start_tracked_state
+        start_workflow_content = workflow.read_bytes()
+        start_raw_porcelain = subprocess.check_output(
+            [
+                "git", "status", "--porcelain=v1", "-z", "--no-renames",
+                "--untracked-files=normal",
+            ],
+            cwd=repo,
+        )
+        assert start_dirty is (mutation != "untracked-output")
         fake_tool(
             fake_bin / "rustc",
             'printf "rustc 1.98.0 (fixture 1970-01-01)\\n"\n',
         )
         fake_tool(
             fake_bin / "actionlint",
-            'printf "changed\\n" > tracked.txt\n'
-            'if [ "$VALIDATION_CHECKOUT_MUTATION" = committed ]; then\n'
-            '  git add tracked.txt\n'
-            '  git commit -qm "child tracked change"\n'
+            'if [ "$VALIDATION_CHECKOUT_MUTATION" = same-porcelain-unstaged ]; then\n'
+            '  printf "rewritten\\n" > .github/workflows/changed.yml\n'
+            'elif [ "$VALIDATION_CHECKOUT_MUTATION" = same-porcelain-staged-readd ]; then\n'
+            '  printf "staged rewrite\\n" > .github/workflows/changed.yml\n'
+            '  git add .github/workflows/changed.yml\n'
+            'elif [ "$VALIDATION_CHECKOUT_MUTATION" = untracked-output ]; then\n'
+            '  printf "child output\\n" > child-output.tmp\n'
+            "else\n"
+            '  printf "changed\\n" > tracked.txt\n'
+            '  if [ "$VALIDATION_CHECKOUT_MUTATION" = committed ]; then\n'
+            '    git add tracked.txt\n'
+            '    git commit -qm "child tracked change"\n'
+            "  fi\n"
             "fi\n",
         )
         environment = os.environ.copy()
@@ -860,20 +895,29 @@ def test_checkout_stability_contract(directory: Path) -> None:
         environment["VALIDATION_V2_LOCK_DIR"] = str(directory / f"locks-{mutation}")
         environment["VALIDATION_CHECKOUT_MUTATION"] = mutation
         result = subprocess.run(
-            [str(tools / "validation-v2"), "quick", "--base", "HEAD"],
+            [str(tools / "validation-v2"), "quick", "--base", base],
             cwd=repo,
             env=environment,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        assert result.returncode == runner.RUNNER_ERROR, (result.stdout, result.stderr)
-        drift_error = "checkout state changed during validation"
-        assert result.stderr.splitlines().count(f"validation-v2: runner failure: {drift_error}") == 1
+        expect_failure = mutation != "untracked-output"
+        if expect_failure:
+            assert result.returncode == runner.RUNNER_ERROR, (result.stdout, result.stderr)
+            drift_error = "checkout state changed during validation"
+            assert result.stderr.splitlines().count(
+                f"validation-v2: runner failure: {drift_error}"
+            ) == 1
+        else:
+            assert result.returncode == 0, result.stderr
         document = json.loads(manifest.read_text())
-        assert document["status"] == "failed"
-        assert document["exit_code"] == runner.RUNNER_ERROR
-        assert document["runner_error"] == f"RuntimeError: {drift_error}"
+        assert document["status"] == ("failed" if expect_failure else "passed")
+        assert document["exit_code"] == (runner.RUNNER_ERROR if expect_failure else 0)
+        if expect_failure:
+            assert document["runner_error"] == f"RuntimeError: {drift_error}"
+        else:
+            assert "runner_error" not in document
         assert document["provenance"]["head"] == start_head
         assert document["provenance"]["dirty"] is start_dirty
         assert document["plan"]["changed_paths"] == [".github/workflows/changed.yml"]
@@ -882,7 +926,7 @@ def test_checkout_stability_contract(directory: Path) -> None:
             if command["argv"][0] == "actionlint"
         )
         assert actionlint["status"] == "passed" and actionlint["exit_code"] == 0
-        assert runner.manifest_problems(document)
+        assert bool(runner.manifest_problems(document)) is expect_failure
 
         verified = subprocess.run(
             [str(tools / "validation-v2"), "verify", "--manifest", str(manifest)],
@@ -892,16 +936,52 @@ def test_checkout_stability_contract(directory: Path) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        assert verified.returncode == runner.VERDICT_ERROR
-        assert "status is 'failed'" in verified.stderr
+        assert verified.returncode == (runner.VERDICT_ERROR if expect_failure else 0)
+        if expect_failure:
+            assert "status is 'failed'" in verified.stderr
 
-        end_head, end_tracked_status, _ = runner.checkout_state(repo)
+        end_tracked_state, end_dirty = runner.checkout_state(repo)
+        end_head, end_tracked_status, end_digests = end_tracked_state
         if mutation == "uncommitted":
             assert end_head == start_head
             assert end_tracked_status != start_tracked_status
-        else:
+        elif mutation == "committed":
             assert end_head != start_head
             assert end_tracked_status == start_tracked_status
+        elif mutation in same_status_mutations:
+            end_raw_porcelain = subprocess.check_output(
+                [
+                    "git", "status", "--porcelain=v1", "-z", "--no-renames",
+                    "--untracked-files=normal",
+                ],
+                cwd=repo,
+            )
+            assert end_head == start_head
+            assert end_tracked_status == start_tracked_status
+            assert end_raw_porcelain == start_raw_porcelain
+            assert workflow.read_bytes() != start_workflow_content
+            assert start_digests is not None and end_digests is not None
+            if mutation == "same-porcelain-unstaged":
+                assert end_digests[0] == start_digests[0]
+                assert end_digests[1] != start_digests[1]
+            else:
+                assert end_digests[0] != start_digests[0]
+                assert end_digests[1] == start_digests[1]
+        elif mutation == "untracked-output":
+            end_raw_porcelain = subprocess.check_output(
+                [
+                    "git", "status", "--porcelain=v1", "-z", "--no-renames",
+                    "--untracked-files=normal",
+                ],
+                cwd=repo,
+            )
+            assert end_head == start_head
+            assert end_tracked_status == start_tracked_status == ()
+            assert start_digests is end_digests is None
+            assert not start_dirty and end_dirty
+            assert start_raw_porcelain == b""
+            assert end_raw_porcelain == b"?? child-output.tmp\0"
+            assert (repo / "child-output.tmp").read_bytes() == b"child output\n"
 
 
 def references_checker(planned: list[list[str]]) -> bool:

@@ -196,8 +196,35 @@ def output(repo: Path, *command: str) -> str:
     return subprocess.check_output(command, cwd=repo, text=True).strip()
 
 
-def checkout_state(repo: Path) -> tuple[str, tuple[bytes, ...], bool]:
-    """Return HEAD, tracked porcelain entries, and whether any entry is dirty."""
+_TrackedCheckoutState = tuple[str, tuple[bytes, ...], tuple[str, str] | None]
+
+
+def _git_diff_digest(repo: Path, *, cached: bool) -> str:
+    command = [
+        "git", "diff", "--binary", "--full-index", "--no-ext-diff",
+        "--no-textconv", "--no-color", "--no-renames",
+    ]
+    if cached:
+        command.append("--cached")
+    command.append("--")
+    digest = hashlib.sha256()
+    with subprocess.Popen(
+        command,
+        cwd=repo,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ) as process:
+        assert process.stdout is not None
+        while block := process.stdout.read(64 * 1024):
+            digest.update(block)
+        returncode = process.wait()
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command)
+    return digest.hexdigest()
+
+
+def checkout_state(repo: Path) -> tuple[_TrackedCheckoutState, bool]:
+    """Return tracked checkout state and whether any porcelain entry is dirty."""
     head = output(repo, "git", "rev-parse", "HEAD")
     status = subprocess.check_output(
         [
@@ -208,10 +235,16 @@ def checkout_state(repo: Path) -> tuple[str, tuple[bytes, ...], bool]:
     )
     entries = tuple(entry for entry in status.split(b"\0") if entry)
     tracked = tuple(entry for entry in entries if not entry.startswith(b"?? "))
-    return head, tracked, bool(entries)
+    digests = None
+    if tracked:
+        digests = (
+            _git_diff_digest(repo, cached=True),
+            _git_diff_digest(repo, cached=False),
+        )
+    return (head, tracked, digests), bool(entries)
 
 
-def provenance(repo: Path) -> tuple[dict[str, object], tuple[bytes, ...]]:
+def provenance(repo: Path) -> tuple[dict[str, object], _TrackedCheckoutState]:
     root = Path(output(repo, "git", "rev-parse", "--show-toplevel")).resolve()
     if root != repo:
         raise ValueError(f"script root {repo} differs from Git root {root}")
@@ -220,7 +253,8 @@ def provenance(repo: Path) -> tuple[dict[str, object], tuple[bytes, ...]]:
     active = output(repo, "rustc", "--version").split()[1]
     if active != pinned:
         raise ValueError(f"active Rust {active} differs from pinned Rust {pinned}")
-    head, tracked_status, dirty = checkout_state(repo)
+    tracked_state, dirty = checkout_state(repo)
+    head, _, _ = tracked_state
     return (
         {
             "repository_root": str(repo),
@@ -229,7 +263,7 @@ def provenance(repo: Path) -> tuple[dict[str, object], tuple[bytes, ...]]:
             "rust": {"pinned": pinned, "active": active},
             "kernel": platform.release(),
         },
-        tracked_status,
+        tracked_state,
     )
 
 
@@ -1801,7 +1835,7 @@ def main() -> int:
             30,
             3600,
         )
-        details, start_tracked_status = provenance(repo)
+        details, start_tracked_state = provenance(repo)
         started_at = utc_now()
         identifier = run_id(repo, str(details["head"]), args.profile, started_at)
         owner = {
@@ -1890,8 +1924,8 @@ def main() -> int:
             _, exit_code = run_steps(repo, steps, environment, timeout, outcomes,
                                      log_directory=log_directory, keep_going=args.keep_going)
         if exit_code == 0:
-            end_head, end_tracked_status, _ = checkout_state(repo)
-            if end_head != details["head"] or end_tracked_status != start_tracked_status:
+            end_tracked_state, _ = checkout_state(repo)
+            if end_tracked_state != start_tracked_state:
                 raise RuntimeError("checkout state changed during validation")
     except RunnerInterrupted as error:
         exit_code = 128 + error.number

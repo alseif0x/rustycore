@@ -338,11 +338,12 @@ evidence, set `expected_sha` and `expected_base` to the full commit IDs of the
 candidate and its intended validation base.
 
 Before returning a passing verdict, the runner checks that HEAD and the Git
-status entries for tracked files still match the start of the run. A difference
-fails the manifest and preserves its original provenance and command results.
-Keep the checkout inputs fixed while validation runs. The status comparison
-covers changes visible in Git status, such as a clean tracked file becoming
-modified. Keep separate hashes for any untracked inputs relevant to publication.
+status entries for tracked files still match the start of the run. When tracked
+changes are present, it also compares separate in-memory fingerprints of the
+staged and unstaged Git diffs. A difference fails the manifest and preserves its
+original provenance and command results. Keep the checkout inputs fixed during
+validation, since the comparison sees only the start and end states. Keep
+separate hashes for any untracked inputs relevant to publication.
 
 ## protoc
 
