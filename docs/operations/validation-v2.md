@@ -329,9 +329,10 @@ consumer rule is explicit: **a missing manifest is a failed run.** Verify one wi
 The verifier matches each result's section and command arguments against the
 plan in order. It rejects missing steps, substituted commands, and results whose
 exit code or failure fields contradict a passing status. The `self-test`
-profile records one result with no plan. Rust CI verifies each manifest before
-uploading it. Use `--require-profile final` when consuming final evidence so a
-`quick` manifest cannot satisfy that requirement.
+profile records one result with no plan. Rust CI verifies each manifest against
+the profile selected for that job. The determinism workflow requires `self-test`
+before it normalises the manifest. Use `--require-profile final` when consuming
+final evidence so a `quick` manifest cannot satisfy that requirement.
 
 ## protoc
 

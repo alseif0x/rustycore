@@ -58,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           ./tools/validation-v2 self-test
-          ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST"
+          ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST" --require-profile self-test
           ./tools/validation-v2 normalize --manifest "$VALIDATION_V2_MANIFEST" \
             > "${RUNNER_TEMP}/normalised.json"
 
