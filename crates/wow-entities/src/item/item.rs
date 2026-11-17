@@ -193,20 +193,13 @@ impl Item {
     }
 
     pub fn bind_if_visualized(&mut self) {
-        if matches!(
-            self.bonding,
-            ItemBondingType::OnEquip | ItemBondingType::OnAcquire | ItemBondingType::Quest
-        ) {
+        if binds_when_visualized(self.bonding) {
             self.set_binding(true);
         }
     }
 
     pub fn bind_if_stored(&mut self, is_bag_pos: bool) {
-        if matches!(
-            self.bonding,
-            ItemBondingType::OnAcquire | ItemBondingType::Quest
-        ) || (self.bonding == ItemBondingType::OnEquip && is_bag_pos)
-        {
+        if binds_when_stored(self.bonding, is_bag_pos) {
             self.set_binding(true);
         }
     }
@@ -690,4 +683,16 @@ impl Item {
         self.item_data_changes.set(parent_bit);
         self.item_data_changes.set(first_element_bit + index);
     }
+}
+
+fn binds_when_visualized(bonding: ItemBondingType) -> bool {
+    matches!(
+        bonding,
+        ItemBondingType::OnEquip | ItemBondingType::OnAcquire | ItemBondingType::Quest
+    )
+}
+
+fn binds_when_stored(bonding: ItemBondingType, is_bag_pos: bool) -> bool {
+    matches!(bonding, ItemBondingType::OnAcquire | ItemBondingType::Quest)
+        || (bonding == ItemBondingType::OnEquip && is_bag_pos)
 }

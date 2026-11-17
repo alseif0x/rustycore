@@ -6,7 +6,7 @@
 //! `inventory_swap/{storage_move,equip_contracts}.rs` and
 //! `inventory_move_planning.rs`, which re-export them at their old paths.
 
-use wow_entities::is_bank_pos;
+use wow_entities::{ItemReadView, is_bag_pos, is_bank_pos, is_equipment_pos};
 
 use crate::item_spell_charges_db_string;
 
@@ -60,6 +60,18 @@ pub fn bind_inventory_item_for_destination_like_cpp(
     }
 }
 
+pub fn inventory_item_flags_for_destination_like_cpp(
+    item: ItemReadView<'_>,
+    destination: u16,
+) -> u32 {
+    let [bag, slot] = destination.to_be_bytes();
+    if is_equipment_pos(bag, slot) {
+        item.item_flags_after_binding(true, false)
+    } else {
+        item.item_flags_after_binding(false, is_bag_pos(destination))
+    }
+}
+
 pub fn item_dynamic_flags_changed_like_cpp(
     before: &wow_entities::Item,
     after: &wow_entities::Item,
@@ -69,7 +81,7 @@ pub fn item_dynamic_flags_changed_like_cpp(
 
 pub fn item_storage_mutable_persistence_like_cpp(
     db_guid: u64,
-    item: &wow_entities::Item,
+    item: ItemReadView<'_>,
     count: u32,
     flags: u32,
     enchantments: String,

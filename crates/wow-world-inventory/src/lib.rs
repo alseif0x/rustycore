@@ -166,7 +166,8 @@ pub use handlers::{
 pub use inventory_move_contracts::{
     InventoryStorageQuestChecksLikeCpp, InventoryStorageTargetLikeCpp, InventorySwapTargetLikeCpp,
     autostore_bank_target_like_cpp, bind_inventory_item_for_destination_like_cpp,
-    item_dynamic_flags_changed_like_cpp, item_storage_mutable_persistence_like_cpp,
+    inventory_item_flags_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp,
+    item_storage_mutable_persistence_like_cpp,
 };
 pub use inventory_request_contracts::{
     RepresentedAutoUnequipOffhandLikeCpp, RepresentedAutoUnequipOffhandReasonLikeCpp,

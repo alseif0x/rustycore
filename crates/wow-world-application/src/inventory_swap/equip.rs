@@ -1,10 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use super::equip_contracts::{
-    bind_inventory_item_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp,
-    item_storage_mutable_persistence_like_cpp,
-};
+use super::equip_contracts::item_storage_mutable_persistence_like_cpp;
 use std::sync::Arc;
 use tracing::warn;
 use wow_constants::item::EnchantmentSlot;
@@ -19,7 +16,9 @@ use wow_world_core::session::{
     OwnedItemSetAccessLikeCpp, PacketPublicationAccessLikeCpp, PlayerRegistrySyncAccessLikeCpp,
     PlayerStatsAccessLikeCpp,
 };
-use wow_world_inventory::{InventoryState, ItemModsCatalogsViewLikeCpp};
+use wow_world_inventory::{
+    InventoryState, ItemModsCatalogsViewLikeCpp, inventory_item_flags_for_destination_like_cpp,
+};
 use wow_world_lifecycle::SessionLifecycleState;
 
 pub struct InventoryEquipCxLikeCpp<'a> {
@@ -151,9 +150,9 @@ impl<'a> InventoryEquipCxLikeCpp<'a> {
     fn resolved_inventory_item_object_like_cpp(
         &self,
         guid: ObjectGuid,
-    ) -> Option<wow_entities::Item> {
+    ) -> Option<wow_entities::ItemValuesSnapshot> {
         self.inventory
-            .resolved_player_inventory_item_object_with_access_like_cpp(&self.access, guid)
+            .resolved_inventory_item_object_with_access_like_cpp(&self.access, guid)
     }
     fn inventory_remove_enchantment_persistence_like_cpp(
         &self,
@@ -437,18 +436,14 @@ impl<'a> InventoryEquipCxLikeCpp<'a> {
         else {
             return;
         };
-        let mut planned_item = runtime_item.clone();
-        bind_inventory_item_for_destination_like_cpp(&mut planned_item, destination);
-        let dynamic_flags_changed =
-            item_dynamic_flags_changed_like_cpp(&runtime_item, &planned_item);
-        for slot in &cleared_enchantments {
-            planned_item.clear_enchantment(*slot);
-        }
+        let planned_flags =
+            inventory_item_flags_for_destination_like_cpp(runtime_item.read_view(), destination);
+        let dynamic_flags_changed = runtime_item.read_view().item_flags_bits() != planned_flags;
         let mutable = item_storage_mutable_persistence_like_cpp(
             source.db_guid,
-            &planned_item,
-            planned_item.count(),
-            planned_item.item_flags_bits(),
+            runtime_item.read_view(),
+            runtime_item.read_view().count(),
+            planned_flags,
             enchantments,
             self.item_effect_count_like_cpp(source.entry_id),
         );
@@ -515,13 +510,13 @@ impl<'a> InventoryEquipCxLikeCpp<'a> {
             source_slot,
             destination_bag,
             destination_slot,
-            runtime_item.count(),
+            runtime_item.read_view().count(),
         );
         debug_assert!(relocated);
         let _ = self.apply_inventory_item_object_updates_like_cpp(
             source.guid,
             &[wow_entities::ItemObjectUpdateLikeCpp::ReplaceAllItemFlags(
-                ItemFieldFlags::from_bits_retain(planned_item.item_flags_bits()),
+                ItemFieldFlags::from_bits_retain(planned_flags),
             )],
         );
         let added_mods = self.apply_inventory_item_store_side_effects_like_cpp(

@@ -169,8 +169,7 @@ impl crate::InventoryState {
         item_guid: ObjectGuid,
         clear_mainhand_only: bool,
     ) -> Option<(String, Vec<EnchantmentSlot>)> {
-        let item =
-            self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)?;
+        let item = self.resolved_inventory_item_object_with_access_like_cpp(access, item_guid)?;
         let current_durations = access
             .inventory_enchantment_durations_snapshot_like_cpp(item_guid)
             .unwrap_or_default();

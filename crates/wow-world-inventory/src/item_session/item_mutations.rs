@@ -152,7 +152,7 @@ pub(super) async fn execute_inventory_stack_merge_like_cpp<H: ItemSessionHostLik
     };
     let source_mutable = item_storage_mutable_persistence_like_cpp(
         source.db_guid,
-        &source_object,
+        source_object.read_view(),
         source_count,
         source_object.item_flags_bits(),
         source_enchantments,
@@ -162,7 +162,7 @@ pub(super) async fn execute_inventory_stack_merge_like_cpp<H: ItemSessionHostLik
     );
     let destination_mutable = item_storage_mutable_persistence_like_cpp(
         destination.db_guid,
-        &destination_object,
+        destination_object.read_view(),
         destination_count,
         destination_object.item_flags_bits(),
         destination_enchantments,

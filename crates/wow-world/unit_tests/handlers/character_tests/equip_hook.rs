@@ -51,19 +51,24 @@ fn install_equip_probe(session: &mut WorldSession) -> Arc<EquipProbe> {
 
 fn equip_session(
     outcome: PersistenceOutcomeLikeCpp,
-) -> (WorldSession, flume::Receiver<Vec<u8>>, Arc<EquipProbe>) {
+) -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    Arc<EquipProbe>,
+    Arc<std::sync::Mutex<Vec<wow_persistence::PlayerInventoryPersistenceRequestLikeCpp>>>,
+) {
     let (mut session, send_rx) = make_session_with_send_capacity(64);
     session.set_player_guid(Some(ObjectGuid::create_player(1, 44_001)));
     install_equippable_item_fixture(&mut session, 44_001, InventoryType::Weapon, Some(3));
-    let (port, _requests) = PlayerInventoryPersistencePortFixtureLikeCpp::new_like_cpp(outcome);
+    let (port, requests) = PlayerInventoryPersistencePortFixtureLikeCpp::new_like_cpp(outcome);
     session.set_player_inventory_persistence_port_like_cpp(port);
     let probe = install_equip_probe(&mut session);
-    (session, send_rx, probe)
+    (session, send_rx, probe, requests)
 }
 
 #[tokio::test]
 async fn equipping_into_an_empty_slot_raises_item_equipped_once_after_the_commit() {
-    let (mut session, _send_rx, probe) =
+    let (mut session, _send_rx, probe, _requests) =
         equip_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     let item = insert_equippable_test_item(
         &mut session,
@@ -100,7 +105,7 @@ async fn a_failed_or_unknown_equip_raises_no_item_equipped() {
             reason: "fixture".to_owned(),
         },
     ] {
-        let (mut session, _send_rx, probe) = equip_session(outcome);
+        let (mut session, _send_rx, probe, _requests) = equip_session(outcome);
         let item = insert_equippable_test_item(
             &mut session,
             INVENTORY_SLOT_BAG_0,
@@ -131,7 +136,7 @@ async fn a_failed_or_unknown_equip_raises_no_item_equipped() {
 /// hook; the old one goes to the backpack, which is no equipment position.
 #[tokio::test]
 async fn a_swap_raises_item_equipped_only_for_the_item_that_reaches_the_slot() {
-    let (mut session, _send_rx, probe) =
+    let (mut session, _send_rx, probe, requests) =
         equip_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     let worn = insert_equippable_test_item(
         &mut session,
@@ -149,6 +154,19 @@ async fn a_swap_raises_item_equipped_only_for_the_item_that_reaches_the_slot() {
         44_004,
         InventoryType::Weapon,
     );
+    session.update_inventory_item_object_like_cpp(new, |item| {
+        item.set_bonding(wow_constants::ItemBondingType::OnEquip);
+        item.remove_item_flag(wow_constants::ItemFieldFlags::SOULBOUND);
+    });
+    let expected_new_flags = session
+        .resolved_inventory_item_object_like_cpp(new)
+        .unwrap()
+        .item_flags_bits()
+        | wow_constants::ItemFieldFlags::SOULBOUND.bits();
+    let expected_worn_flags = session
+        .resolved_inventory_item_object_like_cpp(worn)
+        .unwrap()
+        .item_flags_bits();
 
     session
         .handle_auto_equip_item_slot(AutoEquipItemSlot {
@@ -170,6 +188,29 @@ async fn a_swap_raises_item_equipped_only_for_the_item_that_reaches_the_slot() {
     assert_eq!(
         *probe.seen.lock().unwrap(),
         vec![(new, 44_001, INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)]
+    );
+    let recorded = requests.lock().unwrap();
+    assert_eq!(recorded.len(), 1);
+    let wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::Swap(request) = &recorded[0]
+    else {
+        panic!("occupied equipment must submit one real Swap request");
+    };
+    assert_eq!(request.source_item.flags, expected_new_flags);
+    assert_eq!(request.destination_item.flags, expected_worn_flags);
+    drop(recorded);
+    assert_eq!(
+        session
+            .resolved_inventory_item_object_like_cpp(new)
+            .unwrap()
+            .item_flags_bits(),
+        expected_new_flags
+    );
+    assert_eq!(
+        session
+            .resolved_inventory_item_object_like_cpp(worn)
+            .unwrap()
+            .item_flags_bits(),
+        expected_worn_flags
     );
     let _ = worn;
 }

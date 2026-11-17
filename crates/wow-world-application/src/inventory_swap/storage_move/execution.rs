@@ -223,7 +223,7 @@ pub async fn execute_inventory_storage_move_like_cpp<H>(
             mutable_persistence.push(
                 crate::inventory_swap::item_storage_mutable_persistence_like_cpp(
                     update.item.db_guid,
-                    &item,
+                    item.read_view(),
                     update.new_count,
                     planned_flags(update.item.guid, item.item_flags_bits()),
                     enchantments,
@@ -255,7 +255,7 @@ pub async fn execute_inventory_storage_move_like_cpp<H>(
             mutable_persistence.push(
                 crate::inventory_swap::item_storage_mutable_persistence_like_cpp(
                     plan.source.db_guid,
-                    &item,
+                    item.read_view(),
                     moved_count,
                     planned_flags(plan.source.guid, item.item_flags_bits()),
                     enchantments.clone(),

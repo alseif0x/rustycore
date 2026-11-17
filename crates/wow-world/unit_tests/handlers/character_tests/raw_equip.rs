@@ -3,7 +3,11 @@
 
 use super::*;
 
-async fn recorded_raw_equip(outcome: PersistenceOutcomeLikeCpp, applied: bool) {
+async fn recorded_raw_equip(
+    outcome: PersistenceOutcomeLikeCpp,
+    applied: bool,
+    bonding: wow_constants::ItemBondingType,
+) {
     let (mut session, send_rx) = make_session_with_send_capacity(32);
     let owner = ObjectGuid::create_player(1, 30_230);
     session.set_player_guid(Some(owner));
@@ -17,6 +21,8 @@ async fn recorded_raw_equip(outcome: PersistenceOutcomeLikeCpp, applied: bool) {
         InventoryType::Weapon,
     );
     session.update_inventory_item_object_like_cpp(guid, |item| {
+        item.set_bonding(bonding);
+        item.remove_item_flag(wow_constants::ItemFieldFlags::SOULBOUND);
         item.set_count(2);
         item.set_durability(73);
         item.set_create_played_time(123);
@@ -25,6 +31,13 @@ async fn recorded_raw_equip(outcome: PersistenceOutcomeLikeCpp, applied: bool) {
     let before = session
         .resolved_inventory_item_object_like_cpp(guid)
         .unwrap();
+    let expected_flags = before.item_flags_bits()
+        | if bonding == wow_constants::ItemBondingType::OnEquip {
+            wow_constants::ItemFieldFlags::SOULBOUND.bits()
+        } else {
+            0
+        };
+    let binding_changes_flags = expected_flags != before.item_flags_bits();
     let (port, requests) = PlayerInventoryPersistencePortFixtureLikeCpp::new_like_cpp(outcome);
     session.set_player_inventory_persistence_port_like_cpp(port);
     while send_rx.try_recv().is_ok() {}
@@ -47,7 +60,7 @@ async fn recorded_raw_equip(outcome: PersistenceOutcomeLikeCpp, applied: bool) {
     assert_eq!(request.mutable_item.count, before.count());
     assert_eq!(request.mutable_item.count, 2);
     assert_eq!(request.mutable_item.expiration, before.data().expiration);
-    assert_eq!(request.mutable_item.flags, before.item_flags_bits());
+    assert_eq!(request.mutable_item.flags, expected_flags);
     assert_eq!(request.mutable_item.charges, "");
     assert_eq!(request.mutable_item.durability, 73);
     assert_eq!(request.mutable_item.played_time, 123);
@@ -89,21 +102,35 @@ async fn recorded_raw_equip(outcome: PersistenceOutcomeLikeCpp, applied: bool) {
             guid
         );
         assert_eq!(item.slot(), EQUIPMENT_SLOT_MAINHAND);
+        assert_eq!(item.item_flags_bits(), expected_flags);
         assert!(item.has_item_flag2(wow_constants::ItemFieldFlags2::EQUIPPED));
         assert!(packets.contains(&Some(ServerOpcodes::UpdateObject)));
         assert!(!packets.contains(&Some(ServerOpcodes::InventoryChangeFailure)));
         // Position values precede the item relocation and bonus-stat fallback.
-        assert_eq!(packets, vec![Some(ServerOpcodes::UpdateObject); 3]);
+        assert_eq!(
+            packets,
+            vec![Some(ServerOpcodes::UpdateObject); 3 + usize::from(binding_changes_flags)]
+        );
+        let mut packet_index = 0;
         session.publish_inventory_position_changes_like_cpp(&[
             (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START),
             (INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND),
         ]);
-        assert_eq!(send_rx.try_recv().unwrap(), packet_bytes[0]);
+        assert_eq!(send_rx.try_recv().unwrap(), packet_bytes[packet_index]);
+        packet_index += 1;
         assert!(send_rx.try_recv().is_err());
         session.send_item_relocation_values_update_like_cpp(guid, true, &[]);
-        assert_eq!(send_rx.try_recv().unwrap(), packet_bytes[1]);
+        assert_eq!(send_rx.try_recv().unwrap(), packet_bytes[packet_index]);
+        packet_index += 1;
+        if binding_changes_flags {
+            session.send_item_dynamic_flags_values_update_like_cpp(guid);
+            assert_eq!(send_rx.try_recv().unwrap(), packet_bytes[packet_index]);
+            packet_index += 1;
+        }
         assert!(session.send_represented_item_bonus_player_stat_update_like_cpp());
-        assert_eq!(send_rx.try_recv().unwrap(), packet_bytes[2]);
+        assert_eq!(send_rx.try_recv().unwrap(), packet_bytes[packet_index]);
+        packet_index += 1;
+        assert_eq!(packet_index, packet_bytes.len());
         assert!(send_rx.try_recv().is_err());
     } else {
         assert_eq!(
@@ -128,27 +155,49 @@ async fn recorded_raw_equip(outcome: PersistenceOutcomeLikeCpp, applied: bool) {
 
 #[tokio::test]
 async fn raw_equip_applied_records_request_then_moves_runtime_and_publishes() {
-    recorded_raw_equip(PersistenceOutcomeLikeCpp::Applied { rows: 1 }, true).await;
+    for bonding in [
+        wow_constants::ItemBondingType::None,
+        wow_constants::ItemBondingType::OnEquip,
+    ] {
+        recorded_raw_equip(
+            PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+            true,
+            bonding,
+        )
+        .await;
+    }
 }
 
 #[tokio::test]
 async fn raw_equip_failed_records_request_keeps_runtime_and_only_reports_error() {
-    recorded_raw_equip(
-        PersistenceOutcomeLikeCpp::Failed {
-            reason: "recorded rollback".into(),
-        },
-        false,
-    )
-    .await;
+    for bonding in [
+        wow_constants::ItemBondingType::None,
+        wow_constants::ItemBondingType::OnEquip,
+    ] {
+        recorded_raw_equip(
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "recorded rollback".into(),
+            },
+            false,
+            bonding,
+        )
+        .await;
+    }
 }
 
 #[tokio::test]
 async fn raw_equip_unknown_records_request_keeps_runtime_and_only_reports_error() {
-    recorded_raw_equip(
-        PersistenceOutcomeLikeCpp::Unknown {
-            reason: "recorded unknown commit".into(),
-        },
-        false,
-    )
-    .await;
+    for bonding in [
+        wow_constants::ItemBondingType::None,
+        wow_constants::ItemBondingType::OnEquip,
+    ] {
+        recorded_raw_equip(
+            PersistenceOutcomeLikeCpp::Unknown {
+                reason: "recorded unknown commit".into(),
+            },
+            false,
+            bonding,
+        )
+        .await;
+    }
 }

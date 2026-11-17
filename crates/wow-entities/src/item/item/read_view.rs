@@ -199,6 +199,20 @@ impl<'a> ItemReadView<'a> {
         self.data.dynamic_flags
     }
 
+    pub fn item_flags_after_binding(&self, visualized: bool, is_bag_pos: bool) -> u32 {
+        let should_bind = if visualized {
+            super::binds_when_visualized(self.bonding)
+        } else {
+            super::binds_when_stored(self.bonding, is_bag_pos)
+        };
+
+        if should_bind {
+            self.data.dynamic_flags | ItemFieldFlags::SOULBOUND.bits()
+        } else {
+            self.data.dynamic_flags
+        }
+    }
+
     pub fn has_item_flag(&self, flag: ItemFieldFlags) -> bool {
         (self.data.dynamic_flags & flag.bits()) != 0
     }
@@ -414,6 +428,10 @@ impl<'a> ItemReadView<'a> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "read_view/binding_tests.rs"]
+mod binding_tests;
 
 impl Item {
     pub fn read_view(&self) -> ItemReadView<'_> {

@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "item_1/storage_facts.rs"]
+mod storage_facts;
+
 #[tokio::test]
 async fn account_item_appearance_load_preserves_independent_query_failure_like_cpp() {
     let port = CollectionLoadPortLikeCpp::new([AccountCollectionLoadOutcomeLikeCpp::Loaded(
@@ -43,7 +46,7 @@ fn bank_storage_mutable_state_round_trips_loaded_expiration_and_charges_like_cpp
 
     let persisted = item_storage_mutable_persistence_like_cpp(
         7_777,
-        &item,
+        item.read_view(),
         3,
         0x1234,
         "901 12000 2 ".to_string(),

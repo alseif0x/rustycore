@@ -18,8 +18,8 @@ use super::item_mutations::execute_inventory_auto_unequip_offhand_if_need_like_c
 use super::moves::{execute_inventory_equip_child_like_cpp, plan_inventory_equip_child_like_cpp};
 use super::{InventoryEquipChildPlanLikeCpp, ItemSessionHostLikeCpp};
 use crate::{
-    InventorySwapTargetLikeCpp, bind_inventory_item_for_destination_like_cpp,
-    item_dynamic_flags_changed_like_cpp, item_storage_mutable_persistence_like_cpp,
+    InventorySwapTargetLikeCpp, inventory_item_flags_for_destination_like_cpp,
+    item_storage_mutable_persistence_like_cpp,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -72,13 +72,15 @@ pub(super) async fn execute_inventory_real_swap_like_cpp<H: ItemSessionHostLikeC
     };
     let Some(source_object) = ({
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_object_like_cpp(hub, source.guid)
+        let access = hub.core.owned_inventory_access_like_cpp();
+        state.resolved_inventory_item_object_with_access_like_cpp(&access, source.guid)
     }) else {
         return;
     };
     let Some(destination_object) = ({
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_object_like_cpp(hub, destination.guid)
+        let access = hub.core.owned_inventory_access_like_cpp();
+        state.resolved_inventory_item_object_with_access_like_cpp(&access, destination.guid)
     }) else {
         return;
     };
@@ -135,26 +137,23 @@ pub(super) async fn execute_inventory_real_swap_like_cpp<H: ItemSessionHostLikeC
 
     let source_destination_pos = wow_entities::make_item_pos(destination_bag, destination_slot);
     let destination_source_pos = wow_entities::make_item_pos(source_bag, source_slot);
-    let mut planned_source = source_object.clone();
-    bind_inventory_item_for_destination_like_cpp(&mut planned_source, source_destination_pos);
-    let source_dynamic_flags_changed =
-        item_dynamic_flags_changed_like_cpp(&source_object, &planned_source);
-    for slot in &source_cleared {
-        planned_source.clear_enchantment(*slot);
-    }
-    let mut planned_destination = destination_object.clone();
-    bind_inventory_item_for_destination_like_cpp(&mut planned_destination, destination_source_pos);
+    let source_flags = inventory_item_flags_for_destination_like_cpp(
+        source_object.read_view(),
+        source_destination_pos,
+    );
+    let source_dynamic_flags_changed = source_object.read_view().item_flags_bits() != source_flags;
+    let destination_flags = inventory_item_flags_for_destination_like_cpp(
+        destination_object.read_view(),
+        destination_source_pos,
+    );
     let destination_dynamic_flags_changed =
-        item_dynamic_flags_changed_like_cpp(&destination_object, &planned_destination);
-    for slot in &destination_cleared {
-        planned_destination.clear_enchantment(*slot);
-    }
+        destination_object.read_view().item_flags_bits() != destination_flags;
 
     let source_mutable = item_storage_mutable_persistence_like_cpp(
         source.db_guid,
-        &planned_source,
-        planned_source.count(),
-        planned_source.item_flags_bits(),
+        source_object.read_view(),
+        source_object.read_view().count(),
+        source_flags,
         source_enchantments,
         host.hub_ref()
             .catalogs
@@ -162,9 +161,9 @@ pub(super) async fn execute_inventory_real_swap_like_cpp<H: ItemSessionHostLikeC
     );
     let destination_mutable = item_storage_mutable_persistence_like_cpp(
         destination.db_guid,
-        &planned_destination,
-        planned_destination.count(),
-        planned_destination.item_flags_bits(),
+        destination_object.read_view(),
+        destination_object.read_view().count(),
+        destination_flags,
         destination_enchantments,
         host.hub_ref()
             .catalogs
@@ -384,7 +383,7 @@ pub(super) async fn execute_inventory_real_swap_like_cpp<H: ItemSessionHostLikeC
             &mut hub,
             source.guid,
             &[wow_entities::ItemObjectUpdateLikeCpp::ReplaceAllItemFlags(
-                ItemFieldFlags::from_bits_retain(planned_source.item_flags_bits()),
+                ItemFieldFlags::from_bits_retain(source_flags),
             )],
         )
     };
@@ -394,7 +393,7 @@ pub(super) async fn execute_inventory_real_swap_like_cpp<H: ItemSessionHostLikeC
             &mut hub,
             destination.guid,
             &[wow_entities::ItemObjectUpdateLikeCpp::ReplaceAllItemFlags(
-                ItemFieldFlags::from_bits_retain(planned_destination.item_flags_bits()),
+                ItemFieldFlags::from_bits_retain(destination_flags),
             )],
         )
     };

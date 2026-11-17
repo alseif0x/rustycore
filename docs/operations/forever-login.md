@@ -925,6 +925,44 @@ This is level-1 coding feedback, not final/native Item, DB, runtime or wire
 acceptance. The 1,147-line item_2 test parent gains only a child mount; its four
 old planning cases are a natural later split at full macro cohesion review.
 
+Move persistence now projects its existing mutable SQL DTO from ItemReadView.
+All seven production calls use borrowed/captured facts at the old points;
+count, flags, enchantment text and late effect count remain explicit inputs.
+The two existing canonical binding methods and the pure view query share their
+original predicates. A destination query derives only u32 flags and the same
+changed boolean. Real swap and equip-to-empty capture their three selected
+sources through K21 and retire the three disposable Item copies. Their unused
+local clear loops retire under the typed-producer proof above; live canonical
+clears, flags, fences, commit classification and packet/hook phases stay in place.
+The enchantment-string producer likewise captures its selected facts at the old
+point and keeps its separate following duration-list read and complete formatter.
+No Item is reconstructed or restored from these query values. Native BonusData
+bonding, clear/state effects and queue admission remain their separate owners.
+
+Worker Entities/Inventory/Application checks pass, followed by eleven distinct
+cases: two Entity binding cases, frozen SQL facts and the existing full-row case,
+three raw-equip verdict cases, three equip-hook cases and one swap-failure case.
+The binding matrix checks all five bonding modes, three placement modes and
+bound/unbound inputs against both an independent truth table and fresh canonical
+Items, retaining high flag bits and complete source facts/masks. The raw-equip
+cases each cover original no-binding plus OnEquip inputs, planned flags on every
+verdict, application only after Applied and byte-checked packet order including
+the extra flag packet. The occupied-slot hook case asserts both SQL and applied
+canonical flags. The frozen SQL case covers signed/scoped charges, explicit
+count/flags/text, all thirteen enchantment slots, repeated IDs and zero-ID stale
+fields after source mutation. Its affected rerun after added slot assertions is
+not another test identity or a new enchantment-string consumer test.
+
+All Cargo attempts pass; the initial formatter lookup failed because PATH lacked
+Cargo's bin directory, then scoped formatting succeeded with skip_children.
+Commands used --locked, one job, cached PROTOC and the checkout target;
+Application/World used the pinned read-only extractor overlay. Warnings were not
+compared against a baseline. This is level-1 coding feedback, not final/native
+Item, SQL durability, runtime, protocol or complete canonical skills/book
+acceptance. The remaining selected actors, maps, writable mirrors, trade/Void
+and native owner/effect/load/save/publication integration still belong to the
+same full macro; CharacterCreator remains disabled.
+
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are
 absent; exact source searches for HandleVoidStorageTransfer, _SaveVoidStorage
