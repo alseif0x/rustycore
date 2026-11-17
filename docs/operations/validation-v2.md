@@ -80,11 +80,11 @@ original argv; the runner never automatically retries or reuses an older verdict
 When a known ordinary gate failure would otherwise force manually reconstructing
 the remaining acceptance, `final --keep-going` collects the planned checks in one
 invocation. It records `failure_policy: collect-independent` and remains **failed**
-if any check fails. Timeout, OOM, signals, interrupted execution and lost command
-logging stop this mode immediately. Default fail-fast behavior and explicit
-ownership continuations remain unchanged without this flag. This option is not a
-waiver, a publication pass, or permission to refresh policy ceilings; do not repeat
-an unchanged red campaign or continue resource failures merely to gather output.
+if any check fails. Use the default fail-fast policy for routine acceptance and
+reserve `--keep-going` for diagnosing independent ordinary failures. A timeout,
+OOM, signal, interruption, lost command logging or unverified scan root stops the
+run immediately in either mode, including during a declared continuation. Fix the
+reported failures before rerunning acceptance.
 
 When acceptance requires architecture policy checks, their fixtures and syntax ownership,
 use one measured campaign:
@@ -101,11 +101,9 @@ cache. Freeze source inputs for the invocation; the next invocation reads them a
 The runner also executes
 `session-ownership-check check --syntax-only`; both commands and their durations appear in
 the same final manifest, and the policy step declares the syntax-ownership step as its
-continuation. A red policy step therefore still runs the ownership command and the manifest
-records both failures with the policy step's exit code; without that continuation a policy
-breach, such as the reviewed-but-open hotspot ratchet, hides the ownership verdict. Existing
-workspace compilation, test targets and test execution
-are unchanged. Do not run those architecture commands separately again for the same inputs.
+continuation. When policy reports an ordinary nonzero exit, the runner still runs
+the ownership command. The manifest records both outcomes and keeps the policy
+step's exit code. Run these architecture commands once for the same inputs.
 The flag also honors an explicit request when there are no changed paths. It does not cover
 exhaustive persistence inventory, terminal physical closeout, production integration or live
 QA when the issue requires those; include their actual additional time in campaign evidence.

@@ -1470,9 +1470,9 @@ def run_steps(
     hide an independent acceptance that a later step carries, so the run keeps
     executing steps until that named section has completed, then stops with the
     first failure's exit code. Without the declaration the ordinary fail-fast
-    budget is unchanged. Explicit keep_going instead collects ordinary exit
-    failures across the plan, retaining red verdicts; resource/signal/output
-    failures still stop immediately.
+    budget is unchanged. Any non-exit failure stops immediately. Explicit
+    keep_going instead collects ordinary exit failures across the plan,
+    retaining red verdicts.
     """
     if outcomes is None:
         outcomes = []
@@ -1510,11 +1510,10 @@ def run_steps(
         if outcome["status"] != "passed":
             print("validation-v2: failed command context (do not narrow packages/features blindly): "
                   + shlex.join(command), file=sys.stderr)
+        if outcome["status"] != "passed" and outcome.get("failure_kind") != "exit":
+            return outcomes, failure_code
         if keep_going:
-            # Collect ordinary independent failures once, but never continue
-            # after resource exhaustion, timeout, signals or lost diagnostics.
-            if outcome["status"] != "passed" and outcome.get("failure_kind") != "exit":
-                return outcomes, failure_code
+            # Collect ordinary independent exit failures while retaining red verdicts.
             continue
         if continue_until is not None:
             if section == continue_until:

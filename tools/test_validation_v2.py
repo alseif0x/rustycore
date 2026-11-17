@@ -414,6 +414,32 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert exit_code == 19  # A target that never arrives cannot yield a green run.
     assert [outcome["section"] for outcome in outcomes] == ["policy", "sibling"]
 
+    for keep_going in (False, True):
+        for failures, expected_sections, expected_code in (
+            (((0, "scan-root"),), ["policy"], runner.RUNNER_ERROR),
+            (((19, "exit"), (0, "scan-root")), ["policy", "intermediate"], 19),
+        ):
+            remaining = iter(failures)
+
+            def simulated_run_one(*args, sink=None, **kwargs):
+                exit_code, failure_kind = next(remaining)
+                outcome = {
+                    "status": "failed",
+                    "exit_code": exit_code,
+                    "failure_kind": failure_kind,
+                    "duration_seconds": 0,
+                }
+                sink.append(outcome)
+                return outcome
+
+            with patch.object(runner, "run_one", side_effect=simulated_run_one) as run_one:
+                results, code = runner.run_steps(
+                    repo, paired, base_env, 30, keep_going=keep_going,
+                )
+            assert [result["section"] for result in results] == expected_sections
+            assert code == expected_code
+            assert run_one.call_count == len(expected_sections)
+
     zero_exit_timeout = [
         {
             "section": "trapped-timeout",
