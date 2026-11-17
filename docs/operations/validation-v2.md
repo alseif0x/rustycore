@@ -39,6 +39,10 @@ code is not embedded in the production runner. This command does not probe or
 require the host's protoc; its tests supply fake compiler/build tools and never
 compile the server.
 
+`tools/validation_v2_manifest.py` owns the manifest schema, verdict rules and
+normalisation. `tools/validation-v2` owns the CLI, file I/O and execution. Changes
+to either file route `final` through the runner and workflow contract suites.
+
 Level 2 (`quick`) collects committed, staged, unstaged, and untracked paths relative to
 the exact base commit and performs only Git diff/whitespace checks, changed
 shell/JSON/Python syntax, optional `actionlint`, and `cargo fmt` for routed workspace

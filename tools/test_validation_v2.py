@@ -21,12 +21,20 @@ import time
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
+from validation_v2_manifest import PLACEHOLDER
 
 RUNNER_PATH = Path(__file__).with_name("validation-v2").resolve()
+MANIFEST_MODULE_PATH = Path(__file__).with_name("validation_v2_manifest.py").resolve()
 loader = importlib.machinery.SourceFileLoader("validation_v2_runner", str(RUNNER_PATH))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 runner = importlib.util.module_from_spec(spec)
 loader.exec_module(runner)
+
+
+def copy_runner_fixture(tools: Path) -> None:
+    shutil.copy2(RUNNER_PATH, tools / RUNNER_PATH.name)
+    shutil.copy2(MANIFEST_MODULE_PATH, tools / MANIFEST_MODULE_PATH.name)
+    (tools / ".gitignore").write_text("__pycache__/\n*.pyc\n")
 
 
 def fake_tool(path: Path, body: str) -> None:
@@ -318,9 +326,9 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
 
     # Host-shaped values are placeheld, never compared literally.
     comparison = runner.normalise_manifest(success)
-    assert comparison["provenance"]["repository_root"] == runner.PLACEHOLDER
-    assert comparison["provenance"]["kernel"] == runner.PLACEHOLDER
-    assert comparison["locks"]["repository"] == runner.PLACEHOLDER
+    assert comparison["provenance"]["repository_root"] == PLACEHOLDER
+    assert comparison["provenance"]["kernel"] == PLACEHOLDER
+    assert comparison["locks"]["repository"] == PLACEHOLDER
     assert comparison["locks"]["heavy"] is None
     assert comparison["provenance"]["head"] == success["provenance"]["head"]
     assert "run_id" not in comparison and "started_at" not in comparison
@@ -856,7 +864,7 @@ def test_checkout_stability_contract(directory: Path) -> None:
         manifest = directory / f"checkout-state-{mutation}.json"
         tools.mkdir(parents=True)
         fake_bin.mkdir()
-        shutil.copy2(RUNNER_PATH, tools / "validation-v2")
+        copy_runner_fixture(tools)
         (repo / "rust-toolchain.toml").write_text(
             '[toolchain]\nchannel = "1.98.0"\n'
         )
@@ -1411,7 +1419,7 @@ def test_planner_contract(repo: Path) -> None:
     harness_suite = repo / "tools" / "test_validation_v2.py"
     harness_suite.parent.mkdir(parents=True, exist_ok=True)
     harness_suite.write_text("fixture\n")
-    for changed in (["tools/validation-v2"], ["tools/test_validation_v2.py"]):
+    for changed in ([runner.RUNNER_PATH], [runner.MANIFEST_MODULE_PATH], [runner.RUNNER_CONTRACT_SUITE]):
         harness_groups = runner.grouped_paths(changed)
         harness_commands, _ = runner.validation_commands(
             repo, "final", 2, "base", harness_groups, None
@@ -1420,6 +1428,7 @@ def test_planner_contract(repo: Path) -> None:
     workflow_suite = repo / runner.WORKFLOW_CONTRACT_SUITE
     workflow_suite.write_text("fixture\n")
     for changed in ([runner.WORKFLOW_CONTRACT_SUITE], [runner.RUNNER_PATH],
+                    [runner.MANIFEST_MODULE_PATH],
                     [".github/workflows/rust-ci.yml"], [".github/workflows/validation-determinism.yml"]):
         planned, _ = runner.validation_commands(repo, "final", 1, "base", runner.grouped_paths(changed), None)
         assert ["python3", runner.WORKFLOW_CONTRACT_SUITE] in planned
@@ -1433,6 +1442,16 @@ def test_planner_contract(repo: Path) -> None:
     )
     assert not any(command and command[0] == "cargo" for command in docs_commands)
     assert runner.validation_commands(repo, "quick", 2, "base", {}, None)[0] == []
+    manifest_quick, _ = runner.validation_commands(
+        repo, "quick", 2, "base", runner.grouped_paths([runner.MANIFEST_MODULE_PATH]), None
+    )
+    assert any(
+        command[:3] == ["python3", "-m", "py_compile"]
+        and runner.MANIFEST_MODULE_PATH in command
+        for command in manifest_quick
+    )
+    assert ["python3", runner.RUNNER_CONTRACT_SUITE] not in manifest_quick
+    assert ["python3", runner.WORKFLOW_CONTRACT_SUITE] not in manifest_quick
     quick_paths = [
         "Cargo.toml", "crates/a/src/lib.rs", "tools/validation-v2", runner.RUNNER_CONTRACT_SUITE,
         runner.WORKFLOW_CONTRACT_SUITE, runner.BUILD_INPUT_DIAGNOSTIC,
@@ -1941,7 +1960,7 @@ def main() -> None:
         fake_bin = directory / "bin"
         tools.mkdir(parents=True)
         fake_bin.mkdir()
-        shutil.copy2(RUNNER_PATH, tools / "validation-v2")
+        copy_runner_fixture(tools)
         (repo / "rust-toolchain.toml").write_text('[toolchain]\nchannel = "1.98.0"\n')
         (repo / ".protoc-version").write_text("28.3\n")
         (repo / "Cargo.toml").write_text('[workspace]\nresolver = "2"\n')
