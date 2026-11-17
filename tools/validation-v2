@@ -1219,18 +1219,27 @@ def resolve_protoc(repo: Path, environment: dict[str, str]) -> str | None:
     """
     expected = pinned_protoc_version(repo)
     explicit = environment.get("PROTOC")
+    search_path = os.pathsep.join(os.get_exec_path(environment))
     candidates: list[str] = []
     if explicit:
-        candidates.append(shutil.which(explicit) or explicit if "/" not in explicit else explicit)
+        candidates.append(
+            shutil.which(explicit, path=search_path) or explicit
+            if "/" not in explicit
+            else explicit
+        )
     else:
-        found = shutil.which("protoc")
+        found = shutil.which("protoc", path=search_path)
         if found:
             candidates.append(found)
         candidates.append(str(Path(environment.get("HOME", "")) / ".local/protoc/bin/protoc"))
     for candidate in candidates:
         try:
             reported = subprocess.run(
-                [candidate, "--version"], capture_output=True, text=True, timeout=30
+                [candidate, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=environment,
             )
         except (OSError, subprocess.SubprocessError):
             continue

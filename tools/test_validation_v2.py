@@ -250,8 +250,13 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     )
 
     resolved = runner.resolve_protoc(repo, base_env)
-    assert resolved is not None and resolved.endswith("protoc")
-    assert runner.command_environment(repo, 2)["PROTOC"] == resolved
+    fixture_protoc = str(directory / "bin" / "protoc")
+    assert resolved == fixture_protoc
+    named_protoc = {**base_env, "PROTOC": "protoc"}
+    assert runner.resolve_protoc(repo, named_protoc) == fixture_protoc
+    with patch.dict(os.environ, base_env, clear=True):
+        command_protoc = runner.command_environment(repo, 2)["PROTOC"]
+    assert command_protoc == fixture_protoc == resolved
 
     wrong_version = dict(base_env)
     wrong_version["PROTOC"] = str(directory / "bin" / "protoc-wrong")
