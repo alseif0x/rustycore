@@ -1594,7 +1594,7 @@ def create_log_directory(manifest: Path) -> Path:
     return directory
 
 
-def manifest_problems(document: object) -> list[str]:
+def manifest_problems(document: object, *, require_changes: bool = False) -> list[str]:
     """Every reason this manifest may not be read as a green run."""
     if not isinstance(document, dict):
         return ["manifest is not a JSON object"]
@@ -1614,6 +1614,8 @@ def manifest_problems(document: object) -> list[str]:
     profile = document.get("profile")
     if profile not in ("self-test", "quick", "final", "audit"):
         problems.append(f"profile is {profile!r}; expected self-test, quick, final or audit")
+    if require_changes and profile not in ("quick", "final"):
+        problems.append(f"profile is {profile!r}; --require-changes requires quick or final")
     commands = document.get("commands")
     if not isinstance(commands, list):
         problems.append("commands are missing")
@@ -1650,6 +1652,14 @@ def manifest_problems(document: object) -> list[str]:
         if not isinstance(plan, dict):
             problems.append(f"{profile} plan is missing or is not an object")
             return problems
+        if require_changes or plan.get("require_changes") is True:
+            changed_paths = plan.get("changed_paths")
+            if not isinstance(changed_paths, list) or not changed_paths or not all(
+                isinstance(path, str) and bool(path) for path in changed_paths
+            ):
+                problems.append("changed paths are missing or invalid; expected a nonempty list of nonempty strings")
+            if not commands:
+                problems.append("no commands were recorded for the required nonempty validation scope")
         planned = plan.get("planned_steps")
         planned_commands = plan.get("planned_commands")
         if not isinstance(planned, list):
@@ -1700,6 +1710,8 @@ def verify_manifest(
     required_profile: str | None = None,
     required_head: str | None = None,
     required_base: str | None = None,
+    *,
+    require_changes: bool = False,
 ) -> int:
     """A missing, unreadable, or non-green manifest is a failed run."""
     try:
@@ -1712,7 +1724,7 @@ def verify_manifest(
         document = json.loads(raw)
     except json.JSONDecodeError as error:
         return fail(f"manifest {path} is not valid JSON: {error}", VERDICT_ERROR)
-    problems = manifest_problems(document)
+    problems = manifest_problems(document, require_changes=require_changes)
     if isinstance(document, dict) and required_profile is not None and document.get("profile") != required_profile:
         problems.append(f"profile is {document.get('profile')!r}; required {required_profile!r}")
     if required_head is not None and isinstance(document, dict):
@@ -1769,7 +1781,7 @@ def main() -> int:
     parser.add_argument("--logs", action="store_true",
                         help="retain private per-command logs beside the manifest (no environment dump)")
     parser.add_argument("--require-changes", action="store_true",
-                        help="reject an empty changed-path scope in quick/final")
+                        help="reject an empty changed-path scope in quick/final or verify")
     parser.add_argument("--keep-going", action="store_true",
                         help="collect ordinary final failures without reruns; never turn them green")
     parser.add_argument(
@@ -1807,8 +1819,8 @@ def main() -> int:
         return 0
     if args.logs and args.profile not in {"self-test", "quick", "final", "audit"}:
         return fail("--logs is only valid with self-test, quick, final or audit")
-    if args.require_changes and args.profile not in {"quick", "final"}:
-        return fail("--require-changes is only valid with quick or final")
+    if args.require_changes and args.profile not in {"quick", "final", "verify"}:
+        return fail("--require-changes is only valid with quick, final or verify")
     if args.keep_going and args.profile != "final":
         return fail("--keep-going is only valid with final")
     if args.architecture and args.profile != "final":
@@ -1820,7 +1832,8 @@ def main() -> int:
             return fail(f"{args.profile} requires --manifest")
         if args.profile == "verify":
             return verify_manifest(
-                Path(args.manifest), args.require_profile, args.require_head, args.require_base
+                Path(args.manifest), args.require_profile, args.require_head, args.require_base,
+                require_changes=args.require_changes,
             )
         return normalise_to_stdout(Path(args.manifest))
     if args.manifest:

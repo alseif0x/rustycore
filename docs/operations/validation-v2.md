@@ -29,10 +29,10 @@ For a completed nonempty delivery, retain diagnostics in the same campaign:
 ./tools/validation-v2 final --base origin/3.4.3 --require-changes --timings --logs
 ```
 
-`--require-changes` rejects an empty changed-path scope in level 2/3 (`quick`/`final`) rather
-than presenting it as acceptance. Without that flag, an empty scope remains a
-permitted no-op, explicitly reported as **no checks executed**. This is not proof
-that a build or all issue-specific checks passed.
+`--require-changes` rejects an empty changed-path scope in level 2/3
+(`quick`/`final`). Without the flag, an empty scope is a permitted no-op and the
+runner reports **no checks executed**. On `verify`, the flag requires a nonempty
+changed-path list and at least one recorded command from a `quick` or `final` run.
 
 `self-test` executes the separate hermetic contract suite in `tools/test_validation_v2.py`; fixture
 code is not embedded in the production runner. This command does not probe or
@@ -323,7 +323,7 @@ consumer rule is explicit: **a missing manifest is a failed run.** Verify one wi
 
 ```bash
 ./tools/validation-v2 verify --manifest <path>
-./tools/validation-v2 verify --manifest <path> --require-profile final \
+./tools/validation-v2 verify --manifest <path> --require-profile final --require-changes \
   --require-head "$expected_sha" --require-base "$expected_base"
 ```
 
@@ -332,10 +332,11 @@ plan in order. It rejects missing steps, substituted commands, and results whose
 exit code or failure fields contradict a passing status. The `self-test`
 profile records one result with no plan. Both hosted workflows require the
 manifest to record the SHA selected for checkout. Rust CI also requires its
-selected profile and the base commit used to plan the checks. The determinism
-workflow requires `self-test` before it normalises the manifest. For local final
-evidence, set `expected_sha` and `expected_base` to the full commit IDs of the
-candidate and its intended validation base.
+selected profile and the base commit used to plan the checks. Its `final`
+verification requires a nonempty scope. The determinism workflow requires
+`self-test` before it normalises the manifest. For local final evidence, set
+`expected_sha` and `expected_base` to the full commit IDs of the candidate and
+its intended validation base.
 
 Before returning a passing verdict, the runner checks that HEAD and the Git
 status entries for tracked files still match the start of the run. When tracked

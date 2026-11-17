@@ -211,8 +211,15 @@ def test_rust_ci_contract() -> None:
     assert "VALIDATED_MANUAL_BASE_SHA" not in workflow
 
     verifier = step_block(workflow, "Verify Validation V2 manifest verdict")
+    verifier_run = next(iter(run_blocks(verifier)))
     upload = step_block(workflow, "Upload Validation V2 manifest")
     assert "if: always()" in verifier
+    assert (
+        'if [ "$VALIDATION_V2_PROFILE" = "final" ]; then\n'
+        "  args+=(--require-changes)\n"
+        "fi"
+    ) in verifier_run
+    assert './tools/validation-v2 "${args[@]}"' in verifier_run
     assert '--require-profile "$VALIDATION_V2_PROFILE"' in verifier
     assert '--require-head "$VALIDATION_V2_HEAD"' in verifier
     assert '--require-base "$VALIDATION_V2_BASE_SHA"' in verifier

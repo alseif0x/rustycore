@@ -184,9 +184,16 @@ jobs:
 
       - name: Verify Validation V2 manifest verdict
         if: always()
+        shell: bash
         env:
           VALIDATION_V2_MANIFEST: ${{ runner.temp }}/validation-v2-manifest.json
-        run: ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST" --require-profile "$VALIDATION_V2_PROFILE" --require-head "$VALIDATION_V2_HEAD" --require-base "$VALIDATION_V2_BASE_SHA"
+        run: |
+          set -euo pipefail
+          args=(verify --manifest "$VALIDATION_V2_MANIFEST" --require-profile "$VALIDATION_V2_PROFILE" --require-head "$VALIDATION_V2_HEAD" --require-base "$VALIDATION_V2_BASE_SHA")
+          if [ "$VALIDATION_V2_PROFILE" = "final" ]; then
+            args+=(--require-changes)
+          fi
+          ./tools/validation-v2 "${args[@]}"
 
       - name: Upload Validation V2 manifest
         if: always()

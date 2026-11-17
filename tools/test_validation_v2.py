@@ -623,6 +623,8 @@ def test_interrupt_and_verdict_contract(
     assert accepted.returncode == 0, accepted.stderr
     assert runner.verify_manifest(green_manifest, "quick") == 0
     assert runner.verify_manifest(green_manifest, "final") == runner.VERDICT_ERROR
+    required_scope = verify(green_manifest, "--require-changes")
+    assert required_scope.returncode == 0, required_scope.stderr
     guarded = subprocess.run(
         [str(tools / "validation-v2"), "verify", "--manifest", str(green_manifest), "--require-profile", "final"],
         cwd=repo, env=base_env, text=True, capture_output=True,
@@ -694,6 +696,38 @@ def test_interrupt_and_verdict_contract(
     assert green["plan"]["planned_steps"]
     assert len(green["commands"]) >= 2, "positional tampering needs a nonempty multi-step run"
     assert runner.manifest_problems(green) == []
+
+    recorded_scope = json.loads(json.dumps(green))
+    recorded_scope["plan"]["require_changes"] = True
+    recorded_scope_path = directory / "recorded-required-scope.json"
+    recorded_scope_path.write_text(json.dumps(recorded_scope))
+    accepted_recorded_scope = verify(recorded_scope_path)
+    assert accepted_recorded_scope.returncode == 0, accepted_recorded_scope.stderr
+
+    required_scope_tampering = (
+        ("missing-changed-paths", lambda document: document["plan"].pop("changed_paths"), "changed paths"),
+        ("non-list-changed-paths", lambda document: document["plan"].update(changed_paths="docs/file.md"), "changed paths"),
+        ("empty-changed-paths", lambda document: document["plan"].update(changed_paths=[]), "changed paths"),
+        ("empty-path-entry", lambda document: document["plan"].update(changed_paths=[""]), "changed paths"),
+        ("non-string-path-entry", lambda document: document["plan"].update(changed_paths=[1]), "changed paths"),
+        ("no-recorded-commands", lambda document: document.update(commands=[]), "no commands were recorded"),
+    )
+    for name, mutate, expected in required_scope_tampering:
+        document = json.loads(json.dumps(recorded_scope))
+        mutate(document)
+        target = directory / f"recorded-required-scope-{name}.json"
+        target.write_text(json.dumps(document))
+        rejected_scope = verify(target)
+        assert rejected_scope.returncode == runner.VERDICT_ERROR, (name, rejected_scope.stderr)
+        assert expected in rejected_scope.stderr, (name, rejected_scope.stderr)
+
+    audit_scope = json.loads(json.dumps(green))
+    audit_scope["profile"] = "audit"
+    audit_scope_path = directory / "audit-required-scope.json"
+    audit_scope_path.write_text(json.dumps(audit_scope))
+    rejected_profile = verify(audit_scope_path, "--require-changes")
+    assert rejected_profile.returncode == runner.VERDICT_ERROR
+    assert "--require-changes requires quick or final" in rejected_profile.stderr
 
     def rejected_tampering(name: str, mutate, expected: str) -> None:
         document = json.loads(json.dumps(green))
@@ -1712,6 +1746,31 @@ def test_empty_scope_contract(repo: Path, tools: Path, environment: dict[str, st
     assert result.returncode == 0
     assert "NO CHANGED PATHS" in result.stdout
     assert runner.manifest_problems(json.loads(empty_manifest.read_text())) == []
+
+    empty_final = directory / "empty-final-allowed.json"
+    result = subprocess.run(
+        [str(tools / "validation-v2"), "final", "--base", "HEAD"], cwd=repo,
+        env={**environment, "VALIDATION_V2_MANIFEST": str(empty_final)},
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    final_document = json.loads(empty_final.read_text())
+    assert final_document["profile"] == "final"
+    assert final_document["plan"]["changed_paths"] == []
+    assert final_document["commands"] == []
+    assert runner.manifest_problems(final_document) == []
+    default_verification = subprocess.run(
+        [str(tools / "validation-v2"), "verify", "--manifest", str(empty_final)], cwd=repo,
+        env=environment, capture_output=True, text=True,
+    )
+    assert default_verification.returncode == 0, default_verification.stderr
+    strict_verification = subprocess.run(
+        [str(tools / "validation-v2"), "verify", "--manifest", str(empty_final), "--require-changes"],
+        cwd=repo, env=environment, capture_output=True, text=True,
+    )
+    assert strict_verification.returncode == runner.VERDICT_ERROR
+    assert "changed paths are missing or invalid" in strict_verification.stderr
+    assert "no commands were recorded" in strict_verification.stderr
 
 
 def test_evidence_contract(repo: Path, environment: dict[str, str], directory: Path) -> None:
