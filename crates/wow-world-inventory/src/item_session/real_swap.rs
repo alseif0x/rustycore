@@ -181,18 +181,18 @@ pub(super) async fn execute_inventory_real_swap_like_cpp<H: ItemSessionHostLikeC
         .hub_ref()
         .catalogs
         .item_storage_template(destination.entry_id);
-    let Some(item_objects) = ({
+    let Some(item_values) = ({
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_objects_like_cpp(hub)
+        state.resolved_inventory_item_values_like_cpp(hub)
     }) else {
         return;
     };
-    let source_children = item_objects
+    let source_children = item_values
         .values()
         .filter(|item| item.container_guid() == source.guid)
         .map(|item| (item.slot(), item.object().guid(), item.object().entry()))
         .collect::<Vec<_>>();
-    let destination_children = item_objects
+    let destination_children = item_values
         .values()
         .filter(|item| item.container_guid() == destination.guid)
         .map(|item| (item.slot(), item.object().guid(), item.object().entry()))

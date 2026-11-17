@@ -11,5 +11,7 @@ mod appearance_admission_and_updates;
 mod appearance_queries;
 #[path = "scenarios_player_items_5/can_add_appearance_gates.rs"]
 mod can_add_appearance_gates;
+#[path = "scenarios_player_items_5/item_purchase_capture.rs"]
+mod item_purchase_capture;
 #[path = "scenarios_player_items_5/quest_reward_appearances.rs"]
 mod quest_reward_appearances;

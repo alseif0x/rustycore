@@ -649,22 +649,6 @@ impl crate::InventoryState {
         canonical
     }
 
-    pub fn resolved_inventory_item_objects_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<HashMap<ObjectGuid, Item>> {
-        let access = hub.core.owned_inventory_access_like_cpp();
-        self.resolved_inventory_item_objects_with_access_like_cpp(&access)
-    }
-
-    pub fn resolved_inventory_item_objects_with_access_like_cpp(
-        &self,
-        access: &OwnedInventoryAccessLikeCpp<'_>,
-    ) -> Option<HashMap<ObjectGuid, Item>> {
-        self.resolved_player_inventory_runtime_with_access_like_cpp(access)
-            .map(|inventory| inventory.item_objects().clone())
-    }
-
     pub fn resolved_inventory_item_object_with_access_like_cpp(
         &self,
         access: &OwnedInventoryAccessLikeCpp<'_>,

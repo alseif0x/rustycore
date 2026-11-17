@@ -4,7 +4,9 @@
 use std::sync::Arc;
 use wow_core::ObjectGuid;
 use wow_data::{ItemStatsStore, ItemStore};
-use wow_entities::{INVENTORY_SLOT_BAG_0, ItemObjectUpdateLikeCpp, PlayerInventoryItem};
+use wow_entities::{
+    INVENTORY_SLOT_BAG_0, ItemObjectUpdateLikeCpp, ItemValuesMapSnapshot, PlayerInventoryItem,
+};
 use wow_world_core::session::OwnedInventoryAccessLikeCpp;
 use wow_world_inventory::InventoryState;
 
@@ -49,11 +51,9 @@ impl<'a> InventoryCommittedSwapCxLikeCpp<'a> {
             .resolved_inventory_items_with_access_like_cpp(&self.access)
     }
 
-    fn resolved_inventory_item_objects_like_cpp(
-        &self,
-    ) -> Option<std::collections::HashMap<ObjectGuid, wow_entities::Item>> {
+    fn resolved_inventory_item_values_like_cpp(&self) -> Option<ItemValuesMapSnapshot> {
         self.inventory
-            .resolved_inventory_item_objects_with_access_like_cpp(&self.access)
+            .resolved_inventory_item_values_with_access_like_cpp(&self.access)
     }
 
     fn item_storage_template(&self, entry: u32) -> Option<wow_entities::ItemStorageTemplate> {
@@ -109,7 +109,7 @@ impl<'a> InventoryCommittedSwapCxLikeCpp<'a> {
         let Some(inventory_items) = self.resolved_inventory_items_like_cpp() else {
             return false;
         };
-        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
+        let Some(item_values) = self.resolved_inventory_item_values_like_cpp() else {
             return false;
         };
 
@@ -135,12 +135,12 @@ impl<'a> InventoryCommittedSwapCxLikeCpp<'a> {
             .item_storage_template(destination.entry_id)
             .map(|template| template.container_slots)
             .filter(|size| *size > 0);
-        let source_children = item_objects
+        let source_children = item_values
             .values()
             .filter(|item| item.container_guid() == source.guid)
             .map(|item| (item.slot(), item.object().guid()))
             .collect::<Vec<_>>();
-        let destination_children = item_objects
+        let destination_children = item_values
             .values()
             .filter(|item| item.container_guid() == destination.guid)
             .map(|item| (item.slot(), item.object().guid()))

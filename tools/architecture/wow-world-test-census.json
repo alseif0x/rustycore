@@ -22,48 +22,48 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4576,
+  "tests": 4607,
   "ignored": 1,
-  "session": 3875,
-  "shims": 3672,
+  "session": 3891,
+  "shims": 3687,
   "by_class": {
-   "P": 701,
+   "P": 716,
    "H": 146,
-   "W": 3729
+   "W": 3745
   },
   "by_reason": {
    "H-host": 146,
-   "P-domain": 157,
-   "P-library": 33,
+   "P-domain": 159,
+   "P-library": 35,
    "P-lowest-covering": 39,
-   "P-world-items": 472,
+   "P-world-items": 483,
    "W-core-only": 105,
    "W-fields": 75,
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 32,
-   "W-world-logic": 3474
+   "W-world-logic": 3490
   },
   "by_owner": {
    "wow-world": {
-    "P": 401,
+    "P": 415,
     "H": 0,
     "W": 7
    },
    "wow-world-application": {
     "P": 10,
     "H": 10,
-    "W": 61
+    "W": 60
    },
    "wow-world-character": {
     "P": 36,
     "H": 12,
-    "W": 395
+    "W": 398
    },
    "wow-world-core": {
     "P": 31,
     "H": 0,
-    "W": 182
+    "W": 183
    },
    "wow-world-creature": {
     "P": 2,
@@ -86,9 +86,9 @@
     "W": 4
    },
    "wow-world-inventory": {
-    "P": 57,
+    "P": 58,
     "H": 12,
-    "W": 419
+    "W": 433
    },
    "wow-world-lifecycle": {
     "P": 38,
@@ -103,7 +103,7 @@
    "wow-world-loot-ops": {
     "P": 11,
     "H": 8,
-    "W": 215
+    "W": 212
    },
    "wow-world-player-conditions": {
     "P": 1,
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 55,
     "H": 4,
-    "W": 964
+    "W": 966
    },
    "wow-world-visibility": {
     "P": 0,
@@ -133,9 +133,9 @@
   },
   "by_destination": {
    "wow-world": {
-    "P": 505,
+    "P": 518,
     "H": 0,
-    "W": 3729
+    "W": 3745
    },
    "wow-world-application": {
     "P": 27,
@@ -173,7 +173,7 @@
     "W": 0
    },
    "wow-world-inventory": {
-    "P": 20,
+    "P": 21,
     "H": 12,
     "W": 0
    },
@@ -208,7 +208,7 @@
     "W": 0
    },
    "wow-world-spell": {
-    "P": 24,
+    "P": 25,
     "H": 4,
     "W": 0
    }
@@ -412,7 +412,7 @@
   ["src/forever/creation/templates/tests.rs::duplicate_primary_ids_fail_whole_batch_even_if_the_duplicate_has_no_classes", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["CharacterTemplates", "SourceError"], []],
   ["src/forever/creation/tests.rs::signed_target_stats_are_not_narrowed_to_the_legacy_uint16_projection", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["WorldSources", "primary_stats"], []],
   ["src/forever/creation/tests.rs::initial_action_requests_filter_race_class_keep_order_and_source_narrowing", "P", "wow-world", "wow-world-inventory", "P-world-items", false, false, false, ["WorldSources", "initial_actions"], []],
-  ["src/forever/creation/tests.rs::composed_world_sources_retain_skill_tiers_without_fabricating_missing_rows", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["WorldSources", "skill_tier_value"], []],
+  ["src/forever/creation/tests.rs::composed_world_sources_retain_skill_tiers_without_fabricating_missing_rows", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["WorldSources", "skill_tier_value", "skill_tier_values"], []],
   ["src/forever/creation/tests.rs::gap_fallback_uses_combined_strength_not_raw_class_strength", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["WorldSources", "primary_stats"], []],
   ["src/forever/creation/tests.rs::class_rows_above_cap_are_ignored_before_source_level_extrapolation", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["WorldSources", "primary_stats"], []],
   ["src/forever/creation/tests.rs::unknown_race_modifiers_do_not_become_zero", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["SourceError", "WorldSources", "primary_stats"], []],
@@ -760,8 +760,22 @@
   ["unit_tests/battle_pet_purchase/tests/scenarios_1.rs::missing_character_compensation_is_terminal_not_retried_like_cpp", "P", "wow-world-character", "wow-world-lifecycle", "P-lowest-covering", false, false, false, ["wow-world-character", "wow-world-spell"], []],
   ["unit_tests/battle_pet_purchase/tests/scenarios_1.rs::pending_scan_returns_only_unconverged_commands_bounded_like_cpp", "P", "wow-world-character", "wow-world-lifecycle", "P-lowest-covering", false, false, false, ["wow-world-character", "wow-world-inventory", "wow-world-spell"], []],
   ["unit_tests/character_administration/tests.rs::production_session_driver_executes_ready_rename_callbacks", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "process_pending_with_catalogs_like_cpp"], []],
-  ["unit_tests/forever/guid.rs::player_guid_preserves_all_realm_bits_without_region_or_site", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["player_guid"], []],
-  ["unit_tests/forever/guid.rs::raw_player_guid_assembly_preserves_counter_bits_without_admission_claim", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["player_guid"], []],
+  ["unit_tests/forever/creation/item_templates/bonus_sources.rs::source_borrows_templates_and_preserves_item_facts_and_lookup_widths", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["ITEM_FLAG2_NO_TRADE_BIND_ON_ACQUIRE", "ITEM_FLAG4_NO_SALVAGE", "ITEM_FLAG_NO_DISENCHANT", "ItemBonusSources"], []],
+  ["unit_tests/forever/creation/item_templates/bonus_sources.rs::loaded_zero_keys_are_present_and_zero_flags_select_inverse_capabilities", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["ItemBonusSources", "NumericItemTemplates", "azerite_tier_unlock_set_id", "item_squish_era"], []],
+  ["unit_tests/forever/creation/item_templates/bonus_sources.rs::fourteen_effects_are_projected_and_entity_enforces_capacity", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["ItemBonusSources", "NumericItemTemplates", "template_facts"], []],
+  ["unit_tests/forever/creation/item_templates/bonus_sources.rs::bonus_rows_keep_id_order_and_missing_sources_are_loaded_absence", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["ItemBonusSources", "NumericItemTemplates", "actual_realm_patch", "bonus_list"], []],
+  ["unit_tests/forever/creation/item_templates/bonus_sources.rs::entity_bonus_data_uses_nested_scaling_and_crafted_level_sources", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["ItemBonusSources", "NumericItemTemplates"], []],
+  ["unit_tests/forever/guid.rs::player_guid_preserves_all_realm_bits_without_region_or_site", "P", "wow-world", "wow-world", "P-library", false, false, false, [], []],
+  ["unit_tests/forever/guid.rs::raw_player_guid_assembly_preserves_counter_bits_without_admission_claim", "P", "wow-world", "wow-world", "P-library", false, false, false, [], []],
+  ["unit_tests/forever/player/enchantment_condition_sources.rs::condition_projection_and_gem_lookup_borrow_the_admitted_native_owners", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["EnchantmentConditionSources", "NumericItemTemplates", "SpellLoadPlan", "raw_catalog"], []],
+  ["unit_tests/forever/player/enchantment_condition_sources.rs::a_present_template_with_missing_gem_properties_is_absent_from_the_view", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["EnchantmentConditionSources", "NumericItemTemplates", "SpellLoadPlan", "with_server_spells"], []],
+  ["unit_tests/forever/player/enchantment_condition_sources.rs::zero_item_and_gem_properties_ids_use_the_native_catalog_rows", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["EnchantmentConditionSources", "NumericItemTemplates", "SpellLoadPlan", "with_server_spells"], []],
+  ["unit_tests/forever/player/enchantment_condition_sources.rs::gem_lookup_does_not_require_k10_value_game_tables", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["EnchantmentConditionSources", "NumericItemTemplates", "SkillEnchantmentSources", "SpellLoadPlan"], []],
+  ["unit_tests/forever/player/enchantment_sources.rs::construction_requires_the_admitted_value_game_tables", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["NumericItemTemplates", "SkillEnchantmentSources", "SkillEnchantmentSourcesError", "SpellLoadPlan"], []],
+  ["unit_tests/forever/player/enchantment_sources.rs::enchantment_projection_preserves_all_consumed_columns_and_catalog_identity", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["NumericItemTemplates", "SkillEnchantmentSources", "SpellLoadPlan", "max_level"], []],
+  ["unit_tests/forever/player/enchantment_sources.rs::template_projection_uses_extended_inventory_enum_and_widens_required_skill", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["NumericItemTemplates", "SkillEnchantmentSources", "SpellLoadPlan", "with_server_spells"], []],
+  ["unit_tests/forever/player/enchantment_sources.rs::missing_rows_are_absent_from_the_currently_admitted_sources", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["NumericItemTemplates", "SkillEnchantmentSources", "SpellLoadPlan", "with_server_spells"], []],
+  ["unit_tests/forever/player/enchantment_sources.rs::scaling_reads_physical_rows_and_preserves_target_class_selectors", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["NumericItemTemplates", "SkillEnchantmentSources", "SpellLoadPlan", "with_server_spells"], []],
   ["unit_tests/forever/player/skills/activation.rs::source_preallocation_activation_orders_rewards_enchants_criteria_status_then_bonus_auras", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["Definition", "DefinitionOrder", "SkillSetSources", "SpellDefinitionSeeds"], []],
   ["unit_tests/forever/player/skills/admission.rs::input_admission_requires_class_lookup_ranks_and_same_shared_birth_authority", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["Definition", "DefinitionOrder", "SkillSetInputError", "SkillSetSources"], []],
   ["unit_tests/forever/player/skills/catalog_adapter.rs::birth_catalog_child_and_ability_iterators_preserve_storage_order", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["Definition", "DefinitionOrder", "SkillSetSources", "SpellDefinitionSeeds"], []],
@@ -954,7 +968,7 @@
   ["unit_tests/handlers/calendar/tests/calendar.rs::calendar_add_event_guild_scoped_without_guild_sends_not_in_guild_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["set_represented_guild_id_like_cpp"], []],
   ["unit_tests/handlers/calendar/tests/calendar.rs::calendar_add_event_records_represented_creation_intent_like_cpp", "W", "wow-world", "wow-world-social", "W-world-items", true, true, false, ["CharacterTemplates", "DefaultAccountPermissions", "Identity", "InitializationPolicy"], []],
   ["unit_tests/handlers/calendar/tests/calendar.rs::calendar_remove_event_records_represented_remove_request_like_cpp", "W", "wow-world", "wow-world-social", "W-world-items", true, true, false, ["CharacterTemplates", "DefaultAccountPermissions", "Identity", "InitializationPolicy"], []],
-  ["unit_tests/handlers/character_tests/binder_cast_hook.rs::the_innkeeper_bind_cast_raises_no_spell_cast", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_binder_activate", "initial_player_fixture_like_cpp"], []],
+  ["unit_tests/handlers/character_tests/binder_cast_hook.rs::the_innkeeper_bind_cast_raises_no_spell_cast", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_binder_activate", "initial_player_fixture_like_cpp"], []],
   ["unit_tests/handlers/character_tests/creature.rs::sql_creature_template_speed_defaults_match_cpp_check_creature_template", "P", "wow-world-entities", "wow-world-entities", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/character_tests/creature.rs::creature_spawn_difficulties_filter_matches_spawn_mode_like_cpp", "P", "wow-world-entities", "wow-world-entities", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/character_tests/creature.rs::creature_spawn_difficulties_invalid_token_maps_to_none_like_cpp", "P", "wow-world-entities", "wow-world-entities", "P-domain", false, false, false, [], []],
@@ -1015,6 +1029,7 @@
   ["unit_tests/handlers/character_tests/item_1.rs::use_equipment_set_moves_direct_inventory_item_and_sends_result_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["get_inventory_item_by_pos", "insert_inventory_item_like_cpp"], []],
   ["unit_tests/handlers/character_tests/item_1.rs::use_equipment_set_applies_represented_item_mods_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "represented_item_bonus_state_like_cpp"], []],
   ["unit_tests/handlers/character_tests/item_1.rs::use_equipment_set_empty_slot_unequips_to_backpack_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["get_inventory_item_by_pos", "insert_inventory_item_like_cpp"], []],
+  ["unit_tests/handlers/character_tests/item_1/storage_facts.rs::mutable_sql_row_uses_frozen_item_facts_and_explicit_projection_inputs", "P", "wow-world-inventory", "wow-world-inventory", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/character_tests/item_2.rs::inventory_move_planning_preserves_exact_store_and_bank_destinations_without_mutation", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["get_inventory_item_by_pos", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/handlers/character_tests/item_2.rs::inventory_move_planning_exact_destination_rejects_split_allocation", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "plan_store_existing_inventory_item_at_like_cpp"], []],
   ["unit_tests/handlers/character_tests/item_2.rs::inventory_move_planning_rejects_missing_source_and_non_equippable_item", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "set_player_guid"], []],
@@ -1041,6 +1056,9 @@
   ["unit_tests/handlers/character_tests/item_2.rs::child_equip_plan_targets_db2_slot_before_parent_moves_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "set_player_guid"], []],
   ["unit_tests/handlers/character_tests/item_2.rs::real_swap_plans_child_for_item_entering_source_equipment_slot_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "set_player_guid"], []],
   ["unit_tests/handlers/character_tests/item_2.rs::child_equip_plan_preflights_displaced_equipment_storage_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["get_inventory_item_by_pos", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
+  ["unit_tests/handlers/character_tests/item_2/bank_capture.rs::canonical_bank_planning_uses_frozen_owner_facts_for_active_and_detached_players", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "plan_bank_existing_inventory_item_at_like_cpp"], []],
+  ["unit_tests/handlers/character_tests/item_2/bank_capture.rs::canonical_empty_and_stale_handles_do_not_use_poisoned_fixture_facts", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "plan_bank_existing_inventory_item_at_like_cpp"], []],
+  ["unit_tests/handlers/character_tests/item_2/bank_capture.rs::nested_lookup_keeps_first_old_clone_collision_and_embedded_key_failure", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["get_inventory_item_by_pos", "plan_bank_existing_inventory_item_at_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::child_equip_plan_rejects_displacement_when_parent_started_equipped_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "set_player_guid"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::recursive_destroy_commit_failure_keeps_bag_and_children_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["get_inventory_item_by_pos", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::auto_equip_item_rejects_bad_inv_update_count_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_auto_equip_item", "set_player_guid"], []],
@@ -1051,7 +1069,7 @@
   ["unit_tests/handlers/character_tests/item_3.rs::buy_bank_slot_rejects_missing_price_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "handle_buy_bank_slot", "player_bank_bag_slot_count_like_cpp", "player_gold_like_cpp"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::bank_move_plan_selects_first_personal_bank_slot_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::bank_move_plan_merges_then_moves_one_remainder_stack_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
-  ["unit_tests/handlers/character_tests/item_3.rs::bank_merge_refreshes_destination_enchant_timer_without_item_duration_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/handlers/character_tests/item_3.rs::bank_merge_refreshes_destination_enchant_timer_without_item_duration_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::bank_move_plan_can_merge_and_leave_remainder_in_source_slot_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::bank_move_plan_reports_bank_full_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::autostore_bank_move_plan_returns_item_to_backpack_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
@@ -1070,6 +1088,8 @@
   ["unit_tests/handlers/character_tests/item_3.rs::auto_bank_item_rejects_without_current_bank_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "handle_autobank_item", "handle_autostore_bank_item", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::buy_bank_slot_raises_money_changed_once_after_the_commit_outside_the_fence", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "handle_buy_bank_slot", "install_module_hooks_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/character_tests/item_3.rs::a_rolled_back_bank_slot_purchase_raises_no_money_changed_hook", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "handle_buy_bank_slot", "install_module_hooks_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/character_tests/item_3/destruction_values.rs::graph_destroy_uses_canonical_child_counts_and_preserves_failed_owners", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/character_tests/item_3/destruction_values.rs::destroy_item_partial_count_uses_canonical_item_values", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/character_tests/item_4.rs::registered_item_text_query_preserves_payload_failure_invalid_and_valid_bytes", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/handlers/character_tests/item_4.rs::registered_item_text_query_does_not_read_fixture_item_after_same_guid_owner_replacement", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_object", "make_inventory_item_object", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/character_tests/item_4.rs::bank_domain_registration_exact_set_preserves_slot_flag_metadata", "P", "wow-world", "wow-world-inventory", "P-world-items", false, false, false, ["CharacterTemplates", "DefaultAccountPermissions", "Identity", "InitializationPolicy"], []],
@@ -1521,7 +1541,7 @@
   ["unit_tests/handlers/entities/tests/corpse/bones_birth.rs::far_owner_does_not_suppress_nearby_bones_birth_or_clear_unrelated_discovery", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "register_in_player_registry", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/entities/tests/corpse/bones_birth.rs::disabled_bones_still_publish_the_old_out_of_range_before_delete_completion", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/bones_birth.rs::committed_bones_delete_cannot_complete_an_earlier_residence", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
-  ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_kill_player_runs_once_after_regeneration_and_waits_for_timer", "W", "wow-world", "wow-world-loot-ops", "W-core-only", true, true, false, [], []],
+  ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_kill_player_runs_once_after_regeneration_and_waits_for_timer", "W", "wow-world", "wow-world-core", "W-core-only", true, true, false, [], []],
   ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_death_timer_expires_at_the_exact_six_minute_boundary", "W", "wow-world", "wow-world-inventory", "W-core-only", true, true, false, [], []],
   ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_death_timer_ignores_oversized_diff_before_monotonic_deadline", "W", "wow-world", "wow-world-inventory", "W-core-only", true, true, false, [], []],
   ["unit_tests/handlers/entities/tests/corpse/death_timer_driver.rs::driver_death_timer_freezes_in_instance_maps_and_with_prevent_resurrection", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_spell_store"], []],
@@ -2705,6 +2725,8 @@
   ["unit_tests/handlers/travel/tests/travel.rs::activate_taxi_records_represented_request_for_flight_master_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/travel/tests/travel.rs::set_taxi_benchmark_mode_sets_and_clears_player_flag_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_set_taxi_benchmark_mode", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/travel/tests/travel.rs::set_taxi_benchmark_mode_short_packet_does_not_change_flag_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["handle_set_taxi_benchmark_mode"], []],
+  ["unit_tests/handlers/void_storage_tests/overlay_values.rs::direct_storage_overlay_replaces_a_vacated_slots_old_entry_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
+  ["unit_tests/handlers/void_storage_tests/overlay_values.rs::direct_storage_overlay_bag_placeholder_supplies_child_storage_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/handlers/void_storage_tests/scenarios_1.rs::void_item_packet_uses_cpp_void_instance_fields_only", "W", "wow-world", "wow-world-core", "W-fields", true, false, false, [], []],
   ["unit_tests/handlers/void_storage_tests/scenarios_1.rs::login_load_rejects_invalid_rows_and_identity_collisions", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["clear_represented_void_storage_like_cpp"], []],
   ["unit_tests/handlers/void_storage_tests/scenarios_1.rs::login_load_adds_default_void_item_appearance_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["clear_represented_void_storage_like_cpp"], []],
@@ -2876,7 +2898,7 @@
   ["unit_tests/session/tests/lifecycle_persistence/character_lifecycle.rs::realm_character_count_refresh_reaches_the_lifecycle_port_without_database_handles", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["load_represented_character_auras_like_cpp"], []],
   ["unit_tests/session/tests/lifecycle_persistence/character_lifecycle.rs::realm_character_count_refresh_without_port_does_not_fabricate_a_request", "W", "wow-world", "wow-world-character", "W-fields", true, false, false, [], []],
   ["unit_tests/session/tests/lifecycle_persistence/character_lifecycle.rs::logout_publishes_each_offline_mark_through_the_port_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["load_represented_character_auras_like_cpp", "mark_character_account_offline_like_cpp", "mark_character_offline", "mark_login_account_offline_on_disconnect_like_cpp"], []],
-  ["unit_tests/session/tests/lifecycle_persistence/character_lifecycle.rs::no_character_means_no_character_offline_request_like_cpp", "W", "wow-world", "wow-world-application", "W-world-logic", true, true, false, ["load_represented_character_auras_like_cpp", "mark_character_offline"], []],
+  ["unit_tests/session/tests/lifecycle_persistence/character_lifecycle.rs::no_character_means_no_character_offline_request_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["load_represented_character_auras_like_cpp", "mark_character_offline"], []],
   ["unit_tests/session/tests/lifecycle_persistence/character_lifecycle.rs::a_failed_offline_mark_is_handled_without_panicking_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["load_represented_character_auras_like_cpp", "mark_character_account_offline_like_cpp", "mark_character_offline", "set_player_guid"], []],
   ["unit_tests/session/tests/lifecycle_persistence/character_lifecycle.rs::an_unknown_offline_mark_outcome_is_handled_distinctly_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["load_represented_character_auras_like_cpp", "mark_character_offline", "set_player_guid"], []],
   ["unit_tests/session/tests/lifecycle_persistence/character_lifecycle.rs::a_session_without_a_port_performs_no_durable_write_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["mark_character_account_offline_like_cpp", "mark_character_offline", "mark_login_account_offline_on_disconnect_like_cpp", "set_player_guid"], []],
@@ -3002,6 +3024,7 @@
   ["unit_tests/session/tests/map_phase_pass/recovery_timer/recovery_fences/registered_self_res.rs::registered_self_res_without_a_corpse_keeps_cost_and_cooldown_dirty_without_saving", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "current_map_phase_admission_for_test_like_cpp", "dispatch_packet"], []],
   ["unit_tests/session/tests/map_phase_pass/recovery_timer/recovery_fences/registered_self_res/onpickup.rs::registered_self_res_holds_before_bones_for_timed_unimplemented_onpickup_effect", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["active_spell_cast_snapshot_like_cpp", "adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "current_map_phase_admission_for_test_like_cpp"], []],
   ["unit_tests/session/tests/map_phase_pass/recovery_timer/recovery_fences/registered_self_res/onpickup.rs::normal_onpickup_execution_reports_unimplemented_create_item_effect_at_alive_zero", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["active_spell_cast_snapshot_like_cpp", "adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "creature_spawn_catalogs_for_test_like_cpp"], []],
+  ["unit_tests/session/tests/map_phase_pass/recovery_timer/recovery_fences/registered_self_res/onpickup.rs::normal_physical_item_facts_require_the_current_owned_item_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "current_map_phase_admission_for_test_like_cpp", "insert_inventory_item_like_cpp"], []],
   ["unit_tests/session/tests/map_phase_pass/recovery_timer/recovery_fences/registered_self_res/onpickup.rs::registered_self_res_completes_after_source_inert_onpickup_effect", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["active_spell_cast_snapshot_like_cpp", "adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "current_map_phase_admission_for_test_like_cpp"], []],
   ["unit_tests/session/tests/map_phase_pass/recovery_timer/recovery_fences/registered_self_res_cast_item_provenance.rs::normal_cast_execution_takes_delayed_cast_item_before_inebriate_effect", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "current_map_phase_admission_for_test_like_cpp", "execute_spell_with_visual_and_target_data_with_metadata"], []],
   ["unit_tests/session/tests/map_phase_pass/recovery_timer/recovery_fences/registered_self_res_cast_item_provenance.rs::normal_cast_execution_keeps_immediate_effect_cast_item_provenance", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "current_map_phase_admission_for_test_like_cpp", "execute_spell_with_visual_and_target_data_with_metadata"], []],
@@ -3142,7 +3165,7 @@
   ["unit_tests/session/tests/scenarios_combat_4/avoidance_critical_and_evade.rs::melee_attack_table_reads_the_dual_wield_penalty_aura_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "represented_melee_outcome_facts_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_combat_4/avoidance_critical_and_evade.rs::white_swing_publishes_an_evade_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "represented_melee_armor_mitigation_like_cpp", "represented_melee_damage_bonus_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_combat_4/melee_damage_taken.rs::creature_aura_effects_resolve_the_applied_mask_like_cpp", "P", "wow-world-spell", "wow-world-spell", "P-domain", false, false, false, [], []],
-  ["unit_tests/session/tests/scenarios_combat_4/melee_damage_taken.rs::melee_damage_taken_matches_cpp_like_cpp", "P", "wow-world", "wow-world-spell", "P-world-items", false, false, false, ["Effect", "SpellEffectValues"], []],
+  ["unit_tests/session/tests/scenarios_combat_4/melee_damage_taken.rs::melee_damage_taken_matches_cpp_like_cpp", "P", "wow-world", "wow-world-spell", "P-world-items", false, false, false, ["Effect"], []],
   ["unit_tests/session/tests/scenarios_combat_4/melee_damage_taken.rs::white_swing_applies_victim_melee_damage_taken_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "represented_melee_armor_mitigation_like_cpp", "represented_melee_damage_bonus_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_combat_4/white_swing_damage.rs::white_swing_roll_bounds_follow_calculate_damage_like_cpp", "P", "wow-world-spell", "wow-world-spell", "P-domain", false, false, false, [], []],
   ["unit_tests/session/tests/scenarios_combat_4/white_swing_damage.rs::white_swing_damage_rolls_the_published_range_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "set_canonical_map_manager", "set_map_store"], []],
@@ -3152,7 +3175,7 @@
   ["unit_tests/session/tests/scenarios_combat_5.rs::represented_absorb_priority_matches_absorb_aura_order_pred_like_cpp", "P", "wow-world-spell", "wow-world-spell", "P-domain", false, false, false, [], []],
   ["unit_tests/session/tests/scenarios_combat_5.rs::represented_melee_mana_absorb_matches_calc_absorb_resist_like_cpp", "P", "wow-world-spell", "wow-world-spell", "P-domain", false, false, false, [], []],
   ["unit_tests/session/tests/scenarios_combat_5.rs::represented_heal_absorb_matches_calc_heal_absorb_like_cpp", "P", "wow-world-spell", "wow-world-spell", "P-domain", false, false, false, [], []],
-  ["unit_tests/session/tests/scenarios_combat_5.rs::represented_melee_ignore_absorb_matches_calc_absorb_resist_like_cpp", "P", "wow-world", "wow-world-spell", "P-world-items", false, false, false, ["SpellEffectValues"], []],
+  ["unit_tests/session/tests/scenarios_combat_5.rs::represented_melee_ignore_absorb_matches_calc_absorb_resist_like_cpp", "P", "wow-world-spell", "wow-world-spell", "P-domain", false, false, false, [], []],
   ["unit_tests/session/tests/scenarios_combat_5/neutral_engagement.rs::neutral_creature_engaged_by_player_stays_engaged_and_attacks_back_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_combat_5/neutral_engagement.rs::neutral_creature_does_not_start_aggro_on_passer_by_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_combat_5/neutral_engagement.rs::attack_swing_engages_and_creature_reacts_with_ai_reaction_then_attack_start_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "set_canonical_map_manager", "set_map_store"], []],
@@ -3225,7 +3248,7 @@
   ["unit_tests/session/tests/scenarios_login_1.rs::account_data_times_respect_global_and_character_masks_like_cpp", "H", "wow-world-lifecycle", "wow-world-lifecycle", "H-host", true, true, false, [], []],
   ["unit_tests/session/tests/scenarios_login_1.rs::represented_player_condition_context_uses_live_session_state_like_cpp", "W", "wow-world", "wow-world-player-conditions", "W-world-logic", true, true, false, ["represented_player_condition_context_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_login_1.rs::represented_mount_capability_for_type_uses_session_state_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "represented_mount_capability_for_type_from_session_like_cpp", "set_area_table_store", "set_canonical_map_manager"], []],
-  ["unit_tests/session/tests/scenarios_login_1.rs::ensure_login_player_controller_is_idempotent_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["ensure_login_player_controller_like_cpp", "known_spells_like_cpp", "player_gold_like_cpp", "set_player_gold_like_cpp"], []],
+  ["unit_tests/session/tests/scenarios_login_1.rs::ensure_login_player_controller_is_idempotent_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["ensure_login_player_controller_like_cpp", "known_spells_like_cpp", "player_gold_like_cpp", "set_player_gold_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_login_1.rs::first_login_start_all_explored_sets_all_cpp_blocks_and_sends_update", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["apply_represented_first_login_explored_zones_like_cpp", "build_initial_player_for_owner_like_cpp", "ensure_login_player_controller_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_login_1.rs::offline_rested_xp_zero_logout_time_is_rejected_instead_of_cpp_wrap", "W", "wow-world", "wow-world-application", "W-world-logic", true, true, false, ["apply_offline_xp_rest_bonus_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_login_1.rs::offline_rested_xp_future_logout_time_is_rejected_instead_of_cpp_wrap", "W", "wow-world", "wow-world-application", "W-world-logic", true, true, false, ["apply_offline_xp_rest_bonus_like_cpp"], []],
@@ -3689,6 +3712,7 @@
   ["unit_tests/session/tests/scenarios_player_items_1.rs::represented_condition_avg_item_level_uses_runtime_item_level_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
   ["unit_tests/session/tests/scenarios_player_items_1.rs::represented_condition_avg_item_level_applies_item_bonus_level_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
   ["unit_tests/session/tests/scenarios_player_items_1.rs::represented_item_level_uses_player_level_curve_like_cpp", "W", "wow-world", "wow-world-player-conditions", "W-world-logic", true, true, false, ["represented_item_level_like_cpp", "set_player_level_like_cpp"], []],
+  ["unit_tests/session/tests/scenarios_player_items_1.rs::represented_item_level_reads_frozen_item_values_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["make_inventory_item_object", "set_player_level_like_cpp", "split_inventory_ref"], []],
   ["unit_tests/session/tests/scenarios_player_items_1.rs::represented_item_level_curve_clamps_owner_level_by_content_tuning_like_cpp", "W", "wow-world", "wow-world-player-conditions", "W-world-logic", true, true, false, ["represented_item_level_like_cpp", "set_player_level_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_player_items_1.rs::represented_item_level_curve_fixed_level_overrides_content_tuning_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["make_inventory_item_object", "represented_item_level_like_cpp", "set_player_level_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_player_items_1.rs::represented_item_level_curve_missing_data_does_not_fall_back_to_template_like_cpp", "W", "wow-world", "wow-world-player-conditions", "W-world-logic", true, true, false, ["represented_item_level_like_cpp", "set_player_level_like_cpp"], []],
@@ -3797,6 +3821,9 @@
   ["unit_tests/session/tests/scenarios_player_items_4.rs::player_currency_item_refund_ignores_caps_and_total_counters_like_cpp", "H", "wow-world-inventory", "wow-world-inventory", "H-host", true, true, false, [], []],
   ["unit_tests/session/tests/scenarios_player_items_4.rs::send_equip_error_preserves_cpp_item_level_and_limit_fields", "W", "wow-world", "wow-world-application", "W-core-only", true, true, false, [], []],
   ["unit_tests/session/tests/scenarios_player_items_4.rs::apply_enchantment_random_suffix_ref_uses_cpp_abs_lookup", "W", "wow-world", "wow-world-core", "W-core-only", true, true, false, [], []],
+  ["unit_tests/session/tests/scenarios_player_items_4/selected_item_capture.rs::selected_item_fixture_capture_requires_an_absent_handle", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, false, false, ["set_canonical_map_manager"], []],
+  ["unit_tests/session/tests/scenarios_player_items_4/valuation_owner.rs::valuation_and_equip_use_active_then_detached_owner_without_mutation_or_packets", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["player_condition_projection_cx_like_cpp", "represented_player_condition_context_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/scenarios_player_items_4/valuation_owner.rs::two_hand_offhand_storage_uses_selected_owner_capacity", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["player_condition_projection_cx_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_player_items_5/appearance_admission_and_updates.rs::item_modified_appearance_helpers_use_cpp_lookup_shapes", "W", "wow-world", "wow-world-core", "W-core-only", true, true, false, [], []],
   ["unit_tests/session/tests/scenarios_player_items_5/appearance_admission_and_updates.rs::transmog_set_items_helper_uses_cpp_lookup_shape", "W", "wow-world", "wow-world-core", "W-core-only", true, true, false, [], []],
   ["unit_tests/session/tests/scenarios_player_items_5/appearance_admission_and_updates.rs::transmog_set_item_modified_appearances_skip_missing_like_cpp", "W", "wow-world", "wow-world-inventory", "W-core-only", true, true, false, [], []],
@@ -3811,6 +3838,8 @@
   ["unit_tests/session/tests/scenarios_player_items_5/can_add_appearance_gates.rs::can_add_item_appearance_applies_can_use_item_learning_effect_gate_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_player_items_5/can_add_appearance_gates.rs::can_add_item_appearance_applies_can_use_item_reputation_gate_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "set_canonical_map_manager", "set_faction_store"], []],
   ["unit_tests/session/tests/scenarios_player_items_5/can_add_appearance_gates.rs::can_add_item_appearance_represented_applies_cpp_gates", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["add_item_appearance_like_cpp", "adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/session/tests/scenarios_player_items_5/item_purchase_capture.rs::item_purchase_data_uses_canonical_facts_and_preserves_owner_fallbacks", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/scenarios_player_items_5/item_purchase_capture.rs::item_purchase_data_rejects_invalid_refund_sources_without_mutation", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_player_items_5/quest_reward_appearances.rs::replay_rewarded_quest_direct_item_appearances_adds_choice_and_fixed_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "replay_rewarded_quest_direct_item_appearances_like_cpp", "represented_has_item_appearance_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_player_items_5/quest_reward_appearances.rs::item_spec_class_mask_from_overrides_uses_chr_specialization_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, false, false, ["set_chr_specialization_store"], []],
   ["unit_tests/session/tests/scenarios_player_items_5/quest_reward_appearances.rs::replay_rewarded_quest_package_item_appearances_uses_item_spec_class_mask_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "replay_rewarded_quest_item_appearances_like_cpp", "represented_has_item_appearance_like_cpp", "set_canonical_map_manager"], []],
@@ -3859,6 +3888,8 @@
   ["unit_tests/session/tests/scenarios_player_items_9/item_template_rules.rs::item_limit_category_template_applies_conditions_like_cpp", "W", "wow-world", "wow-world-player-conditions", "W-world-logic", true, true, false, ["set_player_class_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_player_items_9/item_template_rules.rs::item_buy_and_sell_price_follow_contrasted_cpp_standard_price_shape", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["item_buy_price_like_cpp", "item_disenchant_loot_like_cpp", "item_sell_price_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_player_items_9/item_template_rules.rs::item_template_lock_id_uses_item_sparse_lock_id_like_cpp", "W", "wow-world", "wow-world-core", "W-core-only", true, true, false, [], []],
+  ["unit_tests/session/tests/scenarios_player_items_9/ordered_item_values.rs::durability_and_repair_queries_use_canonical_values_and_records", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_object", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/scenarios_player_items_9/ordered_item_values.rs::empty_and_stale_canonical_owners_do_not_fall_back_but_absent_owner_does", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_object", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_progression.rs::reputation_min_tracking_event_objective_auto_rewards_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "build_initial_player_for_owner_like_cpp", "mutate_player_quest_gameplay_like_cpp", "player_currencies_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_progression.rs::increase_reputation_tracking_event_objective_auto_rewards_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "build_initial_player_for_owner_like_cpp", "mutate_player_quest_gameplay_like_cpp", "player_currencies_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_progression.rs::reputation_max_tracking_event_objective_auto_rewards_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "build_initial_player_for_owner_like_cpp", "mutate_player_quest_gameplay_like_cpp", "player_currencies_like_cpp"], []],
@@ -4147,7 +4178,7 @@
   ["unit_tests/session/tests/scenarios_spell_state_22.rs::represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_object", "make_inventory_item_object", "represented_item_bonus_state_like_cpp", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_spell_state_22.rs::represented_item_set_add_remove_tracks_threshold_spell_events_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "represented_item_set_effect_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_spell_state_23.rs::initial_equipped_item_equip_auras_apply_on_equip_effects_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["apply_initial_equipped_item_equip_auras_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
-  ["unit_tests/session/tests/scenarios_spell_state_23.rs::initial_loaded_item_mods_follow_cpp_loaded_equip_enchant_aura_order", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "load_represented_character_auras_like_cpp"], []],
+  ["unit_tests/session/tests/scenarios_spell_state_23.rs::initial_loaded_item_mods_follow_cpp_loaded_equip_enchant_aura_order", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "load_represented_character_auras_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_spell_state_23.rs::login_passive_known_spell_auras_apply_like_cpp_addspell", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_player_guid", "set_spell_chain_store", "set_spell_store"], []],
   ["unit_tests/session/tests/scenarios_spell_state_23.rs::login_total_stat_percentage_aura_records_cpp_multiplier_and_misc_b_mask", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["remove_aura", "represented_total_stat_buff_multipliers_like_cpp", "represented_total_stat_multipliers_like_cpp", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_spell_state_23.rs::represented_item_set_skips_unknown_spell_info_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "represented_item_set_effect_like_cpp"], []],
@@ -4170,7 +4201,7 @@
   ["unit_tests/session/tests/scenarios_spell_state_25/health_derived_aurastate.rs::login_passive_cast_gate_uses_health_derived_caster_aura_state_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid", "set_player_health_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_spell_state_25/shapeshift_forms_and_display_power.rs::removing_one_of_two_form_applications_retains_form_until_last_removal", "W", "wow-world", "wow-world-application", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "remove_aura", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_spell_state_25/shapeshift_forms_and_display_power.rs::represented_form_change_refreshes_item_equip_spells_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
-  ["unit_tests/session/tests/scenarios_spell_state_25/shapeshift_forms_and_display_power.rs::represented_form_change_refreshes_item_set_auras_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
+  ["unit_tests/session/tests/scenarios_spell_state_25/shapeshift_forms_and_display_power.rs::represented_form_change_refreshes_item_set_auras_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/session/tests/scenarios_spell_state_25/shapeshift_forms_and_display_power.rs::represented_form_change_applies_and_removes_boost_spells_like_cpp", "W", "wow-world", "wow-world-application", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "remove_aura", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_spell_state_25/shapeshift_forms_and_display_power.rs::represented_form_change_applies_and_sweeps_stance_passives_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "remove_aura", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_spell_state_25/shapeshift_forms_and_display_power.rs::represented_shapeshift_form_selects_display_power_like_cpp", "W", "wow-world", "wow-world-application", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "remove_aura", "set_canonical_map_manager", "set_player_guid"], []],

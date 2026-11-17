@@ -17,7 +17,7 @@ impl crate::session::WorldSession {
 impl WorldSession {
     pub(crate) fn apply_initial_equipped_item_equip_auras_like_cpp(&mut self) -> Option<usize> {
         let mut equipped: Vec<_> = self
-            .resolved_inventory_item_objects_like_cpp()?
+            .resolved_inventory_item_values_like_cpp()?
             .values()
             .filter(|item| item.container_guid().is_empty() && item.slot() < INVENTORY_SLOT_BAG_END)
             .map(|item| (item.slot(), item.object().guid()))

@@ -264,9 +264,9 @@ pub async fn repair_all_inventory_item_durability_with_player_money_and_generato
     let total_cost = repair_items
         .iter()
         .fold(0u64, |total, (_, cost)| total.saturating_add(*cost));
-    let Some(item_objects) = ({
+    let Some(item_values) = ({
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_objects_like_cpp(hub)
+        state.resolved_inventory_item_values_like_cpp(hub)
     }) else {
         return false;
     };
@@ -279,7 +279,7 @@ pub async fn repair_all_inventory_item_durability_with_player_money_and_generato
     let planned_repairs = repair_items
         .iter()
         .filter_map(|(item_guid, _)| {
-            let item = item_objects.get(item_guid)?;
+            let item = item_values.get(item_guid)?;
             let db_guid = inventory_items
                 .values()
                 .find(|inventory_item| inventory_item.guid == *item_guid)

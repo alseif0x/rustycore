@@ -172,7 +172,7 @@ impl AuraRemovalCxLikeCpp<'_> {
     pub fn refresh_item_effects_at_form_change_like_cpp(&mut self) -> usize {
         let Some(equipped) = self
             .inventory
-            .resolved_inventory_item_objects_with_access_like_cpp(
+            .resolved_inventory_item_values_with_access_like_cpp(
                 &self.player.inventory_access_like_cpp(),
             )
             .map(|items| {

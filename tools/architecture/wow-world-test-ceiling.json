@@ -365,6 +365,16 @@
    "unit_tests_lines": 282978,
    "unit_tests_tests": 4231,
    "src_tests": 345
+  },
+  {
+   "id": "raise-584-34",
+   "kind": "raise",
+   "issue": 584,
+   "reviewed_at": "2026-11-17",
+   "reason": "2026-11-17 Forever skill/book/item checkpoint: 31 added identities (15 session-free source/value cases, 16 canonical owner/composition cases), no removed identities, 12 derived metadata changes (5 P->P, 7 W->W). Reviewed exact unit-test growth 282978 -> 286541 lines, 4231 -> 4262 tests, src tests unchanged at 345; one ignored test preserved. No headroom, native owner/composition debt remains under #584.",
+   "unit_tests_lines": 286541,
+   "unit_tests_tests": 4262,
+   "src_tests": 345
   }
  ]
 }

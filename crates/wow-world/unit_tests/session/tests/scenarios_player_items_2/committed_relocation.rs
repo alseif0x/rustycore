@@ -53,11 +53,15 @@ fn committed_relocation_same_position_and_occupied_destination_preserve_both_ite
             .guid,
         destination
     );
-    let objects = session.resolved_inventory_item_objects_like_cpp().unwrap();
-    assert_eq!(objects[&source].slot(), INVENTORY_SLOT_ITEM_START);
-    assert_eq!(objects[&source].count(), 1);
-    assert_eq!(objects[&destination].slot(), INVENTORY_SLOT_ITEM_START + 1);
-    assert_eq!(objects[&destination].count(), 1);
+    let item_values = session.resolved_inventory_item_values_like_cpp().unwrap();
+    let source_item = item_values.get(&source).expect("source item facts");
+    let destination_item = item_values
+        .get(&destination)
+        .expect("destination item facts");
+    assert_eq!(source_item.slot(), INVENTORY_SLOT_ITEM_START);
+    assert_eq!(source_item.read_view().count(), 1);
+    assert_eq!(destination_item.slot(), INVENTORY_SLOT_ITEM_START + 1);
+    assert_eq!(destination_item.read_view().count(), 1);
     assert!(drain_server_opcodes(&send_rx).is_empty());
 }
 

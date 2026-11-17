@@ -15,32 +15,36 @@ use wow_world_core::entity_update_bridge::player_values_update_to_update_object;
 use wow_world_core::session::{HubMut, HubRef, OwnedInventoryAccessLikeCpp};
 
 impl crate::InventoryState {
-    /// C++ `GetItemCount(entry, false)`: count carried/equipped items while
-    /// excluding personal-bank slots and bank-bag contents.
+    /// Represented carried/equipped count for the `GetItemCount(entry, false)` use.
+    /// Excludes personal-bank slots, bank-bag contents and items in trade. This
+    /// keeps Rust's represented scan and saturating folds; it does not model the
+    /// native ReagentBank, skipped-pointer, optional-gem or ordinary-addition paths.
     pub fn represented_non_bank_item_count_like_cpp(
         &self,
         hub: HubRef<'_>,
         entry_id: u32,
     ) -> Option<u32> {
         let inventory_items = self.resolved_inventory_items_like_cpp(hub)?;
-        let item_objects = self.resolved_inventory_item_objects_like_cpp(hub)?;
+        let item_values = self.resolved_inventory_item_values_like_cpp(hub)?;
         let top_level_count = inventory_items
             .iter()
             .filter(|(slot, _)| !wow_entities::is_bank_pos(INVENTORY_SLOT_BAG_0, **slot))
-            .filter_map(|(_, inventory_item)| item_objects.get(&inventory_item.guid))
+            .filter_map(|(_, inventory_item)| item_values.get(&inventory_item.guid))
             .filter(|item| item.object().entry() == entry_id && !item.is_in_trade())
-            .fold(0u32, |count, item| count.saturating_add(item.count()));
+            .fold(0u32, |count, item| {
+                count.saturating_add(item.read_view().count())
+            });
         Some(
-            item_objects
+            item_values
                 .values()
                 .filter(|item| {
-                    item.is_in_bag()
-                        && !wow_entities::is_bank_pos(item.bag_slot(), item.slot())
+                    item.read_view().is_in_bag()
+                        && !wow_entities::is_bank_pos(item.read_view().bag_slot(), item.slot())
                         && item.object().entry() == entry_id
                         && !item.is_in_trade()
                 })
                 .fold(top_level_count, |count, item| {
-                    count.saturating_add(item.count())
+                    count.saturating_add(item.read_view().count())
                 }),
         )
     }

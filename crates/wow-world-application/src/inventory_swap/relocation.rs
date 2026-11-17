@@ -4,7 +4,9 @@
 use std::sync::Arc;
 use wow_core::ObjectGuid;
 use wow_data::{ItemStatsStore, ItemStore};
-use wow_entities::{INVENTORY_SLOT_BAG_0, ItemObjectUpdateLikeCpp, PlayerInventoryItem};
+use wow_entities::{
+    INVENTORY_SLOT_BAG_0, ItemObjectUpdateLikeCpp, ItemValuesMapSnapshot, PlayerInventoryItem,
+};
 use wow_world_core::session::OwnedInventoryAccessLikeCpp;
 use wow_world_inventory::InventoryState;
 
@@ -43,11 +45,9 @@ impl<'a> InventoryCommittedRelocationCxLikeCpp<'a> {
         self.inventory
             .quest_reward_inventory_item_from_runtime_with_access_like_cpp(&self.access, slot)
     }
-    fn resolved_inventory_item_objects_like_cpp(
-        &self,
-    ) -> Option<std::collections::HashMap<ObjectGuid, wow_entities::Item>> {
+    fn resolved_inventory_item_values_like_cpp(&self) -> Option<ItemValuesMapSnapshot> {
         self.inventory
-            .resolved_inventory_item_objects_with_access_like_cpp(&self.access)
+            .resolved_inventory_item_values_with_access_like_cpp(&self.access)
     }
     fn item_storage_template(&self, entry: u32) -> Option<wow_entities::ItemStorageTemplate> {
         wow_world_core::catalogs::item::item_storage_template_like_cpp(
@@ -126,10 +126,10 @@ impl<'a> InventoryCommittedRelocationCxLikeCpp<'a> {
             .item_storage_template(inventory_item.entry_id)
             .map(|template| template.container_slots)
             .filter(|size| *size > 0);
-        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
+        let Some(item_values) = self.resolved_inventory_item_values_like_cpp() else {
             return false;
         };
-        let moved_bag_children: Vec<_> = item_objects
+        let moved_bag_children: Vec<_> = item_values
             .values()
             .filter(|item| item.container_guid() == inventory_item.guid)
             .map(|item| (item.slot(), item.object().guid()))
@@ -155,7 +155,7 @@ impl<'a> InventoryCommittedRelocationCxLikeCpp<'a> {
 
         // A bag's children keep the bag item GUID in the database, but the
         // runtime also caches the bag's current top-level slot.
-        let child_guids: Vec<_> = item_objects
+        let child_guids: Vec<_> = item_values
             .values()
             .filter(|item| item.container_guid() == inventory_item.guid)
             .map(|item| item.object().guid())

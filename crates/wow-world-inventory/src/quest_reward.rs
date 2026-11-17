@@ -204,22 +204,22 @@ impl InventoryState {
         access: &OwnedInventoryAccessLikeCpp<'_>,
     ) -> Option<std::collections::HashMap<u32, u32>> {
         let inventory_items = self.resolved_inventory_items_with_access_like_cpp(access)?;
-        let item_objects = self.resolved_inventory_item_objects_with_access_like_cpp(access)?;
+        let item_values = self.resolved_inventory_item_values_with_access_like_cpp(access)?;
         Some(
             inventory_items
                 .values()
-                .filter_map(|inventory_item| item_objects.get(&inventory_item.guid))
-                .chain(item_objects.values().filter(|item| {
+                .filter_map(|inventory_item| item_values.get(&inventory_item.guid))
+                .chain(item_values.values().filter(|item| {
                     !item.container_guid().is_empty()
-                        && item_objects.contains_key(&item.container_guid())
+                        && item_values.contains_key(&item.container_guid())
                 }))
                 .filter(|item| !item.is_in_trade())
                 .fold(std::collections::HashMap::new(), |mut counts, item| {
                     let entry_id = item.object().entry();
                     counts
                         .entry(entry_id)
-                        .and_modify(|count| *count = count.saturating_add(item.count()))
-                        .or_insert(item.count());
+                        .and_modify(|count| *count = count.saturating_add(item.read_view().count()))
+                        .or_insert(item.read_view().count());
                     counts
                 }),
         )

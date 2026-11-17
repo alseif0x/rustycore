@@ -45,7 +45,7 @@ impl crate::InventoryState {
             return;
         }
         let Some(bag_item) =
-            self.resolved_player_inventory_item_object_with_access_like_cpp(access, bag_guid)
+            self.resolved_inventory_item_object_with_access_like_cpp(access, bag_guid)
         else {
             return;
         };
@@ -59,11 +59,11 @@ impl crate::InventoryState {
             return;
         };
         let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
-        let Some(item_objects) = self.resolved_inventory_item_objects_with_access_like_cpp(access)
+        let Some(item_values) = self.resolved_inventory_item_values_with_access_like_cpp(access)
         else {
             return;
         };
-        for item in item_objects
+        for item in item_values
             .values()
             .filter(|item| item.container_guid() == bag_guid)
         {

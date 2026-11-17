@@ -260,10 +260,11 @@ pub(super) async fn execute_inventory_auto_unequip_child_item_like_cpp<
 }
 
 /// Current upstream C++ `Player::CanEquipChildItem`. Rust represents the
-/// parent/child link with the child's `CHILD` flag plus creator GUID; the
-/// DB2 row supplies the visible equipment slot. When that slot is busy,
-/// validate where the displaced item can be stored before moving the
-/// parent, preserving C++'s no-partial-parent-move failure contract.
+/// parent/child link with an ordered scan for the child's `CHILD` flag, creator
+/// GUID and entry; native code follows the parent's `GetChildItem()` GUID.
+/// The DB2 row supplies the visible equipment slot. When that slot is busy,
+/// validate where the displaced item can be stored before moving the parent,
+/// preserving Rust's no-partial-parent-move failure contract.
 pub fn plan_inventory_equip_child_like_cpp<H: ItemSessionHostLikeCpp>(
     host: &H,
     parent_bag: u8,
@@ -287,14 +288,14 @@ pub fn plan_inventory_equip_child_like_cpp<H: ItemSessionHostLikeCpp>(
     if !is_equipment_pos(INVENTORY_SLOT_BAG_0, destination_slot) {
         return Err(InventoryResult::NotEquippable);
     }
-    let Some(item_objects) = ({
+    let Some(item_values) = ({
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_objects_like_cpp(hub)
+        state.resolved_inventory_item_values_like_cpp(hub)
     }) else {
         return Err(InventoryResult::ItemNotFound);
     };
-    let Some(child) = item_objects.values().find(|item| {
-        item.has_item_flag(ItemFieldFlags::CHILD)
+    let Some(child) = item_values.values().find(|item| {
+        item.read_view().has_item_flag(ItemFieldFlags::CHILD)
             && item.data().creator == parent_guid
             && (child_equipment.child_item_id <= 0
                 || item.object().entry() == child_equipment.child_item_id as u32)

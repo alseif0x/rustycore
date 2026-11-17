@@ -233,13 +233,14 @@ impl<'a> PlayerHandlerCxLikeCpp<'a> {
         let Some(packet) = (|| {
             let item = self
                 .inventory
-                .resolved_inventory_item_objects_like_cpp(self.hub.shared())
+                .resolved_inventory_item_values_like_cpp(self.hub.shared())
                 .and_then(|items| items.get(&request.item_guid).cloned())?;
-            if !item.is_refundable() || item.refund_recipient() != player_guid {
+            let item_view = item.read_view();
+            if !item_view.is_refundable() || item.refund_recipient() != player_guid {
                 return None;
             }
 
-            let played_time = item.played_time(i64::from(current_total_played_time));
+            let played_time = item_view.played_time(i64::from(current_total_played_time));
             if played_time > 2 * 60 * 60 {
                 return None;
             }

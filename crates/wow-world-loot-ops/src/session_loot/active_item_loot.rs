@@ -18,7 +18,7 @@ pub fn represented_bag_contains_active_item_loot_like_cpp<H: LootSessionHostLike
 
     ({
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_objects_like_cpp(hub)
+        state.resolved_inventory_item_values_like_cpp(hub)
     })
     .is_some_and(|items| {
         items.values().any(|item| {

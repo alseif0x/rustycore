@@ -208,13 +208,13 @@ fn move_represented_direct_inventory_item_to_pos_like_cpp<H: ItemSessionHostLike
     }) else {
         return false;
     };
-    let Some(item_objects) = ({
+    let Some(item_values) = ({
         let (state, hub) = host.split_inventory_ref();
-        state.resolved_inventory_item_objects_like_cpp(hub)
+        state.resolved_inventory_item_values_like_cpp(hub)
     }) else {
         return false;
     };
-    if !item_objects.contains_key(&src_item.guid) || !item_objects.contains_key(&bag_item.guid) {
+    if !item_values.contains_key(&src_item.guid) || !item_values.contains_key(&bag_item.guid) {
         return false;
     }
 

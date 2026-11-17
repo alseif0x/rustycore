@@ -39,12 +39,12 @@ impl crate::InventoryState {
         access: &OwnedInventoryAccessLikeCpp<'_>,
     ) -> Option<Vec<(u8, ObjectGuid)>> {
         let mut targets = self
-            .resolved_inventory_item_objects_with_access_like_cpp(access)?
+            .resolved_inventory_item_values_with_access_like_cpp(access)?
             .values()
             .filter(|item| {
                 item.container_guid().is_empty()
                     && item.slot() < INVENTORY_SLOT_BAG_END
-                    && !item.is_broken()
+                    && !item.read_view().is_broken()
             })
             .map(|item| (item.slot(), item.object().guid()))
             .collect::<Vec<_>>();

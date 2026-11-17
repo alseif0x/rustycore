@@ -410,7 +410,7 @@ fn canonical_player_inventory_runtime_follows_active_detached_and_stale_ownershi
         .expect("replacement owner");
 
     assert_eq!(session.resolved_inventory_items_like_cpp(), None);
-    assert_eq!(session.resolved_inventory_item_objects_like_cpp(), None);
+    assert!(session.resolved_inventory_item_values_like_cpp().is_none());
     assert_eq!(
         session.mutate_player_inventory_runtime_like_cpp(|inventory| {
             inventory.inventory_items_mut().clear();

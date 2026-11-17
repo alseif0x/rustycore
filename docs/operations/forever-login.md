@@ -1187,6 +1187,37 @@ confirmed-group binding, known-failure/cancellation integration, SQL consumers,
 native-order driver and target publication remain required. No transaction,
 native-order, packet or runtime proof is established by this isolated operation.
 
+The November 17 copied-map retirement migrates every remaining consumer of
+InventoryState's two full Item-map producers to the existing ordered immutable
+facts, then deletes both producers. Selected bag observations use the existing
+selected-value resolver; record/map observations remain separate. First/last
+collision winners, trade exclusions, saturation, pre-COMMIT repair plans,
+post-COMMIT mutation and publication points remain unchanged. This does not
+retire the separate selected-actor/full-runtime or writable-fixture boundaries.
+
+At 02245dcd, Player.cpp:11140–11180 follows GetChildItem() rather than Rust's
+CHILD/creator/entry scan; :9647–9671 includes native count paths absent from
+the represented scan. ItemHandler.cpp:1173–1185 delegates purchase information
+to Player.cpp:29904–29952. Native refund expiry/recipient cleanup and stored
+creation time differ from Rust's preserved no-mutation rejection and computed
+purchase time. These differences are recorded, not repaired by this migration.
+
+Worker LootOps/Application checks and 25 distinct World cases pass, including
+two new actual Application purchase-handler cases. Inventory's log reaches
+Finished but its wrapper exit was not retained, so it is not claimed as a
+verified successful check. The first purchase test build failed on fixture
+integer types and ran zero tests; its corrected attempt passes. Coverage uses
+independent active/detached owners and poisoned fixtures, stale same-GUID and
+current-empty refusal, absent-handle fallback, all five refund item/currency
+slots and the season-earned exclusion. It compares explicit response bytes,
+preserves complete item facts/masks, and rejects nonrefundable, wrong-recipient,
+expired, missing-cost and unknown-GUID requests without response or mutation.
+The other 23 cases cover committed swap/relocation, child equipment, bag fields,
+publication, loot, repair, form change and canonical owner selection. These are
+level-1 coding results; committed-candidate publication acceptance follows
+separately. No runtime, database, client or full macro completion is claimed.
+CharacterCreator remains disabled.
+
 ## Canonical inventory capture continuation — 2026-11-16
 
 Resumed from published `d91650024` on `forever`. The November 11 publication

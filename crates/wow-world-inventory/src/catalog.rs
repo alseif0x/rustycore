@@ -13,14 +13,14 @@ impl crate::InventoryState {
         let Some(player) = self.direct_inventory_player_snapshot(hub) else {
             return false;
         };
-        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp(hub) else {
+        let Some(item_values) = self.resolved_inventory_item_values_like_cpp(hub) else {
             return false;
         };
         let mut found = false;
         player.for_each_item_guid_like_cpp(
             wow_entities::ItemSearchLocation::DEFAULT,
             |item_guid| {
-                if item_objects
+                if item_values
                     .get(&item_guid)
                     .is_some_and(|item| item.object().entry() == item_id)
                 {

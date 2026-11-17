@@ -210,7 +210,7 @@ pub trait ContinueLoginHostLikeCpp:
                 .is_none_or(|items| !items.is_empty())
             || LootSessionHostLikeCpp::split_inventory_ref(self)
                 .0
-                .resolved_inventory_item_objects_like_cpp(self.hub_ref())
+                .resolved_inventory_item_values_like_cpp(self.hub_ref())
                 .is_none_or(|items| !items.is_empty())
         {
             return false;

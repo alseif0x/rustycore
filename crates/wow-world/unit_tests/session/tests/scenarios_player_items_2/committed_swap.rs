@@ -45,12 +45,16 @@ fn committed_swap_exchanges_top_level_items_and_object_containers_without_packet
             .guid,
         source
     );
-    let items = session.resolved_inventory_item_objects_like_cpp().unwrap();
-    assert_eq!(items[&source].slot(), INVENTORY_SLOT_ITEM_START + 1);
-    assert_eq!(items[&destination].slot(), INVENTORY_SLOT_ITEM_START);
-    assert!(items[&source].container_guid().is_empty());
-    assert_eq!(items[&source].data().contained_in, owner);
-    assert_eq!(items[&destination].data().contained_in, owner);
+    let item_values = session.resolved_inventory_item_values_like_cpp().unwrap();
+    let source_item = item_values.get(&source).expect("source item facts");
+    let destination_item = item_values
+        .get(&destination)
+        .expect("destination item facts");
+    assert_eq!(source_item.slot(), INVENTORY_SLOT_ITEM_START + 1);
+    assert_eq!(destination_item.slot(), INVENTORY_SLOT_ITEM_START);
+    assert!(source_item.container_guid().is_empty());
+    assert_eq!(source_item.data().contained_in, owner);
+    assert_eq!(destination_item.data().contained_in, owner);
     assert!(drain_server_opcodes(&send_rx).is_empty());
 }
 
@@ -158,19 +162,25 @@ fn committed_swap_moves_bag_children_and_registers_native_destination_bags() {
             Some(destination_child)
         ))
     );
-    let items = session.resolved_inventory_item_objects_like_cpp().unwrap();
-    assert_eq!(items[&source_child].container_guid(), source);
-    assert_eq!(items[&destination_child].container_guid(), destination);
+    let item_values = session.resolved_inventory_item_values_like_cpp().unwrap();
+    let source_child_item = item_values
+        .get(&source_child)
+        .expect("source child item facts");
+    let destination_child_item = item_values
+        .get(&destination_child)
+        .expect("destination child item facts");
+    assert_eq!(source_child_item.container_guid(), source);
+    assert_eq!(destination_child_item.container_guid(), destination);
     assert_eq!(
-        items[&source_child].bag_slot(),
+        source_child_item.read_view().bag_slot(),
         INVENTORY_SLOT_BAG_START + 1
     );
     assert_eq!(
-        items[&destination_child].bag_slot(),
+        destination_child_item.read_view().bag_slot(),
         INVENTORY_SLOT_BAG_START
     );
-    assert_eq!(items[&source_child].slot(), 1);
-    assert_eq!(items[&destination_child].slot(), 2);
+    assert_eq!(source_child_item.slot(), 1);
+    assert_eq!(destination_child_item.slot(), 2);
     assert!(drain_server_opcodes(&send_rx).is_empty());
 }
 

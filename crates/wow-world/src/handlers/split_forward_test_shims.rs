@@ -192,11 +192,11 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.player_equipment_inventory_authority_complete_like_cpp(hub)
     }
-    pub(crate) fn resolved_inventory_item_objects_like_cpp(
+    pub(crate) fn resolved_inventory_item_values_like_cpp(
         &self,
-    ) -> Option<std::collections::HashMap<wow_core::ObjectGuid, wow_entities::Item>> {
+    ) -> Option<wow_entities::ItemValuesMapSnapshot> {
         let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_inventory_item_objects_like_cpp(hub)
+        state.resolved_inventory_item_values_like_cpp(hub)
     }
     // Retired one-call forwards whose host impls name the target (`session/persistence/load.rs`, `session/pets/battle_pet.rs`, `session/spell_state/aura_application.rs`, `session/player_items/enchantment.rs`).
     pub(crate) fn player_loading(&self) -> Option<wow_core::ObjectGuid> {
