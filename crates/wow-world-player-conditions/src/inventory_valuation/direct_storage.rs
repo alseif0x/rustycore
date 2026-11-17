@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use wow_constants::InventoryResult;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    BagTemplateRef, CanStoreItemArgs, INVENTORY_SLOT_BAG_0, Item, ItemSlotRef, ItemStorageRef,
-    ItemValuesSnapshot, is_buyback_slot,
+    BagTemplateRef, CanStoreItemArgs, INVENTORY_SLOT_BAG_0, Item, ItemReadView, ItemSlotRef,
+    ItemStorageRef, ItemValuesSnapshot, is_buyback_slot,
 };
 use wow_world_inventory::is_represented_bag_slot;
 
@@ -25,7 +25,7 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
         count: u32,
         bag: u8,
         slot: u8,
-        source_item: Option<&Item>,
+        source_item: Option<ItemReadView<'_>>,
         swap: bool,
         overlays: &[wow_world_inventory::DirectInventoryStorageOverlayLikeCpp],
         vacated_positions: &[(u8, u8)],
@@ -58,7 +58,7 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
             .resolved_inventory_items_with_access_like_cpp(&self.inventory_access)?;
         let item_objects = self
             .inventory
-            .resolved_inventory_item_objects_with_access_like_cpp(&self.inventory_access)?;
+            .resolved_inventory_item_values_with_access_like_cpp(&self.inventory_access)?;
         let mut overlay_items = Vec::with_capacity(overlays.len());
         for (index, overlay) in overlays.iter().enumerate() {
             let item = self
@@ -71,7 +71,7 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
                     overlay.slot,
                 )
                 .and_then(|inventory_item| item_objects.get(&inventory_item.guid))
-                .map(ItemValuesSnapshot::capture)
+                .cloned()
                 .unwrap_or_else(|| {
                     let mut item = Item::default();
                     let placeholder_counter = i64::MAX.saturating_sub(index as i64);
@@ -189,6 +189,7 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
             ));
         }
         for item in item_objects.values() {
+            let item = item.read_view();
             let container_guid = item.container_guid();
             if container_guid.is_empty() {
                 continue;
@@ -204,11 +205,11 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
                 continue;
             }
             let item_entry = item.object().entry();
-            slot_items.push(ItemSlotRef::new(bag_slot, item.slot(), item.read_view()));
+            slot_items.push(ItemSlotRef::new(bag_slot, item.slot(), item));
             stored_items.push(ItemStorageRef::new(
                 bag_slot,
                 item.slot(),
-                item.read_view(),
+                item,
                 template_cache.get(&item_entry),
             ));
         }
@@ -241,7 +242,7 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
                 entry: entry_id,
                 count,
                 proto: proto.as_ref(),
-                source_item: source_item.map(Item::read_view),
+                source_item,
                 source_is_not_empty_bag: source_item.is_some_and(|item| {
                     self.inventory
                         .direct_item_contains_items_with_access_like_cpp(
@@ -271,7 +272,7 @@ impl PlayerConditionProjectionCxLikeCpp<'_> {
         count: u32,
         bag: u8,
         slot: u8,
-        source_item: Option<&Item>,
+        source_item: Option<ItemReadView<'_>>,
         swap: bool,
         overlays: &[wow_world_inventory::DirectInventoryStorageOverlayLikeCpp],
         vacated_positions: &[(u8, u8)],

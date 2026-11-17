@@ -3,8 +3,8 @@
 
 use wow_constants::{InventoryResult, SpellCastResult};
 use wow_entities::{
-    CanUnequipItemArgs, Item, ItemStorageTemplate, is_bag_pos, is_equipment_packed_pos,
-    make_item_pos,
+    CanUnequipItemArgs, Item, ItemReadView, ItemStorageTemplate, is_bag_pos,
+    is_equipment_packed_pos, make_item_pos,
 };
 use wow_world_core::session::{
     HubRef, InventoryValuationAccessLikeCpp, InventoryValuationCatalogViewLikeCpp,
@@ -33,7 +33,7 @@ impl crate::InventoryState {
             bag,
             slot,
             swap,
-            source_item,
+            source_item.map(Item::read_view),
             proto,
             source_is_not_empty_bag,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -52,7 +52,7 @@ impl crate::InventoryState {
         bag: u8,
         slot: u8,
         swap: bool,
-        source_item: Option<&Item>,
+        source_item: Option<ItemReadView<'_>>,
         proto: Option<&ItemStorageTemplate>,
         source_is_not_empty_bag: bool,
         #[cfg(any(test, feature = "test-fixtures"))]
@@ -92,7 +92,7 @@ impl crate::InventoryState {
 
         player.can_unequip_item_like_cpp(CanUnequipItemArgs {
             pos,
-            source_item: source_item.map(Item::read_view),
+            source_item,
             proto,
             swap,
             source_is_not_empty_bag,

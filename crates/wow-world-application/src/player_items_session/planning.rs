@@ -8,7 +8,7 @@
 //! `handlers/character/items/host.rs`).
 
 use wow_constants::InventoryResult;
-use wow_entities::{Item, ItemPosCount, NULL_BAG, NULL_SLOT};
+use wow_entities::{ItemPosCount, ItemReadView, NULL_BAG, NULL_SLOT};
 use wow_world_inventory::DirectInventoryStorageOverlayLikeCpp;
 use wow_world_quest::QuestSessionHostLikeCpp;
 
@@ -139,7 +139,7 @@ fn plan_store_direct_inventory_item_like_cpp<H: QuestSessionHostLikeCpp>(
     count: u32,
     bag: u8,
     slot: u8,
-    source_item: Option<&Item>,
+    source_item: Option<ItemReadView<'_>>,
     swap: bool,
     overlays: &[DirectInventoryStorageOverlayLikeCpp],
     vacated_positions: &[(u8, u8)],

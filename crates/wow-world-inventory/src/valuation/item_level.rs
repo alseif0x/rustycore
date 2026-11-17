@@ -22,7 +22,7 @@ impl crate::InventoryState {
         max_item_level: u32,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_player_level: &u8,
     ) -> Option<f32> {
-        let item_objects = self.resolved_inventory_item_objects_with_access_like_cpp(inventory)?;
+        let item_objects = self.resolved_inventory_item_values_with_access_like_cpp(inventory)?;
         let inventory_items = self.resolved_inventory_items_with_access_like_cpp(inventory)?;
         let mut sum = 0.0f32;
         let mut count = 0u32;
@@ -41,7 +41,7 @@ impl crate::InventoryState {
             if let Some(inventory_item) = inventory_items.get(&slot) {
                 let runtime_item = item_objects
                     .get(&inventory_item.guid)
-                    .map(wow_entities::Item::read_view);
+                    .map(|item| item.read_view());
                 if let Some(item_level) = self.represented_item_level_with_access_like_cpp(
                     valuation,
                     modifiers,
@@ -163,7 +163,7 @@ impl crate::InventoryState {
             let Some(inventory_item) = inventory_items.get(&slot) else {
                 continue;
             };
-            let runtime_item = self.resolved_player_inventory_item_object_with_access_like_cpp(
+            let runtime_item = self.resolved_inventory_item_object_with_access_like_cpp(
                 inventory,
                 inventory_item.guid,
             );
@@ -172,7 +172,7 @@ impl crate::InventoryState {
                 modifiers,
                 catalogs,
                 inventory_item.entry_id,
-                runtime_item.as_ref().map(wow_entities::Item::read_view),
+                runtime_item.as_ref().map(|item| item.read_view()),
                 min_item_level,
                 max_item_level,
                 #[cfg(any(test, feature = "test-fixtures"))]

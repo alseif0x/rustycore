@@ -963,6 +963,46 @@ acceptance. The remaining selected actors, maps, writable mirrors, trade/Void
 and native owner/effect/load/save/publication integration still belong to the
 same full macro; CharacterCreator remains disabled.
 
+The November 17 valuation input migration covers the complete current
+AvgTotal/CanEquip/CanEquipUnique and direct-storage chain, the ordinary and
+equipped averages, and the actual App Store/Equip/target-validation callers.
+Ordered map facts retain original keys and traversal order. Selected offhand
+facts are captured after the same separate late position reread, using the
+existing Inventory resolver so absent-handle fixtures remain distinct from a
+present stale or unavailable owner. The outer CanUnequip facade retains its
+legitimate Item borrow; its selected-owner form accepts a read view. Direct
+storage clones only immutable overlay facts and preserves the fresh placeholder
+constructor, late category checks and every independent owner observation.
+No canonical Item, persistence, packet or effect phase changes in this cut.
+
+This does not establish native average ownership: at 02245dcd Player.cpp:
+31251–31339 updates cached total and equipped values from actual items and
+BonusData/Azerite, and ConditionMgr.cpp:3327–3336 reads those cached fields.
+The current Rust recursive condition projection, saturating candidate arithmetic
+and represented item-level calculation remain explicit contrasts.
+
+Worker Inventory/Conditions/Application checks and 25 distinct World cases
+pass: twelve total-average, four actual move-planning, two overlay, two reserved-
+withdrawal, two ordinary-average, one offhand-average and two new owner cases.
+The new cases contrast active/detached canonical facts with poisoned fixtures,
+stale/current same-GUID ownership, canonical empty values and absent-handle
+fallback. They check exact total/equipped averages (15/5 versus fixture 20/20),
+source values/masks/topology and no packet publication. The separate two-hand
+case asserts actual equip success with room and InvFull when the sole backpack
+slot is occupied; a missing selected offhand cannot silently pass via the
+planner's fallback-to-Ok branch.
+
+The first Conditions check failed on two redundant read_view calls and the
+first World test build failed on fixture types, topology access and an Args-only
+field mistaken for a CanEquip outcome field. Both corrected runs pass; neither
+compile failure executed tests. All thirteen Cargo attempts and their logs are
+retained, with the two failures distinct from green evidence. Commands used
+--locked, one job, cached PROTOC and the checkout target; Application/World used
+the pinned read-only extractor overlay. Warnings were not baseline-compared.
+These are level-1 coding results, not final/native Item, DB, runtime or wire
+acceptance. The complete owner integration remains unfinished and
+CharacterCreator remains disabled.
+
 Writable Void plans require a target-version decision before migration.
 At 02245dcd the old VoidStorageHandler path and client request handlers are
 absent; exact source searches for HandleVoidStorageTransfer, _SaveVoidStorage

@@ -8,10 +8,9 @@ use std::collections::HashMap;
 use wow_constants::{InventoryResult, InventoryType, ItemFlags3};
 use wow_core::ObjectGuid;
 use wow_entities::{
-    BagTemplateRef, CanEquipItemArgs, CanEquipItemOutcome, EQUIPMENT_SLOT_END,
-    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0, Item, ItemReadView,
-    ItemSlotRef, ItemStorageRef, NULL_BAG, NULL_SLOT, PlayerInventoryItem as InventoryItem,
-    is_buyback_slot,
+    CanEquipItemArgs, CanEquipItemOutcome, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_MAINHAND,
+    EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0, ItemReadView, ItemSlotRef, ItemStorageRef,
+    NULL_BAG, NULL_SLOT, PlayerInventoryItem as InventoryItem, is_buyback_slot,
 };
 use wow_world_core::session::{
     InventoryValuationAccessLikeCpp, InventoryValuationCatalogViewLikeCpp,
@@ -175,7 +174,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
 
         let item_objects = self
             .inventory
-            .resolved_inventory_item_objects_with_access_like_cpp(&self.inventory_access)?;
+            .resolved_inventory_item_values_with_access_like_cpp(&self.inventory_access)?;
         let inventory_items = self
             .inventory
             .resolved_inventory_items_with_access_like_cpp(&self.inventory_access)?;
@@ -187,13 +186,14 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
                 Some(slot),
                 inventory_item.entry_id,
                 inventory_item.guid,
-                runtime_item,
+                runtime_item.map(|item| item.read_view()),
                 can_dual_wield,
                 can_titan_grip,
             );
         }
 
         for item in item_objects.values() {
+            let item = item.read_view();
             if item.is_in_trade()
                 || item.container_guid().is_empty()
                 || !item_objects.contains_key(&item.container_guid())
@@ -229,7 +229,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         direct_slot: Option<u8>,
         entry_id: u32,
         item_guid: ObjectGuid,
-        runtime_item: Option<&Item>,
+        runtime_item: Option<ItemReadView<'_>>,
         can_dual_wield: bool,
         can_titan_grip: bool,
     ) {
@@ -241,7 +241,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             &self.modifier_access,
             &self.catalogs,
             entry_id,
-            runtime_item.map(Item::read_view),
+            runtime_item,
             MIN_ITEM_LEVEL_LIKE_CPP,
             MAX_ITEM_LEVEL_LIKE_CPP,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -273,12 +273,12 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
                 db_guid: item_guid.counter() as u64,
                 inventory_type: Some(inventory_type as u8),
             };
-            if self.can_use_item_like_cpp(&represented_item, Some(runtime_item.read_view()), false)
+            if self.can_use_item_like_cpp(&represented_item, Some(runtime_item), false)
                 != InventoryResult::Ok
             {
                 return;
             }
-            if self.can_equip_unique_item_like_cpp(entry_id, runtime_item.read_view(), NULL_SLOT)
+            if self.can_equip_unique_item_like_cpp(entry_id, runtime_item, NULL_SLOT)
                 != InventoryResult::Ok
             {
                 return;
@@ -545,7 +545,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         };
         let Some(item_objects) = self
             .inventory
-            .resolved_inventory_item_objects_with_access_like_cpp(&self.inventory_access)
+            .resolved_inventory_item_values_with_access_like_cpp(&self.inventory_access)
         else {
             return InventoryResult::ItemNotFound;
         };
@@ -584,7 +584,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
                     gem_template.item_limit_category,
                 ));
             }
-            equipped_templates.push((slot, item, template));
+            equipped_templates.push((slot, item.read_view(), template));
         }
         let equipped_items_with_templates = equipped_templates
             .iter()
@@ -592,7 +592,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
                 wow_entities::ItemStorageRef::new(
                     wow_entities::INVENTORY_SLOT_BAG_0,
                     *slot,
-                    item.read_view(),
+                    *item,
                     Some(template),
                 )
             })
@@ -666,7 +666,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
     fn can_equip_for_avg_total_like_cpp(
         &self,
         entry_id: u32,
-        runtime_item: &Item,
+        runtime_item: ItemReadView<'_>,
         can_dual_wield: bool,
         can_titan_grip: bool,
     ) -> InventoryResult {
@@ -682,7 +682,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         };
         self.can_equip_inventory_item_like_cpp(
             &inventory_item,
-            runtime_item.read_view(),
+            runtime_item,
             NULL_SLOT,
             true,
             false,
@@ -723,7 +723,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
 
         let Some(item_objects) = self
             .inventory
-            .resolved_inventory_item_objects_with_access_like_cpp(&self.inventory_access)
+            .resolved_inventory_item_values_with_access_like_cpp(&self.inventory_access)
         else {
             return item_not_found_can_equip_outcome_like_cpp();
         };
@@ -735,6 +735,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         };
         let mut template_cache = HashMap::new();
         for item in item_objects.values() {
+            let item = item.read_view();
             let item_entry = item.object().entry();
             if let std::collections::hash_map::Entry::Vacant(entry) =
                 template_cache.entry(item_entry)
@@ -767,7 +768,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             let Some(template) = template_cache.get(&inventory_item.entry_id) else {
                 continue;
             };
-            storage_rows.push((INVENTORY_SLOT_BAG_0, slot, item, template));
+            storage_rows.push((INVENTORY_SLOT_BAG_0, slot, item.read_view(), template));
             if slot < EQUIPMENT_SLOT_END {
                 equipped_items.push(ItemSlotRef::new(
                     INVENTORY_SLOT_BAG_0,
@@ -777,6 +778,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             }
         }
         for item in item_objects.values() {
+            let item = item.read_view();
             if item.is_in_trade() {
                 continue;
             }
@@ -796,7 +798,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         let stored_items: Vec<_> = storage_rows
             .iter()
             .map(|(bag, slot, item, template)| {
-                ItemStorageRef::new(*bag, *slot, item.read_view(), Some(template))
+                ItemStorageRef::new(*bag, *slot, *item, Some(template))
             })
             .collect();
 
@@ -838,7 +840,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             );
         let offhand_runtime = offhand_item
             .as_ref()
-            .and_then(|item| item_objects.get(&item.guid));
+            .and_then(|item| item_objects.get(&item.guid).map(|item| item.read_view()));
         let offhand_proto = offhand_item
             .as_ref()
             .and_then(|item| template_cache.get(&item.entry_id));
@@ -865,7 +867,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             })
             .and_then(|item| {
                 self.inventory
-                    .resolved_player_inventory_item_object_with_access_like_cpp(
+                    .resolved_inventory_item_object_with_access_like_cpp(
                         &self.inventory_access,
                         item.guid,
                     )
@@ -874,10 +876,10 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
                             .plan_store_direct_inventory_item_like_cpp(
                                 self.valuation_access.realm_id_like_cpp(),
                                 item.entry_id,
-                                source_item.count(),
+                                source_item.read_view().count(),
                                 NULL_BAG,
                                 NULL_SLOT,
-                                Some(&source_item),
+                                Some(source_item.read_view()),
                                 false,
                                 &[],
                                 &[],
@@ -930,7 +932,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
 
     fn can_unequip_inventory_item_like_cpp(
         &self,
-        source_item: Option<&Item>,
+        source_item: Option<ItemReadView<'_>>,
         proto: Option<&wow_entities::ItemStorageTemplate>,
         source_is_not_empty_bag: bool,
     ) -> InventoryResult {

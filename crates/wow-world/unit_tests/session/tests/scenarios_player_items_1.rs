@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "scenarios_player_items_4/valuation_owner.rs"]
+mod valuation_owner;
+
 #[test]
 fn auto_unequip_offhand_records_titan_grip_penalty_check_like_cpp() {
     let (mut session, _, _send_rx) = make_session();

@@ -2,7 +2,9 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use wow_constants::InventoryResult;
-use wow_entities::{ItemPosCount, is_bank_pos, is_equipment_pos, is_inventory_pos};
+use wow_entities::{
+    ItemPosCount, ItemValuesSnapshot, is_bank_pos, is_equipment_pos, is_inventory_pos,
+};
 use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 
 mod bank;
@@ -46,14 +48,14 @@ impl<'cx, 'owner> InventoryMovePlanningCxLikeCpp<'cx, 'owner> {
     fn resolved_inventory_item_object_like_cpp(
         &self,
         guid: wow_core::ObjectGuid,
-    ) -> Option<wow_entities::Item> {
+    ) -> Option<ItemValuesSnapshot> {
         let access = self
             .conditions
             .player_access_like_cpp()
             .owned_inventory_access_like_cpp();
         self.conditions
             .inventory
-            .resolved_player_inventory_item_object_with_access_like_cpp(&access, guid)
+            .resolved_inventory_item_object_with_access_like_cpp(&access, guid)
     }
 
     pub fn validate_inventory_swap_target_like_cpp(
@@ -68,6 +70,7 @@ impl<'cx, 'owner> InventoryMovePlanningCxLikeCpp<'cx, 'owner> {
         let source = self.get_inventory_item_by_pos(source_bag, source_slot)?;
         let source_count = self
             .resolved_inventory_item_object_like_cpp(source.guid)?
+            .read_view()
             .count();
         let destination_pos = wow_entities::make_item_pos(destination_bag, destination_slot);
         if is_inventory_pos(destination_bag, destination_slot) {
@@ -138,10 +141,10 @@ impl<'cx, 'owner> InventoryMovePlanningCxLikeCpp<'cx, 'owner> {
                 .inventory_valuation_access_like_cpp()
                 .realm_id_like_cpp(),
             inventory_item.entry_id,
-            source_item.count(),
+            source_item.read_view().count(),
             destination_bag,
             destination_slot,
-            Some(&source_item),
+            Some(source_item.read_view()),
             swap,
             &[],
             &[],
