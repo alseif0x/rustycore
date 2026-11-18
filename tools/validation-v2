@@ -272,10 +272,11 @@ def provenance(repo: Path) -> tuple[dict[str, object], _TrackedCheckoutState]:
     )
 
 
-def lock_path(repo: Path) -> Path:
-    digest = hashlib.sha256(str(repo).encode()).hexdigest()[:16]
+def lock_path(resource: Path, *, manifest: bool = False) -> Path:
+    digest = hashlib.sha256(os.fsencode(resource)).hexdigest()[:16]
     directory = Path(os.environ.get("VALIDATION_V2_LOCK_DIR", "/tmp"))
-    return directory / f"rustycore-validation-v2-{digest}.lock"
+    kind = "manifest-" if manifest else ""
+    return directory / f"rustycore-validation-v2-{kind}{digest}.lock"
 
 
 def acquire_lock(path: Path, owner: dict[str, object]):
@@ -1262,20 +1263,65 @@ def command_environment(repo: Path, jobs: int, *, resolve_protobuf: bool = True)
     return environment
 
 
+def _linux_group_has_live_members(process_group: int) -> bool | None:
+    """Return whether Linux procfs shows live members, or None if unavailable."""
+    group_id = str(process_group).encode()
+    try:
+        with os.scandir("/proc") as entries:
+            for entry in entries:
+                if not entry.name.isdecimal():
+                    continue
+                try:
+                    stat = Path(entry.path, "stat").read_bytes()
+                except (FileNotFoundError, ProcessLookupError):
+                    # The process exited between the directory scan and read.
+                    continue
+                except OSError:
+                    return None
+                _, separator, fields = stat.rpartition(b") ")
+                values = fields.split(maxsplit=3)
+                if not separator or len(values) < 3:
+                    return None
+                state, _, group = values[:3]
+                if group == group_id and state not in (b"Z", b"X"):
+                    return True
+    except OSError:
+        return None
+    return False
+
+
 def terminate_group(process: subprocess.Popen) -> int:
     """Stop the child's whole process group and return its wait status."""
+    if process.returncode is not None:
+        # The leader may have been reaped, so its PID is no longer a safe PGID.
+        return process.returncode
     try:
         os.killpg(process.pid, signal.SIGTERM)
-    except (OSError, ProcessLookupError):
+    except OSError:
         return process.wait()
+
+    deadline = time.monotonic() + TERMINATE_GRACE_SECONDS
+    if sys.platform == "linux":
+        while time.monotonic() < deadline:
+            live = _linux_group_has_live_members(process.pid)
+            if live is False:
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            # If procfs cannot answer reliably, retain the leader for the full
+            # grace interval so the group ID cannot be reused before SIGKILL.
+            time.sleep(remaining if live is None else min(0.02, remaining))
+    else:
+        time.sleep(max(deadline - time.monotonic(), 0))
+
+    # Kill before reaping even when the scan found no live members. This closes
+    # the scan/signal race while the unreaped leader still pins its process ID.
     try:
-        return process.wait(timeout=TERMINATE_GRACE_SECONDS)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except (OSError, ProcessLookupError):
-            pass
-        return process.wait()
+        os.killpg(process.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    return process.wait()
 
 
 def tee_output(stream, reports: list[dict[str, object]], log=None,
@@ -1618,6 +1664,32 @@ def normalise_to_stdout(path: Path) -> int:
     return 0
 
 
+def begin_manifest_reuse(path: Path, profile: str, started_at: str) -> dict[str, object] | None:
+    """Invalidate prior runner evidence while the destination lock is held."""
+    if not path.is_file():
+        return None
+    try:
+        previous = read_manifest(path)
+    except ManifestInputError:
+        return None
+    if not isinstance(previous, dict) or previous.get("runner") != "rustycore-validation-v2":
+        return None
+    pending: dict[str, object] = {
+        "schema": MANIFEST_SCHEMA,
+        "runner": "rustycore-validation-v2",
+        "shadow_only": True,
+        "profile": profile,
+        "started_at": started_at,
+        "status": "running",
+        "exit_code": None,
+        "runner_signal": None,
+        "plan": None,
+        "commands": [],
+    }
+    write_manifest(path, pending)
+    return pending
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="tools/validation-v2")
     parser.add_argument(
@@ -1688,6 +1760,36 @@ def main() -> int:
         return fail("--manifest is only valid with the verify and normalize profiles")
     install_interrupt_handlers()
     repo = Path(__file__).resolve().parent.parent
+    path = manifest_path(repo, args.profile)
+    if not os.environ.get("VALIDATION_V2_MANIFEST"):
+        return run_validation(repo, path, args)
+
+    started_at = utc_now()
+    owner = {
+        "pid": os.getpid(),
+        "repository": str(repo),
+        "profile": args.profile,
+        "manifest": str(path),
+        "started_at": started_at,
+    }
+    try:
+        manifest_lock, _ = acquire_lock(lock_path(path, manifest=True), owner)
+    except RuntimeError as error:
+        return fail(str(error), LOCKED_ERROR)
+    except OSError as error:
+        return fail(f"cannot reserve manifest {path}: {error}", RUNNER_ERROR)
+    with manifest_lock:
+        try:
+            pending = begin_manifest_reuse(path, args.profile, started_at)
+        except OSError as error:
+            return fail(f"cannot invalidate previous manifest {path}: {error}", RUNNER_ERROR)
+        return run_validation(repo, path, args, pending)
+
+
+def run_validation(
+    repo: Path, path: Path, args: argparse.Namespace, pending: dict[str, object] | None = None
+) -> int:
+    lock_stream = None
     try:
         jobs = checked_value("VALIDATION_V2_CARGO_JOBS", DEFAULT_JOBS, 1, MAX_JOBS)
         timeout = checked_value(
@@ -1713,13 +1815,31 @@ def main() -> int:
         if args.profile == "audit":
             active_heavy_lock = heavy_lock_path()
             heavy_stream, _ = acquire_lock(active_heavy_lock, owner)
-    except (KeyError, OSError, subprocess.CalledProcessError, ValueError) as error:
-        return fail(str(error))
-    except RuntimeError as error:
-        return fail(str(error), LOCKED_ERROR)
+    except Exception as error:
+        if lock_stream is not None:
+            lock_stream.close()
+        signal_number = error.number if isinstance(error, RunnerInterrupted) else None
+        if signal_number is not None:
+            code = 128 + signal_number
+        elif isinstance(error, RuntimeError):
+            code = LOCKED_ERROR
+        elif isinstance(error, (KeyError, OSError, subprocess.CalledProcessError, ValueError)):
+            code = USAGE_ERROR
+        else:
+            code = RUNNER_ERROR
+        if pending is not None:
+            pending.update(
+                status="failed", exit_code=code, ended_at=utc_now(),
+                runner_signal=signal_number, runner_error=f"{type(error).__name__}: {error}",
+            )
+            try:
+                write_manifest(path, pending)
+            except OSError as write_error:
+                print(f"validation-v2: cannot record preflight failure at {path}: {write_error}",
+                      file=sys.stderr)
+        return fail(str(error), code)
 
     started = time.monotonic()
-    path = manifest_path(repo, args.profile)
     document: dict[str, object] = {
         "schema": MANIFEST_SCHEMA,
         "runner": "rustycore-validation-v2",

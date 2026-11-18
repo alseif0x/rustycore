@@ -138,3 +138,81 @@ os.wait()
     assert ready.exists(), "the metadata child must start before timeout"
     assert result.exists(), "the test child did not report its final state"
     assert result.read_text() == "terminated", "cargo metadata timeout left its child running"
+
+    if sys.platform == "linux":
+        _test_cargo_metadata_timeout_stubborn_descendant(runner, repo, base_env, directory)
+
+
+def _test_cargo_metadata_timeout_stubborn_descendant(
+    runner, repo: Path, base_env: dict[str, str], directory: Path
+) -> None:
+    probe_bin = directory / "cargo-timeout-stubborn-bin"
+    probe_bin.mkdir()
+    identity = directory / "metadata-stubborn-child-identity"
+    leader_exit = directory / "metadata-leader-exited"
+    cargo = probe_bin / "cargo"
+    cargo.write_text(
+        f"#!{sys.executable}\n"
+        + """import os
+from pathlib import Path
+import signal
+import time
+
+def stop_leader(_number, _frame):
+    Path(os.environ["METADATA_LEADER_EXIT"]).touch()
+    os._exit(0)
+
+signal.signal(signal.SIGTERM, stop_leader)
+
+if os.fork() == 0:
+    null_fd = os.open(os.devnull, os.O_RDWR)
+    for descriptor in (0, 1, 2):
+        os.dup2(null_fd, descriptor)
+    if null_fd > 2:
+        os.close(null_fd)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    Path(os.environ["METADATA_CHILD_IDENTITY"]).write_text(
+        f"{os.getpid()} {os.getpgrp()}"
+    )
+    time.sleep(8)
+    os._exit(0)
+
+os.wait()
+"""
+    )
+    cargo.chmod(0o755)
+    environment = {
+        **base_env,
+        "PATH": f"{probe_bin}:{base_env['PATH']}",
+        "METADATA_CHILD_IDENTITY": str(identity),
+        "METADATA_LEADER_EXIT": str(leader_exit),
+    }
+    with patch.object(runner, "TERMINATE_GRACE_SECONDS", 0.2):
+        try:
+            runner.cargo_metadata(repo, environment, 2)
+        except ValueError as error:
+            assert str(error) == "Cargo metadata exceeded 2 seconds", error
+        else:
+            raise AssertionError("cargo metadata should have timed out")
+
+    assert identity.exists(), "the metadata child must start before timeout"
+    child_pid, process_group = map(int, identity.read_text().split())
+
+    def child_is_live() -> bool:
+        try:
+            stat = Path(f"/proc/{child_pid}/stat").read_bytes()
+        except (FileNotFoundError, ProcessLookupError):
+            return False
+        state, _, group, _ = stat.rsplit(b") ", 1)[1].split(maxsplit=3)
+        return group == str(process_group).encode() and state not in (b"Z", b"X")
+
+    deadline = time.monotonic() + 2
+    while child_is_live() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    if child_is_live():
+        # Let the bounded fixture finish before failing this regression.
+        deadline = time.monotonic() + 7
+        while child_is_live() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        raise AssertionError("metadata timeout left a live group child")
+    assert leader_exit.exists(), "the metadata leader must exit on SIGTERM"

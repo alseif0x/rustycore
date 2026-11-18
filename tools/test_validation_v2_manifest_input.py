@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
+import time
 from pathlib import Path
 
 
@@ -12,8 +14,9 @@ def test_manifest_input_cli(
     environment: dict[str, str],
     directory: Path,
     green_manifest: Path,
-    verdict_error: int,
+    runner,
 ) -> None:
+    verdict_error = runner.VERDICT_ERROR
     fixtures = directory / "manifest-input-contract"
     fixtures.mkdir()
     (fixtures / "unreadable.json").mkdir()
@@ -164,3 +167,70 @@ def test_manifest_input_cli(
         assert result.returncode == 0, (name, result.stdout, result.stderr)
         assert "verified green" in result.stdout, (name, result.stdout)
         assert result.stderr == "", (name, result.stderr)
+
+    reused = fixtures / "reused.json"
+    reused.write_bytes(green_manifest.read_bytes())
+    assert run_manifest_cli("verify", reused).returncode == 0
+    validate = [str(tools / "validation-v2"), "quick", "--base", "HEAD", "--require-changes"]
+    reused_environment = {**environment, "VALIDATION_V2_MANIFEST": str(reused)}
+    rejected = subprocess.run(
+        validate, cwd=tools.parent,
+        env={**reused_environment, "VALIDATION_V2_CARGO_JOBS": "0"},
+        text=True, capture_output=True,
+    )
+    assert rejected.returncode == runner.USAGE_ERROR, rejected.stderr
+    failed = json.loads(reused.read_text())
+    assert failed["status"] == "failed" and failed["exit_code"] == runner.USAGE_ERROR
+    assert "VALIDATION_V2_CARGO_JOBS" in failed["runner_error"]
+    assert run_manifest_cli("verify", reused).returncode == verdict_error
+
+    reused.write_bytes(green_manifest.read_bytes())
+    ready = fixtures / "preflight-ready"
+    release = fixtures / "preflight-release"
+    probe_bin = fixtures / "probe-bin"
+    probe_bin.mkdir()
+    rustc = probe_bin / "rustc"
+    rustc.write_text(
+        f"#!{sys.executable}\n"
+        "from pathlib import Path\n"
+        "import time\n"
+        f"Path({str(ready)!r}).touch()\n"
+        "deadline = time.monotonic() + 8\n"
+        f"while not Path({str(release)!r}).exists() and time.monotonic() < deadline:\n"
+        "    time.sleep(0.02)\n"
+        "print('rustc 0.0.0 (preflight fixture)')\n"
+    )
+    rustc.chmod(0o755)
+    blocked_environment = {**reused_environment, "PATH": f"{probe_bin}:{environment['PATH']}"}
+    with subprocess.Popen(
+        validate, cwd=tools.parent, env=blocked_environment, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    ) as active:
+        try:
+            deadline = time.monotonic() + 5
+            while not ready.exists() and active.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.02)
+            assert ready.exists(), "the first validation did not enter preflight"
+            pending = reused.read_bytes()
+            assert json.loads(pending)["status"] == "running"
+            assert run_manifest_cli("verify", reused).returncode == verdict_error
+            contender = subprocess.run(
+                validate, cwd=tools.parent, env=reused_environment,
+                text=True, capture_output=True, timeout=5,
+            )
+            assert contender.returncode == runner.LOCKED_ERROR, contender.stderr
+            assert reused.read_bytes() == pending
+        finally:
+            release.touch()
+        _, stderr = active.communicate(timeout=5)
+        assert active.returncode == runner.USAGE_ERROR, stderr
+    failed = json.loads(reused.read_text())
+    assert failed["status"] == "failed" and failed["exit_code"] == runner.USAGE_ERROR
+    assert "differs from pinned Rust" in failed["runner_error"]
+    assert run_manifest_cli("verify", reused).returncode == verdict_error
+    recovered = subprocess.run(
+        validate, cwd=tools.parent, env=reused_environment,
+        text=True, capture_output=True, timeout=5,
+    )
+    assert recovered.returncode == 0, recovered.stderr
+    assert run_manifest_cli("verify", reused).returncode == 0

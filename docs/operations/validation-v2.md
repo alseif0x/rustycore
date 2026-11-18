@@ -320,6 +320,10 @@ that used to read as a pass:
 The locked Cargo metadata probe runs in its own process group and uses the same
 shutdown procedure for timeouts and interruptions. When planning aborts before
 the plan exists, the manifest records the failure in the runner verdict fields.
+Shutdown keeps the process group ID reserved until the last escalation signal.
+On Linux the grace period tracks live group members, including descendants that
+outlive the group leader. A group that still has live members at the deadline
+receives `SIGKILL`.
 
 Each command records why it is not green in `failure_kind`: `oom`, `timeout`, `signal`,
 `child-signal`, `exit`, or `interrupted`. `oom_kills` is the kernel OOM-kill delta charged to the
@@ -384,9 +388,12 @@ path selection, Git whitespace checks, dependency graph comparisons, and the net
 The manifest includes the complete changed-path set, path classes, direct workspace packages,
 reverse-dependent closure, metadata outcome, optional-linter omissions, and exact command plan. It
 does not record the environment or command output. Optional `--logs` stores command
-output separately, as described below. When overriding the result path with
-`VALIDATION_V2_MANIFEST`, use a fresh path for each invocation and retain the runner's exit
-status. A preflight failure can leave a reused path pointing to an earlier run.
+output separately, as described below. An explicit `VALIDATION_V2_MANIFEST`
+path is reserved in the shared runner lock directory. When reusing a runner
+manifest, the reservation replaces the previous verdict atomically with a
+`running` record before preflight. A preflight error then publishes a failed
+record. An invocation denied the reservation returns exit `75` and leaves the
+current owner's evidence intact. Use a fresh path to retain each run's evidence.
 Timestamps, durations, peak RSS, PIDs, and explicitly selected result paths naturally vary;
 the profile, provenance, resource policy, routing, command declarations, statuses, and exit
 semantics are stable for an unchanged checkout.

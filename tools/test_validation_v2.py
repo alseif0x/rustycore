@@ -644,7 +644,7 @@ def test_interrupt_and_verdict_contract(
     assert "required 'final'" in guarded.stderr
 
     green = json.loads(green_manifest.read_text())
-    test_manifest_input_cli(tools, base_env, directory, green_manifest, runner.VERDICT_ERROR)
+    test_manifest_input_cli(tools, base_env, directory, green_manifest, runner)
     expected_head = green["provenance"]["head"]
     assert isinstance(expected_head, str)
     head_match = verify(green_manifest, "--require-head", expected_head)
