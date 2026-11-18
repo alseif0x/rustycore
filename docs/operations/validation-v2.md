@@ -333,6 +333,10 @@ consumer rule is explicit: **a missing manifest is a failed run.** Verify one wi
   --require-head "$expected_sha" --require-base "$expected_base"
 ```
 
+`verify` and `normalize` require valid UTF-8 JSON with unique keys in every
+object. Unreadable files and invalid input produce a diagnostic naming the
+manifest and a failed verdict.
+
 The verifier matches each result's section and command arguments against the
 plan in order. It rejects missing steps, substituted commands, and results whose
 exit code or failure fields contradict a passing status. The `self-test`
@@ -370,8 +374,10 @@ deltas, resource limits, and peak child RSS. It
 also records the resolved base, complete changed-path set, path classes, direct workspace packages,
 reverse-dependent closure, metadata outcome, optional-linter omissions, and exact command plan. It
 does not record the environment or command output. Optional `--logs` stores command
-output separately, as described below. Set `VALIDATION_V2_MANIFEST` to choose a result
-path. Timestamps, durations, peak RSS, PIDs, and explicitly selected result paths naturally vary;
+output separately, as described below. When overriding the result path with
+`VALIDATION_V2_MANIFEST`, use a fresh path for each invocation and retain the runner's exit
+status. A preflight failure can leave a reused path pointing to an earlier run.
+Timestamps, durations, peak RSS, PIDs, and explicitly selected result paths naturally vary;
 the profile, provenance, resource policy, routing, command declarations, statuses, and exit
 semantics are stable for an unchanged checkout.
 
@@ -556,8 +562,7 @@ inspect that log separately.
 one mode-0600 file per executed command. Each starts with the exact argv and start
 time followed by combined stdout/stderr; numbered filenames identify the planned
 section. Output still streams normally. No environment is dumped. Existing log
-directories/files, including symlinks, are rejected rather than overwritten.
-Use a fresh `VALIDATION_V2_MANIFEST` path for each logged invocation. A log I/O
+directories/files, including symlinks, are rejected rather than overwritten. A log I/O
 failure cannot yield a green run (`failure_kind: output-log`). Logs survive test
 failure and interruption; absence/truncation of a manifest remains a failed run.
 

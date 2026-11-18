@@ -21,6 +21,7 @@ import time
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
+from test_validation_v2_manifest_input import test_manifest_input_cli
 from test_validation_v2_paths import test_changed_path_rename_contract
 from validation_v2_manifest import PLACEHOLDER
 
@@ -642,6 +643,7 @@ def test_interrupt_and_verdict_contract(
     assert "required 'final'" in guarded.stderr
 
     green = json.loads(green_manifest.read_text())
+    test_manifest_input_cli(tools, base_env, directory, green_manifest, runner.VERDICT_ERROR)
     expected_head = green["provenance"]["head"]
     assert isinstance(expected_head, str)
     head_match = verify(green_manifest, "--require-head", expected_head)

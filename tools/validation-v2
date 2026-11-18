@@ -42,6 +42,7 @@ RUNNER_PATH = "tools/validation-v2"
 MANIFEST_MODULE_PATH = "tools/validation_v2_manifest.py"
 RUNNER_SOURCE_PATHS = frozenset({RUNNER_PATH, MANIFEST_MODULE_PATH})
 RUNNER_CONTRACT_SUITE = "tools/test_validation_v2.py"
+RUNNER_MANIFEST_INPUT_TEST = "tools/test_validation_v2_manifest_input.py"
 RUNNER_PATHS_TEST = "tools/test_validation_v2_paths.py"
 WORKFLOW_CONTRACT_SUITE = "tools/test_validation_workflows.py"
 BUILD_INPUT_DIAGNOSTIC = "tools/measure_build_inputs.py"
@@ -868,7 +869,9 @@ def validation_commands(
         # check is what let #364 — a plan that compiled the workspace and tested
         # nothing — be written here in the first place.
         if profile == "final" and any(
-            path in RUNNER_SOURCE_PATHS | {RUNNER_CONTRACT_SUITE, RUNNER_PATHS_TEST}
+            path in RUNNER_SOURCE_PATHS | {
+                RUNNER_CONTRACT_SUITE, RUNNER_MANIFEST_INPUT_TEST, RUNNER_PATHS_TEST,
+            }
             for path in python_files
         ) and (
             repo / RUNNER_CONTRACT_SUITE
@@ -1494,6 +1497,47 @@ def create_log_directory(manifest: Path) -> Path:
     return directory
 
 
+class ManifestInputError(Exception):
+    """A manifest could not be read as strict UTF-8 JSON."""
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate object key {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant {value!r}")
+
+
+def read_manifest(path: Path) -> object:
+    """Read a manifest once using strict UTF-8 and unambiguous JSON objects."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError as error:
+        raise ManifestInputError(
+            f"manifest {path} is missing; a run without a manifest is a failure"
+        ) from error
+    except UnicodeDecodeError as error:
+        raise ManifestInputError(f"manifest {path} is not valid UTF-8: {error}") from error
+    except OSError as error:
+        raise ManifestInputError(f"manifest {path} is unreadable: {error}") from error
+    try:
+        return json.loads(
+            raw,
+            object_pairs_hook=_unique_json_object,
+            parse_constant=_reject_json_constant,
+        )
+    except RecursionError as error:
+        raise ManifestInputError(f"manifest {path} JSON is nested too deeply to parse") from error
+    except ValueError as error:
+        raise ManifestInputError(f"manifest {path} is not valid JSON: {error}") from error
+
+
 def verify_manifest(
     path: Path,
     required_profile: str | None = None,
@@ -1504,15 +1548,9 @@ def verify_manifest(
 ) -> int:
     """A missing, unreadable, or non-green manifest is a failed run."""
     try:
-        raw = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return fail(f"manifest {path} is missing; a run without a manifest is a failure", VERDICT_ERROR)
-    except OSError as error:
-        return fail(f"manifest {path} is unreadable: {error}", VERDICT_ERROR)
-    try:
-        document = json.loads(raw)
-    except json.JSONDecodeError as error:
-        return fail(f"manifest {path} is not valid JSON: {error}", VERDICT_ERROR)
+        document = read_manifest(path)
+    except ManifestInputError as error:
+        return fail(str(error), VERDICT_ERROR)
     problems = manifest_problems(document, require_changes=require_changes)
     if isinstance(document, dict) and required_profile is not None and document.get("profile") != required_profile:
         problems.append(f"profile is {document.get('profile')!r}; required {required_profile!r}")
@@ -1544,13 +1582,9 @@ def verify_manifest(
 
 def normalise_to_stdout(path: Path) -> int:
     try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError as error:
-        return fail(f"manifest {path} is unreadable: {error}", VERDICT_ERROR)
-    try:
-        document = json.loads(raw)
-    except json.JSONDecodeError as error:
-        return fail(f"manifest {path} is not valid JSON: {error}", VERDICT_ERROR)
+        document = read_manifest(path)
+    except ManifestInputError as error:
+        return fail(str(error), VERDICT_ERROR)
     try:
         normalised = normalise_manifest(document)
     except ValueError as error:
