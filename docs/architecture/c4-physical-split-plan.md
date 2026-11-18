@@ -112,7 +112,14 @@ root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
 Player owner retains all descendants and gains 17 lines of module wiring.
 On base `637f02e38`, the moved source passed the worker's offline locked
 `wow-entities` check and five existing lifecycle/load-plan tests.
-Item plans, enchantment families, and full C4 acceptance remain open.
+
+The `forever` item-plan split moves 47 type definitions and their existing
+methods verbatim into `player/items/plans.rs`. The root shrinks from 4,397 to
+3,806 lines. The new module has 614 lines, and the same logical Player owner
+gains 24 production lines for module wiring, imports and re-exports.
+On base `440636916`, the moved source passed the worker's offline locked
+`wow-entities` check, 124 item tests and two swap-orchestration tests.
+Enchantment families and full C4 acceptance remain open.
 
 ## Closing C4
 
