@@ -1462,6 +1462,7 @@ def test_planner_contract(repo: Path) -> None:
         "tools/architecture/handler-contract-check/src/lib.rs", "tools/wow-test-bot/src/main.rs",
     ]
     with patch.object(runner, "resolve_base", return_value="base"), \
+         patch.object(runner, "resolve_merge_base", return_value="base"), \
          patch.object(runner, "changed_paths", return_value=quick_paths), \
          patch.object(runner, "cargo_metadata", side_effect=AssertionError("quick must not resolve dependencies")), \
          patch.object(runner, "require_protoc_for", side_effect=AssertionError("quick must not require protobuf")):

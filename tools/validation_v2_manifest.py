@@ -32,7 +32,7 @@ COMPARED_SHAPE: dict[str, frozenset[str]] = {
     "locks": frozenset({"repository", "heavy"}),
     "plan": frozenset(
         {
-            "base_input", "base_commit", "changed_paths", "path_classes", "workspace",
+            "base_input", "base_commit", "merge_base", "changed_paths", "path_classes", "workspace",
             "metadata", "optional_skips", "planned_steps", "planned_commands",
             "failure_policy", "require_changes",
         }

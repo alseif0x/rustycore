@@ -43,10 +43,10 @@ compile the server.
 normalisation. `tools/validation-v2` owns the CLI, file I/O and execution. Changes
 to either file route `final` through the runner and workflow contract suites.
 
-Level 2 (`quick`) collects committed, staged, unstaged, and untracked paths relative to
-the exact base commit. A tracked rename contributes both its source and destination
-paths regardless of Git's rename-detection settings, so validation considers both
-locations. Level 2 performs only Git diff/whitespace checks, changed
+Level 2 (`quick`) collects committed paths from the merge base of `--base` and
+HEAD, then adds staged, unstaged, and untracked paths. A tracked rename contributes
+both its source and destination paths regardless of Git's rename-detection settings.
+Level 2 performs only Git diff/whitespace checks, changed
 shell/JSON/Python syntax, optional `actionlint`, and `cargo fmt` for routed workspace
 or standalone tools. Cargo fmt may inspect manifests. Level 2 never runs `cargo
 check`, `cargo test`, `cargo build`, `cargo run`, locked dependency metadata, a
@@ -261,7 +261,7 @@ checker's format check) when the checked production-package set (the transitive 
 of `wow-handler`) can change without a checker file. The trigger is deliberately coarse, not a
 closure computation: a root `Cargo.toml` or `Cargo.lock` change, or a `crates/*/Cargo.toml` whose
 parsed `[dependencies]`, `[dev-dependencies]`, `[build-dependencies]`, `[features]` or `[target.*]`
-tables or `package.name` differ from the base (any TOML spelling: table form, dotted, quoted or
+tables or `package.name` differ from the merge base (any TOML spelling: table form, dotted, quoted or
 inline keys), including a new, deleted or unparsable manifest. Comment-only and other metadata
 edits do not trigger it (#1363 slices Q2 and 4c). `quick` plans no checker command for such a
 manifest-only diff. The self-test has, for each of those five tables and the package name,
@@ -373,7 +373,10 @@ Every manifest-producing level-2/3, `audit` or `self-test` run acquires a non-bl
 `target/validation-v2/manifests/`. The manifest (schema 4) records repository and toolchain
 provenance, dirty state, kernel, timings, command results, signals, failure kinds, OOM-kill
 deltas, resource limits, and peak child RSS. It
-also records the resolved base, complete changed-path set, path classes, direct workspace packages,
+also records the requested commit as `plan.base_commit`, which is what `verify --require-base`
+checks. The runner records the common ancestor as `plan.merge_base` and uses it for committed
+path selection, Git whitespace checks, dependency graph comparisons, and the net-move check.
+The manifest includes the complete changed-path set, path classes, direct workspace packages,
 reverse-dependent closure, metadata outcome, optional-linter omissions, and exact command plan. It
 does not record the environment or command output. Optional `--logs` stores command
 output separately, as described below. When overriding the result path with
@@ -596,8 +599,9 @@ running Validation V2, so changed workflow syntax is always checked remotely.
 
 Rust CI checks out the exact event SHA with full history, prepares the pinned Rust/protoc/actionlint
 and locked Cargo inputs, then invokes this same executable once. External pull requests run the
-bounded `final` profile against the exact pull-request base SHA. First-party pull requests are
-skipped and do not wait for hosted validation. Pushes to `3.4.3`, the weekly schedule, and explicit
+bounded `final` profile with the exact pull-request base SHA as its `--base` input.
+First-party pull requests are skipped and do not wait for hosted validation.
+Pushes to `3.4.3`, the weekly schedule, and explicit
 `audit` dispatches run the exhaustive profile on an independent GitHub host. Every hosted run
 uploads the manifest and diagnostic artifacts even on failure; signals and timeouts
 therefore cannot become silent passes. Manually dispatched `final` requires an explicit

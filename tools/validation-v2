@@ -333,11 +333,21 @@ def resolve_base(repo: Path, base: str) -> str:
         raise ValueError(f"base '{base}' is unavailable") from error
 
 
-def changed_paths(repo: Path, base_commit: str) -> list[str]:
+def resolve_merge_base(repo: Path, base_commit: str) -> str:
+    try:
+        merge_base = output(repo, "git", "merge-base", base_commit, "HEAD")
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f"base commit '{base_commit}' has no merge base with HEAD") from error
+    if not merge_base:
+        raise ValueError(f"base commit '{base_commit}' has no merge base with HEAD")
+    return merge_base
+
+
+def changed_paths(repo: Path, merge_base: str) -> list[str]:
     paths: set[str] = set()
     # Disable rename collapsing so validation routes both the source and destination paths.
     for command in (
-        ("git", "diff", "--no-renames", "--name-only", "-z", f"{base_commit}...HEAD"),
+        ("git", "diff", "--no-renames", "--name-only", "-z", merge_base, "HEAD", "--"),
         ("git", "diff", "--no-renames", "--name-only", "-z", "--cached"),
         ("git", "diff", "--no-renames", "--name-only", "-z"),
         ("git", "ls-files", "--others", "--exclude-standard", "-z"),
@@ -559,10 +569,10 @@ def add_command(planned: list[list[str]], command: list[str]) -> None:
         planned.append(command)
 
 
-def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
+def audit_steps(merge_base: str, jobs: int) -> list[dict[str, object]]:
     """Declare the global read-only audit without nesting legacy wrappers."""
     commands = [
-        ("diff-hygiene", ["git", "diff", "--check", base_commit]),
+        ("diff-hygiene", ["git", "diff", "--check", merge_base]),
         (
             "architecture-policy-check",
             ["python3", "tools/architecture/check_architecture.py", "check", "--self-test"],
@@ -672,7 +682,7 @@ def manifest_graph_projection(text: str | None) -> object:
     return {"package.name": name, **{table: document.get(table) for table in GRAPH_TABLES}}
 
 
-def handler_graph_changed(repo: Path, base_commit: str, paths: list[str]) -> bool:
+def handler_graph_changed(repo: Path, merge_base: str, paths: list[str]) -> bool:
     """Whether the checker's production-package set can have changed.
 
     The handler-contract checker lists every package whose source surface it
@@ -694,11 +704,11 @@ def handler_graph_changed(repo: Path, base_commit: str, paths: list[str]) -> boo
             continue
         head_file = repo / path
         head = head_file.read_text(encoding="utf-8") if head_file.is_file() else None
-        shown = subprocess.run(
-            ["git", "show", f"{base_commit}:{path}"],
+        common = subprocess.run(
+            ["git", "show", f"{merge_base}:{path}"],
             cwd=repo, text=True, capture_output=True,
         )
-        base = shown.stdout if shown.returncode == 0 else None
+        base = common.stdout if common.returncode == 0 else None
         if manifest_graph_projection(head) != manifest_graph_projection(base):
             return True
     return False
@@ -708,7 +718,7 @@ def validation_commands(
     repo: Path,
     profile: str,
     jobs: int,
-    base_commit: str,
+    merge_base: str,
     groups: dict[str, list[str]],
     workspace: dict[str, object] | None,
 ) -> tuple[list[list[str]], list[str]]:
@@ -716,7 +726,7 @@ def validation_commands(
     optional_skips: list[str] = []
     if profile == "none" or not groups:
         return planned, optional_skips
-    add_command(planned, ["git", "diff", "--check", base_commit])
+    add_command(planned, ["git", "diff", "--check", merge_base])
     existing = lambda paths: [path for path in paths if (repo / path).is_file()]
     all_paths = sorted(path for paths in groups.values() for path in paths)
     # Physical source coverage includes tools, tests, non-Rust and extensionless
@@ -749,7 +759,7 @@ def validation_commands(
         any(path.startswith("crates/wow-world/src/") for path in all_paths)
         or "tools/architecture/net-move-policy.json" in all_paths
     ):
-        add_command(planned, ["python3", "tools/architecture/net_move.py", "check", "--base", base_commit])
+        add_command(planned, ["python3", "tools/architecture/net_move.py", "check", "--base", merge_base])
     if profile == "final" and any(path in {
         "tools/architecture/net_move.py",
         "tools/architecture/test_net_move.py",
@@ -901,7 +911,7 @@ def validation_commands(
     # change (see `handler_graph_changed`); its repository test pins that set.
     # The profile guard is what keeps quick from planning any checker command
     # for a manifest-only diff (pinned in tools/test_validation_v2.py).
-    handler_graph = profile == "final" and handler_graph_changed(repo, base_commit, all_paths)
+    handler_graph = profile == "final" and handler_graph_changed(repo, merge_base, all_paths)
     checker_affected = "architecture-checker" in groups or cargo_config_changed or handler_graph
 
     if profile == "quick":
@@ -1065,14 +1075,16 @@ def build_plan(
     timeout: int,
 ) -> dict[str, object]:
     base_commit = resolve_base(repo, base)
-    paths = changed_paths(repo, base_commit)
+    merge_base = resolve_merge_base(repo, base_commit)
+    paths = changed_paths(repo, merge_base)
     groups = grouped_paths(paths)
     if profile == "audit":
-        steps = audit_steps(base_commit, jobs)
+        steps = audit_steps(merge_base, jobs)
         require_protoc_for(steps, environment)
         return {
             "base_input": base,
             "base_commit": base_commit,
+            "merge_base": merge_base,
             "changed_paths": paths,
             "path_classes": groups,
             "workspace": None,
@@ -1087,7 +1099,7 @@ def build_plan(
         metadata, metadata_outcome = cargo_metadata(repo, environment, timeout)
         workspace = affected_workspace(repo, paths, groups, metadata)
     planned, optional_skips = validation_commands(
-        repo, profile, jobs, base_commit, groups, workspace
+        repo, profile, jobs, merge_base, groups, workspace
     )
     steps = [
         {"section": f"path-{index:02d}", "argv": command}
@@ -1098,6 +1110,7 @@ def build_plan(
     return {
         "base_input": base,
         "base_commit": base_commit,
+        "merge_base": merge_base,
         "changed_paths": paths,
         "path_classes": groups,
         "workspace": workspace,
