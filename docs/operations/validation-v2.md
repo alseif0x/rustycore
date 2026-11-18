@@ -44,7 +44,9 @@ normalisation. `tools/validation-v2` owns the CLI, file I/O and execution. Chang
 to either file route `final` through the runner and workflow contract suites.
 
 Level 2 (`quick`) collects committed, staged, unstaged, and untracked paths relative to
-the exact base commit and performs only Git diff/whitespace checks, changed
+the exact base commit. A tracked rename contributes both its source and destination
+paths regardless of Git's rename-detection settings, so validation considers both
+locations. Level 2 performs only Git diff/whitespace checks, changed
 shell/JSON/Python syntax, optional `actionlint`, and `cargo fmt` for routed workspace
 or standalone tools. Cargo fmt may inspect manifests. Level 2 never runs `cargo
 check`, `cargo test`, `cargo build`, `cargo run`, locked dependency metadata, a

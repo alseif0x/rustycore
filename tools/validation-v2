@@ -42,6 +42,7 @@ RUNNER_PATH = "tools/validation-v2"
 MANIFEST_MODULE_PATH = "tools/validation_v2_manifest.py"
 RUNNER_SOURCE_PATHS = frozenset({RUNNER_PATH, MANIFEST_MODULE_PATH})
 RUNNER_CONTRACT_SUITE = "tools/test_validation_v2.py"
+RUNNER_PATHS_TEST = "tools/test_validation_v2_paths.py"
 WORKFLOW_CONTRACT_SUITE = "tools/test_validation_workflows.py"
 BUILD_INPUT_DIAGNOSTIC = "tools/measure_build_inputs.py"
 BUILD_INPUT_CONTRACT_SUITE = "tools/test_measure_build_inputs.py"
@@ -333,10 +334,11 @@ def resolve_base(repo: Path, base: str) -> str:
 
 def changed_paths(repo: Path, base_commit: str) -> list[str]:
     paths: set[str] = set()
+    # Disable rename collapsing so validation routes both the source and destination paths.
     for command in (
-        ("git", "diff", "--name-only", "-z", f"{base_commit}...HEAD"),
-        ("git", "diff", "--name-only", "-z", "--cached"),
-        ("git", "diff", "--name-only", "-z"),
+        ("git", "diff", "--no-renames", "--name-only", "-z", f"{base_commit}...HEAD"),
+        ("git", "diff", "--no-renames", "--name-only", "-z", "--cached"),
+        ("git", "diff", "--no-renames", "--name-only", "-z"),
         ("git", "ls-files", "--others", "--exclude-standard", "-z"),
     ):
         paths.update(nul_paths(repo, *command))
@@ -866,7 +868,8 @@ def validation_commands(
         # check is what let #364 — a plan that compiled the workspace and tested
         # nothing — be written here in the first place.
         if profile == "final" and any(
-            path in RUNNER_SOURCE_PATHS | {RUNNER_CONTRACT_SUITE} for path in python_files
+            path in RUNNER_SOURCE_PATHS | {RUNNER_CONTRACT_SUITE, RUNNER_PATHS_TEST}
+            for path in python_files
         ) and (
             repo / RUNNER_CONTRACT_SUITE
         ).exists():

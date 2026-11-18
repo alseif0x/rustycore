@@ -21,6 +21,7 @@ import time
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
+from test_validation_v2_paths import test_changed_path_rename_contract
 from validation_v2_manifest import PLACEHOLDER
 
 RUNNER_PATH = Path(__file__).with_name("validation-v2").resolve()
@@ -1949,6 +1950,7 @@ def test_scan_root_banner_contract() -> None:
 
 def main() -> None:
     test_no_validation_level()
+    test_changed_path_rename_contract(runner)
     test_architecture_plan_contract()
     test_timing_plan_contract()
     test_module_and_persistence_plan_contract()
