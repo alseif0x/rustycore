@@ -2,13 +2,19 @@ use super::ItemStorageView;
 use crate::ItemStorageTemplate;
 use crate::player::{
     CanEquipItemArgs, CanEquipItemOutcome, CanEquipUniqueItemArgs, CanEquipUniqueItemTemplateArgs,
-    CanTakeMoreSimilarItemsArgs, CanUnequipItemArgs, EQUIPMENT_SLOT_MAINHAND,
-    EQUIPMENT_SLOT_OFFHAND, FindEquipSlotArgs, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, NULL_SLOT, SwapItemPreflightItem, SwapItemPreflightPlan,
-    SwapItemPreflightResult, can_equip_item_outcome, equip_slot_candidates,
-    equipped_gem_limit_category_count, equipped_item_limit_category_count, has_equipped_gem_entry,
-    has_equipped_item_entry, is_bag_pos, is_equipment_packed_pos, item_ref_by_pos, make_item_pos,
-    paired_unique_ignore_slot,
+    CanTakeMoreSimilarItemsArgs, CanUnequipItemArgs, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
+    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2,
+    EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND,
+    EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
+    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
+    EquippedGemRef, FindEquipSlotArgs, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, ItemStorageRef, ItemSubclassProfession, NULL_SLOT,
+    PROFESSION_SLOT_COOKING_GEAR1, PROFESSION_SLOT_COOKING_TOOL, PROFESSION_SLOT_FISHING_TOOL,
+    PROFESSION_SLOT_MAX_COUNT, PROFESSION_SLOT_PROFESSION1_GEAR1,
+    PROFESSION_SLOT_PROFESSION1_GEAR2, PROFESSION_SLOT_PROFESSION1_TOOL,
+    PROFESSION_SLOT_PROFESSION2_GEAR1, PROFESSION_SLOT_PROFESSION2_GEAR2, SwapItemPreflightItem,
+    SwapItemPreflightPlan, SwapItemPreflightResult, is_bag_pos, is_equipment_packed_pos,
+    item_ref_by_pos, make_item_pos,
 };
 use wow_constants::{
     InventoryResult, InventoryType, ItemClass, ItemSubClassQuiver, ItemSubClassWeapon,
@@ -559,5 +565,179 @@ impl ItemStorageView<'_> {
             src_unequip_swap,
             dst_unequip_swap,
         }
+    }
+}
+
+fn equip_slot_candidates(args: FindEquipSlotArgs<'_>) -> [u8; 4] {
+    let mut slots = [NULL_SLOT; 4];
+    match args.proto.inventory_type {
+        InventoryType::Head => slots[0] = EQUIPMENT_SLOT_HEAD,
+        InventoryType::Neck => slots[0] = EQUIPMENT_SLOT_NECK,
+        InventoryType::Shoulders => slots[0] = EQUIPMENT_SLOT_SHOULDERS,
+        InventoryType::Body => slots[0] = EQUIPMENT_SLOT_BODY,
+        InventoryType::Chest | InventoryType::Robe => slots[0] = EQUIPMENT_SLOT_CHEST,
+        InventoryType::Waist => slots[0] = EQUIPMENT_SLOT_WAIST,
+        InventoryType::Legs => slots[0] = EQUIPMENT_SLOT_LEGS,
+        InventoryType::Feet => slots[0] = EQUIPMENT_SLOT_FEET,
+        InventoryType::Wrists => slots[0] = EQUIPMENT_SLOT_WRISTS,
+        InventoryType::Hands => slots[0] = EQUIPMENT_SLOT_HANDS,
+        InventoryType::Finger => {
+            slots[0] = EQUIPMENT_SLOT_FINGER1;
+            slots[1] = EQUIPMENT_SLOT_FINGER2;
+        }
+        InventoryType::Trinket => {
+            slots[0] = EQUIPMENT_SLOT_TRINKET1;
+            slots[1] = EQUIPMENT_SLOT_TRINKET2;
+        }
+        InventoryType::Cloak => slots[0] = EQUIPMENT_SLOT_BACK,
+        InventoryType::Weapon => {
+            slots[0] = EQUIPMENT_SLOT_MAINHAND;
+            if args.can_dual_wield {
+                slots[1] = EQUIPMENT_SLOT_OFFHAND;
+            }
+        }
+        InventoryType::Shield | InventoryType::WeaponOffhand | InventoryType::Holdable => {
+            slots[0] = EQUIPMENT_SLOT_OFFHAND;
+        }
+        InventoryType::Ranged | InventoryType::WeaponMainhand | InventoryType::RangedRight => {
+            slots[0] = EQUIPMENT_SLOT_MAINHAND;
+        }
+        InventoryType::Weapon2Hand => {
+            slots[0] = EQUIPMENT_SLOT_MAINHAND;
+            if args.can_dual_wield && args.can_titan_grip {
+                slots[1] = EQUIPMENT_SLOT_OFFHAND;
+            }
+        }
+        InventoryType::Tabard => slots[0] = EQUIPMENT_SLOT_TABARD,
+        InventoryType::Bag => {
+            slots[0] = INVENTORY_SLOT_BAG_START;
+            slots[1] = INVENTORY_SLOT_BAG_START + 1;
+            slots[2] = INVENTORY_SLOT_BAG_START + 2;
+            slots[3] = INVENTORY_SLOT_BAG_START + 3;
+        }
+        InventoryType::ProfessionTool | InventoryType::ProfessionGear => {
+            if args.proto.class_id != ItemClass::Profession || !args.has_required_profession_skill {
+                return slots;
+            }
+
+            let is_tool = args.proto.inventory_type == InventoryType::ProfessionTool;
+            match args.proto.subclass_id {
+                value if value == ItemSubclassProfession::Cooking as u32 => {
+                    slots[0] = if is_tool {
+                        PROFESSION_SLOT_COOKING_TOOL
+                    } else {
+                        PROFESSION_SLOT_COOKING_GEAR1
+                    };
+                }
+                value if value == ItemSubclassProfession::Fishing as u32 => {
+                    if !is_tool {
+                        return [NULL_SLOT; 4];
+                    }
+                    slots[0] = PROFESSION_SLOT_FISHING_TOOL;
+                }
+                value
+                    if value == ItemSubclassProfession::Blacksmithing as u32
+                        || value == ItemSubclassProfession::Leatherworking as u32
+                        || value == ItemSubclassProfession::Alchemy as u32
+                        || value == ItemSubclassProfession::Herbalism as u32
+                        || value == ItemSubclassProfession::Mining as u32
+                        || value == ItemSubclassProfession::Tailoring as u32
+                        || value == ItemSubclassProfession::Engineering as u32
+                        || value == ItemSubclassProfession::Enchanting as u32
+                        || value == ItemSubclassProfession::Skinning as u32
+                        || value == ItemSubclassProfession::Jewelcrafting as u32
+                        || value == ItemSubclassProfession::Inscription as u32 =>
+                {
+                    let Some(profession_slot) = args.profession_slot else {
+                        return [NULL_SLOT; 4];
+                    };
+
+                    if is_tool {
+                        slots[0] = PROFESSION_SLOT_PROFESSION1_TOOL
+                            + profession_slot * PROFESSION_SLOT_MAX_COUNT;
+                    } else {
+                        // Retained Rust version gap: this duplicates slots[0]; target C++ assigns gear1 to slots[0] and gear2 to slots[1] (Player.cpp:9511-9512).
+                        slots[0] = PROFESSION_SLOT_PROFESSION1_GEAR1
+                            + profession_slot * PROFESSION_SLOT_MAX_COUNT;
+                        slots[0] = PROFESSION_SLOT_PROFESSION1_GEAR2
+                            + profession_slot * PROFESSION_SLOT_MAX_COUNT;
+                    }
+                }
+                _ => return [NULL_SLOT; 4],
+            }
+        }
+        _ => return slots,
+    }
+    slots
+}
+
+fn paired_unique_ignore_slot(slot: u8) -> Option<u8> {
+    match slot {
+        EQUIPMENT_SLOT_MAINHAND => Some(EQUIPMENT_SLOT_OFFHAND),
+        EQUIPMENT_SLOT_OFFHAND => Some(EQUIPMENT_SLOT_MAINHAND),
+        EQUIPMENT_SLOT_FINGER1 => Some(EQUIPMENT_SLOT_FINGER2),
+        EQUIPMENT_SLOT_FINGER2 => Some(EQUIPMENT_SLOT_FINGER1),
+        EQUIPMENT_SLOT_TRINKET1 => Some(EQUIPMENT_SLOT_TRINKET2),
+        EQUIPMENT_SLOT_TRINKET2 => Some(EQUIPMENT_SLOT_TRINKET1),
+        PROFESSION_SLOT_PROFESSION1_GEAR1 => Some(PROFESSION_SLOT_PROFESSION1_GEAR2),
+        PROFESSION_SLOT_PROFESSION1_GEAR2 => Some(PROFESSION_SLOT_PROFESSION1_GEAR1),
+        PROFESSION_SLOT_PROFESSION2_GEAR1 => Some(PROFESSION_SLOT_PROFESSION2_GEAR2),
+        PROFESSION_SLOT_PROFESSION2_GEAR2 => Some(PROFESSION_SLOT_PROFESSION2_GEAR1),
+        _ => None,
+    }
+}
+
+fn has_equipped_item_entry(
+    equipped_items: &[ItemStorageRef<'_>],
+    entry: u32,
+    except_slot: u8,
+) -> bool {
+    equipped_items.iter().any(|stored| {
+        stored.bag == INVENTORY_SLOT_BAG_0
+            && stored.slot != except_slot
+            && stored.item.object().entry() == entry
+    })
+}
+
+fn has_equipped_gem_entry(equipped_gems: &[EquippedGemRef], entry: u32, except_slot: u8) -> bool {
+    equipped_gems
+        .iter()
+        .any(|gem| gem.slot != except_slot && gem.entry == entry)
+}
+
+fn equipped_item_limit_category_count(
+    equipped_items: &[ItemStorageRef<'_>],
+    limit_category: u32,
+    except_slot: u8,
+) -> u32 {
+    equipped_items
+        .iter()
+        .filter(|stored| {
+            stored.bag == INVENTORY_SLOT_BAG_0
+                && stored.slot != except_slot
+                && stored
+                    .template
+                    .is_some_and(|template| template.item_limit_category == limit_category)
+        })
+        .map(|stored| stored.item.count())
+        .sum()
+}
+
+fn equipped_gem_limit_category_count(
+    equipped_gems: &[EquippedGemRef],
+    limit_category: u32,
+    except_slot: u8,
+) -> u32 {
+    equipped_gems
+        .iter()
+        .filter(|gem| gem.slot != except_slot && gem.limit_category == limit_category)
+        .count() as u32
+}
+
+fn can_equip_item_outcome(result: InventoryResult) -> CanEquipItemOutcome {
+    CanEquipItemOutcome {
+        result,
+        dest: 0,
+        unique_ignore_slot: None,
     }
 }

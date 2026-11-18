@@ -4,7 +4,7 @@ use crate::player::{
     CanTakeMoreSimilarItemsArgs, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemPosCount,
     KEYRING_SLOT_END, KEYRING_SLOT_START, NULL_BAG, NULL_SLOT, bag_template_by_pos,
-    can_store_item_count_zero, can_store_item_error, item_ref_by_pos,
+    item_ref_by_pos,
 };
 use wow_constants::{
     BagFamilyMask, InventoryResult, ItemBondingType, ItemClass, ItemFieldFlags,
@@ -514,4 +514,28 @@ impl ItemStorageView<'_> {
 
         can_store_item_error(InventoryResult::InvFull, count, no_similar_count)
     }
+}
+
+fn can_store_item_error(
+    result: InventoryResult,
+    count: u32,
+    no_similar_count: u32,
+) -> CanStoreItemOutcome {
+    CanStoreItemOutcome {
+        result,
+        no_space_count: Some(count + no_similar_count),
+    }
+}
+
+fn can_store_item_count_zero(count: u32, no_similar_count: u32) -> Option<CanStoreItemOutcome> {
+    (count == 0).then(|| {
+        if no_similar_count == 0 {
+            CanStoreItemOutcome {
+                result: InventoryResult::Ok,
+                no_space_count: None,
+            }
+        } else {
+            can_store_item_error(InventoryResult::ItemMaxCount, count, no_similar_count)
+        }
+    })
 }

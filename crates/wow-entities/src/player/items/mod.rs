@@ -102,12 +102,14 @@ pub fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
     }
 }
 
-pub(super) mod enchantment;
+pub(super) mod bonus_actions;
+mod enchantment;
 pub(super) mod enchantment_records;
 mod equipment;
 mod obtain;
 pub(super) mod plans;
 mod spell_costs;
+pub(super) mod stack_plans;
 mod storage;
 mod storage_move;
 

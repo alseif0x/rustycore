@@ -129,7 +129,16 @@ respectively, and the logical owner gains 21 production lines of wiring. The
 random-suffix array length constant retains its existing Player path.
 On base `0f83e9822`, the corrected source passed the worker's offline locked
 `wow-entities` check, 53 enchantment tests and two item-stat bonus tests.
-The terminal Player file budget and full C4 acceptance remain open.
+
+The `forever` Player root closeout relocates construction, item bonus action
+planning, equipment/store helpers and stack destruction/split planning.
+Nine source regions match the base apart from scoped visibility and signature
+formatting. The root shrinks from 2,974 to 1,932 lines and its legacy physical
+row is retired. The changed child files are all below 1,000 lines. The same
+logical owner gains 68 production lines of wiring, headers, and imports.
+The moved source passed the locked offline `wow-entities` check against
+base `4ce6d2d18` after correcting its imports.
+Full C4 acceptance and the remaining logical owner obligations continue.
 
 ## Closing C4
 

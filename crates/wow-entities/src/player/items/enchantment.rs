@@ -6,6 +6,9 @@
 //! Item enchantment, sockets and random properties.
 
 use super::super::*;
+use super::bonus_actions::{
+    get_attack_by_slot, item_mod_type_from_u32, primary_stat_actions, rating_actions, unit_modifier,
+};
 
 impl Player {
     pub fn enchant_durations(&self) -> &[PlayerEnchantDuration] {
