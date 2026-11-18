@@ -119,7 +119,17 @@ methods verbatim into `player/items/plans.rs`. The root shrinks from 4,397 to
 gains 24 production lines for module wiring, imports and re-exports.
 On base `440636916`, the moved source passed the worker's offline locked
 `wow-entities` check, 124 item tests and two swap-orchestration tests.
-Enchantment families and full C4 acceptance remain open.
+
+The `forever` enchantment split moves 27 types into the private
+`player/items/enchantment_records.rs` module and moves the duration-slot table
+and six helpers to the existing `player/items/enchantment.rs`. The item-bonus
+caller uses the same stat helper through a Player-scoped import. The root
+shrinks from 3,806 to 2,974 lines. The destination files have 524 and 806 lines,
+respectively, and the logical owner gains 21 production lines of wiring. The
+random-suffix array length constant retains its existing Player path.
+On base `0f83e9822`, the corrected source passed the worker's offline locked
+`wow-entities` check, 53 enchantment tests and two item-stat bonus tests.
+The terminal Player file budget and full C4 acceptance remain open.
 
 ## Closing C4
 

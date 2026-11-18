@@ -476,3 +476,331 @@ impl Player {
         actions
     }
 }
+
+const ENCHANTMENT_DURATION_SLOTS: [EnchantmentSlot; MAX_ENCHANTMENT_SLOT] = [
+    EnchantmentSlot::EnhancementPermanent,
+    EnchantmentSlot::EnhancementTemporary,
+    EnchantmentSlot::EnhancementSocket,
+    EnchantmentSlot::EnhancementSocket2,
+    EnchantmentSlot::EnhancementSocket3,
+    EnchantmentSlot::EnhancementSocketBonus,
+    EnchantmentSlot::EnhancementSocketPrismatic,
+    EnchantmentSlot::EnhancementUse,
+    EnchantmentSlot::Property0,
+    EnchantmentSlot::Property1,
+    EnchantmentSlot::Property2,
+    EnchantmentSlot::Property3,
+    EnchantmentSlot::Property4,
+];
+
+fn arena_enchantment_ref_by_guid(
+    items: &[ArenaEnchantmentItemRef],
+    guid: ObjectGuid,
+) -> Option<ArenaEnchantmentItemRef> {
+    items.iter().find(|item| item.guid == guid).copied()
+}
+
+fn push_arena_inventory_enchantment_action(
+    actions: &mut Vec<RemoveArenaEnchantmentAction>,
+    items: &[ArenaEnchantmentItemRef],
+    item_guid: ObjectGuid,
+    bag: u8,
+    slot: u8,
+    enchantment_slot: EnchantmentSlot,
+) {
+    match arena_enchantment_ref_by_guid(items, item_guid) {
+        Some(item) if item.arena_allowed => {}
+        Some(_) => actions.push(RemoveArenaEnchantmentAction::ClearInventoryEnchantment {
+            item_guid,
+            bag,
+            slot,
+            enchantment_slot,
+        }),
+        None => actions.push(RemoveArenaEnchantmentAction::MissingInventoryItemRef {
+            item_guid,
+            bag,
+            slot,
+            enchantment_slot,
+        }),
+    }
+}
+
+const fn is_socket_enchantment_slot(slot: EnchantmentSlot) -> bool {
+    matches!(
+        slot,
+        EnchantmentSlot::EnhancementSocket
+            | EnchantmentSlot::EnhancementSocket2
+            | EnchantmentSlot::EnhancementSocket3
+    )
+}
+
+fn apply_enchantment_effect_action(
+    item: &Item,
+    item_template: Option<&ItemStorageTemplate>,
+    enchantment_slot: EnchantmentSlot,
+    enchantment_id: i32,
+    random_suffix: Option<ApplyEnchantmentRandomSuffixRef>,
+    apply: bool,
+    effect: ApplyEnchantmentEffectRef,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    match effect.effect_kind {
+        ApplyEnchantmentEffectKind::Known(ItemEnchantmentType::None) => {
+            vec![ApplyEnchantmentEffectAction::Noop]
+        }
+        ApplyEnchantmentEffectKind::Known(ItemEnchantmentType::CombatSpell) => {
+            vec![ApplyEnchantmentEffectAction::DeferredCombatSpell]
+        }
+        ApplyEnchantmentEffectKind::Known(
+            kind @ (ItemEnchantmentType::Damage | ItemEnchantmentType::Totem),
+        ) => {
+            let Some(template) = item_template else {
+                return vec![ApplyEnchantmentEffectAction::MissingItemTemplateForAttack {
+                    effect_kind: ApplyEnchantmentEffectKind::Known(kind),
+                }];
+            };
+            let attack_type = get_attack_by_slot(item.slot(), template.inventory_type);
+            if attack_type == WeaponAttackType::Max {
+                vec![ApplyEnchantmentEffectAction::Noop]
+            } else {
+                vec![ApplyEnchantmentEffectAction::UpdateDamageDoneMods {
+                    attack_type,
+                    modifier_slot: if apply { -1 } else { enchantment_slot as i16 },
+                }]
+            }
+        }
+        ApplyEnchantmentEffectKind::Known(ItemEnchantmentType::EquipSpell) => {
+            if effect.arg == 0 {
+                vec![ApplyEnchantmentEffectAction::Noop]
+            } else if apply {
+                vec![ApplyEnchantmentEffectAction::CastEquipSpell {
+                    spell_id: effect.arg,
+                    item_guid: item.object().guid(),
+                }]
+            } else {
+                vec![ApplyEnchantmentEffectAction::RemoveEquipSpellAura {
+                    spell_id: effect.arg,
+                    item_guid: item.object().guid(),
+                }]
+            }
+        }
+        ApplyEnchantmentEffectKind::Known(ItemEnchantmentType::Resistance) => {
+            let amount =
+                resolve_enchantment_effect_amount(item, enchantment_id, random_suffix, effect);
+            vec![ApplyEnchantmentEffectAction::UnitModifier {
+                unit_mod: ApplyEnchantmentUnitMod::Resistance(effect.arg),
+                modifier: ApplyEnchantmentUnitModifier::TotalValue,
+                amount,
+                apply,
+            }]
+        }
+        ApplyEnchantmentEffectKind::Known(ItemEnchantmentType::Stat) => {
+            let amount =
+                resolve_enchantment_effect_amount(item, enchantment_id, random_suffix, effect);
+            apply_enchantment_stat_actions(item_mod_type_from_u32(effect.arg), amount, apply)
+        }
+        ApplyEnchantmentEffectKind::Known(ItemEnchantmentType::UseSpell) => {
+            vec![ApplyEnchantmentEffectAction::DeferredUseSpell]
+        }
+        ApplyEnchantmentEffectKind::Known(
+            ItemEnchantmentType::PrismaticSocket
+            | ItemEnchantmentType::ArtifactPowerBonusRankByType
+            | ItemEnchantmentType::ArtifactPowerBonusRankByID
+            | ItemEnchantmentType::BonusListID
+            | ItemEnchantmentType::BonusListCurve
+            | ItemEnchantmentType::ArtifactPowerBonusRankPicker,
+        ) => vec![ApplyEnchantmentEffectAction::Noop],
+        ApplyEnchantmentEffectKind::Unknown(effect_type) => {
+            vec![ApplyEnchantmentEffectAction::Unknown { effect_type }]
+        }
+    }
+}
+
+fn resolve_enchantment_effect_amount(
+    item: &Item,
+    enchantment_id: i32,
+    random_suffix: Option<ApplyEnchantmentRandomSuffixRef>,
+    effect: ApplyEnchantmentEffectRef,
+) -> u32 {
+    if effect.amount != 0
+        || !matches!(
+            effect.effect_kind,
+            ApplyEnchantmentEffectKind::Known(
+                ItemEnchantmentType::Resistance | ItemEnchantmentType::Stat
+            )
+        )
+    {
+        return effect.amount;
+    }
+
+    let Some(random_suffix) = random_suffix else {
+        return effect.amount;
+    };
+    if item.data().random_properties_id.unsigned_abs() != random_suffix.id {
+        return effect.amount;
+    }
+
+    random_suffix
+        .amount_for(enchantment_id, item.data().property_seed)
+        .unwrap_or(effect.amount)
+}
+
+pub(in crate::player) fn apply_enchantment_stat_actions(
+    item_mod: ItemModType,
+    amount: u32,
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    match item_mod {
+        ItemModType::Mana => vec![unit_modifier(
+            ApplyEnchantmentUnitMod::Mana,
+            ApplyEnchantmentUnitModifier::BaseValue,
+            amount,
+            apply,
+        )],
+        ItemModType::Health => vec![unit_modifier(
+            ApplyEnchantmentUnitMod::Health,
+            ApplyEnchantmentUnitModifier::BaseValue,
+            amount,
+            apply,
+        )],
+        ItemModType::Agility => primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatAgility,
+            Stats::Agility,
+            amount,
+            apply,
+        ),
+        ItemModType::Strength => primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatStrength,
+            Stats::Strength,
+            amount,
+            apply,
+        ),
+        ItemModType::Intellect => primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatIntellect,
+            Stats::Intellect,
+            amount,
+            apply,
+        ),
+        ItemModType::Spirit => primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatSpirit,
+            Stats::Spirit,
+            amount,
+            apply,
+        ),
+        ItemModType::Stamina => primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatStamina,
+            Stats::Stamina,
+            amount,
+            apply,
+        ),
+        ItemModType::DefenseSkillRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::DefenseSkill], amount, apply)
+        }
+        ItemModType::DodgeRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::Dodge], amount, apply)
+        }
+        ItemModType::ParryRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::Parry], amount, apply)
+        }
+        ItemModType::BlockRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::Block], amount, apply)
+        }
+        ItemModType::HitMeleeRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::HitMelee], amount, apply)
+        }
+        ItemModType::HitRangedRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::HitRanged], amount, apply)
+        }
+        ItemModType::HitSpellRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::HitSpell], amount, apply)
+        }
+        ItemModType::CritMeleeRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::CritMelee], amount, apply)
+        }
+        ItemModType::CritRangedRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::CritRanged], amount, apply)
+        }
+        ItemModType::CritSpellRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::CritSpell], amount, apply)
+        }
+        ItemModType::HasteSpellRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::HasteSpell], amount, apply)
+        }
+        ItemModType::HitRating => rating_actions(
+            &[
+                ApplyEnchantmentCombatRating::HitMelee,
+                ApplyEnchantmentCombatRating::HitRanged,
+                ApplyEnchantmentCombatRating::HitSpell,
+            ],
+            amount,
+            apply,
+        ),
+        ItemModType::CritRating => rating_actions(
+            &[
+                ApplyEnchantmentCombatRating::CritMelee,
+                ApplyEnchantmentCombatRating::CritRanged,
+                ApplyEnchantmentCombatRating::CritSpell,
+            ],
+            amount,
+            apply,
+        ),
+        ItemModType::HasteRating => rating_actions(
+            &[
+                ApplyEnchantmentCombatRating::HasteMelee,
+                ApplyEnchantmentCombatRating::HasteRanged,
+                ApplyEnchantmentCombatRating::HasteSpell,
+            ],
+            amount,
+            apply,
+        ),
+        ItemModType::ExpertiseRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::Expertise], amount, apply)
+        }
+        ItemModType::AttackPower => vec![
+            unit_modifier(
+                ApplyEnchantmentUnitMod::AttackPower,
+                ApplyEnchantmentUnitModifier::TotalValue,
+                amount,
+                apply,
+            ),
+            unit_modifier(
+                ApplyEnchantmentUnitMod::AttackPowerRanged,
+                ApplyEnchantmentUnitModifier::TotalValue,
+                amount,
+                apply,
+            ),
+        ],
+        ItemModType::RangedAttackPower => vec![unit_modifier(
+            ApplyEnchantmentUnitMod::AttackPowerRanged,
+            ApplyEnchantmentUnitModifier::TotalValue,
+            amount,
+            apply,
+        )],
+        ItemModType::ManaRegeneration => {
+            vec![ApplyEnchantmentEffectAction::ManaRegenBonus { amount, apply }]
+        }
+        ItemModType::ArmorPenetrationRating => rating_actions(
+            &[ApplyEnchantmentCombatRating::ArmorPenetration],
+            amount,
+            apply,
+        ),
+        ItemModType::SpellPower => {
+            vec![ApplyEnchantmentEffectAction::SpellPowerBonus { amount, apply }]
+        }
+        ItemModType::HealthRegen => {
+            vec![ApplyEnchantmentEffectAction::HealthRegenBonus { amount, apply }]
+        }
+        ItemModType::SpellPenetration => {
+            vec![ApplyEnchantmentEffectAction::SpellPenetrationBonus { amount, apply }]
+        }
+        ItemModType::BlockValue => vec![ApplyEnchantmentEffectAction::BaseModFlatValue {
+            base_mod: ApplyEnchantmentBaseMod::ShieldBlockValue,
+            amount,
+            apply,
+        }],
+        _ => vec![ApplyEnchantmentEffectAction::UnhandledStatModifier {
+            item_mod,
+            amount,
+            apply,
+        }],
+    }
+}
