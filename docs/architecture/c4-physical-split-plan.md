@@ -106,6 +106,14 @@ R1/R2 apply, and the test count must be the same before and after.
 Suggested order: C4-1, C4-2, C4-3, C4-4, C4-5, C4-6a, C4-6b, C4-7a, C4-7b, C4-8. The pieces
 should land at 1000 lines or less, so they do not add new cohesion-review flags.
 
+On `forever`, the C4-6a lifecycle/load record split moves ten public types and
+their existing implementations to the private `player/records.rs` module. The
+root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
+Player owner retains all descendants and gains 17 lines of module wiring.
+On base `637f02e38`, the moved source passed the worker's offline locked
+`wow-entities` check and five existing lifecycle/load-plan tests.
+Item plans, enchantment families, and full C4 acceptance remain open.
+
 ## Closing C4
 
 1. Land C4-1 … C4-8 so that no `584:C4` row remains above 2000.
