@@ -338,12 +338,14 @@ object. Unreadable files and invalid input produce a diagnostic naming the
 manifest and a failed verdict.
 
 The verifier matches each result's section and command arguments against the
-plan in order. It rejects missing steps, substituted commands, and results whose
-exit code or failure fields contradict a passing status. The `self-test`
-profile records one result with no plan. Both hosted workflows require the
-manifest to record the SHA selected for checkout. Rust CI also requires its
-selected profile and the base commit used to plan the checks. Its `final`
-verification requires a nonempty scope. The determinism workflow requires
+plan in order. The schema version and exit codes must be integers. When present,
+`plan.require_changes` must be a boolean, and a recorded Cargo metadata outcome
+must satisfy the same success checks as the executed steps. The verifier rejects
+missing steps, substituted commands, and failure fields that contradict a passing
+status. The `self-test` profile records one result with no plan. Both hosted
+workflows require the manifest to record the SHA selected for checkout. Rust CI
+also requires its selected profile and the base commit used to plan the checks.
+Its `final` verification requires a nonempty scope. The determinism workflow requires
 `self-test` before it normalises the manifest. For local final evidence, set
 `expected_sha` and `expected_base` to the full commit IDs of the candidate and
 its intended validation base.

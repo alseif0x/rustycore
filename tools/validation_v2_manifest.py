@@ -115,21 +115,54 @@ def normalise_manifest(document: object) -> dict[str, object]:
     return result
 
 
+def _outcome_problems(
+    outcome: object, label: str, *, include_section: bool = False
+) -> list[str]:
+    """Validate one recorded command-like outcome as a successful result."""
+    if not isinstance(outcome, dict):
+        return [f"{label} is not an object"]
+
+    problems: list[str] = []
+    status_label = f"{label} ({outcome.get('section')})" if include_section else label
+    if outcome.get("status") != "passed":
+        problems.append(
+            f"{status_label} is {outcome.get('status')!r}"
+            f" [{outcome.get('failure_kind')}]"
+        )
+    exit_code = outcome.get("exit_code")
+    if type(exit_code) is not int or exit_code != 0:
+        problems.append(f"{label} exit code is {exit_code!r}; expected integer 0")
+    if "failure_kind" not in outcome or outcome["failure_kind"] is not None:
+        problems.append(f"{label} failure kind is {outcome.get('failure_kind')!r}")
+    if "signal" not in outcome or outcome["signal"] is not None:
+        problems.append(f"{label} signal is {outcome.get('signal')!r}")
+    if outcome.get("timed_out") is not False:
+        problems.append(f"{label} timed_out is {outcome.get('timed_out')!r}")
+    oom_kills = outcome.get("oom_kills")
+    valid_oom_kills = oom_kills is None or (type(oom_kills) is int and oom_kills == 0)
+    if "oom_kills" not in outcome or not valid_oom_kills:
+        problems.append(f"{label} oom_kills is {oom_kills!r}; expected 0 or None")
+    return problems
+
+
 def manifest_problems(document: object, *, require_changes: bool = False) -> list[str]:
     """Every reason this manifest may not be read as a green run."""
     if not isinstance(document, dict):
         return ["manifest is not a JSON object"]
     problems: list[str] = []
-    if document.get("schema") != MANIFEST_SCHEMA:
-        problems.append(f"schema is {document.get('schema')!r}, expected {MANIFEST_SCHEMA}")
+    schema = document.get("schema")
+    if type(schema) is not int or schema != MANIFEST_SCHEMA:
+        problems.append(f"schema is {schema!r}, expected {MANIFEST_SCHEMA}")
     if document.get("runner") != "rustycore-validation-v2":
         problems.append(f"runner is {document.get('runner')!r}")
     if document.get("status") != "passed":
         problems.append(f"status is {document.get('status')!r}")
-    if document.get("exit_code") != 0:
-        problems.append(f"exit code is {document.get('exit_code')!r}")
-    if document.get("runner_error"):
-        problems.append(f"runner error {document.get('runner_error')!r}")
+    exit_code = document.get("exit_code")
+    if type(exit_code) is not int or exit_code != 0:
+        problems.append(f"exit code is {exit_code!r}")
+    runner_error = document.get("runner_error")
+    if runner_error is not None:
+        problems.append(f"runner error {runner_error!r}")
     if document.get("runner_signal") is not None:
         problems.append(f"runner died by signal {document.get('runner_signal')!r}")
     profile = document.get("profile")
@@ -137,33 +170,23 @@ def manifest_problems(document: object, *, require_changes: bool = False) -> lis
         problems.append(f"profile is {profile!r}; expected self-test, quick, final or audit")
     if require_changes and profile not in ("quick", "final"):
         problems.append(f"profile is {profile!r}; --require-changes requires quick or final")
+    plan = document.get("plan")
+    if isinstance(plan, dict):
+        if "require_changes" in plan and type(plan["require_changes"]) is not bool:
+            problems.append(
+                f"plan.require_changes is {plan['require_changes']!r}; expected a boolean"
+            )
+        metadata = plan.get("metadata")
+        if metadata is not None:
+            problems.extend(_outcome_problems(metadata, "plan.metadata"))
     commands = document.get("commands")
     if not isinstance(commands, list):
         problems.append("commands are missing")
         return problems
     for index, command in enumerate(commands):
-        if not isinstance(command, dict):
-            problems.append(f"command {index} is not an object")
-            continue
-        if command.get("status") != "passed":
-            problems.append(
-                f"command {index} ({command.get('section')}) is {command.get('status')!r}"
-                f" [{command.get('failure_kind')}]"
-            )
-        exit_code = command.get("exit_code")
-        if type(exit_code) is not int or exit_code != 0:
-            problems.append(f"command {index} exit code is {exit_code!r}; expected integer 0")
-        if "failure_kind" not in command or command["failure_kind"] is not None:
-            problems.append(f"command {index} failure kind is {command.get('failure_kind')!r}")
-        if "signal" not in command or command["signal"] is not None:
-            problems.append(f"command {index} signal is {command.get('signal')!r}")
-        if command.get("timed_out") is not False:
-            problems.append(f"command {index} timed_out is {command.get('timed_out')!r}")
-        oom_kills = command.get("oom_kills")
-        valid_oom_kills = oom_kills is None or (type(oom_kills) is int and oom_kills == 0)
-        if "oom_kills" not in command or not valid_oom_kills:
-            problems.append(f"command {index} oom_kills is {oom_kills!r}; expected 0 or None")
-    plan = document.get("plan")
+        problems.extend(
+            _outcome_problems(command, f"command {index}", include_section=True)
+        )
     if profile == "self-test":
         if "plan" not in document or plan is not None:
             problems.append("self-test plan must be None")
