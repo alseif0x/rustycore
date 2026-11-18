@@ -40,13 +40,6 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-entities/src/player/items/storage.rs",
-      "observed_lines": 1908,
-      "ceiling_lines": 1908,
-      "split": "2026-11-16 inventory capture review: 2548 -> 1904 (-644). Complete position/traversal/use/bank/equipment/swap queries delegate through the same borrowed view, and native top-level guards/write/take are shared with the disposable snapshot; Player keeps inventory-field/visible/bag-clear ordering. New private files remain below 1000 lines. This candidate-bound tightening retires no logical Player or gameplay debt; remaining application/destruction responsibilities and the 584:C4 exit remain. Separate item-slot admission, placement/stack plans, application and slot-boundary tests. 2026-11-06 Forever canonical-owner dependency review at dirty base 03eb9b532: 3298 -> 2545 after the seven complete read-only query bodies move to the borrowed ItemStorageView family and three native-bag operation bodies move to PlayerInventoryStorage's private topology child. Existing Player signatures delegate; the real cross-crate trade consumer uses those shared operations on disposable inventory state. Parent reviewed the exact incremental patches, body substitutions and unchanged mutation functions, and independently measured this actual file; this is a tightened physical ratchet, not a regenerated baseline or logical-owner debt retirement. Remaining bank/application/destruction responsibilities and the 584:C4 exit remain required. No general growth or terminal-closeout exemption is granted. 2026-11-11 publication formatting review: 2545 -> 2548 solely because rustfmt expands the new three-argument ItemStorageView constructor call; the call and all operation bodies are unchanged. This exact formatter delta adds no state, algorithm or general headroom, preserves the remaining bank/application/destruction extraction, and does not establish acceptance. 2026-11-17 checkpoint review: 1904 -> 1908 (+4), solely rustfmt expansion of the existing item_count_by_entry delegation after its selected Item argument becomes an ItemReadView. Other changed adapters map existing borrows to the shared view; mutation bodies and owners are unchanged. Retain the existing #584:C4 bank/application/destruction split exit; no general growth allowance or terminal exemption.",
-      "review_checkpoint": "584:C4"
-    },
-    {
       "path": "crates/wow-map/src/map/game_object.rs",
       "observed_lines": 2311,
       "ceiling_lines": 2311,

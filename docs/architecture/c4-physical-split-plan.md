@@ -140,6 +140,28 @@ The moved source passed the locked offline `wow-entities` check against
 base `4ce6d2d18` after correcting its imports.
 Full C4 acceptance and the remaining logical owner obligations continue.
 
+On `forever`, the C4-6b split starts from `e54b871d6`, where prior inventory
+work has already reduced `player/items/storage.rs` to 1,908 lines. The retained
+admission methods still delegate to `ItemStorageView`. The placement, removal,
+swap, buyback, item tracking and new-item projection methods remain inherent
+methods on Player in private storage children.
+
+The root now has 431 lines. Its six new children have 318 (placement), 434
+(removal), 473 (swap), 157 (buyback), 128 (item tracking) and 79 (publication).
+The 45 moved and 44 retained method definitions match the base byte for byte.
+The legacy storage row is retired. Headers, mounts and imports add 113 lines
+to the same Player owner, including two test-attributed import lines. The
+locked offline `wow-entities` check passed after retaining two imports under
+`cfg(test)` in the Player root.
+
+The retained target anchors are `Player.cpp` at `02245dcd` for
+`StoreItem`/`_StoreItem` (11618/11646), the ordered removal, transfer and
+destruction family (12164–12683), `SwapItem` (12824), buyback (13210/13272),
+trade and duration updates (13488/13511), and
+`SendItemDurations`/`SendNewItem` (14076/14092). The move retains the existing
+Rust phase order, side effects, and represented gaps. The logical Player
+owner remains open under #584.
+
 ## Closing C4
 
 1. Land C4-1 … C4-8 so that no `584:C4` row remains above 2000.
