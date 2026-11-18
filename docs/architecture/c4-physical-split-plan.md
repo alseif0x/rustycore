@@ -162,6 +162,14 @@ trade and duration updates (13488/13511), and
 Rust phase order, side effects, and represented gaps. The logical Player
 owner remains open under #584.
 
+Committed candidate `a8deeada7876b66461bd42c200320b87f8e63e9e` passed
+`./tools/validation-v2 final --base e54b871d6 --architecture --require-changes --timings --logs`
+on the warm x86_64 checkout with Protoc 28.3 and one Cargo job. The campaign
+ran from 16:36:10Z to 16:41:22Z on 2026-11-18 (311.908 seconds).
+It passed all 10 commands, including downstream test-target checks and all
+1,309 `wow-entities` tests, with zero failures or ignored tests. The verified
+manifest is `target/validation-v2/manifests/20261118T163610.086177Z-2321107-final.json`.
+
 ## Closing C4
 
 1. Land C4-1 … C4-8 so that no `584:C4` row remains above 2000.
