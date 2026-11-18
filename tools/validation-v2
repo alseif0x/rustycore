@@ -42,6 +42,7 @@ RUNNER_PATH = "tools/validation-v2"
 MANIFEST_MODULE_PATH = "tools/validation_v2_manifest.py"
 RUNNER_SOURCE_PATHS = frozenset({RUNNER_PATH, MANIFEST_MODULE_PATH})
 RUNNER_CONTRACT_SUITE = "tools/test_validation_v2.py"
+RUNNER_CARGO_TEST = "tools/test_validation_v2_cargo.py"
 RUNNER_MANIFEST_INPUT_TEST = "tools/test_validation_v2_manifest_input.py"
 RUNNER_PATHS_TEST = "tools/test_validation_v2_paths.py"
 WORKFLOW_CONTRACT_SUITE = "tools/test_validation_workflows.py"
@@ -399,19 +400,29 @@ def cargo_metadata(
     command = ["cargo", "metadata", "--locked", "--offline", "--format-version", "1"]
     started_at = utc_now()
     started = time.monotonic()
-    try:
-        result = subprocess.run(
-            command,
-            cwd=repo,
-            env=environment,
-            text=True,
-            capture_output=True,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as error:
-        raise ValueError(f"Cargo metadata exceeded {timeout} seconds") from error
-    signal_number = -result.returncode if result.returncode < 0 else None
-    exit_code = 128 + signal_number if signal_number is not None else result.returncode
+    with subprocess.Popen(
+        command,
+        cwd=repo,
+        env=environment,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    ) as process:
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            terminate_group(process)
+            raise ValueError(f"Cargo metadata exceeded {timeout} seconds") from error
+        except BaseException:
+            # Decoding captured output can fail after Cargo has already been reaped.
+            if process.returncode is None:
+                terminate_group(process)
+            raise
+    return_code = process.returncode
+    assert return_code is not None
+    signal_number = -return_code if return_code < 0 else None
+    exit_code = 128 + signal_number if signal_number is not None else return_code
     outcome = {
         "argv": command,
         "started_at": started_at,
@@ -426,11 +437,11 @@ def cargo_metadata(
         "status": "passed" if exit_code == 0 else "failed",
     }
     if exit_code != 0:
-        if result.stderr:
-            print(result.stderr, file=sys.stderr, end="")
+        if stderr:
+            print(stderr, file=sys.stderr, end="")
         raise ValueError("locked offline Cargo metadata failed")
     try:
-        metadata = json.loads(result.stdout)
+        metadata = json.loads(stdout)
     except json.JSONDecodeError as error:
         raise ValueError("Cargo metadata returned invalid JSON") from error
     return metadata, outcome
@@ -880,7 +891,8 @@ def validation_commands(
         # nothing — be written here in the first place.
         if profile == "final" and any(
             path in RUNNER_SOURCE_PATHS | {
-                RUNNER_CONTRACT_SUITE, RUNNER_MANIFEST_INPUT_TEST, RUNNER_PATHS_TEST,
+                RUNNER_CONTRACT_SUITE, RUNNER_CARGO_TEST, RUNNER_MANIFEST_INPUT_TEST,
+                RUNNER_PATHS_TEST,
             }
             for path in python_files
         ) and (

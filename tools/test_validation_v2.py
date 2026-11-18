@@ -21,6 +21,7 @@ import time
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
+from test_validation_v2_cargo import test_cargo_metadata_timeout, test_cargo_target_contract
 from test_validation_v2_manifest_input import test_manifest_input_cli
 from test_validation_v2_paths import test_changed_path_rename_contract
 from validation_v2_manifest import PLACEHOLDER
@@ -1599,83 +1600,6 @@ def test_planner_contract(repo: Path) -> None:
         raise AssertionError("deleted workspace manifest did not fail closed")
 
 
-def test_cargo_target_contract(
-    repo: Path, base_env: dict[str, str], directory: Path
-) -> None:
-    """Cargo targets are worktree-local by default and explicit paths are resolved once."""
-    repository = repo.resolve()
-
-    probe_bin = directory / "cargo-probe-bin"
-    probe_bin.mkdir()
-    fake_tool(
-        probe_bin / "cargo",
-        'printf "%s|%s\\n" "$CARGO_TARGET_DIR" "$CARGO_BUILD_JOBS" >> "$VALIDATION_V2_CARGO_ENV_LOG"\n'
-        'if [ "${1-}" = "metadata" ]; then\n'
-        '    printf \'{"workspace_members": [], "packages": [], "resolve": {"nodes": []}}\\n\'\n'
-        "fi\n",
-    )
-
-    def effective(configured: str | None) -> dict[str, str]:
-        environment = base_env.copy()
-        environment["PATH"] = f"{probe_bin}:{base_env['PATH']}"
-        if configured is None:
-            environment.pop("CARGO_TARGET_DIR", None)
-        else:
-            environment["CARGO_TARGET_DIR"] = configured
-        with patch.dict(os.environ, environment, clear=True):
-            return runner.command_environment(repo, runner.DEFAULT_JOBS)
-
-    def probe(configured: str | None, expected: Path, name: str) -> None:
-        environment = effective(configured)
-        log = directory / f"cargo-env-{name}.log"
-        environment["VALIDATION_V2_CARGO_ENV_LOG"] = str(log)
-        metadata, metadata_outcome = runner.cargo_metadata(repo, environment, 30)
-        assert metadata == {"workspace_members": [], "packages": [], "resolve": {"nodes": []}}
-        assert metadata_outcome["status"] == "passed"
-        metadata_observed = log.read_text().strip()
-        command_outcome = runner.run_one(repo, ["cargo", "check"], environment, 30)
-        assert command_outcome["status"] == "passed"
-        command_observed = log.read_text().splitlines()[-1]
-        assert metadata_observed == command_observed == f"{expected}|1"
-
-    default = effective(None)
-    assert default["CARGO_TARGET_DIR"] == str(repository / "target")
-    assert default["CARGO_BUILD_JOBS"] == "1"
-    with patch.dict(os.environ, base_env, clear=True), patch.object(
-        runner, "resolve_protoc", side_effect=AssertionError("self-test must not probe host protoc")
-    ):
-        hermetic = runner.command_environment(repo, 1, resolve_protobuf=False)
-    assert "PROTOC" not in hermetic
-    probe(None, repository / "target", "default")
-
-    for blank_value in ("", "   "):
-        blank = effective(blank_value)
-        assert blank["CARGO_TARGET_DIR"] == default["CARGO_TARGET_DIR"]
-
-    absolute_target = directory / "explicit-target"
-    absolute = effective(str(absolute_target))
-    assert absolute["CARGO_TARGET_DIR"] == str(absolute_target.resolve())
-    probe(str(absolute_target), absolute_target.resolve(), "absolute")
-
-    relative = effective("explicit-target")
-    assert relative["CARGO_TARGET_DIR"] == str((repository / "explicit-target").resolve())
-    probe("explicit-target", (repository / "explicit-target").resolve(), "relative")
-
-    worktree_a = directory / "worktree-a"
-    worktree_b = directory / "worktree-b"
-    default_a = runner.resolve_cargo_target_dir(worktree_a)
-    default_b = runner.resolve_cargo_target_dir(worktree_b)
-    assert default_a == worktree_a.resolve() / "target"
-    assert default_b == worktree_b.resolve() / "target"
-    assert default_a != default_b
-
-    relative_a = runner.resolve_cargo_target_dir(worktree_a, "validation-target")
-    relative_b = runner.resolve_cargo_target_dir(worktree_b, "validation-target")
-    assert relative_a == worktree_a.resolve() / "validation-target"
-    assert relative_b == worktree_b.resolve() / "validation-target"
-    assert relative_a != relative_b
-
-
 def test_architecture_plan_contract() -> None:
     checker = ["python3", "tools/architecture/check_architecture.py"]
     retained = [
@@ -1987,7 +1911,8 @@ def main() -> None:
         environment["VALIDATION_V2_LOCK_DIR"] = str(directory / "locks")
         test_empty_scope_contract(repo, tools, environment, directory)
         test_evidence_contract(repo, environment, directory)
-        test_cargo_target_contract(repo, environment, directory)
+        test_cargo_target_contract(runner, fake_tool, repo, environment, directory)
+        test_cargo_metadata_timeout(runner, repo, environment, directory)
         test_runner_contract(repo, tools, environment, directory)
         test_checkout_stability_contract(directory)
         test_interrupt_and_verdict_contract(repo, tools, environment, directory, fake_bin)

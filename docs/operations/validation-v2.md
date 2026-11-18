@@ -312,9 +312,14 @@ that used to read as a pass:
 - a failed step whose exit code is nevertheless `0` returns exit `70`, never `0`;
 - a terminating signal to the runner itself (`SIGINT`, `SIGTERM`, `SIGHUP`) is raised as an
   exception, so the child's process group is stopped, the interrupted command is recorded with
-  `failure_kind: "interrupted"`, and the manifest is written with exit `128 + signal`;
+  `failure_kind: "interrupted"` during step execution, and the manifest is written with exit
+  `128 + signal`;
 - before writing, the manifest is re-read against the same rules a consumer applies; an
   inconsistent green is downgraded to exit `70`.
+
+The locked Cargo metadata probe runs in its own process group and uses the same
+shutdown procedure for timeouts and interruptions. When planning aborts before
+the plan exists, the manifest records the failure in the runner verdict fields.
 
 Each command records why it is not green in `failure_kind`: `oom`, `timeout`, `signal`,
 `child-signal`, `exit`, or `interrupted`. `oom_kills` is the kernel OOM-kill delta charged to the
