@@ -841,6 +841,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T220611.303202Z-3173515-final.json`.
 
+On `forever`, C4-8t starts at `3faa06e45` and extracts quest, LFG, spell-area
+and access-control composition. `app.rs` shrinks from 4,062 to 3,968 lines and
+its physical ceiling tightens without retiring C4-8. The new private
+`quest_access_catalogs.rs` has 161 lines and returns six results: Quest,
+LfgDungeon, SpellArea, SpellWorld persistence, AccessRequirement and
+DisableMgr. Thirteen explicit inputs preserve every adapter and catalog
+dependency, including the optional LFG trace. The mmap disable-id derivation
+stays at its original app consumer.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 67 production lines for the typed
+result, wrappers and formatting, recorded as +67 production/+0 tests/+67
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
