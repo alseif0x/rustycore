@@ -606,6 +606,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T202140.672230Z-3100928-final.json`.
 
+On `forever`, C4-8k starts at `3a339eb5e` and extracts canonical spawn,
+respawn and world-state runtime startup. `app.rs` shrinks from 4,656 to 4,501
+lines and its physical ceiling tightens without retiring C4-8. The new private
+`spawn_runtime_catalogs.rs` has 213 lines and returns six values: the shared
+ScriptNameContainer, game-event persistence, shared canonical spawn metadata,
+persisted respawn times, respawn persistence and shared WorldStateMgr. Ten
+explicit inputs preserve both databases and every catalog dependency.
+
+The moved body matches the original token stream after adapting references,
+canonical rustfmt and moving the required `mut` binding to the remaining app
+consumer. The `world-server` library check passes with the same 35 existing
+warnings. The logical owner gains 58 production lines for the typed result,
+wrappers and formatting, recorded as +58 production/+0 tests/+58 total. Later
+C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
