@@ -658,6 +658,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T204639.365572Z-3116287-final.json`.
 
+On `forever`, C4-8m starts at `3f67b0b15` and extracts collection, condition
+and conversation catalogs. `app.rs` shrinks from 4,440 to 4,354 lines and its
+physical ceiling tightens without retiring C4-8. The new private
+`collection_condition_catalogs.rs` has 172 lines and returns eighteen results,
+including condition presence and the filtered conversation-line template
+store. Five explicit inputs preserve DataDir, locale, HotfixDatabase, DB2
+removals and the world reference adapter. WorldStateExpression and
+ConversationLine remain construction/log-only results with underscore names.
+
+The moved body matches the original token stream after adapting references,
+canonical rustfmt and the two unread result names. The `world-server` library
+check passes with the same 35 existing warnings. The logical owner gains 86
+production lines for the typed result, wrappers and formatting, recorded as
++86 production/+0 tests/+86 total. Later C4-8 stages still owe remaining
+catalogs, dependencies and supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
