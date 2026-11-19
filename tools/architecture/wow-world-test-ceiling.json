@@ -345,6 +345,16 @@
    "unit_tests_lines": 278717,
    "unit_tests_tests": 4151,
    "src_tests": 22
+  },
+  {
+   "id": "raise-1490-32",
+   "kind": "raise",
+   "issue": 1490,
+   "reviewed_at": "2026-11-19",
+   "reason": "Review PR 1491: add the empty-questgiver reply regression and extend it with catalog-backed menu/broadcast assertions for both NPC flag combinations; exact +67 World unit-test lines/+1 test, no removals, moves or ignored-state changes.",
+   "unit_tests_lines": 278784,
+   "unit_tests_tests": 4152,
+   "src_tests": 22
   }
  ]
 }

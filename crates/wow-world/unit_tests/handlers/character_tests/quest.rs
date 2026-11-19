@@ -415,6 +415,48 @@ async fn quest_giver_hello_without_available_quest_sends_prepared_gossip_like_cp
             "npc_flags=0x{npc_flags:X}: a quest giver without quests must still answer"
         );
     }
+
+    for npc_flags in [
+        NPCFlags1::QUEST_GIVER.bits(),
+        NPCFlags1::GOSSIP.bits() | NPCFlags1::QUEST_GIVER.bits(),
+    ] {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 9296;
+        let guid = creature_guid(entry, 296);
+        session.set_quest_store(Arc::new(store_with_quests(&[])));
+        attach_npc_creature(&mut session, guid, entry, npc_flags);
+        let catalog = GossipCatalogPortFixtureLikeCpp::new(
+            [GossipCatalogReadOutcomeLikeCpp::Found(700)],
+            [GossipCatalogReadOutcomeLikeCpp::Found(vec![21])],
+            [GossipCatalogReadOutcomeLikeCpp::Found(901)],
+            [GossipCatalogReadOutcomeLikeCpp::Missing],
+            [],
+        );
+        session.set_gossip_catalog_persistence_port_like_cpp(catalog);
+
+        wow_world_quest::handle_quest_giver_hello(&mut session, quest_giver_hello_packet(guid))
+            .await;
+
+        let expected = wow_packet::packets::gossip::GossipMessage {
+            gossip_guid: guid,
+            gossip_id: 700,
+            friendship_faction_id: 0,
+            text_id: None,
+            broadcast_text_id: Some(901),
+            gossip_options: vec![],
+            gossip_text: vec![],
+        }
+        .to_bytes();
+        assert_eq!(
+            send_rx.try_recv().expect("prepared empty gossip message"),
+            expected,
+            "npc_flags=0x{npc_flags:X}: send the catalog-backed prepared menu"
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "npc_flags=0x{npc_flags:X}: emit only one prepared gossip message"
+        );
+    }
 }
 #[tokio::test]
 async fn quest_giver_hello_plain_questgiver_keeps_direct_quest_open_like_cpp() {

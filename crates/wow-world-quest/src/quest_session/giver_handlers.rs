@@ -185,17 +185,29 @@ pub async fn handle_quest_giver_hello<H: QuestHandlerSessionHostLikeCpp>(
         return;
     }
 
-    // C++ `Player::SendPreparedGossip` (called by `HandleQuestgiverHelloOpcode`)
-    // always ends in `PlayerTalkClass->SendGossipMenu(textId, guid)` when there
-    // is no quest menu to send, even if the gossip menu is empty, so the client
-    // always gets SMSG_GOSSIP_MESSAGE. Without this the hello had no reply at all
-    // for a quest giver with no available quest. Same represented prepared-empty
-    // message as `handle_gossip_hello`'s final fallback (menu 0, text 1); the
-    // creature's own gossip_menu text (C++ `GetGossipTextId`) is not resolved here.
+    // Gossip-capable questgivers were already prepared above. For a questgiver
+    // without the GOSSIP flag, still use the catalog-backed prepared menu so its
+    // resolved quest text is sent even when it has no quest options.
+    if access.npc_flags & NPCFlags1::GOSSIP.bits() == 0
+        && let Some(msg) = host
+            .build_gossip_menu(access.entry, access.npc_flags, guid)
+            .await
+    {
+        debug!(
+            account = host.core().account_id,
+            creature_entry = access.entry,
+            "QuestGiverHello sent catalog-backed prepared gossip menu without GOSSIP flag"
+        );
+        host.send_packet(&msg);
+        return;
+    }
+
+    // Preserve the represented default only when no catalog-backed prepared
+    // menu was available. This fallback does not resolve C++ GetGossipTextId.
     debug!(
         account = host.core().account_id,
         creature_entry = access.entry,
-        "QuestGiverHello found no quest menu; sending prepared empty gossip like C++"
+        "QuestGiverHello found no represented prepared menu; sending default gossip fallback"
     );
     host.send_packet(&wow_packet::packets::gossip::GossipMessage::empty(
         guid, 0, 1,

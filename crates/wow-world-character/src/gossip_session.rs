@@ -531,7 +531,8 @@ fn gossip_menu_text_conditions_meet_like_cpp<H: CharacterLoginHostLikeCpp>(
 }
 
 /// Build a GossipMessage from the database for a creature entry.
-/// Returns None if no gossip menu exists.
+/// Returns None when required catalog or interaction-state steps fail. A
+/// prepared menu with no options or quest text is still returned.
 pub async fn build_gossip_menu<H: CharacterLoginHostLikeCpp>(
     host: &mut H,
     entry: u32,
@@ -721,10 +722,6 @@ pub async fn build_gossip_menu<H: CharacterLoginHostLikeCpp>(
     } else {
         Vec::new()
     };
-
-    if gossip_options.is_empty() && gossip_text.is_empty() {
-        return None;
-    }
 
     // Store gossip state for when the player selects an option.
     if !crate::replace_player_gossip_options_like_cpp(host, stored_options) {
