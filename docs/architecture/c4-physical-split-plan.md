@@ -894,6 +894,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T223053.275407Z-3203786-final.json`.
 
+On `forever`, C4-8v starts at `e9dee7877` and extracts NPC vendor and trainer
+composition. `app.rs` shrinks from 3,931 to 3,785 lines and its physical
+ceiling tightens without retiring C4-8. The new private
+`vendor_trainer_catalogs.rs` has 190 lines and returns TrainerStore plus the
+construction/log-only NpcVendorStore. Eight explicit inputs preserve the
+rule adapter, WorldDatabase and all six spell/skill/template/gossip
+dependencies, including five vendor and eight trainer diagnostic families.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The battle-pet comment remains beside the following stage.
+The `world-server` library check passes with the same 35 existing warnings.
+The logical owner gains 44 production lines for the typed result, wrappers and
+formatting, recorded as +44 production/+0 tests/+44 total. Later C4-8 stages
+still owe remaining catalogs, dependencies and supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
