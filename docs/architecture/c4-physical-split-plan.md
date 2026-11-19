@@ -685,6 +685,19 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T205933.003064Z-3123935-final.json`.
 
+On `forever`, C4-8n starts at `884cea509` and extracts battle-pet stat and
+combat game-table catalogs. `app.rs` shrinks from 4,354 to 4,323 lines and its
+physical ceiling tightens without retiring C4-8. The new private
+`battle_pet_stat_catalogs.rs` has 74 lines and returns seven results: four
+battle-pet DB2 stores plus BattlePetXP, CombatRatings and ShieldBlockRegular.
+DataDir and locale remain the only inputs.
+
+The moved body matches the original token stream after canonical rustfmt. The
+`world-server` library check passes with the same 35 existing warnings. The
+logical owner gains 43 production lines for the typed result, wrappers and
+formatting, recorded as +43 production/+0 tests/+43 total. Later C4-8 stages
+still owe remaining catalogs, dependencies and supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
