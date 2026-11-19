@@ -196,13 +196,14 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_at_the_existing_player_stats_stage() {
-        let source = include_str!("../app.rs");
+        let databases = include_str!("../databases.rs");
         assert_eq!(
-            source
+            databases
                 .matches("MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new")
                 .count(),
             1
         );
+        let source = include_str!("../app.rs");
         assert_eq!(source.matches("load_player_base_stats_like_cpp").count(), 1);
     }
 }

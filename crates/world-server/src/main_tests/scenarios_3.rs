@@ -841,6 +841,19 @@ fn world_server_binary_delegates_to_the_library_composition_root() {
 fn library_composition_preserves_cpp_startup_and_shutdown_order() {
     let source = fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
         .expect("world-server composition source should be readable");
+    let database_start = source.find("    let StartupDatabases {").unwrap();
+    let database_end = source
+        .find("    let hotfix_db = Arc::new(hotfix_db);")
+        .unwrap();
+    let databases =
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/databases.rs"))
+            .expect("world-server database composition source should be readable");
+    let source = format!(
+        "{}{}{}",
+        &source[..database_start],
+        databases,
+        &source[database_end..]
+    );
 
     let mut cursor = 0;
     for stage in [

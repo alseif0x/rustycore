@@ -378,13 +378,14 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_and_keeps_the_three_existing_publication_points() {
-        let source = include_str!("../app.rs");
+        let databases = include_str!("../databases.rs");
         assert_eq!(
-            source
+            databases
                 .matches("MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp::new")
                 .count(),
             1
         );
+        let source = include_str!("../app.rs");
         let base = source
             .find("load_player_create_info_store_like_cpp")
             .unwrap();

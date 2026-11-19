@@ -629,14 +629,24 @@ fn the_canonical_map_loop_is_the_only_creature_runtime_like_cpp() {
 #[test]
 fn startup_has_no_schema_mutation_and_validates_before_runtime_writes() {
     let app = include_str!("../app.rs");
-    assert!(!app.contains(&["populate_typed_", "database_like_cpp"].concat()));
-    assert!(!app.contains(&["update_typed_", "database_like_cpp"].concat()));
-    assert!(!app.contains("Updates.SourcePath"));
-    assert!(!app.contains(&["update-databases", "-only"].concat()));
-    assert!(!app.contains("auto_create"));
-    assert_eq!(app.matches("validate_runtime_schema(").count(), 1);
-    let validation = app.find("validate_runtime_schema(").unwrap();
-    let first_runtime_write = app.find("clear_online_accounts_like_cpp(").unwrap();
+    let database_start = app.find("    let StartupDatabases {").unwrap();
+    let database_end = app
+        .find("    let hotfix_db = Arc::new(hotfix_db);")
+        .unwrap();
+    let source = format!(
+        "{}{}{}",
+        &app[..database_start],
+        include_str!("../databases.rs"),
+        &app[database_end..]
+    );
+    assert!(!source.contains(&["populate_typed_", "database_like_cpp"].concat()));
+    assert!(!source.contains(&["update_typed_", "database_like_cpp"].concat()));
+    assert!(!source.contains("Updates.SourcePath"));
+    assert!(!source.contains(&["update-databases", "-only"].concat()));
+    assert!(!source.contains("auto_create"));
+    assert_eq!(source.matches("validate_runtime_schema(").count(), 1);
+    let validation = source.find("validate_runtime_schema(").unwrap();
+    let first_runtime_write = source.find("clear_online_accounts_like_cpp(").unwrap();
     assert!(validation < first_runtime_write);
 }
 /// The two former creature runtime selection keys are retired: whatever a

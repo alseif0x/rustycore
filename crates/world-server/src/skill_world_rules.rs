@@ -139,13 +139,14 @@ mod tests {
 
     #[test]
     fn app_keeps_fishing_before_skill_tiers_with_one_adapter() {
-        let source = include_str!("app.rs");
+        let databases = include_str!("databases.rs");
         assert_eq!(
-            source
+            databases
                 .matches("MariaDbSkillWorldRulesPersistenceAdapterLikeCpp::new")
                 .count(),
             1
         );
+        let source = include_str!("app.rs");
         let fishing = source
             .find("load_fishing_base_skill_store_like_cpp")
             .expect("fishing skill rules must remain composed");

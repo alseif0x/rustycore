@@ -329,6 +329,23 @@ measurement produced `f715081bd`; no method or test changed between candidates.
 The failed manifest is retained at
 `target/validation-v2/manifests/20261119T165834.090842Z-2978613-final.json`.
 
+On `forever`, C4-8a starts at `680d44aab` and extracts the first typed
+bootstrap stage. `app.rs` shrinks from 5,709 to 5,584 lines and its physical
+ceiling tightens without retiring C4-8. The new private `databases.rs` has 191
+lines and returns `StartupDatabases`: all four database connections, their
+migration-schema validation and nine catalog adapters. Connection, validation,
+construction and failure-drop order match the original token for token.
+
+The app destructures the result at the original point before hotfix Arc and
+RealmList setup. No database, service, gameplay owner or runtime operation
+changes. The same logical world-server owner gains 66 production lines for the
+typed result, function wrappers and canonical rustfmt. Five source guards add
+26 test lines to compose app and database stages at the extraction point while
+preserving every assertion and all 769 source test identities. The ratchet
+records +66 production/+26 tests/+92 total. The `world-server` library check
+and all five affected guards pass after these corrections. Later C4-8 stages
+still owe catalog/dependency extraction and supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
