@@ -868,6 +868,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T221919.017692Z-3188224-final.json`.
 
+On `forever`, C4-8u starts at `46b3cb71e` and extracts loot and
+GameObject-for-quest composition. `app.rs` shrinks from 3,968 to 3,931 lines
+and its physical ceiling tightens without retiring C4-8. The new private
+`loot_catalogs.rs` has 70 lines and returns LootStores plus the
+construction/log-only GameObjectForQuest store. Three explicit inputs preserve
+WorldDatabase, ItemStore and GameObject templates; every reference and
+condition diagnostic remains in order.
+
+The moved body matches the original token stream after adapting references,
+canonical rustfmt and the unread result name. The `world-server` library check
+passes with the same 35 existing warnings. The logical owner gains 33
+production lines for the typed result, wrappers and formatting, recorded as
++33 production/+0 tests/+33 total. Later C4-8 stages still owe remaining
+catalogs, dependencies and supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
