@@ -5,20 +5,6 @@
   "completed_checkpoints": [],
   "legacy": [
     {
-      "path": "crates/capture-diff/scripts/creature-spell-casting-fixture-common.sh",
-      "observed_lines": 2144,
-      "ceiling_lines": 2144,
-      "split": "Separate creature spell fixture preflight, bounded mutation and verified restoration; preserve existing capture/fixture safeguards and explicit runtime authorization.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/capture-diff/scripts/detour-chase-fixture-common.sh",
-      "observed_lines": 3605,
-      "ceiling_lines": 3605,
-      "split": "Separate Detour chase fixture preflight, journaled mutation and restoration; preserve existing capture/fixture safeguards and explicit runtime authorization.",
-      "review_checkpoint": "584:C4"
-    },
-    {
       "path": "crates/world-server/src/app.rs",
       "observed_lines": 5709,
       "ceiling_lines": 5709,

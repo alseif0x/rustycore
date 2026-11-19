@@ -504,7 +504,7 @@ MOCK_GHOST_STATE=$'0\t0'
 
 SNAPSHOT_BODY="$TEST_ROOT/static-snapshot.sh"
 sed -n '/^creature_spell_fixture_static_snapshot_sha256() {$/,/^}$/p' \
-  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" >"$SNAPSHOT_BODY"
+  "$SCRIPT_ROOT/creature-spell-casting-fixture/snapshot.sh" >"$SNAPSHOT_BODY"
 for field in Entry DifficultyID MinLevel MaxLevel HealthScalingExpansion \
   HealthModifier ManaModifier ArmorModifier DamageModifier CreatureDifficultyID \
   TypeFlags TypeFlags2 LootID PickPocketLootID SkinLootID GoldMin GoldMax \
@@ -927,10 +927,11 @@ CPP_WRAPPER="$SCRIPT_ROOT/capture-cpp.sh"
 RUST_WRAPPER="$SCRIPT_ROOT/capture-rust.sh"
 RECOVERY_WRAPPER="$SCRIPT_ROOT/recover-creature-spell-casting-fixture.sh"
 bash -n "$CPP_WRAPPER" "$RUST_WRAPPER" "$RECOVERY_WRAPPER" \
-  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh"
+  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" \
+  "$SCRIPT_ROOT/creature-spell-casting-fixture/"*.sh
 APPLY_GUARD_BODY="$TEST_ROOT/apply-guard.sh"
 sed -n '/^creature_spell_fixture_apply_guard() {$/,/^}$/p' \
-  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" >"$APPLY_GUARD_BODY"
+  "$SCRIPT_ROOT/creature-spell-casting-fixture/journal.sh" >"$APPLY_GUARD_BODY"
 apply_ghost_line="$(line_of \
   'creature_spell_fixture_verify_no_persisted_ghost_state' "$APPLY_GUARD_BODY")"
 apply_snapshot_line="$(line_of \
@@ -940,14 +941,14 @@ apply_mutation_line="$(line_of \
 ((apply_ghost_line < apply_snapshot_line && apply_snapshot_line < apply_mutation_line)) \
   || fail "fixture mutation can run before the persisted ghost preflight"
 grep -q 'CREATURE_SPELL_FIXTURE_GHOST_PREFLIGHT_VERIFIED" -eq 1' \
-  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" \
+  "$SCRIPT_ROOT/creature-spell-casting-fixture/evidence.sh" \
   || fail "capture evidence does not require ghost preflight accreditation"
 grep -q 'CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED" -eq 1' \
-  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" \
+  "$SCRIPT_ROOT/creature-spell-casting-fixture/evidence.sh" \
   || fail "capture evidence does not require post-capture ghost accreditation"
 POST_CAPTURE_BODY="$TEST_ROOT/post-capture-snapshot.sh"
 sed -n '/^creature_spell_fixture_record_post_login_snapshot() {$/,/^}$/p' \
-  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" >"$POST_CAPTURE_BODY"
+  "$SCRIPT_ROOT/creature-spell-casting-fixture/journal.sh" >"$POST_CAPTURE_BODY"
 post_reconcile_line="$(line_of \
   'creature_spell_fixture_reconcile_owned_online_marker' "$POST_CAPTURE_BODY")"
 post_offline_gate_line="$(line_of \

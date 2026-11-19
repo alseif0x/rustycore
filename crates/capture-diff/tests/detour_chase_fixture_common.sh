@@ -108,7 +108,8 @@ CPP_WRAPPER="$SCRIPT_ROOT/capture-cpp.sh"
 RUST_WRAPPER="$SCRIPT_ROOT/capture-rust.sh"
 RECOVERY_WRAPPER="$SCRIPT_ROOT/recover-detour-chase-fixture.sh"
 bash -n "$CPP_WRAPPER" "$RUST_WRAPPER" "$RECOVERY_WRAPPER" \
-  "$SCRIPT_ROOT/detour-chase-fixture-common.sh"
+  "$SCRIPT_ROOT/detour-chase-fixture-common.sh" \
+  "$SCRIPT_ROOT/detour-chase-fixture/"*.sh
 if grep -q 'detour_chase_require_capture_orchestration' \
     "$CPP_WRAPPER" "$RUST_WRAPPER"; then
   fail "permanent detour fail gate remains in a capture wrapper"
@@ -216,7 +217,8 @@ grep -q 'capture_acquire_orchestration_lock' "$RECOVERY_WRAPPER" \
 grep -q 'DETOUR_FIXTURE_SIDE=""' "$RECOVERY_WRAPPER" \
   || fail "explicit recovery cannot load a fresh-shell journal"
 if grep -q -- '--arg restore_sql' \
-    "$SCRIPT_ROOT/detour-chase-fixture-common.sh"; then
+    "$SCRIPT_ROOT/detour-chase-fixture-common.sh" \
+    "$SCRIPT_ROOT/detour-chase-fixture/"*.sh; then
   fail "sensitive recovery SQL is still passed through jq argv"
 fi
 

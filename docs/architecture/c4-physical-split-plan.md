@@ -229,6 +229,25 @@ between those candidates. The failed evidence is retained in
 `target/validation-v2/manifests/20261119T160106.580451Z-2938316-final.json`
 and is not claimed as acceptance.
 
+On `forever`, C4-5 starts at `0002be75d` and splits both source-only fixture
+guards into six sourced libraries each. The Detour root shrinks from 3,605 to
+162 lines; snapshot, validation, journal, restoration, cleanup and evidence
+children have 845, 563, 668, 872, 342 and 154 lines. The creature-spell root
+shrinks from 2,144 to 93 lines; validation, snapshot, runtime, journal,
+restoration and evidence children have 413, 509, 265, 628, 95 and 142 lines.
+Both legacy rows are retired and every child is below 1,000 lines.
+
+Each root loads its children through the same relative `BASH_SOURCE` boundary
+used by the existing capture wrappers. The wrappers and recovery entry points
+are unchanged. Reconstructing either original from its retained prefix and
+ordered children matches byte for byte apart from removing separator blank
+lines at child EOFs. Every guard, SQL statement, credential-safe temporary-file
+rule and recovery phase is preserved. Only six source lines per root are added.
+Tests still source the roots and now syntax-check every
+child; their `sed` and security assertions point to the actual snapshot,
+journal and evidence owners. No runtime, database or service operation is part
+of this split.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
