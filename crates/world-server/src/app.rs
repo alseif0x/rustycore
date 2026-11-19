@@ -88,6 +88,11 @@ mod item_enchantment_catalogs;
 
 use item_enchantment_catalogs::ItemEnchantmentCatalogs;
 
+#[path = "spell_acquisition_catalogs.rs"]
+mod spell_acquisition_catalogs;
+
+use spell_acquisition_catalogs::SpellAcquisitionCatalogs;
+
 #[path = "entry.rs"]
 mod entry;
 pub use entry::{run, run_with_composition, run_with_modules};
@@ -951,77 +956,27 @@ async fn run_inner(
         tact_key_store.len()
     );
 
-    // Load spell metadata (cast time, cooldown, effects, etc.) — Phase 2
-    let spell_radius_store = Arc::new(
-        spell::core_db2_hotfix::load_spell_radius_store_like_cpp(
-            &data_dir,
-            &locale,
-            &spell_core_hotfix_persistence,
-            &db2_hotfix_removals,
-        )
-        .await
-        .context("Failed to load effective SpellRadius authority")?,
-    );
-    info!("Loaded {} spell radius rows", spell_radius_store.len());
-    let spell_range_store = Arc::new(
-        spell::core_db2_hotfix::load_spell_range_store_like_cpp(
-            &data_dir,
-            &locale,
-            &spell_core_hotfix_persistence,
-            &db2_hotfix_removals,
-        )
-        .await
-        .context("Failed to load effective SpellRange authority")?,
-    );
-    info!("Loaded {} spell range rows", spell_range_store.len());
-    let serverside_spell_effect_outcome =
-        spell::acquisition_loader::load_serverside_spell_effects_like_cpp(
-            &spell_acquisition_startup_persistence,
-            |spell_id| spell_store.contains_spell_info_any_difficulty_like_cpp(spell_id),
-            |difficulty_id| difficulty_store.get(difficulty_id).is_some(),
-            |radius_id| spell_radius_store.get(radius_id).is_some(),
-        )
-        .await
-        .context("Failed to load C++ serverside_spell_effect rows")?;
-    let serverside_spell_effect_store = serverside_spell_effect_outcome.store;
-    info!(
-        "Loaded {} C++ serverside_spell_effect rows ({} validation errors; {} radius warnings)",
-        serverside_spell_effect_outcome.loaded_effect_count,
-        serverside_spell_effect_outcome.errors.len(),
-        serverside_spell_effect_outcome.warnings.len()
-    );
-    let serverside_spell_outcome = spell::acquisition_loader::load_serverside_spells_like_cpp(
-        &spell_acquisition_startup_persistence,
-        &serverside_spell_effect_store,
-        |spell_id| spell_name_store.get(spell_id).is_some(),
-    )
-    .await
-    .context("Failed to load C++ serverside_spell rows")?;
-    spell_store.apply_serverside_spell_interrupts_like_cpp(&serverside_spell_outcome.store);
-    let serverside_spell_store = Arc::new(serverside_spell_outcome.store);
-    info!(
-        "Loaded {} C++ serverside_spell rows ({} validation errors; authoritative SpellInfo insertion still pending)",
-        serverside_spell_outcome.loaded_spell_count,
-        serverside_spell_outcome.errors.len()
-    );
-
-    let spell_acquisition_bootstrap = spell::acquisition_loader::load_like_cpp(
+    let SpellAcquisitionCatalogs {
+        spell_radius_store,
+        spell_range_store,
+        serverside_spell_store,
+        spell_acquisition_catalog,
+        spell_chain_store,
+        spell_learn_skill_store,
+        spell_learn_spell_store,
+        spell_custom_attribute_store,
+    } = spell_acquisition_catalogs::load_spell_acquisition_catalogs(
         &data_dir,
         &locale,
-        &spell_acquisition_startup_persistence,
+        &spell_core_hotfix_persistence,
         &db2_hotfix_removals,
-        &spell_store,
-        serverside_spell_store.as_ref(),
+        &spell_acquisition_startup_persistence,
         difficulty_store.as_ref(),
         skill_store.as_ref(),
+        &spell_name_store,
+        &mut spell_store,
     )
-    .await
-    .context("Failed to compose effective spell-acquisition stores")?;
-    let spell_acquisition_catalog = spell_acquisition_bootstrap.catalog;
-    let spell_chain_store = spell_acquisition_bootstrap.chain_store;
-    let spell_learn_skill_store = spell_acquisition_bootstrap.learn_skill_store;
-    let spell_learn_spell_store = spell_acquisition_bootstrap.learn_spell_store;
-    let spell_custom_attribute_store = spell_acquisition_bootstrap.custom_attribute_store;
+    .await?;
 
     // Load area trigger store (collision detection + teleportation)
     let area_trigger_world_persistence =
