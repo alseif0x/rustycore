@@ -737,6 +737,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T212307.388172Z-3140665-final.json`.
 
+On `forever`, C4-8p starts at `a6ad09e7a` and extracts ObjectMgr quest-item
+and query composition. `app.rs` shrinks from 4,263 to 4,240 lines and its
+physical ceiling tightens without retiring C4-8. The new private
+`object_mgr_catalogs.rs` has 45 lines and returns the same ObjectMgr catalog
+capability. Four explicit inputs preserve WorldDatabase, both template stores
+and ItemStats; the unused creature quest-item store remains explicitly
+construction-only.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 22 production lines for the
+function boundary and formatting, recorded as +22 production/+0 tests/+22
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
