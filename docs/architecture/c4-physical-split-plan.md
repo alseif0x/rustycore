@@ -146,6 +146,18 @@ scans the moved file. The library root shrinks from 1,995 to 1,777 lines, the
 registry module has 243, and both legacy physical rows are retired. The
 logical world-server row adds 25 production lines and removes nine test lines.
 
+Committed candidate `78eda509ddf1d2443137d72e10038a835f9f1bbe` passed
+`./tools/validation-v2 final --base dfb4e3bff --architecture --require-changes --timings --logs`
+with Protoc 28.3 and one Cargo job on the warm x86_64 checkout. All 11 commands
+passed from 12:43:50Z to 12:55:56Z on 2026-11-19 (726.392 seconds), exceeding
+the 600-second target. Test-target compilation took 250.298 seconds, the
+`world-server` library suite took 244.536 seconds, and the SQL module compositor
+check took 140.892 seconds and restored the checkout. The library passed
+645 tests with zero failures and one existing ignored test. All 646 test names
+and statuses match the November 17 baseline with identical world-server source
+before this split, including the 23 acquisition-loader tests. Verified manifest:
+`target/validation-v2/manifests/20261119T124350.413750Z-2846039-final.json`.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
