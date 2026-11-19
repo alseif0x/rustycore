@@ -778,6 +778,17 @@ result, wrappers and formatting, recorded as +74 production/+0 tests/+74
 total. Later C4-8 stages still owe remaining catalogs, dependencies and
 supervision/shutdown.
 
+Committed candidate `74bcf03a8a261f74bfdfcc32a448b74bf86b93ad` passed
+`./tools/validation-v2 final --base 68dfd5f63 --architecture --require-changes --timings --logs`
+with Rust 1.98.0, Protoc 28.3 and one Cargo job on the warm x86_64 checkout.
+All eleven commands passed from 21:44:43Z to 21:48:51Z on 2026-11-19
+(247.691 seconds), within the 600-second target. The `world-server` library
+passed 645 tests with zero failures and one existing ignored test; all 769
+source test identities are preserved. The SQL module compositor also passed
+and restored the checkout. R1 is not applicable because no `wow-world/src`
+root shrank. Verified manifest:
+`target/validation-v2/manifests/20261119T214443.322325Z-3157170-final.json`.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
