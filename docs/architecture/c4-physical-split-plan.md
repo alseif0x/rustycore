@@ -284,6 +284,17 @@ its ratchet records exactly +43 production/+0 tests/+43 total. The first
 candidate passes that check with warnings only in existing dependency files.
 C4-7b still owns the remaining `impl Map` split.
 
+Committed candidate `aa658d6043b2d332f85bf51f41b6d29669ca0d6b` passed
+`./tools/validation-v2 final --base a90838079 --architecture --require-changes --timings --logs`
+with Rust 1.98.0, Protoc 28.3 and one Cargo job on the warm x86_64 checkout.
+All ten commands passed from 16:38:10Z to 16:45:46Z on 2026-11-19
+(456.443 seconds), within the 600-second target. Affected test-target
+compilation took 346.950 seconds. The `wow-map` library passed 774 tests with
+zero failures and one existing ignored test. Source comparison preserves all
+167 affected type definitions and all 799 source test identities. R1 is not
+applicable because no `wow-world/src` root shrank. Verified manifest:
+`target/validation-v2/manifests/20261119T163810.414742Z-2966769-final.json`.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
