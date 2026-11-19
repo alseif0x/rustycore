@@ -42,6 +42,11 @@ mod spell_metadata_catalogs;
 
 use spell_metadata_catalogs::SpellMetadataCatalogs;
 
+#[path = "addon_scaling_catalogs.rs"]
+mod addon_scaling_catalogs;
+
+use addon_scaling_catalogs::AddonScalingCatalogs;
+
 #[path = "entry.rs"]
 mod entry;
 pub use entry::{run, run_with_composition, run_with_modules};
@@ -669,92 +674,31 @@ async fn run_inner(
         &spell_store,
     )
     .await?;
-    let spell_shapeshift_form_store = Arc::new(
-        wow_data::SpellShapeshiftFormStore::load(&data_dir, &locale)
-            .context("Failed to load SpellShapeshiftForm.db2")?,
-    );
-    info!(
-        "Loaded {} spell shapeshift form rows",
-        spell_shapeshift_form_store.len()
-    );
-    let creature_addon_store = Arc::new(
-        crate::world::object_catalog::load_creature_addons_like_cpp(
-            &world_object_catalog_persistence,
-            creature_template_lifecycle_store.as_ref(),
-            creature_spawn_store.as_ref(),
-            creature_display_info_store.as_ref(),
-            emotes_store.as_ref(),
-            anim_kit_store.as_ref(),
-            &spell_store,
-            spell_misc_store.as_ref(),
-            spell_duration_store.as_ref(),
-        )
-        .await
-        .context("Failed to load represented creature_addon / creature_template_addon rows for C++ Creature::LoadCreaturesAddon")?,
-    );
-    info!(
-        "Loaded {} represented creature addon rows",
-        creature_addon_store.len()
-    );
-    let active_event_store = Arc::new(
-        crate::world::reference_catalog::load_world_id_store_like_cpp(
-            &world_reference_catalog_persistence,
-            wow_persistence::WorldObjectIdCatalogKindLikeCpp::GameEvent,
-        )
-        .await
-        .context("Failed to load game_event ids for C++ ConditionMgr validation")?,
-    );
-    let world_state_store = Arc::new(
-        crate::world::reference_catalog::load_world_id_store_like_cpp(
-            &world_reference_catalog_persistence,
-            wow_persistence::WorldObjectIdCatalogKindLikeCpp::WorldState,
-        )
-        .await
-        .context("Failed to load world_state ids for C++ ConditionMgr validation")?,
-    );
-    info!(
-        "Loaded condition validation world id stores: {} valid game events, {} world states",
-        active_event_store.len(),
-        world_state_store.len()
-    );
-    let trainer_store = Arc::new(
-        crate::world::reference_catalog::load_world_id_store_like_cpp(
-            &world_reference_catalog_persistence,
-            wow_persistence::WorldObjectIdCatalogKindLikeCpp::Trainer,
-        )
-        .await
-        .context("Failed to load trainer ids for C++ ConditionMgr validation")?,
-    );
-    info!(
-        "Loaded condition validation trainer id store: {} trainers",
-        trainer_store.len()
-    );
-    let curve_store = Arc::new(
-        wow_data::progression_rewards::CurveStore::load(&data_dir, &locale)
-            .context("Failed to load Curve.db2 for C++ curve validation")?,
-    );
-    let curve_point_store = Arc::new(
-        wow_data::progression_rewards::CurvePointStore::load(&data_dir, &locale)
-            .context("Failed to load CurvePoint.db2 for C++ curve evaluation")?,
-    );
-    let scaling_stat_distribution_store = Arc::new(
-        wow_data::progression_rewards::ScalingStatDistributionStore::load(&data_dir, &locale)
-            .context(
-                "Failed to load ScalingStatDistribution.db2 — check DataDir and DBC.Locale config",
-            )?,
-    );
-    let scaling_stat_values_store = Arc::new(
-        wow_data::progression_rewards::ScalingStatValuesStore::load(&data_dir, &locale).context(
-            "Failed to load ScalingStatValues.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} curves, {} curve points, {} scaling-stat distributions, and {} scaling-stat values from DB2",
-        curve_store.len(),
-        curve_point_store.len(),
-        scaling_stat_distribution_store.len(),
-        scaling_stat_values_store.len()
-    );
+    let AddonScalingCatalogs {
+        spell_shapeshift_form_store,
+        creature_addon_store,
+        active_event_store,
+        world_state_store,
+        trainer_store,
+        curve_store,
+        curve_point_store,
+        scaling_stat_distribution_store,
+        scaling_stat_values_store,
+    } = addon_scaling_catalogs::load_addon_scaling_catalogs(
+        &data_dir,
+        &locale,
+        &world_object_catalog_persistence,
+        &world_reference_catalog_persistence,
+        creature_template_lifecycle_store.as_ref(),
+        creature_spawn_store.as_ref(),
+        creature_display_info_store.as_ref(),
+        emotes_store.as_ref(),
+        anim_kit_store.as_ref(),
+        &spell_store,
+        spell_misc_store.as_ref(),
+        spell_duration_store.as_ref(),
+    )
+    .await?;
     let area_trigger_template_persistence =
         wow_database::MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
             &world_db,
