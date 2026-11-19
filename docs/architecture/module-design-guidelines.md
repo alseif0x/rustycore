@@ -310,6 +310,14 @@ also start empty; each needs path, responsibility, measured count/ceiling, issue
 review checkpoint and bounded review/expiry dates. Completed checkpoints and expired dates
 invalidate the exception; merely leaving its issue open does not renew it.
 
+Vendored attribution requires an exact file path, its upstream URL and a matching SHA-256.
+The file remains in the source inventory with `vendored` kind but is exempt from handwritten
+size ceilings and cohesion-review counts, including terminal acceptance. Entries cannot
+overlap another policy category and exempt no sibling or parent-directory content. Content
+or provenance drift fails closed; an upstream update or reviewed local patch must update the
+entry's hash in the same reviewed change. This is the mechanical form of
+structure-and-conventions §10, not a crate-wide waiver for handwritten wrappers.
+
 `check` and `self-test` enforce physical and logical guards. `validation-v2 final` includes
 the cheap physical scan for every nonempty diff, including tooling-only or generation-input
 changes; workspace Rust additionally retains its independent logical ratchet. Changes to

@@ -19,7 +19,7 @@ class PhysicalFilesTests(unittest.TestCase):
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         self.policy = {
             "schema_version": 1, "baseline_commit": "8f5caedc", "migration_issue": 578,
-            "completed_checkpoints": [], "legacy": [], "exceptions": [], "generated": [],
+            "completed_checkpoints": [], "legacy": [], "exceptions": [], "generated": [], "vendored": [],
         }
         self.today = dt.date(2026, 9, 5)
 
@@ -195,6 +195,49 @@ class PhysicalFilesTests(unittest.TestCase):
     def test_utf8_error_is_not_silently_dropped(self):
         self.source(lines=0).write_bytes(b"\xff")
         with self.assertRaisesRegex(physical.PhysicalFileError, "cannot count source"):
+            self.check()
+
+    def vendored(self, path="crates/a/vendor/upstream.cpp"):
+        self.source(path)
+        self.policy["vendored"] = [{
+            "path": path,
+            "upstream": "https://example.test/upstream/source.cpp",
+            "sha256": hashlib.sha256((self.root / path).read_bytes()).hexdigest(),
+        }]
+
+    def test_reviewed_vendored_source_is_exempt_at_terminal(self):
+        self.vendored()
+        result = self.check(terminal=True)
+        self.assertEqual(result["vendored_files"], 1)
+        self.assertEqual(result["files"][0]["kind"], "vendored")
+        self.assertEqual(result["review_required"], 0)
+
+    def test_vendored_exemption_does_not_cover_siblings_or_wrappers(self):
+        self.vendored()
+        for path in ("crates/a/vendor/local.cpp", "crates/a/src/wrapper.rs"):
+            with self.subTest(path=path):
+                candidate = self.source(path, 2001)
+                with self.assertRaisesRegex(physical.PhysicalFileError, "ceiling 2000"):
+                    self.check(terminal=True)
+                candidate.unlink()
+
+    def test_vendored_content_drift_fails_closed(self):
+        self.vendored()
+        with (self.root / "crates/a/vendor/upstream.cpp").open("a", encoding="utf-8") as output:
+            output.write("// reviewed upstream update required\n")
+        with self.assertRaisesRegex(physical.PhysicalFileError, "vendored source provenance hash drift"):
+            self.check()
+
+    def test_vendored_entry_requires_upstream_provenance(self):
+        self.vendored()
+        self.policy["vendored"][0]["upstream"] = ""
+        with self.assertRaisesRegex(physical.PhysicalFileError, "upstream must be nonempty"):
+            self.check()
+
+    def test_vendored_entry_cannot_overlap_a_legacy_ceiling(self):
+        self.vendored("crates/a/src/lib.rs")
+        self.legacy()
+        with self.assertRaisesRegex(physical.PhysicalFileError, "duplicate/overlapping"):
             self.check()
 
     def generated(self):

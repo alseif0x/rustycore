@@ -54,13 +54,6 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-recastdetour/vendor/Detour/Source/DetourNavMeshQuery.cpp",
-      "observed_lines": 3663,
-      "ceiling_lines": 3663,
-      "split": "Review pinned upstream Detour provenance and a concrete bounded vendor exception at C4; do not rewrite upstream solely for line count.",
-      "review_checkpoint": "584:C4"
-    },
-    {
       "path": "crates/wow-world/src/handlers/loot_test_shims.rs",
       "observed_lines": 434,
       "ceiling_lines": 434,
@@ -370,5 +363,12 @@
     }
   ],
   "exceptions": [],
-  "generated": []
+  "generated": [],
+  "vendored": [
+    {
+      "path": "crates/wow-recastdetour/vendor/Detour/Source/DetourNavMeshQuery.cpp",
+      "upstream": "https://github.com/TrinityCore/TrinityCore/blob/3.3.5/dep/recastnavigation/Detour/Source/DetourNavMeshQuery.cpp",
+      "sha256": "b4c0de0d3066586f23fbc70cb8249e7dd899803a65c5b6e34d398a301c76a3e8"
+    }
+  ]
 }

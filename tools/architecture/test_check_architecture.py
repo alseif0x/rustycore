@@ -41,7 +41,7 @@ class ArchitectureCommandTests(unittest.TestCase):
             stack.enter_context(patch.object(checker, "load_json", side_effect=lambda path: payloads.get(path, {})))
             stack.enter_context(patch.object(checker.physical_files, "inventory", return_value=[]))
             physical = stack.enter_context(patch.object(checker.physical_files, "evaluate", return_value={
-                "files": [], "legacy_files": 0, "generated_files": 0,
+                "files": [], "legacy_files": 0, "generated_files": 0, "vendored_files": 0,
                 "review_required": 0, "mode": "migration",
             }))
             calls["physical"] = physical

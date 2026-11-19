@@ -112,13 +112,13 @@ def evaluate(
 ) -> dict[str, Any]:
     exact_keys(policy, {
         "schema_version", "baseline_commit", "migration_issue", "completed_checkpoints",
-        "legacy", "exceptions", "generated",
+        "legacy", "exceptions", "generated", "vendored",
     }, "physical policy")
     if type(policy["schema_version"]) is not int or policy["schema_version"] != 1:
         raise PhysicalFileError("unsupported physical policy schema")
     nonempty(policy["baseline_commit"], "baseline_commit")
     positive(policy["migration_issue"], "migration_issue")
-    for key in ("completed_checkpoints", "legacy", "exceptions", "generated"):
+    for key in ("completed_checkpoints", "legacy", "exceptions", "generated", "vendored"):
         if not isinstance(policy[key], list):
             raise PhysicalFileError(f"{key} must be a list")
     for checkpoint in policy["completed_checkpoints"]:
@@ -210,8 +210,16 @@ def evaluate(
         if path in live:
             live[path]["kind"] = "generated"
 
+    for entry in policy["vendored"]:
+        exact_keys(entry, {"path", "upstream", "sha256"}, "vendored source")
+        path = register(entry)
+        nonempty(entry["upstream"], f"{path} upstream")
+        provenance(root, {"path": path, "sha256": entry["sha256"]}, f"{path} vendored source")
+        if path in live:
+            live[path]["kind"] = "vendored"
+
     for path, row in live.items():
-        if row["kind"] == "generated":
+        if row["kind"] in {"generated", "vendored"}:
             continue
         ceiling = ceilings.get(path, TERMINAL_LIMIT)
         if row["lines"] > ceiling:
@@ -224,4 +232,5 @@ def evaluate(
         "review_required": sum(row["lines"] > REVIEW_LIMIT and row["kind"] == "handwritten" for row in live.values()),
         "legacy_files": len(policy["legacy"]),
         "generated_files": len(policy["generated"]),
+        "vendored_files": len(policy["vendored"]),
     }

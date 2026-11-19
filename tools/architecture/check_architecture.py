@@ -97,6 +97,7 @@ def main() -> int:
                 print(f"Physical source ratchet: PASS ({len(physical_result['files'])} files; "
                       f"{physical_result['legacy_files']} legacy ceilings; "
                       f"{physical_result['generated_files']} verified-provenance generated files; "
+                      f"{physical_result['vendored_files']} verified-provenance vendored files; "
                       f"{physical_result['review_required']} cohesion reviews; {physical_result['mode']})")
             if args.command == "physical-files":
                 return 0

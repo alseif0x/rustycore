@@ -17,6 +17,10 @@ completion claim. It does not close C4.
   `legacy` or `exceptions` row replaces it with its own ceiling. `REVIEW_LIMIT = 1000` only
   feeds the cohesion-review counter. Budgets do not differ by category: production, test,
   tool and script files share the same 2000.
+- **Vendored sources.** An exact `vendored` row records the file path, upstream URL and
+  SHA-256. Matching content stays in the inventory with `vendored` kind, outside size and
+  cohesion budgets even in terminal mode. Rows cannot overlap another policy category or
+  exempt siblings; content drift fails closed until the provenance is reviewed and rehashed.
 - **Row validation.** A row must have exactly these keys: `path`, `observed_lines`,
   `ceiling_lines`, `split` and `review_checkpoint`. It also needs `ceiling <= observed`, a
   non-empty split text and an existing path. A missing path fails as "audited physical path
@@ -157,6 +161,20 @@ check took 140.892 seconds and restored the checkout. The library passed
 and statuses match the November 17 baseline with identical world-server source
 before this split, including the 23 acquisition-loader tests. Verified manifest:
 `target/validation-v2/manifests/20261119T124350.413750Z-2846039-final.json`.
+
+On `forever`, C4-3 replaces the Detour legacy row with an exact vendored
+attribution. Commit `d7d9959fbd77620a231467ea5dff7ae2d1885d44` introduced
+`DetourNavMeshQuery.cpp` as part of the legacy TrinityCore
+`dep/recastnavigation/Detour` copy. Its 3,663 lines and SHA-256
+`b4c0de0d3066586f23fbc70cb8249e7dd899803a65c5b6e34d398a301c76a3e8`
+are unchanged since that commit and match the upstream TrinityCore `3.3.5`
+file byte for byte. The policy records that exact upstream URL and hash.
+The checker keeps the file in the inventory as `vendored`, exempts only that
+path from size and cohesion budgets, rejects provenance drift and overlapping
+rows, and leaves sibling and handwritten wrapper files under the ordinary
+budget. Focused fixtures cover terminal acceptance, both path boundaries,
+content drift, missing upstream metadata and legacy-row overlap. The C++ file
+is byte-identical before and after C4-3.
 
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
