@@ -26,31 +26,10 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-map/src/map/game_object.rs",
-      "observed_lines": 2311,
-      "ceiling_lines": 2311,
-      "split": "Separate map-owned GameObject lifecycle transitions and their interaction/respawn tests. PR #855 adds one typed mutable Transport passenger operation (+12 physical lines netting the existing file at 2,311); this reviewed C4 ceiling records the canonical Map ownership boundary and is not a blanket growth allowance.",
-      "review_checkpoint": "584:C4"
-    },
-    {
       "path": "crates/wow-map/src/map/mod.rs",
       "observed_lines": 5122,
       "ceiling_lines": 5122,
       "split": "Separate map phase orchestration, object admission and spatial/grid capabilities while retaining one Map owner. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. 2026-10-28 #43 closeout review: 5133 -> 5135 (+2). Only additions declare private pet_combat and re-export its typed result. Its Map transition already lives in that child; both root bindings are required for consumers. Bounded C4-7a/C4-7b split exits remain under #584. No further growth is authorized. 2026-11-07 parent review of the partial Forever loaded-grid fact unit at dirty base 03eb9b532: 5135 -> 5122. The existing loaded-grid input definition/constructor moves to one private child with its public path preserved; the root has only narrow module/re-export wiring, three result-vector type substitutions and removal of the unused RemoveFromMapOutcome Clone derive. Parent compared the exact before/current source and measured the reduction; no root operation or state owner is added. This tightens only the actual physical reduction, without accepting the unfinished unit, retiring logical C4 debt, enlarging another ceiling or granting terminal exemption. The existing C4-7a/C4-7b exits and deferred architecture acceptance remain required.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-map/src/map/relocation.rs",
-      "observed_lines": 2176,
-      "ceiling_lines": 2176,
-      "split": "Separate relocation planning, grid/visibility effects and movement-boundary tests. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
-    },
-    {
-      "path": "crates/wow-map/src/map/spawn_groups.rs",
-      "observed_lines": 2384,
-      "ceiling_lines": 2384,
-      "split": "Separate spawn-group admission, activation/deactivation and failure tests.",
       "review_checkpoint": "584:C4"
     },
     {

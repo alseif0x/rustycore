@@ -190,6 +190,25 @@ path was absent, then Rust was missing from the shell PATH. Using the documented
 Protoc 28.3 binary and the pinned Rust toolchain resolved the environment
 without changing the candidate or claiming either preflight as acceptance.
 
+On `forever`, C4-4 starts at `d73c18842` and performs three same-owner Map
+moves. `spawn_groups.rs` shrinks from 2,380 to 1,441 lines: its 941-line
+optional-pool GameObject update moves to `spawn_groups/game_object_update.rs`
+(955 lines). `game_object.rs` shrinks from 2,309 to 1,589 lines: the 722-line
+summon/owner-slot family moves to `game_object/summon.rs` (736 lines).
+`relocation.rs` shrinks from 2,176 to 1,825 lines: the 352-line move-list
+family moves to `relocation/move_list.rs` (367 lines). All three legacy rows
+are retired; every child is below 1,000 lines.
+
+The moved regions match the base byte for byte except canonical rustfmt and
+one visibility spelling. `pub(in crate::map)` preserves the former `pub(super)`
+access for map siblings after the optional-pool update becomes a grandchild.
+No caller, test definition, public method name or body order changes. The same
+logical Map owner gains 48 production lines for headers, mounts and impl
+wrappers; its reviewed ratchet records exactly +48 production/+0 tests/+48
+total, with no general headroom or semantic retirement. The locked offline
+`wow-map --all-targets` check passed on base `d73c18842`; its warnings are in
+existing dependency files outside this move.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
