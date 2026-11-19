@@ -999,6 +999,20 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T231847.662321Z-3276675-final.json`.
 
+On `forever`, C4-8z starts at `6aa905116` and mechanically extracts
+PlayerChoice and locale composition. `app.rs` shrinks from 3,676 to 3,248
+lines and its physical ceiling tightens without retiring C4-8. The new private
+`player_choice_catalogs.rs` has 455 lines and returns the construction/log-only
+PlayerChoiceStore. Seven explicit inputs preserve WorldDatabase and all six
+reference stores; every core, reward and locale diagnostic remains in order.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 27 production lines for the
+function boundary and formatting, recorded as +27 production/+0 tests/+27
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
