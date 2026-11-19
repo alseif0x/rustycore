@@ -6,7 +6,9 @@
 
 use std::sync::Arc;
 
+use num_traits::FromPrimitive;
 use tracing::{info, warn};
+use wow_constants::item::InventoryType;
 use wow_core::{ObjectGuid, ObjectGuidGenerator};
 use wow_data::PlayerStatSystemProjectionLikeCpp;
 use wow_packet::packets::character::{CreateChar, CreateCharacter, response_codes};
@@ -214,29 +216,35 @@ impl CharacterHandlerCxLikeCpp<'_> {
     }
 }
 
-/// Equipment-slot resolution mirroring the C++ `InventoryType` auto-equip in
-/// `Player::Create` (head/neck/.../robe/tabard fixed, finger/trinket first
-/// free, weapons main-hand then off-hand).
+/// Equipment-slot projection for the character-select cache, based on
+/// `InventoryType` (`ItemTemplate.h:360-386`) and `Player::FindEquipSlot`
+/// (`Player.cpp:8830-8920`).
 fn equip_slot_for_inventory_type_like_cpp(inventory_type: i8, taken: &[bool; 34]) -> Option<u8> {
     let first_free = |candidates: &[u8]| candidates.iter().copied().find(|s| !taken[*s as usize]);
+    let fixed = |slot: u8| (!taken[slot as usize]).then_some(slot);
+    let inventory_type = InventoryType::from_i8(inventory_type)?;
     match inventory_type {
-        1 => Some(0),                          // head
-        2 => Some(1),                          // neck
-        3 => Some(2),                          // shoulders
-        4 => Some(3),                          // body (shirt)
-        5 | 21 => Some(4),                     // chest / robe
-        6 => Some(5),                          // waist
-        7 => Some(6),                          // legs
-        8 => Some(7),                          // feet
-        9 => Some(8),                          // wrist
-        10 => Some(9),                         // hands
-        11 => first_free(&[10, 11]),           // finger
-        12 => first_free(&[12, 13]),           // trinket
-        13 | 17 => first_free(&[15, 16]),      // one-hand / two-hand weapon
-        14 | 23 | 26 => first_free(&[16, 15]), // shield / held / off-hand
-        15 | 25 => Some(17),                   // ranged / thrown
-        16 => Some(14),                        // cloak
-        20 => Some(18),                        // tabard
+        InventoryType::Head => fixed(0),
+        InventoryType::Neck => fixed(1),
+        InventoryType::Shoulders => fixed(2),
+        InventoryType::Body => fixed(3),
+        InventoryType::Chest | InventoryType::Robe => fixed(4),
+        InventoryType::Waist => fixed(5),
+        InventoryType::Legs => fixed(6),
+        InventoryType::Feet => fixed(7),
+        InventoryType::Wrists => fixed(8),
+        InventoryType::Hands => fixed(9),
+        InventoryType::Finger => first_free(&[10, 11]),
+        InventoryType::Trinket => first_free(&[12, 13]),
+        // This visual projection does not model CanEquipItem. Preserve the
+        // bounded one-hand cache behavior, but never allocate two-hand weapons
+        // to the off-hand slot.
+        InventoryType::Weapon => first_free(&[15, 16]),
+        InventoryType::Weapon2Hand | InventoryType::WeaponMainhand => fixed(15),
+        InventoryType::Shield | InventoryType::WeaponOffhand | InventoryType::Holdable => fixed(16),
+        InventoryType::Ranged | InventoryType::RangedRight | InventoryType::Thrown => fixed(15),
+        InventoryType::Cloak => fixed(14),
+        InventoryType::Tabard => fixed(18),
         _ => None,
     }
 }
@@ -288,4 +296,65 @@ fn build_starting_equipment_cache_like_cpp(
         cache.push_str(&format!("{inv_type} {display_id} 0 {subclass} 0"));
     }
     cache
+}
+
+#[cfg(test)]
+mod tests {
+    use super::equip_slot_for_inventory_type_like_cpp;
+
+    #[test]
+    fn inventory_types_map_to_cpp_create_slots() {
+        let empty = [false; 34];
+
+        for (inventory_type, slot) in [
+            (20, 4),  // robe -> chest
+            (19, 18), // tabard
+            (21, 15), // weapon main-hand
+            (22, 16), // weapon off-hand
+            (14, 16), // shield
+            (23, 16), // holdable
+            (15, 15), // ranged -> main-hand
+            (26, 15), // ranged right -> main-hand
+            (25, 15), // thrown -> main-hand
+        ] {
+            assert_eq!(
+                equip_slot_for_inventory_type_like_cpp(inventory_type, &empty),
+                Some(slot),
+                "inventory type {inventory_type}"
+            );
+        }
+    }
+
+    #[test]
+    fn fixed_slots_reject_occupied_items_and_unknown_types_are_skipped() {
+        let mut taken = [false; 34];
+        taken[4] = true;
+        taken[15] = true;
+        taken[16] = true;
+
+        assert_eq!(equip_slot_for_inventory_type_like_cpp(20, &taken), None);
+        assert_eq!(equip_slot_for_inventory_type_like_cpp(22, &taken), None);
+        assert_eq!(equip_slot_for_inventory_type_like_cpp(15, &taken), None);
+        assert_eq!(equip_slot_for_inventory_type_like_cpp(35, &taken), None);
+        assert_eq!(equip_slot_for_inventory_type_like_cpp(-1, &taken), None);
+    }
+
+    #[test]
+    fn weapon_fallback_keeps_one_hand_behavior_without_spilling_two_hand() {
+        let mut taken = [false; 34];
+        taken[15] = true;
+
+        assert_eq!(equip_slot_for_inventory_type_like_cpp(13, &taken), Some(16));
+        assert_eq!(equip_slot_for_inventory_type_like_cpp(17, &taken), None);
+    }
+
+    #[test]
+    fn rings_and_trinkets_keep_first_free_slot_behavior() {
+        let mut taken = [false; 34];
+        taken[10] = true;
+        taken[12] = true;
+
+        assert_eq!(equip_slot_for_inventory_type_like_cpp(11, &taken), Some(11));
+        assert_eq!(equip_slot_for_inventory_type_like_cpp(12, &taken), Some(13));
+    }
 }
