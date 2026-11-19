@@ -633,6 +633,20 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T203631.705111Z-3109802-final.json`.
 
+On `forever`, C4-8l starts at `9b71b94ab` and extracts mount catalogs.
+`app.rs` shrinks from 4,501 to 4,440 lines and its physical ceiling tightens
+without retiring C4-8. The new private `mount_catalogs.rs` has 99 lines and
+returns Mount, MountDefinition, MountCapability, MountTypeXCapability and
+MountXDisplay stores. Four explicit inputs preserve DataDir, locale and both
+databases; every hotfix diagnostic remains in order.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 38 production lines for the typed
+result, wrappers and formatting, recorded as +38 production/+0 tests/+38
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
