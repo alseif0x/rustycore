@@ -12,6 +12,11 @@ mod databases;
 
 use databases::StartupDatabases;
 
+#[path = "item_catalogs.rs"]
+mod item_catalogs;
+
+use item_catalogs::ItemCatalogs;
+
 #[path = "entry.rs"]
 mod entry;
 pub use entry::{run, run_with_composition, run_with_modules};
@@ -223,139 +228,25 @@ async fn run_inner(
 
     let char_db = Arc::new(char_db);
 
-    // Load Item.db2 for inventory_type lookups (replaces item_type_cache table)
-    let data_dir = wow_config::get_string_default("DataDir", "./Data");
-    let locale_raw = wow_config::get_string_default("DBC.Locale", "0");
-    let locale = locale_id_to_name(&locale_raw);
-    let currency_types_store = Arc::new(
-        wow_data::CurrencyTypesStore::load(&data_dir, &locale)
-            .context("Failed to load CurrencyTypes.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} currencies from CurrencyTypes.db2",
-        currency_types_store.len()
-    );
-
-    let import_price_stores = Arc::new(
-        wow_data::ImportPriceStores::load(&data_dir, &locale)
-            .context("Failed to load ImportPrice*.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!("Loaded ImportPrice*.db2 stores");
-
-    let bank_bag_slot_prices_store = Arc::new(
-        wow_data::BankBagSlotPricesStore::load(&data_dir, &locale).context(
-            "Failed to load BankBagSlotPrices.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} bank bag slot price rows from BankBagSlotPrices.db2",
-        bank_bag_slot_prices_store.len()
-    );
-
-    let item_class_store = Arc::new(
-        wow_data::ItemClassStore::load(&data_dir, &locale)
-            .context("Failed to load ItemClass.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item classes from ItemClass.db2",
-        item_class_store.len()
-    );
-
-    let item_currency_cost_store = Arc::new(
-        wow_data::ItemCurrencyCostStore::load(&data_dir, &locale)
-            .context("Failed to load ItemCurrencyCost.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item currency costs from ItemCurrencyCost.db2",
-        item_currency_cost_store.len()
-    );
-
-    let item_extended_cost_store = Arc::new(
-        wow_data::ItemExtendedCostStore::load(&data_dir, &locale)
-            .context("Failed to load ItemExtendedCost.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item extended costs from ItemExtendedCost.db2",
-        item_extended_cost_store.len()
-    );
-
-    let item_store = Arc::new(
-        wow_data::ItemStore::load(&data_dir, &locale)
-            .context("Failed to load Item.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!("Loaded {} items from Item.db2", item_store.len());
-    let item_child_equipment_store = Arc::new(
-        wow_data::ItemChildEquipmentStore::load(&data_dir, &locale).context(
-            "Failed to load ItemChildEquipment.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} item child-equipment rows from ItemChildEquipment.db2",
-        item_child_equipment_store.len()
-    );
-
-    let item_price_base_store = Arc::new(
-        wow_data::ItemPriceBaseStore::load(&data_dir, &locale)
-            .context("Failed to load ItemPriceBase.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item price base rows from ItemPriceBase.db2",
-        item_price_base_store.len()
-    );
-
-    let item_limit_category_store = Arc::new(
-        wow_data::ItemLimitCategoryStore::load(&data_dir, &locale).context(
-            "Failed to load ItemLimitCategory.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} item limit categories from ItemLimitCategory.db2",
-        item_limit_category_store.len()
-    );
-
-    let item_limit_category_condition_store = Arc::new(
-        wow_data::ItemLimitCategoryConditionStore::load(&data_dir, &locale).context(
-            "Failed to load ItemLimitCategoryCondition.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} item limit category conditions from ItemLimitCategoryCondition.db2",
-        item_limit_category_condition_store.len()
-    );
-
-    let item_bonus_db2_store = Arc::new(
-        wow_data::ItemBonusDb2Store::load(&data_dir, &locale)
-            .context("Failed to load ItemBonus.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item bonus rows from ItemBonus.db2",
-        item_bonus_db2_store.len()
-    );
-    let pvp_item_store = Arc::new(
-        wow_data::PvpItemStore::load(&data_dir, &locale)
-            .context("Failed to load PVPItem.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} PvP item bonus rows from PVPItem.db2",
-        pvp_item_store.len()
-    );
-    let item_set_store = Arc::new(
-        wow_data::ItemSetStore::load(&data_dir, &locale)
-            .context("Failed to load ItemSet.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item set rows from ItemSet.db2",
-        item_set_store.len()
-    );
-    let item_set_spell_store = Arc::new(
-        wow_data::ItemSetSpellStore::load(&data_dir, &locale)
-            .context("Failed to load ItemSetSpell.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item set spell rows from ItemSetSpell.db2",
-        item_set_spell_store.len()
-    );
-
+    let ItemCatalogs {
+        data_dir,
+        locale,
+        currency_types_store,
+        import_price_stores,
+        bank_bag_slot_prices_store,
+        item_class_store,
+        item_currency_cost_store,
+        item_extended_cost_store,
+        item_store,
+        item_child_equipment_store,
+        item_price_base_store,
+        item_limit_category_store,
+        item_limit_category_condition_store,
+        item_bonus_db2_store,
+        pvp_item_store,
+        item_set_store,
+        item_set_spell_store,
+    } = item_catalogs::load_item_catalogs()?;
     let hotfix_delivery_metadata_persistence =
         wow_database::MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new(Arc::clone(
             &hotfix_db,

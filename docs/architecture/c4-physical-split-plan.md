@@ -365,6 +365,20 @@ focused guards then passed before the successful campaign. The failed manifest
 is retained at
 `target/validation-v2/manifests/20261119T172046.106687Z-2992217-final.json`.
 
+On `forever`, C4-8b starts at `3b4738c8b` and extracts the initial item
+catalog. `app.rs` shrinks from 5,584 to 5,475 lines and its physical ceiling
+tightens without retiring C4-8. The new private `item_catalogs.rs` has 178
+lines and returns DataDir, locale and all fifteen initial item stores. Catalog
+loading and failure order match the original token for token.
+
+The app destructures `ItemCatalogs` at the original point before hotfix
+metadata and later stores. No service, database, gameplay owner or startup
+order changes. The same logical world-server owner gains 69 production lines
+for the typed result, wrappers and canonical rustfmt, recorded as +69
+production/+0 tests/+69 total. The `world-server` library check passes with
+warnings only in existing files. Later C4-8 stages still owe remaining catalog
+and dependency extraction plus supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
