@@ -176,6 +176,20 @@ budget. Focused fixtures cover terminal acceptance, both path boundaries,
 content drift, missing upstream metadata and legacy-row overlap. The C++ file
 is byte-identical before and after C4-3.
 
+Committed candidate `36bbc132ead698eda5a598282744dac8677668a0` passed
+`./tools/validation-v2 final --base 3e94ff912 --architecture --require-changes --timings --logs`
+with Rust 1.98.0, Protoc 28.3 and one Cargo job on the warm x86_64 checkout.
+All eight commands passed from 15:44:29Z to 15:45:59Z on 2026-11-19
+(89.789 seconds), within the 600-second target. The physical suite passed
+29 tests, including the five new vendored cases, and the architecture-command
+suite passed eight. The combined architecture check and syntax-ownership check
+also passed. Verified manifest:
+`target/validation-v2/manifests/20261119T154429.599026Z-2930023-final.json`.
+Two earlier preflight invocations executed no checks: the historical Protoc
+path was absent, then Rust was missing from the shell PATH. Using the documented
+Protoc 28.3 binary and the pinned Rust toolchain resolved the environment
+without changing the candidate or claiming either preflight as acceptance.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
