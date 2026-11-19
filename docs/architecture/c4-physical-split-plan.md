@@ -417,6 +417,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T180840.340609Z-3024626-final.json`.
 
+On `forever`, C4-8d starts at `0ec60c778` and extracts display, vehicle and
+spawn catalogs. `app.rs` shrinks from 5,372 to 5,282 lines and its physical
+ceiling tightens without retiring C4-8. The new private
+`display_vehicle_catalogs.rs` has 172 lines and returns all fifteen stores,
+including the correct `WorldSpawnIdStore` types. Eight explicit inputs preserve
+loading and failure order.
+
+The moved body matches the original after adapting references to the new
+signature and removing one redundant `as_ref`. The display guard checks the
+original display stage before the new app call and locates the model loader in
+the new module, without net test growth. The `world-server` library check
+passes with the same 35 existing warnings. The logical owner gains 82
+production lines for the typed result, wrappers and canonical rustfmt,
+recorded as +82 production/+0 tests/+82 total. Later C4-8 stages still owe
+skills/traits, remaining dependencies and supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical

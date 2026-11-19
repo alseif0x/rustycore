@@ -141,10 +141,10 @@ mod tests {
         let display = source
             .find("load_creature_display_info_store_like_cpp")
             .unwrap();
-        let model = source
-            .find("load_creature_model_data_store_like_cpp")
-            .unwrap();
-        assert!(display < model);
+        let stage = source.find("load_display_vehicle_catalogs(").unwrap();
+        assert!(display < stage);
+        let catalogs = include_str!("../display_vehicle_catalogs.rs");
+        assert!(catalogs.contains("load_creature_model_data_store_like_cpp"));
 
         let loader = include_str!("creature_display.rs");
         let display_wdc4 = loader.find("CreatureDisplayInfoStore::load").unwrap();
