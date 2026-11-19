@@ -267,6 +267,23 @@ Both shell suites were rerun and passed before the successful campaign. The
 failed manifest is retained at
 `target/validation-v2/manifests/20261119T162233.879264Z-2954441-final.json`.
 
+On `forever`, C4-7a starts at `a90838079` and moves four DTO regions out of
+`map/mod.rs`. The root shrinks from 5,122 to 2,817 lines and its physical
+ceiling tightens to that value without retiring the row. `outcomes_update.rs`
+has 966 lines, `outcomes_lifecycle.rs` 477, `outcomes.rs` 422 and `plans.rs`
+483; each contains its complete source region below 1,000 lines.
+
+Public `pub use` reexports preserve every existing `wow_map::map::*` path.
+Restricted types, fields and helpers use `pub(in crate::map)` plus three named
+reexports to preserve the former sibling-only access rather than exposing it.
+The four regions match the base byte for byte apart from scoped visibility and
+EOF formatting. No method body, caller or test definition changes. The same
+logical Map owner gains 43 production lines for headers, mounts and reexports;
+its ratchet records exactly +43 production/+0 tests/+43 total. The first
+`wow-map --all-targets` compile located the restricted items; the corrected
+candidate passes that check with warnings only in existing dependency files.
+C4-7b still owns the remaining `impl Map` split.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
