@@ -345,6 +345,16 @@
    "unit_tests_lines": 278717,
    "unit_tests_tests": 4151,
    "src_tests": 22
+  },
+  {
+   "id": "raise-1486-32",
+   "kind": "raise",
+   "issue": 1486,
+   "reviewed_at": "2026-11-19",
+   "reason": "Review PR 1488: initialize the added customizations field in the existing enumeration row fixture; exact +1 World unit-test line, no identity, destination or ignored-state changes.",
+   "unit_tests_lines": 278718,
+   "unit_tests_tests": 4151,
+   "src_tests": 22
   }
  ]
 }

@@ -70,9 +70,10 @@ pub struct CharacterInfo {
     pub last_login_version: i32,
     pub override_select_screen_file_data_id: u32,
     /// `ChrCustomizationChoice` entries for this character. C++
-    /// `CharacterInfo::Write` serializes the count right after `SexID`
-    /// followed by the `{ChrCustomizationOptionID, ChrCustomizationChoiceID}`
-    /// pairs; empty for builds without the modern customization system.
+    /// `CharacterInfo::Write` serializes the count right after `SexID`, then
+    /// writes the `{ChrCustomizationOptionID, ChrCustomizationChoiceID}` pairs
+    /// after `OverrideSelectScreenFileDataID`; empty for builds without the
+    /// modern customization system.
     pub customizations: Vec<ChrCustomizationChoice>,
 }
 
