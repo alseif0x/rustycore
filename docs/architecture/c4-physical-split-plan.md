@@ -579,6 +579,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T201031.862813Z-3094061-final.json`.
 
+On `forever`, C4-8j starts at `bc2794971` and extracts map difficulty, LFG,
+appearance and creature equipment catalogs. `app.rs` shrinks from 4,727 to
+4,656 lines and its physical ceiling tightens without retiring C4-8. The new
+private `map_equipment_catalogs.rs` has 122 lines and returns seven stores:
+MapDifficulty, MapDifficultyXCondition, LfgDungeons, ItemAppearance,
+ItemModifiedAppearance, ItemStats and CreatureEquipment. Five explicit inputs
+preserve DataDir, locale, HotfixDatabase, the world object adapter and creature
+templates before canonical SpawnStore loading.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 51 production lines for the typed
+result, wrappers and formatting, recorded as +51 production/+0 tests/+51
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
