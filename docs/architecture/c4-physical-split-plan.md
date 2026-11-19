@@ -1051,6 +1051,23 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T234151.199066Z-3332041-final.json`.
 
+On `forever`, C4-8ab starts at `136a20098` and extracts faction and
+reputation catalogs. `app.rs` shrinks from 3,164 to 3,118 lines and its
+physical ceiling tightens without retiring C4-8. The new private
+`reputation_catalogs.rs` has 105 lines and returns eight stores:
+QuestFactionReward, Faction, FactionTemplate, FriendshipRepReaction,
+ParagonReputation, ReputationRewardRate, CreatureOnKillReputation and
+RepSpilloverTemplate. Four explicit inputs preserve DataDir, locale,
+WorldDatabase and creature templates; the newly loaded Faction store remains
+the internal dependency of all three SQL-backed catalogs.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 59 production lines for the typed
+result, wrappers and formatting, recorded as +59 production/+0 tests/+59
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
