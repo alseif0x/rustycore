@@ -248,6 +248,25 @@ child; their `sed` and security assertions point to the actual snapshot,
 journal and evidence owners. No runtime, database or service operation is part
 of this split.
 
+Committed candidate `13eac223855655827cdb22683ed91fa783e4fe05` passed
+`./tools/validation-v2 final --base 0002be75d --architecture --require-changes --timings --logs`
+with Rust 1.98.0, Protoc 28.3 and one Cargo job on the warm x86_64 checkout.
+All 26 commands passed from 16:25:46Z to 16:28:19Z on 2026-11-19
+(152.903 seconds). The `capture-diff` library passed all 26 tests with zero
+failures or ignored tests. Both offline shell suites also passed at the same
+candidate: Detour took 3.448 seconds and creature spell 1.501 seconds. The
+complete accepted evidence window, starting with those suites, was 168.987
+seconds, within the 600-second target. Verified manifest:
+`target/validation-v2/manifests/20261119T162546.371603Z-2959331-final.json`.
+
+The first candidate `37bf3128791b4848d70140e944ba17fcbb14c004` passed
+architecture and syntax ownership but failed `git diff --check` after 93.009
+seconds because ten new children retained a blank separator line at EOF.
+Normalizing those EOFs produced `13eac2238`; no function or assertion changed.
+Both shell suites were rerun and passed before the successful campaign. The
+failed manifest is retained at
+`target/validation-v2/manifests/20261119T162233.879264Z-2954441-final.json`.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
