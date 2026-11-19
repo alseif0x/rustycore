@@ -113,6 +113,11 @@ mod vendor_trainer_catalogs;
 
 use vendor_trainer_catalogs::VendorTrainerCatalogs;
 
+#[path = "reserved_game_tele_catalogs.rs"]
+mod reserved_game_tele_catalogs;
+
+use reserved_game_tele_catalogs::ReservedGameTeleCatalogs;
+
 #[path = "entry.rs"]
 mod entry;
 pub use entry::{run, run_with_composition, run_with_modules};
@@ -1047,39 +1052,10 @@ async fn run_inner(
         gameobject_template_lifecycle_store.as_ref(),
     )
     .await?;
-    let reserved_name_persistence =
-        wow_database::MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
-            &char_db,
-        ));
-    let reserved_name_store = Arc::new(
-        catalogs::reserved_name::load_reserved_name_catalog_like_cpp(&reserved_name_persistence)
-            .await
-            .context("Failed to load C++ reserved player names")?,
-    );
-    info!(
-        "Loaded {} C++ reserved player names ({} unique)",
-        reserved_name_store.loaded_rows_like_cpp(),
-        reserved_name_store.len()
-    );
-    let game_tele_persistence =
-        wow_database::MariaDbGameTeleCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
-    let game_tele_outcome =
-        catalogs::game_tele::load_game_tele_catalog_like_cpp(&game_tele_persistence)
-            .await
-            .context("Failed to load C++ game teleport locations")?;
-    for (id, name) in &game_tele_outcome.report.skipped_invalid_coordinates {
-        tracing::error!(
-            "Wrong position for id {} (name: {}) in `game_tele` table, ignoring.",
-            id,
-            name
-        );
-    }
-    let game_tele_store = Arc::new(game_tele_outcome.store);
-    info!(
-        "Loaded {} C++ GameTeleports ({} unique ids)",
-        game_tele_outcome.report.loaded_rows,
-        game_tele_store.len()
-    );
+    let ReservedGameTeleCatalogs {
+        _reserved_name_store,
+        _game_tele_store,
+    } = reserved_game_tele_catalogs::load_reserved_game_tele_catalogs(&char_db, &world_db).await?;
     let VendorTrainerCatalogs {
         _npc_vendor_store,
         trainer_data_store,
