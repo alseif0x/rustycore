@@ -608,6 +608,7 @@ fn the_canonical_map_loop_is_the_only_creature_runtime_like_cpp() {
     for source in [
         app,
         include_str!("../lib.rs"),
+        include_str!("../active_world_sessions.rs"),
         include_str!("../runtime/delivery.rs"),
         include_str!("../runtime/map.rs"),
         include_str!("../runtime/map/update_loop.rs"),

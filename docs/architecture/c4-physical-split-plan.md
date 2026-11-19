@@ -126,6 +126,26 @@ matches every original test after mapping its module path and confirms the
 expected-panic case. The verified manifest is
 `target/validation-v2/manifests/20261119T115122.159416Z-2818247-final.json`.
 
+On `forever`, C4-2 starts at `dfb4e3bff`. The acquisition loader already has a
+private test module with 23 tests. The entire module moves to a sibling file
+under the same test path. The acquisition catalog, its entry points and
+startup order are preserved. The production prefix is byte-for-byte, and the
+test module matches the former body after dedent and rustfmt. The loader
+shrinks from 2,302 to 1,604 lines and its test sibling has 688 lines.
+
+The world-server library starts at 1,995 lines after the earlier account
+lookup extraction. C4-2 moves the active-session registry, registration
+guard and cancellation into one private module. The session factory, map
+loop and shutdown keep their existing calls, readiness checks and lock
+boundaries. The retained authority is `World::AddSession_`,
+`World::KickAll` and `World::UpdateSessions` in target `World.cpp` at
+`02245dcd` (362, 2629 and 2948). The registry remains part of the same
+world-server logical owner. Its bodies match the original after parent-scoped
+visibility and rustfmt. The source guard for the creature runtime now also
+scans the moved file. The library root shrinks from 1,995 to 1,777 lines, the
+registry module has 243, and both legacy physical rows are retired. The
+logical world-server row adds 25 production lines and removes nine test lines.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
