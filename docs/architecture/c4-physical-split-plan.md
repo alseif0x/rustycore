@@ -116,6 +116,16 @@ The test root shrinks from 2,508 to 31 lines. The six children range from 104
 to 808 lines. The legacy physical row is retired. Mounts, headers and imports
 add 62 test lines to the same logical Group owner.
 
+Committed candidate `776ad9c667d5bc2bea0c7ba81e9ee733e903ed63` passed
+`./tools/validation-v2 final --base 10b0ea6b3 --architecture --require-changes --timings --logs`
+with Protoc 28.3 and one Cargo job on the warm x86_64 checkout. The campaign
+ran from 11:51:22Z to 11:58:52Z on 2026-11-19 (450.343 seconds). All 10
+commands passed, including downstream test-target checks and all 80
+`wow-social` tests, with zero failures or ignored tests. The execution log
+matches every original test after mapping its module path and confirms the
+expected-panic case. The verified manifest is
+`target/validation-v2/manifests/20261119T115122.159416Z-2818247-final.json`.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
