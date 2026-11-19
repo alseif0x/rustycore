@@ -390,6 +390,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T174551.367659Z-3011925-final.json`.
 
+On `forever`, C4-8c starts at `d421e65da` and extracts world lifecycle
+catalogs. `app.rs` shrinks from 5,475 to 5,372 lines and its physical ceiling
+tightens without retiring C4-8. The new private `world_lifecycle_catalogs.rs`
+has 181 lines and returns graveyard, gossip and its runtime adapter, spawn
+groups, creature/gameobject templates, script names and scenes. Six explicit
+inputs preserve every dependency and loading/failure order.
+
+The moved body matches the original except fully qualified adapter types,
+removing an extra reference at the new boundary and two unused `mut`
+qualifiers. Consumer mutability is preserved in app destructuring. The gossip
+source guard now reads the adapter/startup loader from the new module and the
+runtime clone from app. The `world-server` library check passes with the same
+35 existing warnings. The logical owner gains 78 production and one test line,
+recorded as +78 production/+1 test/+79 total. Later C4-8 stages still owe
+remaining catalogs, dependencies and supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical

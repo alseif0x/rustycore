@@ -216,14 +216,15 @@ mod tests {
 
     #[test]
     fn app_composes_one_gossip_adapter_for_startup_and_runtime() {
-        let source = include_str!("../app.rs");
+        let catalogs = include_str!("../world_lifecycle_catalogs.rs");
         assert_eq!(
-            source
+            catalogs
                 .matches("MariaDbGossipCatalogPersistenceAdapterLikeCpp::new")
                 .count(),
             1
         );
-        assert!(source.contains("load_gossip_startup_catalog_like_cpp"));
+        assert!(catalogs.contains("load_gossip_startup_catalog_like_cpp"));
+        let source = include_str!("../app.rs");
         assert!(source.contains("gossip_catalog_adapter.clone()"));
     }
 }
