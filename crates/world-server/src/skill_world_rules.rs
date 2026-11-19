@@ -150,9 +150,11 @@ mod tests {
         let fishing = source
             .find("load_fishing_base_skill_store_like_cpp")
             .expect("fishing skill rules must remain composed");
-        let tiers = source
-            .find("load_skill_tiers_store_like_cpp")
-            .expect("skill tiers must remain composed");
-        assert!(fishing < tiers);
+        let stage = source
+            .find("load_skill_trait_catalogs(")
+            .expect("skill and trait catalogs must remain composed");
+        assert!(fishing < stage);
+        let catalogs = include_str!("skill_trait_catalogs.rs");
+        assert!(catalogs.contains("load_skill_tiers_store_like_cpp"));
     }
 }

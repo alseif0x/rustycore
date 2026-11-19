@@ -444,6 +444,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T182612.435265Z-3034820-final.json`.
 
+On `forever`, C4-8e starts at `84724873b` and extracts skill, trait and talent
+catalogs. `app.rs` shrinks from 5,282 to 5,229 lines and its physical ceiling
+tightens without retiring C4-8. The new private `skill_trait_catalogs.rs` has
+123 lines and returns twelve stores, including traits and glyphs. Five explicit
+inputs preserve SkillLine, SkillLineAbility/SkillRaceClassInfo and all later
+load/failure order.
+
+The moved body matches the original except adapting `skill_tiers` to the new
+reference boundary. The fishing/tiers guard checks the original fishing stage
+before the new app call and locates tiers in the new module, adding two test
+lines. The `world-server` library check passes with the same 35 existing
+warnings. The logical owner gains 70 production and two test lines, recorded
+as +70 production/+2 tests/+72 total. Later C4-8 stages still owe remaining
+catalogs, dependencies and supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
