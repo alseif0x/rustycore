@@ -385,7 +385,7 @@ mod tests {
                 .count(),
             1
         );
-        let source = include_str!("../app.rs");
+        let source = include_str!("../player_creation_catalogs.rs");
         let base = source
             .find("load_player_create_info_store_like_cpp")
             .unwrap();

@@ -203,7 +203,7 @@ mod tests {
                 .count(),
             1
         );
-        let source = include_str!("../app.rs");
+        let source = include_str!("../player_creation_catalogs.rs");
         assert_eq!(source.matches("load_player_base_stats_like_cpp").count(), 1);
     }
 }
