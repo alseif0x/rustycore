@@ -816,6 +816,20 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T215523.140930Z-3164849-final.json`.
 
+On `forever`, C4-8s starts at `cce989da0` and extracts AreaTrigger world,
+script and tavern catalogs. `app.rs` shrinks from 4,081 to 4,062 lines and its
+physical ceiling tightens without retiring C4-8. The new private
+`area_trigger_world_catalogs.rs` has 56 lines and returns three stores. Three
+explicit inputs preserve WorldDatabase, the distinct AreaTriggerDb2Store and
+the shared mutable script-name interner.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 37 production lines for the typed
+result, wrappers and formatting, recorded as +37 production/+0 tests/+37
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical

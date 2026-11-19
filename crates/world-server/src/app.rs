@@ -93,6 +93,11 @@ mod spell_acquisition_catalogs;
 
 use spell_acquisition_catalogs::SpellAcquisitionCatalogs;
 
+#[path = "area_trigger_world_catalogs.rs"]
+mod area_trigger_world_catalogs;
+
+use area_trigger_world_catalogs::AreaTriggerWorldStartupCatalogs;
+
 #[path = "entry.rs"]
 mod entry;
 pub use entry::{run, run_with_composition, run_with_modules};
@@ -978,40 +983,16 @@ async fn run_inner(
     )
     .await?;
 
-    // Load area trigger store (collision detection + teleportation)
-    let area_trigger_world_persistence =
-        wow_database::MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
-            &world_db,
-        ));
-    let area_trigger_world_catalogs =
-        crate::area::trigger_world_catalog::load_area_trigger_world_catalogs_like_cpp(
-            &area_trigger_world_persistence,
-            area_trigger_db2_store.as_ref(),
-            Arc::make_mut(&mut script_name_interner),
-        )
-        .await?;
-    let area_trigger_store = area_trigger_world_catalogs.area_trigger_store;
-    let area_trigger_script_outcome = area_trigger_world_catalogs.script_outcome;
-    let area_trigger_script_store = Arc::new(area_trigger_script_outcome.store);
-    info!(
-        "Loaded {} C++ area trigger script bindings ({} skipped missing area trigger)",
-        area_trigger_script_store.len(),
-        area_trigger_script_outcome
-            .report
-            .skipped_missing_area_trigger
-            .len()
-    );
-    let tavern_area_trigger_outcome = area_trigger_world_catalogs.tavern_outcome;
-    let tavern_area_trigger_store = Arc::new(tavern_area_trigger_outcome.store);
-    info!(
-        "Loaded {} C++ tavern area triggers ({} rows seen; {} skipped missing AreaTrigger.db2)",
-        tavern_area_trigger_store.len(),
-        tavern_area_trigger_outcome.report.rows_seen,
-        tavern_area_trigger_outcome
-            .report
-            .skipped_missing_area_trigger
-            .len()
-    );
+    let AreaTriggerWorldStartupCatalogs {
+        area_trigger_store,
+        area_trigger_script_store,
+        tavern_area_trigger_store,
+    } = area_trigger_world_catalogs::load_area_trigger_world_startup_catalogs(
+        &world_db,
+        area_trigger_db2_store.as_ref(),
+        &mut script_name_interner,
+    )
+    .await?;
 
     // Load quest store (templates + objectives + NPC relations)
     let quest_store = Arc::new(
