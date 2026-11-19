@@ -763,6 +763,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T213303.915882Z-3148232-final.json`.
 
+On `forever`, C4-8q starts at `68dfd5f63` and extracts item durability,
+random-property and enchantment catalogs. `app.rs` shrinks from 4,240 to 4,126
+lines and its physical ceiling tightens without retiring C4-8. The new private
+`item_enchantment_catalogs.rs` has 188 lines and returns fourteen results,
+including the random-enchantment template and SpellItemEnchantment stores.
+Four explicit inputs preserve DataDir, locale, WorldDatabase and the static
+overlay adapter. SpellEnchantProcOutcome remains construction/log-only.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 74 production lines for the typed
+result, wrappers and formatting, recorded as +74 production/+0 tests/+74
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical

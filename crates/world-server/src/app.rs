@@ -83,6 +83,11 @@ use player_creation_catalogs::PlayerCreationCatalogs;
 #[path = "object_mgr_catalogs.rs"]
 mod object_mgr_catalogs;
 
+#[path = "item_enchantment_catalogs.rs"]
+mod item_enchantment_catalogs;
+
+use item_enchantment_catalogs::ItemEnchantmentCatalogs;
+
 #[path = "entry.rs"]
 mod entry;
 pub use entry::{run, run_with_composition, run_with_modules};
@@ -893,147 +898,28 @@ async fn run_inner(
     )
     .await?;
 
-    // C++ global DB2 stores used by Item::CalculateDurabilityRepairCost.
-    let durability_costs_store = Arc::new(
-        wow_data::DurabilityCostsStore::load(&data_dir, &locale)
-            .context("Failed to load DurabilityCosts.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} durability cost rows from DurabilityCosts.db2",
-        durability_costs_store.len()
-    );
-
-    let durability_quality_store = Arc::new(
-        wow_data::DurabilityQualityStore::load(&data_dir, &locale).context(
-            "Failed to load DurabilityQuality.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} durability quality rows from DurabilityQuality.db2",
-        durability_quality_store.len()
-    );
-
-    let item_effect_store = Arc::new(
-        wow_data::ItemEffectStore::load(&data_dir, &locale)
-            .context("Failed to load ItemEffect.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item effects from ItemEffect.db2",
-        item_effect_store.len()
-    );
-
-    // Load Lock.db2 for C++ sLockStore existence checks during CMSG_OPEN_ITEM.
-    let lock_store = Arc::new(
-        wow_data::LockStore::load(&data_dir, &locale)
-            .context("Failed to load Lock.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!("Loaded {} locks from Lock.db2", lock_store.len());
-
-    // Load ItemRandomSuffix.db2 for C++ ApplyEnchantment random suffix amount resolution.
-    let item_random_suffix_store = Arc::new(
-        wow_data::ItemRandomSuffixStore::load(&data_dir, &locale)
-            .context("Failed to load ItemRandomSuffix.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item random suffixes from ItemRandomSuffix.db2",
-        item_random_suffix_store.len()
-    );
-
-    // Load ItemRandomProperties.db2 and RandPropPoints.db2 plus the world-table
-    // random enchantment groups for C++ ItemEnchantmentMgr::GenerateRandomProperties.
-    let item_random_properties_store = Arc::new(
-        wow_data::ItemRandomPropertiesStore::load(&data_dir, &locale).context(
-            "Failed to load ItemRandomProperties.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} item random properties from ItemRandomProperties.db2",
-        item_random_properties_store.len()
-    );
-
-    // Load ItemSpecOverride.db2 for C++ ObjectMgr::LoadItemTemplates ItemSpecClassMask primary path.
-    let item_spec_override_store = Arc::new(
-        wow_data::ItemSpecOverrideStore::load(&data_dir, &locale)
-            .context("Failed to load ItemSpecOverride.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item spec overrides from ItemSpecOverride.db2",
-        item_spec_override_store.len()
-    );
-
-    let rand_prop_points_store = Arc::new(
-        wow_data::RandPropPointsStore::load(&data_dir, &locale)
-            .context("Failed to load RandPropPoints.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} random property point rows from RandPropPoints.db2",
-        rand_prop_points_store.len()
-    );
-
-    // Load ItemDisenchantLoot.db2 for C++ sItemDisenchantLootStore lookup.
-    let item_disenchant_loot_store = Arc::new(
-        wow_data::ItemDisenchantLootStore::load(&data_dir, &locale).context(
-            "Failed to load ItemDisenchantLoot.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} item disenchant loot rows from ItemDisenchantLoot.db2",
-        item_disenchant_loot_store.len()
-    );
-
-    let item_random_enchantment_persistence =
-        wow_database::MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp::new(
-            Arc::clone(&world_db),
-        );
-    let item_random_enchantment_template_store = Arc::new(
-        catalogs::item_random_enchantment::load_item_random_enchantment_store_like_cpp(
-            &item_random_enchantment_persistence,
-            &item_random_properties_store,
-            &item_random_suffix_store,
-        )
-        .await
-        .context("Failed to load item_random_enchantment_template")?,
-    );
-
-    // Load SpellItemEnchantment.db2 for ApplyEnchantment and arena enchantment checks.
-    let spell_item_enchantment_store = Arc::new(
-        wow_data::SpellItemEnchantmentStore::load(&data_dir, &locale).context(
-            "Failed to load SpellItemEnchantment.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} spell item enchantments from SpellItemEnchantment.db2",
-        spell_item_enchantment_store.len()
-    );
-    let spell_item_enchantment_condition_store = Arc::new(
-        wow_data::SpellItemEnchantmentConditionStore::load(&data_dir, &locale).context(
-            "Failed to load SpellItemEnchantmentCondition.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} spell item enchantment conditions from SpellItemEnchantmentCondition.db2",
-        spell_item_enchantment_condition_store.len()
-    );
-    let gem_properties_store = Arc::new(
-        wow_data::GemPropertiesStore::load(&data_dir, &locale)
-            .context("Failed to load GemProperties.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} gem properties from GemProperties.db2",
-        gem_properties_store.len()
-    );
-    let spell_enchant_proc_outcome =
-        crate::static_data_overlay::load_spell_enchant_proc_store_like_cpp(
-            &static_data_overlay_persistence,
-            spell_item_enchantment_store.as_ref(),
-        )
-        .await
-        .context("Failed to load C++ spell_enchant_proc_data rows")?;
-    info!(
-        "Loaded {} C++ spell_enchant_proc_data rows ({} missing enchantments)",
-        spell_enchant_proc_outcome.loaded_row_count,
-        spell_enchant_proc_outcome.errors.len()
-    );
+    let ItemEnchantmentCatalogs {
+        durability_costs_store,
+        durability_quality_store,
+        item_effect_store,
+        lock_store,
+        item_random_suffix_store,
+        item_random_properties_store,
+        item_spec_override_store,
+        rand_prop_points_store,
+        item_disenchant_loot_store,
+        item_random_enchantment_template_store,
+        spell_item_enchantment_store,
+        spell_item_enchantment_condition_store,
+        gem_properties_store,
+        _spell_enchant_proc_outcome,
+    } = item_enchantment_catalogs::load_item_enchantment_catalogs(
+        &data_dir,
+        &locale,
+        &world_db,
+        &static_data_overlay_persistence,
+    )
+    .await?;
 
     // Build hotfix blob cache — pre-loads raw DB2 record bytes and hotfix DB overlays for DBReply.
     let mut hotfix_blob_cache = wow_data::build_hotfix_blob_cache(&data_dir, &locale);
