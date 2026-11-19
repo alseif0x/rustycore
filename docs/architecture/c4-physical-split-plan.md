@@ -311,6 +311,24 @@ records exactly +62 production/+0 tests/+62 total. The corrected
 `wow-map --all-targets` check passes with warnings only in existing dependency
 files. C4-7 is complete physically; the logical Map owner remains under #584.
 
+Committed candidate `f715081bd690f02a64da9d052473d5703e0eb6c3` passed
+`./tools/validation-v2 final --base 60c4bc58b --architecture --require-changes --timings --logs`
+with Rust 1.98.0, Protoc 28.3 and one Cargo job on the warm x86_64 checkout.
+All ten commands passed from 17:01:18Z to 17:08:47Z on 2026-11-19
+(448.403 seconds), within the 600-second target. Affected test-target
+compilation took 342.082 seconds. The `wow-map` library passed 774 tests with
+zero failures and one existing ignored test. Token comparison preserves all
+80 moved method definitions and all 799 source test identities. R1 is not
+applicable because no `wow-world/src` root shrank. Verified manifest:
+`target/validation-v2/manifests/20261119T170118.917983Z-2980469-final.json`.
+
+The first candidate `81766521e4a99545feb8c65bfff2bc34360b3828` stopped after
+69.032 seconds when the ratchet rejected the initial +40 estimate. The actual
+measured delta is +62, including 22 canonical rustfmt lines. Recording that
+measurement produced `f715081bd`; no method or test changed between candidates.
+The failed manifest is retained at
+`target/validation-v2/manifests/20261119T165834.090842Z-2978613-final.json`.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
