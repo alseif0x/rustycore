@@ -860,14 +860,14 @@
         {
           "path": "crates/wow-social/src/group/mod.rs",
           "production_lines": 2835,
-          "test_lines": 2511,
-          "total_lines": 5346,
+          "test_lines": 2573,
+          "total_lines": 5408,
           "owner": "wow-social atomic Group/PendingInvites authority relocated from wow-network by #137.",
           "open_retirement_issues": [
             584
           ],
           "retirement_condition": "Group state, invariants and outcomes stay behind the narrow named service boundary; no transport, SQL or packet type enters wow-social and the transitional wow-network mailbox edge is gone.",
-          "latest_growth_review": "2026-09-11 #743: +55 production lines. `GroupRegistry` publishes the authoritative membership projection a member must converge on (`member_group_state_like_cpp`) and whether a group still exists (`group_category_like_cpp`), which distinguishes `Group::Disband` from `Group::RemoveMember` for a member whose notification was lost. These are reads of state this authority already owns; no transport, SQL or packet type entered wow-social and no mutable surface was added. | 2026-09-24 formatting review: rustfmt applied to the files the decomposition left unformatted changed line counts and added trailing commas; no ownership, behaviour or surface change. | 2026-09-24 test-import repair: the wow-entities test build regained the imports the decomposition dropped; line counts move accordingly, with no ownership or behaviour change. | 2026-09-24 source-path repair: the dungeon-encounter capability test now reads the session definition from its current file; only line counts in the world-server owner move. | 2026-09-24 mirror removal: the four duplicated WorldSession fields are gone and their readers use the fixture holders; only line counts move."
+          "latest_growth_review": "2026-11-19 Forever C4-1 Group tests: +62 test and total lines for child mounts, copyright headers and imports. The same 80 definitions and the test-only DB2 validator impl move verbatim to six private Group test modules. Production stays at 2835 lines. The physical test-file row is retired; descendant accounting and the existing #584 ownership exit continue. | 2026-09-11 #743: +55 production lines. `GroupRegistry` publishes the authoritative membership projection a member must converge on (`member_group_state_like_cpp`) and whether a group still exists (`group_category_like_cpp`), which distinguishes `Group::Disband` from `Group::RemoveMember` for a member whose notification was lost. These are reads of state this authority already owns; no transport, SQL or packet type entered wow-social and no mutable surface was added. | 2026-09-24 formatting review: rustfmt applied to the files the decomposition left unformatted changed line counts and added trailing commas; no ownership, behaviour or surface change. | 2026-09-24 test-import repair: the wow-entities test build regained the imports the decomposition dropped; line counts move accordingly, with no ownership or behaviour change. | 2026-09-24 source-path repair: the dungeon-encounter capability test now reads the session definition from its current file; only line counts in the world-server owner move. | 2026-09-24 mirror removal: the four duplicated WorldSession fields are gone and their readers use the fixture holders; only line counts move."
         }
       ]
     }

@@ -106,6 +106,16 @@ R1/R2 apply, and the test count must be the same before and after.
 Suggested order: C4-1, C4-2, C4-3, C4-4, C4-5, C4-6a, C4-6b, C4-7a, C4-7b, C4-8. The pieces
 should land at 1000 lines or less, so they do not add new cohesion-review flags.
 
+On `forever`, C4-1 organizes the 80 existing Group tests into private
+membership, instance, leader/looter, ready-check, database-load and target-icon
+modules. The database-load tests retain the real DB2-backed difficulty
+validator. The Group registry, production modules and public API stay intact.
+Against base `10b0ea6b3`, all 80 test definitions, including the expected-panic
+attribute, and the test-only validator implementation match byte for byte.
+The test root shrinks from 2,508 to 31 lines. The six children range from 104
+to 808 lines. The legacy physical row is retired. Mounts, headers and imports
+add 62 test lines to the same logical Group owner.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical

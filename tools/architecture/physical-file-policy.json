@@ -75,13 +75,6 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-social/src/group/tests.rs",
-      "observed_lines": 2508,
-      "ceiling_lines": 2508,
-      "split": "Separate membership, capacity/leadership, ready-check and publication tests.",
-      "review_checkpoint": "584:C4"
-    },
-    {
       "path": "crates/wow-world/src/handlers/loot_test_shims.rs",
       "observed_lines": 434,
       "ceiling_lines": 434,
