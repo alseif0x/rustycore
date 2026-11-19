@@ -295,6 +295,22 @@ zero failures and one existing ignored test. Source comparison preserves all
 applicable because no `wow-world/src` root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T163810.414742Z-2966769-final.json`.
 
+On `forever`, C4-7b starts at `60c4bc58b` and splits the remaining `impl Map`
+into three private modules. The root shrinks from 2,817 to 877 lines and its
+legacy physical row is retired. `lifecycle.rs` has 850 lines,
+`spawn_runtime.rs` 428 and `object_access.rs` 702. Every method and trait
+implementation remains on the same Map type.
+
+Moved source matches the base apart from canonical rustfmt, wrapper lines and
+scoped visibility. Private free functions and inherent helpers retain their
+original map-wide access through `pub(in crate::map)` and one restricted
+`object_access` reexport; trait method signatures stay unchanged. The same
+logical Map owner gains 62 production lines: 40 for headers, mounts and the
+reexport, plus 22 from canonical rustfmt on widened signatures. Its ratchet
+records exactly +62 production/+0 tests/+62 total. The corrected
+`wow-map --all-targets` check passes with warnings only in existing dependency
+files. C4-7 is complete physically; the logical Map owner remains under #584.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
