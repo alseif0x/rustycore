@@ -470,6 +470,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T185054.076527Z-3048589-final.json`.
 
+On `forever`, C4-8f starts at `2ea043809` and extracts core SpellInfo and pet
+spell construction. `app.rs` shrinks from 5,229 to 5,130 lines and its physical
+ceiling tightens without retiring C4-8. The new private `spell_core_catalogs.rs`
+has 153 lines and returns both reused adapters plus SpellLevels, SpellName and
+SpellStore. Eight explicit inputs preserve all dependencies and load/failure
+order; pet levelup/default stores are still constructed and logged without
+adding unread result fields.
+
+The moved body matches the original after adapting references to the new
+signature and removing an unnecessary `mut`. `spell_name_store` keeps its
+original non-Arc type. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 54 production lines for the typed
+result, wrappers and canonical rustfmt, recorded as +54 production/+0 tests/
++54 total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
