@@ -220,14 +220,43 @@ impl WorldSession {
         operation: QuestObjectiveOperationLikeCpp<'_>,
     ) -> bool {
         let mut completion_state_changed = false;
+        let mut update_zone_auras = false;
         loop {
-            let (result, deferred, completion_state_refreshed) = Box::pin(
-                self.quest_objective_operation_once_like_cpp(item_guid_generator, operation),
-            )
-            .await;
+            let (result, deferred, completion_state_refreshed, operation_update_zone_auras) =
+                Box::pin(
+                    self.quest_objective_operation_once_like_cpp(item_guid_generator, operation),
+                )
+                .await;
+            update_zone_auras |= operation_update_zone_auras;
             let Some(deferred) = deferred else {
                 if completion_state_changed && !completion_state_refreshed {
                     self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+                }
+                if update_zone_auras {
+                    if let Some(creature_spawns) = self.spell_state.creature_spawns.clone() {
+                        let catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+                            item_guid_generator,
+                            creature_spawns: creature_spawns.as_ref(),
+                            graveyards: None,
+                        };
+                        if let Err(reason) =
+                            wow_world_application::update_zone_dependent_auras_like_cpp(
+                                self, catalogs,
+                            )
+                            .await
+                        {
+                            tracing::warn!(
+                                account = self.core.account_id,
+                                reason,
+                                "Quest objective zone aura update failed"
+                            );
+                        }
+                    } else {
+                        tracing::warn!(
+                            account = self.core.account_id,
+                            "Quest objective zone aura catalogs are unavailable"
+                        );
+                    }
                 }
                 return result;
             };
@@ -274,7 +303,7 @@ impl WorldSession {
             else {
                 return false;
             };
-            let (completed, _, _) = Box::pin(self.quest_objective_operation_once_like_cpp(
+            let (completed, _, _, _) = Box::pin(self.quest_objective_operation_once_like_cpp(
                 item_guid_generator,
                 QuestObjectiveOperationLikeCpp::Complete {
                     quest: &quest,
@@ -295,6 +324,7 @@ impl WorldSession {
     ) -> (
         bool,
         Option<wow_world_quest::QuestObjectiveCompletionSpellLikeCpp>,
+        bool,
         bool,
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
@@ -403,6 +433,12 @@ impl WorldSession {
         };
         let deferred = progress.take_deferred_completion_spell_like_cpp();
         let completion_state_refreshed = progress.take_completion_state_refreshed_like_cpp();
-        (result, deferred, completion_state_refreshed)
+        let update_zone_auras = progress.take_update_zone_auras_like_cpp();
+        (
+            result,
+            deferred,
+            completion_state_refreshed,
+            update_zone_auras,
+        )
     }
 }

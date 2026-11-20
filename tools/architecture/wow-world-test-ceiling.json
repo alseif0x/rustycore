@@ -655,6 +655,16 @@
    "unit_tests_lines": 289169,
    "unit_tests_tests": 4304,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-62",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "One zone completion-effect regression proves a real spell-area cast after the final interaction refresh, with zone and aura authorities installed after canonical Player attachment.",
+   "unit_tests_lines": 289236,
+   "unit_tests_tests": 4305,
+   "src_tests": 345
   }
  ]
 }

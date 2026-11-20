@@ -27127,7 +27127,7 @@
           "kind": "method",
           "name": "quest_objective_operation_once_like_cpp",
           "visibility": "private",
-          "signature": "async fn quest_objective_operation_once_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , operation : QuestObjectiveOperationLikeCpp < '_ > ,) -> (bool , Option < wow_world_quest :: QuestObjectiveCompletionSpellLikeCpp > , bool ,)",
+          "signature": "async fn quest_objective_operation_once_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , operation : QuestObjectiveOperationLikeCpp < '_ > ,) -> (bool , Option < wow_world_quest :: QuestObjectiveCompletionSpellLikeCpp > , bool , bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": []

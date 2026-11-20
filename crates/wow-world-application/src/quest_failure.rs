@@ -157,6 +157,74 @@ fn spell_area_fits<H: QuestSessionHostLikeCpp>(
     Ok(true)
 }
 
+/// C++ `Player::UpdateZoneDependentAuras`: autocast every eligible spell-area
+/// row for the current zone that is not already present.
+pub async fn update_zone_dependent_auras_like_cpp<H>(
+    host: &mut H,
+    catalogs: ResurrectionOperationCatalogs<'_>,
+) -> Result<(), &'static str>
+where
+    H: QuestSessionHostLikeCpp + CorpseHostLikeCpp + wow_world_spell::PlayerCastHostLikeCpp,
+{
+    let handle = host
+        .core()
+        .player_handle_like_cpp
+        .ok_or("Zone aura owner is unavailable")?;
+    let (zone, rows) = {
+        let hub = host.hub_ref();
+        let local = hub
+            .player_world_local_state_like_cpp()
+            .ok_or("Zone aura world state is unavailable")?;
+        if !local.has_zone_area_authority_like_cpp() {
+            return Err("Zone aura zone and area authority is unavailable");
+        }
+        let zone = local.zone_area_like_cpp().0;
+        let store = hub
+            .catalogs
+            .spell_catalogs
+            .spell_area_store
+            .as_ref()
+            .ok_or("Zone aura SpellArea catalog is unavailable")?;
+        (zone, store.spell_area_for_area_map_bounds_like_cpp(zone))
+    };
+    let mut casts = BTreeSet::new();
+    for row in rows {
+        if row.flags & SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP != 0
+            && spell_area_fits(host, row, zone, 0)?
+            && !host
+                .hub_ref()
+                .player_has_visible_aura_spell_like_cpp(row.spell_id as i32)
+                .ok_or("Zone aura authority is unavailable")?
+        {
+            casts.insert(row.spell_id);
+        }
+    }
+    for spell in casts {
+        Box::pin(wow_world_spell::execute_server_triggered_spell_like_cpp(
+            host,
+            catalogs.item_guid_generator,
+            catalogs.creature_spawns,
+            i32::try_from(spell).map_err(|_| "Invalid zone aura spell key")?,
+            handle.guid(),
+            wow_entities::SpellCastMetadata {
+                cast_flags: 1,
+                trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
+                ..Default::default()
+            },
+        ))
+        .await?;
+        if host.core().player_handle_like_cpp != Some(handle)
+            || host
+                .core()
+                .with_owned_player_like_cpp(|player| player.guid())
+                != Some(handle.guid())
+        {
+            return Err("Zone aura Player incarnation changed during cast");
+        }
+    }
+    Ok(())
+}
+
 /// Source Player.cpp:15626–15672. Freeze the sets for this one quest, run
 /// complete casts in ascending spell order, then remove and refresh visibility.
 /// The caller must await this before looking up the next live quest-log slot.

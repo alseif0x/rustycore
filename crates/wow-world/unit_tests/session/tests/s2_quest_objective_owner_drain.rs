@@ -139,6 +139,7 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
         false,
         None,
         None,
+        false,
     )
     .await
 }
@@ -159,6 +160,7 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
         crate::player::quest_persistence_test_fixture::PlayerQuestPersistencePortFixtureLikeCpp,
     >,
     completion_spell_id: Option<u32>,
+    completion_update_zone_auras: bool,
 ) -> (u8, i32, Vec<ServerOpcodes>) {
     let (mut session, _, send_rx) = make_session();
     session.set_creature_spawn_catalogs_like_cpp(Arc::new(
@@ -210,18 +212,43 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
         completion_effect: None,
         description: String::new(),
     });
-    if let Some(spell_id) = completion_spell_id {
+    if completion_spell_id.is_some() || completion_update_zone_auras {
         quest.objectives.last_mut().unwrap().completion_effect =
             Some(wow_data::quest::QuestObjectiveAction {
                 game_event_id: None,
-                spell_id: Some(spell_id),
+                spell_id: completion_spell_id,
                 conversation_id: None,
                 update_phase_shift: false,
-                update_zone_auras: false,
+                update_zone_auras: completion_update_zone_auras,
             });
+    }
+    if let Some(spell_id) = completion_spell_id {
         session.set_spell_store(Arc::new(first_login_noop_spell_store_like_cpp([
             spell_id as i32
         ])));
+    }
+    if completion_update_zone_auras {
+        session.set_spell_store(Arc::new(first_login_noop_spell_store_like_cpp([50_101])));
+        session.set_spell_area_store(Arc::new(
+            wow_data::SpellAreaStoreLikeCpp::from_rows_like_cpp(
+                [wow_data::SpellAreaRowLikeCpp {
+                    spell_id: 50_101,
+                    area_id: 12,
+                    quest_start: 0,
+                    quest_start_status: 0,
+                    quest_end_status: 0,
+                    quest_end: 0,
+                    aura_spell: 0,
+                    race_mask: 0,
+                    gender: wow_data::GENDER_NONE_LIKE_CPP,
+                    flags: wow_data::SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP,
+                }],
+                |spell| spell == 50_101,
+                |area| area == 12,
+                |_| true,
+            )
+            .store,
+        ));
     }
 
     session.set_player_guid(Some(player_guid));
@@ -243,6 +270,11 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical objective-transition viewer map");
+    if completion_update_zone_auras {
+        crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 0);
+        session.set_player_zone_area_authority_complete_like_cpp(true);
+        assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true,));
+    }
     if in_raid_group {
         install_raid_membership_like_cpp(&mut session, player_guid);
     }
@@ -325,7 +357,6 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
     session
         .quest_objective_operation_like_cpp(&generator, operation)
         .await;
-
     let status = session
         .player_quest_gameplay_snapshot_like_cpp()
         .and_then(|state| state.status_like_cpp(TRANSITION_QUEST_ID).cloned())
@@ -1245,6 +1276,7 @@ async fn completion_updates_tracker_only_when_enabled_without_status_save_like_c
             enabled,
             Some(fixture),
             None,
+            false,
         )
         .await;
 
@@ -1278,6 +1310,7 @@ async fn completion_spell_runs_between_credit_and_quest_completion_like_cpp() {
         false,
         None,
         Some(50_101),
+        false,
     )
     .await;
 
@@ -1310,6 +1343,7 @@ async fn storing_flag_completion_spell_runs_before_quest_completion_like_cpp() {
         false,
         None,
         Some(50_101),
+        false,
     )
     .await;
 
@@ -1362,4 +1396,37 @@ async fn currency_completion_spell_runs_before_quest_completion_like_cpp() {
 #[tokio::test]
 async fn reputation_completion_spell_runs_before_quest_completion_like_cpp() {
     assert_threshold_completion_spell_like_cpp(QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP).await;
+}
+
+#[tokio::test]
+async fn zone_aura_completion_effect_casts_after_final_refresh_like_cpp() {
+    let (status, count, opcodes) = storing_objective_transition_outcome_with_persistence_like_cpp(
+        false,
+        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        0,
+        1,
+        0,
+        0,
+        false,
+        None,
+        0,
+        false,
+        false,
+        None,
+        None,
+        true,
+    )
+    .await;
+
+    assert_eq!(status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+    assert_eq!(count, 1);
+    assert_eq!(
+        opcodes,
+        vec![
+            ServerOpcodes::QuestUpdateAddCredit,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::SpellGo,
+        ]
+    );
 }

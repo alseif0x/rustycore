@@ -87,6 +87,23 @@ pub fn completion_spell_for_objective_like_cpp(
     })
 }
 
+pub fn objective_updates_zone_auras_like_cpp(
+    store: &wow_data::quest::QuestStore,
+    quest_id: u32,
+    objective_id: u32,
+) -> bool {
+    store
+        .get(quest_id)
+        .and_then(|quest| {
+            quest
+                .objectives
+                .iter()
+                .find(|objective| objective.id == objective_id)
+        })
+        .and_then(|objective| objective.completion_effect.as_ref())
+        .is_some_and(|effect| effect.update_zone_auras)
+}
+
 /// A borrowed view of the reward operation, the existing loot publication state
 /// and the represented world entities the completion visibility refresh scans.
 ///
@@ -112,4 +129,5 @@ pub struct QuestObjectiveProgressCx<'cx, 'session> {
     pub(super) registry_fixtures: QuestObjectiveRegistryFixtureRefsLikeCpp<'cx>,
     pub(super) deferred_completion_spell: Option<QuestObjectiveCompletionSpellLikeCpp>,
     pub(super) completion_state_refreshed: bool,
+    pub(super) update_zone_auras: bool,
 }
