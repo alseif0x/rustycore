@@ -58,13 +58,13 @@ reject level-2 evidence as final. Push, merge, runtime authority and hosted CI a
 
 AGENTS.md owns execution cadence and exclusive validation scheduling. Implement the
 complete delivery before running its acceptance; delegation adds no per-worker CI
-or independent review gate. Run focused tests for affected behavior only when the
-explicit acceptance campaign begins:
+or independent review gate. During implementation, run the regression in the target
+that owns it. For example, a packet fix exercised by a World handler test uses:
 
 ```bash
 CARGO_TARGET_DIR="$PWD/target" CARGO_BUILD_JOBS=1 \
   PROTOC=/home/ubuntu/.local/protoc/bin/protoc \
-  cargo test --locked -p wow-world exact_test_name --lib
+  cargo test --locked -p wow-world --lib auction_hello_request_uses_auctioneer_faction
 ```
 
 Validation commands must expose their real exit status. Do not append `| head`, `| grep`,
@@ -78,6 +78,14 @@ Choose this focused run when its evidence is missing or a failure needs investig
 rerun it merely because the same cases ran in `final`'s complete library suite. The runner
 contract owns cache selection, disk cleanup and background-task tracking. Keep direct Cargo
 on that same per-worktree target and preserve the active cache between macros.
+For sequential PR reviews, reuse an idle, clean review worktree and its own `target/`
+when switching candidates. Confirm the selected SHA before starting. A worktree with
+unfinished edits or an active build stays with its current owner.
+
+For an external contribution, acknowledge receipt when reviewing it. If the response is
+late, thank the contributor and acknowledge the delay. Maintainers can fix review findings,
+exercise the affected target and explain the correction on the PR. Start any needed external
+review as soon as the corrected head is published so it can overlap hosted validation.
 
 Use focused checks within the approved issue or macro; an internal cut does not require a new
 PR, exhaustive run or repeated approval. Before publication, commit the completed local work,

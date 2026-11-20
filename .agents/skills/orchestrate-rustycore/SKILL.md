@@ -42,7 +42,8 @@ human operator**. This is the rule that keeps a round from stalling.
 The roles are the same in every runtime; only the models differ (see **Routing by runtime**).
 
 - **One parent integrator** owns architecture, decomposition, contracts, coordination,
-  review, Git, integration and final acceptance. It does not implement routine units.
+  review, Git, integration and final acceptance. For a bounded fix with known callers,
+  the parent can make the change and run its regression directly.
 - **One bounded worker** implements a settled unit, does read-only exploration, or runs
   the agreed final sequence as exclusive validation executor, as assigned.
 - **At most one child at a time** (route files state any exception). **No worker spawns
@@ -74,11 +75,11 @@ own defaults.
 
 ## Sizing the work
 
-The worker is productive on small units with compiler feedback and stalls on large,
-open-ended ones. The parent makes the decisions, the worker executes them.
+Keep the affected implementation, its callers and its regression together. Assign them
+to one owner, including when they span several crates.
 
-- One unit is one behavior or one module: a few files, a change that `cargo check` and
-  focused tests can confirm. Split anything larger before assigning it.
+- Split larger deliveries at independently testable behaviours. At triage identify the
+  actual Cargo target that compiles the changed regression and its required features.
 - For a restructuring (for example splitting a large file), first assign a read-only
   exploration that returns a map: phases with line ranges, the locals each phase reads
   and writes, the locks it holds, early returns. The parent then fixes the cut points,
@@ -122,8 +123,7 @@ accepted candidate; required matrix, capture and terminal evidence still runs on
 on that candidate. Fixtures must use effective data and native action evidence rather
 than simplified rows that can hide a defect.
 
-Implementation checks stay crate-scoped and sequential (`cargo check -p`, focused
-`cargo test -p` with `CARGO_BUILD_JOBS=1`), as the worker definition says. Any explicit
+The implementer runs the owning target as described in AGENTS.md. Any explicit
 instruction deferring worker checks for a whole sweep (the parked #1233 sweep) does not
 apply to #1241 units: their workers run these checks (R3). Completed-delivery
 acceptance follows AGENTS.md: the parent plans it once and may assign the worker as the

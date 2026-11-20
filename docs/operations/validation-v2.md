@@ -112,6 +112,9 @@ The flag also honors an explicit request when there are no changed paths. It doe
 exhaustive persistence inventory, terminal physical closeout, production integration or live
 QA when the issue requires those; include their actual additional time in campaign evidence.
 
+A workspace compile in `final` checks downstream test targets before the hotspot scan.
+With `--architecture` the combined policy and syntax checks follow that compile too.
+This puts a compiler diagnostic for a broken consumer or test ahead of both full scans.
 A `final` run whose diff touches workspace Rust also enforces the curated hotspot LOC ceilings
 (`check_architecture.py hotspot-ratchet`; timing depends on cached scanner/build state).
 Every nonempty `final` diff also runs the cheap `check_architecture.py physical-files` scan,
@@ -267,10 +270,14 @@ a fixture in which only that part differs, plus fixtures for the spellings above
 those cases, not every possible manifest edit. The checker's own lib test pins the package list. Committed capture contracts belong to `audit`,
 and live database/runtime/capture operations to explicit QA procedures.
 A `final` diff under `tools/modules/` also runs `tools/modules/test_rustycore_module.py`, and one
-under `tools/modules/`, `crates/world-modules/`, `crates/wow-module-api/` or touching
-`crates/world-server/src/{entry,app,lib}.rs` (where `run_with_composition` is defined and
-re-exported) runs `tools/modules/check_sql_compositor.py` (#1468): no
-checked-in tree composes a module with SQL, so the SQL-mode compositor
+under `tools/modules/`, `crates/world-modules/` or `crates/wow-module-api/` runs
+`tools/modules/check_sql_compositor.py` (#1468). Changes to the public entry, its
+re-exports, the module lock or shared build inputs also select the build.
+For `world-server/src/app.rs` the planner compares
+the runtime policy initializer with its base. A change confined to literal
+`world_config_bool` fields there keeps the ordinary consumer compilation and library
+tests. An unrecognised edit takes the full SQL route. Moves route both the old path
+and its destination. The checked-in launcher has zero modules, so the SQL-mode compositor
 (`run_with_composition` plus the embedded lock) compiles only there. It installs the example
 module under the ignored `modules/`, syncs, adds the workspace member, runs
 `cargo test -p example-milestones` and `cargo check -p world-modules` (offline, not `--locked`:

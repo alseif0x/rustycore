@@ -7,7 +7,7 @@ since 2026-10-10. Nothing from the other route files applies or is added here.
   `.claude/settings.json`; raise it with `/effort medium` only for a hard architecture,
   lock-order or concurrency decision, then return to `low`. The parent owns
   architecture, decomposition, contracts, coordination, review, Git, integration and
-  final acceptance. It does not implement: every code change goes to the worker.
+  final acceptance. Apply the shared rule for direct fixes and delegated operations.
 - **Worker: `rustycore-worker`** (`.claude/agents/rustycore-worker.md`, Opus inherited
   from the parent). It is the only worker in this route.
 - **No other-provider fallback.** If the worker cannot run, state that once and keep the

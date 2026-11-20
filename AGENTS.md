@@ -114,8 +114,9 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination: one parent integrator decides, reviews and integrates but does not implement
-routine units; one bounded worker at a time implements. The skill owns the exact routes:
+coordination. The integrator can carry a bounded correction through its callers and tests
+directly. Delegate a coherent operation when the integrator can advance independent work.
+The skill owns the exact routes:
 
 | Runtime | Route file | Client defaults |
 |---|---|---|
@@ -180,9 +181,11 @@ then run affected acceptance tests, applicable QA and publication validation whe
 explicit acceptance campaign begins. During implementation use the default level-1
 working mode: continue writing tests and coherent local checkpoints, but do not run
 automatic validation at internal boundaries or at the end of local implementation.
-The one exception is the implementing worker's own feedback loop: crate-scoped
-`cargo check -p <crate>` and focused `cargo test -p <crate> <filter>` on the unit it
-owns, sequentially with `CARGO_BUILD_JOBS=1`. That is coding, not acceptance evidence.
+During implementation, whoever owns the edit runs the first meaningful check against
+the target that compiles the changed behaviour or test, including a consuming crate.
+For a Rust regression use the correct package, target (`--lib`, `--bin` or `--test`),
+features and filter. Confirm the case ran. Use a scoped compile when that answers the
+question. Keep these commands sequential with `CARGO_BUILD_JOBS=1`. This is coding feedback.
 Report implementation/unvalidated work separately from accepted evidence. At final
 acceptance, fix findings and rerun affected evidence as needed. An explicit user
 request for an earlier diagnostic run remains authoritative. Do not claim unexecuted
