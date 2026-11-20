@@ -16,6 +16,65 @@ fn set_title_reads_cpp_int32_title_id() {
 }
 
 #[test]
+fn enum_characters_result_serializes_customizations_like_cpp() {
+    // C++ `CharacterInfo::Write` (TrinityCore 3.4.3 CharacterPackets.cpp:210/238,
+    // HermesProxy-WOTLK EnumCharactersResult.cs:119/161): the customization COUNT
+    // follows SexID, the {OptionID, ChoiceID} PAIRS follow
+    // OverrideSelectScreenFileDataID. Positions are asserted, not just presence.
+    let character = CharacterInfo {
+        sex_id: 0x5A,
+        experience_level: 0x3C,
+        override_select_screen_file_data_id: 0x7E7E_7E7E,
+        customizations: vec![
+            ChrCustomizationChoice {
+                option_id: 9,
+                choice_id: 17166,
+            },
+            ChrCustomizationChoice {
+                option_id: 10,
+                choice_id: 17179,
+            },
+        ],
+        ..CharacterInfo::default()
+    };
+    let bytes = EnumCharactersResult {
+        success: true,
+        characters: vec![character],
+        race_unlock_data: vec![],
+    }
+    .to_bytes();
+
+    let find = |needle: &[u8]| -> usize {
+        let hits: Vec<usize> = bytes
+            .windows(needle.len())
+            .enumerate()
+            .filter(|(_, w)| *w == needle)
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(
+            hits.len(),
+            1,
+            "needle {needle:02x?} must occur exactly once"
+        );
+        hits[0]
+    };
+    // SexID (0x5A) -> Count=2 -> ExperienceLevel (0x3C), contiguous.
+    let count_at = find(&[0x5A, 0x02, 0x00, 0x00, 0x00, 0x3C]) + 1;
+    // OverrideSelectScreenFileDataID -> pairs, contiguous.
+    let pairs_at = find(&[
+        0x7E, 0x7E, 0x7E, 0x7E, // OverrideSelectScreenFileDataID
+        0x09, 0x00, 0x00, 0x00, // option 9
+        0x0E, 0x43, 0x00, 0x00, // choice 17166 (0x430E)
+        0x0A, 0x00, 0x00, 0x00, // option 10
+        0x1B, 0x43, 0x00, 0x00, // choice 17179 (0x431B)
+    ]) + 4;
+    assert!(
+        pairs_at > count_at,
+        "pairs must come after the count, late in the entry"
+    );
+}
+
+#[test]
 fn enum_characters_result_empty_list() {
     let pkt_data = EnumCharactersResult {
         success: true,

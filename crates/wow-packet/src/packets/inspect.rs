@@ -5,6 +5,7 @@
 
 //! Inspect packet definitions: inspect request/response packets.
 
+use crate::packets::misc::UpdateTalentData;
 use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
@@ -54,6 +55,14 @@ pub struct InspectItem {
 }
 
 /// SMSG_INSPECT_RESULT (0x2631)
+///
+/// Layout as the 3.4.3.54261 client reads it (client reader at
+/// `0x1406FF210`), which differs from TC 3.4.3 `InspectResult::Write` in two
+/// places:
+/// - there is no `Talents.Count` u32 between `Glyphs.Count` and `ItemLevel`;
+/// - `Talents` is a full `TalentInfoUpdate` block (the same body as
+///   SMSG_UPDATE_TALENT_DATA, client reader `0x140709E20`) written after the
+///   glyph array, not a flat `u16` array.
 pub struct InspectResult {
     pub target_guid: ObjectGuid,
     pub target_name: String,
@@ -62,6 +71,8 @@ pub struct InspectResult {
     pub gender: u8,
     pub level: u32,
     pub items: Vec<InspectItem>,
+    /// `TalentInfoUpdate` body, written exactly like SMSG_UPDATE_TALENT_DATA.
+    pub talents: UpdateTalentData,
 }
 
 impl ServerPacket for InspectResult {
@@ -107,14 +118,18 @@ impl ServerPacket for InspectResult {
 
         // ── InspectResult.Write() continues ──
         w.write_int32(0); // Glyphs.Count
-        w.write_int32(0); // Talents.Count
+        // No Talents.Count here: the 54261 client reads ItemLevel next.
         w.write_int32(0); // ItemLevel
         w.write_uint8(0); // LifetimeMaxRank
         w.write_uint16(0); // TodayHK
         w.write_uint16(0); // YesterdayHK
         w.write_int32(0); // LifetimeHK
         w.write_int32(0); // HonorLevel
-        // (no glyphs, no talents — loops empty)
+        // (no glyphs — loop empty)
+        // Talents: TalentInfoUpdate, ending with the IsPetTalents bit, which
+        // shares no byte with the following HasGuildData/HasAzeriteLevel bits.
+        self.talents.write(w);
+        w.flush_bits();
         w.write_bit(false); // GuildData.HasValue = false
         w.write_bit(false); // AzeriteLevel.HasValue = false
         w.flush_bits();
@@ -265,6 +280,157 @@ mod tests {
         assert_eq!(packet.read_uint16().expect("YesterdayHK"), 5);
         assert_eq!(packet.read_uint32().expect("LifetimeMaxRank"), 6);
         assert_eq!(packet.read_uint32().expect("HonorLevel"), 7);
+    }
+
+    /// Decodes SMSG_INSPECT_RESULT in the order of the 3.4.3.54261 client
+    /// reader (`0x1406FF210`) and requires the packet to end exactly.
+    #[test]
+    fn inspect_result_matches_54261_client_reader() {
+        use crate::packets::misc::{TalentGroupInfoLikeCpp, TalentInfoLikeCpp};
+
+        let guid = ObjectGuid::create_player(1, 0x42);
+        let mut group = TalentGroupInfoLikeCpp::default();
+        group.spec_id = 3;
+        group.talents = vec![
+            TalentInfoLikeCpp {
+                talent_id: 1001,
+                rank: 2,
+            },
+            TalentInfoLikeCpp {
+                talent_id: 1002,
+                rank: 0,
+            },
+        ];
+        group.glyph_ids = [11, 0, 22, 0, 0, 33];
+        let bytes = InspectResult {
+            target_guid: guid,
+            target_name: "Abc".to_string(),
+            race: 1,
+            class_id: 2,
+            gender: 1,
+            level: 80,
+            items: vec![InspectItem {
+                slot: 4,
+                item_id: 12345,
+            }],
+            talents: UpdateTalentData {
+                unspent_talent_points: 7,
+                active_group: 0,
+                groups: vec![group],
+                is_pet_talents: false,
+            },
+        }
+        .to_bytes();
+
+        let mut p = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            p.read_uint16().expect("opcode"),
+            ServerOpcodes::InspectResult as u16
+        );
+
+        // PlayerModelDisplayInfo
+        assert_eq!(p.read_packed_guid().expect("GUID"), guid);
+        assert_eq!(p.read_int32().expect("SpecID"), 0);
+        assert_eq!(p.read_uint32().expect("Items.size"), 1);
+        assert_eq!(p.read_bits(6).expect("name length"), 3);
+        assert_eq!(p.read_uint8().expect("Gender"), 1);
+        assert_eq!(p.read_uint8().expect("Race"), 1);
+        assert_eq!(p.read_uint8().expect("Class"), 2);
+        assert_eq!(p.read_uint32().expect("Customizations.size"), 0);
+        assert_eq!(p.read_string(3).expect("name"), "Abc");
+
+        // InspectItemData
+        assert_eq!(p.read_packed_guid().expect("Creator"), ObjectGuid::EMPTY);
+        assert_eq!(p.read_uint8().expect("Index"), 4);
+        assert_eq!(p.read_uint32().expect("AzeritePowers"), 0);
+        assert_eq!(p.read_uint32().expect("AzeriteEssences"), 0);
+        assert_eq!(p.read_int32().expect("ItemID"), 12345);
+        assert_eq!(p.read_int32().expect("RandomPropertiesSeed"), 0);
+        assert_eq!(p.read_int32().expect("RandomPropertiesID"), 0);
+        assert!(!p.read_bit().expect("HasItemBonus"));
+        p.reset_bits();
+        assert_eq!(p.read_bits(6).expect("ItemModList size"), 0);
+        p.reset_bits();
+        assert!(p.read_bit().expect("Usable"));
+        assert_eq!(p.read_bits(4).expect("Enchants.size"), 0);
+        assert_eq!(p.read_bits(2).expect("Gems.size"), 0);
+        p.reset_bits();
+
+        // No Talents.Count between Glyphs.Count and ItemLevel.
+        assert_eq!(p.read_uint32().expect("Glyphs.size"), 0);
+        assert_eq!(p.read_int32().expect("ItemLevel"), 0);
+        assert_eq!(p.read_uint8().expect("LifetimeMaxRank"), 0);
+        assert_eq!(p.read_uint16().expect("TodayHK"), 0);
+        assert_eq!(p.read_uint16().expect("YesterdayHK"), 0);
+        assert_eq!(p.read_uint32().expect("LifetimeHK"), 0);
+        assert_eq!(p.read_uint32().expect("HonorLevel"), 0);
+
+        // Talents: TalentInfoUpdate (SMSG_UPDATE_TALENT_DATA body).
+        assert_eq!(p.read_uint32().expect("UnspentTalentPoints"), 7);
+        assert_eq!(p.read_uint8().expect("ActiveGroup"), 0);
+        assert_eq!(p.read_uint32().expect("Groups.size"), 1);
+        assert_eq!(p.read_uint8().expect("NumTalents"), 2);
+        assert_eq!(p.read_uint32().expect("Talents.size"), 2);
+        assert_eq!(p.read_uint8().expect("NumGlyphs"), 6);
+        assert_eq!(p.read_uint32().expect("Glyphs.size"), 6);
+        assert_eq!(p.read_uint8().expect("SpecID"), 3);
+        assert_eq!(p.read_uint32().expect("TalentID"), 1001);
+        assert_eq!(p.read_uint8().expect("Rank"), 2);
+        assert_eq!(p.read_uint32().expect("TalentID"), 1002);
+        assert_eq!(p.read_uint8().expect("Rank"), 0);
+        for expected in [11u16, 0, 22, 0, 0, 33] {
+            assert_eq!(p.read_uint16().expect("glyph"), expected);
+        }
+        assert!(!p.read_bit().expect("IsPetTalents"));
+        p.reset_bits();
+
+        // HasGuildData, HasAzeriteLevel in their own byte.
+        assert_eq!(p.read_uint8().expect("guild/azerite bits"), 0);
+
+        // 7 x PVPBracketData: u8 Bracket, 17 x i32, byte with Disqualified.
+        for bracket in 0u8..7 {
+            assert_eq!(p.read_uint8().expect("Bracket"), bracket);
+            for _ in 0..17 {
+                assert_eq!(p.read_int32().expect("bracket field"), 0);
+            }
+            assert_eq!(p.read_uint8().expect("Disqualified"), 0);
+        }
+
+        // TraitInspectInfo with an empty TraitConfig (Type 0).
+        assert_eq!(p.read_int32().expect("Level"), 80);
+        assert_eq!(p.read_int32().expect("ChrSpecializationID"), 0);
+        assert_eq!(p.read_int32().expect("TraitConfig.ID"), 0);
+        assert_eq!(p.read_int32().expect("TraitConfig.Type"), 0);
+        assert_eq!(p.read_uint32().expect("Entries.size"), 0);
+        assert_eq!(p.read_bits(9).expect("name length"), 0);
+        p.reset_bits();
+        assert_eq!(p.remaining(), 0, "packet must end after TraitInspectInfo");
+    }
+
+    #[test]
+    fn inspect_result_default_talents_have_exact_54261_size() {
+        let guid = ObjectGuid::create_player(1, 0x7);
+        let bytes = InspectResult {
+            target_guid: guid,
+            target_name: String::new(),
+            race: 1,
+            class_id: 1,
+            gender: 0,
+            level: 1,
+            items: Vec::new(),
+            talents: UpdateTalentData::default(),
+        }
+        .to_bytes();
+
+        let mut guid_buf = WorldPacket::new_empty();
+        guid_buf.write_packed_guid(&guid);
+        let guid_len = guid_buf.into_data().len();
+        // opcode 2; display info: guid, 4 + 4 + 1 (name bits) + 3 + 4;
+        // 4 Glyphs.Count + 4 ItemLevel + 1 + 2 + 2 + 4 + 4 honor;
+        // talents: 4 + 1 + 4 + one empty group (1 + 4 + 1 + 4 + 1 + 12) + 1;
+        // 1 guild/azerite; 7 x (1 + 68 + 1); traits 4 + 4 + 4 + 4 + 4 + 2.
+        let expected = 2 + guid_len + 16 + 21 + 33 + 1 + 7 * 70 + 22;
+        assert_eq!(bytes.len(), expected);
     }
 
     #[test]
