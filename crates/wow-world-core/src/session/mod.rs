@@ -321,6 +321,7 @@ pub mod map_admission;
 pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};
 
 pub mod catalog_capabilities;
+pub use catalog_capabilities::CharacterCreationCatalogsLikeCpp;
 pub use catalog_capabilities::GroupInvitePolicyLikeCpp;
 pub use catalog_capabilities::ObjectMgrCatalogsLikeCpp;
 pub use catalog_capabilities::PlayerBootstrapCatalogsLikeCpp;

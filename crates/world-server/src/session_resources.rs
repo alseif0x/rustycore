@@ -181,6 +181,8 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     /// `UseRegenInterrupt` flag from it and `Player::RegeneratePower` reads the
     /// regen rates (`Unit.cpp:6581-6585`, `Player.cpp:1706`).
     pub(super) power_type_store: Arc<wow_data::character_progression::PowerTypeStore>,
+    pub(super) character_creation_catalogs:
+        Arc<wow_world::session::CharacterCreationCatalogsLikeCpp>,
 }
 
 /// Immutable SpellMgr-style catalogs and audited spell authority.
@@ -413,6 +415,9 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
         session.set_chr_classes_store(Arc::clone(&self.chr_classes_store));
         session.set_shapeshift_display_links_absent(self.shapeshift_display_links_absent);
         session.set_power_type_store(Arc::clone(&self.power_type_store));
+        session.set_character_creation_catalogs_like_cpp(Arc::clone(
+            &self.character_creation_catalogs,
+        ));
     }
 }
 

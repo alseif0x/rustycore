@@ -370,6 +370,49 @@ impl CharacterLoadoutItemStore {
     }
 }
 
+impl CharacterLoadoutStore {
+    /// C++ `ObjectMgr::LoadPlayerCreateInfo` new-character filter:
+    /// `IsForNewCharacter()` (Purpose == 9, DB2Structure.h:568) + RaceMask
+    /// (bit `1 << (race - 1)`) + ChrClassID.
+    pub fn new_character_loadouts_for(&self, race: u8, class: u8) -> Vec<&CharacterLoadoutEntry> {
+        let Some(race_bit) = race
+            .checked_sub(1)
+            .and_then(|shift| 1i64.checked_shl(u32::from(shift)))
+        else {
+            return Vec::new();
+        };
+
+        let mut loadouts: Vec<_> = self
+            .entries
+            .values()
+            .filter(|entry| {
+                entry.purpose == 9
+                    && (entry.race_mask & race_bit) != 0
+                    && entry.chr_class_id == class as i8
+            })
+            .collect();
+        // `DB2Store.h::DB2Storage::begin` is ID-ordered; `ObjectMgr.cpp`
+        // `LoadPlayerCreateInfo` consumes that order.
+        loadouts.sort_unstable_by_key(|entry| entry.id);
+        loadouts
+    }
+}
+
+impl CharacterLoadoutItemStore {
+    /// Item IDs of one loadout, in ascending DB2 row-ID order.
+    pub fn items_for_loadout(&self, loadout_id: u32) -> Vec<u32> {
+        let mut items: Vec<_> = self
+            .entries
+            .values()
+            .filter(|entry| entry.character_loadout_id == loadout_id)
+            .collect();
+        // `DB2Store.h::DB2Storage::begin` is ID-ordered, as consumed by
+        // `ObjectMgr.cpp` `LoadPlayerCreateInfo`.
+        items.sort_unstable_by_key(|entry| entry.id);
+        items.into_iter().map(|entry| entry.item_id).collect()
+    }
+}
+
 impl ChrClassUiDisplayStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "ChrClassUIDisplay.db2", |id, idx, r| {
@@ -868,6 +911,10 @@ impl_from_entries!(ChrRacesStore, ChrRacesEntry);
 impl_from_entries!(NameGenStore, NameGenEntry);
 impl_from_entries!(PowerDisplayStore, PowerDisplayEntry);
 impl_from_entries!(PowerTypeStore, PowerTypeEntry);
+
+#[cfg(test)]
+#[path = "character_progression/loadout_tests.rs"]
+mod loadout_tests;
 
 #[cfg(test)]
 mod tests {
