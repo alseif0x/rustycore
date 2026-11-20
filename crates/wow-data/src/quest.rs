@@ -26,6 +26,7 @@ pub const QUEST_REWARD_DISPLAY_SPELL_COUNT: usize = 3;
 pub const QUEST_ITEM_DROP_COUNT: usize = 4;
 
 pub const QUEST_FLAGS_DAILY_LIKE_CPP: u32 = 0x0000_1000;
+pub const QUEST_FLAGS_RAID_GROUP_OK_LIKE_CPP: u32 = 0x0000_0040;
 pub const QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP: u32 = 0x0000_0020;
 pub const QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP: u8 = 10;
 pub const QUEST_FLAGS_WEEKLY_LIKE_CPP: u32 = 0x0000_8000;
@@ -187,6 +188,47 @@ impl QuestTemplate {
             self.is_repeatable(),
             &self.objectives,
         )
+    }
+
+    /// C++ `Quest::IsRaidQuest` and `IsAllowedInRaid` for one objective type.
+    pub fn allows_objective_progress_in_raid_like_cpp(
+        &self,
+        objective_type: u8,
+        difficulty: u8,
+        ignore_raid: bool,
+    ) -> bool {
+        const QUEST_OBJECTIVE_ITEM: u8 = 1;
+        const QUEST_OBJECTIVE_CURRENCY: u8 = 4;
+        const QUEST_OBJECTIVE_LEARNSPELL: u8 = 5;
+        const QUEST_OBJECTIVE_MIN_REPUTATION: u8 = 6;
+        const QUEST_OBJECTIVE_MAX_REPUTATION: u8 = 7;
+        const QUEST_OBJECTIVE_MONEY: u8 = 8;
+        const QUEST_OBJECTIVE_HAVE_CURRENCY: u8 = 16;
+        const QUEST_OBJECTIVE_INCREASE_REPUTATION: u8 = 18;
+        if matches!(
+            objective_type,
+            QUEST_OBJECTIVE_ITEM
+                | QUEST_OBJECTIVE_CURRENCY
+                | QUEST_OBJECTIVE_LEARNSPELL
+                | QUEST_OBJECTIVE_MIN_REPUTATION
+                | QUEST_OBJECTIVE_MAX_REPUTATION
+                | QUEST_OBJECTIVE_MONEY
+                | QUEST_OBJECTIVE_HAVE_CURRENCY
+                | QUEST_OBJECTIVE_INCREASE_REPUTATION
+        ) {
+            return true;
+        }
+
+        const QUEST_INFO_RAID: u16 = 62;
+        const QUEST_INFO_RAID_10: u16 = 88;
+        const QUEST_INFO_RAID_25: u16 = 89;
+        let is_raid_quest = match self.quest_info_id {
+            QUEST_INFO_RAID => true,
+            QUEST_INFO_RAID_10 => matches!(difficulty, 3 | 5),
+            QUEST_INFO_RAID_25 => matches!(difficulty, 4 | 6),
+            _ => false,
+        } || (self.flags & QUEST_FLAGS_RAID_GROUP_OK_LIKE_CPP) != 0;
+        is_raid_quest || ignore_raid
     }
 
     /// Calculate the accepted quest window from the caller's authoritative

@@ -373,6 +373,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         ) else {
             return;
         };
+        let map_difficulty = owner.current_map_difficulty_id_like_cpp();
+        let in_raid_group = owner.current_player_is_in_raid_group_like_cpp();
         let matching: Vec<(u32, usize, i32, u32, u32)> = quests
             .statuses_like_cpp()
             .values()
@@ -385,6 +387,15 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             })
             .flat_map(|qs| {
                 let quest = store.get(qs.quest_id)?;
+                if in_raid_group
+                    && !quest.allows_objective_progress_in_raid_like_cpp(
+                        objective_type,
+                        map_difficulty,
+                        self.reward.config.quest_ignore_raid_like_cpp,
+                    )
+                {
+                    return None;
+                }
                 Some(quest.objectives.iter().enumerate().filter_map(move |(objective_index, obj)| {
                     if obj.obj_type != objective_type || obj.object_id != object_id {
                         return None;
@@ -585,6 +596,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         ) else {
             return;
         };
+        let map_difficulty = owner.current_map_difficulty_id_like_cpp();
+        let in_raid_group = owner.current_player_is_in_raid_group_like_cpp();
         let matching: Vec<(u32, usize, u32, u32, bool)> = quests
             .statuses_like_cpp()
             .values()
@@ -597,6 +610,15 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             })
             .flat_map(|qs| {
                 let quest = store.get(qs.quest_id)?;
+                if in_raid_group
+                    && !quest.allows_objective_progress_in_raid_like_cpp(
+                        objective_type,
+                        map_difficulty,
+                        self.reward.config.quest_ignore_raid_like_cpp,
+                    )
+                {
+                    return None;
+                }
                 Some(quest.objectives.iter().enumerate().filter_map(
                     move |(objective_index, obj)| {
                         if obj.obj_type != objective_type
@@ -766,9 +788,20 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         ) else {
             return;
         };
+        let map_difficulty = owner.current_map_difficulty_id_like_cpp();
+        let in_raid_group = owner.current_player_is_in_raid_group_like_cpp();
         let matching = wow_entities::plan_threshold_quest_objective_changes_like_cpp(
             quests.statuses_like_cpp(),
-            |id| store.get(id).map(|quest| quest.objective_rules_like_cpp()),
+            |id| {
+                let quest = store.get(id)?;
+                (!in_raid_group
+                    || quest.allows_objective_progress_in_raid_like_cpp(
+                        wow_constants::quest::QUEST_OBJECTIVE_MONEY_LIKE_CPP,
+                        map_difficulty,
+                        self.reward.config.quest_ignore_raid_like_cpp,
+                    ))
+                .then(|| quest.objective_rules_like_cpp())
+            },
             wow_constants::quest::QUEST_OBJECTIVE_MONEY_LIKE_CPP,
             0,
             old_money,
@@ -914,9 +947,20 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         ) else {
             return;
         };
+        let map_difficulty = owner.current_map_difficulty_id_like_cpp();
+        let in_raid_group = owner.current_player_is_in_raid_group_like_cpp();
         let matching = wow_entities::plan_threshold_quest_objective_changes_like_cpp(
             quests.statuses_like_cpp(),
-            |id| store.get(id).map(|quest| quest.objective_rules_like_cpp()),
+            |id| {
+                let quest = store.get(id)?;
+                (!in_raid_group
+                    || quest.allows_objective_progress_in_raid_like_cpp(
+                        wow_constants::quest::QUEST_OBJECTIVE_CURRENCY_LIKE_CPP,
+                        map_difficulty,
+                        self.reward.config.quest_ignore_raid_like_cpp,
+                    ))
+                .then(|| quest.objective_rules_like_cpp())
+            },
             wow_constants::quest::QUEST_OBJECTIVE_CURRENCY_LIKE_CPP,
             object_id,
             current_quantity,
@@ -1074,9 +1118,20 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         ) else {
             return;
         };
+        let map_difficulty = owner.current_map_difficulty_id_like_cpp();
+        let in_raid_group = owner.current_player_is_in_raid_group_like_cpp();
         let matching = wow_entities::plan_threshold_quest_objective_changes_like_cpp(
             quests.statuses_like_cpp(),
-            |id| store.get(id).map(|quest| quest.objective_rules_like_cpp()),
+            |id| {
+                let quest = store.get(id)?;
+                (!in_raid_group
+                    || quest.allows_objective_progress_in_raid_like_cpp(
+                        objective_type,
+                        map_difficulty,
+                        self.reward.config.quest_ignore_raid_like_cpp,
+                    ))
+                .then(|| quest.objective_rules_like_cpp())
+            },
             objective_type,
             object_id,
             i64::from(old_reputation),

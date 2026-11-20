@@ -90,3 +90,26 @@ fn quest_currency_source_classification_stays_with_catalog_model() {
         wow_constants::currency::CurrencyGainSourceLikeCpp::WorldQuestRewardIgnoreCaps
     );
 }
+
+#[test]
+fn raid_objective_admission_matches_cpp_type_info_difficulty_and_config_rules() {
+    let mut quest = quest_with_id(903);
+    assert!(!quest.allows_objective_progress_in_raid_like_cpp(0, 0, false));
+    assert!(quest.allows_objective_progress_in_raid_like_cpp(0, 0, true));
+    assert!(quest.allows_objective_progress_in_raid_like_cpp(1, 0, false));
+
+    quest.flags |= QUEST_FLAGS_RAID_GROUP_OK_LIKE_CPP;
+    assert!(quest.allows_objective_progress_in_raid_like_cpp(0, 0, false));
+    quest.flags &= !QUEST_FLAGS_RAID_GROUP_OK_LIKE_CPP;
+
+    quest.quest_info_id = 62;
+    assert!(quest.allows_objective_progress_in_raid_like_cpp(0, 0, false));
+    quest.quest_info_id = 88;
+    assert!(quest.allows_objective_progress_in_raid_like_cpp(0, 3, false));
+    assert!(quest.allows_objective_progress_in_raid_like_cpp(0, 5, false));
+    assert!(!quest.allows_objective_progress_in_raid_like_cpp(0, 4, false));
+    quest.quest_info_id = 89;
+    assert!(quest.allows_objective_progress_in_raid_like_cpp(0, 4, false));
+    assert!(quest.allows_objective_progress_in_raid_like_cpp(0, 6, false));
+    assert!(!quest.allows_objective_progress_in_raid_like_cpp(0, 3, false));
+}

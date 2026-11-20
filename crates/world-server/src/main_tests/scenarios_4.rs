@@ -1079,3 +1079,16 @@ fn stats_limits_use_cpp_world_config_keys_like_cpp() {
         }
     );
 }
+
+#[test]
+fn quest_ignore_raid_uses_cpp_world_config_key() {
+    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+    wow_config::load_config_from_str("Quests.IgnoreRaid = 1\n").expect("config should load");
+
+    let configs = wow_config::load_world_config_values();
+    assert!(world_config_bool(
+        &configs,
+        "CONFIG_QUEST_IGNORE_RAID",
+        false
+    ));
+}

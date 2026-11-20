@@ -34377,6 +34377,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_quest_ignore_raid_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_quest_ignore_raid_like_cpp (& mut self , ignore : bool)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_quest_info_store",
           "visibility": "pub",
           "signature": "fn set_quest_info_store (& mut self , store : Arc < QuestInfoStore >)",
@@ -55211,6 +55225,71 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::quest_objectives",
+          "source": "crates/wow-world-core/src/session/canonical_access/quest_objectives.rs",
+          "enclosing": "impl QuestObjectiveAccessLikeCpp::current_player_is_in_raid_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "self . core . directory . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::quest_objectives",
+          "source": "crates/wow-world-core/src/session/canonical_access/quest_objectives.rs",
+          "enclosing": "impl QuestObjectiveAccessLikeCpp::current_player_is_in_raid_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_guid",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_guid:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::quest_objectives",
+          "source": "crates/wow-world-core/src/session/canonical_access/quest_objectives.rs",
+          "enclosing": "impl QuestObjectiveAccessLikeCpp::current_player_is_in_raid_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::quest_objectives",
+          "source": "crates/wow-world-core/src/session/canonical_access/quest_objectives.rs",
+          "enclosing": "impl QuestObjectiveAccessLikeCpp::current_player_is_in_raid_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "player_guid",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_guid:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::quest_objectives",
+          "source": "crates/wow-world-core/src/session/canonical_access/quest_objectives.rs",
+          "enclosing": "impl QuestObjectiveAccessLikeCpp::current_player_is_in_raid_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
           "count": 1
         },
         {

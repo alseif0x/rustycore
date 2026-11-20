@@ -565,6 +565,16 @@
    "unit_tests_lines": 288361,
    "unit_tests_tests": 4293,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-53",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "Two raid-admission regressions cover storing-value/storing-flag rejection, RAID_GROUP_OK and non-raid controls, plus money progressing in raid without a raid quest flag.",
+   "unit_tests_lines": 288466,
+   "unit_tests_tests": 4295,
+   "src_tests": 345
   }
  ]
 }

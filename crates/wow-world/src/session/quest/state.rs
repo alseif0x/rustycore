@@ -16,6 +16,11 @@ impl WorldSession {
         self.config.quest_status_keep_abandoned_like_cpp = keep_abandoned;
     }
 
+    /// Set C++ `CONFIG_QUEST_IGNORE_RAID` for objective progress admission.
+    pub fn set_quest_ignore_raid_like_cpp(&mut self, ignore: bool) {
+        self.config.quest_ignore_raid_like_cpp = ignore;
+    }
+
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
         self.core

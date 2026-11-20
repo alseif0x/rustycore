@@ -80,6 +80,16 @@ const TRANSITION_QUEST_ID: u32 = 13_633;
 const TRANSITION_CLICK_NPC_ENTRY: u32 = 713;
 const TRANSITION_CLICK_SPELL_ID: u32 = 913;
 
+fn install_raid_membership_like_cpp(session: &mut WorldSession, player_guid: ObjectGuid) {
+    let group_registry = Arc::new(GroupRegistry::default());
+    let mut group = GroupInfo::new(player_guid);
+    group.convert_to_raid_like_cpp();
+    let group_guid = group.group_guid;
+    group_registry.register_group_like_cpp(group_guid, group);
+    session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
+}
+
 async fn storing_objective_transition_outcome_like_cpp(
     storing_flag: bool,
     initial_status: u8,
@@ -96,6 +106,8 @@ async fn storing_objective_transition_outcome_like_cpp(
         0,
         false,
         None,
+        0,
+        false,
     )
     .await
 }
@@ -109,6 +121,8 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
     quest_flags_ex: u32,
     empty_credit_guid: bool,
     prerequisite: Option<(bool, u32)>,
+    quest_flags: u32,
+    in_raid_group: bool,
 ) -> (u8, i32, Vec<ServerOpcodes>) {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -121,6 +135,7 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
     };
     let object_id = TRANSITION_CLICK_NPC_ENTRY as i32;
     let mut quest = test_quest_template(TRANSITION_QUEST_ID);
+    quest.flags = quest_flags;
     quest.flags_ex = quest_flags_ex;
     if let Some((_, prerequisite_flags)) = prerequisite {
         quest.objectives.push(wow_data::quest::QuestObjective {
@@ -170,6 +185,9 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical objective-transition viewer map");
+    if in_raid_group {
+        install_raid_membership_like_cpp(&mut session, player_guid);
+    }
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -466,6 +484,8 @@ async fn monster_no_credit_for_proxy_rejects_empty_victim_guid_like_cpp() {
         wow_constants::quest::QUEST_FLAGS_EX_NO_CREDIT_FOR_PROXY_LIKE_CPP,
         true,
         None,
+        0,
+        false,
     )
     .await;
     assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
@@ -494,6 +514,8 @@ async fn monster_no_credit_for_proxy_allows_real_or_unflagged_proxy_credit_like_
             quest_flags_ex,
             empty_credit_guid,
             None,
+            0,
+            false,
         )
         .await;
         assert_storing_objective_transition_like_cpp(
@@ -519,6 +541,8 @@ async fn sequenced_objective_outcome_like_cpp(
         0,
         false,
         Some((prerequisite_complete, 0)),
+        0,
+        false,
     )
     .await
 }
@@ -583,6 +607,7 @@ const THRESHOLD_CLICK_SPELL_ID: u32 = 914;
 async fn threshold_negative_outcome_like_cpp(
     objective_type: u8,
     objective_flags: u32,
+    in_raid_group: bool,
 ) -> (u8, Vec<ServerOpcodes>) {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -627,6 +652,9 @@ async fn threshold_negative_outcome_like_cpp(
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical threshold viewer map");
+    if in_raid_group {
+        install_raid_membership_like_cpp(&mut session, player_guid);
+    }
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
@@ -742,7 +770,8 @@ async fn assert_threshold_negative_transitions_like_cpp(objective_type: u8) {
             QUEST_STATUS_COMPLETE_LIKE_CPP,
         ),
     ] {
-        let (status, opcodes) = threshold_negative_outcome_like_cpp(objective_type, flags).await;
+        let (status, opcodes) =
+            threshold_negative_outcome_like_cpp(objective_type, flags, false).await;
         assert_eq!(status, expected_status, "transition packets: {opcodes:?}");
         assert_eq!(
             opcodes
@@ -779,4 +808,80 @@ async fn currency_negative_transition_honors_optional_and_refreshes_like_cpp() {
 #[tokio::test]
 async fn reputation_negative_transition_honors_optional_and_refreshes_like_cpp() {
     assert_threshold_negative_transitions_like_cpp(QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP).await;
+}
+
+#[tokio::test]
+async fn raid_objectives_require_quest_admission_in_both_storage_families_like_cpp() {
+    for storing_flag in [false, true] {
+        let (status, count, opcodes) =
+            storing_objective_transition_outcome_with_proxy_rule_like_cpp(
+                storing_flag,
+                QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                0,
+                1,
+                0,
+                0,
+                false,
+                None,
+                0,
+                true,
+            )
+            .await;
+        assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+        assert_eq!(count, 0);
+        assert!(
+            opcodes.is_empty(),
+            "an unflagged quest must not progress in raid: {opcodes:?}"
+        );
+
+        for in_raid_group in [true, false] {
+            let expected_credit = if storing_flag {
+                ServerOpcodes::QuestUpdateAddCreditSimple
+            } else {
+                ServerOpcodes::QuestUpdateAddCredit
+            };
+            let outcome = storing_objective_transition_outcome_with_proxy_rule_like_cpp(
+                storing_flag,
+                QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                0,
+                1,
+                0,
+                0,
+                false,
+                None,
+                wow_data::quest::QUEST_FLAGS_RAID_GROUP_OK_LIKE_CPP,
+                in_raid_group,
+            )
+            .await;
+            assert_storing_objective_transition_like_cpp(
+                outcome,
+                QUEST_STATUS_COMPLETE_LIKE_CPP,
+                1,
+                2,
+                expected_credit,
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn raid_money_progresses_without_a_raid_quest_flag_like_cpp() {
+    let (status, opcodes) =
+        threshold_negative_outcome_like_cpp(QUEST_OBJECTIVE_MONEY_LIKE_CPP, 0, true).await;
+    assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+    assert_eq!(
+        opcodes
+            .iter()
+            .filter(|opcode| **opcode == ServerOpcodes::UpdateObject)
+            .count(),
+        1,
+        "money remains progressable in raid without a quest raid flag: {opcodes:?}"
+    );
+    for unexpected in [
+        ServerOpcodes::QuestUpdateAddCredit,
+        ServerOpcodes::QuestUpdateComplete,
+        ServerOpcodes::QuestGiverQuestComplete,
+    ] {
+        assert!(!opcodes.contains(&unexpected));
+    }
 }

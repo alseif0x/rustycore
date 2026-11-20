@@ -23,6 +23,26 @@ impl SessionCore {
 }
 
 impl QuestObjectiveAccessLikeCpp<'_> {
+    pub fn current_map_difficulty_id_like_cpp(&self) -> u8 {
+        self.core.current_map_difficulty_id_like_cpp()
+    }
+
+    pub fn current_player_is_in_raid_group_like_cpp(&self) -> bool {
+        let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
+            self.core.player_guid(),
+            self.core
+                .player_group_owner_access_like_cpp()
+                .canonical_group_guid_like_cpp()
+                .flatten(),
+            self.core.directory.group_registry.as_ref(),
+        ) else {
+            return false;
+        };
+        group_registry
+            .get(&group_guid)
+            .is_some_and(|group| group.is_raid_group() && group.members.contains(&player_guid))
+    }
+
     /// Read the canonical Player-owned QuestLog rows for CREATE and visibility.
     pub fn quest_log_values_snapshot_like_cpp(
         &self,

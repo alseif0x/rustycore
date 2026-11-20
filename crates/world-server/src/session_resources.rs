@@ -343,6 +343,7 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) quest_low_level_hide_diff: u32,
     pub(super) quest_high_level_hide_diff: u32,
     pub(super) quest_ignore_auto_complete: bool,
+    pub(super) quest_ignore_raid: bool,
     pub(super) quest_status_keep_abandoned: Option<bool>,
     pub(super) enable_ae_loot: bool,
     /// C++ `CONFIG_EXPANSION`; used by map-entry expansion gates.
@@ -560,6 +561,7 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
             self.quest_ignore_auto_complete,
             self.quest_status_keep_abandoned,
         );
+        session.set_quest_ignore_raid_like_cpp(self.quest_ignore_raid);
         session.set_player_registry(Arc::clone(&self.player_registry));
         session.set_game_event_quest_complete_sender_like_cpp(
             self.game_event_quest_complete_tx.clone(),

@@ -460,7 +460,7 @@ Quests.EnableQuestTracker	worldserver:server/worldserver/worldserver.conf.dist:1
 Quests.HighLevelHideDiff	worldserver:server/worldserver/worldserver.conf.dist:1096	worldserver=2	Int:server/game/World/World.cpp:1262	Int=7	CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF		implemented	#NEXT.R8.ENTITIES.754
 Quests.IgnoreAutoAccept	worldserver:server/worldserver/worldserver.conf.dist:1112	worldserver=0	Bool:server/game/World/World.cpp:1266	Bool=false	CONFIG_QUEST_IGNORE_AUTO_ACCEPT		missing_in_rust	-
 Quests.IgnoreAutoComplete	worldserver:server/worldserver/worldserver.conf.dist:1120	worldserver=0	Bool:server/game/World/World.cpp:1267	Bool=false	CONFIG_QUEST_IGNORE_AUTO_COMPLETE		missing_in_rust	-
-Quests.IgnoreRaid	worldserver:server/worldserver/worldserver.conf.dist:1104	worldserver=0	Bool:server/game/World/World.cpp:1265	Bool=false	CONFIG_QUEST_IGNORE_RAID		missing_in_rust	-
+Quests.IgnoreRaid	worldserver:server/worldserver/worldserver.conf.dist:1104	worldserver=0	Bool:server/game/World/World.cpp:1265	Bool=false	CONFIG_QUEST_IGNORE_RAID		implemented	#1368
 Quests.LowLevelHideDiff	worldserver:server/worldserver/worldserver.conf.dist:1086	worldserver=5	Int:server/game/World/World.cpp:1259	Int=4	CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF		implemented	#NEXT.R8.ENTITIES.753
 Quests.WeeklyResetWDay	worldserver:server/worldserver/worldserver.conf.dist:1138	worldserver=3	Int:server/game/World/World.cpp:1128	Int=3	CONFIG_WEEKLY_QUEST_RESET_TIME_WDAY		missing_in_rust	-
 Ra.Enable	worldserver:server/worldserver/worldserver.conf.dist:3214	worldserver=0	Bool:server/worldserver/Main.cpp:352	Bool=false			missing_in_rust	-
