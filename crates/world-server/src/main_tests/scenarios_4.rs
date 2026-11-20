@@ -341,7 +341,7 @@ fn session_resources_requires_named_capability_bundles() {
     }
     assert!(
         composition_source
-            .contains("chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp"),
+            .contains("chat_policy: session_handler_policy_catalogs::build_chat_policy("),
         "the composition root must group process-owned C++ World chat policy for dispatch"
     );
     assert!(
@@ -349,8 +349,9 @@ fn session_resources_requires_named_capability_bundles() {
         "C++ World chat policy must be borrowed by handlers instead of copied into WorldSession"
     );
     assert!(
-        composition_source
-            .contains("group_invite_policy: Arc::new(wow_world::session::GroupInvitePolicyLikeCpp"),
+        composition_source.contains(
+            "group_invite_policy: session_handler_policy_catalogs::build_group_invite_policy("
+        ),
         "the composition root must group process-owned C++ World party-invite policy"
     );
     assert!(
@@ -358,9 +359,7 @@ fn session_resources_requires_named_capability_bundles() {
         "C++ World party policy must be borrowed by handlers instead of copied into WorldSession"
     );
     assert!(
-        composition_source.contains(
-            "support_feature_policy: Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp"
-        ),
+        composition_source.contains("build_support_feature_policy("),
         "the composition root must group C++ SupportMgr and feature-system process policy"
     );
     assert!(

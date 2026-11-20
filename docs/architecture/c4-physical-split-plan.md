@@ -1132,6 +1132,23 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8aj starts at `b80c8b420` and extracts four session handler
+policy builders. `app.rs` shrinks from 2,359 to 2,243 lines and its physical
+ceiling tightens without retiring C4-8. The new private
+`session_handler_policy_catalogs.rs` has 114 lines and constructs chat,
+group-invite, trade and support policies at their original field positions.
+WorldConfig and CfgCategories are the only inputs; every read, default and helper
+retains its original order. The three positive source assertions follow the new
+calls, with the support assertion made formatting-independent; no `rustfmt::skip`
+or new trade coverage was added.
+
+All four moved bodies match the original token stream after adapting borrowed
+inputs and canonical rustfmt. The `world-server` library check and the affected
+source guard pass; the library retains the same 35 existing warnings. Compact
+calls and the shorter guard reduce the logical owner by two production lines
+and one test line, recorded as -2 production/-1 test/-3 total. Later C4-8 stages
+still owe remaining session catalogs, dependencies and supervision/shutdown.
+
 On `forever`, C4-8ai starts at `63ef87f68` and extracts session progression
 capabilities. `app.rs` shrinks from 2,386 to 2,359 lines and its physical ceiling
 tightens without retiring C4-8. The new private `session_progression_policy.rs`

@@ -164,6 +164,9 @@ mod session_runtime_policy;
 #[path = "session_progression_policy.rs"]
 mod session_progression_policy;
 
+#[path = "session_handler_policy_catalogs.rs"]
+mod session_handler_policy_catalogs;
+
 use group_instance_startup::GroupInstanceStartup;
 
 #[path = "entry.rs"]
@@ -1518,135 +1521,16 @@ async fn run_inner(
                 }),
                 battle_pet_trainer_selection: Arc::clone(&battle_pet_selection_store),
                 quest_info: Arc::clone(&quest_info_store),
-                chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp {
-                    addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
-                    fake_message_preventing: world_config_bool(
-                        &world_configs,
-                        "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
-                        false,
-                    ),
-                    strict_link_checking_kick: world_config_u8(
-                        &world_configs,
-                        "CONFIG_CHAT_STRICT_LINK_CHECKING_KICK",
-                        0,
-                    ) != 0,
-                    level_requirements: ChatLevelRequirementsLikeCpp {
-                        channel: world_config_u8(
-                            &world_configs,
-                            "CONFIG_CHAT_CHANNEL_LEVEL_REQ",
-                            1,
-                        ),
-                        whisper: world_config_u8(
-                            &world_configs,
-                            "CONFIG_CHAT_WHISPER_LEVEL_REQ",
-                            1,
-                        ),
-                        emote: world_config_u8(&world_configs, "CONFIG_CHAT_EMOTE_LEVEL_REQ", 1),
-                        say: world_config_u8(&world_configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1),
-                        yell: world_config_u8(&world_configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
-                    },
-                    listen_ranges: ChatListenRangesLikeCpp {
-                        say: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_SAY", 25.0),
-                        text_emote: world_config_f32(
-                            &world_configs,
-                            "CONFIG_LISTEN_RANGE_TEXTEMOTE",
-                            25.0,
-                        ),
-                        yell: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_YELL", 300.0),
-                    },
-                    flood: ChatFloodConfigLikeCpp {
-                        message_count: world_config_u32(
-                            &world_configs,
-                            "CONFIG_CHATFLOOD_MESSAGE_COUNT",
-                            10,
-                        ),
-                        message_delay_secs: world_config_u32(
-                            &world_configs,
-                            "CONFIG_CHATFLOOD_MESSAGE_DELAY",
-                            1,
-                        ),
-                        addon_message_count: world_config_u32(
-                            &world_configs,
-                            "CONFIG_CHATFLOOD_ADDON_MESSAGE_COUNT",
-                            100,
-                        ),
-                        addon_message_delay_secs: world_config_u32(
-                            &world_configs,
-                            "CONFIG_CHATFLOOD_ADDON_MESSAGE_DELAY",
-                            1,
-                        ),
-                        mute_time_secs: world_config_u32(
-                            &world_configs,
-                            "CONFIG_CHATFLOOD_MUTE_TIME",
-                            10,
-                        ),
-                    },
-                    party_raid_warnings: world_config_bool(
-                        &world_configs,
-                        "CONFIG_CHAT_PARTY_RAID_WARNINGS",
-                        false,
-                    ),
-                }),
-                group_invite_policy: Arc::new(wow_world::session::GroupInvitePolicyLikeCpp {
-                    allow_gm_group: world_config_bool(
-                        &world_configs,
-                        "CONFIG_ALLOW_GM_GROUP",
-                        false,
-                    ),
-                    allow_two_side_interaction: world_config_bool(
-                        &world_configs,
-                        "CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP",
-                        false,
-                    ),
-                    minimum_level: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
-                }),
-                trade_policy: Arc::new(trade_policy_like_cpp(&world_configs)),
-                support_feature_policy: Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp {
-                    support_enabled: world_config_bool(
-                        &world_configs,
-                        "CONFIG_SUPPORT_ENABLED",
-                        true,
-                    ),
-                    tickets_enabled: world_config_bool(
-                        &world_configs,
-                        "CONFIG_SUPPORT_TICKETS_ENABLED",
-                        false,
-                    ),
-                    bugs_enabled: world_config_bool(
-                        &world_configs,
-                        "CONFIG_SUPPORT_BUGS_ENABLED",
-                        false,
-                    ),
-                    complaints_enabled: world_config_bool(
-                        &world_configs,
-                        "CONFIG_SUPPORT_COMPLAINTS_ENABLED",
-                        false,
-                    ),
-                    suggestions_enabled: world_config_bool(
-                        &world_configs,
-                        "CONFIG_SUPPORT_SUGGESTIONS_ENABLED",
-                        false,
-                    ),
-                    character_undelete_enabled: world_config_bool(
-                        &world_configs,
-                        "CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED",
-                        false,
-                    ),
-                    bpay_store_enabled: world_config_bool(
-                        &world_configs,
-                        "CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED",
-                        false,
-                    ),
-                    max_characters_per_realm: world_config_u32(
-                        &world_configs,
-                        "CONFIG_CHARACTERS_PER_REALM",
-                        60,
-                    ),
-                    declined_names_used: declined_names_used_like_cpp(
+                chat_policy: session_handler_policy_catalogs::build_chat_policy(&world_configs),
+                group_invite_policy: session_handler_policy_catalogs::build_group_invite_policy(
+                    &world_configs,
+                ),
+                trade_policy: session_handler_policy_catalogs::build_trade_policy(&world_configs),
+                support_feature_policy:
+                    session_handler_policy_catalogs::build_support_feature_policy(
                         &world_configs,
                         &cfg_categories_store,
                     ),
-                }),
                 player_regeneration_rates: Arc::new(player_regeneration_rates_like_cpp(
                     &world_configs,
                 )),
