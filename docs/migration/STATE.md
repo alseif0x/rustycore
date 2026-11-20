@@ -1,5 +1,42 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 storing-value completion spell accepted locally — 2026-11-20
+
+Committed candidate `84697bcc374c566b47e0d79350d3958d8f4e5a03`, based on
+`c3bb10181`, executes a nonzero `CompletionEffect.SpellId` for storing-value
+objectives. Following `Player.cpp:17161-17169` at
+`02245dcd245e7433e524577656177723d3e4992e`, the domain stops after objective
+credit and before `CompleteQuest`. WorldSession executes the real server-triggered
+self cast with `TRIGGERED_FULL_MASK`, completes that quest and resumes the same
+operation. Previously completed objectives are skipped on retry; pending
+completion-state change and refresh flags preserve exactly one final interaction
+refresh. Cast failure is logged without preventing completion. Session factory
+installs the existing process-owned creature-spawn catalogs into
+`SessionSpellState` for this executor.
+
+One composed regression proves `QuestUpdateAddCredit`, `SpellGo`, the
+`CompleteQuest` interaction refresh and the final refresh in that exact order,
+with the quest complete and its counter at one. The focused objective suite
+passed 23 tests. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base c3bb10181 --architecture --require-changes --timings --logs`
+campaign passed all twelve commands from 22:10:18Z to 22:19:38Z (559.594
+seconds), within the 600-second target: 649 `world-server` tests (one ignored),
+4,644 `wow-world` tests (one ignored), eight `wow-world-quest` and 193
+`wow-world-spell` tests passed, totaling 5,494 passed, two ignored and zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T221018.369755Z-870611-final.json`.
+Architecture policy, session syntax ownership with 2,688 associated items,
+method-index, hotspot/census, formatting and all affected downstream checks
+passed. The reviewed ledgers and method-index reason record the exact execution
+boundary and test growth without a new WorldSession field.
+
+This closes only the storing-value spell-effect divergence in #1368. Other
+objective families and GameEvent, Conversation, UpdatePhaseShift and
+UpdateZoneAuras execution remain open. This is synthetic production-path
+source/behavior/wire evidence, not a live quest capture or full completion-effect
+parity claim. Player runtime integration and character creation remain separate
+work.
+
 ## #1368 objective completion-effect catalog accepted locally — 2026-11-20
 
 Committed candidate `0b128860cfcad72fd24db1f5ae0a52b76664a201`, based on
