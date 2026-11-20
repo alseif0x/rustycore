@@ -1,5 +1,35 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 QuestUpdateComplete publication corrected locally — 2026-11-20
+
+Committed candidate `9e3bf55cc46efe29dc3e88c00ca44dc20d0ce532`, based on
+`0b1634767`, removes `QuestUpdateComplete` from all five objective-progress
+families and the tracking-event reward coordinator. Following
+`Player.cpp:15169-15195,16795-16813,16980-17194` at
+`02245dcd245e7433e524577656177723d3e4992e`, that packet is now emitted only by
+`AreaExploredOrEventHappens`. Ordinary objective completion and auto-reward still
+run their existing status, reward and visibility phases; `QuestGiverQuestComplete`
+and the area-explored packet remain distinct.
+
+All 4,621 `wow-world` library tests pass with one ignored, including the
+objective/reward expectations updated to this contract and the preserved
+`AreaExplored` case. Eight `wow-world-quest` tests also pass with zero failures.
+The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 0b1634767 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 14:35:19Z to 14:37:55Z (155.128
+seconds), within the 600-second target: 4,629 passed, one ignored and zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T143519.979752Z-53871-final.json`.
+Architecture policy, session syntax ownership with 2,684 exact associated items,
+formatting and all affected downstream checks passed.
+
+This closes only the packet-publication divergence of #1368. Inline objective
+ordering and filters, negative-completion transitions, refresh/persistence
+fences, effective team and completion effects remain open in that issue. This is
+synthetic source/behavior/wire evidence, not a live quest capture or full quest
+parity acceptance. Player runtime integration and character creation remain
+separate work.
+
 ## #1367 LootList fanout unified and accepted locally — 2026-11-20
 
 Committed candidate `d9c25cadefb1f18f9e453d5c7bd8471e29308d98`, based on
