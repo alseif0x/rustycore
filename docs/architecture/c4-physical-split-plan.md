@@ -1500,6 +1500,13 @@ manifest is `target/validation-v2/manifests/20261118T163610.086177Z-2321107-fina
 
 ## Closing C4
 
+On `forever`, the C4 closeout reclassifies all 44 shim rows from `584:C4` to
+`1363:shim-retirement` and adds `584:C4` to `completed_checkpoints`. This changes
+only checkpoint ownership: every shim path, observed line count, ceiling and
+retirement rationale is preserved, and `shim_row_errors` still requires each row.
+No checker or production source changes are needed. The terminal physical check
+and final architecture campaign own the closeout evidence below.
+
 1. Land C4-1 … C4-8 so that no `584:C4` row remains above 2000.
 2. Move the 44 shim rows off `584:C4`. Either re-tag them to the shim retirement owner, or
    make `shim_row_errors` read a separate registry, and update its self-test to match. The

@@ -2,315 +2,317 @@
   "schema_version": 1,
   "baseline_commit": "8f5caedc41611a4fe72697fc00412fc43f04d6a1",
   "migration_issue": 584,
-  "completed_checkpoints": [],
+  "completed_checkpoints": [
+    "584:C4"
+  ],
   "legacy": [
     {
       "path": "crates/wow-world/src/handlers/loot_test_shims.rs",
       "observed_lines": 434,
       "ceiling_lines": 434,
       "split": "cfg(test) method-syntax entry points and test-only re-exports for the loot bodies moved to wow-world-loot-ops (#1363 slices 5a-5c), mounted from handlers/mod.rs outside the loot hotspot tree, so its lines are not charged to the loot hotspot's test ceiling. 2026-10-13 #1363 slice 5c (#1381 review follow-up 1): ratcheted at the live value. It grew 354 (5a) -> 572 (5b); 5c adds the two cfg(test) CMSG_LOOT_MONEY/apply-loot-money entry points that were nested in the moved handlers/loot/handlers/money.rs and the re-exports the World loot module no longer imports, and retires 11 single-caller shims by converting their scenario call sites to free-function calls without raising the loot test ceiling, so it falls 572 -> 441. Retire the rest the same way; no growth is permitted from here. 2026-10-13 #1363 slice 7b (#1383 follow-up): marked #![cfg(test)] (it was already mounted only under #[cfg(test)]), so the classifier counts its 441 lines as test instead of production; the header was condensed so the file stays at 441. 2026-10-17 #1363 final cleanup: tightened 441 -> 434 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/loot_handler_test_shims.rs",
       "observed_lines": 105,
       "ceiling_lines": 105,
       "split": "cfg(test) entry points for the loot handlers moved to wow-world-loot-ops (#1263 F5; #1363 A7) that dispatch through the registered production thunks. Formerly handlers/loot/handlers/test_shims.rs, mounted cfg(test) inside the loot hotspot tree without #![cfg(test)], so the hotspot charged its 104 lines to the loot production row; the #1363 final cleanup marks it #![cfg(test)] and moves it out of that tree (mounted from handlers/mod.rs, the shim convention), so the loot test row does not grow, and deletes the emptied handlers/loot/handlers.rs (its row retires). 2026-10-17: ratcheted at the live value from creation; no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/player_test_shims.rs",
       "observed_lines": 142,
       "ceiling_lines": 142,
       "split": "cfg(test) method-syntax entry points for the player combat bodies moved to wow-world-entities (#1363 slice 7a) the pet bodies moved to wow-world-lifecycle (pet_session), including the six pet row-loader entry points that left unit_tests/session/pet_loading/f3_shims.rs, and the loot-money tracker read whose LootCxRef facade retired when the battle-pet purchase saga moved, mounted from handlers/mod.rs outside the session and character hotspot trees and marked #![cfg(test)] so the classifier counts it as test code, so the scenarios keep their method syntax without growing those hotspots' test lines. 2026-10-13 #1363 slice 7a: ratcheted at the live value from creation; each method is a one-call forward to the moved free function. Retire it by converting the scenario call sites to free-function calls in a slice that reviews those test ceilings; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 150 -> 142 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/battle_pet_test_shims.rs",
       "observed_lines": 577,
       "ceiling_lines": 577,
       "split": "cfg(test) represented (fixture-backed) BattlePetMgr bodies (cage, add, experience, quality, level, remove, rename, the owner-aura experience entry and the represented cage handler) that were #[cfg(test)] methods nested in the production battle-pet impls of session/pets/battle_pet{,_journal}.rs, session/battle_pet_adapter.rs and handlers/pets/mod.rs, plus one-call method entry points for the journal helpers moved to wow-world-inventory (battle_pet_session). The moved durable operations reach the represented bodies through the cfg(any(test, feature = \"test-fixtures\")) BattlePetSessionHostLikeCpp fixture hooks. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)] so the classifier counts it as test code and the session hotspot's test lines do not grow. 2026-10-13 #1363 slice 7b: ratcheted at the live value from creation. Retire it when the represented fixture bodies give way to the canonical account owner in the scenarios; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 603 -> 577 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/progression_test_shims.rs",
       "observed_lines": 284,
       "ceiling_lines": 284,
       "split": "cfg(test) method entry points for the #1363 slice 7c progression families: the one-call entry point of the battle-pet XP-percent aura moved to wow-world-spell (SessionSpellState), and the #[cfg(test)] methods that were nested in the production impls of session/rest_progression.rs (rest state, XP rest bonus, tavern revalidation, create flags), session/progression_adapters.rs (kill credit, XP table, money), session/progression/{skills,reputation}.rs, session/pets/pet.rs (petition reads, tapper-pet kill hook) and session/combat/state.rs, moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)] so the classifier counts it as test code and the session hotspot's test lines do not grow. 2026-10-13 #1363 slice 7c: ratcheted at the live value from creation. Retire entries as the scenarios move to the owning crates or call the moved bodies directly; no growth is permitted from here. 2026-10-15 #1363 slice 10b: tightened 315 -> 284: the test-only tapper-pet KilledUnit hook record moved to wow-world-entities (creature_kill_session.rs, cfg(any(test, feature = \"test-fixtures\"))) with the death-state completion, its only caller, and its RepresentedCreatureKillEventLikeCpp import left.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/visibility_test_shims.rs",
       "observed_lines": 122,
       "ceiling_lines": 122,
       "split": "cfg(test) method-syntax entry points for the visibility bodies moved to wow-world-entities (visibility_session, #1363 slice 8a): send_nearby_creatures and update_visibility (moved verbatim from the cfg(test) impl of handlers/character/visibility/creatures.rs) and send_nearby_gameobjects, plus the four split_world_entities_* wrappers (creature aggro radius, creature create stats, gameobject DB phase shift and runtime state records) moved verbatim from session/world_entities/{aggro,creature_query,gameobject_overrides,gameobject_state}.rs because only the scenarios call them once the moved bodies make the split through the host. Mounted from handlers/mod.rs outside the character hotspot tree and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8a: ratcheted at the live value from creation; each method is a one-call forward to the moved free function. Retire it by converting the scenario call sites to free-function calls; no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/vendor_test_shims.rs",
       "observed_lines": 137,
       "ceiling_lines": 137,
       "split": "cfg(test) method-syntax entry points for the vendor and bank bodies moved to wow-world-inventory (vendor_session, #1363 slice 8b): handle_buy_item, handle_repair_item and handle_buy_bank_slot (moved verbatim from the cfg(test) impls of handlers/character/{vendor/buy,vendor,bank}.rs), handle_banker_activate and update_vendor_item_current_count, plus seven one-statement wrappers (has_item_count_direct_inventory, plan_destroy_item_count_direct_inventory, set_buyback_slot_metadata_like_cpp, resolved_buyback_price_like_cpp, resolved_player_bank_bag_slot_count_like_cpp, set_inventory_item_object_slot, send_sell_error) moved verbatim from handlers/character/items.rs and session/{buyback_adapter,player_items/bank,player_items/storage_slots,publication/operations}.rs because only the scenarios call them once the moved bodies make the split or core call through the host. Mounted from handlers/mod.rs outside the character and session hotspot trees and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8b: ratcheted at the live value from creation. Retire it by converting the scenario call sites to free-function and split calls; no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/character_query_test_shims.rs",
       "observed_lines": 84,
       "ceiling_lines": 84,
       "split": "cfg(test) method-syntax entry points for the character query handlers moved to wow-world-character (#1263 F5, #1363 A5). The file was handlers/character/query/test_shims.rs, mounted only for the test build but counted as production because it lacked #![cfg(test)]; #1363 slice 8b moved it verbatim outside the character hotspot tree (mounted from handlers/mod.rs) and marked it #![cfg(test)] (#1386 follow-up 4), so 77 lines leave the production figure without code change. 2026-10-13 #1363 slice 8b: ratcheted at the live value from creation; no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/item_test_shims.rs",
       "observed_lines": 210,
       "ceiling_lines": 210,
       "split": "cfg(test) method-syntax entry points for the item handler bodies moved to wow-world-inventory (item_session, #1363 slice 8c): handle_swap_inv_item, handle_auto_equip_item, handle_auto_equip_item_slot, handle_swap_item, handle_auto_store_bag_item, handle_autobank_item and handle_autostore_bank_item (moved verbatim from the cfg(test) methods of handlers/character/{items/handlers,bank}.rs), plan_destroyed_inventory_quest_persistence_like_cpp, destroy_inventory_full_stack_by_pos_like_cpp, plan_inventory_child_redirect_like_cpp, plan_inventory_equip_child_like_cpp and plan_inventory_real_swap_children_like_cpp (forwards to the moved free functions), plus six one-statement wrappers (direct_item_contains_items, plan_inventory_swap_preflight_like_cpp, represented_inventory_descendants_postorder_like_cpp, send_item_relocation_values_update_like_cpp, send_item_dynamic_flags_values_update_like_cpp, represented_can_use_current_bank_like_cpp) moved verbatim from session/player_items/{items,persistence,storage_slots,publication,bank}.rs because only the scenarios call them once the moved bodies make the split, InventoryState or bank-use call through the host. Mounted from handlers/mod.rs outside the character and session hotspot trees and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8c: ratcheted at the live value from creation. Retire it by converting the scenario call sites to free-function and split calls; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 249 -> 210 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/login_test_shims.rs",
       "observed_lines": 219,
       "ceiling_lines": 219,
       "split": "cfg(test) method-syntax entry points for the character login-load bodies moved to wow-world-character (login_session, #1363 slice 8d): handle_logout_request, test_load_initial_world_states_for_login_like_cpp and send_initial_packets_after_add_to_map (moved verbatim from the cfg(test) methods of handlers/character/{world_entry,world_entry/initial_packets,session_state}.rs, now naming the moved free functions), sixteen one-call forwards to the moved free functions the scenarios call (abort/continue/retry/repair/delete/seed login recovery, the corpse, customization and default-graveyard loads, the persisted transport resolve, the hearth handler, the login combat stats, the login packet prelude, the before-add burst, the login sequence, the realm-characters refresh and the post-add entry zone), plus nine one-statement wrappers (send_account_heirlooms_like_cpp, load_represented_cuf_profile_like_cpp, represented_load_cuf_profiles_packet_like_cpp, set_loaded_player_customizations_like_cpp, send_favorite_appearances_like_cpp, mark_represented_equipment_sets_loaded_like_cpp, represented_load_equipment_set_packet_like_cpp, insert_buyback_item_like_cpp, complete_player_equipment_inventory_authority_load_like_cpp) moved verbatim from session/{lifecycle_ops/operations,persistence/load,player_items/appearance,player_items/equipment_sets,player_items/items,player_items/persistence_load}.rs because only the scenarios call them once the moved bodies make the same split and state call through the host. Mounted from handlers/mod.rs outside the character and session hotspot trees and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8d: ratcheted at the live value from creation. Retire it by converting the scenario call sites to free-function and split calls; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 386 -> 214 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here. 2026-10-28 #43 composition review: 214 -> 219 (+5). The existing logout test forward now supplies the borrowed resurrection catalogs, and the existing post-add forward returns the real bool outcome. No new test entry or production authority is added. Keeping this adapter beside its current callers avoids changing the scenarios during the behavior repair; retire it by explicit catalog/free-function calls at the existing #584 C4 checkpoint. Exact ceiling, no further growth.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/login_data_gossip_test_shims.rs",
       "observed_lines": 128,
       "ceiling_lines": 128,
       "split": "cfg(test) method-syntax entry points for the login data and gossip bodies moved to wow-world-character (#1363 slice 8e): handle_binder_activate (moved verbatim from the cfg(test) method of handlers/character/gossip.rs, now naming the moved free function), seven one-call forwards to the moved free functions the scenarios call (handle_gossip_hello, handle_gossip_select_option, build_gossip_menu, skill_rewarded_quest_fallback_allowed_like_cpp, skill_rewarded_spell_changes_for_login_like_cpp, load_character_spell_history_packets_like_cpp, load_active_player_trait_configs_like_cpp), plus five one-statement wrappers (mark_represented_character_spell_cooldowns_loaded_like_cpp, record_loaded_character_spell_cooldown_like_cpp, mark_represented_character_spell_charges_loaded_like_cpp, record_loaded_character_spell_charge_like_cpp, set_player_interaction_source_like_cpp) moved verbatim from session/{spell_state/cooldown,spell_state/spell,npc_interaction}.rs because only the scenarios call them once the moved bodies make the same split and state call through the host. Mounted from handlers/mod.rs outside the character and session hotspot trees and marked #![cfg(test)] so the classifier counts it as test code. 2026-10-13 #1363 slice 8e: ratcheted at the live value from creation. Retire it by converting the scenario call sites to free-function and split calls; no growth is permitted from here. 2026-10-17 #1363 final cleanup: tightened 141 -> 128 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/spellbook_test_shims.rs",
       "observed_lines": 337,
       "ceiling_lines": 337,
       "split": "cfg(test) method-syntax entry points for the spellbook bodies moved to wow-world-spell (spellbook_session, #1363 slice 9a): the #[cfg(test)] methods that were nested in the production impls of session/spell_state/{spellbook,spell,effects,acquisition}.rs (the fixture known-spell writes, the trait-definition and override fixtures, the loaded-row and acquisition-runtime replacement fixtures, the start-all-spells test entry and the spell-runtime test dispatch), the spellbook's #1241 F3 test entry points that were unit_tests/session/spell_state/spellbook/f3_shims.rs, and one-call forwards to the moved free functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 433 -> 337 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/talent_test_shims.rs",
       "observed_lines": 83,
       "ceiling_lines": 83,
       "split": "cfg(test) method-syntax entry points for the talent bodies moved to wow-world-spell (talent_session, #1363 slice 9b): the talents' #1241 F3 test entry points that were unit_tests/session/progression/talents/f3_shims.rs (verbatim except pub(in crate::session) reads pub(crate)) and one-call forwards to the moved free functions the scenarios and the handlers/talent test_only fixture call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 114 -> 83 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/aura_test_shims.rs",
       "observed_lines": 60,
       "ceiling_lines": 60,
       "split": "cfg(test) method-syntax entry points for the aura bodies moved to wow-world-spell (aura_session, #1363 slice 9b): the #[cfg(test)] mounted-aura test entry that was nested in the production impl of session/spell_state/mount_aura.rs (verbatim; that file is deleted) and one-call forwards to the moved free functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 75 -> 60 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/spell_effect_test_shims.rs",
       "observed_lines": 108,
       "ceiling_lines": 108,
       "split": "cfg(test) method-syntax entry points for the spell-effect bodies moved to wow-world-spell (effect_session, #1363 slice 9c): the #[cfg(test)] apply_damage entry that was nested in the production impl of session/spell_effects/effect_combat/damage_and_combat_application.rs (verbatim except that its call to the moved damage entry is a free call) and one-call forwards to the moved free functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 125 -> 108 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/spell_execution_test_shims.rs",
       "observed_lines": 191,
       "ceiling_lines": 191,
       "split": "cfg(test) method-syntax entry points for the spell execution moved to wow-world-spell (execution_session and effect_session, #1363 slice 9d): the five #[cfg(test)] overloads that were nested in the production impl of session/spell_effects/execution_overloads.rs (verbatim except that their calls to the moved execution entry points are free calls), the mount of that file's unit_tests execution_overloads test fixture, and one-call forwards to the moved free functions the scenarios and that fixture call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 231 -> 191 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/player_cast_test_shims.rs",
       "observed_lines": 125,
       "ceiling_lines": 125,
       "split": "cfg(test) method-syntax entry points for the player cast, the spell handlers, the spell-click plan and the aura modifier moved to wow-world-spell (#1363 slice 9e): the four #[cfg(test)] overloads that were nested in the production impls of session/player_cast/state.rs, handlers/spell/ops_{1,2}.rs and session/spell_state/spell_click.rs (verbatim except that their calls to the moved entry points are free calls), one-call forwards to the moved functions the scenarios call (the aura modifier forward names the AuraHostLikeCpp provided method, which WorldSession does not override), the search_spell_focus_like_cpp split wrapper the scenarios still call (verbatim; its production caller moved and inlined it), and the session_test_reexports module of names only the session scenarios read. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-14 #1363 slice 9e: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-14 #1363 slice 10a: tightened 150 -> 128: the session_test_reexports module moved to the #![cfg(test)] session/test_reexports.rs (#1395 follow-up 1). 2026-10-17 #1363 final cleanup: tightened 128 -> 125 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/world_entities_test_shims.rs",
       "observed_lines": 125,
       "ceiling_lines": 125,
       "split": "cfg(test) method-syntax entry points for the world-entity bodies moved to wow-world-entities (#1363 slice 10a): one-call forwards to the moved creature message-to-set gate, creature aura application, visible gameobject/creature queries and last-update visual despawn the scenarios and the creature F3 shim call, so no scenario call site changes; the scripted goober-preamble test entry moved verbatim from the cfg(test)-mounted session/world_entities/gameobject_use_scripted.rs (deleted); and the #[path] mounts of the per-type gameobject-use and creature-publication F3 shims (unit_tests/session/world_entities/{gameobject_use_types,creature_publication}/f3_shims.rs), which left the emptied gameobject_use_types.rs (deleted) and creature_publication.rs. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-14 #1363 slice 10a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/world_entities_registry_test_shims.rs",
       "observed_lines": 364,
       "ceiling_lines": 364,
       "split": "cfg(test) world-entity entry points (#1363 slice 10b): the #[cfg(test)] methods that were nested in the production impls of session/world_entities/{creature_registry,creature,creature_kill,aggro}.rs, moved verbatim (the fixture creature registration chain and removal, the talk-to and kill objective entries without a generator, and the two canonical threat readers, widened from pub(in crate::session) to pub(crate) because the file is outside the session tree), one-call method forwards to the creature kill reputation award and death-state completion moved to wow-world-entities and to the spell initial threat moved to wow-world-spell (so no scenario call site changes), and the #[path] mount of the creature-registry F3 shim (unit_tests/session/world_entities/creature_registry/f3_shims.rs), which left the deleted creature_registry.rs. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 10b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-28 #43 composition review: 361 -> 364 (+3). The existing creature fixture constructor receives and forwards type_flags; its old convenience entry passes zero. This preserves the actual creature-data participant for native death tests without a second authority. Retire the existing method adapters with their scenario calls at #584 C4; no new entry or further growth allowance.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/canonical_objects_test_shims.rs",
       "observed_lines": 28,
       "ceiling_lines": 28,
       "split": "cfg(test) method-syntax entry points for the canonical-map object queries and the dynamic-object VALUES publication moved to wow-world-entities (visibility_session, #1363 slice 11a): one-call forwards to visible_dynamic_objects_from_canonical_map_like_cpp and send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp, the two the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 11a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 35 -> 28 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/open_item_test_shims.rs",
       "observed_lines": 23,
       "ceiling_lines": 23,
       "split": "cfg(test) method-syntax entry points for the item-container bodies moved to wow-world-loot-ops (#1363 slice 4c): one-call forwards to handle_open_item and open_active_item_loot_view_like_cpp, the two the scenarios call, and the item_template_lock_id catalog read whose only production caller (the moved CMSG_OPEN_ITEM body) now reads the catalog through the host, so no scenario call site changes. Mounted from handlers/mod.rs outside the session and loot hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 4c: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 31 -> 23 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/void_storage_test_shims.rs",
       "observed_lines": 97,
       "ceiling_lines": 97,
       "split": "cfg(test) method-syntax entry points for the void-storage bodies moved to wow-world-application (void_storage_session, #1363 slice 4c): the CMSG_UNLOCK_VOID_STORAGE and CMSG_VOID_STORAGE_TRANSFER test entry points that were nested in the moved files (verbatim except that they call the moved handlers as free functions), and one-call forwards to the moved functions the void-storage and session scenarios call, so no scenario call site changes except the two loaded-state reads that named the retired LifecycleCxRef. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 4c: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 231 -> 97 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/trainer_talent_test_shims.rs",
       "observed_lines": 34,
       "ceiling_lines": 34,
       "split": "cfg(test) method-syntax entry points for the trainer and talent-point bodies moved in #1363 slice 12a: the CMSG_TRAINER_BUY_SPELL test entry point (verbatim; it was a nested cfg(test) method of handlers/trainer.rs) and one-call forwards to the moved CMSG_TRAINER_LIST handler, the trainer offer decision (wow-world-application) and the talent-point refresh (wow-world-quest), the ones the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-15 #1363 slice 12b1: tightened 58 -> 57 to the live value: the redundant inner #[cfg(test)] on handle_trainer_buy_spell is dropped (#1410 review nit 4); the file is #![cfg(test)]. 2026-10-17 #1363 final cleanup: tightened 57 -> 34 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/player_items_test_shims.rs",
       "observed_lines": 170,
       "ceiling_lines": 170,
       "split": "cfg(test) method-syntax entry points for the player-item bodies moved to wow-world-inventory in #1363 slice 12b1 (player_items_session): the three repair test entry points (verbatim from the nested cfg(test) methods of session/player_items/{durability,bank}.rs except that they call the moved repair functions), one-call forwards to the moved functions the scenarios call (durability loss, item mods, the item-bonus stat publication, the item-set item record, the direct item-set removal, the offhand unequip, the collection hook and the appearance add and gate), the five one-statement wrappers the moved bodies now inline (the appearance and temporary-appearance adds, the two modified-appearance catalog reads, the account heirloom add) moved verbatim because only the scenarios still call them, and the recorded offhand-request accessor moved verbatim from the retired unit_tests/session/player_items/offhand/f3_shims.rs (without its redundant inner cfg(test)). Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12b1: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 195 -> 170 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/travel_test_shims.rs",
       "observed_lines": 20,
       "ceiling_lines": 20,
       "split": "cfg(test) method-syntax entry points for the travel bodies moved to wow-world-instances (#1363 slice 4d): the CMSG_AREA_TRIGGER test entry point (verbatim except that it calls the moved body as a free function) and one-call forwards to the moved CMSG_ACTIVATE_TAXI body and its mount-display filter, the ones the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 4d: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 31 -> 20 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/player_item_builders_test_shims.rs",
       "observed_lines": 154,
       "ceiling_lines": 154,
       "split": "cfg(test) method-syntax entry points for the player-item builders, planning and committed publications moved to wow-world-application and wow-world-inventory (#1363 slice 12b1b): one-call forwards to the moved functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12b2b: row added under the shim physical-row convention (every handlers/*_test_shims.rs carries a ratcheting row at its live value from creation, enforced by session_method_index.py check); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 233 -> 154 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/spell_effect_session_test_shims.rs",
       "observed_lines": 42,
       "ceiling_lines": 42,
       "split": "cfg(test) method-syntax entry points for the spell-effect bodies moved to wow-world-spell (#1363 slice 12b2) and the item-flags catalog read only the scenarios call: one-call forwards, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12b2b: row added under the shim physical-row convention (every handlers/*_test_shims.rs carries a ratcheting row at its live value from creation, enforced by session_method_index.py check); it retires with the other shims when the scenarios call the free functions directly.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/item_mods_session_test_shims.rs",
       "observed_lines": 106,
       "ceiling_lines": 106,
       "split": "cfg(test) method-syntax entry points for the bodies moved in #1363 slice 12b2b (the nearby-entry destination search to wow-world-spell; the loaded item-mod, enchantment and item-set-aura family to wow-world-application): one-call forwards the scenarios call, and the catalog reads, equip-aura and without-update aura wrappers whose last production caller moved. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12b2b: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/login_load_test_shims.rs",
       "observed_lines": 46,
       "ceiling_lines": 46,
       "split": "cfg(test) method-syntax entry points for the represented login-load bodies moved in #1363 slice 12b4 to wow-world-character and the login spell reset moved to wow-world-application: one-call forwards the scenarios call, and the vault clear, which has no production caller left. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12b4: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 58 -> 46 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/session_leftovers_test_shims.rs",
       "observed_lines": 128,
       "ceiling_lines": 128,
       "split": "cfg(test) method-syntax entry points for the session leftovers moved in #1363 slice 12b7 to wow-world-application, wow-world-spell, wow-world-instances, wow-world-inventory and wow-world-loot-ops: one-call forwards the scenarios call, the cancel split forward and the two mount-capability wrappers whose only callers are scenarios, and the realm-id forward. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12b7: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 155 -> 128 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/split_forward_test_shims.rs",
       "observed_lines": 238,
       "ceiling_lines": 238,
       "split": "cfg(test) method-syntax entry points for the World forwards and bodies retired or moved in #1363 slice 12c: one-call forwards to the rest-flag and fully-looted removal functions moved to wow-world-instances and wow-world-loot-ops, and the split, field and one-call forwards whose production callers now name the split, the field or the destination (cast state, money, quest-state seam, player-item catalog and inventory reads, lifecycle, instances, battle-pet, aura and enchantment forwards), kept verbatim because only the scenarios call them. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12c: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions, splits and fields directly. 2026-10-17 #1363 final cleanup: tightened 241 -> 238 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/retired_forward_test_shims.rs",
       "observed_lines": 361,
       "ceiling_lines": 361,
       "split": "cfg(test) method-syntax entry points for the World split forwards and test-only bodies retired in #1363 slice 12d: the currency, instance, lifecycle, loot, interaction, player-item and gameobject split forwards whose production host impls now name the split or field, and the scenario-only taxi edge distance and map-difficulty condition reads, each kept verbatim because only the scenarios call them. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-17 #1363 slice 12d: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the splits and fields directly. 2026-10-17 #1363 final cleanup: tightened 362 -> 361 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/social_quest_test_shims.rs",
       "observed_lines": 76,
       "ceiling_lines": 76,
       "split": "cfg(test) method-syntax entry points for the social, gossip and session-visibility bodies moved in #1363 slices 12b5-12b6 to wow-world-instances, wow-world-social, wow-world-character, wow-world-quest and wow-world-entities: one-call forwards the scenarios call, and the field-split forwards (owned group membership, duel arbiter) whose production callers now name the split. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slices 12b5-12b6: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 88 -> 76 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/spell_state_session_test_shims.rs",
       "observed_lines": 88,
       "ceiling_lines": 88,
       "split": "cfg(test) method-syntax entry points for the spell-state bodies moved in #1363 slice 12b3 to wow-world-spell: one-call forwards the scenarios call, and the spell-row and mount-source reads, which have no production caller. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-16 #1363 slice 12b3: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 103 -> 88 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/group_session_test_shims.rs",
       "observed_lines": 24,
       "ceiling_lines": 24,
       "split": "cfg(test) method-syntax entry points for the group bodies moved to wow-world-instances (group_session, #1363 slice 4d): one-call forwards to the reconciliation and the publication tail, and the next_group_update_sequence_number_like_cpp session wrapper moved verbatim after its last production caller (the moved party-update receiver) went, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 4d: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 37 -> 24 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/collections_session_test_shims.rs",
       "observed_lines": 60,
       "ceiling_lines": 60,
       "split": "cfg(test) method-syntax entry points for the toy bodies moved to wow-world-inventory and wow-world-spell (toy_session, #1363 slice 4d): the CMSG_USE_TOY test entry point (verbatim except that it calls the moved body as a free function), a one-call forward to CMSG_ADD_TOY, and the send_equip_error, add_account_toy_like_cpp and set_active_spell_cast_like_cpp session wrappers moved verbatim after their last production caller (a moved toy body) went, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 4d: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 64 -> 60 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/instance_session_test_shims.rs",
       "observed_lines": 72,
       "ceiling_lines": 72,
       "split": "cfg(test) world-state and instance-admission entry points (#1363 slice 11b): one-call method forwards to the bodies moved to wow-world-instances (instance_session: the explored-zones snapshot, the area and zone updates, the tavern resting flag, the create-map side effects, player context, active instance lock and instance owner) that the scenarios and F3 shims call, so no call site changes; and the two split wrappers of session/instances/instance.rs that only the scenarios still call (resolved_player_recent_instance_id_like_cpp, set_represented_player_recent_instance_like_cpp), moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 11b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 107 -> 72 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/continue_login_test_shims.rs",
       "observed_lines": 231,
       "ceiling_lines": 231,
       "split": "cfg(test) continue-login hydration entry points (#1363 slice 13c): one-call method forwards to the login hydration steps moved with the continue-login coordinator (the login spell application and the account mount load in wow-world-spell, the account item-appearance and transmog-illusion loads in wow-world-inventory, the explored-zones load in wow-world-instances, and the titles, group-leader flag and login known-spell projection in wow-world-application) that the scenarios call, so no call site changes; and the one-line split and hub forwards the coordinator inlined that only the scenarios still call (the account toy/heirloom loads of handlers/character/account/collections.rs, the canonical world-map entry of session/instances/map_resolution.rs, the first-login cast test entry of session/spell_state/cast.rs, the difficulty-load forward of the session/persistence/load F3 shim, the loaded-player flag/power/xp-clamp/account-data/achievement loads of session/persistence/{load,load_authority}.rs, the account appearance loads, slot counts and loaded enchantment publication of session/player_items, the skill-record replacement and the spell-hit aura tombstone), moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 13c: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 265 -> 231 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/session_lifecycle_test_shims.rs",
       "observed_lines": 205,
       "ceiling_lines": 205,
       "split": "cfg(test) lifecycle orchestration entry points (#1363 slice 13b): one-call method forwards to the bodies moved to wow-world-application (session_lifecycle: the finalization step, the periodic save, the talent-reset commit, the respec wipe, and the LifecycleCx buyback and account collection saves) that the scenarios call, so no call site changes; the six account split wrappers of session/lifecycle/account.rs, unregister_from_player_registry and the two disconnect-cleanup test entries of cleanup.rs, set_player_logout of logout.rs, restore_realm_channels of connection.rs, send_buy_error of publication/operations.rs and the talent-reset plan of persistence/plans.rs that only the scenarios still call, moved verbatim; and the persistence/commit.rs F3 shim mount. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 13b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/worldport_test_shims.rs",
       "observed_lines": 80,
       "ceiling_lines": 80,
       "split": "cfg(test) map-entry and far-transfer completion entry points (#1363 slice 13a): one-call method forwards to the bodies moved to wow-world-instances (instance_session map entry: the worldport attach, the canonical map entry preparation, the canonical Player residence) and wow-world-character (worldport_session: the homebind recovery, the native completion before disconnect, the post-add begin, the self CREATE send and build) that the scenarios call, so no call site changes; and the two instance split wrappers of session/instances/{instance,difficulty}.rs and the two account-collection wrappers of session/lifecycle_ops/operations.rs that only the scenarios still call, moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 13a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 84 -> 70 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here. 2026-10-28 #43 composition review: 70 -> 80 (+10). The existing native-before-disconnect test forward becomes async and supplies the borrowed resurrection catalogs, so it observes completion of the real pending operation. No new scenario entry or gameplay authority. Retire the adapter through explicit catalog/free-function calls at #584 C4; exact reviewed ceiling only.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/teleport_test_shims.rs",
       "observed_lines": 80,
       "ceiling_lines": 80,
       "split": "cfg(test) teleport entry points (#1363 slice 11a): the two #[cfg(test)] readers that were nested in the production impl of session/movement/transfer.rs (represented_delayed_resurrection_after_teleport_like_cpp, move_teleport_ack_events_like_cpp), moved verbatim; one-call method forwards to the teleport bodies moved to wow-world-entities (teleport_session: pending_teleport_save_destination, teleport_to_with_options, the delayed teleport after the update, the delayed resurrection scheduling and HandleMoveTeleportAck's near state machine) the scenarios call, so no scenario call site changes; and the #[path] mount of the far-transfer F3 shim (unit_tests/session/movement/far_transfer/f3_shims.rs), which left the deleted session/movement/far_transfer.rs. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 11a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 67 -> 46 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here. 2026-10-28 #43 composition review: 46 -> 80 (+34). The tests now call the actual catalog-bearing teleport and admitted delayed executor, and inspect PlayerResurrectionContinuation rather than an unaccepted request. The two catalog-resolving adapters keep existing World composition fixtures on their canonical operation; they do not implement teleport or hold mutable state. The named exit is converting these callers to explicit catalog/free-function calls at #584 C4. This reviewed interface adaptation grants no further growth.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/quest_handler_test_shims.rs",
       "observed_lines": 246,
       "ceiling_lines": 246,
       "split": "cfg(test) quest packet-handler entry points (#1363 slice 6c): the former handlers/quest/handlers/test_shims.rs moved verbatim; the six #[cfg(test)] wrappers that were nested in production impls of handlers/quest/handlers.rs and handlers/quest/handlers/{queries,acceptance,reward_flow}.rs (handle_adventure_map_start_quest, handle_quest_giver_status_query, handle_quest_giver_accept_quest, handle_quest_confirm_accept, handle_quest_giver_request_reward, handle_quest_giver_choose_reward), moved verbatim except that their one call names the moved wow-world-quest free function; the two pending-sharing readers of session/quest/state.rs whose only production caller moved; one-call method forwards for the moved functions the scenarios call; and the quest_handler_test_reexports module of the moved constants, packet readers and the names only the quest scenarios still read. Mounted from handlers/mod.rs outside the session and quest hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to either hotspot's test ceiling. 2026-10-15 #1363 slice 6c: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 264 -> 246 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/quest_item_test_shims.rs",
       "observed_lines": 85,
       "ceiling_lines": 85,
       "split": "cfg(test) quest item-objective entry points (#1363 slice 6b): the four #[cfg(test)] wrappers that were nested in production impls of handlers/quest/objectives.rs (apply_quest_source_item_added_non_bound_objective_progress_like_cpp, apply_quest_item_added_objective_progress_like_cpp, apply_quest_source_item_bound_objective_progress_for_object_like_cpp) and handlers/quest/state.rs (complete_represented_quest_after_add_if_ready_like_cpp), moved verbatim except that their one call names the moved wow-world-quest free function; and the can_take_quest and apply_quest_item_removed_like_cpp one-call forwards the scenarios call. Mounted from handlers/mod.rs outside the session and quest hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to either hotspot's test ceiling. 2026-10-15 #1363 slice 6b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 92 -> 85 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     },
     {
       "path": "crates/wow-world/src/handlers/quest_session_test_shims.rs",
       "observed_lines": 193,
       "ceiling_lines": 193,
       "split": "cfg(test) quest-session entry points (#1363 slice 6a): one-call method forwards to the quest state, persistence, seasonal status, quest-giver dialog and publication and item-mutation persistence plans moved to wow-world-quest (quest_session) that the scenarios call, so no call site changes; and the two #[cfg(test)] quest readers that were nested in production impls of session/quest/giver.rs (seed_seasonal_quest_status_like_cpp) and handlers/quest/persistence.rs (represented_quest_statuses_for_save_like_cpp), moved verbatim. Mounted from handlers/mod.rs outside the session and quest hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to either hotspot's test ceiling. 2026-10-15 #1363 slice 6a: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly. 2026-10-17 #1363 final cleanup: tightened 219 -> 193 to the live value (shim entry points retired at their scenario call sites, dead code and empty impls removed, or an earlier unrecorded shrink); no growth is permitted from here.",
-      "review_checkpoint": "584:C4"
+      "review_checkpoint": "1363:shim-retirement"
     }
   ],
   "exceptions": [],
