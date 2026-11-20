@@ -1,5 +1,40 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 objective completion-effect catalog accepted locally — 2026-11-20
+
+Committed candidate `0b128860cfcad72fd24db1f5ae0a52b76664a201`, based on
+`8dd7f1eda`, represents C++ `QuestObjectiveAction` on every objective and loads
+`quest_objectives_completion_effect` through a `LEFT JOIN` on `ObjectiveID`.
+Following `ObjectMgr.cpp:4669-4671` and `QuestDef.cpp:289-297` at
+`02245dcd245e7433e524577656177723d3e4992e`, all five fields are preserved:
+GameEvent, Spell, Conversation, UpdatePhaseShift and UpdateZoneAuras. No action
+exists when every joined value is NULL; nonnull zero/false values still define
+an action. The SQL-free persistence row and world-server conversion retain the
+same values in the canonical `QuestStore`; existing fixtures explicitly use no
+completion effect.
+
+Focused tests prove the query/join shape, NULL-versus-present classification,
+world-server conversion of all actions and absence, and QuestStore retention.
+`cargo check -p wow-world --tests` also passed for every updated consumer. The
+committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 8dd7f1eda --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 21:05:12Z to 21:17:27Z (735.350 seconds),
+exceeding the 600-second target by 135.350 seconds: 649 `world-server` tests
+(one ignored), 1,081 `wow-data` (six ignored), 635 `wow-database` (nine ignored),
+1,309 `wow-entities`, 36 `wow-persistence`, 4,643 `wow-world` (one ignored) and
+eight `wow-world-quest` tests passed, totaling 8,361 passed, seventeen ignored
+and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T210512.323218Z-690798-final.json`.
+Architecture policy, session syntax ownership, method-index, hotspot/census,
+formatting and all affected downstream checks passed. Reviewed ledgers record
+the exact conversion and fixture deltas without new runtime Session authority.
+
+This is catalog implementation and production integration only. The five
+completion actions are not yet executed by objective progress, so #1368 remains
+open for that runtime behavior. No live database read, effect execution, quest
+capture or full parity is claimed. Player runtime integration and character
+creation remain separate work.
+
 ## #1368 quest-tracker completion accepted locally — 2026-11-20
 
 Committed candidate `e0fccb14b4dcf563fb5043e48cccfcc92f88a4d8`, based on
