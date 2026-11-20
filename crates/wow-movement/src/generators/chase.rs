@@ -271,7 +271,6 @@ impl ChaseMovementGenerator {
                 if snapshot.owner_is_creature && !snapshot.target_accessible {
                     self.cannot_reach_target = true;
                     self.stop_moving_calls = self.stop_moving_calls.saturating_add(1);
-                    self.last_target_position = None;
                     return ChaseMovementAction::CannotReachTarget;
                 }
 
@@ -742,6 +741,14 @@ mod tests {
             ChaseMovementAction::CannotReachTarget
         );
         assert!(chase.cannot_reach_target);
+        assert_eq!(
+            chase.last_target_position,
+            Some(inaccessible.target_position)
+        );
+        assert_eq!(
+            chase.update_like_cpp(true, true, 1, inaccessible),
+            ChaseMovementAction::Continue
+        );
     }
 
     #[test]
