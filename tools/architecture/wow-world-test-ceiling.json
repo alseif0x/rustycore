@@ -425,6 +425,16 @@
    "unit_tests_lines": 287222,
    "unit_tests_tests": 4271,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1354-40",
+   "kind": "raise",
+   "issue": 1354,
+   "reviewed_at": "2026-11-20",
+   "reason": "Live RemovePet grouped-owner update regression preserves existing mask bits and proves the ungrouped zero-mask case (+49 lines, +1 test).",
+   "unit_tests_lines": 287271,
+   "unit_tests_tests": 4272,
+   "src_tests": 345
   }
  ]
 }

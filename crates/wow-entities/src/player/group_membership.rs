@@ -31,6 +31,15 @@ impl Player {
         self.gameplay_state_mut().group = group;
     }
 
+    /// C++ `Player::GetGroupUpdateFlag` and `SetGroupUpdateFlag` (Player.h:2832).
+    pub const fn group_update_flag_like_cpp(&self) -> u32 {
+        self.gameplay_state().group_update_mask
+    }
+
+    pub fn set_group_update_flag_like_cpp(&mut self, flag: u32) {
+        self.gameplay_state_mut().group_update_mask |= flag;
+    }
+
     /// C++ `Player::ResetGroupUpdateSequenceIfNeeded` (Player.cpp:25224):
     /// rejoining the last group must not reset the sequence, so the counter is
     /// restarted only when the category's group guid actually changed. Returns

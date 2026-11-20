@@ -9,7 +9,7 @@
 
 use wow_constants::UnitFlags;
 use wow_core::ObjectGuid;
-use wow_entities::{Pet, Player};
+use wow_entities::{GROUP_UPDATE_FLAG_PET_LIKE_CPP, Pet, Player};
 use wow_persistence::{
     PersistenceOutcomeLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetSaveTransactionLikeCpp,
@@ -129,9 +129,6 @@ fn prepare(player: &Player, pet: &Pet, now: u32) -> Result<PreparedLivePetRemova
         || pet.is_removed()
     {
         return Err("live pet removal ownership changed");
-    }
-    if player.gameplay_state().group.is_some() {
-        return Err("live pet group-update continuation is unavailable");
     }
     let control = &player.unit().subsystems().control;
     let guid = pet.creature().guid();
@@ -387,6 +384,20 @@ where
     }
     host.core()
         .send_packet(&wow_packet::packets::pet::ClearPetSpells);
+    {
+        let mut manager = manager.lock().map_err(|_| "live pet Map lock failed")?;
+        validate_owner(manager.with_player_like_cpp(handle, Player::guid), owner)?;
+        let map = manager
+            .find_map_mut(key.map_id, key.instance_id)
+            .ok_or("live pet Map disappeared during group update")?
+            .map_mut();
+        let player = map
+            .get_typed_player_mut(owner)
+            .ok_or("live pet owner left Map during group update")?;
+        if player.gameplay_state().group.is_some() {
+            player.set_group_update_flag_like_cpp(GROUP_UPDATE_FLAG_PET_LIKE_CPP);
+        }
+    }
     fence.disarm_like_cpp();
     Ok(())
 }

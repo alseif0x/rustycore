@@ -85,6 +85,8 @@ pub struct PlayerGameplayState {
     pub void_storage_items: Vec<Option<PlayerVoidStorageItemLikeCpp>>,
     pub void_storage_loaded: bool,
     pub group: Option<PlayerGroupState>,
+    /// C++ `Player::m_groupUpdateMask`.
+    pub group_update_mask: u32,
     /// C++ `Player::m_groupUpdateSequences`; home and instance categories.
     pub group_update_sequences: [PlayerGroupUpdateSequenceLikeCpp; 2],
     pub guild: PlayerGuildState,

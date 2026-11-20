@@ -373,11 +373,60 @@ async fn live_pet_release_saves_both_transactions_before_detaching_and_creating_
             .count(),
         1
     );
+    assert_eq!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| player.group_update_flag_like_cpp()),
+        Some(0)
+    );
     assert!(
         !session
             .lifecycle
             .durable_loot_money_persistence_tracker_like_cpp()
             .is_indeterminate_like_cpp()
+    );
+}
+
+#[tokio::test]
+async fn live_pet_release_marks_owner_group_update_and_preserves_other_flags() {
+    let (mut session, send_rx, _realm_rx, owner, corpses) =
+        dead_player_session_with_graveyard_like_cpp(9_312);
+    let guid = install_quiescent_pet(&mut session, owner);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_group_like_cpp(Some(wow_entities::PlayerGroupState {
+                group_guid: ObjectGuid::create_group(9_312),
+                leader_guid: owner,
+                role_mask: 0,
+                subgroup: 0,
+            }));
+            player.set_group_update_flag_like_cpp(0x40);
+        })
+        .unwrap();
+    let port =
+        crate::session::RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+            rows: 1,
+        });
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert_eq!(port.pet_save_requests().len(), 2);
+    assert_eq!(corpses.saves.lock().unwrap().len(), 1);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| (
+            player.gameplay_state().pet_guid,
+            player.group_update_flag_like_cpp(),
+        )),
+        Some((None, 0x40 | wow_entities::GROUP_UPDATE_FLAG_PET_LIKE_CPP,))
+    );
+    assert_eq!(
+        sent_opcodes(&send_rx)
+            .iter()
+            .filter(|opcode| **opcode == 0x2c22)
+            .count(),
+        1
     );
 }
 
