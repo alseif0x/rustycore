@@ -1,5 +1,33 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 direct and lent Creature respawn relocation accepted locally — 2026-11-20
+
+Committed candidate `f471c9aee88fcd93f4caae1bcf32ebce87477873`, based on
+`1e570cf20`, extends the production respawn fallback to direct in-place and
+lent-return relocation. Both entry points now report the requested relocation
+and an optional fallback separately. Successful requested moves and invalid
+coordinates need no fallback; an unloaded destination preserves the original
+non-relocated result while attempting the creature's actual home with
+combat/motion cleanup and direct reinitialization on success. A normal Creature
+queues remove-list when home is also blocked. Origin and actual-home observers
+are marked through the deferred rail, never the refused destination, and the
+session consumer no longer logs a fallback report as remaining at origin.
+
+New direct and lent regressions cover requested relocation, blocked requests,
+home success and origin/home/refused visibility. The committed
+`./tools/validation-v2 final --base 1e570cf20 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 05:31:21Z to 05:35:30Z (249.207 seconds),
+within the 600-second target. Library suites passed 787 `wow-map` tests (one
+existing ignored), 4,606 `wow-world` tests (one existing ignored) and all 297
+`wow-world-core` tests, with zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T053121.260976Z-3706433-final.json`.
+
+A Pet whose requested move and home are both blocked still reports only
+`PetRemoveRequested`: no canonical deletion, remove-list insertion, SQL or
+persistence operation is invented. The equivalent Pet::Remove lifecycle remains
+open, so #1354 is not closed by this checkpoint. Player runtime integration and
+character creation remain separate work.
+
 ## #1354 production Creature respawn relocation accepted locally — 2026-11-20
 
 Committed candidate `f75a9578cbc2596380d00fa5299b9b6a91ab21aa`, based on
