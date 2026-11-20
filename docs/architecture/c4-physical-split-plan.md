@@ -1147,6 +1147,17 @@ warnings. The logical owner gains 43 production lines and one test-attributed
 formatting line, recorded as +43 production/+1 test/+44 total. Later C4-8 stages
 still owe remaining session catalogs, dependencies and supervision/shutdown.
 
+Committed candidate `6674057088b719214118fadf2aa687334a7867a8` passed
+`./tools/validation-v2 final --base 63ef87f68 --architecture --require-changes --timings --logs`
+on the warm x86_64 checkout with Protoc 28.3 and one Cargo job. All eleven
+commands passed from 02:02:23Z to 02:04:21Z on 2026-11-20 (117.453 seconds),
+within the 600-second target. The `world-server` library passed 645 tests with
+zero failures and one existing ignored test; all 769 source test identities are
+preserved. The session syntax check retains 747 exact direct-registry rows. The
+SQL module compositor also passed and restored the checkout. R1 is not
+applicable because no `wow-world/src` root shrank. Verified manifest:
+`target/validation-v2/manifests/20261120T020223.654336Z-3560739-final.json`.
+
 On `forever`, C4-8ah starts at `feb3ff8f5` and extracts session runtime policy.
 `app.rs` shrinks from 2,447 to 2,386 lines and its physical ceiling tightens
 without retiring C4-8. The new private `session_runtime_policy.rs` has 79 lines,
