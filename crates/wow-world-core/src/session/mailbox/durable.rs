@@ -17,8 +17,9 @@ use super::protocol::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyPlayerMeleeResultLikeCppCommand,
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
     DestroyVisibleObjectLikeCppCommand, ReconcilePvpCombatExpiryLikeCppCommand,
-    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendPlayerAuraUpdateCommand, SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
+    RemovePetAfterUnloadedMoveLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SendPlayerAuraUpdateCommand,
+    SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
 };
 
 /// Retained FIFO handoff for committed map-owned creature transitions and
@@ -80,6 +81,13 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         command: ReconcilePvpCombatExpiryLikeCppCommand,
     ) -> bool {
         self.publish_like_cpp(SessionCommand::ReconcilePvpCombatExpiryLikeCpp(command))
+    }
+
+    pub fn publish_pet_remove_after_unloaded_move_like_cpp(
+        &mut self,
+        command: RemovePetAfterUnloadedMoveLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::RemovePetAfterUnloadedMoveLikeCpp(command))
     }
 
     pub fn publish_melee_damage_like_cpp(

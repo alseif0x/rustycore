@@ -48399,6 +48399,21 @@
           "source_class": "production"
         },
         {
+          "name": "RemovePetAfterUnloadedMoveLikeCpp",
+          "fields": [
+            {
+              "name": "0",
+              "type": "RemovePetAfterUnloadedMoveLikeCppCommand",
+              "visibility": "private",
+              "cfg": [],
+              "source_class": "production"
+            }
+          ],
+          "discriminant": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "ResetSeasonalQuestStatus",
           "fields": [
             {
@@ -50129,6 +50144,48 @@
       {
         "definition": {
           "module": "crate::session::mailbox::protocol",
+          "name": "RemovePetAfterUnloadedMoveLikeCppCommand",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "instance_id",
+            "type": "u32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "map_id",
+            "type": "u32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "owner_guid",
+            "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "pet_guid",
+            "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::protocol",
           "name": "ResetSeasonalQuestStatusCommand",
           "visibility": "pub",
           "cfg": [],
@@ -51527,6 +51584,14 @@
       },
       {
         "module": "crate::session::mailbox::protocol",
+        "target": "RemovePetAfterUnloadedMoveLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
         "target": "ResetSeasonalQuestStatusCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
@@ -52685,6 +52750,19 @@
           "package": "world-server",
           "module": "crate::runtime::delivery",
           "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn deliver_pet_remove_after_unloaded_move_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
           "enclosing": "fn deliver_player_melee_results_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -53157,6 +53235,19 @@
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
           "symbol": "deliver_directed_object_destroy_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& player_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "deliver_pet_remove_after_unloaded_move_like_cpp",
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "& player_registry",

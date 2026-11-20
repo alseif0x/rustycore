@@ -375,6 +375,16 @@
    "unit_tests_lines": 286541,
    "unit_tests_tests": 4262,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1354-35",
+   "kind": "raise",
+   "issue": 1354,
+   "reviewed_at": "2026-11-20",
+   "reason": "Three unloaded-move Pet mailbox regressions cover ordered saves and detach, stale identity refusal, and disconnect on save failure (+131 lines, +3 tests).",
+   "unit_tests_lines": 286672,
+   "unit_tests_tests": 4265,
+   "src_tests": 345
   }
  ]
 }

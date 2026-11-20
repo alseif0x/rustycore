@@ -428,6 +428,18 @@ impl ManagedMap {
         self.last_live_move_list_drain_summary.clone()
     }
 
+    /// Transfer each persisted Pet::Remove obligation once to the runtime that
+    /// will deliver it after releasing the canonical manager guard.
+    pub fn take_pet_remove_requests_like_cpp(
+        &mut self,
+    ) -> Vec<crate::map::PetRemoveRequestLikeCpp> {
+        self.last_live_move_list_drain_summary
+            .creature
+            .pet_remove_requests
+            .drain(..)
+            .collect()
+    }
+
     pub const fn last_far_spell_callback_drain_summary_like_cpp(
         &self,
     ) -> FarSpellCallbackDrainSummaryLikeCpp {

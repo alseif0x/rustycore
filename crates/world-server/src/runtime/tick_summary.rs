@@ -34,6 +34,8 @@ pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
         Vec<wow_map::PlayerVisibilityRefreshIntentLikeCpp>,
     pub(crate) object_values_updates: Vec<CanonicalMapObjectValuesUpdateLikeCpp>,
     pub(crate) object_visibility_destroys: Vec<CanonicalObjectVisibilityDestroyLikeCpp>,
+    pub(crate) pet_remove_requests:
+        Vec<wow_world::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand>,
     pub(crate) expired_pvp_combat_refs: Vec<(u32, u32, wow_core::ObjectGuid, wow_core::ObjectGuid)>,
     pub(crate) maps_evaluated: usize,
     pub(crate) outcomes: usize,

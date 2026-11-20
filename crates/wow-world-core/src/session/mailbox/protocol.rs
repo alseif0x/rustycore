@@ -187,6 +187,7 @@ pub enum SessionCommand {
     CreatureAttackStartLikeCpp(CreatureAttackStartLikeCppCommand),
     CreatureAttackStopLikeCpp(CreatureAttackStopLikeCppCommand),
     ReconcilePvpCombatExpiryLikeCpp(ReconcilePvpCombatExpiryLikeCppCommand),
+    RemovePetAfterUnloadedMoveLikeCpp(RemovePetAfterUnloadedMoveLikeCppCommand),
     ApplyLootMoneyLikeCpp(ApplyLootMoneyLikeCppCommand),
     NotifyLootMoneyRemovedLikeCpp(NotifyLootMoneyRemovedLikeCppCommand),
     MasterLootGive(MasterLootGiveCommand),
@@ -521,6 +522,16 @@ pub struct CreatureAttackStopLikeCppCommand {
 pub struct ReconcilePvpCombatExpiryLikeCppCommand {
     pub player_guid: ObjectGuid,
     pub map_id: u16,
+    pub instance_id: u32,
+}
+
+/// A map-owned Pet::Remove request, revalidated against the owner's current
+/// residence and active pet before the session starts its persistence phases.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RemovePetAfterUnloadedMoveLikeCppCommand {
+    pub pet_guid: ObjectGuid,
+    pub owner_guid: ObjectGuid,
+    pub map_id: u32,
     pub instance_id: u32,
 }
 

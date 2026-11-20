@@ -119,6 +119,55 @@ fn canonical_map_object_values_delivery_uses_committed_visibility_and_phase_like
 }
 
 #[test]
+fn pet_remove_delivery_uses_current_owner_residence_and_durable_rail_like_cpp() {
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
+    let owner_guid = ObjectGuid::create_player(1, 95);
+    let missing_owner = ObjectGuid::create_player(1, 96);
+    let pet_guid = test_guid_like_cpp(HighGuid::Pet, 590003, 1);
+    let (owner_info, _owner_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
+    let durable = owner_info
+        .durable_creature_runtime_commands_like_cpp
+        .clone();
+    registry.register_or_replace(owner_guid, owner_info, Default::default());
+    let command = wow_world::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand {
+        pet_guid,
+        owner_guid,
+        map_id: 571,
+        instance_id: 4,
+    };
+
+    let summary = crate::deliver_pet_remove_after_unloaded_move_like_cpp(
+        &[
+            command,
+            wow_world::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand {
+                map_id: 530,
+                ..command
+            },
+            wow_world::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand {
+                owner_guid: missing_owner,
+                ..command
+            },
+        ],
+        &registry,
+    );
+
+    assert_eq!(summary.requests_seen, 3);
+    assert_eq!(summary.candidates_queued, 1);
+    assert_eq!(summary.skipped_wrong_map, 1);
+    assert_eq!(summary.skipped_missing_owner, 1);
+    assert_eq!(summary.skipped_not_in_world, 0);
+    assert_eq!(summary.send_failed, 0);
+    let commands = durable.lock().unwrap().drain_like_cpp();
+    assert_eq!(commands.len(), 1);
+    match &commands[0] {
+        SessionCommand::RemovePetAfterUnloadedMoveLikeCpp(delivered) => {
+            assert_eq!(*delivered, command);
+        }
+        other => panic!("unexpected command: {other:?}"),
+    }
+}
+
+#[test]
 fn canonical_map_transport_values_delivery_uses_visible_transports_membership_like_cpp() {
     let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let visible_guid = ObjectGuid::create_player(1, 93);

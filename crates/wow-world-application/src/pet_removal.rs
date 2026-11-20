@@ -1,7 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Player-side orchestration of the death/release pet removal.
+//! Player-side orchestration of bounded live pet removal operations.
 
 mod live;
 mod save;

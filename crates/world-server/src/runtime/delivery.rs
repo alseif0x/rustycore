@@ -975,6 +975,58 @@ pub(crate) fn deliver_player_melee_results_like_cpp(
     summary
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct PetRemoveAfterUnloadedMoveDeliverySummaryLikeCpp {
+    pub requests_seen: usize,
+    pub candidates_queued: usize,
+    pub skipped_missing_owner: usize,
+    pub skipped_wrong_map: usize,
+    pub skipped_not_in_world: usize,
+    pub send_failed: usize,
+}
+
+/// Route Pet::Remove obligations to their owning sessions outside every map
+/// guard. Residence mismatches are stale requests and must not remove a pet
+/// selected later on another map. A current session that cannot retain the
+/// durable command is disconnected instead of silently dropping the obligation.
+pub(crate) fn deliver_pet_remove_after_unloaded_move_like_cpp(
+    commands: &[wow_world::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand],
+    registry: &wow_world::session::directory::PlayerRegistry,
+) -> PetRemoveAfterUnloadedMoveDeliverySummaryLikeCpp {
+    let mut summary = PetRemoveAfterUnloadedMoveDeliverySummaryLikeCpp::default();
+    for command in commands {
+        summary.requests_seen += 1;
+        let Some(recipient) = registry.runtime_recipient(command.owner_guid) else {
+            summary.skipped_missing_owner += 1;
+            continue;
+        };
+        if !recipient.is_in_world {
+            summary.skipped_not_in_world += 1;
+            continue;
+        }
+        if u32::from(recipient.map_id) != command.map_id
+            || recipient.instance_id != command.instance_id
+        {
+            summary.skipped_wrong_map += 1;
+            continue;
+        }
+        if registry.publish_current_pet_remove_after_unloaded_move(recipient.registration, *command)
+        {
+            summary.candidates_queued += 1;
+        } else {
+            summary.send_failed += 1;
+            let _ = registry.try_send_current_command(
+                recipient.registration,
+                SessionCommand::KickLikeCpp(KickLikeCppCommand {
+                    reason: "pet removal command could not be retained; disconnecting desynchronized session"
+                        .to_owned(),
+                }),
+            );
+        }
+    }
+    summary
+}
+
 /// Deliver map-owned creature aggro starts to their exact victim sessions.
 ///
 /// C++ contrast: `CreatureAI::MoveInLineOfSight`/`Creature::CanStartAttack`

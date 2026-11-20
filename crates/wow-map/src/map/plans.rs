@@ -434,10 +434,17 @@ pub enum RemoveObjectFromMoveListOutcomeLikeCpp {
     WrongKind { actual: AccessorObjectKind },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetRemoveRequestLikeCpp {
+    pub pet_guid: ObjectGuid,
+    pub owner_guid: ObjectGuid,
+}
+
 /// Drain summary for C++ `Map::MoveAll*InMoveList` (`Map.cpp:1239-1416`).
 /// This is a map-owned seam only: it does not claim UpdatePositionData,
-/// visibility fanout, AfterRelocation, Pet::Remove, dynamic tree, scripts/AI,
-/// ObjectAccessor, or session packet runtime.
+/// visibility fanout, AfterRelocation, dynamic tree, scripts/AI, ObjectAccessor,
+/// or session packet runtime. Pet removal requests are delivered by the session
+/// runtime after the map guard is released.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MoveListDrainSummaryLikeCpp {
     pub family: Option<MapObjectMoveListFamilyLikeCpp>,
@@ -451,6 +458,7 @@ pub struct MoveListDrainSummaryLikeCpp {
     pub respawn_relocated: usize,
     pub remove_list_queued: usize,
     pub pet_remove_requested: usize,
+    pub pet_remove_requests: Vec<PetRemoveRequestLikeCpp>,
     pub respawn_relocation_unsupported: usize,
     pub failed_invalid_position: usize,
     pub failed_store: usize,

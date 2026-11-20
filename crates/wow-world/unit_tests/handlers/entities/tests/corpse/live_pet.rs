@@ -103,6 +103,137 @@ fn assert_pet_retained(session: &WorldSession, guid: ObjectGuid) {
 }
 
 #[tokio::test]
+async fn unloaded_move_pet_command_saves_and_detaches_current_pet_like_cpp() {
+    let (mut session, send_rx, _realm_rx, owner, _corpses) =
+        dead_player_session_with_graveyard_like_cpp(9_307);
+    let guid = install_quiescent_pet(&mut session, owner);
+    let port =
+        crate::session::RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+            rows: 1,
+        });
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+    let catalogs = session.session_handler_catalogs_for_test_like_cpp();
+
+    session
+        .apply_session_command_with_catalogs_like_cpp(
+            &catalogs,
+            crate::session::mailbox::SessionCommand::RemovePetAfterUnloadedMoveLikeCpp(
+                crate::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand {
+                    pet_guid: guid,
+                    owner_guid: owner,
+                    map_id: 571,
+                    instance_id: 0,
+                },
+            ),
+        )
+        .await;
+
+    assert_eq!(port.pet_save_requests().len(), 2);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| (
+            player.gameplay_state().pet_guid,
+            player
+                .pet_lifecycle_state_like_cpp()
+                .stable
+                .current_pet_index,
+            player.unit().minion_guid_like_cpp(),
+        )),
+        Some((None, None, None))
+    );
+    assert!(
+        session
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_pet(guid)
+            .unwrap()
+            .is_removed()
+    );
+    assert_eq!(sent_opcodes(&send_rx), vec![0x2c22]);
+    assert_ne!(session.state(), crate::session::SessionState::Disconnecting);
+}
+
+#[tokio::test]
+async fn unloaded_move_pet_command_rejects_stale_pet_identity_like_cpp() {
+    let (mut session, _send_rx, _realm_rx, owner, _corpses) =
+        dead_player_session_with_graveyard_like_cpp(9_308);
+    let guid = install_quiescent_pet(&mut session, owner);
+    let stale_guid = ObjectGuid::create_world_object(
+        wow_core::guid::HighGuid::Pet,
+        0,
+        1,
+        571,
+        0,
+        1,
+        i64::from(PET_NUMBER + 1),
+    );
+    let port =
+        crate::session::RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+            rows: 1,
+        });
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+    let catalogs = session.session_handler_catalogs_for_test_like_cpp();
+
+    session
+        .apply_session_command_with_catalogs_like_cpp(
+            &catalogs,
+            crate::session::mailbox::SessionCommand::RemovePetAfterUnloadedMoveLikeCpp(
+                crate::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand {
+                    pet_guid: stale_guid,
+                    owner_guid: owner,
+                    map_id: 571,
+                    instance_id: 0,
+                },
+            ),
+        )
+        .await;
+
+    assert!(port.pet_save_requests().is_empty());
+    assert_pet_retained(&session, guid);
+    assert_ne!(session.state(), crate::session::SessionState::Disconnecting);
+}
+
+#[tokio::test]
+async fn unloaded_move_pet_command_disconnects_when_save_fails_like_cpp() {
+    let (mut session, _send_rx, _realm_rx, owner, _corpses) =
+        dead_player_session_with_graveyard_like_cpp(9_309);
+    let guid = install_quiescent_pet(&mut session, owner);
+    let port =
+        crate::session::RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+            rows: 1,
+        });
+    port.set_pet_save_outcomes([PersistenceOutcomeLikeCpp::Failed {
+        reason: "pet save failed".into(),
+    }]);
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+    let catalogs = session.session_handler_catalogs_for_test_like_cpp();
+
+    session
+        .apply_session_command_with_catalogs_like_cpp(
+            &catalogs,
+            crate::session::mailbox::SessionCommand::RemovePetAfterUnloadedMoveLikeCpp(
+                crate::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand {
+                    pet_guid: guid,
+                    owner_guid: owner,
+                    map_id: 571,
+                    instance_id: 0,
+                },
+            ),
+        )
+        .await;
+
+    assert_eq!(port.pet_save_requests().len(), 1);
+    assert_pet_retained(&session, guid);
+    assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+}
+
+#[tokio::test]
 async fn live_pet_release_saves_both_transactions_before_detaching_and_creating_corpse() {
     let (mut session, send_rx, _realm_rx, owner, corpses) =
         dead_player_session_with_graveyard_like_cpp(9_302);

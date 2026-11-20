@@ -26,7 +26,7 @@ use crate::map_rules::map_record_unit_mut_like_cpp;
 pub enum CreatureRespawnRelocationOutcomeLikeCpp {
     RespawnRelocated,
     RemoveListQueued,
-    PetRemoveRequested,
+    PetRemoveRequested(PetRemoveRequestLikeCpp),
     Failed,
 }
 
@@ -71,7 +71,7 @@ where
         &mut self,
         guid: ObjectGuid,
     ) -> CreatureRespawnRelocationOutcomeLikeCpp {
-        let (home, is_pet) = {
+        let (home, pet_remove_request) = {
             let Some(record) = self.entity_world.get_mut(&guid) else {
                 return CreatureRespawnRelocationOutcomeLikeCpp::Failed;
             };
@@ -82,15 +82,19 @@ where
                     };
                     let home = creature.ai_home_position();
                     creature.combat_stop();
-                    (home, false)
+                    (home, None)
                 }
                 AccessorObjectKind::Pet => {
                     let Some(pet) = record.pet_mut() else {
                         return CreatureRespawnRelocationOutcomeLikeCpp::Failed;
                     };
                     let home = pet.creature().ai_home_position();
+                    let request = PetRemoveRequestLikeCpp {
+                        pet_guid: guid,
+                        owner_guid: pet.owner_guid(),
+                    };
                     pet.creature_mut().combat_stop();
-                    (home, true)
+                    (home, Some(request))
                 }
                 _ => return CreatureRespawnRelocationOutcomeLikeCpp::Failed,
             }
@@ -120,8 +124,8 @@ where
             return CreatureRespawnRelocationOutcomeLikeCpp::RespawnRelocated;
         }
 
-        if is_pet {
-            return CreatureRespawnRelocationOutcomeLikeCpp::PetRemoveRequested;
+        if let Some(request) = pet_remove_request {
+            return CreatureRespawnRelocationOutcomeLikeCpp::PetRemoveRequested(request);
         }
         if self.add_object_to_remove_list_like_cpp(guid).queued {
             CreatureRespawnRelocationOutcomeLikeCpp::RemoveListQueued

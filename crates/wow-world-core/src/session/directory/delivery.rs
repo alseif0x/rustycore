@@ -319,6 +319,20 @@ impl PlayerRegistry {
             .unwrap_or(false)
     }
 
+    pub fn publish_current_pet_remove_after_unloaded_move(
+        &self,
+        registration: PlayerRegistration,
+        command: crate::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable.lock().ok().map(|mut durable| {
+                    durable.publish_pet_remove_after_unloaded_move_like_cpp(command)
+                })
+            })
+            .unwrap_or(false)
+    }
+
     pub fn publish_current_pvp_combat_expiry(
         &self,
         registration: PlayerRegistration,

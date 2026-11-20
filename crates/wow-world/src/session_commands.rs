@@ -63,6 +63,35 @@ impl WorldSession {
             SessionCommand::ReconcilePvpCombatExpiryLikeCpp(command) => {
                 wow_world_entities::handle_reconcile_pvp_combat_expiry_like_cpp(self, command);
             }
+            SessionCommand::RemovePetAfterUnloadedMoveLikeCpp(command) => {
+                let admitted = self.player_guid() == Some(command.owner_guid)
+                    && self.core.current_canonical_player_map_key_like_cpp()
+                        == Some(wow_map::MapKey::new(command.map_id, command.instance_id))
+                    && self
+                        .core
+                        .with_owned_player_like_cpp(|player| player.gameplay_state().pet_guid)
+                        == Some(Some(command.pet_guid));
+                if admitted {
+                    let result = wow_world_application::remove_pet_not_in_slot_like_cpp(
+                        self,
+                        wow_world_entities::ResurrectionOperationCatalogs {
+                            item_guid_generator: catalogs.id_generators.item.as_ref(),
+                            creature_spawns: catalogs.creature_spawns.as_ref(),
+                            graveyards: Some(catalogs.graveyards.as_ref()),
+                        },
+                    )
+                    .await;
+                    if let Err(reason) = result {
+                        tracing::error!(
+                            pet_guid = ?command.pet_guid,
+                            owner_guid = ?command.owner_guid,
+                            reason,
+                            "unloaded-move pet removal failed; disconnecting desynchronized session"
+                        );
+                        self.kick(reason);
+                    }
+                }
+            }
             SessionCommand::ApplyLootMoneyLikeCpp(command) => {
                 self.handle_apply_loot_money_with_generator_like_cpp_command(
                     catalogs.id_generators.item.as_ref(),

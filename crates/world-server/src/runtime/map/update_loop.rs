@@ -6,7 +6,10 @@ use std::time::{Duration, Instant};
 use tracing::{debug, info};
 use wow_persistence::GameEventPersistencePortLikeCpp;
 
-use crate::deliver_canonical_map_object_values_updates_like_cpp;
+use crate::{
+    deliver_canonical_map_object_values_updates_like_cpp,
+    deliver_pet_remove_after_unloaded_move_like_cpp,
+};
 
 use super::super::canonical_creature_runtime::{
     CanonicalCreatureRuntimeLikeCpp, deliver_canonical_creature_phases_like_cpp,
@@ -628,6 +631,21 @@ pub(crate) fn spawn_canonical_map_update_loop(
             }
 
             if let Some(summary) = tick_summary.as_ref() {
+                let pet_removal = deliver_pet_remove_after_unloaded_move_like_cpp(
+                    &summary.pet_remove_requests,
+                    &player_registry,
+                );
+                if pet_removal.requests_seen > 0 {
+                    debug!(
+                        requests_seen = pet_removal.requests_seen,
+                        candidates_queued = pet_removal.candidates_queued,
+                        skipped_missing_owner = pet_removal.skipped_missing_owner,
+                        skipped_wrong_map = pet_removal.skipped_wrong_map,
+                        skipped_not_in_world = pet_removal.skipped_not_in_world,
+                        send_failed = pet_removal.send_failed,
+                        "Canonical unloaded-move Pet removal requests delivered outside map guards"
+                    );
+                }
                 deferred_visibility::deliver_directed_object_destroy_like_cpp(
                     &summary.object_visibility_destroys,
                     &player_registry,

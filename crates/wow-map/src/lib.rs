@@ -58,9 +58,10 @@ pub use map::{
     MapObjectRelocationOutcome, MapObjectStoreError, MapPetCombatStopOutcomeLikeCpp,
     MapUpdatePlayerSources, MapUpdateVisitPlan, NearbyCellGuids, NearbyCellVisitCenter,
     NearbyCellVisitPlan, NoopGridLifecycle, NoopTerrainGridLoader, ObjectUpdatePlan,
-    ObjectVisibilityDestroyRecipientsLikeCpp, PlayerDelayedRelocationVisibilityPlan,
-    PlayerRelocationVisibilityPlan, ProcessRelocationNotifiesOutcome, RelocationNotifyProcessPlan,
-    RemoveFromMapError, RemoveFromMapOutcome, ResetNotifyFlagsOutcome, SpawnedPoolDataErrorLikeCpp,
+    ObjectVisibilityDestroyRecipientsLikeCpp, PetRemoveRequestLikeCpp,
+    PlayerDelayedRelocationVisibilityPlan, PlayerRelocationVisibilityPlan,
+    ProcessRelocationNotifiesOutcome, RelocationNotifyProcessPlan, RemoveFromMapError,
+    RemoveFromMapOutcome, ResetNotifyFlagsOutcome, SpawnedPoolDataErrorLikeCpp,
     SpawnedPoolDataLikeCpp, TerrainGridLoader, cell_from_grid_center, cell_from_world,
     is_grid_id_loaded,
 };

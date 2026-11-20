@@ -360,8 +360,11 @@ where
                             CreatureRespawnRelocationOutcomeLikeCpp::RemoveListQueued => {
                                 summary.remove_list_queued += 1;
                             }
-                            CreatureRespawnRelocationOutcomeLikeCpp::PetRemoveRequested => {
+                            CreatureRespawnRelocationOutcomeLikeCpp::PetRemoveRequested(
+                                request,
+                            ) => {
                                 summary.pet_remove_requested += 1;
+                                summary.pet_remove_requests.push(request);
                             }
                             CreatureRespawnRelocationOutcomeLikeCpp::Failed => {}
                         }

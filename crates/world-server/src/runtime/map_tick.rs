@@ -594,6 +594,19 @@ fn canonical_map_tick_tail_like_cpp(
                 }),
         );
         append_map_object_values_updates_like_cpp(&mut summary, managed_map);
+        summary.pet_remove_requests.extend(
+            managed_map
+                .take_pet_remove_requests_like_cpp()
+                .into_iter()
+                .map(|request| {
+                    wow_world::session::mailbox::RemovePetAfterUnloadedMoveLikeCppCommand {
+                        pet_guid: request.pet_guid,
+                        owner_guid: request.owner_guid,
+                        map_id,
+                        instance_id,
+                    }
+                }),
+        );
         summary.expired_pvp_combat_refs.extend(
             managed_map
                 .last_expired_pvp_combat_refs_like_cpp()
@@ -641,6 +654,7 @@ fn canonical_map_tick_tail_like_cpp(
         }
     });
     let has_work = !summary.respawn_db_saves.is_empty()
+        || !summary.pet_remove_requests.is_empty()
         || !summary.expired_pvp_combat_refs.is_empty()
         || !summary.player_visibility_refresh_intents.is_empty()
         || !summary.object_values_updates.is_empty()

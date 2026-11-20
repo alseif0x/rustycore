@@ -85,6 +85,44 @@ fn map_manager_update_drains_live_creature_gameobject_area_trigger_move_lists_li
 }
 
 #[test]
+fn managed_map_pet_remove_request_is_handed_off_once_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_world_map(1, 0);
+    let owner_guid = ObjectGuid::create_player(1, 442_015);
+    let pet_guid = guid(HighGuid::Pet, 4420104, 1, 0);
+    let mut pet = wow_entities::Pet::new(owner_guid, wow_entities::PetType::Hunter);
+    pet.creature_mut()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(pet_guid);
+    pet.creature_mut()
+        .unit_mut()
+        .world_mut()
+        .set_map(1, 0)
+        .unwrap();
+    pet.creature_mut()
+        .set_ai_home_position(Position::xyz(6_000.0, 6_000.0, 1.0));
+    {
+        let map = manager.find_map_mut(1, 0).unwrap().map_mut();
+        map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_pet(pet).unwrap())
+            .unwrap();
+        map.add_creature_to_move_list_like_cpp(pet_guid, Position::xyz(5_000.0, 5_000.0, 1.0));
+    }
+
+    assert_eq!(manager.update(1), Some(1));
+    let managed_map = manager.find_map_mut(1, 0).unwrap();
+    assert_eq!(
+        managed_map.take_pet_remove_requests_like_cpp(),
+        vec![crate::map::PetRemoveRequestLikeCpp {
+            pet_guid,
+            owner_guid,
+        }]
+    );
+    assert!(managed_map.take_pet_remove_requests_like_cpp().is_empty());
+}
+
+#[test]
 fn map_manager_update_leaves_dynamic_object_move_list_queued_like_cpp() {
     let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
     manager.create_world_map(1, 0);

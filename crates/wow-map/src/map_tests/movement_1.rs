@@ -971,6 +971,13 @@ fn respawn_relocation_pet_blocked_home_requests_remove_without_record_loss() {
     assert_eq!(summary.relocated, 0);
     assert_eq!(summary.remove_list_queued, 0);
     assert_eq!(summary.pet_remove_requested, 1);
+    assert_eq!(
+        summary.pet_remove_requests,
+        vec![PetRemoveRequestLikeCpp {
+            pet_guid: guid,
+            owner_guid: ObjectGuid::create_player(1, 484_000),
+        }]
+    );
     assert_eq!(summary.respawn_relocation_unsupported, 0);
     assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
     assert!(map.get_typed_pet(guid).is_some());
