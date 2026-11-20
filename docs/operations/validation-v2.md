@@ -1,6 +1,8 @@
 # Validation V2 canonical runner
 
 Validation V2 is the clean-room validation path shared by local development and GitHub Actions.
+The [delivery time improvement plan](delivery-time-plan.md) records the measured delays,
+proposed changes and criteria for adopting them on `3.4.3`.
 The old `pr-preflight.sh` and `local-harness.sh` wrappers were retired in #331 (PR #335). Do not use
 their former `full` or `capture` subcommands; code review and live QA have separate tools in
 [local-first-development.md](local-first-development.md).
