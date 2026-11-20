@@ -1507,6 +1507,19 @@ retirement rationale is preserved, and `shim_row_errors` still requires each row
 No checker or production source changes are needed. The terminal physical check
 and final architecture campaign own the closeout evidence below.
 
+Committed candidate `2cce27564a0149fbba8fb1c9b333435fe1ad9d37` passed
+`python3 tools/architecture/check_architecture.py physical-files --terminal`:
+4,873 files, 44 preserved legacy shim ceilings and 108 cohesion reviews in
+terminal mode. It also passed
+`./tools/validation-v2 final --base 35989553f --architecture --require-changes --timings --logs`
+from 03:45:46Z to 03:47:02Z on 2026-11-20 (75.586 seconds), within the
+600-second target. All six selected documentation/architecture commands passed;
+no Rust library suite was selected because the diff contains no Rust change.
+Verified manifest:
+`target/validation-v2/manifests/20261120T034546.719637Z-3631614-final.json`.
+All three closeout conditions are met; shim retirement continues under
+`1363:shim-retirement`, not under C4.
+
 1. Land C4-1 … C4-8 so that no `584:C4` row remains above 2000.
 2. Move the 44 shim rows off `584:C4`. Either re-tag them to the shim retirement owner, or
    make `shim_row_errors` read a separate registry, and update its self-test to match. The
