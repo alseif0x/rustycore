@@ -13,8 +13,12 @@ mod databases;
 #[path = "guid_generator_startup.rs"]
 mod guid_generator_startup;
 
+#[path = "hotfix_delivery_startup.rs"]
+mod hotfix_delivery_startup;
+
 use databases::StartupDatabases;
 use guid_generator_startup::GuidGeneratorStartup;
+use hotfix_delivery_startup::HotfixDeliveryStartup;
 
 #[path = "item_catalogs.rs"]
 mod item_catalogs;
@@ -905,35 +909,15 @@ async fn run_inner(
     )
     .await?;
 
-    // Build hotfix blob cache — pre-loads raw DB2 record bytes and hotfix DB overlays for DBReply.
-    let mut hotfix_blob_cache = wow_data::build_hotfix_blob_cache(&data_dir, &locale);
-    let [hotfix_blobs, hotfix_data, hotfix_optional_data] =
-        crate::hotfix_delivery_metadata::load_hotfix_delivery_metadata_like_cpp(
-            &mut hotfix_blob_cache,
-            &hotfix_delivery_metadata_persistence,
-            &locale,
-        )
-        .await;
-    match hotfix_blobs {
-        Ok(n) => info!("HotfixBlobCache: loaded {n} hotfix_blob rows"),
-        Err(e) => tracing::warn!("HotfixBlobCache: failed to load hotfix_blob rows: {e}"),
-    }
-    match hotfix_data {
-        Ok(n) => info!("HotfixBlobCache: loaded {n} hotfix_data rows"),
-        Err(e) => tracing::warn!("HotfixBlobCache: failed to load hotfix_data rows: {e}"),
-    }
-    match hotfix_optional_data {
-        Ok(n) => info!("HotfixBlobCache: loaded {n} hotfix_optional_data rows"),
-        Err(e) => tracing::warn!("HotfixBlobCache: failed to load hotfix_optional_data rows: {e}"),
-    }
-    let hotfix_blob_cache = Arc::new(hotfix_blob_cache);
-    let tact_key_store = Arc::new(
-        wow_data::TactKeyStore::load(&data_dir, &locale).context("Failed to load TactKey.db2")?,
-    );
-    info!(
-        "Loaded {} TactKey rows from TactKey.db2",
-        tact_key_store.len()
-    );
+    let HotfixDeliveryStartup {
+        hotfix_blob_cache,
+        tact_key_store,
+    } = hotfix_delivery_startup::load_hotfix_delivery_startup(
+        &data_dir,
+        &locale,
+        &hotfix_delivery_metadata_persistence,
+    )
+    .await?;
 
     let SpellAcquisitionCatalogs {
         spell_radius_store,

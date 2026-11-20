@@ -1132,6 +1132,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8ao starts at `511e0f85d` and extracts hotfix delivery startup.
+`app.rs` shrinks from 2,011 to 1,995 lines and its legacy physical row is retired
+without closing C4-8. The new private `hotfix_delivery_startup.rs` has 49 lines,
+three inputs and two results: HotfixBlobCache and TactKeyStore. Local cache
+construction, one metadata await, all three nonfatal outcomes, Arc publication
+and fatal TactKey loading retain their original order. The ordering guard now
+includes the moved source and preserves adapter < removals < local DB2 < staged
+SQL. No session-owned registry operation changes.
+
+The moved sequence matches the original token stream after adapting borrowed
+inputs and canonical rustfmt. The `world-server` library check and affected guard
+pass; the library retains the same 35 existing warnings. The logical owner gains
+33 production and four test lines, recorded as +33 production/+4 tests/+37 total.
+The 44 shim rows and completed_checkpoints remain open under Closing C4.
+
 On `forever`, C4-8an starts at `d7d37d481` and extracts runtime network
 configuration. `app.rs` shrinks from 2,041 to 2,011 lines and its physical
 ceiling tightens without retiring C4-8. The new private

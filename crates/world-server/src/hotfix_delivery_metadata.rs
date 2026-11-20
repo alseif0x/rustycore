@@ -255,7 +255,11 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_after_local_db2_and_before_ordered_stages() {
-        let source = include_str!("app.rs");
+        let source = format!(
+            "{}{}",
+            include_str!("app.rs"),
+            include_str!("hotfix_delivery_startup.rs")
+        );
         assert_eq!(
             source
                 .matches("MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new")
