@@ -816,6 +816,10 @@ fn ae_loot_candidates_are_the_nearby_dead_creatures_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
     session.set_canonical_map_manager(Arc::clone(&manager));
+    let player_guid = ObjectGuid::create_player(1, 42);
+    session.set_player_guid(Some(player_guid));
+    add_canonical_test_player_on_map(&manager, player_guid, Position::ZERO, 0, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     let corpse = |entry: i64, x: f32, alive: bool| {
         let guid = test_creature_guid(entry);
         let mut creature = crate::creature_projection::new_runtime_creature_like_cpp(
@@ -848,4 +852,61 @@ fn ae_loot_candidates_are_the_nearby_dead_creatures_like_cpp() {
         .nearby_dead_creature_guids_like_cpp(Position::ZERO, 30.0);
 
     assert_eq!(candidates, vec![near_dead]);
+}
+
+#[test]
+fn ae_loot_candidates_filter_phase_and_include_both_combat_reaches_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    let player_guid = ObjectGuid::create_player(1, 42);
+    session.set_player_guid(Some(player_guid));
+    add_canonical_test_player_on_map(&manager, player_guid, Position::ZERO, 0, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_combat_reach(2.0);
+            *player.unit_mut().world_mut().phase_shift_mut() =
+                wow_entities::PhaseShift::from_phases([7]);
+        })
+        .unwrap();
+    let corpse = |entry: i64, x: f32, reach: f32, phases: [u32; 1], alive: bool| {
+        let guid = test_creature_guid(entry);
+        let mut creature = crate::creature_projection::new_runtime_creature_like_cpp(
+            guid,
+            9001,
+            Position::new(x, 0.0, 0.0, 0.0),
+            100,
+            1,
+            1,
+            2,
+            0.0,
+            1,
+            35,
+            0,
+            0,
+        );
+        creature.unit_mut().set_combat_reach(reach);
+        *creature.unit_mut().world_mut().phase_shift_mut() =
+            wow_entities::PhaseShift::from_phases(phases);
+        if !alive {
+            creature.die();
+        }
+        assert!(manager.lock().unwrap().add_creature(0, 0, creature));
+        guid
+    };
+    let near_dead = corpse(19_051, 10.0, 0.5, [7], false);
+    corpse(19_052, 10.0, 0.5, [7], true);
+    let reach_dead = corpse(19_053, 32.0, 0.5, [7], false);
+    corpse(19_054, 33.0, 0.5, [7], false);
+    corpse(19_055, 10.0, 0.5, [8], false);
+
+    let candidates = session
+        .core
+        .nearby_dead_creature_guids_like_cpp(Position::ZERO, 30.0);
+
+    assert_eq!(candidates.len(), 2);
+    assert!(candidates.contains(&near_dead));
+    assert!(candidates.contains(&reach_dead));
 }

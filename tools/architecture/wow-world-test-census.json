@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4613,
+  "tests": 4614,
   "ignored": 1,
-  "session": 3897,
-  "shims": 3693,
+  "session": 3898,
+  "shims": 3695,
   "by_class": {
    "P": 716,
    "H": 146,
-   "W": 3751
+   "W": 3752
   },
   "by_reason": {
    "H-host": 146,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 32,
-   "W-world-logic": 3496
+   "W-world-logic": 3497
   },
   "by_owner": {
    "wow-world": {
@@ -63,7 +63,7 @@
    "wow-world-core": {
     "P": 31,
     "H": 0,
-    "W": 183
+    "W": 182
    },
    "wow-world-creature": {
     "P": 2,
@@ -98,12 +98,12 @@
    "wow-world-loot": {
     "P": 6,
     "H": 2,
-    "W": 29
+    "W": 28
    },
    "wow-world-loot-ops": {
     "P": 11,
     "H": 8,
-    "W": 215
+    "W": 216
    },
    "wow-world-player-conditions": {
     "P": 1,
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 55,
     "H": 4,
-    "W": 967
+    "W": 969
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 518,
     "H": 0,
-    "W": 3751
+    "W": 3752
    },
    "wow-world-application": {
     "P": 27,
@@ -2043,7 +2043,7 @@
   ["unit_tests/handlers/loot_tests/item_3.rs::loot_item_store_random_suffix_uses_cpp_property_points_seed", "H", "wow-world-loot-ops", "wow-world-loot", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/loot_tests/item_3.rs::loot_is_looted_requires_no_money_and_no_unlooted_items_like_cpp", "P", "wow-world", "wow-world", "P-library", false, false, false, [], []],
   ["unit_tests/handlers/loot_tests/item_3.rs::loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["handle_loot_unit", "resolved_group_guid_like_cpp", "set_canonical_map_manager", "set_group_registry"], []],
-  ["unit_tests/handlers/loot_tests/item_3.rs::item_loot_releases_ae_view_and_tracks_multiple_items_like_cpp", "W", "wow-world", "wow-world-loot", "W-world-logic", true, true, false, ["handle_loot_release", "handle_loot_unit", "is_active_loot_guid", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/loot_tests/item_3.rs::item_loot_releases_ae_view_and_tracks_multiple_items_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_loot_release", "handle_loot_unit", "is_active_loot_guid"], []],
   ["unit_tests/handlers/loot_tests/item_3.rs::loot_item_uses_active_loot_view_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_item", "set_player_guid"], []],
   ["unit_tests/handlers/loot_tests/item_3.rs::loot_item_releases_blocked_item_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_item", "is_active_loot_guid", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/loot_tests/item_3.rs::loot_item_releases_when_player_is_not_allowed_looter_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_item", "is_active_loot_guid", "set_canonical_map_manager", "set_player_guid"], []],
@@ -2121,8 +2121,8 @@
   ["unit_tests/handlers/loot_tests/loot_4.rs::loot_roll_remote_session_routes_vote_to_owner_session_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["handle_loot_roll", "handle_loot_unit", "process_represented_session_commands_like_cpp", "resolved_group_guid_like_cpp"], []],
   ["unit_tests/handlers/loot_tests/loot_5.rs::loot_unit_new_main_target_releases_existing_view_like_cpp", "W", "wow-world", "wow-world-loot", "W-world-logic", true, true, false, ["handle_loot_unit", "is_active_loot_guid", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/loot_tests/loot_5.rs::loot_unit_response_uses_loot_owner_not_player_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_unit", "is_active_loot_guid", "set_canonical_map_manager", "set_player_guid"], []],
-  ["unit_tests/handlers/loot_tests/loot_5.rs::loot_unit_ae_loot_sends_targets_and_secondary_ack_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_unit", "is_active_loot_guid", "set_canonical_map_manager", "set_player_guid"], []],
-  ["unit_tests/handlers/loot_tests/loot_5.rs::new_loot_after_primary_ae_release_closes_secondary_before_replacing_tracking_like_cpp", "W", "wow-world", "wow-world-loot", "W-world-logic", true, true, false, ["handle_loot_release", "handle_loot_unit", "is_active_loot_guid", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/loot_tests/loot_5.rs::loot_unit_ae_loot_sends_targets_and_secondary_ack_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_loot_unit", "is_active_loot_guid", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/loot_tests/loot_5.rs::new_loot_after_primary_ae_release_closes_secondary_before_replacing_tracking_like_cpp", "W", "wow-world", "wow-world-loot", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_loot_release", "handle_loot_unit", "is_active_loot_guid"], []],
   ["unit_tests/handlers/loot_tests/loot_5.rs::loot_unit_empty_visible_loot_returns_silently_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_unit", "is_active_loot_guid", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/loot_tests/loot_5.rs::loot_unit_fully_looted_existing_loot_returns_silently_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_unit", "is_active_loot_guid", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/loot_tests/loot_5.rs::loot_unit_without_allowed_loot_for_player_returns_silently_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_unit", "is_active_loot_guid", "set_canonical_map_manager", "set_player_guid"], []],
@@ -2158,7 +2158,7 @@
   ["unit_tests/handlers/loot_tests/misc_1.rs::gathering_node_state_sync_command_updates_receiver_before_refresh_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "set_player_guid", "set_state"], []],
   ["unit_tests/handlers/loot_tests/misc_1.rs::historical_stack_binding_adds_only_soulbound_like_cpp", "H", "wow-world-loot-ops", "wow-world-loot-ops", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/loot_tests/misc_1.rs::failed_existing_stack_store_publishes_neither_count_nor_binding", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "set_item_guid_generator_like_cpp"], []],
-  ["unit_tests/handlers/loot_tests/misc_2.rs::disconnect_after_primary_ae_release_closes_secondary_view_like_cpp", "W", "wow-world", "wow-world-loot", "W-world-logic", true, true, false, ["cleanup_shared_runtime_state_on_disconnect_like_cpp", "handle_loot_release", "handle_loot_unit", "is_active_loot_guid"], []],
+  ["unit_tests/handlers/loot_tests/misc_2.rs::disconnect_after_primary_ae_release_closes_secondary_view_like_cpp", "W", "wow-world", "wow-world-loot", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "cleanup_shared_runtime_state_on_disconnect_like_cpp", "handle_loot_release", "handle_loot_unit"], []],
   ["unit_tests/handlers/loot_tests/misc_2.rs::personal_fishing_hole_restock_accepts_second_lifecycle_and_rejects_old_observation_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["mutate_canonical_gameobject_by_guid_like_cpp", "set_canonical_map_manager", "set_player_guid", "upsert_represented_personal_gameobject_loot_authority_like_cpp"], []],
   ["unit_tests/handlers/loot_tests/misc_2.rs::concurrent_fishing_hole_releases_cannot_finish_ready_after_max_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["release_canonical_fishing_hole_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/loot_tests/module_hook.rs::a_stored_direct_loot_item_raises_loot_item_once", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_item", "install_module_hooks_like_cpp", "load_represented_character_auras_like_cpp", "represented_on_loot_opened_like_cpp"], []],
@@ -4889,7 +4889,8 @@
   ["unit_tests/session/tests/scenarios_world_entities_8.rs::represented_gameobject_owner_update_mutates_existing_canonical_created_by_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["record_represented_gameobject_runtime_state_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_8.rs::mutate_world_creature_relocates_canonical_map_object_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_8.rs::canonical_creature_relocation_helper_uses_explicit_map_and_instance_like_cpp", "P", "wow-world-core", "wow-world-core", "P-domain", false, false, false, [], []],
-  ["unit_tests/session/tests/scenarios_world_entities_8.rs::ae_loot_candidates_are_the_nearby_dead_creatures_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, false, false, ["set_canonical_map_manager"], []],
+  ["unit_tests/session/tests/scenarios_world_entities_8.rs::ae_loot_candidates_are_the_nearby_dead_creatures_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/scenarios_world_entities_8.rs::ae_loot_candidates_filter_phase_and_include_both_combat_reaches_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_world_entities_8/ghost_visibility.rs::materialized_compat_registration_applies_type_flags_and_post_addon_override", "W", "wow-world", "wow-world-entities", "W-world-logic", true, false, false, ["set_canonical_map_manager", "split_world_entities_mut"], []],
   ["unit_tests/session/tests/scenarios_world_entities_8/ghost_visibility.rs::spawn_materializer_returns_type_flags_from_selected_difficulty_fallback", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_9.rs::represented_gameobject_runtime_state_upserts_into_player_instance_like_cpp", "W", "wow-world", "wow-world-visibility", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "record_represented_gameobject_runtime_state_like_cpp", "set_canonical_map_manager"], []],

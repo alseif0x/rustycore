@@ -405,6 +405,16 @@
    "unit_tests_lines": 286959,
    "unit_tests_tests": 4268,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1357-38",
+   "kind": "raise",
+   "issue": 1357,
+   "reviewed_at": "2026-11-20",
+   "reason": "AE loot candidate phase and both combat-reach regressions cover included 32yd, excluded 33yd and different-phase targets; four existing AE integration fixtures now install their canonical Player and the candidate assertion is cell-order independent (+74 lines, +1 test).",
+   "unit_tests_lines": 287033,
+   "unit_tests_tests": 4269,
+   "src_tests": 345
   }
  ]
 }

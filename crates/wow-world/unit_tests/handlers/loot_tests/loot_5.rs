@@ -78,9 +78,8 @@ async fn loot_unit_ae_loot_sends_targets_and_secondary_ack_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let main_guid = test_creature_guid(19_031);
     let secondary_guid = test_creature_guid(19_032);
-    session.set_player_guid(Some(player_guid));
+    install_test_ae_player_like_cpp(&mut session, player_guid);
     session.set_enable_ae_loot_like_cpp(true);
-    session.set_player_position_like_cpp(Position::ZERO);
     register_test_creature_like_cpp(&mut session, test_creature(main_guid, false));
     register_test_creature_like_cpp(&mut session, test_creature(secondary_guid, false));
     insert_allowed_coin_loot_like_cpp(&mut session, main_guid, player_guid, 7);

@@ -25,16 +25,26 @@ impl SessionCore {
     /// The dead creatures an area loot can join: C++
     /// `Cell::VisitGridObjects(_player, CreatureListSearcher<AELootCreatureCheck>,
     /// AELootCreatureCheck::LootDistance)` (`LootHandler.cpp:236-242`). Only
-    /// the grid cells around `center` within `radius` are visited (the grid
-    /// containers, as `VisitGridObjects` does), and each creature is read in
-    /// place under the canonical lock: not alive and within `radius` of
-    /// `center` (`AELootCreatureCheck::IsValidLootTarget`, the first two tests;
-    /// the caller applies the main-target and `isAllowedToLoot` tests).
+    /// the grid cells around `center` within `radius + player combat reach` are
+    /// visited, and each creature is read in place under the canonical lock:
+    /// not alive, visible to the player, and within `radius` plus both combat
+    /// reaches of `center` (`AELootCreatureCheck::IsValidLootTarget`, the first
+    /// two tests; the caller applies the main-target and `isAllowedToLoot`
+    /// tests).
     pub fn nearby_dead_creature_guids_like_cpp(
         &self,
         center: wow_core::Position,
         radius: f32,
     ) -> Vec<ObjectGuid> {
+        let (viewer_phase, viewer_reach) = match self.canonical_player_snapshot_like_cpp(|player| {
+            (
+                player.unit().world().phase_shift().clone(),
+                player.unit().data().combat_reach,
+            )
+        }) {
+            Some(snapshot) => snapshot,
+            None => return Vec::new(),
+        };
         let (map_id, instance_id) = self.current_runtime_map_key_like_cpp();
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return Vec::new();
@@ -46,13 +56,18 @@ impl SessionCore {
             return Vec::new();
         };
         let map = managed.map();
-        map.nearby_cell_guids_like_cpp(center.x, center.y, radius)
+        map.nearby_cell_guids_like_cpp(center.x, center.y, radius + viewer_reach)
             .grid
             .creatures
             .into_iter()
             .filter(|guid| {
                 map.with_creature_like_cpp(*guid, |creature| {
-                    !creature.is_alive() && center.is_within_dist(&creature.position(), radius)
+                    !creature.is_alive()
+                        && viewer_phase.can_see(creature.unit().world().phase_shift())
+                        && center.is_within_dist(
+                            &creature.position(),
+                            radius + viewer_reach + creature.unit().world().combat_reach(),
+                        )
                 })
                 .unwrap_or(false)
             })

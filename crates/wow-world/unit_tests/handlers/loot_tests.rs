@@ -840,15 +840,29 @@ fn test_gameobject_guid(counter: i64) -> ObjectGuid {
     ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 0, 0, 1, counter)
 }
 
+fn install_test_ae_player_like_cpp(session: &mut WorldSession, player_guid: ObjectGuid) {
+    session.set_player_guid(Some(player_guid));
+    session.set_player_position_like_cpp(Position::ZERO);
+    let canonical = fixtures::ensure_canonical_creature_store_and_map_for_session_like_cpp(session);
+    let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
+    crate::handlers::test_support::add_canonical_test_player_on_map_for_misc_test(
+        &canonical,
+        player_guid,
+        Position::ZERO,
+        u32::from(map_id),
+        instance_id,
+    );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+}
+
 async fn open_test_ae_pair_like_cpp(
     session: &mut WorldSession,
     player_guid: ObjectGuid,
     primary_guid: ObjectGuid,
     secondary_guid: ObjectGuid,
 ) -> OwnedLootAuthority {
-    session.set_player_guid(Some(player_guid));
+    install_test_ae_player_like_cpp(session, player_guid);
     session.set_enable_ae_loot_like_cpp(true);
-    session.set_player_position_like_cpp(Position::ZERO);
     register_test_creature_like_cpp(session, test_creature(primary_guid, false));
     register_test_creature_like_cpp(session, test_creature(secondary_guid, false));
     insert_allowed_coin_loot_like_cpp(session, primary_guid, player_guid, 7);
