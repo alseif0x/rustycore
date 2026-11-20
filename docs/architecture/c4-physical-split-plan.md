@@ -1148,6 +1148,18 @@ module wiring and formatting, recorded as +18 production/+0 tests/+18 total.
 Later C4-8 stages still owe remaining session catalogs, dependencies and
 supervision/shutdown.
 
+Committed candidate `9d230a48493093911a0646c4423a2b9af78a51dc` passed
+`./tools/validation-v2 final --base feb3ff8f5 --architecture --require-changes --timings --logs`
+on the warm x86_64 checkout with Protoc 28.3 and one Cargo job. All eleven
+commands passed from 01:50:53Z to 01:52:52Z on 2026-11-20 (119.563 seconds),
+within the 600-second target. The `world-server` library passed 645 tests with
+zero failures and one existing ignored test; all 769 source test identities are
+preserved. The session syntax baseline records the new builder boundary and its
+three typed registry inputs, with 747 exact direct-registry rows. The SQL module
+compositor also passed and restored the checkout. R1 is not applicable because
+no `wow-world/src` root shrank. Verified manifest:
+`target/validation-v2/manifests/20261120T015052.932003Z-3552404-final.json`.
+
 On `forever`, C4-8ag starts at `29d950df6` and extracts the required session
 persistence graph. `app.rs` shrinks from 2,625 to 2,447 lines and its physical
 ceiling tightens without retiring C4-8. The new private
