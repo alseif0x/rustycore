@@ -385,6 +385,16 @@
    "unit_tests_lines": 286672,
    "unit_tests_tests": 4265,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1354-36",
+   "kind": "raise",
+   "issue": 1354,
+   "reviewed_at": "2026-11-20",
+   "reason": "Two live Pet::Remove summon-reagent regressions cover refund-before-save/ClearPetSpells and battleground exclusion with temporary-marker preservation (+232 lines, +2 tests).",
+   "unit_tests_lines": 286904,
+   "unit_tests_tests": 4267,
+   "src_tests": 345
   }
  ]
 }

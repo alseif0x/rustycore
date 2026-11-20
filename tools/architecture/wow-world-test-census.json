@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4610,
+  "tests": 4612,
   "ignored": 1,
-  "session": 3894,
-  "shims": 3690,
+  "session": 3896,
+  "shims": 3692,
   "by_class": {
    "P": 716,
    "H": 146,
-   "W": 3748
+   "W": 3750
   },
   "by_reason": {
    "H-host": 146,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 32,
-   "W-world-logic": 3493
+   "W-world-logic": 3495
   },
   "by_owner": {
    "wow-world": {
@@ -113,7 +113,7 @@
    "wow-world-quest": {
     "P": 7,
     "H": 13,
-    "W": 341
+    "W": 343
    },
    "wow-world-social": {
     "P": 18,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 518,
     "H": 0,
-    "W": 3748
+    "W": 3750
    },
    "wow-world-application": {
     "P": 27,
@@ -2338,6 +2338,8 @@
   ["unit_tests/handlers/quest_tests/pet_reagents.rs::pet_removal_unavailable_item_metadata_preserves_markers_and_inventory", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "complete_player_quest_status_authority_load_like_cpp", "creature_spawn_catalogs_for_test_like_cpp"], []],
   ["unit_tests/handlers/quest_tests/pet_reagents.rs::pet_reagent_return_creates_then_merges_canonical_item_and_pushes_each_time", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "complete_player_quest_status_authority_load_like_cpp", "creature_spawn_catalogs_for_test_like_cpp"], []],
   ["unit_tests/handlers/quest_tests/pet_reagents.rs::pet_reagent_inventory_rejection_preserves_stack_and_sends_no_error_or_push", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "complete_player_quest_status_authority_load_like_cpp", "creature_spawn_catalogs_for_test_like_cpp"], []],
+  ["unit_tests/handlers/quest_tests/pet_reagents.rs::live_pet_removal_returns_summon_reagent_before_save_and_clear_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "complete_player_quest_status_authority_load_like_cpp", "creature_spawn_catalogs_for_test_like_cpp"], []],
+  ["unit_tests/handlers/quest_tests/pet_reagents.rs::live_pet_removal_in_battleground_skips_reagent_and_keeps_temporary_marker_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "complete_player_quest_status_authority_load_like_cpp", "creature_spawn_catalogs_for_test_like_cpp"], []],
   ["unit_tests/handlers/quest_tests/quest_1.rs::quest_giver_query_quest_reads_respond_to_giver_as_bit_like_cpp", "P", "wow-world-quest", "wow-world-quest", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/quest_tests/quest_1.rs::quest_giver_accept_quest_reads_start_cheat_as_bit_like_cpp", "P", "wow-world-quest", "wow-world-quest", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/quest_tests/quest_1.rs::quest_giver_accept_emits_player_quest_log_update_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_quest_giver_accept_quest", "player_quest_gameplay_snapshot_like_cpp", "record_represented_gameobject_runtime_state_like_cpp"], []],

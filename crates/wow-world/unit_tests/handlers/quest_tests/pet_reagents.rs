@@ -503,6 +503,238 @@ async fn pet_reagent_inventory_rejection_preserves_stack_and_sends_no_error_or_p
     );
 }
 
+const LIVE_SUMMON_SPELL: u32 = 847_124;
+const LIVE_PET_NUMBER: u32 = 847_125;
+
+#[tokio::test]
+async fn live_pet_removal_returns_summon_reagent_before_save_and_clear_like_cpp() {
+    let (session, send_rx, guid, port) = run_live_pet_reagent_removal(false).await;
+    let opcodes = packet_opcodes(&send_rx);
+    let reagent = wow_constants::ServerOpcodes::ItemPushResult as u16;
+    assert!(
+        opcodes
+            .iter()
+            .position(|opcode| *opcode == reagent)
+            .unwrap()
+            < opcodes.iter().position(|opcode| *opcode == 0x2c22).unwrap()
+    );
+    let saves = port.pet_save_requests();
+    assert_eq!(saves.len(), 2);
+    let wow_persistence::PlayerPetSaveTransactionLikeCpp::PetRow { row, .. } = &saves[1] else {
+        panic!("pet row must be second");
+    };
+    assert_eq!(row.created_by_spell_id, LIVE_SUMMON_SPELL);
+    assert_eq!(row.pet_number, LIVE_PET_NUMBER);
+    assert_pet_removed(&session, guid);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player
+                .pet_lifecycle_state_like_cpp()
+                .temporary_unsummoned_pet_number
+        }),
+        Some(0)
+    );
+}
+
+#[tokio::test]
+async fn live_pet_removal_in_battleground_skips_reagent_and_keeps_temporary_marker_like_cpp() {
+    let (session, send_rx, guid, port) = run_live_pet_reagent_removal(true).await;
+    let opcodes = packet_opcodes(&send_rx);
+    assert!(!opcodes.contains(&(wow_constants::ServerOpcodes::ItemPushResult as u16)));
+    assert!(opcodes.contains(&0x2c22));
+    assert_eq!(port.pet_save_requests().len(), 2);
+    assert_pet_removed(&session, guid);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player
+                .pet_lifecycle_state_like_cpp()
+                .temporary_unsummoned_pet_number
+        }),
+        Some(77)
+    );
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| (
+            player
+                .battleground_state_like_cpp()
+                .battleground_type_id_like_cpp(),
+            player.battleground_instance_id_like_cpp(),
+        )),
+        Some((Some(5), Some(31)))
+    );
+}
+
+async fn run_live_pet_reagent_removal(
+    in_battleground: bool,
+) -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    ObjectGuid,
+    Arc<crate::session::RecordingPlayerLifecyclePort>,
+) {
+    let (mut session, send_rx) = make_session();
+    let owner = install_pet_reagent_fixture(&mut session, 0);
+    let mut spells =
+        crate::selected_spell_fixtures::canonical_spell_store([(LIVE_SUMMON_SPELL, 0)]);
+    spells.install_effective_cast_costs_like_cpp(
+        wow_data::SpellCastCostStoreLikeCpp::from_effective_rows_like_cpp(
+            [wow_data::SpellReagentsEntry {
+                id: 1,
+                spell_id: LIVE_SUMMON_SPELL as i32,
+                reagent: [PET_REAGENT_ENTRY as i32, 0, 0, 0, 0, 0, 0, 0],
+                reagent_count: [1, 0, 0, 0, 0, 0, 0, 0],
+            }],
+            [],
+        ),
+    );
+    session.set_spell_store(Arc::new(spells));
+    session.catalogs.spell_catalogs.serverside_spell_store =
+        Some(Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()));
+    let guid = install_live_pet(&mut session, owner);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .pet_lifecycle_state_mut_like_cpp()
+                .temporary_unsummoned_pet_number = 77;
+            if in_battleground {
+                player.set_battleground_type_id_like_cpp(5);
+                player.set_battleground_instance_id_like_cpp(31);
+            }
+        })
+        .unwrap();
+    let port = crate::session::RecordingPlayerLifecyclePort::new(
+        wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    );
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    let graveyards = wow_data::GraveyardStore::default();
+    let catalogs = wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+        item_guid_generator: generators.item.as_ref(),
+        creature_spawns: &creature_spawns,
+        graveyards: &graveyards,
+    };
+
+    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs.resurrection())
+        .await
+        .unwrap();
+    (session, send_rx, guid, port)
+}
+
+fn install_live_pet(session: &mut WorldSession, owner: ObjectGuid) -> ObjectGuid {
+    let key = session
+        .core
+        .current_canonical_player_map_key_like_cpp()
+        .expect("live pet Map key");
+    let guid = ObjectGuid::create_world_object(
+        HighGuid::Pet,
+        0,
+        1,
+        u16::try_from(key.map_id).unwrap(),
+        key.instance_id,
+        1,
+        i64::from(LIVE_PET_NUMBER),
+    );
+    let mut pet = wow_entities::Pet::new(owner, wow_entities::PetType::Hunter);
+    pet.set_created_by_spell_id_like_cpp(LIVE_SUMMON_SPELL);
+    let unit = pet.creature_mut().unit_mut();
+    unit.world_mut().object_mut().create(guid);
+    unit.world_mut().object_mut().set_entry(123);
+    unit.world_mut()
+        .set_map(key.map_id, key.instance_id)
+        .unwrap();
+    unit.world_mut().object_mut().add_to_world();
+    unit.world_mut().set_name("Misha");
+    unit.set_max_health(91);
+    unit.set_health(73);
+    unit.subsystems_mut().control.init_charm_info().pet_number = LIVE_PET_NUMBER;
+    session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .find_map_mut(key.map_id, key.instance_id)
+        .unwrap()
+        .map_mut()
+        .insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
+        .unwrap();
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_pet_guid_like_cpp(Some(guid));
+            player.unit_mut().set_minion_guid_like_cpp(Some(guid));
+            let control = &mut player.unit_mut().subsystems_mut().control;
+            control.controlled_guids.insert(guid);
+            control.set_pet_guid(guid);
+            let state = player.pet_lifecycle_state_mut_like_cpp();
+            state.stable.current_pet_index = Some(0);
+            state.stable.active_pets = vec![Some(wow_entities::PetStableInfo {
+                pet_number: LIVE_PET_NUMBER,
+                creature_id: 123,
+                health: 91,
+                ..Default::default()
+            })];
+        })
+        .unwrap();
+    session
+        .lifecycle
+        .pet_load_insert_auras_for_pet_number_like_cpp(LIVE_PET_NUMBER, vec![]);
+    session
+        .lifecycle
+        .pet_load_insert_aura_effects_for_pet_number_like_cpp(LIVE_PET_NUMBER, vec![]);
+    session
+        .lifecycle
+        .pet_load_insert_spells_for_pet_number_like_cpp(LIVE_PET_NUMBER, vec![]);
+    session
+        .lifecycle
+        .pet_load_insert_spell_cooldowns_for_pet_number_like_cpp(LIVE_PET_NUMBER, vec![]);
+    session
+        .lifecycle
+        .pet_load_insert_spell_charges_for_pet_number_like_cpp(LIVE_PET_NUMBER, vec![]);
+    guid
+}
+
+fn assert_pet_removed(session: &WorldSession, guid: ObjectGuid) {
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| (
+            player.gameplay_state().pet_guid,
+            player
+                .pet_lifecycle_state_like_cpp()
+                .stable
+                .current_pet_index,
+            player.unit().minion_guid_like_cpp(),
+        )),
+        Some((None, None, None))
+    );
+    let key = session
+        .core
+        .current_canonical_player_map_key_like_cpp()
+        .unwrap();
+    assert!(
+        session
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .find_map(key.map_id, key.instance_id)
+            .unwrap()
+            .map()
+            .get_typed_pet(guid)
+            .unwrap()
+            .is_removed()
+    );
+}
+
+fn packet_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<u16> {
+    std::iter::from_fn(|| send_rx.try_recv().ok())
+        .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+        .collect()
+}
+
 fn install_pet_reagent_fixture(session: &mut WorldSession, max_count: u32) -> ObjectGuid {
     let owner = session.player_guid().expect("test Player identity");
     install_source_item_template(session, PET_REAGENT_ENTRY, 20, max_count);

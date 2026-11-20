@@ -19,8 +19,9 @@ use crate::TrainerSessionHostLikeCpp;
 /// retain stale GUIDs when the current Map has no matching typed Pet.
 ///
 /// Live removal currently admits quiescent pets with complete empty aura
-/// input and no summon-spell or group continuation. Other live pets fail
-/// before mutation; this is not complete RemovePet support.
+/// input and no group or secondary-minion continuation. Summon reagents are
+/// returned before combat cleanup and saving. Other live pets fail before
+/// mutation; this is not complete RemovePet support.
 pub async fn remove_pet_not_in_slot_like_cpp<H>(
     host: &mut H,
     catalogs: ResurrectionOperationCatalogs<'_>,
@@ -73,7 +74,7 @@ where
         return if removed {
             Ok(())
         } else {
-            live::remove_quiescent_pet(host, pet_guid).await
+            live::remove_quiescent_pet(host, pet_guid, catalogs).await
         };
     }
 

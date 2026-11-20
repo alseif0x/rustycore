@@ -1,7 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Live RemovePet continuation for states with no pending gameplay callbacks.
+//! Live RemovePet continuation for bounded native pet states.
 //! Source: Player.cpp:20864–20962, Unit.cpp:6028–6215, Pet.cpp:452–546
 //! at a5f8da2ebf5424bf0450ca4e08843ecbf72577bd.
 
@@ -9,10 +9,18 @@ use wow_constants::UnitFlags;
 use wow_core::ObjectGuid;
 use wow_entities::{Pet, Player};
 use wow_persistence::PersistenceOutcomeLikeCpp;
+use wow_world_entities::ResurrectionOperationCatalogs;
+use wow_world_inventory::VendorSessionHostLikeCpp;
 use wow_world_lifecycle::PlayerMoneyCommitCancellationFenceLikeCpp;
-use wow_world_quest::QuestSessionHostLikeCpp;
+use wow_world_quest::{QuestItemStorageHostLikeCpp, QuestSessionHostLikeCpp};
+use wow_world_spell::PlayerCastHostLikeCpp;
 
-use super::save::{PreparedPetSave, prepare_pet_save};
+use crate::TrainerSessionHostLikeCpp;
+
+use super::{
+    pet_spell_reagents,
+    save::{PreparedPetSave, prepare_pet_save},
+};
 
 fn validate_owner(
     current_owner: Option<ObjectGuid>,
@@ -24,7 +32,14 @@ fn validate_owner(
     Ok(())
 }
 
-fn prepare(player: &Player, pet: &Pet, now: u32) -> Result<PreparedPetSave, &'static str> {
+#[derive(Debug, Clone, PartialEq)]
+struct PreparedLivePetRemoval {
+    save: PreparedPetSave,
+    created_by_spell: u32,
+    in_battleground: bool,
+}
+
+fn prepare(player: &Player, pet: &Pet, now: u32) -> Result<PreparedLivePetRemoval, &'static str> {
     if player.gameplay_state().pet_guid != Some(pet.creature().guid())
         || pet.owner_guid() != player.guid()
         || pet.is_removed()
@@ -33,9 +48,6 @@ fn prepare(player: &Player, pet: &Pet, now: u32) -> Result<PreparedPetSave, &'st
     }
     if player.gameplay_state().group.is_some() {
         return Err("live pet group-update continuation is unavailable");
-    }
-    if pet.created_by_spell_id_like_cpp() != 0 {
-        return Err("live pet summon-spell continuation is unavailable");
     }
     let control = &player.unit().subsystems().control;
     let guid = pet.creature().guid();
@@ -68,13 +80,24 @@ fn prepare(player: &Player, pet: &Pet, now: u32) -> Result<PreparedPetSave, &'st
         return Err("live pet combat or control cleanup continuation is unavailable");
     }
     let pets = player.pet_lifecycle_state_like_cpp();
-    prepare_pet_save(pet, &pets.stable, pets.temporary_mount_react_state, now)
+    Ok(PreparedLivePetRemoval {
+        save: prepare_pet_save(pet, &pets.stable, pets.temporary_mount_react_state, now)?,
+        created_by_spell: pet.created_by_spell_id_like_cpp(),
+        in_battleground: player.battleground_instance_id_like_cpp().is_some(),
+    })
 }
 
-pub(super) async fn remove_quiescent_pet<H: QuestSessionHostLikeCpp>(
+pub(super) async fn remove_quiescent_pet<H>(
     host: &mut H,
     pet_guid: ObjectGuid,
-) -> Result<(), &'static str> {
+    catalogs: ResurrectionOperationCatalogs<'_>,
+) -> Result<(), &'static str>
+where
+    H: QuestItemStorageHostLikeCpp
+        + TrainerSessionHostLikeCpp
+        + PlayerCastHostLikeCpp
+        + VendorSessionHostLikeCpp,
+{
     let core = host.core();
     let handle = core
         .player_handle_like_cpp
@@ -105,19 +128,19 @@ pub(super) async fn remove_quiescent_pet<H: QuestSessionHostLikeCpp>(
     let lifecycle = QuestSessionHostLikeCpp::lifecycle(host);
     // Unknown loads must never become destructive empty replacement writes.
     if !lifecycle
-        .pet_load_auras_for_pet_number_like_cpp(captured.pet_number)
+        .pet_load_auras_for_pet_number_like_cpp(captured.save.pet_number)
         .is_some_and(Vec::is_empty)
         || !lifecycle
-            .pet_load_aura_effects_for_pet_number_like_cpp(captured.pet_number)
+            .pet_load_aura_effects_for_pet_number_like_cpp(captured.save.pet_number)
             .is_some_and(Vec::is_empty)
         || lifecycle
-            .pet_load_spells_for_pet_number_like_cpp(captured.pet_number)
+            .pet_load_spells_for_pet_number_like_cpp(captured.save.pet_number)
             .is_none()
         || lifecycle
-            .pet_load_spell_cooldowns_for_pet_number_like_cpp(captured.pet_number)
+            .pet_load_spell_cooldowns_for_pet_number_like_cpp(captured.save.pet_number)
             .is_none()
         || lifecycle
-            .pet_load_spell_charges_for_pet_number_like_cpp(captured.pet_number)
+            .pet_load_spell_charges_for_pet_number_like_cpp(captured.save.pet_number)
             .is_none()
     {
         return Err("live pet persistence input is incomplete or contains auras");
@@ -139,6 +162,27 @@ pub(super) async fn remove_quiescent_pet<H: QuestSessionHostLikeCpp>(
         .begin_like_cpp()
         .map_err(|_| "live pet removal persistence admission is closed")?;
     let mut fence = PlayerMoneyCommitCancellationFenceLikeCpp::new_disarmed_like_cpp(tracker);
+    if !captured.in_battleground {
+        // C++ returns summon reagents before CombatStop and SavePetToDB. The
+        // reagent operation arms this same fence before any quest/item callback.
+        let difficulty = host.core().current_map_difficulty_id_like_cpp();
+        let reagents = pet_spell_reagents(
+            host.hub_ref().catalogs,
+            captured.created_by_spell,
+            difficulty,
+        )?;
+        for (entry, count) in reagents {
+            crate::return_pet_reagent_like_cpp(
+                host,
+                &mut fence,
+                catalogs.item_guid_generator,
+                catalogs.creature_spawns,
+                entry,
+                count,
+            )
+            .await?;
+        }
+    }
     {
         let mut manager = manager.lock().map_err(|_| "live pet Map lock failed")?;
         validate_owner(manager.with_player_like_cpp(handle, Player::guid), owner)?;
@@ -154,9 +198,8 @@ pub(super) async fn remove_quiescent_pet<H: QuestSessionHostLikeCpp>(
             return Err("live pet changed before removal");
         }
         fence.arm_like_cpp();
-        // CreatedBySpell is zero in this branch, so the refund loop is empty.
         let player = map.get_typed_player_mut(owner).expect("owner prevalidated");
-        if player.battleground_instance_id_like_cpp().is_none() {
+        if !captured.in_battleground {
             player
                 .pet_lifecycle_state_mut_like_cpp()
                 .temporary_unsummoned_pet_number = 0;
@@ -166,8 +209,8 @@ pub(super) async fn remove_quiescent_pet<H: QuestSessionHostLikeCpp>(
         debug_assert!(stopped.attacks_stopped.is_empty() && stopped.exited_combat.is_empty());
     }
     for transaction in [
-        captured.state_transaction.clone(),
-        captured.row_transaction.clone(),
+        captured.save.state_transaction.clone(),
+        captured.save.row_transaction.clone(),
     ] {
         if !matches!(
             port.persist_pet_save_transaction_like_cpp(transaction)
@@ -217,7 +260,7 @@ pub(super) async fn remove_quiescent_pet<H: QuestSessionHostLikeCpp>(
             .stable
             .current_pet_index
             .ok_or("live pet stable selection disappeared")?;
-        pets.stable.active_pets[index as usize] = Some(captured.info);
+        pets.stable.active_pets[index as usize] = Some(captured.save.info);
         pets.stable.current_pet_index = None;
         player.set_pet_guid_like_cpp(None);
         let unit = player.unit_mut();
