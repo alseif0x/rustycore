@@ -1106,3 +1106,219 @@ fn unload_grid_purges_personal_phase_tracker_before_unloader_like_cpp() {
     assert_eq!(map.personal_phase_tracker().tracker_count(), 0);
     assert!(map.get_ngrid(coord).is_none());
 }
+
+struct CreatureRelocationVisibilityFixture {
+    map: Map<RecordingTerrain, RecordingLifecycle>,
+    creature_guid: ObjectGuid,
+    old_range_player_guid: ObjectGuid,
+    new_range_player_guid: ObjectGuid,
+    origin: Position,
+    destination: Position,
+}
+
+impl CreatureRelocationVisibilityFixture {
+    fn new() -> Self {
+        let mut map = test_map();
+        let origin = Position::xyz(1.0, 2.0, 3.0);
+        let destination = Position::xyz(150.0, 2.0, 3.0);
+        map.load_grid(destination.x, destination.y);
+
+        let mut old_range_player = test_player_for_viewpoint(4520001);
+        old_range_player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+        let old_range_player_guid = old_range_player.guid();
+        map.add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_player(old_range_player).unwrap(),
+        )
+        .unwrap();
+
+        let mut new_range_player = test_player_for_viewpoint(4520002);
+        new_range_player
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::xyz(150.0, 20.0, 30.0));
+        new_range_player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+        let new_range_player_guid = new_range_player.guid();
+        map.add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_player(new_range_player).unwrap(),
+        )
+        .unwrap();
+
+        let mut creature = test_creature_for_spawn(45200, 4520003, true);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+        let creature_guid = creature.guid();
+        map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+            .unwrap();
+        let origin_nearby = map.nearby_cell_guids_like_cpp(origin.x, origin.y, 100.0);
+        assert!(
+            origin_nearby.world.players.contains(&old_range_player_guid),
+            "the old-range Player must be in the origin fixture cells: {origin_nearby:?}"
+        );
+        assert!(
+            map.nearby_cell_guids_like_cpp(destination.x, destination.y, 100.0)
+                .world
+                .players
+                .contains(&new_range_player_guid),
+            "the new-range Player must be in the destination fixture cells"
+        );
+
+        let mut fixture = Self {
+            map,
+            creature_guid,
+            old_range_player_guid,
+            new_range_player_guid,
+            origin,
+            destination,
+        };
+        fixture.reset_player_notifications();
+        fixture
+    }
+
+    fn reset_player_notifications(&mut self) {
+        for guid in [self.old_range_player_guid, self.new_range_player_guid] {
+            self.map
+                .get_typed_player_mut(guid)
+                .unwrap()
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .reset_all_notifies();
+        }
+    }
+
+    fn assert_both_players_marked(&self) {
+        for guid in [self.old_range_player_guid, self.new_range_player_guid] {
+            assert!(
+                self.map
+                    .map_object(guid)
+                    .unwrap()
+                    .object()
+                    .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
+                "Player {guid:?} must receive the deferred visibility notification"
+            );
+        }
+    }
+
+    fn assert_both_players_unmarked(&self) {
+        for guid in [self.old_range_player_guid, self.new_range_player_guid] {
+            assert!(
+                !self
+                    .map
+                    .map_object(guid)
+                    .unwrap()
+                    .object()
+                    .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
+                "Player {guid:?} must not receive a visibility notification"
+            );
+        }
+    }
+
+    fn assert_creature_at_destination(&self) {
+        assert_eq!(
+            self.map.map_object(self.creature_guid).unwrap().position(),
+            self.destination
+        );
+    }
+}
+
+#[test]
+fn creature_relocation_visibility_direct_in_place_success() {
+    let mut fixture = CreatureRelocationVisibilityFixture::new();
+    fixture
+        .map
+        .get_typed_creature_mut(fixture.creature_guid)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .relocate(fixture.destination);
+    fixture.reset_player_notifications();
+
+    let outcome = fixture
+        .map
+        .relocate_creature_moved_in_place_like_cpp(fixture.creature_guid, fixture.origin)
+        .expect("an actual creature move must produce a relocation")
+        .expect("the destination must be relocatable");
+
+    assert!(outcome.relocated);
+    fixture.assert_creature_at_destination();
+    fixture.assert_both_players_marked();
+}
+
+#[test]
+fn creature_relocation_visibility_lend_return_success() {
+    let mut fixture = CreatureRelocationVisibilityFixture::new();
+    let (mut creature, origin) = fixture
+        .map
+        .lend_creature_like_cpp(fixture.creature_guid)
+        .unwrap();
+    creature
+        .unit_mut()
+        .world_mut()
+        .relocate(fixture.destination);
+    fixture.reset_player_notifications();
+
+    let LentCreatureReturnLikeCpp::Returned {
+        relocation: Some(Ok(outcome)),
+        ..
+    } = fixture.map.return_lent_creature_like_cpp(creature, origin)
+    else {
+        panic!("the lent creature must return with a successful relocation");
+    };
+
+    assert!(outcome.relocated);
+    fixture.assert_creature_at_destination();
+    fixture.assert_both_players_marked();
+}
+
+#[test]
+fn creature_relocation_visibility_move_list_drain_success() {
+    let mut fixture = CreatureRelocationVisibilityFixture::new();
+    assert_eq!(
+        fixture
+            .map
+            .add_creature_to_move_list_like_cpp(fixture.creature_guid, fixture.destination,),
+        AddObjectToMoveListOutcomeLikeCpp::Queued
+    );
+    fixture.reset_player_notifications();
+
+    let summary = fixture.map.move_all_creatures_in_move_list_like_cpp();
+
+    assert_eq!(summary.relocated, 1);
+    fixture.assert_creature_at_destination();
+    fixture.assert_both_players_marked();
+}
+
+#[test]
+fn creature_relocation_visibility_direct_invalid_destination() {
+    let mut fixture = CreatureRelocationVisibilityFixture::new();
+    fixture
+        .map
+        .get_typed_creature_mut(fixture.creature_guid)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(f32::NAN, 2.0, 3.0));
+    fixture.reset_player_notifications();
+
+    let outcome = fixture
+        .map
+        .relocate_creature_moved_in_place_like_cpp(fixture.creature_guid, fixture.origin)
+        .expect("an actual creature move must produce a relocation");
+
+    assert!(matches!(
+        outcome,
+        Err(MapObjectRelocationError::InvalidCoordinates { .. })
+    ));
+    fixture.assert_both_players_unmarked();
+}

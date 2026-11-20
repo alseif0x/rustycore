@@ -337,8 +337,18 @@ where
                 continue;
             }
 
+            if family == MapObjectMoveListFamilyLikeCpp::Creature
+                && is_valid_map_coord_2d(pending.new_position.x, pending.new_position.y)
+            {
+                self.mark_nearby_players_for_visibility_like_cpp(guid);
+            }
             match self.relocate_map_object_like_cpp(guid, pending.new_position) {
-                Ok(outcome) if outcome.relocated => summary.relocated += 1,
+                Ok(outcome) if outcome.relocated => {
+                    summary.relocated += 1;
+                    if family == MapObjectMoveListFamilyLikeCpp::Creature {
+                        self.mark_nearby_players_for_visibility_like_cpp(guid);
+                    }
+                }
                 Ok(outcome) if outcome.blocked_by_unloaded_grid => {
                     summary.blocked_by_unloaded_grid += 1;
                     if matches!(

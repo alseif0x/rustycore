@@ -110,8 +110,16 @@ where
         if let Err(error) = self.insert_map_object_record(record) {
             return LentCreatureReturnLikeCpp::Lost { error };
         }
-        let relocation = (moved_to != origin.position)
-            .then(|| self.relocate_map_object_like_cpp(origin.guid, moved_to));
+        let relocation = (moved_to != origin.position).then(|| {
+            if is_valid_map_coord_2d(moved_to.x, moved_to.y) {
+                self.mark_nearby_players_for_visibility_like_cpp(origin.guid);
+            }
+            let outcome = self.relocate_map_object_like_cpp(origin.guid, moved_to);
+            if matches!(&outcome, Ok(outcome) if outcome.relocated) {
+                self.mark_nearby_players_for_visibility_like_cpp(origin.guid);
+            }
+            outcome
+        });
         LentCreatureReturnLikeCpp::Returned {
             binding_restored,
             relocation,
@@ -136,6 +144,13 @@ where
             return None;
         }
         world.relocate(from);
-        Some(self.relocate_map_object_like_cpp(guid, moved_to))
+        if is_valid_map_coord_2d(moved_to.x, moved_to.y) {
+            self.mark_nearby_players_for_visibility_like_cpp(guid);
+        }
+        let outcome = self.relocate_map_object_like_cpp(guid, moved_to);
+        if matches!(&outcome, Ok(outcome) if outcome.relocated) {
+            self.mark_nearby_players_for_visibility_like_cpp(guid);
+        }
+        Some(outcome)
     }
 }
