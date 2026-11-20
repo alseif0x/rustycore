@@ -385,7 +385,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             })
             .flat_map(|qs| {
                 let quest = store.get(qs.quest_id)?;
-                Some(quest.objectives.iter().filter_map(move |obj| {
+                Some(quest.objectives.iter().enumerate().filter_map(move |(objective_index, obj)| {
                     if obj.obj_type != objective_type || obj.object_id != object_id {
                         return None;
                     }
@@ -409,6 +409,13 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     let Ok(idx) = usize::try_from(obj.storage_index) else {
                         return None;
                     };
+                    if !wow_entities::represented_quest_objective_completable_like_cpp(
+                        qs,
+                        &quest.objective_rules_like_cpp(),
+                        objective_index,
+                    ) {
+                        return None;
+                    }
                     Some((qs.quest_id, idx, obj.amount, obj.id, obj.flags))
                 }))
             })
@@ -590,18 +597,27 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             })
             .flat_map(|qs| {
                 let quest = store.get(qs.quest_id)?;
-                Some(quest.objectives.iter().filter_map(move |obj| {
-                    if obj.obj_type != objective_type
-                        || obj.object_id != object_id
-                        || !obj.is_storing_flag_like_cpp()
-                    {
-                        return None;
-                    }
-                    let Ok(idx) = usize::try_from(obj.storage_index) else {
-                        return None;
-                    };
-                    Some((qs.quest_id, idx, obj.id, obj.flags))
-                }))
+                Some(quest.objectives.iter().enumerate().filter_map(
+                    move |(objective_index, obj)| {
+                        if obj.obj_type != objective_type
+                            || obj.object_id != object_id
+                            || !obj.is_storing_flag_like_cpp()
+                        {
+                            return None;
+                        }
+                        let Ok(idx) = usize::try_from(obj.storage_index) else {
+                            return None;
+                        };
+                        if !wow_entities::represented_quest_objective_completable_like_cpp(
+                            qs,
+                            &quest.objective_rules_like_cpp(),
+                            objective_index,
+                        ) {
+                            return None;
+                        }
+                        Some((qs.quest_id, idx, obj.id, obj.flags))
+                    },
+                ))
             })
             .flatten()
             .collect();

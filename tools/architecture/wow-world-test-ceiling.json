@@ -535,6 +535,16 @@
    "unit_tests_lines": 288063,
    "unit_tests_tests": 4287,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-50",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "Two sequenced-objective regressions cover both storage families: incomplete prerequisites suppress all progress, while completed prerequisites admit credit, completion and interaction refreshes.",
+   "unit_tests_lines": 288136,
+   "unit_tests_tests": 4289,
+   "src_tests": 345
   }
  ]
 }

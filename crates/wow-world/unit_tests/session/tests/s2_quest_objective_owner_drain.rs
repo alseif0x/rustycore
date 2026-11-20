@@ -95,6 +95,7 @@ async fn storing_objective_transition_outcome_like_cpp(
         objective_flags,
         0,
         false,
+        None,
     )
     .await
 }
@@ -107,6 +108,7 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
     objective_flags: u32,
     quest_flags_ex: u32,
     empty_credit_guid: bool,
+    prerequisite: Option<(bool, u32)>,
 ) -> (u8, i32, Vec<ServerOpcodes>) {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -120,12 +122,27 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
     let object_id = TRANSITION_CLICK_NPC_ENTRY as i32;
     let mut quest = test_quest_template(TRANSITION_QUEST_ID);
     quest.flags_ex = quest_flags_ex;
+    if let Some((_, prerequisite_flags)) = prerequisite {
+        quest.objectives.push(wow_data::quest::QuestObjective {
+            id: TRANSITION_QUEST_ID * 10 - 1,
+            quest_id: TRANSITION_QUEST_ID,
+            obj_type: objective_type,
+            order: 0,
+            storage_index: 0,
+            object_id: object_id + 1,
+            amount: 1,
+            flags: prerequisite_flags,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+    }
     quest.objectives.push(wow_data::quest::QuestObjective {
         id: TRANSITION_QUEST_ID * 10,
         quest_id: TRANSITION_QUEST_ID,
         obj_type: objective_type,
-        order: 0,
-        storage_index: 0,
+        order: u8::from(prerequisite.is_some()),
+        storage_index: i8::from(prerequisite.is_some()),
         object_id,
         amount: 1,
         flags: objective_flags,
@@ -164,7 +181,11 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
                         explored: false,
                         accept_time_secs: 0,
                         end_time_secs: 0,
-                        objective_counts: vec![initial_count],
+                        objective_counts: if let Some((prerequisite_complete, _)) = prerequisite {
+                            vec![i32::from(prerequisite_complete), initial_count]
+                        } else {
+                            vec![initial_count]
+                        },
                         slot: 0,
                     },
                 );
@@ -235,7 +256,7 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
         .expect("objective-transition quest status");
     (
         status.status,
-        status.objective_counts[0],
+        status.objective_counts.last().copied().unwrap_or_default(),
         drain_server_opcodes(&send_rx),
     )
 }
@@ -444,6 +465,7 @@ async fn monster_no_credit_for_proxy_rejects_empty_victim_guid_like_cpp() {
         0,
         wow_constants::quest::QUEST_FLAGS_EX_NO_CREDIT_FOR_PROXY_LIKE_CPP,
         true,
+        None,
     )
     .await;
     assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
@@ -471,6 +493,7 @@ async fn monster_no_credit_for_proxy_allows_real_or_unflagged_proxy_credit_like_
             0,
             quest_flags_ex,
             empty_credit_guid,
+            None,
         )
         .await;
         assert_storing_objective_transition_like_cpp(
@@ -479,6 +502,56 @@ async fn monster_no_credit_for_proxy_allows_real_or_unflagged_proxy_credit_like_
             1,
             2,
             ServerOpcodes::QuestUpdateAddCredit,
+        );
+    }
+}
+
+async fn sequenced_objective_outcome_like_cpp(
+    storing_flag: bool,
+    prerequisite_complete: bool,
+) -> (u8, i32, Vec<ServerOpcodes>) {
+    storing_objective_transition_outcome_with_proxy_rule_like_cpp(
+        storing_flag,
+        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        0,
+        1,
+        wow_constants::quest::QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP,
+        0,
+        false,
+        Some((prerequisite_complete, 0)),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn sequenced_objective_waits_for_prerequisite_in_both_storage_families_like_cpp() {
+    for storing_flag in [false, true] {
+        let (status, count, opcodes) =
+            sequenced_objective_outcome_like_cpp(storing_flag, false).await;
+        assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+        assert_eq!(count, 0);
+        assert!(
+            opcodes.is_empty(),
+            "an incomplete prerequisite must block progress: {opcodes:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn sequenced_objective_progresses_after_prerequisite_in_both_storage_families_like_cpp() {
+    for storing_flag in [false, true] {
+        let expected_credit = if storing_flag {
+            ServerOpcodes::QuestUpdateAddCreditSimple
+        } else {
+            ServerOpcodes::QuestUpdateAddCredit
+        };
+        let outcome = sequenced_objective_outcome_like_cpp(storing_flag, true).await;
+        assert_storing_objective_transition_like_cpp(
+            outcome,
+            QUEST_STATUS_COMPLETE_LIKE_CPP,
+            1,
+            2,
+            expected_credit,
         );
     }
 }
