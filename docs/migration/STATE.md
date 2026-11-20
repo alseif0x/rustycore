@@ -1,5 +1,33 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #584 Player CREATE PartyMember visibility accepted locally — 2026-11-20
+
+Committed candidate `988aeebd9e331678478710468e34b501643e8a2e`, based on
+`d860f59d3`, completes the receiver-specific PartyMember half of Player CREATE.
+Following `Player::GetUpdateFieldFlagsFor`, canonical create snapshots compare
+source and viewer raid GUIDs and carry the result through every existing
+projection constructor into UpdateBlock. Self remains Owner|PartyMember (0x03),
+another member of the same raid receives PartyMember (0x02), and other receivers
+remain 0x00. Existing VALUES receiver filtering is unchanged. QuestLog rows are
+serialized only when that visibility is present; ActivePlayerData remains
+self-only.
+
+A direct packet regression pins all three flags and the 25 quest rows, while a
+canonical-registry regression proves same-raid inclusion and different-raid
+rejection through the real snapshot-to-CREATE path. The committed
+`./tools/validation-v2 final --base d860f59d3 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 07:38:38Z to 07:43:05Z (266.771 seconds),
+within the 600-second target. Suites passed 818 `wow-packet` tests, 4,612
+`wow-world` tests (one existing ignored), and all 297 `wow-world-core` and 14
+`wow-world-lifecycle` tests, with zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T073838.418008Z-3822421-final.json`.
+The one-test census raise is reviewed under #584; no production hotspot grew.
+
+This is synthetic source/wire evidence, not a live client capture. UNIT_ALL,
+EMPATH, remaining lifecycle work and their exact capture requirements remain
+open under #584. Character creation and the separate Pet lifecycle gaps are not
+closed by this checkpoint.
+
 ## #1354 live Pet summon-reagent return accepted locally — 2026-11-20
 
 Committed candidate `60a7bc3b61d4a23d33b24176fcf186c50a38f47b`, based on
