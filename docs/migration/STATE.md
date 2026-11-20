@@ -1,5 +1,34 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 UpdateAreaDependentAuras spell-area casts accepted locally — 2026-11-21
+
+Committed candidate `63ee53527665e244e6019e626909f7e424c11d64`, based on
+`c56695871`, adds the spell-area cast half of `UpdateAreaDependentAuras`. One
+shared application helper selects AUTOCAST rows by area, evaluates their
+requirements and runs missing spells through the real triggered executor. Zone
+casts still run first, then area casts, after the final interaction refresh.
+The separate `SpellInfo::CheckLocation` removal pass is not implemented or
+claimed by this slice.
+
+The existing regression now installs distinct zone and subzone rows and requires
+credit, both interaction refreshes and two `SpellGo` packets. The objective
+suite passed 28 tests with the same test identities. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base c56695871 --architecture --require-changes --timings --logs`
+campaign passed all twelve commands from 23:46:38Z to 23:51:55Z (317.555
+seconds), within the 600-second target: 4,649 `wow-world` tests (one ignored),
+32 `wow-world-application` and eight `wow-world-quest` tests passed, totaling
+4,689 passed, one ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T234636.865118Z-1114614-final.json`.
+Architecture policy, session syntax ownership, method-index, hotspot/census,
+formatting and all affected downstream checks passed. Reviewed ledgers record
+12 production and four test lines in Session with no new test identity.
+
+This closes only the spell-area cast half of `UpdateAreaDependentAuras` in
+#1368. Area removal with full `CheckLocation`, UpdatePhaseShift, GameEvent and
+Conversation remain open. This is synthetic production-path source/behavior/wire
+evidence, not a live quest capture or full completion-effect parity claim.
+Player runtime integration and character creation remain separate work.
+
 ## #1368 UpdateZoneDependentAuras accepted locally — 2026-11-21
 
 Committed candidate `a10132e10a71fc1816ddd6bd3f08908cbd1f733c`, based on
