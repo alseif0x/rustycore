@@ -1,5 +1,33 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 completed storing-flag repeat guard accepted locally — 2026-11-20
+
+Committed candidate `8b5358e93e224260f5eb3d3005819c5dee502b11`, based on
+`6cc386e83`, skips nonnegative progress events for an already complete
+storing-flag objective before calling its mutator. This applies the existing C++
+guard at `Player.cpp:17034-17036` (`02245dcd245e7433e524577656177723d3e4992e`)
+to the flag path, matching the guard already used by storing-value objectives.
+Repeated events cannot duplicate credit, completion or visibility publication.
+
+One composed canonical-Player regression covers both `addCount = 0` and
+`addCount = 1`, requiring unchanged status/count and no packets. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 6cc386e83 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 16:01:31Z to 16:03:54Z (142.459 seconds),
+within the 600-second target: 4,634 `wow-world` tests (one ignored) and eight
+`wow-world-quest` tests passed, totaling 4,642 passed, one ignored and zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T160131.908571Z-166449-final.json`.
+Architecture policy, session syntax ownership, formatting and all affected
+downstream checks passed. The reviewed ledgers record exactly 20 new Session test
+lines and one test identity, with no production growth in that logical owner.
+
+This closes only the completed storing-flag repeat divergence in #1368. Inline
+completion ordering, raid admission, other objective families' negative
+transitions, immediate-save/persistence fences, effective team and completion
+effects remain open. This is synthetic source/behavior/wire evidence, not a live
+quest capture or full quest parity acceptance. Player runtime integration and
+character creation remain separate work.
+
 ## #1368 objective completability accepted locally — 2026-11-20
 
 Committed candidate `e8c5a97c367b16484b6becd94c3ed4497dadae0b`, based on
