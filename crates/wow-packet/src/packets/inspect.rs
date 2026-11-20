@@ -68,61 +68,49 @@ impl ServerPacket for InspectResult {
     const OPCODE: ServerOpcodes = ServerOpcodes::InspectResult;
 
     fn write(&self, w: &mut WorldPacket) {
-        // ── PlayerModelDisplayInfo.Write() ──
+        // PlayerModelDisplayInfo: GUID, SpecializationID, display, Items.Count.
         w.write_packed_guid(&self.target_guid);
-        w.write_int32(0); // SpecializationID
-        w.write_int32(self.items.len() as i32); // Items.Count
+        w.write_int32(0);
         let name_bytes = self.target_name.as_bytes();
         w.write_bits(name_bytes.len() as u32, 6);
         w.write_uint8(self.gender);
         w.write_uint8(self.race);
         w.write_uint8(self.class_id);
-        w.write_int32(0); // Customizations.Count = 0
-        // No FlushBits here — Name string follows immediately after the bits
+        w.write_int32(0); // Customizations.Count
         w.write_bytes(name_bytes);
-        // (no customizations — loop is empty)
+        w.write_int32(self.items.len() as i32);
 
-        // ── InspectItemData.Write() for each equipped item ──
         for item in &self.items {
             w.write_packed_guid(&ObjectGuid::EMPTY); // CreatorGUID
+            // ItemInstance precedes InspectItemData.Index and Azerite counts.
+            w.write_int32(item.item_id);
+            w.write_bits(0u32, 7); // ItemModList.Values.Count
+            w.flush_bits();
+            w.write_bit(false); // ItemBonus != null
+            w.flush_bits();
             w.write_uint8(item.slot); // Index
             w.write_int32(0); // AzeritePowers.Count
             w.write_int32(0); // AzeriteEssences.Count
-            // ItemInstance.Write():
-            w.write_int32(item.item_id); // ItemID
-            w.write_int32(0); // RandomPropertiesSeed
-            w.write_int32(0); // RandomPropertiesID
-            w.write_bit(false); // ItemBonus != null → false
+            w.write_bit(true); // Usable
+            w.write_bits(0u32, 4); // Enchants.Count
+            w.write_bits(0u32, 2); // Gems.Count
             w.flush_bits();
-            // ItemModList.Write() — empty:
-            w.write_bits(0u32, 6); // Values.Count = 0
-            w.flush_bits();
-            // Back to InspectItemData:
-            w.write_bit(true); // Usable = true
-            w.write_bits(0u32, 4); // Enchants.Count = 0
-            w.write_bits(0u32, 2); // Gems.Count = 0
-            w.flush_bits();
-            // (no AzeriteEssences, no Enchants, no Gems)
         }
 
-        // ── InspectResult.Write() continues ──
         w.write_int32(0); // Glyphs.Count
         w.write_int32(0); // Talents.Count
-        w.write_int32(0); // ItemLevel
-        w.write_uint8(0); // LifetimeMaxRank
-        w.write_uint16(0); // TodayHK
-        w.write_uint16(0); // YesterdayHK
-        w.write_int32(0); // LifetimeHK
-        w.write_int32(0); // HonorLevel
-        // (no glyphs, no talents — loops empty)
-        w.write_bit(false); // GuildData.HasValue = false
-        w.write_bit(false); // AzeriteLevel.HasValue = false
+        w.write_int32(4); // PvpTalents.Count (MAX_PVP_TALENT_SLOTS)
+        // Empty ClassicTalentInfoUpdate, including its trailing bit flush.
+        w.write_int32(0); // UnspentTalentPoints
+        w.write_uint8(0); // ActiveGroup
+        w.write_int32(0); // TalentGroupInfos.Count
+        w.write_bit(false); // IsPetTalents
         w.flush_bits();
+        w.write_int32(0); // ItemLevel
 
-        // 7x PVPBracketData (all empty, bracket index 0..7)
-        for bracket in 0u8..7 {
-            w.write_uint8(bracket); // Bracket
-            w.write_int32(0); // Unused3
+        for bracket in 0u8..9 {
+            w.write_uint8(bracket);
+            w.write_int32(0); // RatingID
             w.write_int32(0); // Rating
             w.write_int32(0); // Rank
             w.write_int32(0); // WeeklyPlayed
@@ -130,11 +118,11 @@ impl ServerPacket for InspectResult {
             w.write_int32(0); // SeasonPlayed
             w.write_int32(0); // SeasonWon
             w.write_int32(0); // WeeklyBestRating
+            w.write_int32(0); // LastWeeksBestRating
+            w.write_int32(0); // Tier
+            w.write_int32(0); // WeeklyBestTier
             w.write_int32(0); // SeasonBestRating
-            w.write_int32(0); // PvpTierID
-            w.write_int32(0); // WeeklyBestWinPvpTierID
-            w.write_int32(0); // Unused1
-            w.write_int32(0); // Unused2
+            w.write_uint8(0); // SeasonBestTierEnum
             w.write_int32(0); // RoundsSeasonPlayed
             w.write_int32(0); // RoundsSeasonWon
             w.write_int32(0); // RoundsWeeklyPlayed
@@ -143,17 +131,26 @@ impl ServerPacket for InspectResult {
             w.flush_bits();
         }
 
-        // TraitInspectInfo.Write():
-        w.write_int32(self.level as i32); // Level
+        w.write_uint8(0); // LifetimeMaxRank
+        w.write_uint16(0); // TodayHK
+        w.write_uint16(0); // YesterdayHK
+        w.write_int32(0); // LifetimeHK
+        w.write_int32(0); // HonorLevel
+        // TraitInspectInfo and its empty TraitConfig.
+        w.write_int32(self.level as i32);
         w.write_int32(0); // ChrSpecializationID
-        // TraitConfigPacket.Write() — empty (ID=0, Type=0):
-        w.write_int32(0); // ID
-        w.write_int32(0); // Type = 0 (None — no switch case fires)
-        w.write_int32(0); // Entries.Count
-        // Name bits:
-        w.write_bits(0u32, 9); // Name length = 0
+        w.write_int32(0); // TraitConfig.ID
+        w.write_int32(0); // TraitConfig.Type
+        w.write_int32(0); // TraitConfig.Entries.Count
+        w.write_bits(0u32, 9); // TraitConfig.Name length
         w.flush_bits();
-        // WriteString("") — empty, nothing written
+        // Glyphs and Talents are empty; PvpTalents always has four slots.
+        for _ in 0..4 {
+            w.write_uint16(0);
+        }
+        w.write_bit(false); // GuildData.HasValue
+        w.write_bit(false); // AzeriteLevel.HasValue
+        w.flush_bits();
     }
 }
 
@@ -235,6 +232,94 @@ mod tests {
             QueryInspectAchievements::read(&mut packet).expect("query inspect achievements");
 
         assert_eq!(parsed.guid, guid);
+    }
+
+    #[test]
+    fn inspect_result_writes_forever_cpp_field_order() {
+        let guid = ObjectGuid::create_player(1, 0x1234);
+        let bytes = InspectResult {
+            target_guid: guid,
+            target_name: "Misha".into(),
+            race: 1,
+            class_id: 2,
+            gender: 1,
+            level: 42,
+            items: vec![InspectItem {
+                slot: 7,
+                item_id: 12_345,
+            }],
+        }
+        .to_bytes();
+        let mut packet = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            ServerOpcodes::InspectResult as u16
+        );
+        assert_eq!(packet.read_packed_guid().unwrap(), guid);
+        assert_eq!(packet.read_int32().unwrap(), 0); // SpecializationID
+        assert_eq!(packet.read_bits(6).unwrap(), 5);
+        assert_eq!(packet.read_uint8().unwrap(), 1); // Gender
+        assert_eq!(packet.read_uint8().unwrap(), 1); // Race
+        assert_eq!(packet.read_uint8().unwrap(), 2); // Class
+        assert_eq!(packet.read_int32().unwrap(), 0); // Customizations.Count
+        assert_eq!(packet.read_string(5).unwrap(), "Misha");
+        assert_eq!(packet.read_int32().unwrap(), 1); // Items.Count
+        assert_eq!(packet.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(packet.read_int32().unwrap(), 12_345); // ItemID
+        assert_eq!(packet.read_bits(7).unwrap(), 0); // ItemModList.Values.Count
+        packet.reset_bits();
+        assert!(!packet.read_bit().unwrap()); // ItemBonus
+        packet.reset_bits();
+        assert_eq!(packet.read_uint8().unwrap(), 7); // Index
+        assert_eq!(packet.read_int32().unwrap(), 0); // AzeritePowers.Count
+        assert_eq!(packet.read_int32().unwrap(), 0); // AzeriteEssences.Count
+        assert!(packet.read_bit().unwrap()); // Usable
+        assert_eq!(packet.read_bits(4).unwrap(), 0); // Enchants.Count
+        assert_eq!(packet.read_bits(2).unwrap(), 0); // Gems.Count
+        packet.reset_bits();
+        assert_eq!(packet.read_int32().unwrap(), 0); // Glyphs.Count
+        assert_eq!(packet.read_int32().unwrap(), 0); // Talents.Count
+        assert_eq!(packet.read_int32().unwrap(), 4); // PvpTalents.Count
+        assert_eq!(packet.read_int32().unwrap(), 0); // UnspentTalentPoints
+        assert_eq!(packet.read_uint8().unwrap(), 0); // ActiveGroup
+        assert_eq!(packet.read_int32().unwrap(), 0); // TalentGroupInfos.Count
+        assert!(!packet.read_bit().unwrap()); // IsPetTalents
+        packet.reset_bits();
+        assert_eq!(packet.read_int32().unwrap(), 0); // ItemLevel
+        for bracket in 0u8..9 {
+            assert_eq!(packet.read_uint8().unwrap(), bracket);
+            for _ in 0..12 {
+                assert_eq!(packet.read_int32().unwrap(), 0);
+            }
+            assert_eq!(packet.read_uint8().unwrap(), 0); // SeasonBestTierEnum
+            for _ in 0..4 {
+                assert_eq!(packet.read_int32().unwrap(), 0);
+            }
+            assert!(!packet.read_bit().unwrap()); // Disqualified
+            packet.reset_bits();
+        }
+        assert_eq!(packet.read_uint8().unwrap(), 0); // LifetimeMaxRank
+        assert_eq!(packet.read_uint16().unwrap(), 0); // TodayHK
+        assert_eq!(packet.read_uint16().unwrap(), 0); // YesterdayHK
+        assert_eq!(packet.read_int32().unwrap(), 0); // LifetimeHK
+        assert_eq!(packet.read_int32().unwrap(), 0); // HonorLevel
+        assert_eq!(packet.read_int32().unwrap(), 42); // TraitInspectInfo.Level
+        assert_eq!(packet.read_int32().unwrap(), 0); // ChrSpecializationID
+        assert_eq!(packet.read_int32().unwrap(), 0); // TraitConfig.ID
+        assert_eq!(packet.read_int32().unwrap(), 0); // TraitConfig.Type
+        assert_eq!(packet.read_int32().unwrap(), 0); // TraitConfig.Entries.Count
+        assert_eq!(packet.read_bits(9).unwrap(), 0); // TraitConfig.Name length
+        packet.reset_bits();
+        for _ in 0..4 {
+            assert_eq!(packet.read_uint16().unwrap(), 0); // PvpTalents slot
+        }
+        assert!(!packet.read_bit().unwrap()); // GuildData.HasValue
+        assert!(!packet.read_bit().unwrap()); // AzeriteLevel.HasValue
+        packet.reset_bits();
+        assert!(
+            packet.read_uint8().is_err(),
+            "packet must be fully consumed"
+        );
     }
 
     #[test]
