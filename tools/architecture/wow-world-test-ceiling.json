@@ -605,6 +605,16 @@
    "unit_tests_lines": 288776,
    "unit_tests_tests": 4297,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-57",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "One negative-objective regression proves Default dirty state without immediate persistence, while required status regression and interaction refresh still occur.",
+   "unit_tests_lines": 288832,
+   "unit_tests_tests": 4298,
+   "src_tests": 345
   }
  ]
 }

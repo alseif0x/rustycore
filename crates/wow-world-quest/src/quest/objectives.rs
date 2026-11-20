@@ -20,8 +20,7 @@ use super::{
     objective_progress::{
         current_quest_gameplay_snapshot_like_cpp,
         invalidate_player_quest_status_authority_like_cpp,
-        mark_quest_incomplete_if_complete_like_cpp, save_changed_quest_statuses_like_cpp,
-        update_objective_count_like_cpp,
+        mark_quest_incomplete_if_complete_like_cpp, update_objective_count_like_cpp,
     },
 };
 
@@ -486,7 +485,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             .collect();
 
         let mut quests_to_complete = Vec::new();
-        let mut quests_to_save = Vec::new();
         let mut any_objective_changed_completion_state = false;
         for (quest_id, obj_idx, required, objective_id, objective_flags) in matching {
             let Some(current) = update_objective_count_like_cpp(
@@ -500,7 +498,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             ) else {
                 continue;
             };
-            quests_to_save.push(quest_id);
 
             tracing::debug!(
                 account = owner.account_id_like_cpp(),
@@ -521,7 +518,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             if !objective_is_now_complete
                 && (objective_flags & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
                     == 0
-                && mark_quest_incomplete_if_complete_like_cpp(
+            {
+                mark_quest_incomplete_if_complete_like_cpp(
                     &owner,
                     self.reward.quest_state,
                     quest_id,
@@ -534,9 +532,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                         )
                     }),
                     self.reward.world_test_consumer,
-                )
-            {
-                quests_to_save.push(quest_id);
+                );
             }
 
             if add_count > 0
@@ -622,15 +618,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         }
 
         let owner = self.reward.player.quest_objective_access_like_cpp();
-        save_changed_quest_statuses_like_cpp(
-            &owner,
-            self.reward.quest_state,
-            self.reward.catalogs,
-            self.reward.lifecycle,
-            &mut quests_to_save,
-            self.reward.world_test_consumer,
-        )
-        .await;
         self.sync_player_registry_state_like_cpp(&owner);
     }
 
@@ -711,7 +698,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             .collect();
 
         let mut quests_to_complete = Vec::new();
-        let mut quests_to_save = Vec::new();
         let mut any_objective_changed_completion_state = false;
         for (quest_id, obj_idx, objective_id, objective_flags, objective_was_complete) in matching {
             if objective_was_complete && add_count >= 0 {
@@ -731,7 +717,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             };
             if objective_was_complete != objective_is_now_complete {
                 any_objective_changed_completion_state = true;
-                quests_to_save.push(quest_id);
             }
             if add_count > 0
                 && (objective_flags
@@ -774,7 +759,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             } else if (objective_flags
                 & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
                 == 0
-                && mark_quest_incomplete_if_complete_like_cpp(
+            {
+                mark_quest_incomplete_if_complete_like_cpp(
                     &owner,
                     self.reward.quest_state,
                     quest_id,
@@ -787,9 +773,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                         )
                     }),
                     self.reward.world_test_consumer,
-                )
-            {
-                quests_to_save.push(quest_id);
+                );
             }
             if !quests_to_complete.is_empty() {
                 drop(owner);
@@ -824,15 +808,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
-        save_changed_quest_statuses_like_cpp(
-            &owner,
-            self.reward.quest_state,
-            self.reward.catalogs,
-            self.reward.lifecycle,
-            &mut quests_to_save,
-            self.reward.world_test_consumer,
-        )
-        .await;
         self.sync_player_registry_state_like_cpp(&owner);
     }
 
@@ -881,7 +856,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             false,
         );
         let mut quests_to_complete = Vec::new();
-        let mut quests_to_save = Vec::new();
         let mut any_objective_changed_completion_state = false;
         for change in matching {
             let quest_id = change.quest_id;
@@ -932,7 +906,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             } else if objective_was_complete
                 && (objective_flags & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
                     == 0
-                && mark_quest_incomplete_if_complete_like_cpp(
+            {
+                mark_quest_incomplete_if_complete_like_cpp(
                     &owner,
                     self.reward.quest_state,
                     quest_id,
@@ -945,19 +920,16 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                         )
                     }),
                     self.reward.world_test_consumer,
-                )
-            {
-                quests_to_save.push(quest_id);
+                );
             }
             if !quests_to_complete.is_empty() {
                 drop(owner);
-                let completed = self
+                let _ = self
                     .complete_represented_quests_after_objective_inline_like_cpp(
                         &store,
                         &mut quests_to_complete,
                     )
                     .await;
-                quests_to_save.extend(completed);
                 owner = self.reward.player.quest_objective_access_like_cpp();
             }
         }
@@ -971,7 +943,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 .complete_represented_quest_after_objective_like_cpp(&quest, objective_id)
                 .await
             {
-                quests_to_save.push(quest_id);
                 let owner = self.reward.player.quest_objective_access_like_cpp();
                 tracing::info!(
                     account = owner.account_id_like_cpp(),
@@ -984,15 +955,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
-        save_changed_quest_statuses_like_cpp(
-            &owner,
-            self.reward.quest_state,
-            self.reward.catalogs,
-            self.reward.lifecycle,
-            &mut quests_to_save,
-            self.reward.world_test_consumer,
-        )
-        .await;
         self.sync_player_registry_state_like_cpp(&owner);
     }
 
@@ -1052,7 +1014,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         );
 
         let mut quests_to_complete = Vec::new();
-        let mut quests_to_save = Vec::new();
         let mut any_objective_changed_completion_state = false;
         for change in matching {
             let quest_id = change.quest_id;
@@ -1103,7 +1064,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             } else if objective_was_complete
                 && (objective_flags & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
                     == 0
-                && mark_quest_incomplete_if_complete_like_cpp(
+            {
+                mark_quest_incomplete_if_complete_like_cpp(
                     &owner,
                     self.reward.quest_state,
                     quest_id,
@@ -1116,19 +1078,16 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                         )
                     }),
                     self.reward.world_test_consumer,
-                )
-            {
-                quests_to_save.push(quest_id);
+                );
             }
             if !quests_to_complete.is_empty() {
                 drop(owner);
-                let completed = self
+                let _ = self
                     .complete_represented_quests_after_objective_inline_like_cpp(
                         &store,
                         &mut quests_to_complete,
                     )
                     .await;
-                quests_to_save.extend(completed);
                 owner = self.reward.player.quest_objective_access_like_cpp();
             }
         }
@@ -1142,7 +1101,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 .complete_represented_quest_after_objective_like_cpp(&quest, objective_id)
                 .await
             {
-                quests_to_save.push(quest_id);
                 let owner = self.reward.player.quest_objective_access_like_cpp();
                 tracing::info!(
                     account = owner.account_id_like_cpp(),
@@ -1155,15 +1113,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
-        save_changed_quest_statuses_like_cpp(
-            &owner,
-            self.reward.quest_state,
-            self.reward.catalogs,
-            self.reward.lifecycle,
-            &mut quests_to_save,
-            self.reward.world_test_consumer,
-        )
-        .await;
         self.sync_player_registry_state_like_cpp(&owner);
     }
 
@@ -1234,7 +1183,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         );
 
         let mut quests_to_complete = Vec::new();
-        let mut quests_to_save = Vec::new();
         let mut any_objective_changed_completion_state = false;
         for change in matching {
             let quest_id = change.quest_id;
@@ -1286,7 +1234,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             } else if objective_was_complete
                 && (objective_flags & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
                     == 0
-                && mark_quest_incomplete_if_complete_like_cpp(
+            {
+                mark_quest_incomplete_if_complete_like_cpp(
                     &owner,
                     self.reward.quest_state,
                     quest_id,
@@ -1299,19 +1248,16 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                         )
                     }),
                     self.reward.world_test_consumer,
-                )
-            {
-                quests_to_save.push(quest_id);
+                );
             }
             if !quests_to_complete.is_empty() {
                 drop(owner);
-                let completed = self
+                let _ = self
                     .complete_represented_quests_after_objective_inline_like_cpp(
                         &store,
                         &mut quests_to_complete,
                     )
                     .await;
-                quests_to_save.extend(completed);
                 owner = self.reward.player.quest_objective_access_like_cpp();
             }
         }
@@ -1325,7 +1271,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 .complete_represented_quest_after_objective_like_cpp(&quest, objective_id)
                 .await
             {
-                quests_to_save.push(quest_id);
                 let owner = self.reward.player.quest_objective_access_like_cpp();
                 tracing::info!(
                     account = owner.account_id_like_cpp(),
@@ -1338,15 +1283,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
-        save_changed_quest_statuses_like_cpp(
-            &owner,
-            self.reward.quest_state,
-            self.reward.catalogs,
-            self.reward.lifecycle,
-            &mut quests_to_save,
-            self.reward.world_test_consumer,
-        )
-        .await;
         self.sync_player_registry_state_like_cpp(&owner);
     }
 }

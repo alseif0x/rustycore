@@ -608,12 +608,28 @@ async fn threshold_negative_outcome_like_cpp(
     objective_type: u8,
     objective_flags: u32,
     in_raid_group: bool,
-) -> (u8, Vec<ServerOpcodes>) {
+    status_requests: Option<
+        Arc<std::sync::Mutex<Vec<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp>>>,
+    >,
+) -> (
+    u8,
+    Vec<ServerOpcodes>,
+    Option<wow_entities::PlayerQuestStatusSaveTypeLikeCpp>,
+) {
     let (mut session, _, send_rx) = make_session();
+    if let Some(status_requests) = status_requests {
+        session.set_player_quest_persistence_port_like_cpp(Arc::new(
+            crate::player::quest_persistence_test_fixture::PlayerQuestPersistencePortFixtureLikeCpp {
+                status_requests,
+                ..Default::default()
+            },
+        ));
+    }
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 46);
     let creature_guid = test_creature_guid(134);
     let mut quest = test_quest_template(THRESHOLD_QUEST_ID);
+    quest.quest_type = 2;
     quest.objectives.push(wow_data::quest::QuestObjective {
         id: THRESHOLD_QUEST_ID * 10,
         quest_id: THRESHOLD_QUEST_ID,
@@ -759,7 +775,15 @@ async fn threshold_negative_outcome_like_cpp(
                 .map(|status| status.status)
         })
         .expect("threshold quest status");
-    (status, drain_server_opcodes(&send_rx))
+    let save_type = session
+        .with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .quests
+                .status_save_type_like_cpp(THRESHOLD_QUEST_ID)
+        })
+        .flatten();
+    (status, drain_server_opcodes(&send_rx), save_type)
 }
 
 async fn assert_threshold_negative_transitions_like_cpp(objective_type: u8) {
@@ -770,8 +794,8 @@ async fn assert_threshold_negative_transitions_like_cpp(objective_type: u8) {
             QUEST_STATUS_COMPLETE_LIKE_CPP,
         ),
     ] {
-        let (status, opcodes) =
-            threshold_negative_outcome_like_cpp(objective_type, flags, false).await;
+        let (status, opcodes, _) =
+            threshold_negative_outcome_like_cpp(objective_type, flags, false, None).await;
         assert_eq!(status, expected_status, "transition packets: {opcodes:?}");
         assert_eq!(
             opcodes
@@ -866,8 +890,8 @@ async fn raid_objectives_require_quest_admission_in_both_storage_families_like_c
 
 #[tokio::test]
 async fn raid_money_progresses_without_a_raid_quest_flag_like_cpp() {
-    let (status, opcodes) =
-        threshold_negative_outcome_like_cpp(QUEST_OBJECTIVE_MONEY_LIKE_CPP, 0, true).await;
+    let (status, opcodes, _) =
+        threshold_negative_outcome_like_cpp(QUEST_OBJECTIVE_MONEY_LIKE_CPP, 0, true, None).await;
     assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
     assert_eq!(
         opcodes
@@ -1058,4 +1082,36 @@ async fn quest_completion_runs_inline_before_the_next_quest_credit_like_cpp() {
         assert_eq!(second_status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
         assert_eq!(second_counts, vec![1, 0]);
     }
+}
+
+#[tokio::test]
+async fn negative_objective_marks_default_without_immediate_persistence_like_cpp() {
+    let fixture =
+        crate::player::quest_persistence_test_fixture::PlayerQuestPersistencePortFixtureLikeCpp::default();
+    let status_requests = Arc::clone(&fixture.status_requests);
+    let (status, opcodes, save_type) = threshold_negative_outcome_like_cpp(
+        QUEST_OBJECTIVE_MONEY_LIKE_CPP,
+        0,
+        false,
+        Some(status_requests.clone()),
+    )
+    .await;
+
+    assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+    assert_eq!(
+        save_type,
+        Some(wow_entities::PlayerQuestStatusSaveTypeLikeCpp::Default)
+    );
+    assert!(
+        status_requests.lock().unwrap().is_empty(),
+        "objective progress must not write quest status immediately"
+    );
+    assert_eq!(
+        opcodes
+            .iter()
+            .filter(|opcode| **opcode == ServerOpcodes::UpdateObject)
+            .count(),
+        1,
+        "the state transition still refreshes interactions: {opcodes:?}"
+    );
 }
