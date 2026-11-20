@@ -147,7 +147,11 @@ snapshot. The production-linked test reported the missing registrations.
 The largest cost on the corrected registration was checking downstream
 production and test targets (252.410 s). Rustc compiled both the ordinary
 and test configurations of the `world-server` library. This first full run
-exceeded the shared-change budget by 27.866 s.
+exceeded the shared-change budget by 27.866 s. With those configurations
+warm, a fresh comment edit in the same composition file took **66.208 s**
+for the full pilot. The downstream check then took 7.863 s. Both costs
+matter on a developer machine: the faster run assumes that the required
+Cargo configurations already exist in that worktree's cache.
 
 The CLI regression suite uses a small Git/Cargo workspace to exercise a broken
 documentation link, mixed documentation and unknown input, a broken downstream
