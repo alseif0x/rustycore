@@ -461,7 +461,11 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 quests_to_save.push(quest_id);
             }
 
-            if add_count > 0 {
+            if add_count > 0
+                && (objective_flags
+                    & wow_constants::quest::QUEST_OBJECTIVE_FLAG_HIDE_CREDIT_MSG_LIKE_CPP)
+                    == 0
+            {
                 if objective_type == wow_constants::quest::QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP {
                     let _ = self.reward.send_packet_like_cpp(&QuestUpdateAddPvpCredit {
                         quest_id,
@@ -614,7 +618,11 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 any_objective_changed_completion_state = true;
                 quests_to_save.push(quest_id);
             }
-            if add_count > 0 {
+            if add_count > 0
+                && (objective_flags
+                    & wow_constants::quest::QUEST_OBJECTIVE_FLAG_HIDE_CREDIT_MSG_LIKE_CPP)
+                    == 0
+            {
                 let _ = self
                     .reward
                     .send_packet_like_cpp(&QuestUpdateAddCreditSimple {

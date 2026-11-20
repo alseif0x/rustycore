@@ -361,3 +361,49 @@ async fn storing_flag_optional_negative_transition_keeps_quest_complete_and_refr
         ServerOpcodes::QuestUpdateAddCreditSimple,
     );
 }
+
+async fn assert_hidden_credit_transition_like_cpp(storing_flag: bool) {
+    let (status, count, opcodes) = storing_objective_transition_outcome_like_cpp(
+        storing_flag,
+        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        0,
+        1,
+        wow_constants::quest::QUEST_OBJECTIVE_FLAG_HIDE_CREDIT_MSG_LIKE_CPP,
+    )
+    .await;
+    assert_eq!(status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+    assert_eq!(count, 1);
+    assert_eq!(
+        opcodes
+            .iter()
+            .filter(|opcode| **opcode == ServerOpcodes::UpdateObject)
+            .count(),
+        2,
+        "hidden credit must not suppress either interaction refresh: {opcodes:?}"
+    );
+    let hidden_credit = if storing_flag {
+        ServerOpcodes::QuestUpdateAddCreditSimple
+    } else {
+        ServerOpcodes::QuestUpdateAddCredit
+    };
+    for unexpected in [
+        hidden_credit,
+        ServerOpcodes::QuestUpdateComplete,
+        ServerOpcodes::QuestGiverQuestComplete,
+    ] {
+        assert!(
+            !opcodes.contains(&unexpected),
+            "HIDE_CREDIT_MSG must not publish {unexpected:?}: {opcodes:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn storing_value_hide_credit_msg_completes_without_credit_packet_like_cpp() {
+    assert_hidden_credit_transition_like_cpp(false).await;
+}
+
+#[tokio::test]
+async fn storing_flag_hide_credit_msg_completes_without_credit_packet_like_cpp() {
+    assert_hidden_credit_transition_like_cpp(true).await;
+}

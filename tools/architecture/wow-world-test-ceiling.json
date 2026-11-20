@@ -515,6 +515,16 @@
    "unit_tests_lines": 287942,
    "unit_tests_tests": 4283,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-48",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "Two HIDE_CREDIT_MSG regressions prove storing-value/storing-flag completion and both visibility refreshes survive while the positive credit packet is suppressed.",
+   "unit_tests_lines": 287988,
+   "unit_tests_tests": 4285,
+   "src_tests": 345
   }
  ]
 }
