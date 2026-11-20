@@ -57,6 +57,7 @@ async fn native_death_rail_preserves_earlier_nonlethal_presentation_before_letha
         hit_info: 0,
         victim_state: 0,
         original_damage: 100,
+        school_mask: 1,
         absorbed: 0,
         mana_spent: 0,
         absorb_consumptions: Vec::new(),

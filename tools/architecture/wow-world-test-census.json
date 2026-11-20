@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4620,
+  "tests": 4621,
   "ignored": 1,
-  "session": 3904,
-  "shims": 3701,
+  "session": 3905,
+  "shims": 3702,
   "by_class": {
    "P": 716,
    "H": 147,
-   "W": 3757
+   "W": 3758
   },
   "by_reason": {
    "H-host": 147,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 32,
-   "W-world-logic": 3502
+   "W-world-logic": 3503
   },
   "by_owner": {
    "wow-world": {
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 55,
     "H": 4,
-    "W": 969
+    "W": 970
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 518,
     "H": 0,
-    "W": 3757
+    "W": 3758
    },
    "wow-world-application": {
     "P": 27,
@@ -4784,6 +4784,7 @@
   ["unit_tests/session/tests/scenarios_world_entities_28/creature_melee_damage.rs::map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "set_canonical_map_manager", "set_map_store"], []],
   ["unit_tests/session/tests/scenarios_world_entities_28/creature_melee_damage.rs::legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_28/creature_melee_damage.rs::legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
+  ["unit_tests/session/tests/scenarios_world_entities_28/creature_melee_damage.rs::legacy_creature_melee_tick_once_uses_template_fire_school_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_29.rs::legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_29.rs::legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_29.rs::legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],

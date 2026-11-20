@@ -673,6 +673,7 @@ fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
             hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
             victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
             original_damage: 17,
+            school_mask: 1,
             absorbed: 0,
             mana_spent: 0,
             absorb_consumptions: Vec::new(),

@@ -979,3 +979,183 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
         wow_packet::packets::combat::VICTIM_STATE_IS_IMMUNE
     );
 }
+
+#[test]
+fn legacy_creature_melee_tick_once_uses_template_fire_school_like_cpp() {
+    let manager = shared_map_manager();
+    let canonical = Arc::clone(&manager);
+    canonical.lock().unwrap().create_world_map(0, 0);
+    let attacker_guid = test_creature_guid(575);
+    let victim_guid = test_creature_guid(91_575);
+
+    let (mut session, _, _) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
+    register_test_creature(&mut session, manager.clone(), attacker_guid, 25);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
+    register_test_creature(&mut session, manager, victim_guid, 1_000);
+    session
+        .mutate_world_creature(victim_guid, |creature| {
+            creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+        })
+        .unwrap();
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature.unit_mut().set_level(80);
+            creature
+                .set_melee_damage_school_like_cpp(wow_constants::spell::SpellSchools::Fire as u8);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
+                wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
+            );
+            creature.enter_combat(victim_guid);
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    {
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.find_map_mut(0, 0).unwrap().map_mut();
+        map.get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .unit_mut()
+            .set_level(80);
+        map.get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+                armor: 5_000,
+                ..Default::default()
+            });
+    }
+
+    let aura_rows = [
+        (
+            91_580_u32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            5_i32,
+            0_i32,
+        ),
+        (
+            91_581,
+            wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+            0,
+            0x01,
+        ),
+        (
+            91_582,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_TAKEN,
+            5,
+            0x04,
+        ),
+        (
+            91_583,
+            wow_data::spell::aura_types::SPELL_AURA_SCHOOL_ABSORB,
+            4,
+            0x04,
+        ),
+        (
+            91_584,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+            10,
+            0x04,
+        ),
+    ];
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura_type, amount, school_mask) in aura_rows {
+        let spell_id = i32::try_from(spell_id).unwrap();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_misc_value_1: school_mask,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    let config = crate::session::CreatureAggroConfigLikeCpp {
+        spell_store: Some(Arc::new(spell_store)),
+        ..Default::default()
+    };
+    {
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.find_map_mut(0, 0).unwrap().map_mut();
+        for (spell_id, _, _, _) in aura_rows {
+            let target_guid = if spell_id == 91_584 {
+                attacker_guid
+            } else {
+                victim_guid
+            };
+            map.with_creature_mut_like_cpp(target_guid, |target| {
+                target.unit_mut().subsystems_mut().auras.add_applied(
+                    wow_entities::AppliedAuraRef::new(spell_id, attacker_guid, 0, 1),
+                );
+            })
+            .unwrap();
+        }
+    }
+
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
+    assert_eq!(outcome.canonical_creature_hits, 1);
+    let health = canonical
+        .lock()
+        .unwrap()
+        .find_map(0, 0)
+        .unwrap()
+        .map()
+        .with_creature_like_cpp(victim_guid, |victim| victim.unit().data().health)
+        .unwrap();
+    assert_eq!(
+        health, 988,
+        "10 * 1.10 fire bonus + 5 fire taken - 4 fire absorb, without armor"
+    );
+
+    let event = outcome
+        .plan
+        .events
+        .iter()
+        .find(|event| {
+            event.packet_bytes.len() > 2
+                && u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]])
+                    == wow_constants::ServerOpcodes::AttackerStateUpdate as u16
+        })
+        .expect("attacker state update event");
+    let mut packet = wow_packet::world_packet::WorldPacket::from_bytes(&event.packet_bytes);
+    packet.read_uint16().expect("opcode");
+    packet.read_bit().expect("has_log_data");
+    let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
+    let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
+    let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
+    info.read_uint32().expect("hitInfo");
+    info.read_packed_guid().expect("attacker");
+    info.read_packed_guid().expect("victim");
+    info.read_int32().expect("damage");
+    info.read_int32().expect("original damage");
+    info.read_int32().expect("over damage");
+    assert_eq!(info.read_uint8().expect("sub damage present"), 1);
+    assert_eq!(info.read_int32().expect("sub damage school mask"), 0x04);
+}

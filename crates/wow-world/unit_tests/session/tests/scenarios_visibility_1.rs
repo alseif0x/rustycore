@@ -251,6 +251,7 @@ fn visibility_barrier_preserves_entire_durable_suffix_fifo_like_cpp() {
                 hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
                 victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
                 original_damage: 3,
+                school_mask: 1,
                 absorbed: 0,
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),

@@ -79,7 +79,8 @@ pub(super) fn creature_victim_damage_like_cpp(
                         .filter(|effect| {
                             effect.aura_type
                                 == wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS
-                                && effect.misc_value & 0x01 != 0
+                                && effect.misc_value & (attacker.melee_damage_school_mask as i32)
+                                    != 0
                         })
                         .fold(1.0_f32, |total, effect| {
                             total * (1.0 + effect.amount as f32 / 100.0)
@@ -233,16 +234,16 @@ pub(super) fn creature_victim_damage_like_cpp(
                                     wow_constants::unit::UnitState::CONTROLLED.bits(),
                                 ),
                                 is_stand_state: true,
-                                // C++ `IsImmunedToDamage(NORMAL)`: a
-                                // `Unit::IsImmunedToDamage` accepts both
-                                // `SPELL_AURA_SCHOOL_IMMUNITY` and
-                                // `SPELL_AURA_DAMAGE_IMMUNITY` masks.
+                                // C++ `IsImmunedToDamage` accepts both
+                                // immunity registries for the attack's school.
                                 is_immune_to_damage: effects.iter().any(|effect| {
                                     matches!(
                                         effect.aura_type,
                                         wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
                                             | wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY,
-                                    ) && effect.misc_value & 0x01 != 0
+                                    ) && effect.misc_value
+                                        & (attacker.melee_damage_school_mask as i32)
+                                        != 0
                                 }),
                             };
                             (
@@ -276,6 +277,7 @@ pub(super) fn creature_victim_damage_like_cpp(
                     let creature_attacker_damage_bonus =
                         wow_world_spell::melee_damage::melee_damage_bonus_done_from_effects_like_cpp(
                             &attacker_effects,
+                            attacker.melee_damage_school_mask,
                             victim_attack_power_bonus,
                             victim_creature_type_mask,
                             victim_aura_state_mask,
@@ -289,8 +291,7 @@ pub(super) fn creature_victim_damage_like_cpp(
                         &victim_effects,
                         &attacker_ignore_resist,
                         swing.attacker_guid,
-                        // C++ `SPELL_SCHOOL_MASK_NORMAL` (0x01).
-                        0x01,
+                        attacker.melee_damage_school_mask as i32,
                     );
                     let after_taken =
                         wow_world_spell::melee_rules::melee_damage_taken_apply_like_cpp(
@@ -300,24 +301,28 @@ pub(super) fn creature_victim_damage_like_cpp(
                                 creature_attacker_damage_bonus,
                             ),
                         );
-                    let mitigated = wow_world_spell::melee_damage::armor_reduced_damage_like_cpp(
-                        after_taken,
-                        attacker.level,
-                        victim_facts.level,
-                        victim_armor,
-                        // CR_ARMOR_PENETRATION is a player-attacker
-                        // rating.
-                        0.0,
-                        normal_misc_sum(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
-                        ) as i32,
-                        normal_misc_sum(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
-                        ),
-                        // A creature victim's bypass aura needs a
-                        // represented creature-aura producer.
-                        0.0,
-                    );
+                    let mitigated = if attacker.melee_damage_school_mask & 0x01 != 0 {
+                        wow_world_spell::melee_damage::armor_reduced_damage_like_cpp(
+                            after_taken,
+                            attacker.level,
+                            victim_facts.level,
+                            victim_armor,
+                            // CR_ARMOR_PENETRATION is a player-attacker
+                            // rating.
+                            0.0,
+                            normal_misc_sum(
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+                            ) as i32,
+                            normal_misc_sum(
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+                            ),
+                            // A creature victim's bypass aura needs a
+                            // represented creature-aura producer.
+                            0.0,
+                        )
+                    } else {
+                        after_taken
+                    };
                     // C++ `Unit::RollMeleeOutcomeAgainst`
                     // (`Unit.cpp:2272-2310`).
                     let inputs = wow_world_spell::melee_rules::melee_outcome_inputs_like_cpp(
@@ -354,7 +359,7 @@ pub(super) fn creature_victim_damage_like_cpp(
                         swing.instance_id,
                         swing.attacker_guid,
                         swing.victim_guid,
-                        0x01,
+                        attacker.melee_damage_school_mask,
                         outcome_damage,
                         outcome_damage.min(i32::MAX as u32) as i32,
                         spell_store,
@@ -362,7 +367,7 @@ pub(super) fn creature_victim_damage_like_cpp(
                         config.difficulty_store.as_deref(),
                         wow_world_spell::melee_rules::represented_melee_ignore_absorb_like_cpp(
                             &attacker_effects,
-                            0x01,
+                            attacker.melee_damage_school_mask,
                         ),
                     );
                     let (absorbed, remaining) = absorb

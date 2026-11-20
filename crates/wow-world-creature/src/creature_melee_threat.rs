@@ -62,6 +62,9 @@ pub(super) fn plan_creature_damage_threat_like_cpp(
             )
         })
     });
+    // `ThreatManager::CalcThreat` uses NORMAL when no Spell is supplied;
+    // `ThreatReference::ShouldBeSuppressed` separately reads the attacker's
+    // melee school in `creature_threat.rs`.
     let school_mask = spell_id
         .and_then(|spell_id| u32::try_from(spell_id).ok())
         .and_then(|spell_id| {

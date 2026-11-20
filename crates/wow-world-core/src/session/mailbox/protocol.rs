@@ -444,6 +444,8 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     /// C++ `CalcDamageInfo::OriginalDamage`: the post-outcome value the
     /// attacker-state packet serializes beside the dealt damage.
     pub original_damage: u32,
+    /// C++ `CalcDamageInfo::DamageSchoolMask`, captured from the attacker.
+    pub school_mask: u32,
     /// C++ `CalcDamageInfo::Absorb` (`Unit.cpp:1452-1460`): the absorb amount
     /// the map already subtracted from `damage`.
     pub absorbed: u32,

@@ -236,7 +236,7 @@ pub fn publish_creature_melee_attacker_state_like_cpp<H: CombatSessionHostLikeCp
             blocked: 0,
             absorbed: command.absorbed.min(i32::MAX as u32) as i32,
             victim_state: command.victim_state,
-            school_mask: 1,
+            school_mask: command.school_mask.min(i32::MAX as u32) as i32,
         });
     }
     Ok(())

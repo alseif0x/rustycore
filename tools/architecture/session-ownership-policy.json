@@ -49038,6 +49038,13 @@
             "source_class": "production"
           },
           {
+            "name": "school_mask",
+            "type": "u32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
             "name": "self_share_health_updates",
             "type": "Vec < u64 >",
             "visibility": "pub",

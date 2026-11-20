@@ -29,6 +29,7 @@ use wow_entities::AuraApplicationLikeCpp;
 /// carry represented effect amounts.
 pub fn melee_damage_bonus_done_from_effects_like_cpp(
     attacker_effects: &[AppliedAuraEffectLikeCpp],
+    damage_school_mask: u32,
     victim_attack_power_bonus: i32,
     creature_type_mask: u32,
     victim_aura_state_mask: u32,
@@ -78,6 +79,19 @@ pub fn melee_damage_bonus_done_from_effects_like_cpp(
         );
     }
     let mut done_total_mod = 1.0_f32;
+    // C++ `Unit::MeleeDamageBonusDone`: physical percent-done is already in
+    // weapon damage; non-physical melee applies the matching school aura.
+    if damage_school_mask & 0x01 == 0 {
+        done_total_mod *= attacker_effects
+            .iter()
+            .filter(|effect| {
+                effect.aura_type == wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+                    && effect.misc_value & (damage_school_mask as i32) != 0
+            })
+            .fold(1.0_f32, |total, effect| {
+                total * (1.0 + effect.amount as f32 / 100.0)
+            });
+    }
     if creature_type_mask != 0 {
         done_total_mod *=
             pct_by_mask(wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS);
@@ -161,6 +175,7 @@ pub fn melee_damage_bonus_done_like_cpp(
             .collect();
     melee_damage_bonus_done_from_effects_like_cpp(
         &effects,
+        0x01,
         0,
         creature_type_mask,
         victim_aura_state_mask,

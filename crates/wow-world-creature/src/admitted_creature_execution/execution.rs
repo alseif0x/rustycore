@@ -142,13 +142,20 @@ fn execute_admitted_creature_transition_like_cpp(
             return (due_casts, None);
         };
         creature.record_swing();
-        (due_casts, Some((victim_guid, damage.max(1))))
+        (
+            due_casts,
+            Some((
+                victim_guid,
+                damage.max(1),
+                creature.melee_damage_school_mask(),
+            )),
+        )
     });
     let Some((due_casts, committed)) = committed else {
         return arm;
     };
     arm.due_casts += due_casts;
-    let Some((victim_guid, damage)) = committed else {
+    let Some((victim_guid, damage, school_mask)) = committed else {
         return arm;
     };
 
@@ -172,6 +179,7 @@ fn execute_admitted_creature_transition_like_cpp(
             hit_info: HIT_INFO_AFFECTS_VICTIM,
             victim_state: VICTIM_STATE_HIT,
             original_damage: damage,
+            school_mask,
             absorbed: 0,
             mana_spent: 0,
             absorb_consumptions: Vec::new(),

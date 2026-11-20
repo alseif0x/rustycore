@@ -599,6 +599,7 @@ fn creature_melee_attacker_state_event_like_cpp(
     blocked: i32,
     absorbed: u32,
     over_damage: i32,
+    school_mask: u32,
 ) -> RuntimeEvent {
     use wow_packet::ServerPacket;
     use wow_packet::packets::combat::AttackerStateUpdate;
@@ -619,7 +620,7 @@ fn creature_melee_attacker_state_event_like_cpp(
             blocked: blocked.max(0),
             absorbed: absorbed.min(i32::MAX as u32) as i32,
             victim_state,
-            school_mask: 1,
+            school_mask: school_mask.min(i32::MAX as u32) as i32,
         }
         .to_bytes(),
     }
@@ -709,6 +710,16 @@ pub(crate) fn preview_creature_melee_attacker_state_event_like_cpp(
         blocked,
         absorbed,
         over_damage,
+        manager
+            .find_map(u32::from(swing.map_id), swing.instance_id)
+            .and_then(|managed| {
+                managed
+                    .map()
+                    .with_creature_like_cpp(swing.attacker_guid, |attacker| {
+                        attacker.melee_damage_school_mask()
+                    })
+            })
+            .unwrap_or(0x01),
     ))
 }
 
@@ -879,6 +890,12 @@ pub(crate) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         outcome_presentation.map_or(0, |(_, _, blocked)| blocked),
         absorbed,
         over_damage,
+        managed
+            .map()
+            .with_creature_like_cpp(attacker_guid, |attacker| {
+                attacker.melee_damage_school_mask()
+            })
+            .unwrap_or(0x01),
     ));
     if let Some(update) =
         unit_values_update_to_update_object(victim_guid, map_id as u16, &values_update)

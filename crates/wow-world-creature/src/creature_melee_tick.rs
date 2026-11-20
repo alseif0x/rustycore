@@ -277,6 +277,7 @@ pub(super) struct CreatureMeleeAttackerFactsLikeCpp {
     pub(super) level: u8,
     pub(super) is_charmed_owned_by_player_or_player: bool,
     pub(super) base_attack_speed: [u32; wow_entities::MAX_ATTACK],
+    pub(super) melee_damage_school_mask: u32,
 }
 
 impl CreatureMeleeAttackerFactsLikeCpp {
@@ -288,6 +289,7 @@ impl CreatureMeleeAttackerFactsLikeCpp {
             is_charmed_owned_by_player_or_player: attacker
                 .is_charmed_owned_by_player_or_player_like_cpp(),
             base_attack_speed: attacker.unit().base_attack_speed(),
+            melee_damage_school_mask: attacker.melee_damage_school_mask(),
         }
     }
 }
@@ -644,6 +646,7 @@ pub(crate) fn prepare_creature_melee_swing_like_cpp(
                 hit_info: state.hit_info,
                 victim_state: state.victim_state,
                 original_damage: state.original_damage,
+                school_mask: attacker_facts.melee_damage_school_mask,
                 absorbed: 0,
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
@@ -726,6 +729,7 @@ pub(crate) fn primary_creature_melee_prefix_command_like_cpp(
             hit_info: prepared.state.hit_info,
             victim_state: prepared.state.victim_state,
             original_damage: prepared.state.original_damage,
+            school_mask: prepared.attacker_facts.melee_damage_school_mask,
             absorbed: prepared.state.absorbed_damage,
             mana_spent: prepared.state.mana_spent,
             absorb_consumptions: prepared.state.absorb_consumptions.clone(),
@@ -847,6 +851,7 @@ pub(crate) fn finish_prepared_creature_melee_swing_like_cpp(
                 hit_info: state.hit_info,
                 victim_state: state.victim_state,
                 original_damage: state.original_damage,
+                school_mask: prepared.attacker_facts.melee_damage_school_mask,
                 absorbed: state.absorbed_damage,
                 mana_spent: state.mana_spent,
                 absorb_consumptions: state.absorb_consumptions.clone(),
@@ -950,6 +955,7 @@ pub(crate) fn finish_prepared_creature_melee_swing_like_cpp(
                 hit_info: state.hit_info,
                 victim_state: state.victim_state,
                 original_damage: state.original_damage,
+                school_mask: prepared.attacker_facts.melee_damage_school_mask,
                 absorbed: state.absorbed_damage,
                 mana_spent: state.mana_spent,
                 absorb_consumptions: state.absorb_consumptions.clone(),

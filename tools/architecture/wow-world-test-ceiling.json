@@ -455,6 +455,36 @@
    "unit_tests_lines": 287402,
    "unit_tests_tests": 4275,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1473-43",
+   "kind": "raise",
+   "issue": 1473,
+   "reviewed_at": "2026-11-20",
+   "reason": "One non-physical creature melee regression proves school-specific immunity, taken modifiers, absorb, armor gating and AttackerStateUpdate mask; 177 test lines including required command fixture fields.",
+   "unit_tests_lines": 287579,
+   "unit_tests_tests": 4276,
+   "src_tests": 345
+  },
+  {
+   "id": "raise-1473-44",
+   "kind": "raise",
+   "issue": 1473,
+   "reviewed_at": "2026-11-20",
+   "reason": "Canonical rustfmt of the reviewed non-physical melee regression adds one wrapped line; final delta is 178 test lines including command fixture fields.",
+   "unit_tests_lines": 287580,
+   "unit_tests_tests": 4276,
+   "src_tests": 345
+  },
+  {
+   "id": "raise-1473-45",
+   "kind": "raise",
+   "issue": 1473,
+   "reviewed_at": "2026-11-20",
+   "reason": "The completed non-physical melee regression also covers attacker percent-done; final formatted regression and command fixture growth is 189 test lines.",
+   "unit_tests_lines": 287591,
+   "unit_tests_tests": 4276,
+   "src_tests": 345
   }
  ]
 }
