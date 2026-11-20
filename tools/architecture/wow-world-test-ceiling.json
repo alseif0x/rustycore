@@ -435,6 +435,16 @@
    "unit_tests_lines": 287271,
    "unit_tests_tests": 4272,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1354-41",
+   "kind": "raise",
+   "issue": 1354,
+   "reviewed_at": "2026-11-20",
+   "reason": "Live RemovePet alternate-minion retention and selected-minion promotion rejection regressions (+87 lines, +2 tests).",
+   "unit_tests_lines": 287358,
+   "unit_tests_tests": 4274,
+   "src_tests": 345
   }
  ]
 }

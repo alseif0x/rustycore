@@ -19,10 +19,10 @@ use crate::TrainerSessionHostLikeCpp;
 /// retain stale GUIDs when the current Map has no matching typed Pet.
 ///
 /// Live removal currently admits quiescent pets with complete persisted native
-/// aura input and no secondary-minion continuation. Summon reagents are returned
-/// before combat cleanup and saving. Unsupported aura state and other
-/// unrepresented live pets fail before mutation; this is not complete RemovePet
-/// support.
+/// aura input and no selected-minion promotion continuation. Summon reagents
+/// are returned before combat cleanup and saving. Unsupported aura state and
+/// other unrepresented live pets fail before mutation; this is not complete
+/// RemovePet support.
 pub async fn remove_pet_not_in_slot_like_cpp<H>(
     host: &mut H,
     catalogs: ResurrectionOperationCatalogs<'_>,

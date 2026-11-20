@@ -431,6 +431,93 @@ async fn live_pet_release_marks_owner_group_update_and_preserves_other_flags() {
 }
 
 #[tokio::test]
+async fn live_pet_release_preserves_an_alternate_current_minion() {
+    let (mut session, _send_rx, _realm_rx, owner, corpses) =
+        dead_player_session_with_graveyard_like_cpp(9_313);
+    let guid = install_quiescent_pet(&mut session, owner);
+    let other =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 571, 0, 1, 9_313);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .controlled_guids
+                .insert(other);
+            player.unit_mut().set_minion_guid_like_cpp(Some(other));
+        })
+        .unwrap();
+    let port =
+        crate::session::RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+            rows: 1,
+        });
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert_eq!(port.pet_save_requests().len(), 2);
+    assert_eq!(corpses.saves.lock().unwrap().len(), 1);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            let control = &player.unit().subsystems().control;
+            (
+                player.gameplay_state().pet_guid,
+                player.unit().minion_guid_like_cpp(),
+                control.controlled_guids.contains(&other),
+                control.controlled_guids.contains(&guid),
+                control.pet_guid(),
+            )
+        }),
+        Some((None, Some(other), true, false, ObjectGuid::EMPTY))
+    );
+}
+
+#[tokio::test]
+async fn live_pet_release_rejects_selected_minion_promotion_before_mutation() {
+    let (mut session, send_rx, _realm_rx, owner, corpses) =
+        dead_player_session_with_graveyard_like_cpp(9_314);
+    let guid = install_quiescent_pet(&mut session, owner);
+    let other =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 571, 0, 1, 9_314);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .controlled_guids
+                .insert(other);
+        })
+        .unwrap();
+    let port =
+        crate::session::RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+            rows: 1,
+        });
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert!(port.pet_save_requests().is_empty());
+    assert!(corpses.saves.lock().unwrap().is_empty());
+    assert!(!sent_opcodes(&send_rx).contains(&0x2c22));
+    assert_pet_retained(&session, guid);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            let control = &player.unit().subsystems().control;
+            (
+                player.unit().minion_guid_like_cpp(),
+                control.controlled_guids.contains(&other),
+                control.controlled_guids.contains(&guid),
+            )
+        }),
+        Some((Some(guid), true, true))
+    );
+}
+
+#[tokio::test]
 async fn live_pet_release_saves_loaded_aura_then_cleans_it_before_detaching() {
     let (mut session, _send_rx, _realm_rx, owner, corpses) =
         dead_player_session_with_graveyard_like_cpp(9_310);

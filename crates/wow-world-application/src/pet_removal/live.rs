@@ -4,8 +4,8 @@
 //! Live RemovePet continuation for bounded native pet states.
 //! Source: Player.cpp:20864–20962, Unit.cpp:6028–6215, Pet.cpp:452–546
 //! at a5f8da2ebf5424bf0450ca4e08843ecbf72577bd. Forever aura-save review:
-//! Player.cpp:22322–22408, Pet.cpp:452–546,1301–1345 and Unit.cpp:4401–4436
-//! at 02245dcd245e7433e524577656177723d3e4992e.
+//! Player.cpp:22322–22408, Pet.cpp:452–546,1301–1345 and Unit.cpp:4401–4436,
+//! 6271–6440 at 02245dcd245e7433e524577656177723d3e4992e.
 
 use wow_constants::UnitFlags;
 use wow_core::ObjectGuid;
@@ -132,14 +132,13 @@ fn prepare(player: &Player, pet: &Pet, now: u32) -> Result<PreparedLivePetRemova
     }
     let control = &player.unit().subsystems().control;
     let guid = pet.creature().guid();
-    if control.controlled_guids.iter().any(|other| *other != guid)
-        || player
-            .unit()
-            .minion_guid_like_cpp()
-            .is_some_and(|other| other != guid)
+    let minion_guid = player.unit().minion_guid_like_cpp();
+    if (minion_guid == Some(guid) && control.controlled_guids.iter().any(|other| *other != guid))
+        || minion_guid
+            .is_some_and(|other| other != guid && !control.controlled_guids.contains(&other))
         || (!control.pet_guid().is_empty() && control.pet_guid() != guid)
     {
-        return Err("live pet secondary-minion continuation is unavailable");
+        return Err("live pet secondary-minion promotion or identity continuation is unavailable");
     }
     let unit = pet.creature().unit();
     let subsystems = unit.subsystems();
