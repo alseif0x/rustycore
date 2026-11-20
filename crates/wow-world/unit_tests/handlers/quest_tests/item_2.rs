@@ -244,6 +244,7 @@ async fn quest_confirm_accept_source_item_with_space_stores_and_pushes_item_like
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -770,6 +771,7 @@ async fn quest_confirm_accept_source_item_bound_objective_updates_quest_without_
         flags: 0,
         flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -865,6 +867,7 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));

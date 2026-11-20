@@ -21,6 +21,7 @@ fn quest_status_projection_persists_only_nonzero_storage_objectives_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     quest.objectives.push(QuestObjective {
@@ -34,6 +35,7 @@ fn quest_status_projection_persists_only_nonzero_storage_objectives_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     quest.objectives.push(QuestObjective {
@@ -47,6 +49,7 @@ fn quest_status_projection_persists_only_nonzero_storage_objectives_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -100,6 +103,7 @@ async fn quest_status_save_uses_the_sqlx_free_player_quest_port_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -162,6 +166,7 @@ async fn quest_load_keeps_the_seven_stage_order_behind_the_typed_port_like_cpp()
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     let rewarded = quest_template(rewarded_id);
@@ -359,6 +364,7 @@ fn quest_log_create_entries_store_flag_objectives_in_state_flags_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     quest.objectives.push(QuestObjective {
@@ -372,6 +378,7 @@ fn quest_log_create_entries_store_flag_objectives_in_state_flags_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));

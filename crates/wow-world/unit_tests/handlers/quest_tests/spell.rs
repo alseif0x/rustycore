@@ -190,6 +190,7 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
         flags: 0,
         flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));

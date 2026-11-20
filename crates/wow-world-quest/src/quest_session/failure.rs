@@ -230,6 +230,7 @@ mod tests {
             flags: 0,
             flags2: 0,
             progress_bar_weight: 0.0,
+            completion_effect: None,
             description: String::new(),
         }
     }

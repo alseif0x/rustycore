@@ -22,6 +22,7 @@ async fn player_kill_tracking_event_objective_auto_rewards_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));
@@ -105,6 +106,7 @@ async fn player_kill_same_faction_objective_skips_opposite_team_victim_like_cpp(
         flags: QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.fixtures.identity.player_race = 1;
@@ -207,6 +209,7 @@ async fn mercenary_same_faction_outcome_like_cpp(
         flags: QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.fixtures.identity.player_race = 1;

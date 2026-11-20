@@ -776,6 +776,7 @@ async fn push_quest_to_party_repeatable_turn_in_command_queue_failure_sends_no_s
         flags: 0xA5,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     let quest_for_dummy_commands = quest.clone();

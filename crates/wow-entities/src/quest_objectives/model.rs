@@ -1,6 +1,16 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+/// C++ `QuestObjectiveAction` loaded from `quest_objectives_completion_effect`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestObjectiveAction {
+    pub game_event_id: Option<u32>,
+    pub spell_id: Option<u32>,
+    pub conversation_id: Option<u32>,
+    pub update_phase_shift: bool,
+    pub update_zone_auras: bool,
+}
+
 /// A single objective definition. Canonical value type, reexported by wow-data.
 ///
 /// Target reference: `Quests/QuestDef.h`, `QuestObjective` (442). This retains
@@ -21,6 +31,7 @@ pub struct QuestObjective {
     pub flags2: u32,
     pub progress_bar_weight: f32,
     pub description: String,
+    pub completion_effect: Option<QuestObjectiveAction>,
 }
 
 impl QuestObjective {

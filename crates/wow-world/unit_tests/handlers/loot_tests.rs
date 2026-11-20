@@ -598,6 +598,7 @@ fn install_quest_bound_loot_objective_like_cpp(
         flags: 0,
         flags2: 1,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));

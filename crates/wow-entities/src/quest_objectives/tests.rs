@@ -41,6 +41,7 @@ fn objective(
         flags2,
         progress_bar_weight,
         description: String::new(),
+        completion_effect: None,
     }
 }
 

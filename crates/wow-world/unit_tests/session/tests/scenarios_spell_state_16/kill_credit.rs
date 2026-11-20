@@ -20,6 +20,7 @@ async fn spell_kill_credit_effect_row_rewards_player_monster_objective_like_cpp(
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));
@@ -117,6 +118,7 @@ async fn spell_kill_credit2_effect_row_rewards_current_session_like_cpp_without_
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));

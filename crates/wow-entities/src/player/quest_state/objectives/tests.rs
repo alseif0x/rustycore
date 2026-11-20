@@ -25,6 +25,7 @@ fn item_objective(
         flags: 0,
         flags2,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     }
 }

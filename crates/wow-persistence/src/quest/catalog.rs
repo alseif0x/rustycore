@@ -70,6 +70,15 @@ pub struct QuestTemplatePersistenceRowLikeCpp {
     pub reward_choice_item_types: [u8; 6],
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestObjectiveActionPersistenceRowLikeCpp {
+    pub game_event_id: Option<u32>,
+    pub spell_id: Option<u32>,
+    pub conversation_id: Option<u32>,
+    pub update_phase_shift: bool,
+    pub update_zone_auras: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuestObjectivePersistenceRowLikeCpp {
     pub id: u32,
@@ -83,6 +92,7 @@ pub struct QuestObjectivePersistenceRowLikeCpp {
     pub flags2: u32,
     pub progress_bar_weight: f32,
     pub description: String,
+    pub completion_effect: Option<QuestObjectiveActionPersistenceRowLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

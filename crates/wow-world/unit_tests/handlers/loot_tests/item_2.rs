@@ -464,6 +464,7 @@ fn represented_personal_loot_remote_inventory_and_objective_conditions_use_regis
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     quest_store.quests.insert(100, quest);
@@ -540,6 +541,7 @@ fn represented_personal_loot_remote_has_quest_for_item_objective_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     quest_store.quests.insert(100, quest);
@@ -639,6 +641,7 @@ async fn loot_item_added_progresses_incomplete_quest_item_objective_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -700,6 +703,7 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -789,6 +793,7 @@ async fn withdrawn_banked_item_restores_bound_objective_like_cpp() {
         flags: 0,
         flags2: 1,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -846,6 +851,7 @@ async fn loot_item_eligibility_does_not_treat_complete_quest_as_incomplete_like_
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));

@@ -28,6 +28,7 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
         flags: 0,
         flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -126,6 +127,7 @@ async fn quest_confirm_accept_native_quest_log_source_item_multiple_bound_object
         flags: 0,
         flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     quest.objectives.push(QuestObjective {
@@ -139,6 +141,7 @@ async fn quest_confirm_accept_native_quest_log_source_item_multiple_bound_object
         flags: 0,
         flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -215,6 +218,7 @@ async fn quest_confirm_accept_source_item_sequenced_objective_waits_for_previous
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     quest.objectives.push(QuestObjective {
@@ -228,6 +232,7 @@ async fn quest_confirm_accept_source_item_sequenced_objective_waits_for_previous
         flags: QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -283,6 +288,7 @@ async fn quest_confirm_accept_source_item_optional_previous_allows_sequenced_obj
         flags: QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     quest.objectives.push(QuestObjective {
@@ -296,6 +302,7 @@ async fn quest_confirm_accept_source_item_optional_previous_allows_sequenced_obj
         flags: QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -334,6 +341,7 @@ async fn quest_confirm_accept_source_item_progress_bar_part_objective_progresses
         flags: QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL,
         flags2: 0,
         progress_bar_weight: 50.0,
+        completion_effect: None,
         description: String::new(),
     });
     quest.objectives.push(QuestObjective {
@@ -347,6 +355,7 @@ async fn quest_confirm_accept_source_item_progress_bar_part_objective_progresses
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -725,6 +734,7 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
         flags: 0xA5,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     let quest_for_assertion = quest.clone();

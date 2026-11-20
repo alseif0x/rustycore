@@ -638,6 +638,7 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));

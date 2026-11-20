@@ -22,7 +22,7 @@ pub use items::{
     apply_quest_item_added_non_bound_to_statuses_like_cpp,
     apply_quest_item_removed_to_statuses_like_cpp,
 };
-pub use model::{QuestObjective, QuestObjectiveRulesLikeCpp};
+pub use model::{QuestObjective, QuestObjectiveAction, QuestObjectiveRulesLikeCpp};
 pub use resources::{
     ThresholdQuestObjectiveChangeLikeCpp, plan_threshold_quest_objective_changes_like_cpp,
 };

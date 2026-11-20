@@ -912,7 +912,7 @@ impl StatementDef for WorldStatements {
                 "LEFT JOIN quest_mail_sender qms ON qt.ID = qms.QuestId"
             ),
             Self::SEL_QUEST_OBJECTIVES => {
-                "SELECT ID, QuestID, Type, `Order`, StorageIndex, ObjectID, Amount, Flags, Flags2, ProgressBarWeight, Description FROM quest_objectives ORDER BY QuestID, `Order`"
+                "SELECT qo.ID, qo.QuestID, qo.Type, qo.`Order`, qo.StorageIndex, qo.ObjectID, qo.Amount, qo.Flags, qo.Flags2, qo.ProgressBarWeight, qo.Description, qoce.GameEventID, qoce.SpellID, qoce.ConversationID, qoce.UpdatePhaseShift, qoce.UpdateZoneAuras FROM quest_objectives qo LEFT JOIN quest_objectives_completion_effect qoce ON qo.ID = qoce.ObjectiveID ORDER BY qo.QuestID, qo.`Order`"
             }
             Self::SEL_GAME_EVENT_SEASONAL_QUEST_RELATIONS => {
                 "SELECT questId, eventEntry FROM game_event_seasonal_questrelation"

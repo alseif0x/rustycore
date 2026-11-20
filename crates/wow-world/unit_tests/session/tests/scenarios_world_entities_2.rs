@@ -25,6 +25,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_active_objective_like_cpp(
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
 
@@ -172,6 +173,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_chest_quest_loot_reference
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     let mut gameobject_store = wow_loot::LootStore::for_kind_like_cpp(LootStoreKind::Gameobject);
@@ -425,6 +427,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_gathering_node_quest_loot_
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     let mut gameobject_store = wow_loot::LootStore::for_kind_like_cpp(LootStoreKind::Gameobject);
@@ -537,6 +540,7 @@ fn update_visible_gameobjects_adds_no_interact_for_failed_player_condition_like_
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
 
@@ -679,6 +683,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     let group_registry = Arc::new(GroupRegistry::default());
@@ -822,6 +827,7 @@ async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));

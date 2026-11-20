@@ -158,6 +158,9 @@ impl MariaDbQuestCatalogPersistenceAdapterLikeCpp {
                     flags2: result.try_read(8).unwrap_or(0),
                     progress_bar_weight: result.try_read(9).unwrap_or(0.0),
                     description: result.try_read(10).unwrap_or_default(),
+                    completion_effect: quest_objective_completion_effect_from_row_like_cpp(
+                        &result, 11,
+                    ),
                 });
                 if !result.next_row() {
                     break;
@@ -184,6 +187,58 @@ impl MariaDbQuestCatalogPersistenceAdapterLikeCpp {
         }
         Ok(rows)
     }
+}
+
+fn quest_objective_completion_effect_from_row_like_cpp(
+    result: &SqlResult,
+    first_column: usize,
+) -> Option<QuestObjectiveActionPersistenceRowLikeCpp> {
+    let game_event_id = result.try_read::<Option<u32>>(first_column).unwrap_or(None);
+    let spell_id = result
+        .try_read::<Option<u32>>(first_column + 1)
+        .unwrap_or(None);
+    let conversation_id = result
+        .try_read::<Option<u32>>(first_column + 2)
+        .unwrap_or(None);
+    let update_phase_shift = result
+        .try_read::<Option<u8>>(first_column + 3)
+        .unwrap_or(None)
+        .map(|value| value != 0);
+    let update_zone_auras = result
+        .try_read::<Option<u8>>(first_column + 4)
+        .unwrap_or(None)
+        .map(|value| value != 0);
+    quest_objective_completion_action_like_cpp(
+        game_event_id,
+        spell_id,
+        conversation_id,
+        update_phase_shift,
+        update_zone_auras,
+    )
+}
+
+fn quest_objective_completion_action_like_cpp(
+    game_event_id: Option<u32>,
+    spell_id: Option<u32>,
+    conversation_id: Option<u32>,
+    update_phase_shift: Option<bool>,
+    update_zone_auras: Option<bool>,
+) -> Option<QuestObjectiveActionPersistenceRowLikeCpp> {
+    if game_event_id.is_none()
+        && spell_id.is_none()
+        && conversation_id.is_none()
+        && update_phase_shift.is_none()
+        && update_zone_auras.is_none()
+    {
+        return None;
+    }
+    Some(QuestObjectiveActionPersistenceRowLikeCpp {
+        game_event_id,
+        spell_id,
+        conversation_id,
+        update_phase_shift: update_phase_shift.unwrap_or(false),
+        update_zone_auras: update_zone_auras.unwrap_or(false),
+    })
 }
 
 fn read_u32(result: &SqlResult, column: usize) -> Option<u32> {
@@ -306,5 +361,35 @@ fn outcome<T>(result: Result<Vec<T>>) -> QuestCatalogLoadOutcomeLikeCpp<T> {
         Err(error) => QuestCatalogLoadOutcomeLikeCpp::Failed {
             reason: error.to_string(),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::StatementDef;
+
+    #[test]
+    fn objective_query_joins_cpp_completion_effects_like_cpp() {
+        assert_eq!(
+            WorldStatements::SEL_QUEST_OBJECTIVES.sql(),
+            "SELECT qo.ID, qo.QuestID, qo.Type, qo.`Order`, qo.StorageIndex, qo.ObjectID, qo.Amount, qo.Flags, qo.Flags2, qo.ProgressBarWeight, qo.Description, qoce.GameEventID, qoce.SpellID, qoce.ConversationID, qoce.UpdatePhaseShift, qoce.UpdateZoneAuras FROM quest_objectives qo LEFT JOIN quest_objectives_completion_effect qoce ON qo.ID = qoce.ObjectiveID ORDER BY qo.QuestID, qo.`Order`"
+        );
+    }
+
+    #[test]
+    fn completion_effect_requires_one_nonnull_value_but_preserves_false_and_zero_like_cpp() {
+        assert!(quest_objective_completion_action_like_cpp(None, None, None, None, None).is_none());
+        let effect = quest_objective_completion_action_like_cpp(
+            Some(0),
+            None,
+            None,
+            Some(false),
+            Some(false),
+        )
+        .expect("nonnull false and zero values still define an action");
+        assert_eq!(effect.game_event_id, Some(0));
+        assert!(!effect.update_phase_shift);
+        assert!(!effect.update_zone_auras);
     }
 }

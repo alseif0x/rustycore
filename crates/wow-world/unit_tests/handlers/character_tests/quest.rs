@@ -144,6 +144,7 @@ fn recursive_destroy_plans_child_and_parent_quest_removal_like_cpp() {
             flags: 0,
             flags2: 0,
             progress_bar_weight: 0.0,
+            completion_effect: None,
             description: String::new(),
         })
         .collect();

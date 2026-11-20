@@ -14,8 +14,8 @@ pub use wow_constants::quest::QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP;
 use wow_constants::quest::{
     QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP, QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP,
 };
-pub use wow_entities::QuestObjective;
 use wow_entities::QuestObjectiveRulesLikeCpp;
+pub use wow_entities::{QuestObjective, QuestObjectiveAction};
 
 // ── Constants (matching C# SharedConst) ──────────────────────────────────────
 pub const QUEST_REWARD_ITEM_COUNT: usize = 4;

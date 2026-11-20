@@ -66,8 +66,8 @@ pub use player_rules::{
     valid_player_rest_state_like_cpp, xp_in_group_rate_like_cpp,
 };
 pub use quest_objectives::{
-    QuestObjective, QuestObjectiveRulesLikeCpp, ThresholdQuestObjectiveChangeLikeCpp,
-    apply_quest_item_added_bound_to_statuses_like_cpp,
+    QuestObjective, QuestObjectiveAction, QuestObjectiveRulesLikeCpp,
+    ThresholdQuestObjectiveChangeLikeCpp, apply_quest_item_added_bound_to_statuses_like_cpp,
     apply_quest_item_added_non_bound_to_statuses_like_cpp,
     apply_quest_item_removed_to_statuses_like_cpp, plan_threshold_quest_objective_changes_like_cpp,
     player_has_incomplete_quest_objective_for_object_id_like_cpp,

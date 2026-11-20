@@ -66,6 +66,7 @@ fn aggregate_item_removal_plan_persists_all_objectives_in_one_status() {
             flags: 0,
             flags2: 0,
             progress_bar_weight: 0.0,
+            completion_effect: None,
             description: String::new(),
         })
         .collect();
@@ -106,6 +107,7 @@ fn mixed_item_transfer_quest_plan_applies_withdrawal_after_deposit() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     }];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -143,6 +145,7 @@ fn quest_bound_withdrawal_plan_consumes_credit_without_physical_item() {
         flags: 0,
         flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     }];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -180,6 +183,7 @@ async fn bank_withdrawal_credits_only_first_matching_bound_item_objective_like_c
             flags: 0,
             flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
             progress_bar_weight: 0.0,
+            completion_effect: None,
             description: String::new(),
         }];
         quest
@@ -266,6 +270,7 @@ async fn bound_item_durable_plan_and_apply_use_the_same_quest_log_order_like_cpp
             flags: 0,
             flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
             progress_bar_weight: 0.0,
+            completion_effect: None,
             description: String::new(),
         }];
         quest
@@ -329,6 +334,7 @@ async fn bank_withdrawal_item_objective_never_sends_generic_credit_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     }];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
@@ -468,6 +474,7 @@ async fn quest_giver_choose_reward_removes_item_objective_before_rewards_like_cp
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_gold_like_cpp(5);

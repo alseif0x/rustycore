@@ -109,6 +109,7 @@ fn quest_objective(id: u32, obj_type: u8, amount: i32) -> crate::quest::QuestObj
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     }
 }

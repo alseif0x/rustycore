@@ -27,6 +27,7 @@ async fn native_quest_log_load_filters_invalid_rows_and_clears_stale_tail_like_c
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([
@@ -294,6 +295,7 @@ async fn native_quest_log_objective_delta_uses_status_slot_while_lookup_uses_que
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));

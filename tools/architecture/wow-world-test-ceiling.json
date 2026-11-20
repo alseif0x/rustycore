@@ -625,6 +625,16 @@
    "unit_tests_lines": 288921,
    "unit_tests_tests": 4299,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-59",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "Completion-effect metadata adds one explicit None to each existing objective fixture; runtime behavior and test identities are unchanged, while loader/conversion tests live in their owning crates.",
+   "unit_tests_lines": 289000,
+   "unit_tests_tests": 4299,
+   "src_tests": 345
   }
  ]
 }

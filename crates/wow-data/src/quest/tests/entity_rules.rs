@@ -24,6 +24,7 @@ fn catalog_objective_definition_and_rule_view_keep_the_same_contract() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     // The compatibility path names the entity type itself, not a converted copy.

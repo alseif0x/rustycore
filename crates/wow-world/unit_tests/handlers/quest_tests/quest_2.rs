@@ -838,6 +838,7 @@ async fn quest_giver_choose_reward_removes_currency_objective_before_rewards_lik
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_gold_like_cpp(5);

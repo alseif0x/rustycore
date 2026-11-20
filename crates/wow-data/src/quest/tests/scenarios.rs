@@ -18,6 +18,13 @@ fn decoded_catalog_rows_apply_flags_objectives_and_relations_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: Some(QuestObjectiveAction {
+            game_event_id: Some(11),
+            spell_id: Some(22),
+            conversation_id: Some(33),
+            update_phase_shift: true,
+            update_zone_auras: true,
+        }),
         description: String::new(),
     };
     let mut store = QuestStore::from_template_rows_like_cpp(vec![quest]);
@@ -34,6 +41,12 @@ fn decoded_catalog_rows_apply_flags_objectives_and_relations_like_cpp() {
     assert!(quest.is_repeatable());
     assert_eq!(quest.event_id_for_quest_like_cpp(), 9);
     assert_eq!(quest.objectives.len(), 1);
+    let effect = quest.objectives[0].completion_effect.as_ref().unwrap();
+    assert_eq!(effect.game_event_id, Some(11));
+    assert_eq!(effect.spell_id, Some(22));
+    assert_eq!(effect.conversation_id, Some(33));
+    assert!(effect.update_phase_shift);
+    assert!(effect.update_zone_auras);
     assert_eq!(store.starter_quests.get(&100).unwrap(), &[42]);
     assert_eq!(store.ender_quests.get(&101).unwrap(), &[42]);
     assert_eq!(store.gameobject_starter_quests.get(&200).unwrap(), &[42]);

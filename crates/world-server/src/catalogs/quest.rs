@@ -10,6 +10,33 @@ fn loaded_rows_like_cpp<T>(outcome: QuestCatalogLoadOutcomeLikeCpp<T>) -> Result
     }
 }
 
+fn quest_objective_from_persistence_row_like_cpp(
+    row: wow_persistence::QuestObjectivePersistenceRowLikeCpp,
+) -> wow_data::quest::QuestObjective {
+    wow_data::quest::QuestObjective {
+        id: row.id,
+        quest_id: row.quest_id,
+        obj_type: row.obj_type,
+        order: row.order,
+        storage_index: row.storage_index,
+        object_id: row.object_id,
+        amount: row.amount,
+        flags: row.flags,
+        flags2: row.flags2,
+        progress_bar_weight: row.progress_bar_weight,
+        description: row.description,
+        completion_effect: row.completion_effect.map(|effect| {
+            wow_data::quest::QuestObjectiveAction {
+                game_event_id: effect.game_event_id,
+                spell_id: effect.spell_id,
+                conversation_id: effect.conversation_id,
+                update_phase_shift: effect.update_phase_shift,
+                update_zone_auras: effect.update_zone_auras,
+            }
+        }),
+    }
+}
+
 pub(crate) async fn load_quests_like_cpp(
     port: &dyn QuestCatalogPersistencePortLikeCpp,
 ) -> Result<wow_data::quest::QuestStore> {
@@ -99,19 +126,7 @@ pub(crate) async fn load_quests_like_cpp(
     store.apply_objective_rows_like_cpp(
         loaded_rows_like_cpp(port.load_quest_objective_rows_like_cpp().await)?
             .into_iter()
-            .map(|r| wow_data::quest::QuestObjective {
-                id: r.id,
-                quest_id: r.quest_id,
-                obj_type: r.obj_type,
-                order: r.order,
-                storage_index: r.storage_index,
-                object_id: r.object_id,
-                amount: r.amount,
-                flags: r.flags,
-                flags2: r.flags2,
-                progress_bar_weight: r.progress_bar_weight,
-                description: r.description,
-            })
+            .map(quest_objective_from_persistence_row_like_cpp)
             .collect(),
     );
     store.apply_creature_starter_rows_like_cpp(loaded_rows_like_cpp(
@@ -251,6 +266,47 @@ mod tests {
                 "seasonal_relations",
                 "objectives"
             ]
+        );
+    }
+
+    #[test]
+    fn objective_conversion_preserves_completion_action_and_absence_like_cpp() {
+        let row = |completion_effect| wow_persistence::QuestObjectivePersistenceRowLikeCpp {
+            id: 7,
+            quest_id: 42,
+            obj_type: 0,
+            order: 0,
+            storage_index: 0,
+            object_id: 99,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+            completion_effect,
+        };
+        let effect = wow_persistence::QuestObjectiveActionPersistenceRowLikeCpp {
+            game_event_id: Some(11),
+            spell_id: Some(22),
+            conversation_id: Some(33),
+            update_phase_shift: true,
+            update_zone_auras: true,
+        };
+        let objective = quest_objective_from_persistence_row_like_cpp(row(Some(effect.clone())));
+        assert_eq!(
+            objective.completion_effect,
+            Some(wow_data::quest::QuestObjectiveAction {
+                game_event_id: effect.game_event_id,
+                spell_id: effect.spell_id,
+                conversation_id: effect.conversation_id,
+                update_phase_shift: effect.update_phase_shift,
+                update_zone_auras: effect.update_zone_auras,
+            })
+        );
+        assert!(
+            quest_objective_from_persistence_row_like_cpp(row(None))
+                .completion_effect
+                .is_none()
         );
     }
 }

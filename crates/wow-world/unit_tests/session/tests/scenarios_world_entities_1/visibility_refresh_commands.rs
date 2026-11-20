@@ -131,6 +131,7 @@ async fn refresh_visible_gameobjects_or_spellclicks_command_sends_gameobject_del
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
 

@@ -28,6 +28,7 @@ async fn app_owner_drain_applies_reputation_then_currency_in_recorded_order_like
             flags: 0,
             flags2: 0,
             progress_bar_weight: 0.0,
+            completion_effect: None,
             description: String::new(),
         });
         quests.push(quest);
@@ -186,6 +187,7 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
             flags: prerequisite_flags,
             flags2: 0,
             progress_bar_weight: 0.0,
+            completion_effect: None,
             description: String::new(),
         });
     }
@@ -200,6 +202,7 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
         flags: objective_flags,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
 
@@ -684,6 +687,7 @@ async fn threshold_negative_outcome_like_cpp(
         flags: objective_flags,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));
@@ -973,6 +977,7 @@ async fn inline_completion_order_outcome_like_cpp(
             flags: 0,
             flags2: 0,
             progress_bar_weight: 0.0,
+            completion_effect: None,
             description: String::new(),
         };
     let mut first = test_quest_template(FIRST_QUEST);

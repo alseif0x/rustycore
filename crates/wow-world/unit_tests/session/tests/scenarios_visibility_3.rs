@@ -641,6 +641,7 @@ fn refresh_preserves_combined_scan_publication_and_stale_refusal() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
 

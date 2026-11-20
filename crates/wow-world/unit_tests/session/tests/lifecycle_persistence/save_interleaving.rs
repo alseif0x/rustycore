@@ -41,6 +41,7 @@ fn install_dirty_failed_quest(session: &mut WorldSession) {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(

@@ -61,6 +61,7 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));
@@ -137,6 +138,7 @@ async fn apply_player_money_change_sets_gold_and_drains_objective_queue_like_cpp
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));
@@ -202,6 +204,7 @@ async fn money_changed_loss_marks_complete_money_objective_incomplete_like_cpp()
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));
@@ -262,6 +265,7 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
             flags: 0,
             flags2: 0,
             progress_bar_weight: 0.0,
+            completion_effect: None,
             description: String::new(),
         });
 
@@ -343,6 +347,7 @@ async fn currency_tracking_event_objective_auto_rewards_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
@@ -414,6 +419,7 @@ async fn have_currency_tracking_event_objective_auto_rewards_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));
@@ -473,6 +479,7 @@ async fn obtain_currency_tracking_event_objective_auto_rewards_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));

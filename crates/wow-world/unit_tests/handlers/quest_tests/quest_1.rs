@@ -57,6 +57,7 @@ async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
         flags: 0,
         flags2: 0,
         progress_bar_weight: 0.0,
+        completion_effect: None,
         description: String::new(),
     });
     let mut store = QuestStore::from_quests_like_cpp([quest]);
