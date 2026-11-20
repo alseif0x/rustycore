@@ -1,5 +1,39 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 deferred objective-status persistence accepted locally — 2026-11-20
+
+Committed candidate `851ac19ed9b44306930d44765a2186e738b83a69`, based on
+`1413926ee`, removes the five objective-progress families' immediate quest-status
+save queue and its end-of-call writes. Objective changes retain the represented
+status mutation and dirty tracking, including the `Default` save type assigned by
+`SetQuestStatus` for non-turn-in quests. This follows
+`Player::UpdateQuestObjectiveProgress` (`Player.cpp:16980-17194`) and
+`Player::SetQuestStatus` (`Player.cpp:16230-16246`) at
+`02245dcd245e7433e524577656177723d3e4992e`: progress does not issue a separate
+immediate status write; ordinary Player saving consumes the dirty state.
+
+One composed canonical-Player regression reduces a required money objective on a
+non-turn-in quest and requires `INCOMPLETE`, `Default` dirty state, zero immediate
+persistence-port requests and exactly one interaction refresh. The focused
+`cargo test -p wow-world s2_quest_objective_owner_drain` check passed 21 tests.
+The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 1413926ee --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 19:05:05Z to 19:07:40Z (154.859 seconds),
+within the 600-second target: 4,642 `wow-world` tests (one ignored) and eight
+`wow-world-quest` tests passed, totaling 4,650 passed, one ignored and zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T190505.619084Z-521084-final.json`.
+Architecture policy, session syntax ownership, method-index, hotspot/census,
+formatting and all affected downstream checks passed. The reviewed ledgers record
+exactly 56 new Session test lines and one test identity, with no production
+growth in that logical owner.
+
+This closes only the immediate objective-status save divergence in #1368.
+Completion effects remain open. This is synthetic source/behavior/wire evidence,
+not a real database save/restart/relogin durability check, live quest capture or
+full quest parity acceptance. Player runtime integration and character creation
+remain separate work.
+
 ## #1368 inline quest completion accepted locally — 2026-11-20
 
 Committed candidate `6a30657cd00949c6ad777c8f6a21b33253a23be2`, based on
