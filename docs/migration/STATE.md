@@ -1,5 +1,32 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 creature relocation visibility accepted locally — 2026-11-20
+
+Committed candidate `59ceb11c674f4e855607e99a093d85fe1c897ffb`, based on
+`c6c57166e`, completes the visibility-notify half of #1354 for all three existing
+creature relocation entry points: direct in-place, lent-return and Creature
+move-list drain. Valid destinations mark observers at the origin before the
+operation and at the destination only when `relocated=true`, using the existing
+deferred visibility rail without packets under the map guard. Invalid coordinates
+produce no marks; blocked/error outcomes add no destination mark. Existing
+outcomes and summary counters are unchanged. The C++ contract is
+`Map::CreatureRelocation` and `Unit::UpdateObjectVisibility(false)`, cross-checked
+against the issue's target anchors and the complementary AzerothCore source.
+
+Four new Map tests prove direct, lent-return and move-list success plus the NaN
+negative. Before the production fix, the three success cases failed on the
+old-range observer; afterward all six matching cases passed. The committed
+`./tools/validation-v2 final --base c6c57166e --architecture --require-changes --timings --logs`
+campaign passed all nine commands from 04:21:46Z to 04:24:41Z (175.597 seconds),
+within the 600-second target. The `wow-map` library passed 778 tests with zero
+failures and one existing ignored test, including all four new identities. The
+session syntax check retained 747 exact direct-registry rows. Verified manifest:
+`target/validation-v2/manifests/20261120T042146.096709Z-3653679-final.json`.
+
+Unloaded-grid respawn relocation and the two smaller review items in #1354 remain
+open; no live client capture or #1354 closeout is claimed. Player runtime
+integration and character creation remain separate work.
+
 ## Forever skill/book/item checkpoint qualified locally — 2026-11-17
 
 Code candidate `920a32e0b1cb8bcb653b5222b5019a6033f81b6a`, based on published
