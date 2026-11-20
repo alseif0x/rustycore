@@ -62,6 +62,7 @@ pub fn normalize_angle(angle: f32) -> f32 {
 /// distance" typically ignores Y.
 #[inline]
 pub fn distance_2d(a: Vec3, b: Vec3) -> f32 {
+    // The world-plane distance intentionally ignores vertical Y.
     let dx = a.x - b.x;
     let dz = a.z - b.z;
     (dx * dx + dz * dz).sqrt()
