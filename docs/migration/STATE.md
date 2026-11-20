@@ -1,5 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 completion spells across objective families accepted locally — 2026-11-20
+
+Committed candidate `6dab45a9f70104cfe9930ca825f2d7d478eddf23`, based on
+`31dfb7b91`, extends the existing deferred completion-spell boundary from
+storing-value to storing-flag, money, currency and reputation objectives. One
+shared selector reads the loaded action and ignores only spell id zero. Every
+family stops before `CompleteQuest`, drains any earlier inline completions and
+uses the same real cast/resume operation. Each family's final interaction refresh
+is marked so the resumed operation neither loses nor duplicates it.
+
+Four regressions prove storing-flag credit, SpellGo and both refreshes, plus the
+same cast/completion order for money, currency and reputation without a credit
+packet. The complete objective suite passed 27 tests. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 31dfb7b91 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 22:41:35Z to 22:46:50Z (314.678 seconds),
+within the 600-second target: 4,648 `wow-world` tests (one ignored) and eight
+`wow-world-quest` tests passed, totaling 4,656 passed, one ignored and zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T224135.270313Z-935611-final.json`.
+Architecture policy, session syntax ownership, method-index, hotspot/census,
+formatting and all affected downstream checks passed. The reviewed ledgers record
+118 new Session test lines and four identities, with no Session production
+growth in this slice.
+
+This closes the `CompletionEffect.SpellId` divergence for all five represented
+objective-progress families in #1368. GameEvent, Conversation, UpdatePhaseShift
+and UpdateZoneAuras execution remain open. This is synthetic production-path
+source/behavior/wire evidence, not a live quest capture or full completion-effect
+parity claim. Player runtime integration and character creation remain separate
+work.
+
 ## #1368 storing-value completion spell accepted locally — 2026-11-20
 
 Committed candidate `84697bcc374c566b47e0d79350d3958d8f4e5a03`, based on
