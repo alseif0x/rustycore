@@ -19,6 +19,7 @@ fn player_visibility_snapshot_from_projection(
     transport: Option<TransportInfo>,
     aura_state: u32,
     unit_flags2: u32,
+    party_member: bool,
 ) -> PlayerVisibilityCreateSnapshot {
     let (display_id, visible_items, _, zone_id, customizations) = presentation;
     PlayerVisibilityCreateSnapshot {
@@ -53,6 +54,7 @@ fn player_visibility_snapshot_from_projection(
                 .collect(),
         ),
         party_member_party_type,
+        party_member,
     }
 }
 
@@ -597,6 +599,7 @@ impl PlayerRegistry {
                     summon,
                     aura_state,
                     unit_flags2,
+                    party_member,
                 ) = self.create_state(
                     guid,
                     placement.map_id,
@@ -645,6 +648,7 @@ impl PlayerRegistry {
                             .collect(),
                     ),
                     party_member_party_type: party_type,
+                    party_member,
                 })
             })
             .collect()
@@ -868,8 +872,20 @@ impl PlayerRegistry {
                 if dx * dx + dy * dy >= reach * reach {
                     return None;
                 }
-                let (vitals, party_type, presentation, summon, aura_state, unit_flags2) = self
-                    .create_state(guid, placement.map_id, placement.instance_id, excluded_guid)?;
+                let (
+                    vitals,
+                    party_type,
+                    presentation,
+                    summon,
+                    aura_state,
+                    unit_flags2,
+                    party_member,
+                ) = self.create_state(
+                    guid,
+                    placement.map_id,
+                    placement.instance_id,
+                    excluded_guid,
+                )?;
                 let transport = self
                     .canonical_at(guid, placement.map_id, placement.instance_id, |player| {
                         player.gameplay_state().transport.clone()
@@ -897,6 +913,7 @@ impl PlayerRegistry {
                     transport,
                     aura_state,
                     unit_flags2,
+                    party_member,
                 ))
             })
             .collect()
@@ -936,6 +953,17 @@ impl PlayerRegistry {
             {
                 return None;
             }
+            let viewer_group = manager
+                .find_map(expected_map.map_id, expected_map.instance_id)
+                .and_then(|map| {
+                    map.map().get_typed_player(viewer_guid).and_then(|viewer| {
+                        viewer
+                            .gameplay_state()
+                            .group
+                            .as_ref()
+                            .map(|group| group.group_guid)
+                    })
+                });
             manager.with_player_like_cpp(expected_handle, |player| {
                 let world = player.unit().world();
                 if !world.object().is_in_world()
@@ -960,6 +988,11 @@ impl PlayerRegistry {
                             prev_time: transport.prev_time,
                             vehicle_id: transport.vehicle_id,
                         });
+                let party_member = player
+                    .gameplay_state()
+                    .group
+                    .as_ref()
+                    .is_some_and(|group| Some(group.group_guid) == viewer_group);
                 Some((
                     world.position(),
                     u8::try_from(player.unit().data().level).unwrap_or_default(),
@@ -974,6 +1007,7 @@ impl PlayerRegistry {
                         .auras
                         .build_aura_state_update_for_target(viewer_guid),
                     player.unit().data().flags2,
+                    party_member,
                 ))
             })??
         };
@@ -996,6 +1030,7 @@ impl PlayerRegistry {
             summon,
             aura_state,
             unit_flags2,
+            party_member,
         ) = projection;
         Some(player_visibility_snapshot_from_projection(
             registration.guid(),
@@ -1009,6 +1044,7 @@ impl PlayerRegistry {
             transport,
             aura_state,
             unit_flags2,
+            party_member,
         ))
     }
 }

@@ -395,6 +395,16 @@
    "unit_tests_lines": 286904,
    "unit_tests_tests": 4267,
    "src_tests": 345
+  },
+  {
+   "id": "raise-584-37",
+   "kind": "raise",
+   "issue": 584,
+   "reviewed_at": "2026-11-20",
+   "reason": "One canonical-raid Player CREATE regression and direct packet coverage validate PARTY_MEMBER flag 0x02, self 0x03, other 0x00 and 25 quest rows (+55 lines, +1 test).",
+   "unit_tests_lines": 286959,
+   "unit_tests_tests": 4268,
+   "src_tests": 345
   }
  ]
 }

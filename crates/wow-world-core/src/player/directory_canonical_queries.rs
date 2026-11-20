@@ -126,8 +126,23 @@ impl PlayerRegistry {
         ObjectGuid,
         u32,
         u32,
+        bool,
     )> {
+        let viewer_group = self
+            .canonical_at(viewer_guid, map_id, instance_id, |viewer| {
+                viewer
+                    .gameplay_state()
+                    .group
+                    .as_ref()
+                    .map(|group| group.group_guid)
+            })
+            .flatten();
         self.canonical_at(guid, map_id, instance_id, |player| {
+            let party_member = player
+                .gameplay_state()
+                .group
+                .as_ref()
+                .is_some_and(|group| Some(group.group_guid) == viewer_group);
             (
                 canonical_player_vitals_like_cpp(player),
                 player.data().party_type,
@@ -139,6 +154,7 @@ impl PlayerRegistry {
                     .auras
                     .build_aura_state_update_for_target(viewer_guid),
                 player.unit().data().flags2,
+                party_member,
             )
         })
     }

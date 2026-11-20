@@ -459,6 +459,7 @@ pub struct PlayerVisibilityCreateSnapshot {
     pub visible_items: Arc<[(i32, u16, u16); 19]>,
     pub customizations: Arc<Vec<ChrCustomizationChoiceValuesUpdate>>,
     pub party_member_party_type: [u8; 2],
+    pub party_member: bool,
 }
 
 /// Private storage record. Consumers receive only owned projections and

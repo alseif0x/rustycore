@@ -156,6 +156,30 @@ fn create_player_non_self() {
 }
 
 #[test]
+fn create_player_party_member_controls_flag_and_quest_log_like_cpp() {
+    let mut data = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+    data.quest_log = vec![(59_416, 7, 123, [1; 24])];
+    let mut self_packet = WorldPacket::new_empty();
+    data.write_values_create(&mut self_packet, true, false);
+    assert_eq!(self_packet.data()[4], 0x03);
+
+    let mut party_packet = WorldPacket::new_empty();
+    data.write_values_create(&mut party_packet, false, true);
+    assert_eq!(party_packet.data()[4], 0x02);
+    let party_bytes = party_packet.into_data();
+
+    let mut other_packet = WorldPacket::new_empty();
+    data.write_values_create(&mut other_packet, false, false);
+    assert_eq!(other_packet.data()[4], 0x00);
+    let other_bytes = other_packet.into_data();
+
+    assert_eq!(party_bytes.len(), other_bytes.len() + 25 * 64);
+    let quest_id = 59_416_i32.to_le_bytes();
+    assert!(party_bytes.windows(4).any(|window| window == quest_id));
+    assert!(!other_bytes.windows(4).any(|window| window == quest_id));
+}
+
+#[test]
 fn power_type_mapping() {
     assert_eq!(power_type_for_class(1), 1); // Warrior → Rage
     assert_eq!(power_type_for_class(2), 0); // Paladin → Mana

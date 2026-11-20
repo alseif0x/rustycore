@@ -34,6 +34,7 @@ impl UpdateObject {
                     movement,
                     create_data,
                     is_self,
+                    party_member,
                 } => {
                     let mut block_buf = WorldPacket::new_empty();
                     write_create_block(
@@ -44,10 +45,14 @@ impl UpdateObject {
                         movement.as_ref(),
                         create_data,
                         *is_self,
+                        *party_member,
                     );
                     let block_bytes = block_buf.into_data().len();
-                    let values_bytes =
-                        debug_player_create_values_len_like_cpp(create_data, *is_self);
+                    let values_bytes = debug_player_create_values_len_like_cpp(
+                        create_data,
+                        *is_self,
+                        *party_member,
+                    );
                     let movement_bytes = block_bytes.saturating_sub(
                         debug_create_header_len_like_cpp(*update_type, guid, *type_id)
                             + values_bytes,
@@ -736,9 +741,23 @@ impl UpdateObject {
                 movement: Some(movement),
                 create_data,
                 is_self,
+                party_member: is_self,
             }],
         }
     }
+    /// Populate the receiver's PartyMember visibility on a player CREATE block.
+    pub fn set_player_party_member_like_cpp(&mut self, party_member: bool) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                party_member: current,
+                ..
+            } = block
+            {
+                *current = party_member;
+            }
+        }
+    }
+
     /// Populate the canonical Unit::Flags2 without recreating login defaults.
     pub fn set_player_unit_flags2_like_cpp(&mut self, flags: u32) {
         for block in &mut self.blocks {

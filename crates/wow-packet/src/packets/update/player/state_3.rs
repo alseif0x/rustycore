@@ -33,9 +33,10 @@ pub(super) fn write_trait_config_create_data(buf: &mut WorldPacket, data: &Trait
 pub(in crate::packets::update) fn debug_player_create_values_len_like_cpp(
     data: &PlayerCreateData,
     is_self: bool,
+    party_member: bool,
 ) -> usize {
     let mut values = WorldPacket::new_empty();
-    data.write_values_create(&mut values, is_self);
+    data.write_values_create(&mut values, is_self, party_member);
     values.into_data().len()
 }
 

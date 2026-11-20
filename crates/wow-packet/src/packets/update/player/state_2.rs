@@ -54,16 +54,22 @@ impl PlayerCreateData {
     /// Write the complete values block for CREATE (no change masks).
     ///
     /// Format: `[u32 size][u8 flags][ObjectData][UnitData][PlayerData][ActivePlayerData?]`
-    pub fn write_values_create(&self, pkt: &mut WorldPacket, is_self: bool) {
+    pub fn write_values_create(&self, pkt: &mut WorldPacket, is_self: bool, party_member: bool) {
         // Build into a temp buffer so we can prefix with size
         let mut buf = WorldPacket::new_empty();
 
         // C++ refs:
         // - `Player::BuildValuesCreate` writes TypeId sections in Object, Unit,
         //   Player, ActivePlayer order.
-        // - `WorldObject::GetUpdateFieldFlagsFor` returns Owner|PartyMember
-        //   for the self receiver, which enables self-only PlayerData fields.
-        let flags: u8 = if is_self { 0x03 } else { 0x00 }; // 0x01=Owner 0x02=PartyMember
+        // - `Player::GetUpdateFieldFlagsFor` adds PartyMember when source and
+        //   receiver share a raid; self retains Owner|PartyMember.
+        let flags: u8 = if is_self {
+            0x03
+        } else if party_member {
+            0x02
+        } else {
+            0x00
+        };
         buf.write_uint8(flags);
 
         let object_start = buf.data().len();

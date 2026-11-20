@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4612,
+  "tests": 4613,
   "ignored": 1,
-  "session": 3896,
-  "shims": 3692,
+  "session": 3897,
+  "shims": 3693,
   "by_class": {
    "P": 716,
    "H": 146,
-   "W": 3750
+   "W": 3751
   },
   "by_reason": {
    "H-host": 146,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 32,
-   "W-world-logic": 3495
+   "W-world-logic": 3496
   },
   "by_owner": {
    "wow-world": {
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 55,
     "H": 4,
-    "W": 966
+    "W": 967
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 518,
     "H": 0,
-    "W": 3750
+    "W": 3751
    },
    "wow-world-application": {
     "P": 27,
@@ -4424,6 +4424,7 @@
   ["unit_tests/session/tests/scenarios_visibility_2/group_visibility.rs::unknown_and_negative_group_visibility_modes_use_subgroup_policy", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_group_registry", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_visibility_2/group_visibility.rs::mode_two_compares_canonical_team_even_when_races_differ", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid", "set_player_registry"], []],
   ["unit_tests/session/tests/scenarios_visibility_2/group_visibility.rs::stale_group_membership_and_other_group_do_not_bypass_ghost_gate", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_group_registry", "set_player_guid"], []],
+  ["unit_tests/session/tests/scenarios_visibility_2/group_visibility.rs::create_party_member_visibility_requires_the_same_canonical_raid", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_group_registry", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_visibility_2/group_visibility.rs::group_visibility_does_not_bypass_phase_private_or_gm_gates", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_group_registry", "set_player_guid"], []],
   ["unit_tests/session/tests/scenarios_visibility_2/group_visibility.rs::corpse_visibility_allows_ghost_player_without_group_bypass", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid", "set_player_registry"], []],
   ["unit_tests/session/tests/scenarios_visibility_2/group_visibility.rs::directory_presence_and_residence_must_match_canonical_candidate", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_group_registry", "set_player_guid"], []],

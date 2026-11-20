@@ -346,6 +346,61 @@ fn stale_group_membership_and_other_group_do_not_bypass_ghost_gate() {
 }
 
 #[test]
+fn create_party_member_visibility_requires_the_same_canonical_raid() {
+    let mut fixture = fixture();
+    set_group(&mut fixture, 50_041, 0, 0, true);
+    let registration = fixture
+        .registry
+        .control_address(fixture.target)
+        .unwrap()
+        .registration();
+    let (map_key, revision) = fixture
+        .manager
+        .lock()
+        .unwrap()
+        .player_active_residence_revision_like_cpp(fixture.target_handle)
+        .unwrap();
+    let snapshot = fixture
+        .registry
+        .player_visibility_create_snapshot_for_candidate(
+            registration,
+            fixture.target_handle,
+            map_key,
+            revision,
+            fixture.viewer,
+        )
+        .unwrap();
+    assert!(snapshot.party_member);
+    let update = wow_world_lifecycle::login_transport::player_visibility_create_update_from_snapshot_like_cpp(&snapshot, MAP_ID as u16);
+    let wow_packet::packets::update::UpdateBlock::CreateObject { party_member, .. } =
+        &update.blocks[0]
+    else {
+        panic!("native Player CREATE");
+    };
+    assert!(party_member);
+
+    set_player_state(&fixture.manager, fixture.target_handle, |player| {
+        player.set_group_like_cpp(Some(wow_entities::PlayerGroupState {
+            group_guid: ObjectGuid::create_group(50_042),
+            leader_guid: fixture.target,
+            role_mask: 0,
+            subgroup: 0,
+        }));
+    });
+    let snapshot = fixture
+        .registry
+        .player_visibility_create_snapshot_for_candidate(
+            registration,
+            fixture.target_handle,
+            map_key,
+            revision,
+            fixture.viewer,
+        )
+        .unwrap();
+    assert!(!snapshot.party_member);
+}
+
+#[test]
 fn group_visibility_does_not_bypass_phase_private_or_gm_gates() {
     let mut fixture = fixture();
     set_group(&mut fixture, 50_031, 0, 0, true);

@@ -145,6 +145,7 @@ pub enum UpdateBlock {
         movement: Option<MovementBlock>,
         create_data: PlayerCreateData,
         is_self: bool,
+        party_member: bool,
     },
     CreateCreature {
         guid: ObjectGuid,
@@ -343,6 +344,7 @@ impl ServerPacket for UpdateObject {
                     movement,
                     create_data,
                     is_self,
+                    party_member,
                 } => {
                     write_create_block(
                         &mut blocks_buf,
@@ -352,6 +354,7 @@ impl ServerPacket for UpdateObject {
                         movement.as_ref(),
                         create_data,
                         *is_self,
+                        *party_member,
                     );
                 }
                 UpdateBlock::CreateCreature {
@@ -516,6 +519,7 @@ pub(super) fn write_create_block(
     movement: Option<&MovementBlock>,
     create_data: &PlayerCreateData,
     is_self: bool,
+    party_member: bool,
 ) {
     let write_active_player_movement = is_self;
 
@@ -575,7 +579,7 @@ pub(super) fn write_create_block(
     // No Conversation block (bit 17 = false)
 
     // ── Values block ───────────────────────────────────────────
-    create_data.write_values_create(buf, is_self);
+    create_data.write_values_create(buf, is_self, party_member);
 }
 
 pub(in crate::packets::update) fn write_scale_curve_values_create(
