@@ -59164,32 +59164,6 @@
         },
         {
           "package": "wow-world-loot-ops",
-          "module": "crate::session_loot::fanout",
-          "source": "crates/wow-world-loot-ops/src/session_loot/fanout.rs",
-          "enclosing": "fn represented_notify_loot_list_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world-loot-ops",
-          "module": "crate::session_loot::fanout",
-          "source": "crates/wow-world-loot-ops/src/session_loot/fanout.rs",
-          "enclosing": "fn represented_notify_loot_list_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world-loot-ops",
           "module": "crate::session_loot::handlers::money",
           "source": "crates/wow-world-loot-ops/src/session_loot/handlers/money.rs",
           "enclosing": "fn handle_loot_money_with_generator_like_cpp",

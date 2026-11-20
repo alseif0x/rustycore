@@ -790,3 +790,100 @@ async fn loot_unit_group_loot_pass_on_loot_suppresses_current_prompt_like_cpp() 
     assert!(entry.flags.blocked);
     assert!(!entry.flags.under_threshold);
 }
+
+#[tokio::test]
+async fn loot_unit_round_robin_notify_list_needs_no_group_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send_capacity(8);
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let candidate_guid = ObjectGuid::create_player(1, 77);
+    let owner_guid = test_creature_guid(19_067);
+    let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
+    let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(4);
+    let player_registry = Arc::new(PlayerRegistry::default());
+    player_registry.register_or_replace(
+        candidate_guid,
+        broadcast_info(candidate_guid, candidate_tx),
+        Default::default(),
+    );
+    session.set_player_registry(player_registry);
+    session.set_player_guid(Some(player_guid));
+    register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
+    session.loot.insert_cached_loot_for_owner_like_cpp(
+        owner_guid,
+        CreatureLoot {
+            loot_guid: loot_object,
+            coins: 0,
+            unlooted_count: 1,
+            loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+            dungeon_encounter_id: 0,
+            loot_method: 0,
+            loot_master: ObjectGuid::EMPTY,
+            round_robin_player: player_guid,
+            player_ffa_items: Vec::new(),
+            players_looting: Vec::new(),
+            allowed_looters: vec![player_guid, candidate_guid],
+            items: vec![LootEntry {
+                loot_list_id: 0,
+                item_id: 25,
+                quantity: 1,
+                random_properties_id: 0,
+                random_properties_seed: 0,
+                item_context: 0,
+                flags: LootEntryFlags::default(),
+                allowed_looters: vec![player_guid, candidate_guid],
+                roll_winner: ObjectGuid::EMPTY,
+                ffa_looted_by: Vec::new(),
+                taken: false,
+            }],
+            looted_by_player: false,
+        },
+    );
+
+    install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
+    session.handle_loot_unit(loot_unit_packet(owner_guid)).await;
+    let _response = send_rx.try_recv().unwrap();
+    for (packet, channel) in [
+        (send_rx.try_recv().unwrap(), "local open"),
+        (candidate_rx.try_recv().unwrap(), "remote open"),
+    ] {
+        let mut packet = WorldPacket::from_bytes(&packet);
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LootList as u16,
+            "{channel}"
+        );
+        assert_eq!(packet.read_packed_guid().unwrap(), owner_guid);
+        assert_eq!(packet.read_packed_guid().unwrap(), loot_object);
+        assert!(!packet.read_bit().unwrap(), "{channel}: no master");
+        assert!(packet.read_bit().unwrap(), "{channel}: round-robin winner");
+        packet.reset_bits();
+        assert_eq!(packet.read_packed_guid().unwrap(), player_guid);
+    }
+
+    assert!(
+        session
+            .do_loot_release_owner_like_cpp(owner_guid, player_guid)
+            .await
+    );
+    let release = send_rx.try_recv().unwrap();
+    let mut release = WorldPacket::from_bytes(&release);
+    assert_eq!(
+        release.read_uint16().unwrap(),
+        wow_constants::ServerOpcodes::LootRelease as u16
+    );
+    for (packet, channel) in [
+        (send_rx.try_recv().unwrap(), "local release"),
+        (candidate_rx.try_recv().unwrap(), "remote release"),
+    ] {
+        let mut packet = WorldPacket::from_bytes(&packet);
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LootList as u16,
+            "{channel}"
+        );
+        assert_eq!(packet.read_packed_guid().unwrap(), owner_guid);
+        assert_eq!(packet.read_packed_guid().unwrap(), loot_object);
+        assert!(!packet.read_bit().unwrap());
+        assert!(!packet.read_bit().unwrap(), "{channel}: winner cleared");
+    }
+}

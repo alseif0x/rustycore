@@ -208,7 +208,7 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
             .unwrap_or(0);
         let mut delivered = 0;
         for &allowed_looter in allowed_looters {
-            if allowed_looter == owner_guid {
+            if Some(allowed_looter) == self.core.player_guid() {
                 continue;
             }
             let Some(registry) = self.core.player_registry() else {

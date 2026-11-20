@@ -8,7 +8,7 @@ use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
 #[tokio::test]
 async fn loot_unit_new_main_target_releases_existing_view_like_cpp() {
-    let (mut session, send_rx) = make_session_with_send_capacity(2);
+    let (mut session, send_rx) = make_session_with_send_capacity(3);
     let player_guid = ObjectGuid::create_player(1, 42);
     let old_guid = test_creature_guid(19_036);
     let new_guid = test_creature_guid(19_037);
@@ -74,7 +74,7 @@ async fn loot_unit_response_uses_loot_owner_not_player_like_cpp() {
 }
 #[tokio::test]
 async fn loot_unit_ae_loot_sends_targets_and_secondary_ack_like_cpp() {
-    let (mut session, send_rx) = make_session_with_send_capacity(5);
+    let (mut session, send_rx) = make_session_with_send_capacity(7);
     let player_guid = ObjectGuid::create_player(1, 42);
     let main_guid = test_creature_guid(19_031);
     let secondary_guid = test_creature_guid(19_032);
@@ -118,6 +118,13 @@ async fn loot_unit_ae_loot_sends_targets_and_secondary_ack_like_cpp() {
     let mut sent = WorldPacket::from_bytes(&sent);
     assert_eq!(
         sent.read_uint16().unwrap(),
+        wow_constants::ServerOpcodes::LootList as u16
+    );
+
+    let sent = send_rx.try_recv().unwrap();
+    let mut sent = WorldPacket::from_bytes(&sent);
+    assert_eq!(
+        sent.read_uint16().unwrap(),
         wow_constants::ServerOpcodes::AeLootTargetAck as u16
     );
     assert!(sent.read_uint8().is_err());
@@ -140,6 +147,13 @@ async fn loot_unit_ae_loot_sends_targets_and_secondary_ack_like_cpp() {
     sent.read_int32().unwrap();
     assert!(sent.read_bit().unwrap());
     assert!(sent.read_bit().unwrap());
+
+    let sent = send_rx.try_recv().unwrap();
+    let mut sent = WorldPacket::from_bytes(&sent);
+    assert_eq!(
+        sent.read_uint16().unwrap(),
+        wow_constants::ServerOpcodes::LootList as u16
+    );
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);

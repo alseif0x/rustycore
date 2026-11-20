@@ -145,58 +145,11 @@ pub fn send_if_visible_like_cpp_gate_passes_like_cpp<H: LootSessionHostLikeCpp>(
 }
 
 pub fn represented_notify_loot_list_like_cpp<H: LootSessionHostLikeCpp>(
-    host: &H,
+    host: &mut H,
     owner_guid: ObjectGuid,
 ) {
-    if host.resolved_group_guid_like_cpp().is_none() {
-        return;
-    }
-
-    let Some(loot) = host.loot().cached_loot_for_owner_like_cpp(owner_guid) else {
-        return;
-    };
-
-    let master = if loot.loot_method == LOOT_METHOD_MASTER_LIKE_CPP
-        && loot_has_over_threshold_item_like_cpp(loot)
-    {
-        (!loot.loot_master.is_empty()).then_some(loot.loot_master)
-    } else {
-        None
-    };
-
-    let packet = LootList {
-        owner: owner_guid,
-        loot_obj: loot.loot_guid,
-        master,
-        round_robin_winner: (!loot.round_robin_player.is_empty())
-            .then_some(loot.round_robin_player),
-    };
-    let bytes = packet.to_bytes();
-    let instance_id = host
-        .core()
-        .current_canonical_player_map_key_like_cpp()
-        .map(|key| key.instance_id)
-        .unwrap_or(0);
-
-    for allowed_looter in &loot.allowed_looters {
-        if Some(*allowed_looter) == host.player_guid() {
-            host.send_packet(&packet);
-            continue;
-        }
-
-        let Some(registry) = host.player_registry() else {
-            continue;
-        };
-        let Some(registration) = registry.loot_delivery_recipient(
-            *allowed_looter,
-            host.core().player_map_id_like_cpp(),
-            instance_id,
-        ) else {
-            continue;
-        };
-
-        let _ = registry.send_current_packet(registration, bytes.clone());
-    }
+    host.loot_release_cx_like_cpp()
+        .represented_notify_loot_list_like_cpp(owner_guid);
 }
 
 pub fn represented_notify_loot_item_removed_like_cpp<H: LootSessionHostLikeCpp>(

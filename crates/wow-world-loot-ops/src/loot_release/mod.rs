@@ -285,13 +285,10 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         .send_creature_loot_release_dynamic_flags_update_like_cpp(guid, update, authority)
     }
 
-    /// C++ `Loot::NotifyLootList`: only grouped owners notify, the owner's own
-    /// session publishes its typed packet and the registry delivers the same
-    /// bytes to every other allowed looter on this map.
-    fn represented_notify_loot_list_like_cpp(&self, owner_guid: ObjectGuid) {
-        if self.owner.resolved_group_guid_like_cpp().is_none() {
-            return;
-        }
+    /// C++ `Loot::NotifyLootList`: the current session publishes its typed
+    /// packet and the registry delivers the same bytes to every other allowed
+    /// looter on this map.
+    pub(crate) fn represented_notify_loot_list_like_cpp(&self, owner_guid: ObjectGuid) {
         let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(owner_guid) else {
             return;
         };
@@ -310,9 +307,7 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
                 .then_some(loot.round_robin_player),
         };
         let bytes = packet.to_bytes();
-        if self.owner.player_guid_like_cpp() == Some(owner_guid) {
-            self.send_packet(&packet);
-        }
+        self.send_packet(&packet);
         let _ = self.owner.send_loot_list_to_other_allowed_looters_like_cpp(
             owner_guid,
             &loot.allowed_looters,

@@ -190,7 +190,7 @@ fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Rec
 }
 
 fn make_session_with_send() -> (WorldSession, flume::Receiver<Vec<u8>>) {
-    make_session_with_send_capacity(1)
+    make_session_with_send_capacity(2)
 }
 
 fn make_session() -> WorldSession {

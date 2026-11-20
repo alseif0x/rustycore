@@ -485,6 +485,16 @@
    "unit_tests_lines": 287591,
    "unit_tests_tests": 4276,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1367-46",
+   "kind": "raise",
+   "issue": 1367,
+   "reviewed_at": "2026-11-20",
+   "reason": "Ungrouped round-robin open/release fanout regression plus required LootList expectations and bounded queue capacities; 111 net test lines and one test.",
+   "unit_tests_lines": 287702,
+   "unit_tests_tests": 4277,
+   "src_tests": 345
   }
  ]
 }
