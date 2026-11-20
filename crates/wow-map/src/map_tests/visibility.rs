@@ -1322,3 +1322,144 @@ fn creature_relocation_visibility_direct_invalid_destination() {
     ));
     fixture.assert_both_players_unmarked();
 }
+
+fn add_respawn_refused_observer(
+    fixture: &mut CreatureRelocationVisibilityFixture,
+    counter: i64,
+) -> ObjectGuid {
+    let mut player = test_player_for_viewpoint(counter);
+    player
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(5_000.0, 5_000.0, 1.0));
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    let guid = player.guid();
+    fixture
+        .map
+        .add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+    guid
+}
+
+fn unload_respawn_requested_grid(map: &mut Map<RecordingTerrain, RecordingLifecycle>) {
+    let cell = Cell::from_world(5_000.0, 5_000.0);
+    assert!(map.unload_grid_at(GridCoord::new(cell.grid_x(), cell.grid_y()), true));
+}
+
+fn reset_respawn_visibility_flags(
+    fixture: &mut CreatureRelocationVisibilityFixture,
+    refused_guid: ObjectGuid,
+) {
+    fixture.reset_player_notifications();
+    fixture
+        .map
+        .get_typed_player_mut(refused_guid)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .reset_all_notifies();
+}
+
+#[test]
+fn respawn_relocation_visibility_success_marks_origin_and_home_not_refused() {
+    let mut fixture = CreatureRelocationVisibilityFixture::new();
+    fixture
+        .map
+        .get_typed_creature_mut(fixture.creature_guid)
+        .unwrap()
+        .set_ai_home_position(fixture.destination);
+    let requested = Position::xyz(5_000.0, 5_000.0, 1.0);
+    let refused_guid = add_respawn_refused_observer(&mut fixture, 4530101);
+    fixture
+        .map
+        .add_creature_to_move_list_like_cpp(fixture.creature_guid, requested);
+    unload_respawn_requested_grid(&mut fixture.map);
+    reset_respawn_visibility_flags(&mut fixture, refused_guid);
+
+    fixture.map.move_all_creatures_in_move_list_like_cpp();
+
+    fixture.assert_creature_at_destination();
+    fixture.assert_both_players_marked();
+    assert!(
+        !fixture
+            .map
+            .map_object(refused_guid)
+            .unwrap()
+            .object()
+            .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
+        "the refused destination must not be published as a successful walk"
+    );
+    assert_eq!(fixture.map.objects_to_remove_count_like_cpp(), 0);
+}
+
+#[test]
+fn respawn_relocation_visibility_blocked_home_does_not_mark_refused() {
+    let mut fixture = CreatureRelocationVisibilityFixture::new();
+    fixture
+        .map
+        .get_typed_creature_mut(fixture.creature_guid)
+        .unwrap()
+        .set_ai_home_position(Position::xyz(6_000.0, 6_000.0, 1.0));
+    let requested = Position::xyz(5_000.0, 5_000.0, 1.0);
+    let refused_guid = add_respawn_refused_observer(&mut fixture, 4530102);
+    fixture
+        .map
+        .add_creature_to_move_list_like_cpp(fixture.creature_guid, requested);
+    unload_respawn_requested_grid(&mut fixture.map);
+    reset_respawn_visibility_flags(&mut fixture, refused_guid);
+
+    fixture.map.move_all_creatures_in_move_list_like_cpp();
+
+    assert!(
+        fixture
+            .map
+            .map_object(fixture.old_range_player_guid)
+            .unwrap()
+            .object()
+            .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
+        "the valid requested move still marks its origin before fallback"
+    );
+    for guid in [fixture.new_range_player_guid, refused_guid] {
+        assert!(
+            !fixture
+                .map
+                .map_object(guid)
+                .unwrap()
+                .object()
+                .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
+            "a failed respawn must not publish a destination walk for {guid:?}"
+        );
+    }
+}
+
+#[test]
+fn respawn_relocation_visibility_invalid_requested_marks_no_observers() {
+    let mut fixture = CreatureRelocationVisibilityFixture::new();
+    fixture
+        .map
+        .get_typed_creature_mut(fixture.creature_guid)
+        .unwrap()
+        .set_ai_home_position(fixture.destination);
+    let invalid_requested = Position::xyz(f32::NAN, 5_000.0, 1.0);
+    fixture
+        .map
+        .add_creature_to_move_list_like_cpp(fixture.creature_guid, invalid_requested);
+    fixture.reset_player_notifications();
+
+    fixture.map.move_all_creatures_in_move_list_like_cpp();
+
+    assert_eq!(
+        fixture
+            .map
+            .map_object(fixture.creature_guid)
+            .unwrap()
+            .position(),
+        fixture.origin
+    );
+    fixture.assert_both_players_unmarked();
+}

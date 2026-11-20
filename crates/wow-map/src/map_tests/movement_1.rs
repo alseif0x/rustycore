@@ -865,3 +865,135 @@ fn area_trigger_update_expiry_queues_remove_list_and_preserves_record_like_cpp()
         .unwrap();
     assert!(area_trigger.is_removed());
 }
+
+fn map_with_respawn_home_creature(
+    counter: i64,
+    home: Position,
+) -> (Map<RecordingTerrain, RecordingLifecycle>, ObjectGuid) {
+    let mut map = test_map();
+    let mut creature = test_creature_for_spawn(45300, counter, true);
+    creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    creature.set_ai_home_position(home);
+    let guid = creature.guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+    (map, guid)
+}
+
+#[test]
+fn respawn_relocation_success_cleans_up_and_relocates_home() {
+    let home = Position::xyz(150.0, 2.0, 3.0);
+    let requested = Position::xyz(5_000.0, 5_000.0, 1.0);
+    let (mut map, guid) = map_with_respawn_home_creature(4530001, home);
+    map.load_grid(home.x, home.y);
+    {
+        let creature = map.get_typed_creature_mut(guid).unwrap();
+        creature
+            .unit_mut()
+            .set_attacking(Some(super::guid(HighGuid::Creature, 4530099)));
+        let motion = &mut creature.unit_mut().subsystems_mut().motion;
+        motion.initialize_default_generator_like_cpp(wow_entities::MovementGeneratorKind::Random);
+        motion.move_point(77);
+        motion.default_generator.flags = 0;
+    }
+    assert_eq!(
+        map.add_creature_to_move_list_like_cpp(guid, requested),
+        AddObjectToMoveListOutcomeLikeCpp::Queued
+    );
+
+    let summary = map.move_all_creatures_in_move_list_like_cpp();
+
+    assert_eq!(summary.processed, 1);
+    assert_eq!(summary.blocked_by_unloaded_grid, 1);
+    assert_eq!(summary.respawn_relocated, 1);
+    assert_eq!(summary.relocated, 0);
+    assert_eq!(summary.remove_list_queued, 0);
+    assert_eq!(summary.pet_remove_requested, 0);
+    assert_eq!(summary.respawn_relocation_unsupported, 0);
+    assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
+    assert_eq!(map.map_object(guid).unwrap().position(), home);
+    let creature = map.get_typed_creature(guid).unwrap();
+    assert_eq!(creature.unit().attacking(), None);
+    let motion = &creature.unit().subsystems().motion;
+    assert!(motion.active_generators.is_empty());
+    assert_eq!(
+        motion.current_movement_generator().kind,
+        wow_entities::MovementGeneratorKind::Random
+    );
+    assert!(
+        motion
+            .current_movement_generator()
+            .has_flag(wow_entities::MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING)
+    );
+}
+
+#[test]
+fn respawn_relocation_normal_creature_blocked_home_queues_remove_list() {
+    let requested = Position::xyz(5_000.0, 5_000.0, 1.0);
+    let blocked_home = Position::xyz(6_000.0, 6_000.0, 1.0);
+    let (mut map, guid) = map_with_respawn_home_creature(4530002, blocked_home);
+    map.add_creature_to_move_list_like_cpp(guid, requested);
+
+    let summary = map.move_all_creatures_in_move_list_like_cpp();
+
+    assert_eq!(summary.processed, 1);
+    assert_eq!(summary.blocked_by_unloaded_grid, 1);
+    assert_eq!(summary.respawn_relocated, 0);
+    assert_eq!(summary.relocated, 0);
+    assert_eq!(summary.remove_list_queued, 1);
+    assert_eq!(summary.pet_remove_requested, 0);
+    assert_eq!(summary.respawn_relocation_unsupported, 0);
+    assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
+    assert!(map.map_object_record(guid).is_some());
+}
+
+#[test]
+fn respawn_relocation_pet_blocked_home_requests_remove_without_record_loss() {
+    let requested = Position::xyz(5_000.0, 5_000.0, 1.0);
+    let blocked_home = Position::xyz(6_000.0, 6_000.0, 1.0);
+    let mut map = test_map();
+    let mut pet = test_pet(4530003, false);
+    pet.creature_mut().set_ai_home_position(blocked_home);
+    let guid = pet.creature().guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_pet(pet).unwrap())
+        .unwrap();
+    map.add_creature_to_move_list_like_cpp(guid, requested);
+
+    let summary = map.move_all_creatures_in_move_list_like_cpp();
+
+    assert_eq!(summary.processed, 1);
+    assert_eq!(summary.blocked_by_unloaded_grid, 1);
+    assert_eq!(summary.respawn_relocated, 0);
+    assert_eq!(summary.relocated, 0);
+    assert_eq!(summary.remove_list_queued, 0);
+    assert_eq!(summary.pet_remove_requested, 1);
+    assert_eq!(summary.respawn_relocation_unsupported, 0);
+    assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
+    assert!(map.get_typed_pet(guid).is_some());
+}
+
+#[test]
+fn respawn_relocation_invalid_requested_position_does_not_attempt_home() {
+    let home = Position::xyz(150.0, 2.0, 3.0);
+    let invalid_requested = Position::xyz(f32::NAN, 5_000.0, 1.0);
+    let origin = Position::xyz(1.0, 2.0, 3.0);
+    let (mut map, guid) = map_with_respawn_home_creature(4530004, home);
+    map.add_creature_to_move_list_like_cpp(guid, invalid_requested);
+
+    let summary = map.move_all_creatures_in_move_list_like_cpp();
+
+    assert_eq!(summary.processed, 1);
+    assert_eq!(summary.failed_invalid_position, 1);
+    assert_eq!(summary.blocked_by_unloaded_grid, 0);
+    assert_eq!(summary.respawn_relocated, 0);
+    assert_eq!(summary.relocated, 0);
+    assert_eq!(summary.remove_list_queued, 0);
+    assert_eq!(summary.pet_remove_requested, 0);
+    assert_eq!(summary.respawn_relocation_unsupported, 0);
+    assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
+    assert_eq!(map.map_object(guid).unwrap().position(), origin);
+}

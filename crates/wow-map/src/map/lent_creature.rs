@@ -20,6 +20,15 @@
 //!   (`if (!respawnRelocationOnFail && !getNGrid(...)) return;`).
 
 use super::*;
+use crate::map_rules::map_record_unit_mut_like_cpp;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CreatureRespawnRelocationOutcomeLikeCpp {
+    RespawnRelocated,
+    RemoveListQueued,
+    PetRemoveRequested,
+    Failed,
+}
 
 /// Where a lent creature came from: what it must return to.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -53,6 +62,69 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
+    pub(super) fn respawn_relocate_creature_after_unloaded_grid_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> CreatureRespawnRelocationOutcomeLikeCpp {
+        let (home, is_pet) = {
+            let Some(record) = self.entity_world.get_mut(&guid) else {
+                return CreatureRespawnRelocationOutcomeLikeCpp::Failed;
+            };
+            match record.kind() {
+                AccessorObjectKind::Creature => {
+                    let Some(creature) = record.creature_mut() else {
+                        return CreatureRespawnRelocationOutcomeLikeCpp::Failed;
+                    };
+                    let home = creature.ai_home_position();
+                    creature.combat_stop();
+                    (home, false)
+                }
+                AccessorObjectKind::Pet => {
+                    let Some(pet) = record.pet_mut() else {
+                        return CreatureRespawnRelocationOutcomeLikeCpp::Failed;
+                    };
+                    let home = pet.creature().ai_home_position();
+                    pet.creature_mut().combat_stop();
+                    (home, true)
+                }
+                _ => return CreatureRespawnRelocationOutcomeLikeCpp::Failed,
+            }
+        };
+        {
+            let Some(record) = self.entity_world.get_mut(&guid) else {
+                return CreatureRespawnRelocationOutcomeLikeCpp::Failed;
+            };
+            let Some(unit) = map_record_unit_mut_like_cpp(record) else {
+                return CreatureRespawnRelocationOutcomeLikeCpp::Failed;
+            };
+            unit.subsystems_mut().motion.clear_active();
+        }
+
+        let outcome = self.relocate_map_object_like_cpp(guid, home);
+        if matches!(&outcome, Ok(outcome) if outcome.relocated) {
+            {
+                let Some(record) = self.entity_world.get_mut(&guid) else {
+                    return CreatureRespawnRelocationOutcomeLikeCpp::Failed;
+                };
+                let Some(unit) = map_record_unit_mut_like_cpp(record) else {
+                    return CreatureRespawnRelocationOutcomeLikeCpp::Failed;
+                };
+                unit.subsystems_mut().motion.direct_initialize_like_cpp();
+            }
+            self.mark_nearby_players_for_visibility_like_cpp(guid);
+            return CreatureRespawnRelocationOutcomeLikeCpp::RespawnRelocated;
+        }
+
+        if is_pet {
+            return CreatureRespawnRelocationOutcomeLikeCpp::PetRemoveRequested;
+        }
+        if self.add_object_to_remove_list_like_cpp(guid).queued {
+            CreatureRespawnRelocationOutcomeLikeCpp::RemoveListQueued
+        } else {
+            CreatureRespawnRelocationOutcomeLikeCpp::Failed
+        }
+    }
+
     /// Take the canonical creature `guid` out of its map record, by value.
     ///
     /// The GUID stays in its grid cell: the caller must give the creature back

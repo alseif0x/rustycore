@@ -6,6 +6,7 @@
 //! Map object move-list admission and draining.
 
 use super::*;
+use crate::map::lent_creature::CreatureRespawnRelocationOutcomeLikeCpp;
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
@@ -351,11 +352,20 @@ where
                 }
                 Ok(outcome) if outcome.blocked_by_unloaded_grid => {
                     summary.blocked_by_unloaded_grid += 1;
-                    if matches!(
-                        family,
-                        MapObjectMoveListFamilyLikeCpp::Creature
-                            | MapObjectMoveListFamilyLikeCpp::GameObject
-                    ) {
+                    if family == MapObjectMoveListFamilyLikeCpp::Creature {
+                        match self.respawn_relocate_creature_after_unloaded_grid_like_cpp(guid) {
+                            CreatureRespawnRelocationOutcomeLikeCpp::RespawnRelocated => {
+                                summary.respawn_relocated += 1;
+                            }
+                            CreatureRespawnRelocationOutcomeLikeCpp::RemoveListQueued => {
+                                summary.remove_list_queued += 1;
+                            }
+                            CreatureRespawnRelocationOutcomeLikeCpp::PetRemoveRequested => {
+                                summary.pet_remove_requested += 1;
+                            }
+                            CreatureRespawnRelocationOutcomeLikeCpp::Failed => {}
+                        }
+                    } else if family == MapObjectMoveListFamilyLikeCpp::GameObject {
                         summary.respawn_relocation_unsupported += 1;
                     }
                 }

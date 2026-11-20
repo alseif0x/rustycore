@@ -436,8 +436,8 @@ pub enum RemoveObjectFromMoveListOutcomeLikeCpp {
 
 /// Drain summary for C++ `Map::MoveAll*InMoveList` (`Map.cpp:1239-1416`).
 /// This is a map-owned seam only: it does not claim UpdatePositionData,
-/// visibility fanout, AfterRelocation, respawn relocation, Pet::Remove,
-/// dynamic tree, scripts/AI, ObjectAccessor, or session packet runtime.
+/// visibility fanout, AfterRelocation, Pet::Remove, dynamic tree, scripts/AI,
+/// ObjectAccessor, or session packet runtime.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MoveListDrainSummaryLikeCpp {
     pub family: Option<MapObjectMoveListFamilyLikeCpp>,
@@ -448,6 +448,7 @@ pub struct MoveListDrainSummaryLikeCpp {
     pub missing_or_stale: usize,
     pub wrong_kind: usize,
     pub blocked_by_unloaded_grid: usize,
+    pub respawn_relocated: usize,
     pub remove_list_queued: usize,
     pub pet_remove_requested: usize,
     pub respawn_relocation_unsupported: usize,
