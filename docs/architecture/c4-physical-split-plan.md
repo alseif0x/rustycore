@@ -1147,6 +1147,18 @@ the function boundary, module wiring and canonical rustfmt, recorded as +19
 production/+0 tests/+19 total. Later C4-8 stages still owe remaining dependencies
 and supervision/shutdown.
 
+Committed candidate `fc480df88fc032ce220c9b45c61fb25d9f4b8721` passed
+`./tools/validation-v2 final --base 10a2fef4a --architecture --require-changes --timings --logs`
+on the warm x86_64 checkout with Protoc 28.3 and one Cargo job. All eleven
+commands passed from 01:15:57Z to 01:18:10Z on 2026-11-20 (132.953 seconds),
+within the 600-second target. The `world-server` library passed 645 tests with
+zero failures and one existing ignored test; all 769 source test identities are
+preserved. The session syntax baseline relocates the two PlayerRegistry uses and
+records the borrowed input and composition call; 740 exact direct-registry rows
+remain. The SQL module compositor also passed and restored the checkout. R1 is
+not applicable because no `wow-world/src` root shrank. Verified manifest:
+`target/validation-v2/manifests/20261120T011557.530035Z-3528525-final.json`.
+
 On `forever`, C4-8ae starts at `d7cc0777f` and extracts group, terrain and
 instance-lock startup. `app.rs` shrinks from 2,856 to 2,814 lines and its
 physical ceiling tightens without retiring C4-8. The new private
