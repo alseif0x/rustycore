@@ -1,5 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 inline quest completion accepted locally — 2026-11-20
+
+Committed candidate `6a30657cd00949c6ad777c8f6a21b33253a23be2`, based on
+`d59c27a4e`, completes eligible quests inside the objective loop instead of
+deferring every completion until after it. Two small helpers drain the existing
+completion queues, so each iteration drops the access before `await`, completes
+and then recreates it. Storing-value/storing-flag and threshold paths all use the
+inline order; their distinct completed-ID persistence behavior is preserved, as
+is the final interaction refresh from `Player.cpp:17178-17194` at
+`02245dcd245e7433e524577656177723d3e4992e`.
+
+One composed two-quest regression runs in both storage families and requires
+first credit, first completion refresh, second credit and final refresh in that
+exact order, while the second quest remains incomplete. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base d59c27a4e --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 18:33:40Z to 18:36:22Z (162.045 seconds),
+within the 600-second target: 4,641 `wow-world` tests (one ignored) and eight
+`wow-world-quest` tests passed, totaling 4,649 passed, one ignored and zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T183340.016883Z-481797-final.json`.
+Architecture policy, session syntax ownership, method-index, hotspot/census,
+formatting and all affected downstream checks passed. The reviewed ledgers record
+exactly 174 new Session test lines and one test identity, with no production
+growth in that logical owner.
+
+This closes only the inline completion-order divergence in #1368.
+Immediate-save/persistence fences and completion effects remain open. This is
+synthetic source/behavior/wire evidence, not a live quest capture or full quest
+parity acceptance. Player runtime integration and character creation remain
+separate work.
+
 ## #1368 effective-team PvP credit accepted locally — 2026-11-20
 
 Committed candidate `6a2075da3b227e77a4c0ac4afe671a2747dad028`, based on
