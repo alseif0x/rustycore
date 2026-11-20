@@ -1147,6 +1147,17 @@ pass; the library retains the same 35 existing warnings. The logical owner gains
 33 production and four test lines, recorded as +33 production/+4 tests/+37 total.
 The 44 shim rows and completed_checkpoints remain open under Closing C4.
 
+Committed candidate `244d1a2f4d04a03640a1c6ca038c5a894dd6ac93` passed
+`./tools/validation-v2 final --base 511e0f85d --architecture --require-changes --timings --logs`
+on the warm x86_64 checkout with Protoc 28.3 and one Cargo job. All eleven
+commands passed from 03:40:04Z to 03:41:58Z on 2026-11-20 (115.013 seconds),
+within the 600-second target. The `world-server` library passed 645 tests with
+zero failures and one existing ignored test; all 769 source test identities are
+preserved. The session syntax check retains 747 exact direct-registry rows. The
+SQL module compositor also passed and restored the checkout. R1 is not
+applicable because no `wow-world/src` root shrank. Verified manifest:
+`target/validation-v2/manifests/20261120T034003.803618Z-3626956-final.json`.
+
 On `forever`, C4-8an starts at `d7d37d481` and extracts runtime network
 configuration. `app.rs` shrinks from 2,041 to 2,011 lines and its physical
 ceiling tightens without retiring C4-8. The new private
