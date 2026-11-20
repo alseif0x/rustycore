@@ -585,7 +585,6 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );

@@ -377,7 +377,6 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
         vec![
             ServerOpcodes::QuestUpdateAddCreditSimple,
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );

@@ -76,7 +76,6 @@ async fn player_kill_tracking_event_objective_auto_rewards_like_cpp() {
         vec![
             ServerOpcodes::QuestUpdateAddPvpCredit,
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );

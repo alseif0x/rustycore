@@ -81,7 +81,6 @@ async fn talked_to_creature_tracking_event_objective_auto_rewards_like_cpp() {
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );

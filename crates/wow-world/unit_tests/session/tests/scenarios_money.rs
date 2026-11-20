@@ -115,7 +115,6 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );
@@ -182,7 +181,6 @@ async fn apply_player_money_change_sets_gold_and_drains_objective_queue_like_cpp
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );
@@ -321,9 +319,7 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );
@@ -395,7 +391,6 @@ async fn currency_tracking_event_objective_auto_rewards_like_cpp() {
         vec![
             ServerOpcodes::SetCurrency,
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );
@@ -455,7 +450,6 @@ async fn have_currency_tracking_event_objective_auto_rewards_like_cpp() {
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );
@@ -515,7 +509,6 @@ async fn obtain_currency_tracking_event_objective_auto_rewards_like_cpp() {
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );

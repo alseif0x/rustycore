@@ -76,7 +76,6 @@ async fn reputation_min_tracking_event_objective_auto_rewards_like_cpp() {
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );
@@ -140,7 +139,6 @@ async fn increase_reputation_tracking_event_objective_auto_rewards_like_cpp() {
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );
@@ -208,7 +206,6 @@ async fn reputation_max_tracking_event_objective_auto_rewards_like_cpp() {
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );

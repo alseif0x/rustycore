@@ -181,8 +181,7 @@ async fn loot_money_outcome_like_cpp(
 }
 
 #[tokio::test]
-async fn loot_money_completing_a_money_objective_refreshes_visibility_before_quest_update_complete_like_cpp()
- {
+async fn loot_money_completing_a_money_objective_refreshes_visibility_during_completion_like_cpp() {
     let (money, status, opcodes, packets) = loot_money_outcome_like_cpp(10, true).await;
     let (control_money, control_status, control_opcodes, control_packets) =
         loot_money_outcome_like_cpp(10, false).await;
@@ -195,38 +194,27 @@ async fn loot_money_completing_a_money_objective_refreshes_visibility_before_que
         "the drained money change completed the quest in the canonical owner"
     );
     assert_eq!(control_status, status);
-    let complete = opcodes
-        .iter()
-        .position(|opcode| *opcode == ServerOpcodes::QuestUpdateComplete)
-        .expect("quest completion is published");
-    assert_eq!(
+    // The visible spell-click creature adds exactly one UpdateObject inside
+    // the completion; every other packet keeps the control's order.
+    let updates = |opcodes: &[ServerOpcodes]| {
         opcodes
-            .iter()
-            .filter(|opcode| **opcode == ServerOpcodes::QuestUpdateComplete)
-            .count(),
-        1
-    );
-    // The visible spell-click creature adds exactly one UpdateObject, and it is
-    // published inside the completion, before the completion notice.
-    let control_complete = control_opcodes
-        .iter()
-        .position(|opcode| *opcode == ServerOpcodes::QuestUpdateComplete)
-        .expect("control quest completion is published");
-    let updates_before = |opcodes: &[ServerOpcodes], end: usize| {
-        opcodes[..end]
             .iter()
             .filter(|opcode| **opcode == ServerOpcodes::UpdateObject)
             .count()
     };
     assert_eq!(
-        updates_before(&opcodes, complete),
-        updates_before(&control_opcodes, control_complete) + 1,
+        updates(&opcodes),
+        updates(&control_opcodes) + 1,
         "visible: {opcodes:?}; control: {control_opcodes:?}"
     );
-    assert_eq!(
-        opcodes[complete..],
-        control_opcodes[control_complete..],
-        "nothing after the completion notice depends on the refresh"
+    assert_eq!(opcodes.len(), control_opcodes.len() + 1);
+    assert!(
+        opcodes
+            .iter()
+            .filter(|opcode| **opcode != ServerOpcodes::UpdateObject)
+            .eq(control_opcodes
+                .iter()
+                .filter(|opcode| **opcode != ServerOpcodes::UpdateObject))
     );
     // #1359: that update carries the viewer-filtered NpcFlags. The spell-click
     // condition (aura 999999) fails, so C++ `ViewerDependentValue<NpcFlagsTag>`

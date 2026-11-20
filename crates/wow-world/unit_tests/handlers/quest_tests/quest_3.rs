@@ -723,13 +723,6 @@ async fn quest_confirm_accept_tracking_event_auto_rewards_like_cpp() {
         wow_packet::WorldPacket::from_bytes(&complete).server_opcode(),
         Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete)
     );
-    let update = send_rx
-        .try_recv()
-        .expect("tracking event auto reward should send quest update complete");
-    assert_eq!(
-        wow_packet::WorldPacket::from_bytes(&update).server_opcode(),
-        Some(wow_constants::ServerOpcodes::QuestUpdateComplete)
-    );
     let slot_update = send_rx
         .try_recv()
         .expect("Map SendObjectUpdates should publish the native quest-log clear");

@@ -303,9 +303,6 @@ impl QuestRewardCx<'_> {
             use_quest_reward_currency: false,
         });
 
-        let _ = self
-            .send_packet_like_cpp(&wow_packet::packets::quest::QuestUpdateComplete { quest_id });
-
         self.record_represented_quest_reward_reputation_like_cpp(
             quest,
             #[cfg(any(test, feature = "test-fixtures"))]

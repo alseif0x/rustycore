@@ -723,7 +723,6 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
             ServerOpcodes::CoinRemoved as u16,
             ServerOpcodes::LootMoneyNotify as u16,
             ServerOpcodes::QuestGiverQuestComplete as u16,
-            ServerOpcodes::QuestUpdateComplete as u16,
             ServerOpcodes::UpdateObject as u16,
         ],
         "loot and tracking-objective packets precede the Map-tail QuestLog values update"

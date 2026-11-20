@@ -900,7 +900,7 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
         }
     }
     assert!(opcodes.contains(&wow_constants::ServerOpcodes::QuestGiverQuestComplete));
-    assert!(opcodes.contains(&wow_constants::ServerOpcodes::QuestUpdateComplete));
+    assert!(!opcodes.contains(&wow_constants::ServerOpcodes::QuestUpdateComplete));
     assert!(opcodes.contains(&wow_constants::ServerOpcodes::ItemPushResult));
     assert!(send_rx.try_recv().is_err());
     assert!(sender_rx.try_recv().is_err());

@@ -419,7 +419,6 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
             ServerOpcodes::SpellGo,
             ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );

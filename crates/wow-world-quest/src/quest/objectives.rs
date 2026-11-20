@@ -347,9 +347,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             self.reward.world_test_consumer,
         );
 
-        use wow_packet::packets::quest::{
-            QuestUpdateAddCredit, QuestUpdateAddPvpCredit, QuestUpdateComplete,
-        };
+        use wow_packet::packets::quest::{QuestUpdateAddCredit, QuestUpdateAddPvpCredit};
 
         let Some(store) = self.reward.catalogs.quests.store.clone() else {
             return;
@@ -487,22 +485,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 .await;
             if completed {
                 let owner = self.reward.player.quest_objective_access_like_cpp();
-                if current_quest_gameplay_snapshot_like_cpp(
-                    &owner,
-                    self.reward.quest_state,
-                    self.reward.world_test_consumer,
-                )
-                .and_then(|state| {
-                    state
-                        .statuses_like_cpp()
-                        .get(&quest_id)
-                        .map(|status| status.status)
-                }) == Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
-                {
-                    let _ = self
-                        .reward
-                        .send_packet_like_cpp(&QuestUpdateComplete { quest_id });
-                }
                 tracing::info!(
                     account = owner.account_id_like_cpp(),
                     quest_id,
@@ -536,7 +518,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             self.reward.quest_state,
             self.reward.world_test_consumer,
         );
-        use wow_packet::packets::quest::{QuestUpdateAddCreditSimple, QuestUpdateComplete};
+        use wow_packet::packets::quest::QuestUpdateAddCreditSimple;
 
         let Some(store) = self.reward.catalogs.quests.store.clone() else {
             return;
@@ -635,13 +617,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 .await
             {
                 let owner = self.reward.player.quest_objective_access_like_cpp();
-                if self.current_quest_status_like_cpp(quest_id)
-                    == Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
-                {
-                    let _ = self
-                        .reward
-                        .send_packet_like_cpp(&QuestUpdateComplete { quest_id });
-                }
                 tracing::info!(
                     account = owner.account_id_like_cpp(),
                     quest_id,
@@ -673,7 +648,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             self.reward.quest_state,
             self.reward.world_test_consumer,
         );
-        use wow_packet::packets::quest::QuestUpdateComplete;
 
         let Some(store) = self.reward.catalogs.quests.store.clone() else {
             return;
@@ -772,13 +746,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             {
                 quests_to_save.push(quest_id);
                 let owner = self.reward.player.quest_objective_access_like_cpp();
-                if self.current_quest_status_like_cpp(quest_id)
-                    == Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
-                {
-                    let _ = self
-                        .reward
-                        .send_packet_like_cpp(&QuestUpdateComplete { quest_id });
-                }
                 tracing::info!(
                     account = owner.account_id_like_cpp(),
                     quest_id,
@@ -810,7 +777,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             self.reward.quest_state,
             self.reward.world_test_consumer,
         );
-        use wow_packet::packets::quest::QuestUpdateComplete;
 
         let Some(store) = self.reward.catalogs.quests.store.clone() else {
             return;
@@ -919,13 +885,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             {
                 quests_to_save.push(quest_id);
                 let owner = self.reward.player.quest_objective_access_like_cpp();
-                if self.current_quest_status_like_cpp(quest_id)
-                    == Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
-                {
-                    let _ = self
-                        .reward
-                        .send_packet_like_cpp(&QuestUpdateComplete { quest_id });
-                }
                 tracing::info!(
                     account = owner.account_id_like_cpp(),
                     quest_id,
@@ -958,7 +917,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             self.reward.quest_state,
             self.reward.world_test_consumer,
         );
-        use wow_packet::packets::quest::QuestUpdateComplete;
 
         let Some(store) = self.reward.catalogs.quests.store.clone() else {
             return;
@@ -1078,13 +1036,6 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             {
                 quests_to_save.push(quest_id);
                 let owner = self.reward.player.quest_objective_access_like_cpp();
-                if self.current_quest_status_like_cpp(quest_id)
-                    == Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
-                {
-                    let _ = self
-                        .reward
-                        .send_packet_like_cpp(&QuestUpdateComplete { quest_id });
-                }
                 tracing::info!(
                     account = owner.account_id_like_cpp(),
                     quest_id,

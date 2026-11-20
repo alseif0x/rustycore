@@ -526,7 +526,6 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
         opcodes,
         vec![
             Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
-            Some(wow_constants::ServerOpcodes::QuestUpdateComplete),
             Some(wow_constants::ServerOpcodes::UpdateObject),
         ]
     );
@@ -608,7 +607,6 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
         opcodes,
         vec![
             Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
-            Some(wow_constants::ServerOpcodes::QuestUpdateComplete),
             Some(wow_constants::ServerOpcodes::UpdateObject),
         ]
     );
@@ -780,11 +778,6 @@ async fn quest_giver_choose_reward_emits_reward_skill_fields_like_cpp() {
     );
     assert_eq!(&complete[18..22], &333u32.to_le_bytes());
     assert_eq!(&complete[22..26], &5u32.to_le_bytes());
-    let quest_update = send_rx.try_recv().unwrap();
-    assert_eq!(
-        wow_packet::WorldPacket::from_bytes(&quest_update).server_opcode(),
-        Some(wow_constants::ServerOpcodes::QuestUpdateComplete)
-    );
     let slot_update = send_rx.try_recv().unwrap();
     assert_eq!(
         wow_packet::WorldPacket::from_bytes(&slot_update).server_opcode(),

@@ -907,7 +907,6 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::QuestGiverQuestComplete,
-            ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::UpdateObject,
         ]
     );
