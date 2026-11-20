@@ -1105,6 +1105,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T000657.919941Z-3403076-final.json`.
 
+On `forever`, C4-8ad starts at `38c6d23f7` and extracts spell-click and world
+spell composition. `app.rs` shrinks from 3,030 to 2,856 lines and its physical
+ceiling tightens without retiring C4-8. The new private
+`spell_world_startup_catalogs.rs` has 287 lines and returns fifteen stores or
+ID sets, including NPC spell-click, proc, group, threat, linked, pet aura and
+all five trainer-authority sets. Twenty-three explicit inputs preserve MapStore,
+the mutable template Arc and SpellStore, both adapters and every catalog
+dependency, including cost installation and spellclick flag removal.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 113 production lines for the typed
+result, wrappers and formatting, recorded as +113 production/+0 tests/+113
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
