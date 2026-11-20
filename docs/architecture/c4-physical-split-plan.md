@@ -1132,6 +1132,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8al starts at `15c5479cb` and extracts four player policy
+builders. `app.rs` shrinks from 2,135 to 2,103 lines and its physical ceiling
+tightens without retiring C4-8. The new private
+`session_player_policy_catalogs.rs` has 67 lines and constructs bootstrap, rest,
+progression and regeneration policies at their original field positions. Every
+Arc clone and configuration read/default retains its original order. Bootstrap
+and rest source assertions use formatting-independent builder names; negative
+assertions and the direct regeneration helper test remain unchanged.
+
+All four moved bodies match the original token stream after adapting borrowed
+inputs and canonical rustfmt. The `world-server` library check and both affected
+tests pass; the library retains the same 35 existing warnings. Function wrappers
+add 35 production lines while compact guard assertions remove four test lines,
+recorded as +35 production/-4 tests/+31 total. Later C4-8 stages still owe
+remaining session catalogs, dependencies and supervision/shutdown.
+
 On `forever`, C4-8ak starts at `983a559c2` and extracts GUID allocator startup.
 `app.rs` shrinks from 2,243 to 2,135 lines and its physical ceiling tightens
 without retiring C4-8. The new private `guid_generator_startup.rs` has 144 lines,

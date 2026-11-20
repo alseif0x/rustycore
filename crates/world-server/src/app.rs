@@ -171,6 +171,9 @@ mod session_progression_policy;
 #[path = "session_handler_policy_catalogs.rs"]
 mod session_handler_policy_catalogs;
 
+#[path = "session_player_policy_catalogs.rs"]
+mod session_player_policy_catalogs;
+
 use group_instance_startup::GroupInstanceStartup;
 
 #[path = "entry.rs"]
@@ -1351,42 +1354,18 @@ async fn run_inner(
                     currency_costs: Arc::clone(&item_currency_cost_store),
                     disenchant_loot: Arc::clone(&item_disenchant_loot_store),
                 }),
-                player_bootstrap: Arc::new(wow_world::session::PlayerBootstrapCatalogsLikeCpp {
-                    create_info: Arc::clone(&player_create_info_store),
-                    glyph_properties: Arc::clone(&glyph_properties_store),
-                    talent_tabs: Arc::clone(&talent_tab_store),
-                    trait_node_entries: Arc::clone(&trait_node_entry_store),
-                    cast_spells: Arc::clone(&player_create_cast_spell_store),
-                    custom_spells: Arc::clone(&player_create_custom_spell_store),
-                    start_all_spells: world_config_bool(
-                        &world_configs,
-                        "CONFIG_START_ALL_SPELLS",
-                        false,
-                    ),
-                    start_all_explored: world_config_bool(
-                        &world_configs,
-                        "CONFIG_START_ALL_EXPLORED",
-                        false,
-                    ),
-                    start_all_reputation: world_config_bool(
-                        &world_configs,
-                        "CONFIG_START_ALL_REP",
-                        false,
-                    ),
-                }),
-                player_rest_rates: Arc::new(wow_world::session::PlayerRestRatePolicyLikeCpp {
-                    offline_wilderness: world_config_f32(
-                        &world_configs,
-                        "RATE_REST_OFFLINE_IN_WILDERNESS",
-                        1.0,
-                    ),
-                    offline_tavern_or_city: world_config_f32(
-                        &world_configs,
-                        "RATE_REST_OFFLINE_IN_TAVERN_OR_CITY",
-                        1.0,
-                    ),
-                    ingame: world_config_f32(&world_configs, "RATE_REST_INGAME", 1.0),
-                }),
+                player_bootstrap: session_player_policy_catalogs::build_player_bootstrap(
+                    &player_create_info_store,
+                    &glyph_properties_store,
+                    &talent_tab_store,
+                    &trait_node_entry_store,
+                    &player_create_cast_spell_store,
+                    &player_create_custom_spell_store,
+                    &world_configs,
+                ),
+                player_rest_rates: session_player_policy_catalogs::build_player_rest_rates(
+                    &world_configs,
+                ),
                 creature_spawns: Arc::new(wow_world::session::CreatureSpawnCatalogsLikeCpp {
                     difficulty: Arc::clone(&creature_difficulty_store),
                     base_stats: Arc::clone(&creature_base_stats_store),
@@ -1396,21 +1375,11 @@ async fn run_inner(
                     power_types: Arc::clone(&power_type_store),
                     localized_names: Arc::clone(&object_mgr_catalogs.creature),
                 }),
-                progression: Arc::new(wow_world::session::ProgressionCatalogsLikeCpp {
-                    no_reset_talent_cost: world_config_bool(
-                        &world_configs,
-                        "CONFIG_NO_RESET_TALENT_COST",
-                        false,
-                    ),
-                    player_xp: Arc::clone(&player_xp_table),
-                    exploration_base_xp: Arc::clone(&exploration_base_xp_store),
-                    exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
-                    min_discovered_scaled_xp_ratio: world_config_u32(
-                        &world_configs,
-                        "CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO",
-                        0,
-                    ),
-                }),
+                progression: session_player_policy_catalogs::build_progression(
+                    &player_xp_table,
+                    &exploration_base_xp_store,
+                    &world_configs,
+                ),
                 battle_pet_trainer_selection: Arc::clone(&battle_pet_selection_store),
                 quest_info: Arc::clone(&quest_info_store),
                 chat_policy: session_handler_policy_catalogs::build_chat_policy(&world_configs),
@@ -1423,9 +1392,8 @@ async fn run_inner(
                         &world_configs,
                         &cfg_categories_store,
                     ),
-                player_regeneration_rates: Arc::new(player_regeneration_rates_like_cpp(
-                    &world_configs,
-                )),
+                player_regeneration_rates:
+                    session_player_policy_catalogs::build_player_regeneration_rates(&world_configs),
                 bank_bag_slot_prices: Arc::clone(&bank_bag_slot_prices_store),
                 adventure_map_pois: Arc::clone(&adventure_map_poi_store),
                 battlemaster_lists: Arc::clone(&battlemaster_list_typed_store),

@@ -291,9 +291,7 @@ fn session_resources_requires_named_capability_bundles() {
         "item valuation catalogs must be borrowed by loot handlers instead of installed into WorldSession"
     );
     assert!(
-        composition_source.contains(
-            "player_bootstrap: Arc::new(wow_world::session::PlayerBootstrapCatalogsLikeCpp"
-        ),
+        composition_source.contains("build_player_bootstrap("),
         "the composition root must group ObjectMgr PlayerInfo data in borrowed login capabilities"
     );
     assert!(
@@ -311,9 +309,7 @@ fn session_resources_requires_named_capability_bundles() {
         );
     }
     assert!(
-        composition_source.contains(
-            "player_rest_rates: Arc::new(wow_world::session::PlayerRestRatePolicyLikeCpp"
-        ),
+        composition_source.contains("build_player_rest_rates("),
         "the composition root must group C++ World rest rates in one borrowed Player policy"
     );
     assert!(
