@@ -95,6 +95,25 @@ reuse across a validated documentation-only delta; do not duplicate those rules 
 Push, merge, deployment and destructive fixture authority remain distinct; reuse each existing
 approval within its stated scope, and do not infer it from a passing validator or a test host.
 
+### Native aarch64 debug linking
+
+On the project's native aarch64 Linux host, the stock GCC driver can use the LLD
+bundled with Rust 1.98. From the checkout root, enable it once in the development
+shell used for `cargo test` or `validation-v2`.
+
+```bash
+rust_lld="$(rustc --print target-libdir)/../bin/gcc-ld/ld.lld"
+if [ -z "${COMPILER_PATH:-}" ] && [ -x "$rust_lld" ]; then
+  linker_dir="$PWD/target/native-dev-linker"
+  mkdir -p "$linker_dir" && ln -sfnT -- "$rust_lld" "$linker_dir/ld" &&
+    export COMPILER_PATH="$linker_dir"
+fi
+```
+
+GCC uses this path for subsequent links. Cargo can reuse existing artifacts.
+Use a subshell `( ... )` around setup and build to scope it to one command.
+Use a separate shell for cross-compilation, custom linkers and release builds.
+
 ## Review and runtime QA are separate tools
 
 Validation does not review code and does not start servers.

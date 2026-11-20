@@ -282,6 +282,9 @@ target across active worktrees. Follow the disk and long-running-command procedu
 `docs/operations/validation-v2.md`: preserve the active incremental cache, clean inspected
 inactive build artifacts first, retain real exit codes, and track an existing background
 task instead of launching a duplicate after its foreground wait expires.
+For ordinary debug builds on the native aarch64 GNU development host, use the
+[per-worktree LLD setup](docs/operations/local-first-development.md#native-aarch64-debug-linking)
+with the stock compiler. Keep explicit linker choices.
 
 Use [validation-v2](docs/operations/validation-v2.md) and
 [local-first development](docs/operations/local-first-development.md) for the actual profiles.
