@@ -12,7 +12,9 @@ use wow_constants::character::{
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
-use wow_packet::packets::character::{CharacterInfo, EnumCharactersResult, RaceUnlock};
+use wow_packet::packets::character::{
+    CharacterInfo, ChrCustomizationChoice, EnumCharactersResult, RaceUnlock,
+};
 use wow_persistence::{
     CharacterEnumerationLoadOutcomeLikeCpp, CharacterEnumerationPersistencePortLikeCpp,
     CharacterEnumerationRequestLikeCpp,
@@ -159,6 +161,14 @@ impl CharacterHandlerCxLikeCpp<'_> {
                 spec_id: row.active_talent_group,
                 last_login_version: row.last_login_build as i32,
                 override_select_screen_file_data_id: 0,
+                customizations: row
+                    .customizations
+                    .iter()
+                    .map(|&(option_id, choice_id)| ChrCustomizationChoice {
+                        option_id,
+                        choice_id,
+                    })
+                    .collect(),
             };
 
             characters.push(char_info);
