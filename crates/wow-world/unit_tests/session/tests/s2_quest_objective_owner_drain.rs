@@ -124,7 +124,44 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
     quest_flags: u32,
     in_raid_group: bool,
 ) -> (u8, i32, Vec<ServerOpcodes>) {
+    storing_objective_transition_outcome_with_persistence_like_cpp(
+        storing_flag,
+        initial_status,
+        initial_count,
+        add_count,
+        objective_flags,
+        quest_flags_ex,
+        empty_credit_guid,
+        prerequisite,
+        quest_flags,
+        in_raid_group,
+        false,
+        None,
+    )
+    .await
+}
+
+async fn storing_objective_transition_outcome_with_persistence_like_cpp(
+    storing_flag: bool,
+    initial_status: u8,
+    initial_count: i32,
+    add_count: i32,
+    objective_flags: u32,
+    quest_flags_ex: u32,
+    empty_credit_guid: bool,
+    prerequisite: Option<(bool, u32)>,
+    quest_flags: u32,
+    in_raid_group: bool,
+    quest_tracker_enabled: bool,
+    persistence: Option<
+        crate::player::quest_persistence_test_fixture::PlayerQuestPersistencePortFixtureLikeCpp,
+    >,
+) -> (u8, i32, Vec<ServerOpcodes>) {
     let (mut session, _, send_rx) = make_session();
+    session.set_quest_enable_quest_tracker_like_cpp(quest_tracker_enabled);
+    if let Some(persistence) = persistence {
+        session.set_player_quest_persistence_port_like_cpp(Arc::new(persistence));
+    }
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 45);
     let creature_guid = test_creature_guid(133);
@@ -1114,4 +1151,41 @@ async fn negative_objective_marks_default_without_immediate_persistence_like_cpp
         1,
         "the state transition still refreshes interactions: {opcodes:?}"
     );
+}
+
+#[tokio::test]
+async fn completion_updates_tracker_only_when_enabled_without_status_save_like_cpp() {
+    for enabled in [false, true] {
+        let fixture =
+            crate::player::quest_persistence_test_fixture::PlayerQuestPersistencePortFixtureLikeCpp::default();
+        let status_requests = Arc::clone(&fixture.status_requests);
+        let tracker_requests = Arc::clone(&fixture.tracker_completion_requests);
+        let (status, count, _) = storing_objective_transition_outcome_with_persistence_like_cpp(
+            false,
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+            0,
+            1,
+            0,
+            0,
+            false,
+            None,
+            0,
+            false,
+            enabled,
+            Some(fixture),
+        )
+        .await;
+
+        assert_eq!(status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+        assert_eq!(count, 1);
+        assert!(status_requests.lock().unwrap().is_empty());
+        assert_eq!(
+            *tracker_requests.lock().unwrap(),
+            if enabled {
+                vec![(45, TRANSITION_QUEST_ID)]
+            } else {
+                Vec::new()
+            }
+        );
+    }
 }

@@ -48,6 +48,11 @@ pub(super) fn build_session_runtime_policy(
             false,
         ),
         quest_ignore_raid: world_config_bool(world_configs, "CONFIG_QUEST_IGNORE_RAID", false),
+        quest_enable_quest_tracker: world_config_bool(
+            world_configs,
+            "CONFIG_QUEST_ENABLE_QUEST_TRACKER",
+            false,
+        ),
         quest_status_keep_abandoned: quest_status_keep_abandoned_like_cpp(world_configs),
         enable_ae_loot: world_config_bool(world_configs, "CONFIG_ENABLE_AE_LOOT", false),
         server_expansion: world_config_u8(world_configs, "CONFIG_EXPANSION", 2),

@@ -61,7 +61,7 @@ Bool	CONFIG_PDUMP_NO_PATHS	server/game/World/World.h:162	PlayerDump.DisallowPath
 Bool	CONFIG_PDUMP_NO_OVERWRITE	server/game/World/World.h:163	PlayerDump.DisallowOverwrite	Bool	server/game/World/World.cpp:1642	true		missing_in_rust	-
 Bool	CONFIG_QUEST_IGNORE_AUTO_ACCEPT	server/game/World/World.h:164	Quests.IgnoreAutoAccept	Bool	server/game/World/World.cpp:1266	false		missing_in_rust	-
 Bool	CONFIG_QUEST_IGNORE_AUTO_COMPLETE	server/game/World/World.h:165	Quests.IgnoreAutoComplete	Bool	server/game/World/World.cpp:1267	false		missing_in_rust	-
-Bool	CONFIG_QUEST_ENABLE_QUEST_TRACKER	server/game/World/World.h:166	Quests.EnableQuestTracker	Bool	server/game/World/World.cpp:1256	false		missing_in_rust	-
+Bool	CONFIG_QUEST_ENABLE_QUEST_TRACKER	server/game/World/World.h:166	Quests.EnableQuestTracker	Bool	server/game/World/World.cpp:1256	false		implemented	#1368
 Bool	CONFIG_WARDEN_ENABLED	server/game/World/World.h:167	Warden.Enabled	Bool	server/game/World/World.cpp:1587	false		missing_in_rust	-
 Bool	CONFIG_ENABLE_MMAPS	server/game/World/World.h:168	mmap.enablePathFinding	Bool	server/game/World/World.cpp:1547	true	load_world_config_values:crates/wow-config/src/lib.rs|mmap_runtime_config_like_cpp:crates/world-server/src/main.rs|MMapRuntimeConfigLikeCpp:crates/wow-world/src/session.rs	rust_runtime_config	-
 Bool	CONFIG_WINTERGRASP_ENABLE	server/game/World/World.h:169	Wintergrasp.Enable	Bool	server/game/World/World.cpp:1645	false		missing_in_rust	-

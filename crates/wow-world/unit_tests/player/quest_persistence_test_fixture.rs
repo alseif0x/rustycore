@@ -31,6 +31,7 @@ pub(crate) struct PlayerQuestPersistencePortFixtureLikeCpp {
     pub(crate) seasonal: Vec<PlayerQuestSeasonalPersistenceRowLikeCpp>,
     pub(crate) stages: Arc<Mutex<Vec<PlayerQuestLoadStageFixtureLikeCpp>>>,
     pub(crate) status_requests: Arc<Mutex<Vec<PlayerQuestStatusPersistenceRequestLikeCpp>>>,
+    pub(crate) tracker_completion_requests: Arc<Mutex<Vec<(u64, u32)>>>,
     pub(crate) lockout_requests: Arc<Mutex<Vec<PlayerQuestLockoutPersistenceRequestLikeCpp>>>,
     pub(crate) outcome: PersistenceOutcomeLikeCpp,
 }
@@ -47,6 +48,7 @@ impl Default for PlayerQuestPersistencePortFixtureLikeCpp {
             seasonal: Vec::new(),
             stages: Arc::new(Mutex::new(Vec::new())),
             status_requests: Arc::new(Mutex::new(Vec::new())),
+            tracker_completion_requests: Arc::new(Mutex::new(Vec::new())),
             lockout_requests: Arc::new(Mutex::new(Vec::new())),
             outcome: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
         }
@@ -149,6 +151,19 @@ impl PlayerQuestPersistencePortLikeCpp for PlayerQuestPersistencePortFixtureLike
         request: PlayerQuestStatusPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
         self.status_requests.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_tracker_completion_like_cpp(
+        &self,
+        owner_guid: u64,
+        quest_id: u32,
+    ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
+        self.tracker_completion_requests
+            .lock()
+            .unwrap()
+            .push((owner_guid, quest_id));
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }

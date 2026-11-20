@@ -160,6 +160,12 @@ pub trait PlayerQuestPersistencePortLikeCpp: Send + Sync {
         request: PlayerQuestStatusPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp>;
 
+    fn persist_tracker_completion_like_cpp(
+        &self,
+        owner_guid: u64,
+        quest_id: u32,
+    ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp>;
+
     fn persist_lockout_like_cpp(
         &self,
         request: PlayerQuestLockoutPersistenceRequestLikeCpp,

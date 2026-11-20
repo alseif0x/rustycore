@@ -34363,6 +34363,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_quest_enable_quest_tracker_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_quest_enable_quest_tracker_like_cpp (& mut self , enabled : bool)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_quest_high_level_hide_diff_like_cpp",
           "visibility": "pub",
           "signature": "fn set_quest_high_level_hide_diff_like_cpp (& mut self , value : u32)",

@@ -21,6 +21,11 @@ impl WorldSession {
         self.config.quest_ignore_raid_like_cpp = ignore;
     }
 
+    /// Set C++ `CONFIG_QUEST_ENABLE_QUEST_TRACKER` for quest completion.
+    pub fn set_quest_enable_quest_tracker_like_cpp(&mut self, enabled: bool) {
+        self.config.quest_enable_quest_tracker_like_cpp = enabled;
+    }
+
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
         self.core

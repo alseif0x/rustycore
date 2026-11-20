@@ -456,7 +456,7 @@ Pvp.FactionBalance.Pct10	worldserver:server/worldserver/worldserver.conf.dist:44
 Pvp.FactionBalance.Pct20	worldserver:server/worldserver/worldserver.conf.dist:4423	worldserver=0.8	Float:server/game/World/World.cpp:1720	Float=0.8f	CONFIG_CALL_TO_ARMS_20_PCT		missing_in_rust	-
 Pvp.FactionBalance.Pct5	worldserver:server/worldserver/worldserver.conf.dist:4407	worldserver=0.6	Float:server/game/World/World.cpp:1718	Float=0.6f	CONFIG_CALL_TO_ARMS_5_PCT		missing_in_rust	-
 Quests.DailyResetTime	worldserver:server/worldserver/worldserver.conf.dist:1129	worldserver=3	Int:server/game/World/World.cpp:1121	Int=3	CONFIG_DAILY_QUEST_RESET_TIME_HOUR		missing_in_rust	-
-Quests.EnableQuestTracker	worldserver:server/worldserver/worldserver.conf.dist:1076	worldserver=0	Bool:server/game/World/World.cpp:1256	Bool=false	CONFIG_QUEST_ENABLE_QUEST_TRACKER		missing_in_rust	-
+Quests.EnableQuestTracker	worldserver:server/worldserver/worldserver.conf.dist:1076	worldserver=0	Bool:server/game/World/World.cpp:1256	Bool=false	CONFIG_QUEST_ENABLE_QUEST_TRACKER		implemented	#1368
 Quests.HighLevelHideDiff	worldserver:server/worldserver/worldserver.conf.dist:1096	worldserver=2	Int:server/game/World/World.cpp:1262	Int=7	CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF		implemented	#NEXT.R8.ENTITIES.754
 Quests.IgnoreAutoAccept	worldserver:server/worldserver/worldserver.conf.dist:1112	worldserver=0	Bool:server/game/World/World.cpp:1266	Bool=false	CONFIG_QUEST_IGNORE_AUTO_ACCEPT		missing_in_rust	-
 Quests.IgnoreAutoComplete	worldserver:server/worldserver/worldserver.conf.dist:1120	worldserver=0	Bool:server/game/World/World.cpp:1267	Bool=false	CONFIG_QUEST_IGNORE_AUTO_COMPLETE		missing_in_rust	-

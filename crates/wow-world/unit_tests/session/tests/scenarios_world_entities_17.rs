@@ -590,7 +590,7 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
             visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
             spell_area_runtime_unrepresented: true,
             tracking_event_auto_reward_unrepresented: false,
-            quest_tracker_complete_time_unrepresented: true,
+            quest_tracker_complete_time_unrepresented: false,
             script_status_change_unrepresented: true,
         }]
     );

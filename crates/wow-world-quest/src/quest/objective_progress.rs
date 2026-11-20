@@ -108,6 +108,45 @@ pub async fn save_quest_to_db_like_cpp(
     }
 }
 
+pub async fn persist_quest_tracker_completion_like_cpp(
+    owner: &QuestObjectiveAccessLikeCpp<'_>,
+    lifecycle: &SessionLifecycleState,
+    quest_id: u32,
+) {
+    let Some(owner_guid) = owner
+        .player_guid_like_cpp()
+        .map(|guid| guid.counter() as u64)
+    else {
+        return;
+    };
+    let Some(port) = lifecycle.player_quest_persistence_port_like_cpp() else {
+        tracing::warn!(
+            account = owner.account_id_like_cpp(),
+            quest_id,
+            "Quest tracker completion write skipped because its persistence port is unavailable"
+        );
+        return;
+    };
+    match port
+        .persist_tracker_completion_like_cpp(owner_guid, quest_id)
+        .await
+    {
+        PersistenceOutcomeLikeCpp::Applied { .. } => {}
+        PersistenceOutcomeLikeCpp::Failed { reason } => tracing::warn!(
+            account = owner.account_id_like_cpp(),
+            quest_id,
+            error = %reason,
+            "Failed to update quest tracker completion"
+        ),
+        PersistenceOutcomeLikeCpp::Unknown { reason } => tracing::warn!(
+            account = owner.account_id_like_cpp(),
+            quest_id,
+            error = %reason,
+            "Quest tracker completion outcome is unknown"
+        ),
+    }
+}
+
 pub async fn save_changed_quest_statuses_like_cpp(
     owner: &QuestObjectiveAccessLikeCpp<'_>,
     quest_state: &SessionQuestState,

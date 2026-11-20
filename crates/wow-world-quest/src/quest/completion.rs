@@ -87,7 +87,7 @@ pub(crate) fn complete_represented_quest_status_like_cpp(
             visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
             spell_area_runtime_unrepresented: true,
             tracking_event_auto_reward_unrepresented: tracking_event_auto_reward,
-            quest_tracker_complete_time_unrepresented: true,
+            quest_tracker_complete_time_unrepresented: false,
             script_status_change_unrepresented: true,
         },
     );

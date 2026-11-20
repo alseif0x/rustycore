@@ -1092,3 +1092,23 @@ fn quest_ignore_raid_uses_cpp_world_config_key() {
         false
     ));
 }
+
+#[test]
+fn quest_tracker_uses_cpp_world_config_key_and_default() {
+    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+    let configs = wow_config::load_world_config_values();
+    assert!(!world_config_bool(
+        &configs,
+        "CONFIG_QUEST_ENABLE_QUEST_TRACKER",
+        false
+    ));
+
+    wow_config::load_config_from_str("Quests.EnableQuestTracker = 1\n")
+        .expect("config should load");
+    let configs = wow_config::load_world_config_values();
+    assert!(world_config_bool(
+        &configs,
+        "CONFIG_QUEST_ENABLE_QUEST_TRACKER",
+        false
+    ));
+}

@@ -964,7 +964,7 @@ fn assert_complete_status_update_like_cpp(
             visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
             spell_area_runtime_unrepresented: true,
             tracking_event_auto_reward_unrepresented,
-            quest_tracker_complete_time_unrepresented: true,
+            quest_tracker_complete_time_unrepresented: false,
             script_status_change_unrepresented: true,
         }]
     );

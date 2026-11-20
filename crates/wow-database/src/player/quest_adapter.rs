@@ -126,6 +126,17 @@ pub(crate) fn full_save_quest_status_statements_like_cpp(
     }
 }
 
+pub(crate) fn quest_tracker_completion_statement_like_cpp(
+    owner_guid: u64,
+    quest_id: u32,
+) -> PreparedStatement {
+    let mut statement =
+        PreparedStatement::for_statement(CharStatements::UPD_QUEST_TRACK_COMPLETE_TIME);
+    statement.set_u32(0, quest_id);
+    statement.set_u64(1, owner_guid);
+    statement
+}
+
 pub(crate) fn quest_lockout_statements_like_cpp(
     request: &PlayerQuestLockoutPersistenceRequestLikeCpp,
 ) -> Vec<PreparedStatement> {
@@ -450,6 +461,22 @@ impl PlayerQuestPersistencePortLikeCpp for MariaDbPlayerQuestPersistenceAdapterL
         })
     }
 
+    fn persist_tracker_completion_like_cpp(
+        &self,
+        owner_guid: u64,
+        quest_id: u32,
+    ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            commit_like_cpp(
+                self.character_db.as_ref(),
+                vec![quest_tracker_completion_statement_like_cpp(
+                    owner_guid, quest_id,
+                )],
+            )
+            .await
+        })
+    }
+
     fn persist_lockout_like_cpp(
         &self,
         request: PlayerQuestLockoutPersistenceRequestLikeCpp,
@@ -515,6 +542,16 @@ mod tests {
                 CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
             ]
         );
+    }
+
+    #[test]
+    fn quest_tracker_completion_uses_cpp_statement_and_parameter_order_like_cpp() {
+        let statement = quest_tracker_completion_statement_like_cpp(44, 77);
+        assert_eq!(
+            statement.sql(),
+            CharStatements::UPD_QUEST_TRACK_COMPLETE_TIME.sql()
+        );
+        assert_eq!(statement.params(), &[SqlParam::U32(77), SqlParam::U64(44)]);
     }
 
     fn active_status(quest_id: u32) -> QuestStatusPersistenceLikeCpp {

@@ -615,6 +615,16 @@
    "unit_tests_lines": 288832,
    "unit_tests_tests": 4298,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-58",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "One completion regression covers enabled and disabled quest-tracker writes without immediate status persistence; configuration and SQL adapter tests live outside the Session census.",
+   "unit_tests_lines": 288921,
+   "unit_tests_tests": 4299,
+   "src_tests": 345
   }
  ]
 }

@@ -88,6 +88,8 @@ pub struct SessionWorldConfig {
     pub quest_ignore_auto_complete_like_cpp: bool,
     /// C++ `CONFIG_QUEST_IGNORE_RAID` used by `Quest::IsAllowedInRaid`.
     pub quest_ignore_raid_like_cpp: bool,
+    /// C++ `CONFIG_QUEST_ENABLE_QUEST_TRACKER` used by `Player::CompleteQuest`.
+    pub quest_enable_quest_tracker_like_cpp: bool,
     /// Resolved Source `_SaveQuestStatus` keep-abandoned policy. `None` means
     /// enabled cleaner state is not represented and a dirty NONE row cannot be captured.
     pub quest_status_keep_abandoned_like_cpp: Option<bool>,
@@ -178,6 +180,7 @@ impl Default for SessionWorldConfig {
                 wow_config::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
             quest_ignore_auto_complete_like_cpp: false,
             quest_ignore_raid_like_cpp: false,
+            quest_enable_quest_tracker_like_cpp: false,
             quest_status_keep_abandoned_like_cpp: Some(true),
             represented_cast_unstuck_enabled_like_cpp: true,
             #[cfg(any(test, feature = "test-fixtures"))]

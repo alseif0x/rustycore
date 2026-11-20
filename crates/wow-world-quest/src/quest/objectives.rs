@@ -227,6 +227,15 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 Box::pin(self.drain_represented_quest_objective_progress_like_cpp()).await;
             }
         }
+        if self.reward.config.quest_enable_quest_tracker_like_cpp {
+            let owner = self.reward.player.quest_objective_access_like_cpp();
+            super::objective_progress::persist_quest_tracker_completion_like_cpp(
+                &owner,
+                self.reward.lifecycle,
+                quest.id,
+            )
+            .await;
+        }
         true
     }
 
