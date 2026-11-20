@@ -16,11 +16,26 @@ pub fn player_class_mask(player_class: u8) -> u32 {
         .unwrap_or(0)
 }
 
+pub const PLAYER_FLAGS_EX_MERCENARY_MODE_LIKE_CPP: u32 = 0x0002;
+
 pub fn player_team_for_race_cpp(race: u8) -> Team {
     match race {
         // C++ resolves this from ChrRacesEntry::Alliance: 1 = Horde, 0 = Alliance.
         2 | 5 | 6 | 8 | 9 | 10 | 26 | 27 | 28 | 31 | 35 | 36 | 70 => Team::Horde,
         _ => Team::Alliance,
+    }
+}
+
+/// C++ `Player::GetEffectiveTeam`: mercenary mode uses the opposite race team.
+pub fn player_effective_team_for_race_and_flags_cpp(race: u8, flags_ex: u32) -> Team {
+    let race_team = player_team_for_race_cpp(race);
+    if (flags_ex & PLAYER_FLAGS_EX_MERCENARY_MODE_LIKE_CPP) == 0 {
+        return race_team;
+    }
+    match race_team {
+        Team::Alliance => Team::Horde,
+        Team::Horde => Team::Alliance,
+        other => other,
     }
 }
 

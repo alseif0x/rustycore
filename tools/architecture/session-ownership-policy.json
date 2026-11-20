@@ -55335,7 +55335,7 @@
           "package": "wow-world-core",
           "module": "crate::session::canonical_access::quest_objectives",
           "source": "crates/wow-world-core/src/session/canonical_access/quest_objectives.rs",
-          "enclosing": "impl QuestObjectiveAccessLikeCpp::quest_credit_race_like_cpp",
+          "enclosing": "impl QuestObjectiveAccessLikeCpp::quest_credit_effective_team_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",

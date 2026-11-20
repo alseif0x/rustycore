@@ -357,15 +357,15 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             == wow_constants::quest::QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP
             && !credit_guid.is_empty()
         {
-            owner
-                .quest_credit_race_like_cpp(credit_guid)
-                .map(wow_world_core::session::player_team_for_race_cpp)
+            owner.quest_credit_effective_team_like_cpp(credit_guid)
         } else {
             None
         };
-        let player_team = wow_world_core::session::player_team_for_race_cpp(
-            self.reward.player.player_race_like_cpp(),
-        );
+        let player_team = owner.player_effective_team_like_cpp().unwrap_or_else(|| {
+            wow_world_core::session::player_team_for_race_cpp(
+                self.reward.player.player_race_like_cpp(),
+            )
+        });
         let Some(quests) = current_quest_gameplay_snapshot_like_cpp(
             &owner,
             self.reward.quest_state,

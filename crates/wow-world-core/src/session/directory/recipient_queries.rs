@@ -747,10 +747,28 @@ impl PlayerRegistry {
         Some(snapshot)
     }
 
-    /// Read one connected player's race for PvP quest-credit team comparison.
+    /// Read one connected player's effective team for PvP quest credit.
     #[must_use]
-    pub fn quest_credit_race(&self, guid: ObjectGuid) -> Option<u8> {
-        self.entries.get(&guid).map(|entry| entry.identity.race)
+    pub fn quest_credit_effective_team(&self, guid: ObjectGuid) -> Option<wow_constants::Team> {
+        self.entries.get(&guid).map(|entry| {
+            let player_flags_ex = self
+                .canonical_map_manager
+                .get()
+                .and_then(|manager| {
+                    with_canonical_player_at_like_cpp(
+                        manager,
+                        guid,
+                        entry.placement.map_id.into(),
+                        entry.placement.instance_id,
+                        |player| player.data().player_flags_ex,
+                    )
+                })
+                .unwrap_or(0);
+            crate::session::state::hub_support::player_effective_team_for_race_and_flags_cpp(
+                entry.identity.race,
+                player_flags_ex,
+            )
+        })
     }
 
     /// Snapshot one player target for represented vehicle interaction.

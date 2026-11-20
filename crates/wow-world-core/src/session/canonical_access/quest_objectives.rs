@@ -108,9 +108,24 @@ impl QuestObjectiveAccessLikeCpp<'_> {
             .map(|access| access.entry)
     }
 
-    /// Resolve the credited player's race for a represented PvP objective kill.
-    pub fn quest_credit_race_like_cpp(&self, credit_guid: ObjectGuid) -> Option<u8> {
-        self.core.player_registry()?.quest_credit_race(credit_guid)
+    /// Resolve the credited player's effective team for a PvP objective kill.
+    pub fn quest_credit_effective_team_like_cpp(
+        &self,
+        credit_guid: ObjectGuid,
+    ) -> Option<wow_constants::Team> {
+        self.core
+            .player_registry()?
+            .quest_credit_effective_team(credit_guid)
+    }
+
+    /// Resolve this Player's effective team, including mercenary mode.
+    pub fn player_effective_team_like_cpp(&self) -> Option<wow_constants::Team> {
+        self.core.with_owned_player_like_cpp(|player| {
+            crate::session::state::hub_support::player_effective_team_for_race_and_flags_cpp(
+                player.race_like_cpp(),
+                player.data().player_flags_ex,
+            )
+        })
     }
 
     /// Read one selected spell-click creature while its canonical map guard is held.

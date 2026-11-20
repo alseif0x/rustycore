@@ -575,6 +575,26 @@
    "unit_tests_lines": 288466,
    "unit_tests_tests": 4295,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-54",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "One effective-team regression proves mercenary victim and actor cases plus the remaining opposite-team rejection, using race only as the base identity.",
+   "unit_tests_lines": 288569,
+   "unit_tests_tests": 4296,
+   "src_tests": 345
+  },
+  {
+   "id": "raise-1368-55",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "One effective-team regression uses canonical Players for mercenary victim and actor cases plus opposite-team rejection, without adding WorldSession production.",
+   "unit_tests_lines": 288602,
+   "unit_tests_tests": 4296,
+   "src_tests": 345
   }
  ]
 }
