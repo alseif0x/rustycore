@@ -1,0 +1,66 @@
+name: Disposable validation timing pilot
+
+on:
+  push:
+    branches:
+      - experiment/validation-timing-20261120
+
+permissions:
+  contents: read
+
+jobs:
+  timing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      CARGO_BUILD_JOBS: "1"
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install pinned Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+        with:
+          cache: false
+          rustflags: ""
+
+      - name: Record candidate and measured inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Candidate: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Base: $(git rev-parse HEAD~2)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Docs-only base: $(git rev-parse HEAD~1)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          sha256sum tools/validate-change tools/ci/check_doc_links.py \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          rustc --version --verbose
+          cargo --version
+          python3 --version
+          uname -a
+
+      - name: Docs-only link checker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/check_doc_links.py \
+            "docs/operations/validation timing sample.md" \
+            "docs/operations/validation timing sample (copy).md"
+
+      - name: First cold-target docs and math gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/validate-change --base "$(git rev-parse HEAD~2)"
+
+      - name: Repeated warm math-only gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/validate-change --base "$(git rev-parse HEAD~1)"
