@@ -1149,6 +1149,18 @@ gains 29 production lines and one test-attributed formatting line, recorded as
 +29 production/+1 test/+30 total. Later C4-8 stages still owe remaining session
 capabilities, dependencies and supervision/shutdown.
 
+Committed candidate `17b25726ed255f3770c9d8224a26161e92fb11a2` passed
+`./tools/validation-v2 final --base 29d950df6 --architecture --require-changes --timings --logs`
+on the warm x86_64 checkout with Protoc 28.3 and one Cargo job. All eleven
+commands passed from 01:34:44Z to 01:36:43Z on 2026-11-20 (119.650 seconds),
+within the 600-second target. The `world-server` library passed 645 tests with
+zero failures and one existing ignored test, including both relocated source
+guards; all 769 source test identities are preserved. The session syntax check
+retains 740 exact direct-registry rows. The SQL module compositor also passed
+and restored the checkout. R1 is not applicable because no `wow-world/src` root
+shrank. Verified manifest:
+`target/validation-v2/manifests/20261120T013444.059294Z-3541589-final.json`.
+
 On `forever`, C4-8af starts at `10a2fef4a` and extracts GameEvent StartSystem.
 `app.rs` shrinks from 2,814 to 2,625 lines and its physical ceiling tightens
 without retiring C4-8. The new private `game_event_startup.rs` has 208 lines,
