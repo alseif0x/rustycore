@@ -1,5 +1,42 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1473 creature melee damage school accepted locally — 2026-11-20
+
+Committed candidate `6cfb90d6420e6bb2bfc3535c69c6f8371bbdf37e`, based on
+`4a5fd2498`, propagates the creature's `melee_damage_school_mask` through the
+complete represented white-swing path. Following `Creature.cpp:657,2321` and
+`Unit.cpp:1335-1534,1683-1690,8045-8155` at
+`02245dcd245e7433e524577656177723d3e4992e`, one captured attacker fact now
+selects immunity, attacker/victim school modifiers, critical bonuses, absorb,
+split/share gates and `AttackerStateUpdate` bytes for both Player and Creature
+victims. Non-physical swings skip armor as C++ requires; physical swings keep
+their existing mitigation and threat modifier behavior. The typed mailbox
+command carries the same mask to session publication, including native-death
+prefixes and the admitted-execution compatibility path.
+
+A Fire Elemental regression (entry 575, mask `0x04`) combines physical immunity,
++10% attacker Fire damage, +5 Fire taken and four points of Fire absorb. It
+proves 12 resulting damage without armor and decodes the Fire mask from the
+serialized attacker-state packet. Existing command fixtures and the recorded
+F6-8D3a expectations explicitly carry physical mask 1. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 4a5fd2498 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 13:13:59Z to 13:16:16Z (137.043
+seconds), within the 600-second target. Suites passed 646 `world-server`
+(one ignored), 4,620 `wow-world` (one ignored), 297 `wow-world-core`, 37
+`wow-world-creature`, two `wow-world-entities` and 193 `wow-world-spell`
+tests: 5,795 passed, two ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T131359.379046Z-4171610-final.json`.
+The manifest records the clean candidate SHA above. Architecture policy,
+session syntax ownership with 2,684 exact associated items, formatting and
+all affected downstream checks also passed.
+
+Earlier local attempts stopped on a missing ownership-baseline field, one
+300-second runner timeout and five recorded Debug expectations that lacked the
+new physical mask; those inputs were corrected without narrowing the final
+campaign. This is synthetic source/behavior/wire evidence, not a live Fire
+Elemental combat capture or a new whole-port combat audit. Player runtime
+integration and character creation remain separate work.
+
 ## #1487 starting loadout accepted locally — 2026-11-20
 
 Committed candidate `f9c3614878c2e39e73216a97ac7ab86c758a0b36`, based on
