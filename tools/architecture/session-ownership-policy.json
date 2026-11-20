@@ -15308,6 +15308,20 @@
           "module": "crate::handlers::quest::quest_handler_host",
           "trait_path": "QuestHandlerSessionHostLikeCpp",
           "kind": "method",
+          "name": "close_gossip_like_cpp",
+          "visibility": "private",
+          "signature": "fn close_gossip_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
           "name": "drain_represented_quest_objective_progress_with_generator_like_cpp",
           "visibility": "private",
           "signature": "fn drain_represented_quest_objective_progress_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",

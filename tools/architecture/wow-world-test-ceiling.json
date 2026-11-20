@@ -365,6 +365,16 @@
    "unit_tests_lines": 278817,
    "unit_tests_tests": 4152,
    "src_tests": 22
+  },
+  {
+   "id": "raise-1492-32",
+   "kind": "raise",
+   "issue": 1492,
+   "reviewed_at": "2026-11-19",
+   "reason": "Review PR 1493: update two existing accept-path regressions to assert realm GossipComplete instead of QuestGiverQuestComplete; exact +15 World unit-test lines, no identity, destination or ignored-state changes.",
+   "unit_tests_lines": 278832,
+   "unit_tests_tests": 4152,
+   "src_tests": 22
   }
  ]
 }
