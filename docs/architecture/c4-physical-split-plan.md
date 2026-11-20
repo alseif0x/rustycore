@@ -1132,6 +1132,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8ae starts at `d7cc0777f` and extracts group, terrain and
+instance-lock startup. `app.rs` shrinks from 2,856 to 2,814 lines and its
+physical ceiling tightens without retiring C4-8. The new private
+`group_instance_startup.rs` has 98 lines and returns seven results: GroupRegistry,
+PendingInvites, the group persistence adapter, LiveTerrain, the instance-lock
+persistence port, registered instance IDs and the loaded manager. Five explicit
+inputs preserve CharacterDatabase, Difficulty, Map, MapDifficulty and DataDir.
+
+The moved body matches the original token stream after adapting references and
+canonical rustfmt. The `world-server` library check passes with the same 35
+existing warnings. The logical owner gains 56 production lines for the typed
+result, wrappers and formatting, recorded as +56 production/+0 tests/+56
+total. Later C4-8 stages still owe remaining catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical
