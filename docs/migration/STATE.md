@@ -1,5 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1486 character-enum stored customizations accepted locally — 2026-11-20
+
+Committed candidate `b8e79d342c598be917928a2542487fffc42bf94e`, based on
+`d318a15e2`, publishes stored character customizations in the enum response.
+Following `CharacterHandler.cpp:391–455` and `CharacterPackets.cpp:219–245` at
+`02245dcd245e7433e524577656177723d3e4992e`, the persistence adapter now runs
+`SEL_ENUM_CUSTOMIZATIONS` after the character query and decodes option/choice
+IDs as `u32`. The typed outcome carries those rows, the handler groups them by
+character GUID, and `CharacterInfo::Write` emits their count and `int32` pairs
+immediately after `SexID`. Missing rows remain an empty list; query failure
+still returns the bounded failure response.
+
+A packet regression proves both pairs and the following level field, while the
+real handler regression publishes both stored pairs through the typed port.
+The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base d318a15e2 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 11:08:51Z to 11:10:45Z (114.236 seconds),
+within the 600-second target. Suites passed 632 `wow-database` tests (nine
+ignored), 820 `wow-packet`, 36 `wow-persistence`, 4,619 `wow-world` (one ignored)
+and all three `wow-world-character` tests, with zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T110851.486850Z-4053726-final.json`.
+The character-owner ledger records exactly 44 new test lines and no production
+growth.
+
+Earlier attempts failed because the physical C++ files were empty and then
+because the Forever SQL reference did not match the 3.4.3 statement contracts.
+The accepted run uses the preserved legacy reference instead; no failing test
+was removed or weakened. This is synthetic source/persistence/wire evidence,
+not real MariaDB durability or a live character-select capture. Character
+creation and Player runtime integration remain separate work.
+
 ## #1495 Forever InspectResult layout accepted locally — 2026-11-20
 
 Committed candidate `1c13e72c446614f90da2dd9c079950ec7463c444`, based on
