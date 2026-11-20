@@ -231,6 +231,58 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         true
     }
 
+    async fn complete_represented_quests_after_add_inline_like_cpp(
+        &mut self,
+        store: &wow_data::quest::QuestStore,
+        quest_ids: &mut Vec<u32>,
+    ) -> Vec<u32> {
+        let mut completed_quest_ids = Vec::new();
+        for quest_id in std::mem::take(quest_ids) {
+            let Some(quest) = store.get(quest_id).cloned() else {
+                continue;
+            };
+            if self
+                .complete_represented_quest_after_add_like_cpp(&quest)
+                .await
+            {
+                completed_quest_ids.push(quest_id);
+                let owner = self.reward.player.quest_objective_access_like_cpp();
+                tracing::info!(
+                    account = owner.account_id_like_cpp(),
+                    quest_id,
+                    "Quest objectives complete"
+                );
+            }
+        }
+        completed_quest_ids
+    }
+
+    async fn complete_represented_quests_after_objective_inline_like_cpp(
+        &mut self,
+        store: &wow_data::quest::QuestStore,
+        objectives: &mut Vec<(u32, u32)>,
+    ) -> Vec<u32> {
+        let mut completed_quest_ids = Vec::new();
+        for (quest_id, objective_id) in std::mem::take(objectives) {
+            let Some(quest) = store.get(quest_id).cloned() else {
+                continue;
+            };
+            if self
+                .complete_represented_quest_after_objective_like_cpp(&quest, objective_id)
+                .await
+            {
+                completed_quest_ids.push(quest_id);
+                let owner = self.reward.player.quest_objective_access_like_cpp();
+                tracing::info!(
+                    account = owner.account_id_like_cpp(),
+                    quest_id,
+                    "Quest objectives complete"
+                );
+            }
+        }
+        completed_quest_ids
+    }
+
     pub async fn drain_represented_quest_objective_progress_like_cpp(&mut self) {
         if !self
             .reward
@@ -340,7 +392,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         add_count: i32,
         credit_guid: ObjectGuid,
     ) {
-        let owner = self.reward.player.quest_objective_access_like_cpp();
+        let mut owner = self.reward.player.quest_objective_access_like_cpp();
         invalidate_player_quest_status_authority_like_cpp(
             &owner,
             self.reward.quest_state,
@@ -536,6 +588,16 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     }
                 }
             }
+            if !quests_to_complete.is_empty() {
+                drop(owner);
+                let _ = self
+                    .complete_represented_quests_after_add_inline_like_cpp(
+                        &store,
+                        &mut quests_to_complete,
+                    )
+                    .await;
+                owner = self.reward.player.quest_objective_access_like_cpp();
+            }
         }
 
         drop(owner);
@@ -578,7 +640,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         object_id: i32,
         add_count: i32,
     ) {
-        let owner = self.reward.player.quest_objective_access_like_cpp();
+        let mut owner = self.reward.player.quest_objective_access_like_cpp();
         invalidate_player_quest_status_authority_like_cpp(
             &owner,
             self.reward.quest_state,
@@ -729,6 +791,16 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             {
                 quests_to_save.push(quest_id);
             }
+            if !quests_to_complete.is_empty() {
+                drop(owner);
+                let _ = self
+                    .complete_represented_quests_after_objective_inline_like_cpp(
+                        &store,
+                        &mut quests_to_complete,
+                    )
+                    .await;
+                owner = self.reward.player.quest_objective_access_like_cpp();
+            }
         }
 
         drop(owner);
@@ -769,7 +841,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         old_money: u64,
         new_money: u64,
     ) {
-        let owner = self.reward.player.quest_objective_access_like_cpp();
+        let mut owner = self.reward.player.quest_objective_access_like_cpp();
         invalidate_player_quest_status_authority_like_cpp(
             &owner,
             self.reward.quest_state,
@@ -877,6 +949,17 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             {
                 quests_to_save.push(quest_id);
             }
+            if !quests_to_complete.is_empty() {
+                drop(owner);
+                let completed = self
+                    .complete_represented_quests_after_objective_inline_like_cpp(
+                        &store,
+                        &mut quests_to_complete,
+                    )
+                    .await;
+                quests_to_save.extend(completed);
+                owner = self.reward.player.quest_objective_access_like_cpp();
+            }
         }
 
         drop(owner);
@@ -918,7 +1001,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         currency_id: u32,
         change: i32,
     ) {
-        let owner = self.reward.player.quest_objective_access_like_cpp();
+        let mut owner = self.reward.player.quest_objective_access_like_cpp();
         invalidate_player_quest_status_authority_like_cpp(
             &owner,
             self.reward.quest_state,
@@ -1037,6 +1120,17 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             {
                 quests_to_save.push(quest_id);
             }
+            if !quests_to_complete.is_empty() {
+                drop(owner);
+                let completed = self
+                    .complete_represented_quests_after_objective_inline_like_cpp(
+                        &store,
+                        &mut quests_to_complete,
+                    )
+                    .await;
+                quests_to_save.extend(completed);
+                owner = self.reward.player.quest_objective_access_like_cpp();
+            }
         }
 
         drop(owner);
@@ -1079,7 +1173,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         faction_id: u32,
         change: i32,
     ) {
-        let owner = self.reward.player.quest_objective_access_like_cpp();
+        let mut owner = self.reward.player.quest_objective_access_like_cpp();
         invalidate_player_quest_status_authority_like_cpp(
             &owner,
             self.reward.quest_state,
@@ -1208,6 +1302,17 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 )
             {
                 quests_to_save.push(quest_id);
+            }
+            if !quests_to_complete.is_empty() {
+                drop(owner);
+                let completed = self
+                    .complete_represented_quests_after_objective_inline_like_cpp(
+                        &store,
+                        &mut quests_to_complete,
+                    )
+                    .await;
+                quests_to_save.extend(completed);
+                owner = self.reward.player.quest_objective_access_like_cpp();
             }
         }
 

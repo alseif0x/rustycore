@@ -885,3 +885,177 @@ async fn raid_money_progresses_without_a_raid_quest_flag_like_cpp() {
         assert!(!opcodes.contains(&unexpected));
     }
 }
+
+async fn inline_completion_order_outcome_like_cpp(
+    storing_flag: bool,
+) -> (Vec<ServerOpcodes>, u8, u8, Vec<i32>) {
+    const FIRST_QUEST: u32 = 13_635;
+    const SECOND_QUEST: u32 = 13_636;
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 47);
+    let creature_guid = test_creature_guid(135);
+    let objective_type = if storing_flag {
+        wow_constants::quest::QUEST_OBJECTIVE_CRITERIA_TREE_LIKE_CPP
+    } else {
+        wow_constants::quest::QUEST_OBJECTIVE_MONSTER_LIKE_CPP
+    };
+    let objective =
+        |quest_id, objective_id, object_id, order, storage_index| wow_data::quest::QuestObjective {
+            id: objective_id,
+            quest_id,
+            obj_type: objective_type,
+            order,
+            storage_index,
+            object_id,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        };
+    let mut first = test_quest_template(FIRST_QUEST);
+    first
+        .objectives
+        .push(objective(FIRST_QUEST, FIRST_QUEST * 10, 713, 0, 0));
+    let mut second = test_quest_template(SECOND_QUEST);
+    second
+        .objectives
+        .push(objective(SECOND_QUEST, SECOND_QUEST * 10, 713, 0, 0));
+    second
+        .objectives
+        .push(objective(SECOND_QUEST, SECOND_QUEST * 10 + 1, 714, 1, 1));
+    session.set_player_guid(Some(player_guid));
+    session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+        [first, second],
+    )));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Tester".to_string(),
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical inline-completion map");
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                for (quest_id, objective_counts) in
+                    [(FIRST_QUEST, vec![0]), (SECOND_QUEST, vec![0, 0])]
+                {
+                    state.insert_status_like_cpp(
+                        quest_id,
+                        crate::handlers::quest::PlayerQuestStatus {
+                            quest_id,
+                            status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                            explored: false,
+                            accept_time_secs: 0,
+                            end_time_secs: 0,
+                            objective_counts,
+                            slot: 0,
+                        },
+                    );
+                }
+            })
+            .is_some(),
+        "inline-completion fixture must use the canonical Player owner"
+    );
+    session.set_condition_store(Arc::new(
+        ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
+            source_type: ConditionSourceType::SpellClickEvent,
+            source_group: 713,
+            source_entry: 913,
+            source_id: 0,
+            condition_type: ConditionType::Aura,
+            condition_value1: 999_999,
+            ..Condition::default()
+        }]),
+    ));
+    session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+        [wow_data::NpcSpellClickRowLikeCpp {
+            npc_entry: 713,
+            spell_id: 913,
+            cast_flags: 0,
+            user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+        }],
+        |entry| entry == 713,
+        |spell| spell == 913,
+    )));
+    add_canonical_test_creature(
+        &canonical,
+        creature_guid,
+        713,
+        Position::new(12.0, 0.0, 0.0, 0.0),
+        UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+    );
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
+    let _ = drain_server_opcodes(&send_rx);
+
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    let operation = if storing_flag {
+        crate::session::quest::QuestObjectiveOperationLikeCpp::StoringFlag {
+            objective_type,
+            object_id: 713,
+            add_count: 1,
+        }
+    } else {
+        crate::session::quest::QuestObjectiveOperationLikeCpp::StoringValue {
+            objective_type,
+            object_id: 713,
+            add_count: 1,
+            credit_guid: creature_guid,
+        }
+    };
+    session
+        .quest_objective_operation_like_cpp(&generator, operation)
+        .await;
+
+    let state = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("inline-completion quest state");
+    (
+        drain_server_opcodes(&send_rx),
+        state.status_like_cpp(FIRST_QUEST).unwrap().status,
+        state.status_like_cpp(SECOND_QUEST).unwrap().status,
+        state
+            .status_like_cpp(SECOND_QUEST)
+            .unwrap()
+            .objective_counts
+            .clone(),
+    )
+}
+
+#[tokio::test]
+async fn quest_completion_runs_inline_before_the_next_quest_credit_like_cpp() {
+    for storing_flag in [false, true] {
+        let expected_credit = if storing_flag {
+            ServerOpcodes::QuestUpdateAddCreditSimple
+        } else {
+            ServerOpcodes::QuestUpdateAddCredit
+        };
+        let (opcodes, first_status, second_status, second_counts) =
+            inline_completion_order_outcome_like_cpp(storing_flag).await;
+        assert_eq!(
+            opcodes,
+            vec![
+                expected_credit,
+                ServerOpcodes::UpdateObject,
+                expected_credit,
+                ServerOpcodes::UpdateObject,
+            ]
+        );
+        assert_eq!(first_status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+        assert_eq!(second_status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+        assert_eq!(second_counts, vec![1, 0]);
+    }
+}

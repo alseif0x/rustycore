@@ -595,6 +595,16 @@
    "unit_tests_lines": 288602,
    "unit_tests_tests": 4296,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-56",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "One inline-completion ordering regression uses two quests in both storage families and requires credit, completion refresh, next credit, final refresh order.",
+   "unit_tests_lines": 288776,
+   "unit_tests_tests": 4297,
+   "src_tests": 345
   }
  ]
 }

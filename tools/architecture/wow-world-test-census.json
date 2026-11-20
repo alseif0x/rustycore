@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4641,
+  "tests": 4642,
   "ignored": 1,
-  "session": 3925,
-  "shims": 3722,
+  "session": 3926,
+  "shims": 3723,
   "by_class": {
    "P": 716,
    "H": 147,
-   "W": 3778
+   "W": 3779
   },
   "by_reason": {
    "H-host": 147,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 32,
-   "W-world-logic": 3523
+   "W-world-logic": 3524
   },
   "by_owner": {
    "wow-world": {
@@ -113,7 +113,7 @@
    "wow-world-quest": {
     "P": 7,
     "H": 13,
-    "W": 362
+    "W": 363
    },
    "wow-world-social": {
     "P": 18,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 518,
     "H": 0,
-    "W": 3778
+    "W": 3779
    },
    "wow-world-application": {
     "P": 27,
@@ -3122,6 +3122,7 @@
   ["unit_tests/session/tests/s2_quest_objective_owner_drain.rs::reputation_negative_transition_honors_optional_and_refreshes_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "currency_changed_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "money_changed_like_cpp"], []],
   ["unit_tests/session/tests/s2_quest_objective_owner_drain.rs::raid_objectives_require_quest_admission_in_both_storage_families_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "mutate_player_quest_gameplay_like_cpp", "player_quest_gameplay_snapshot_like_cpp"], []],
   ["unit_tests/session/tests/s2_quest_objective_owner_drain.rs::raid_money_progresses_without_a_raid_quest_flag_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "currency_changed_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "money_changed_like_cpp"], []],
+  ["unit_tests/session/tests/s2_quest_objective_owner_drain.rs::quest_completion_runs_inline_before_the_next_quest_credit_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "mutate_player_quest_gameplay_like_cpp", "player_quest_gameplay_snapshot_like_cpp"], []],
   ["unit_tests/session/tests/save_plan_order.rs::the_character_save_request_is_semantic_and_deterministic_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["current_player_character_save_request_like_cpp", "current_player_save_to_db_snapshot_like_cpp", "mark_represented_glyphs_loaded_like_cpp", "set_player_guid"], []],
   ["unit_tests/session/tests/save_snapshot_owner.rs::save_request_consumes_frozen_header_without_replaying_or_rereading_runtime", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "current_player_character_save_request_like_cpp", "current_player_save_to_db_snapshot_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/save_snapshot_owner.rs::save_snapshot_reads_active_and_detached_owner_without_changing_state", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "current_player_save_to_db_snapshot_like_cpp", "set_canonical_map_manager", "set_loaded_player_powers_like_cpp"], []],
