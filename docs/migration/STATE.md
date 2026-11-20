@@ -1,5 +1,46 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 quest-tracker completion accepted locally — 2026-11-20
+
+Committed candidate `e0fccb14b4dcf563fb5043e48cccfcc92f88a4d8`, based on
+`00f75b1cad67a0a96c2e03dd2280d8d0dade20bc`, implements the quest
+tracker write at the end of represented objective completion. Following
+`Player::CompleteQuest` (`Player.cpp:15169-15196`) at
+`02245dcd245e7433e524577656177723d3e4992e`, the write runs after the possible
+tracking-event reward and uses `CHAR_UPD_QUEST_TRACK_COMPLETE_TIME` with quest id
+then Player guid. `Quests.EnableQuestTracker` is composed through the production
+runtime policy with C++'s disabled default. Tracker failure is logged without
+reverting completion, and the separate quest-status row is not saved immediately.
+
+Three focused tests prove the SQL statement and parameter order, the
+configuration key/default, and enabled versus disabled tracker calls with zero
+status-persistence requests. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 00f75b1ca --architecture --require-changes --timings --logs`
+campaign passed all twelve commands from 19:29:03Z to 19:37:01Z (477.715
+seconds), within the 600-second target: 648 `world-server` tests (one ignored),
+633 `wow-database` tests (nine ignored), 36 `wow-persistence`, 4,643 `wow-world`
+(one ignored), 297 `wow-world-core` and eight `wow-world-quest` tests passed,
+totaling 6,265 passed, eleven ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T192903.701217Z-562141-final.json`.
+Architecture policy, session syntax ownership with 2,686 associated items,
+method-index, hotspot/census, formatting and all affected downstream checks
+passed. The reviewed ledgers record the exact policy/test growth, including 74
+new Session test lines and one test identity.
+
+The additional exhaustive `session-ownership-check check` was attempted
+separately because persistence inputs changed. It did not produce a verdict:
+the first run timed out after 1,200 seconds and the explicit extended run timed
+out after 2,400 seconds. Both consumed CPU throughout and emitted no ownership
+mismatch. No exhaustive persistence-inventory acceptance is claimed or hidden;
+the verified bounded final campaign above is the publication evidence.
+
+This closes only the quest-tracker completion-write divergence in #1368.
+Objective completion effects and the exhaustive inventory verdict remain open.
+This is synthetic source/behavior/SQL evidence, not a real database update,
+restart/relogin durability check, live quest capture or full quest parity
+acceptance. Player runtime integration and character creation remain separate
+work.
+
 ## #1368 deferred objective-status persistence accepted locally — 2026-11-20
 
 Committed candidate `851ac19ed9b44306930d44765a2186e738b83a69`, based on
