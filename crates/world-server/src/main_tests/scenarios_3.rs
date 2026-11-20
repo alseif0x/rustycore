@@ -867,7 +867,7 @@ fn library_composition_preserves_cpp_startup_and_shutdown_order() {
         "clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;",
         "set_realm_offline(&login_db, realm_id).await?;",
         "load_realm_info_from_snapshot_like_cpp(&realm_list, realm_id)?;",
-        "wow_network::start_world_listener(",
+        "world_listener_startup::start_world_listeners(",
         "set_realm_online(&login_db, realm_id).await",
         "shutdown_signal()",
         "active_session_registry.begin_shutdown_like_cpp();",

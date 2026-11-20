@@ -1132,6 +1132,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8am starts at `ad8062eb2` and extracts world listener startup.
+`app.rs` shrinks from 2,103 to 2,041 lines and its physical ceiling tightens
+without retiring C4-8. The new private `world_listener_startup.rs` has 130 lines,
+seventeen explicit inputs and four results: both JoinHandles and AbortHandles.
+Realm/instance spawn order, abort capture, readiness joining, error priority and
+bind-failure cleanup are preserved. set_realm_online and all supervision remain
+in app. Three source guards follow either the new owner or its app-side call.
+The session factory baseline moves the same 18-argument create_session call.
+
+The moved sequence matches the original token stream after adapting borrowed
+inputs and child-local handle `mut`, plus canonical rustfmt. The `world-server`
+library check and all three affected guards pass; the library retains the same 35
+existing warnings. The logical owner gains 68 production and two test lines,
+recorded as +68 production/+2 tests/+70 total. Later C4-8 stages still owe
+remaining configuration, runtime dependencies and supervision/shutdown.
+
 On `forever`, C4-8al starts at `15c5479cb` and extracts four player policy
 builders. `app.rs` shrinks from 2,135 to 2,103 lines and its physical ceiling
 tightens without retiring C4-8. The new private

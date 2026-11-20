@@ -8,8 +8,10 @@ use crate::quest_status_keep_abandoned_like_cpp;
 
 #[test]
 fn world_listener_captures_application_resources_outside_transport_boundary() {
-    let source = fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
-        .expect("world-server composition source should be readable");
+    let source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/world_listener_startup.rs"),
+    )
+    .expect("world-server world listener startup source should be readable");
     let listener_start = source
         .find("wow_network::start_world_listener(")
         .expect("world listener call must exist");
@@ -440,7 +442,7 @@ fn session_resources_requires_named_capability_bundles() {
         .find("let session_resources = Arc::new(session_resources);")
         .expect("fully constructed resources should be published through Arc");
     let listener = composition_source
-        .find("wow_network::start_world_listener(")
+        .find("world_listener_startup::start_world_listeners(")
         .expect("world listener should exist");
     assert!(construction < publication && publication < listener);
 }

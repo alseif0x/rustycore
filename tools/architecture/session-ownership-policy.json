@@ -47572,7 +47572,7 @@
       ],
       "call_sites": [
         {
-          "module": "crate::app",
+          "module": "crate::app::world_listener_startup",
           "callee": "create_session",
           "argument_count": 18,
           "cfg": [],

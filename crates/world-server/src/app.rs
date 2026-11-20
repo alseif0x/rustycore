@@ -174,7 +174,11 @@ mod session_handler_policy_catalogs;
 #[path = "session_player_policy_catalogs.rs"]
 mod session_player_policy_catalogs;
 
+#[path = "world_listener_startup.rs"]
+mod world_listener_startup;
+
 use group_instance_startup::GroupInstanceStartup;
+use world_listener_startup::WorldListenerStartup;
 
 #[path = "entry.rs"]
 mod entry;
@@ -1672,97 +1676,31 @@ async fn run_inner(
         Some(Arc::clone(&creature_template_lifecycle_store));
     creature_aggro_config.chr_races_store = Some(Arc::clone(&chr_races_store));
 
-    let (realm_listener_ready_tx, realm_listener_ready_rx) = tokio::sync::oneshot::channel();
-    let (instance_listener_ready_tx, instance_listener_ready_rx) = tokio::sync::oneshot::channel();
-
-    // Spawn realm listener (existing world listener)
-    let mut realm_handle = tokio::spawn({
-        let lookup = Arc::clone(&account_lookup);
-        let listener_policy = world_listener_policy;
-        let resources = Arc::clone(&session_resources);
-        let mgr = Arc::clone(&session_mgr);
-        let session_terrain = Arc::clone(&live_terrain);
-        let canonical_map = Arc::clone(&canonical_map_manager);
-        let spawn_metadata = Arc::clone(&canonical_spawn_metadata);
-        let active_sessions = Arc::clone(&active_session_registry);
-        let runtime_state = Arc::clone(&world_runtime_state);
-        let battle_pet_accounts = Arc::clone(&battle_pet_account_registry);
-        let port = instance_port;
-        let mmap_config = mmap_runtime_config.clone();
-        let mmap_pathfinder = mmap_pathfinder.clone();
-        let session_aggro_config = creature_aggro_config.clone();
-        async move {
-            wow_network::start_world_listener(
-                realm_addr,
-                lookup,
-                listener_policy,
-                move |account, pkt_rx, send_tx, send_write_fence_like_cpp, socket_timeouts| {
-                    let resources = Arc::clone(&resources);
-                    let mgr = Arc::clone(&mgr);
-                    let session_terrain = Arc::clone(&session_terrain);
-                    let canonical_map = Arc::clone(&canonical_map);
-                    let spawn_metadata = Arc::clone(&spawn_metadata);
-                    let active_sessions = Arc::clone(&active_sessions);
-                    let runtime_state = Arc::clone(&runtime_state);
-                    let mmap_pathfinder = mmap_pathfinder.clone();
-                    let session_aggro_config = session_aggro_config.clone();
-                    let battle_pet_accounts = Arc::clone(&battle_pet_accounts);
-                    create_session(
-                        account,
-                        pkt_rx,
-                        send_tx,
-                        send_write_fence_like_cpp,
-                        socket_timeouts,
-                        resources,
-                        mgr,
-                        session_terrain,
-                        canonical_map,
-                        spawn_metadata,
-                        port,
-                        max_expansion,
-                        mmap_config.clone(),
-                        mmap_pathfinder,
-                        active_sessions,
-                        session_aggro_config,
-                        runtime_state,
-                        battle_pet_accounts,
-                    )
-                },
-                realm_listener_ready_tx,
-            )
-            .await
-            .context("Realm listener error")
-        }
-    });
-
-    // Spawn instance listener
-    let mut instance_handle = tokio::spawn({
-        let mgr = Arc::clone(&session_mgr);
-        async move {
-            wow_network::start_instance_listener(instance_addr, mgr, instance_listener_ready_tx)
-                .await
-                .context("Instance listener error")
-        }
-    });
-    let realm_network_abort_handle = realm_handle.abort_handle();
-    let instance_network_abort_handle = instance_handle.abort_handle();
-
-    let (realm_listener_ready, instance_listener_ready) =
-        tokio::join!(realm_listener_ready_rx, instance_listener_ready_rx);
-    let listener_start_error = match (realm_listener_ready, instance_listener_ready) {
-        (Ok(Ok(())), Ok(Ok(()))) => None,
-        (Ok(Err(error)), _) => Some(format!("realm listener bind failed: {error}")),
-        (_, Ok(Err(error))) => Some(format!("instance listener bind failed: {error}")),
-        (Err(error), _) => Some(format!("realm listener readiness task failed: {error}")),
-        (_, Err(error)) => Some(format!("instance listener readiness task failed: {error}")),
-    };
-    if let Some(error) = listener_start_error {
-        stop_world_network_like_cpp([
-            ("realm", &realm_network_abort_handle),
-            ("instance", &instance_network_abort_handle),
-        ]);
-        bail!(error);
-    }
+    let WorldListenerStartup {
+        mut realm_handle,
+        mut instance_handle,
+        realm_network_abort_handle,
+        instance_network_abort_handle,
+    } = world_listener_startup::start_world_listeners(
+        realm_addr,
+        instance_addr,
+        &account_lookup,
+        world_listener_policy,
+        &session_resources,
+        &session_mgr,
+        &live_terrain,
+        &canonical_map_manager,
+        &canonical_spawn_metadata,
+        &active_session_registry,
+        &world_runtime_state,
+        &battle_pet_account_registry,
+        instance_port,
+        max_expansion,
+        &mmap_runtime_config,
+        &mmap_pathfinder,
+        &creature_aggro_config,
+    )
+    .await?;
 
     // Match C++ startup: bind both world listeners successfully before
     // clearing the realm's offline flag, but still do so before DB writers and
