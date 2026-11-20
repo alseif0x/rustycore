@@ -56,6 +56,7 @@ fn character_enumeration_row_like_cpp(
         declined_genitive: declined_names_used
             .then(|| result.try_read::<String>(28).unwrap_or_default())
             .unwrap_or_default(),
+        customizations: Vec::new(),
     }
 }
 
@@ -112,6 +113,31 @@ impl CharacterEnumerationPersistencePortLikeCpp
                     ));
                     if !result.next_row() {
                         break;
+                    }
+                }
+            }
+
+            // C++ `HandleCharEnumOpcode` runs `CHAR_SEL_ENUM_CUSTOMIZATIONS`
+            // after `CHAR_SEL_ENUM` and groups the pairs per GUID; a query
+            // failure degrades to the pre-customization list (empty entries).
+            let mut customization_statement = self
+                .character_db
+                .prepare(CharStatements::SEL_ENUM_CUSTOMIZATIONS);
+            customization_statement.set_u32(0, request.account_id);
+            if let Ok(mut customizations) = self.character_db.query(&customization_statement).await
+            {
+                if !customizations.is_empty() {
+                    loop {
+                        let guid: u64 = customizations.read(0);
+                        // columns are INT UNSIGNED; decode as u32 then widen
+                        let option_id = customizations.read::<u32>(1) as i32;
+                        let choice_id = customizations.read::<u32>(2) as i32;
+                        if let Some(row) = rows.iter_mut().find(|row| row.guid_low == guid) {
+                            row.customizations.push((option_id, choice_id));
+                        }
+                        if !customizations.next_row() {
+                            break;
+                        }
                     }
                 }
             }
