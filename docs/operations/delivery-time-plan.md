@@ -67,6 +67,32 @@ the workspace and member rustfmt checks both identified the file and exited 1,
 in 12.718 s and 0.493 s respectively. These measurements cover a packet edit.
 Shared server rebuilds and whole-delivery acceptance have separate elapsed times.
 
+### Native aarch64 test linking
+
+On the #1494 revision `d2b3501be`, the native GCC driver linked each debug test
+binary twice using the same Rust objects, libraries and arguments. The second
+linker was the LLD 22.1.8 supplied with Rust 1.98. The two targets used opposite
+linker orders. Each duration covers just one link.
+
+| Test target | GNU ld | Rust's LLD | Suites with each linker |
+| --- | ---: | ---: | --- |
+| `world-server` | 8.596 s | 1.485 s | 643 passed, 1 ignored |
+| `wow-world` | 11.657 s | 1.622 s | 4,175 passed, 1 ignored |
+
+Both versions listed the same test identities. For each target, `addr2line`
+resolved a sampled test symbol to the same Rust source line. In a small Cargo
+fixture, enabling the native GCC linker lookup kept the existing target fresh.
+After a source edit, the new ELF identified LLD. Changing Cargo's target linker
+setting instead rebuilt the unchanged fixture. The
+[local development guide](local-first-development.md) shows the native setup.
+
+For a complete warm edit, changing the auction-hello regression to expect house
+6 instead of 7 made the same filtered test fail in 42.232 s with GNU ld and
+30.640 s with LLD. Restoring the expectation passed in 31.773 s with LLD.
+Both runs used the same six-package `--lib` feature selection as the #1494
+replay, one Cargo job and the same checkout. These times include compilation,
+linking and test execution. The LLD failure was measured first.
+
 ## How to choose evidence
 
 | Change | First relevant result | Acceptance to retain |
