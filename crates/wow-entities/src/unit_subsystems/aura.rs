@@ -1011,6 +1011,32 @@ impl AuraSubsystem {
         self.visible_auras.remove(&slot)
     }
 
+    pub fn remove_all_persisted_pet_auras_after_save_like_cpp(&mut self) -> bool {
+        for aura in self.applied_auras.clone() {
+            self.remove_applied(aura);
+            self.applied_aura_amounts.retain(|effect, _| {
+                !(effect.spell_id == aura.spell_id
+                    && effect.caster_guid == aura.caster_guid
+                    && effect.slot == aura.slot)
+            });
+            self.applied_aura_misc_values.retain(|effect, _| {
+                !(effect.spell_id == aura.spell_id
+                    && effect.caster_guid == aura.caster_guid
+                    && effect.slot == aura.slot)
+            });
+        }
+        for slot in self.visible_auras.keys().copied().collect::<Vec<_>>() {
+            self.clear_visible(slot);
+        }
+        for aura in self.owned_auras.clone() {
+            self.remove_owned(aura);
+        }
+        self.has_no_local_aura_state_like_cpp()
+            && self.runtime_applications_like_cpp.is_empty()
+            && self.aura_persistence_metadata_by_slot.is_empty()
+            && self.threat_snapshots_like_cpp.is_empty()
+    }
+
     pub fn mark_removed(&mut self, aura: AuraRef) {
         self.invalidate_spell_hit_aura_authority_like_cpp();
         self.removed_auras.push(aura);

@@ -74,6 +74,70 @@ fn install_quiescent_pet(session: &mut WorldSession, owner: ObjectGuid) -> Objec
     guid
 }
 
+fn install_loaded_pet_aura(session: &mut WorldSession, guid: ObjectGuid) {
+    const SPELL_ID: u32 = 7_001;
+    let aura_ref = wow_entities::AuraRef::new(SPELL_ID, guid);
+    let applied = wow_entities::AppliedAuraRef::new(SPELL_ID, guid, 4, 1);
+    let manager = session.core.canonical_map_manager.as_ref().unwrap();
+    let mut manager = manager.lock().unwrap();
+    let pet = manager
+        .find_map_mut(571, 0)
+        .unwrap()
+        .map_mut()
+        .get_typed_pet_mut(guid)
+        .unwrap();
+    let auras = &mut pet.creature_mut().unit_mut().subsystems_mut().auras;
+    auras.add_owned(wow_entities::OwnedAuraRef::new(SPELL_ID, guid, None));
+    auras.add_applied(applied);
+    auras.set_loaded_aura_state_like_cpp(
+        aura_ref,
+        wow_entities::LoadedAuraStateLikeCpp::new(30_000, 12_000, 3, 2, 1)
+            .with_pet_persistence_fields_like_cpp(5, vec![(0, 10)]),
+    );
+    auras.visible_auras.insert(4, aura_ref);
+    auras.visible_aura_applications_like_cpp.insert(
+        4,
+        wow_entities::VisibleAuraApplicationLikeCpp::new(
+            1,
+            vec![wow_entities::VisibleAuraEffectAmountLikeCpp {
+                effect_index: 0,
+                amount: 11,
+            }],
+        ),
+    );
+    auras.applied_aura_amounts.insert(applied, 11);
+    drop(manager);
+    session
+        .lifecycle
+        .pet_load_insert_auras_for_pet_number_like_cpp(
+            PET_NUMBER,
+            vec![wow_world_lifecycle::CharacterPetAuraRowLikeCpp {
+                caster_guid: ObjectGuid::EMPTY,
+                spell_id: SPELL_ID,
+                effect_mask: 1,
+                recalculate_mask: 1,
+                difficulty: 5,
+                stack_count: 2,
+                max_duration_ms: 30_000,
+                remain_time_ms: 12_000,
+                remain_charges: 3,
+            }],
+        );
+    session
+        .lifecycle
+        .pet_load_insert_aura_effects_for_pet_number_like_cpp(
+            PET_NUMBER,
+            vec![wow_world_lifecycle::CharacterPetAuraEffectRowLikeCpp {
+                caster_guid: ObjectGuid::EMPTY,
+                spell_id: SPELL_ID,
+                effect_mask: 1,
+                effect_index: 0,
+                amount: 11,
+                base_amount: 10,
+            }],
+        );
+}
+
 fn assert_pet_retained(session: &WorldSession, guid: ObjectGuid) {
     assert_eq!(
         session.core.with_owned_player_like_cpp(|player| (
@@ -314,6 +378,131 @@ async fn live_pet_release_saves_both_transactions_before_detaching_and_creating_
             .lifecycle
             .durable_loot_money_persistence_tracker_like_cpp()
             .is_indeterminate_like_cpp()
+    );
+}
+
+#[tokio::test]
+async fn live_pet_release_saves_loaded_aura_then_cleans_it_before_detaching() {
+    let (mut session, _send_rx, _realm_rx, owner, corpses) =
+        dead_player_session_with_graveyard_like_cpp(9_310);
+    let guid = install_quiescent_pet(&mut session, owner);
+    install_loaded_pet_aura(&mut session, guid);
+    let port =
+        crate::session::RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+            rows: 1,
+        });
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    let saves = port.pet_save_requests();
+    assert_eq!(saves.len(), 2);
+    let PlayerPetSaveTransactionLikeCpp::AurasSpellsAndHistory {
+        auras,
+        aura_effects,
+        ..
+    } = &saves[0]
+    else {
+        panic!("pet aura/spell/history transaction must be first")
+    };
+    assert_eq!(
+        auras,
+        &vec![wow_persistence::PlayerPetAuraLoadRowLikeCpp {
+            caster_guid_binary: ObjectGuid::EMPTY.to_raw_bytes().to_vec(),
+            spell_id: 7_001,
+            effect_mask: 1,
+            recalculate_mask: 1,
+            difficulty: 5,
+            stack_count: 2,
+            max_duration_ms: 30_000,
+            remain_time_ms: 12_000,
+            remain_charges: 3,
+        }]
+    );
+    assert_eq!(
+        aura_effects,
+        &vec![wow_persistence::PlayerPetAuraEffectLoadRowLikeCpp {
+            caster_guid_binary: ObjectGuid::EMPTY.to_raw_bytes().to_vec(),
+            spell_id: 7_001,
+            effect_mask: 1,
+            effect_index: 0,
+            amount: 11,
+            base_amount: 10,
+        }]
+    );
+    let manager = session.core.canonical_map_manager.as_ref().unwrap();
+    let manager = manager.lock().unwrap();
+    let pet = manager
+        .find_map(571, 0)
+        .unwrap()
+        .map()
+        .get_typed_pet(guid)
+        .unwrap();
+    assert!(pet.is_removed());
+    assert!(
+        pet.creature()
+            .unit()
+            .subsystems()
+            .auras
+            .has_no_local_aura_state_like_cpp()
+    );
+    assert!(
+        pet.creature()
+            .unit()
+            .subsystems()
+            .auras
+            .runtime_applications_like_cpp()
+            .is_empty()
+    );
+    drop(manager);
+    assert_eq!(corpses.saves.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn live_pet_release_rejects_divergent_loaded_aura_before_mutation() {
+    let (mut session, _send_rx, _realm_rx, owner, corpses) =
+        dead_player_session_with_graveyard_like_cpp(9_311);
+    let guid = install_quiescent_pet(&mut session, owner);
+    install_loaded_pet_aura(&mut session, guid);
+    let mut divergent = session
+        .lifecycle
+        .pet_load_auras_for_pet_number_like_cpp(PET_NUMBER)
+        .cloned()
+        .unwrap();
+    divergent[0].remain_time_ms += 1;
+    session
+        .lifecycle
+        .pet_load_remove_auras_for_pet_number_like_cpp(PET_NUMBER);
+    session
+        .lifecycle
+        .pet_load_insert_auras_for_pet_number_like_cpp(PET_NUMBER, divergent);
+    let port =
+        crate::session::RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+            rows: 1,
+        });
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert!(port.pet_save_requests().is_empty());
+    assert!(corpses.saves.lock().unwrap().is_empty());
+    assert_pet_retained(&session, guid);
+    let manager = session.core.canonical_map_manager.as_ref().unwrap();
+    let manager = manager.lock().unwrap();
+    assert_eq!(
+        manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_pet(guid)
+            .unwrap()
+            .creature()
+            .unit()
+            .subsystems()
+            .auras
+            .owned_auras
+            .len(),
+        1
     );
 }
 

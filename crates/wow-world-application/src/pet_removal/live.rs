@@ -3,15 +3,23 @@
 
 //! Live RemovePet continuation for bounded native pet states.
 //! Source: Player.cpp:20864–20962, Unit.cpp:6028–6215, Pet.cpp:452–546
-//! at a5f8da2ebf5424bf0450ca4e08843ecbf72577bd.
+//! at a5f8da2ebf5424bf0450ca4e08843ecbf72577bd. Forever aura-save review:
+//! Player.cpp:22322–22408, Pet.cpp:452–546,1301–1345 and Unit.cpp:4401–4436
+//! at 02245dcd245e7433e524577656177723d3e4992e.
 
 use wow_constants::UnitFlags;
 use wow_core::ObjectGuid;
 use wow_entities::{Pet, Player};
-use wow_persistence::PersistenceOutcomeLikeCpp;
+use wow_persistence::{
+    PersistenceOutcomeLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerPetSaveTransactionLikeCpp,
+};
 use wow_world_entities::ResurrectionOperationCatalogs;
 use wow_world_inventory::VendorSessionHostLikeCpp;
-use wow_world_lifecycle::PlayerMoneyCommitCancellationFenceLikeCpp;
+use wow_world_lifecycle::{
+    CharacterPetAuraEffectRowLikeCpp, CharacterPetAuraRowLikeCpp,
+    PlayerMoneyCommitCancellationFenceLikeCpp,
+};
 use wow_world_quest::{QuestItemStorageHostLikeCpp, QuestSessionHostLikeCpp};
 use wow_world_spell::PlayerCastHostLikeCpp;
 
@@ -37,6 +45,82 @@ struct PreparedLivePetRemoval {
     save: PreparedPetSave,
     created_by_spell: u32,
     in_battleground: bool,
+}
+
+impl PreparedLivePetRemoval {
+    fn after_aura_cleanup(&self) -> Self {
+        let mut cleaned = self.clone();
+        let PlayerPetSaveTransactionLikeCpp::AurasSpellsAndHistory {
+            auras,
+            aura_effects,
+            ..
+        } = &mut cleaned.save.state_transaction
+        else {
+            unreachable!("live pet state save always includes auras")
+        };
+        auras.clear();
+        aura_effects.clear();
+        cleaned
+    }
+}
+
+fn persisted_aura_input_matches(
+    save: &PreparedPetSave,
+    loaded_auras: Option<&Vec<CharacterPetAuraRowLikeCpp>>,
+    loaded_effects: Option<&Vec<CharacterPetAuraEffectRowLikeCpp>>,
+) -> bool {
+    let PlayerPetSaveTransactionLikeCpp::AurasSpellsAndHistory {
+        auras: expected_auras,
+        aura_effects: expected_effects,
+        ..
+    } = &save.state_transaction
+    else {
+        return false;
+    };
+    let (Some(loaded_auras), Some(loaded_effects)) = (loaded_auras, loaded_effects) else {
+        return false;
+    };
+    let mut loaded_auras: Vec<_> = loaded_auras
+        .iter()
+        .map(|aura| PlayerPetAuraLoadRowLikeCpp {
+            caster_guid_binary: aura.caster_guid.to_raw_bytes().to_vec(),
+            spell_id: aura.spell_id,
+            effect_mask: aura.effect_mask,
+            recalculate_mask: aura.recalculate_mask,
+            difficulty: aura.difficulty,
+            stack_count: aura.stack_count,
+            max_duration_ms: aura.max_duration_ms,
+            remain_time_ms: aura.remain_time_ms,
+            remain_charges: aura.remain_charges,
+        })
+        .collect();
+    loaded_auras.sort_by_key(|aura| {
+        (
+            aura.caster_guid_binary.clone(),
+            aura.spell_id,
+            aura.effect_mask,
+        )
+    });
+    let mut loaded_effects: Vec<_> = loaded_effects
+        .iter()
+        .map(|effect| PlayerPetAuraEffectLoadRowLikeCpp {
+            caster_guid_binary: effect.caster_guid.to_raw_bytes().to_vec(),
+            spell_id: effect.spell_id,
+            effect_mask: effect.effect_mask,
+            effect_index: effect.effect_index,
+            amount: effect.amount,
+            base_amount: effect.base_amount,
+        })
+        .collect();
+    loaded_effects.sort_by_key(|effect| {
+        (
+            effect.caster_guid_binary.clone(),
+            effect.spell_id,
+            effect.effect_mask,
+            effect.effect_index,
+        )
+    });
+    expected_auras == &loaded_auras && expected_effects == &loaded_effects
 }
 
 fn prepare(player: &Player, pet: &Pet, now: u32) -> Result<PreparedLivePetRemoval, &'static str> {
@@ -126,16 +210,14 @@ where
         prepare(player, pet, now)?
     };
     let lifecycle = QuestSessionHostLikeCpp::lifecycle(host);
-    // Unknown loads must never become destructive empty replacement writes.
-    if !lifecycle
-        .pet_load_auras_for_pet_number_like_cpp(captured.save.pet_number)
-        .is_some_and(Vec::is_empty)
-        || !lifecycle
-            .pet_load_aura_effects_for_pet_number_like_cpp(captured.save.pet_number)
-            .is_some_and(Vec::is_empty)
-        || lifecycle
-            .pet_load_spells_for_pet_number_like_cpp(captured.save.pet_number)
-            .is_none()
+    // Unknown or divergent loads must never become destructive replacement writes.
+    if !persisted_aura_input_matches(
+        &captured.save,
+        lifecycle.pet_load_auras_for_pet_number_like_cpp(captured.save.pet_number),
+        lifecycle.pet_load_aura_effects_for_pet_number_like_cpp(captured.save.pet_number),
+    ) || lifecycle
+        .pet_load_spells_for_pet_number_like_cpp(captured.save.pet_number)
+        .is_none()
         || lifecycle
             .pet_load_spell_cooldowns_for_pet_number_like_cpp(captured.save.pet_number)
             .is_none()
@@ -143,8 +225,9 @@ where
             .pet_load_spell_charges_for_pet_number_like_cpp(captured.save.pet_number)
             .is_none()
     {
-        return Err("live pet persistence input is incomplete or contains auras");
+        return Err("live pet persistence input is incomplete or does not match native auras");
     }
+    let cleaned = captured.after_aura_cleanup();
     let port = lifecycle
         .player_lifecycle_port_like_cpp()
         .ok_or("live pet persistence port is unavailable")?
@@ -207,6 +290,24 @@ where
         // All indexed combat participants are empty; no exit callbacks arise.
         let stopped = map.stop_pet_combat_like_cpp(pet_guid)?;
         debug_assert!(stopped.attacks_stopped.is_empty() && stopped.exited_combat.is_empty());
+        if !map
+            .get_typed_pet_mut(pet_guid)
+            .expect("pet prevalidated")
+            .creature_mut()
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .remove_all_persisted_pet_auras_after_save_like_cpp()
+        {
+            return Err("live pet aura cleanup left unsupported state");
+        }
+        let player = map
+            .get_typed_player(owner)
+            .ok_or("live pet owner left Map")?;
+        let pet = map.get_typed_pet(pet_guid).ok_or("live pet disappeared")?;
+        if prepare(player, pet, now)? != cleaned {
+            return Err("live pet aura cleanup changed another saved field");
+        }
     }
     for transaction in [
         captured.save.state_transaction.clone(),
@@ -235,7 +336,7 @@ where
                 .ok_or("live pet owner left Map")?,
             map.get_typed_pet(pet_guid).ok_or("live pet disappeared")?,
             now,
-        )? != captured
+        )? != cleaned
         {
             return Err("live pet changed during save");
         }
@@ -251,7 +352,7 @@ where
             .get_typed_player(owner)
             .ok_or("live pet owner left Map")?;
         let pet = map.get_typed_pet(pet_guid).ok_or("live pet disappeared")?;
-        if prepare(player, pet, now)? != captured {
+        if prepare(player, pet, now)? != cleaned {
             return Err("live pet changed before cleanup");
         }
         let player = map.get_typed_player_mut(owner).expect("owner prevalidated");

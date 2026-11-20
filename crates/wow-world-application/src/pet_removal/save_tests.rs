@@ -78,6 +78,54 @@ fn fixture(owner: ObjectGuid) -> (Pet, PetStable) {
     (pet, stable)
 }
 
+fn install_loaded_aura(
+    pet: &mut Pet,
+    caster_guid: ObjectGuid,
+    slot: u8,
+    spell_id: u32,
+    effect_mask: u32,
+    effects: &[(u8, i32, i32)],
+) {
+    let aura_ref = wow_entities::AuraRef::new(spell_id, caster_guid);
+    let applied = wow_entities::AppliedAuraRef::new(spell_id, caster_guid, slot, effect_mask);
+    let auras = &mut pet.creature_mut().unit_mut().subsystems_mut().auras;
+    auras.add_owned(wow_entities::OwnedAuraRef::new(spell_id, caster_guid, None));
+    auras.add_applied(applied);
+    auras.set_loaded_aura_state_like_cpp(
+        aura_ref,
+        wow_entities::LoadedAuraStateLikeCpp::new(30_000, 12_000, 3, 2, effect_mask)
+            .with_pet_persistence_fields_like_cpp(
+                5,
+                effects
+                    .iter()
+                    .map(|(index, _, base)| (*index, *base))
+                    .collect(),
+            ),
+    );
+    auras.visible_auras.insert(slot, aura_ref);
+    auras.visible_aura_applications_like_cpp.insert(
+        slot,
+        wow_entities::VisibleAuraApplicationLikeCpp::new(
+            effect_mask,
+            effects
+                .iter()
+                .map(
+                    |(effect_index, amount, _)| wow_entities::VisibleAuraEffectAmountLikeCpp {
+                        effect_index: *effect_index,
+                        amount: *amount,
+                    },
+                )
+                .collect(),
+        ),
+    );
+    for (effect_index, amount, _) in effects {
+        auras.applied_aura_amounts.insert(
+            wow_entities::AppliedAuraRef::new(spell_id, caster_guid, slot, 1_u32 << effect_index),
+            *amount,
+        );
+    }
+}
+
 fn state_transaction(
     prepared: &PreparedPetSave,
 ) -> (
@@ -289,6 +337,112 @@ fn prepare_pet_save_maps_history_rows_skips_on_hold_and_converts_milliseconds() 
 }
 
 #[test]
+fn prepare_pet_save_projects_loaded_auras_in_cpp_order_and_cleans_containers() {
+    let owner = player_guid();
+    let pet_guid = ObjectGuid::create_global(HighGuid::Pet, 0, i64::from(PET_NUMBER));
+    let (mut pet, stable) = fixture(owner);
+    pet.creature_mut()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(pet_guid);
+    install_loaded_aura(
+        &mut pet,
+        pet_guid,
+        4,
+        7_001,
+        0x3,
+        &[(0, 11, 10), (1, 21, 20)],
+    );
+    install_loaded_aura(&mut pet, owner, 5, 7_002, 0x4, &[(2, 32, 30)]);
+
+    let prepared = prepare_pet_save(&pet, &stable, None, 17).expect("persisted native auras");
+    let PlayerPetSaveTransactionLikeCpp::AurasSpellsAndHistory {
+        auras,
+        aura_effects,
+        ..
+    } = prepared.state_transaction
+    else {
+        panic!("the first native save phase must contain aura rows")
+    };
+    assert_eq!(
+        auras,
+        vec![
+            wow_persistence::PlayerPetAuraLoadRowLikeCpp {
+                caster_guid_binary: owner.to_raw_bytes().to_vec(),
+                spell_id: 7_002,
+                effect_mask: 0x4,
+                recalculate_mask: 0x4,
+                difficulty: 5,
+                stack_count: 2,
+                max_duration_ms: 30_000,
+                remain_time_ms: 12_000,
+                remain_charges: 3,
+            },
+            wow_persistence::PlayerPetAuraLoadRowLikeCpp {
+                caster_guid_binary: ObjectGuid::EMPTY.to_raw_bytes().to_vec(),
+                spell_id: 7_001,
+                effect_mask: 0x3,
+                recalculate_mask: 0x3,
+                difficulty: 5,
+                stack_count: 2,
+                max_duration_ms: 30_000,
+                remain_time_ms: 12_000,
+                remain_charges: 3,
+            },
+        ]
+    );
+    assert_eq!(
+        aura_effects,
+        vec![
+            wow_persistence::PlayerPetAuraEffectLoadRowLikeCpp {
+                caster_guid_binary: owner.to_raw_bytes().to_vec(),
+                spell_id: 7_002,
+                effect_mask: 0x4,
+                effect_index: 2,
+                amount: 32,
+                base_amount: 30,
+            },
+            wow_persistence::PlayerPetAuraEffectLoadRowLikeCpp {
+                caster_guid_binary: ObjectGuid::EMPTY.to_raw_bytes().to_vec(),
+                spell_id: 7_001,
+                effect_mask: 0x3,
+                effect_index: 0,
+                amount: 11,
+                base_amount: 10,
+            },
+            wow_persistence::PlayerPetAuraEffectLoadRowLikeCpp {
+                caster_guid_binary: ObjectGuid::EMPTY.to_raw_bytes().to_vec(),
+                spell_id: 7_001,
+                effect_mask: 0x3,
+                effect_index: 1,
+                amount: 21,
+                base_amount: 20,
+            },
+        ]
+    );
+    assert_eq!(
+        pet.creature().unit().subsystems().auras.owned_auras.len(),
+        2,
+        "read-only save projection retains the live auras"
+    );
+    assert!(
+        pet.creature_mut()
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .remove_all_persisted_pet_auras_after_save_like_cpp()
+    );
+    assert!(
+        pet.creature()
+            .unit()
+            .subsystems()
+            .auras
+            .has_no_local_aura_state_like_cpp()
+    );
+}
+
+#[test]
 fn prepare_pet_save_rejects_native_aura_state_in_both_local_views() {
     let (mut pet, stable) = fixture(player_guid());
     pet.creature_mut()
@@ -298,7 +452,7 @@ fn prepare_pet_save_rejects_native_aura_state_in_both_local_views() {
         .removed_auras_count = 1;
     assert_eq!(
         prepare_pet_save(&pet, &stable, None, 17),
-        Err("pet save requires an empty native aura container")
+        Err("pet save requires complete persisted native aura state")
     );
 
     let (mut pet, stable) = fixture(player_guid());
@@ -327,7 +481,7 @@ fn prepare_pet_save_rejects_native_aura_state_in_both_local_views() {
         });
     assert_eq!(
         prepare_pet_save(&pet, &stable, None, 17),
-        Err("pet save requires an empty native aura container")
+        Err("pet save requires complete persisted native aura state")
     );
 }
 

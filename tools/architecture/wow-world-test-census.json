@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4614,
+  "tests": 4616,
   "ignored": 1,
-  "session": 3898,
-  "shims": 3695,
+  "session": 3900,
+  "shims": 3697,
   "by_class": {
    "P": 716,
    "H": 146,
-   "W": 3752
+   "W": 3754
   },
   "by_reason": {
    "H-host": 146,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 32,
-   "W-world-logic": 3497
+   "W-world-logic": 3499
   },
   "by_owner": {
    "wow-world": {
@@ -93,7 +93,7 @@
    "wow-world-lifecycle": {
     "P": 38,
     "H": 39,
-    "W": 153
+    "W": 155
    },
    "wow-world-loot": {
     "P": 6,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 518,
     "H": 0,
-    "W": 3752
+    "W": 3754
    },
    "wow-world-application": {
     "P": 27,
@@ -1550,6 +1550,8 @@
   ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::unloaded_move_pet_command_rejects_stale_pet_identity_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["apply_session_command_with_catalogs_like_cpp", "session_handler_catalogs_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::unloaded_move_pet_command_disconnects_when_save_fails_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["apply_session_command_with_catalogs_like_cpp", "session_handler_catalogs_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::live_pet_release_saves_both_transactions_before_detaching_and_creating_corpse", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::live_pet_release_saves_loaded_aura_then_cleans_it_before_detaching", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::live_pet_release_rejects_divergent_loaded_aura_before_mutation", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::live_pet_release_save_failure_or_unknown_result_retains_pet_and_blocks_corpse", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::live_pet_release_cancellation_during_save_retains_pet_and_fences_logout", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse/live_pet.rs::live_pet_release_rejects_unknown_aura_load_before_writing", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],

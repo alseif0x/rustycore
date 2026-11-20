@@ -415,6 +415,16 @@
    "unit_tests_lines": 287033,
    "unit_tests_tests": 4269,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1354-39",
+   "kind": "raise",
+   "issue": 1354,
+   "reviewed_at": "2026-11-20",
+   "reason": "Live RemovePet persisted-aura save/cleanup and divergent-load rejection regressions (+189 lines, +2 tests).",
+   "unit_tests_lines": 287222,
+   "unit_tests_tests": 4271,
+   "src_tests": 345
   }
  ]
 }

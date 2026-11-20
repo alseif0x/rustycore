@@ -1,13 +1,15 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Read-only native pet-save projection for the bounded empty-aura removal path.
+//! Read-only native pet-save projection for the bounded live removal path.
 
 use wow_entities::{
-    MAX_ACTIVE_PETS, Pet, PetSpellState, PetSpellType, PetStable, PetStableInfo, ReactState,
+    AppliedAuraRef, MAX_ACTIVE_PETS, Pet, PetAuraSaveEffectLikeCpp, PetAuraSaveOperationLikeCpp,
+    PetAuraSaveRefLikeCpp, PetSpellState, PetSpellType, PetStable, PetStableInfo, ReactState,
     SpellHistoryPetSaveOperationLikeCpp,
 };
 use wow_persistence::{
+    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetSaveTransactionLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
     PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellSaveOperationLikeCpp,
     PlayerPetStableLoadRowLikeCpp,
@@ -15,6 +17,144 @@ use wow_persistence::{
 
 // C++ `UnitDefines.h:104`: UNIT_PET_FLAG_CAN_BE_RENAMED = 0x01 at the pinned SHA below.
 const UNIT_PET_FLAG_CAN_BE_RENAMED_LIKE_CPP: u8 = 0x01;
+
+fn prepare_pet_aura_save(
+    pet: &Pet,
+    pet_number: u32,
+) -> Result<
+    (
+        Vec<PlayerPetAuraLoadRowLikeCpp>,
+        Vec<PlayerPetAuraEffectLoadRowLikeCpp>,
+    ),
+    &'static str,
+> {
+    let auras = &pet.creature().unit().subsystems().auras;
+    let mut represented = Vec::new();
+    for owned in &auras.owned_auras {
+        if owned.item_caster_guid.is_some() {
+            return Err("pet save requires complete persisted native aura state");
+        }
+        let aura_ref = owned.aura_ref();
+        let loaded = auras
+            .loaded_aura_states_like_cpp
+            .get(&aura_ref)
+            .ok_or("pet save requires complete persisted native aura state")?;
+        let difficulty = loaded
+            .cast_difficulty
+            .ok_or("pet save requires complete persisted native aura state")?;
+        let mut applications = auras
+            .applied_auras
+            .iter()
+            .filter(|applied| applied.aura_ref() == aura_ref);
+        let applied = applications
+            .next()
+            .ok_or("pet save requires complete persisted native aura state")?;
+        if applications.next().is_some()
+            || auras.visible_auras.get(&applied.slot) != Some(&aura_ref)
+        {
+            return Err("pet save requires complete persisted native aura state");
+        }
+        let mut effects = Vec::new();
+        for effect_index in 0..wow_data::conditions::MAX_SPELL_EFFECTS_LIKE_CPP {
+            let effect_mask = 1_u32 << effect_index;
+            if applied.effect_mask & effect_mask == 0 {
+                continue;
+            }
+            let effect_index = u8::try_from(effect_index)
+                .map_err(|_| "pet save requires complete persisted native aura state")?;
+            let effect_ref =
+                AppliedAuraRef::new(owned.spell_id, owned.caster_guid, applied.slot, effect_mask);
+            let amount = *auras
+                .applied_aura_amounts
+                .get(&effect_ref)
+                .ok_or("pet save requires complete persisted native aura state")?;
+            let base_amount = loaded
+                .base_amounts
+                .iter()
+                .find_map(|(index, amount)| (*index == effect_index).then_some(*amount))
+                .ok_or("pet save requires complete persisted native aura state")?;
+            effects.push(PetAuraSaveEffectLikeCpp {
+                effect_index,
+                amount,
+                base_amount,
+            });
+        }
+        represented.push(PetAuraSaveRefLikeCpp {
+            caster_guid: owned.caster_guid,
+            spell_id: owned.spell_id,
+            effect_mask: applied.effect_mask,
+            recalculate_mask: loaded.recalculate_mask,
+            difficulty,
+            stack_count: loaded.stack_amount,
+            max_duration_ms: loaded.max_duration_ms,
+            duration_ms: loaded.duration_ms,
+            charges: loaded.charges,
+            can_be_saved: true,
+            is_pet_aura: false,
+            effects,
+        });
+    }
+    represented.sort_by_key(|aura| {
+        (
+            aura.caster_guid.to_raw_bytes(),
+            aura.spell_id,
+            aura.effect_mask,
+        )
+    });
+    let mut cleaned = auras.clone();
+    if !cleaned.remove_all_persisted_pet_auras_after_save_like_cpp() {
+        return Err("pet save requires complete persisted native aura state");
+    }
+
+    let mut aura_rows = Vec::new();
+    let mut effect_rows = Vec::new();
+    for operation in Pet::save_auras_plan_like_cpp(pet_number, pet.creature().guid(), &represented)
+    {
+        match operation {
+            PetAuraSaveOperationLikeCpp::InsertAura {
+                caster_guid,
+                spell_id,
+                effect_mask,
+                recalculate_mask,
+                difficulty,
+                stack_count,
+                max_duration_ms,
+                duration_ms,
+                charges,
+                ..
+            } => aura_rows.push(PlayerPetAuraLoadRowLikeCpp {
+                caster_guid_binary: caster_guid.to_raw_bytes().to_vec(),
+                spell_id,
+                effect_mask,
+                recalculate_mask,
+                difficulty,
+                stack_count,
+                max_duration_ms,
+                remain_time_ms: duration_ms,
+                remain_charges: charges,
+            }),
+            PetAuraSaveOperationLikeCpp::InsertAuraEffect {
+                caster_guid,
+                spell_id,
+                effect_mask,
+                effect_index,
+                amount,
+                base_amount,
+                ..
+            } => effect_rows.push(PlayerPetAuraEffectLoadRowLikeCpp {
+                caster_guid_binary: caster_guid.to_raw_bytes().to_vec(),
+                spell_id,
+                effect_mask,
+                effect_index,
+                amount,
+                base_amount,
+            }),
+            PetAuraSaveOperationLikeCpp::DeleteAuraEffects { .. }
+            | PetAuraSaveOperationLikeCpp::DeleteAuras { .. } => {}
+        }
+    }
+    Ok((aura_rows, effect_rows))
+}
 
 /// Immutable inputs captured for the two ordered native Pet save transactions.
 #[derive(Debug, Clone, PartialEq)]
@@ -27,11 +167,12 @@ pub(super) struct PreparedPetSave {
 
 /// Prepare the NotInSlot native Pet save phases without changing Pet state.
 ///
-/// The caller must establish that the loaded pet aura and aura-effect row
-/// authorities are both known empty. Local-container emptiness below is not
-/// persistence authority. C++ anchors: `Pet.cpp:452–536, 545–562, 1129–1176`
-/// and `SpellHistory.cpp:182–218` at source SHA
-/// `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`.
+/// The caller must establish that the loaded pet aura and aura-effect rows
+/// match this projection. Only persisted native auras with complete provenance
+/// are admitted; other runtime aura state fails closed. C++ anchors:
+/// `Pet.cpp:452–536, 1129–1176` and `SpellHistory.cpp:182–218` at source SHA
+/// `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`; Forever `Pet.cpp:452–546,
+/// 1301–1345` at `02245dcd245e7433e524577656177723d3e4992e`.
 pub(super) fn prepare_pet_save(
     pet: &Pet,
     stable: &PetStable,
@@ -86,12 +227,7 @@ pub(super) fn prepare_pet_save(
         Some(_) => return Err("pet save temporary react state is invalid"),
     };
 
-    let auras = &creature.unit().subsystems().auras;
-    if !auras.has_no_local_aura_state_like_cpp()
-        || !auras.runtime_applications_like_cpp().is_empty()
-    {
-        return Err("pet save requires an empty native aura container");
-    }
+    let (auras, aura_effects) = prepare_pet_aura_save(pet, pet_number)?;
 
     let mut spells = Vec::new();
     for (&spell_id, spell) in pet.spells() {
@@ -159,8 +295,8 @@ pub(super) fn prepare_pet_save(
 
     let state_transaction = PlayerPetSaveTransactionLikeCpp::AurasSpellsAndHistory {
         pet_number,
-        auras: Vec::new(),
-        aura_effects: Vec::new(),
+        auras,
+        aura_effects,
         spells,
         cooldowns,
         charges,
