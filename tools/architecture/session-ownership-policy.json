@@ -51821,7 +51821,20 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "& player_registry",
-          "count": 3
+          "count": 2
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn run_inner",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "build_session_runtime_policy",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "& player_registry",
+          "count": 1
         },
         {
           "package": "world-server",
@@ -52068,6 +52081,84 @@
           "visibility": "pub (super)",
           "cfg": [],
           "fingerprint": "Arc < PendingInvites >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app::session_runtime_policy",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn build_session_runtime_policy",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& Arc < PlayerRegistry >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app::session_runtime_policy",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn build_session_runtime_policy",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "player_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app::session_runtime_policy",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn build_session_runtime_policy",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "group_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& Arc < GroupRegistry >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app::session_runtime_policy",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn build_session_runtime_policy",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "group_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app::session_runtime_policy",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn build_session_runtime_policy",
+          "registry": "PendingInvites",
+          "operation": "type_reference",
+          "symbol": "pending_invites",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& Arc < PendingInvites >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app::session_runtime_policy",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn build_session_runtime_policy",
+          "registry": "PendingInvites",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "pending_invites",
           "count": 1
         },
         {

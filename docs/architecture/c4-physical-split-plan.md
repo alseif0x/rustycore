@@ -1132,6 +1132,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8ah starts at `feb3ff8f5` and extracts session runtime policy.
+`app.rs` shrinks from 2,447 to 2,386 lines and its physical ceiling tightens
+without retiring C4-8. The new private `session_runtime_policy.rs` has 79 lines,
+five explicit inputs and a direct SessionRuntimePolicyCapabilitiesLikeCpp result.
+It preserves the single GameEvent sender move, all three registry clones and every
+configuration read/default in order. SessionResources construction, Arc
+publication and listener startup remain in app.
+
+The moved initializer matches the original token stream after adapting borrowed
+registry/config inputs and canonical rustfmt. The `world-server` library check and
+the named-capability-bundle guard pass; the library retains the same 35 existing
+warnings. The logical owner gains 18 production lines for the function boundary,
+module wiring and formatting, recorded as +18 production/+0 tests/+18 total.
+Later C4-8 stages still owe remaining session catalogs, dependencies and
+supervision/shutdown.
+
 On `forever`, C4-8ag starts at `29d950df6` and extracts the required session
 persistence graph. `app.rs` shrinks from 2,625 to 2,447 lines and its physical
 ceiling tightens without retiring C4-8. The new private
