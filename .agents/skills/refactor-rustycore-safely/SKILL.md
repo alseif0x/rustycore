@@ -76,10 +76,10 @@ Apply the module-design policy to production, tests and fixtures as well as the 
 
 ## Validate and audit the finished boundary
 
-Use AGENTS.md and the validation-v2 operation guide for the actual commands/profiles:
-focused positive/negative tests and affected-crate checks at completed-delivery acceptance;
-author tests during implementation without running per-slice checks. Exception: every #1241 PR
-compiles and passes its acceptance (AGENTS.md "#1241 wow-world split programme").
+AGENTS.md and the validation guide define the commands and profiles.
+During implementation use the affected target to check a coherent move or reproduce a
+failure. Schedule one acceptance for the completed delivery. Each #1241 PR retains the
+programme's compile, domain test and move checks in AGENTS.md.
 Include explicit production integration/failure cases for affected owners; committed-candidate
 final and exact issue acceptance at publication. Set PROTOC for protobuf builds and select the real lib/bin/integration target.
 Do not rerun exhaustive inventories per helper or treat a library suite as production wiring proof.

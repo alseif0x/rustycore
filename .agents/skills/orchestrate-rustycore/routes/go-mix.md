@@ -9,7 +9,7 @@ Source: `forever` b8330b1b5 (2026-10-17), adapted to 3.4.3. Defaults: `opencode.
 `.opencode/` (see `.opencode/README.md`). OpenCode injects `AGENTS.md` itself.
 
 - `orchestrator` (primary, DeepSeek V4.1 Flash via OpenCode Go) coordinates, integrates,
-  owns Git and final-validation scheduling; small inseparable edits only.
+  owns Git and final-validation scheduling. Apply the shared rule for bounded direct fixes.
 - `scout` (DeepSeek V4.1 Flash), `explore` (DeepSeek V4.1 Flash `#high`) and `general`
   (DeepSeek V4 Pro `#high`) locate, design and review; read-only.
 - `builder` (GPT-6 Luna `#max`, OpenAI/Codex account) implements.
@@ -36,6 +36,7 @@ select Sol/Luna for `ocx claude`, that is historical: Claude Code uses only
 [claude.md](claude.md). The native Codex paragraph is superseded by [codex.md](codex.md).
 
 The text below is preserved verbatim from `dsh-orquestacion-wip` (2026-09-28..10-06).
+For current task sizing and direct fixes use the shared orchestration skill.
 
 ### Models (WIP, verbatim)
 

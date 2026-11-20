@@ -114,8 +114,9 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination: one parent integrator decides, reviews and integrates but does not implement
-routine units; one bounded worker at a time implements. The skill owns the exact routes:
+coordination. The integrator can carry a bounded correction through its callers and tests
+directly. Delegate a coherent operation when the integrator can advance independent work.
+The skill owns the exact routes:
 
 | Runtime | Route file | Client defaults |
 |---|---|---|
@@ -180,9 +181,14 @@ then run affected acceptance tests, applicable QA and publication validation whe
 explicit acceptance campaign begins. During implementation use the default level-1
 working mode: continue writing tests and coherent local checkpoints, but do not run
 automatic validation at internal boundaries or at the end of local implementation.
-The one exception is the implementing worker's own feedback loop: crate-scoped
-`cargo check -p <crate>` and focused `cargo test -p <crate> <filter>` on the unit it
-owns, sequentially with `CARGO_BUILD_JOBS=1`. That is coding, not acceptance evidence.
+During implementation, whoever owns the edit runs the first meaningful check against
+the target that compiles the changed behaviour or test, including a consuming crate.
+For a Rust regression use the correct package, target (`--lib`, `--bin` or `--test`),
+features and filter. Confirm the case ran. Use a scoped compile when that answers the
+question. A focused Cargo test already compiles its target. Skip the preliminary check of
+that same target unless you need a separate compile-only result. Keep one incremental cache
+for the development branch across edits and checkpoints. Keep these commands sequential
+with `CARGO_BUILD_JOBS=1`. This is coding feedback.
 Report implementation/unvalidated work separately from accepted evidence. At final
 acceptance, fix findings and rerun affected evidence as needed. An explicit user
 request for an earlier diagnostic run remains authoritative. Do not claim unexecuted
@@ -266,11 +272,8 @@ and available RAM/disk before launching. On this shared host start Cargo with on
 Do not kill unrelated processes to obtain resources. Agent-count limits are not resource locks.
 Live runtime QA (`tools/qa-runtime.sh`) uses a debug `world-server` candidate built from the committed
 head; release builds are reserved for deployment or a documented need for release speed.
-When several worktrees share one `CARGO_TARGET_DIR`, cargo can reuse another worktree's artifacts
-(path crates share artifact names and freshness is mtime-based): serialize builds behind one host
-lock and, before each build, touch in your worktree every file any active worktree changed, so the
-affected crates rebuild from your own sources. Architecture checkers build in the checkout-local
-`target/arch-tools` and must print a scan-root banner naming the checkout.
+Architecture checkers build in the checkout-local `target/arch-tools` and print a
+scan-root banner naming the checkout.
 
 Keep direct Cargo and runner commands on the same per-worktree target directory; the
 runner defaults to `<checkout>/target` and respects explicit `CARGO_TARGET_DIR`. For

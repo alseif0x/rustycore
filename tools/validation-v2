@@ -65,6 +65,18 @@ SQL_COMPOSITOR_PATHS = frozenset({
     "crates/world-server/src/app.rs",
     "crates/world-server/src/lib.rs",
 })
+SQL_COMPOSITOR_RUNTIME_PATH = "crates/world-server/src/app.rs"
+SQL_COMPOSITOR_ROOT_INPUTS = frozenset({
+    "Cargo.toml",
+    "Cargo.lock",
+    ".cargo/config",
+    ".cargo/config.toml",
+    "rust-toolchain.toml",
+    ".protoc-version",
+    "crates/world-server/Cargo.toml",
+    "crates/world-server/build.rs",
+    "modules.lock.toml",
+})
 # #1468 item 1: inputs of the exhaustive persistence inventory that `final`
 # does not run (870-900 s alone, over the 600 s campaign budget): every
 # workspace Rust source it inventories, the whole checker and its policies.
@@ -390,10 +402,12 @@ def resolve_base(repo: Path, base: str) -> str:
 
 def changed_paths(repo: Path, base_commit: str) -> list[str]:
     paths: set[str] = set()
+    # Route both the removed source and the added destination of a move.
+    diff = ("git", "diff", "--name-only", "--no-renames", "-z")
     for command in (
-        ("git", "diff", "--name-only", "-z", f"{base_commit}...HEAD"),
-        ("git", "diff", "--name-only", "-z", "--cached"),
-        ("git", "diff", "--name-only", "-z"),
+        (*diff, f"{base_commit}...HEAD"),
+        (*diff, "--cached"),
+        diff,
         ("git", "ls-files", "--others", "--exclude-standard", "-z"),
     ):
         paths.update(nul_paths(repo, *command))
@@ -758,6 +772,69 @@ def handler_graph_changed(repo: Path, base_commit: str, paths: list[str]) -> boo
     return False
 
 
+def runtime_config_snapshot(
+    source: str, existing: set[str] | None = None
+) -> tuple[str, dict[str, tuple[str, str]]] | None:
+    """Mask literal config values, preserving the position of every existing field."""
+    header = "\n        runtime: SessionRuntimePolicyCapabilitiesLikeCpp {\n"
+    if source.count(header) != 1:
+        return None
+    start = source.index(header) + len(header)
+    close = source.find("\n        },\n", start)
+    if close < 0:
+        return None
+    # Accept rustfmt's single-line and multiline calls in this one initializer.
+    # Other expressions and all text elsewhere remain part of the comparison.
+    field = re.compile(
+        r'(?m)^ {12}([a-z_][a-z0-9_]*): world_config_bool\(\s*&world_configs,\s*'
+        r'"(CONFIG_[A-Z0-9_]+)",\s*(true|false),?\s*\),[ \t]*\n'
+    )
+    body = source[start:close + 1]
+    matches = field.findall(body)
+    fields = {name: (key, default) for name, key, default in matches}
+    if len(fields) != len(matches):
+        return None
+
+    def placeholder(match: re.Match[str]) -> str:
+        name = match[1]
+        return f"\0{name}\0" if existing is None or name in existing else ""
+
+    return source[:start] + field.sub(placeholder, body) + source[close + 1:], fields
+
+
+def app_config_only_change(repo: Path, base_commit: str) -> bool:
+    path = SQL_COMPOSITOR_RUNTIME_PATH
+    try:
+        base = subprocess.check_output(["git", "merge-base", base_commit, "HEAD"], cwd=repo,
+                                       stderr=subprocess.DEVNULL).decode("ascii").strip()
+        original = subprocess.check_output(["git", "show", f"{base}:{path}"], cwd=repo,
+                                           stderr=subprocess.DEVNULL).decode("utf-8")
+        candidate = (repo / path).read_bytes().decode("utf-8")
+    except (OSError, UnicodeError, subprocess.CalledProcessError):
+        return False
+    before = runtime_config_snapshot(original)
+    if before is None:
+        return False
+    shape, fields = before
+    after = runtime_config_snapshot(candidate, set(fields))
+    return after is not None and after[0] == shape and after[1] != fields
+
+
+def sql_compositor_required(repo: Path, base_commit: str, paths: list[str]) -> bool:
+    for path in paths:
+        if path in SQL_COMPOSITOR_ROOT_INPUTS or path.startswith(SQL_COMPOSITOR_PREFIXES):
+            return True
+        if path in SQL_COMPOSITOR_PATHS and path != SQL_COMPOSITOR_RUNTIME_PATH:
+            return True
+    if SQL_COMPOSITOR_RUNTIME_PATH not in paths:
+        return False
+    # Mixed build inputs, removals and moves keep their full SQL-mode build.
+    if any(Path(path).name in {"Cargo.toml", "build.rs"} or path.startswith(("proto/", ".cargo/"))
+           or not (repo / path).is_file() for path in paths):
+        return True
+    return not app_config_only_change(repo, base_commit)
+
+
 def validation_commands(
     repo: Path,
     profile: str,
@@ -941,6 +1018,8 @@ def validation_commands(
         add_command(planned, ["python3", WORKFLOW_CONTRACT_SUITE])
     if profile == "final" and any(path in {BUILD_INPUT_DIAGNOSTIC, BUILD_INPUT_CONTRACT_SUITE} for path in all_paths):
         add_command(planned, ["python3", BUILD_INPUT_CONTRACT_SUITE])
+    if profile == "final" and {"tools/qa-runtime.sh", "tools/qa_runtime_self_test.sh"}.intersection(all_paths):
+        add_command(planned, ["bash", "tools/qa-runtime.sh", "self-test"])
 
     cargo_config_changed = bool(CARGO_CONFIG_PATHS.intersection(all_paths))
     # Final also runs the checker suite when the checked package set can
@@ -964,14 +1043,6 @@ def validation_commands(
     workspace_changed = workspace is not None
     if workspace_changed:
         add_command(planned, ["cargo", "fmt", "--all", "--check"])
-        if profile == "final":
-            # The one architecture ceiling an ordinary Rust diff can move, and
-            # the only one cheap enough to gate on. The exhaustive persistence
-            # inventory and the rest of the scanner stay in `audit`.
-            add_command(
-                planned,
-                ["python3", "tools/architecture/check_architecture.py", "hotspot-ratchet"],
-            )
         direct = list(workspace["direct_packages"])
         closure = list(workspace["reverse_closure_packages"])
         root_wide = bool(workspace["root_wide"])
@@ -988,6 +1059,8 @@ def validation_commands(
                 ["cargo", "check", "--locked", "--tests", "--jobs", str(jobs), *package_args],
             )
         if profile == "final":
+            # Report compiler errors in changed consumers before the repository scan.
+            add_command(planned, ["python3", "tools/architecture/check_architecture.py", "hotspot-ratchet"])
             # #1409 review follow-up 1: the closure check above unifies the
             # features of every selected package, which hides a domain crate
             # whose own `test-fixtures` forwarding is incomplete. A changed
@@ -1054,10 +1127,11 @@ def validation_commands(
     # SQL-mode compositor (run_with_composition + the embedded lock) compiles
     # only here. It installs the example under the ignored modules/, syncs,
     # checks world-modules and restores every file it touched.
-    if profile == "final" and any(
-        path.startswith(SQL_COMPOSITOR_PREFIXES) or path in SQL_COMPOSITOR_PATHS
-        for path in all_paths
-    ) and (repo / SQL_COMPOSITOR_CHECK).is_file():
+    if profile == "final" and sql_compositor_required(repo, base_commit, all_paths):
+        if not (repo / SQL_COMPOSITOR_CHECK).is_file():
+            raise ValueError(
+                f"SQL compositor input changed but required check is missing: {SQL_COMPOSITOR_CHECK}"
+            )
         add_command(planned, ["python3", SQL_COMPOSITOR_CHECK, "--jobs", str(jobs)])
     # #1468 item 1: the exhaustive session-ownership/persistence inventory
     # costs 870-900 s by itself, so final cannot run it inside the 600 s
@@ -1166,7 +1240,16 @@ def enable_architecture_acceptance(plan: dict[str, object], jobs: int) -> None:
         "--bin", "session-ownership-check", "--jobs", str(jobs), "--", "check", "--syntax-only",
     ]
     remaining = [step for step in plan["planned_steps"] if step["argv"] not in [*covered, ownership]]
+    # The downstream check catches invalid test code before the two full scans.
+    # Keep the existing early policy verdict when this diff has no workspace compile.
+    after_compile = next((
+        index + 1 for index, step in enumerate(remaining)
+        if step["argv"][:2] == ["cargo", "check"]
+        and ("--tests" in step["argv"] or "--all-targets" in step["argv"])
+        and "--manifest-path" not in step["argv"]
+    ), 0)
     steps = [
+        *remaining[:after_compile],
         # The policy check and the syntax-ownership check are independent
         # acceptances, and the policy check fails first on a known ratchet
         # breach; without the declaration its red step would hide the ownership
@@ -1181,7 +1264,7 @@ def enable_architecture_acceptance(plan: dict[str, object], jobs: int) -> None:
             "argv": ownership,
             SCAN_ROOT_BANNER_KEY: "session-ownership-check",
         },
-        *remaining,
+        *remaining[after_compile:],
     ]
     plan["planned_steps"] = steps
     plan["planned_commands"] = [step["argv"] for step in steps]

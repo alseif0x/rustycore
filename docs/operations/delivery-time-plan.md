@@ -1,0 +1,76 @@
+# Reduce delivery time on 3.4.3
+
+Maintainer plan, 2026-11-20, integration base `3ae34a264`. The [validation guide](validation-v2.md) describes the workflow in this checkout.
+
+## Where the hour went
+
+PR #1494 took **63 min 52 s** from the replayed contributor commit at 15:07:55 UTC to the last required check at 16:11:47. This window excludes investigation before the replay and time awaiting merge. About 34 minutes elapsed before local acceptance started. That included implementation, evidence, tests and policy maintenance. The artifacts do not split that interval further. Acceptance, repair and rerun took 19 min 16 s. Publication and hosted checks occupied the remaining 10 min 35 s. The reviewer and Rust CI ran concurrently. The exhaustive scan also overlapped local work. [PR](https://github.com/alseif0x/rustycore/pull/1494) · [Rust CI](https://github.com/alseif0x/rustycore/actions/runs/44769285374) · [Review](https://github.com/alseif0x/rustycore/actions/runs/44769285412)
+
+| Evidence | Measurement | Decision it informs |
+| --- | --- | --- |
+| 22 retained local final runs, 19–20 November | 12 green runs with a median of 4 min 49 s. Ten failed or interrupted attempts consumed 56 min 42 s in total. | Measure failures and waiting as well as passing runs. This sample comes from one checkout. |
+| #1494, aarch64, green head `d2b3501be` | 706.871 s total. Architecture and syntax took 126.906 s, downstream compile 53.760 s, library test command 274.617 s, SQL module integration 217.451 s. | The module check cost 31%. Removing only that step in this case would give about 8 min 09 s **if all other times stayed equal**. |
+| Cargo timings for the same command | Six suites reported 6.23 s executing 5,933 tests. Constructing the test targets took 215 s for `world-server` and 118 s for `wow-world`, partly in parallel. | Optimise the build while retaining the fast regression cases. |
+| First attempt at `52ecf58d9` | A new World test called a nonexistent method. The earlier checks compiled two other crates. The attempt that detected the error took 412.460 s. | Compile the changed test before broad acceptance. |
+| Persistence inventory | An auction configuration option changed four fingerprints of roughly 21 KB each. The derived boundary policy was identical. The independent x86_64 scan took 754.957 s. | Distinguish actual database flow from unrelated fields in the same initializer. |
+| #1489, a second delivery | Local final took 906.666 s, including 223.4 s in module integration. | Validate proposed changes against several responsibilities. |
+
+The local manifests are `20261120T154155.959988Z-539846-final`, `20261120T154924.905404Z-541635-final` and `20261120T105600.034096Z-495384-final` under `target/validation-v2/manifests/` in the review checkout.
+
+## Implementation order
+
+The first delivery changes the implementer's feedback loop, the order of compiler and architecture checks, and SQL composition routing. On aarch64, the focused test reproduced the original #1494 compiler error at `52ecf58d9` in 192.506 s (Cargo exit 101). The earlier full attempt ended after 412.460 s. These were different commands with different cache histories. In a separate negative check, removing the public `run_with_composition` export made Cargo reject the real generated SQL launcher. The checkout was restored after the experiment.
+
+Replaying the clean game commit `d2b3501be` against `3ae34a264` took **218.227 s** with the candidate planner, the same aarch64 worktree, three jobs, `final --architecture --timings --logs` and a warm cache. The final implementation produced the identical ordered command plan. Both architecture checks and all 5,933 library tests passed, including the auction regression. The original run took 706.871 s. The removed SQL command accounted for 217.451 s in that run. Cache state also differed, particularly for the library tests (274.617 s originally, 38.077 s in the replay). This measures local acceptance; measuring review through hosted verdicts needs a published delivery.
+
+As a control, the omitted SQL command was run directly after the replay on the same checkout and cache. It passed in **6.801 s** and restored the checkout. This is the measured marginal cost with both build configurations already warm. The historical 217.451 s cost applies to the earlier cache state. Reusing a clean review worktree between candidates is therefore part of the operating change. Measure the next real reviews before prioritising steps 3–6.
+
+1. **Catch errors in the owning target.** The implementer now exercises the target that compiles the changed regression, including consumers in a different crate. The integrator can take a bounded fix through its tests. A larger assignment includes its callers and tests together. In a final Rust run, the downstream compile precedes the hotspot or combined architecture scans. A #1241 distribution PR retains its programme-specific checklist. [Working rules](../../AGENTS.md) · [Local workflow](local-first-development.md)
+
+2. **Route the SQL module build by its inputs.** The planner recognises literal boolean configuration fields in the session runtime initializer. The rest of the source must match the comparison base. Changes to composition, its public surface or coupled build inputs retain the full example build, as do ambiguous startup edits. Comparing the plans against the recorded #1494 and #1489 manifests removed only the SQL command from #1494 and preserved every command for #1489. [Runner](../../tools/validation-v2) · [Planner tests](../../tools/test_validation_v2.py)
+
+3. **Reduce manual policy maintenance.** The architecture checker maintainer starts with the four `session_resources` aliases. For a resolvable aggregate, fingerprint each database-bearing field, its source, destination and operation. Preserve contexts and multiplicity. Unknown expressions keep the full fingerprint. Compare both inventories on one baseline and review changed semantic groups before migrating the snapshot. Tests must show that changing just the auction flag yields zero database changes, while swapping handles, introducing an escape or changing SQL or transaction behaviour is still detected. Generate mechanical census and line totals together using the existing tools. Pilot reporting harmless line drift for ordinary work, with lost tests, new dependencies, widened APIs and material hotspot growth still visible for review. Exercise both a harmless test edit and a real boundary breach before changing enforcement. [Alias collector](../../tools/architecture/handler-contract-check/src/persistence_access/body_visit.rs) · [Test census](../architecture/wow-world-test-census.md)
+
+4. **Assign each acceptance check an environment.** The CI maintainer compares the actual local and hosted commands. For external PRs, propose focused local evidence and checks missing from CI, then one hosted final with a verdict on the current head. Local `--architecture` adds checks beyond the default hosted final. Route or retain those explicitly before removing overlap. Keep first-party local final, independent integration audits and the external-author boundary. Start the external review once per ready head alongside CI using the configured integration, and surface a missing trigger promptly. Prove handling of fork PRs, stale reviews, maintainer PRs and integration pushes. Keep the required check names stable. Switch publication rules only after comparing coverage on both routes. [Rust CI](../../.github/workflows/rust-ci.yml) · [Reviewer gate](../../.github/workflows/codex-review-gate.yml)
+
+5. **Bound the cost of repairs.** The runner maintainer credits tests already covered by final and applies the existing documentation-only reuse rule. On failure, show the exact target, command and features for reproduction. Measure remaining repeats before building cross-commit reuse. If warranted, begin with deterministic source-only checks. Match the base, input contents, selected command, checker version and relevant environment, and cite the original green run. Changed features, generated inputs, source mounts or uncertain dependencies trigger execution. Leave binary rebuild decisions to Cargo. Verify that a changed checker, renamed file and stale result invalidate the receipt. Any disagreement with full execution restores the normal route.
+
+6. **Shorten the builds still on the critical path.** The build maintainer compares a warm leaf edit and a shared protocol/config edit on aarch64, then checks the result on hosted x86_64. Use Cargo timings with the same toolchain, jobs and comparable cache state. Measure the current linker against supported aarch64 LLD and test whether a commit-only change forces an expensive server rebuild. Change one variable at a time. If the large test targets still dominate, move domain-local tests to existing owner crates using the distribution work already underway. Keep production wiring tests in the server and compare test identities, features and ignored cases across owners. Adopt an optimisation only when representative runs improve and debug usability, version reporting and coverage pass. [Build configuration](../../.cargo/config.toml) · [Build-input probe](../../tools/measure_build_inputs.py)
+
+## Day-to-day development measurements
+
+The main development checkout retained 154 successful `final` runs with changed paths
+and recorded commands from 23 August to 1 November 2026. Their median was about 11 minutes,
+and 82 exceeded the 600-second warm-campaign target. This is a historical sample of final
+checks across different scopes and cache states. It cannot measure time spent editing or
+waiting for people.
+
+The module-mount scan used by the hotspot check now avoids parsing a file a second time
+to find explicit module paths when its source lacks either required token. On the same
+aarch64 checkout, running the already-built release checkers in sequence took 36.000 s
+before and 27.113 s after. Both emitted byte-identical JSON for all 979 mounts, including
+349 test-only mounts. These times exclude compilation. The contributor and refactor
+guides describe how to exercise the owning test during development. The QA wrapper uses
+the existing debug build for ordinary Rust scenarios.
+
+## How to choose evidence
+
+| Change | First relevant result | Acceptance to retain |
+| --- | --- | --- |
+| Documentation or instructions | Inspect the diff and links | Existing documentation-delta rule when inputs and base qualify |
+| Domain behaviour or fixtures | Owning target and regression case | Affected consumers and domain suite |
+| Shared packets, API or configuration | Bytes or policy precedence, real producer and consumer | Dependent builds, integration and action-specific captures where required |
+| SQL, lifetime, ownership, runtime or modules | Relevant transaction, lifecycle or composition case | Applicable exhaustive inventory, live durability/relogin, runtime or composed build |
+| Checker, toolchain, global inputs or uncertain effects | Planner contracts and known failure fixtures | Conservative wider acceptance including affected standalone tools |
+
+Use the union for changes spanning several rows. Larger features get early evidence on each working operation and one terminal acceptance for the complete behaviour and required live scenarios.
+
+## Pilot and exit criteria
+
+Use existing manifests, Cargo timings and GitHub timestamps. Record review start, first relevant result after a coherent edit, candidate ready for acceptance, required verdicts complete and actual merge. Include retry counts and causes. On larger developments also measure implementation time and waiting per coherent operation. Count overlapping jobs once in elapsed time. Label cold builds, warm builds, external queues and live QA. Keep these few numbers in the existing PR evidence.
+
+For the next ten applicable deliveries, report the median, the slowest case and each budget miss. Include a shared-contract change and a larger delivery. If one is absent, report the gap and measure the next such delivery. Keep the existing **10-minute warm local acceptance budget**. Pilot **5 minutes to first relevant feedback** from a coherent edit and **20 minutes median from a ready ordinary external candidate to both required verdicts**. For larger deliveries, target **half the validation and coordination waiting per coherent operation** against a comparable pre-change delivery. Track total review-start-to-ready time as well so that shifting work earlier cannot hide it. These are proposed performance targets.
+
+Aim for a **30-minute median from active review start to required green checks** on comparable external corrections such as #1494. Record time from contribution to first maintainer response separately. For recoverable failures, use the next coherent edit as the feedback start while keeping the original start for total elapsed time. When comparable historical data is missing, record a baseline on the first similar operation before making a savings claim.
+
+For each change, retain a known regression that its route must catch. If a required failure escapes, restore the broader route and repair the selection rule. Stop adding process once the targets hold with equivalent coverage. If the pilot misses, choose the next intervention by the largest measured delay.
