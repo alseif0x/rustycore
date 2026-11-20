@@ -1148,6 +1148,17 @@ add 35 production lines while compact guard assertions remove four test lines,
 recorded as +35 production/-4 tests/+31 total. Later C4-8 stages still owe
 remaining session catalogs, dependencies and supervision/shutdown.
 
+Committed candidate `851de61a534482cf85ba8b39df4c2be6aca0e1e6` passed
+`./tools/validation-v2 final --base 15c5479cb --architecture --require-changes --timings --logs`
+on the warm x86_64 checkout with Protoc 28.3 and one Cargo job. All eleven
+commands passed from 02:53:29Z to 02:55:25Z on 2026-11-20 (116.094 seconds),
+within the 600-second target. The `world-server` library passed 645 tests with
+zero failures and one existing ignored test; all 769 source test identities are
+preserved. The session syntax check retains 747 exact direct-registry rows. The
+SQL module compositor also passed and restored the checkout. R1 is not
+applicable because no `wow-world/src` root shrank. Verified manifest:
+`target/validation-v2/manifests/20261120T025328.924678Z-3595279-final.json`.
+
 On `forever`, C4-8ak starts at `983a559c2` and extracts GUID allocator startup.
 `app.rs` shrinks from 2,243 to 2,135 lines and its physical ceiling tightens
 without retiring C4-8. The new private `guid_generator_startup.rs` has 144 lines,
