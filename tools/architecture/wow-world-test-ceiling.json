@@ -361,8 +361,8 @@
    "kind": "raise",
    "issue": 1490,
    "reviewed_at": "2026-11-19",
-   "reason": "Review PR 1491: add the empty-questgiver reply regression and extend it with catalog-backed menu/broadcast assertions for both NPC flag combinations; exact +67 World unit-test lines/+1 test, no removals, moves or ignored-state changes.",
-   "unit_tests_lines": 278785,
+   "reason": "Review PR 1491: add the empty-questgiver reply regression and catalog-backed menu/broadcast assertions for both NPC flag combinations (+67 World unit-test lines/+1 test), then add the catalog-backed empty-menu direct-banker regression (+32 lines) inside the existing test identity; no removals, moves, test-identity or ignored-state changes.",
+   "unit_tests_lines": 278817,
    "unit_tests_tests": 4152,
    "src_tests": 22
   }

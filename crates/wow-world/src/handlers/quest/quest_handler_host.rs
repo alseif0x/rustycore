@@ -34,7 +34,9 @@ impl QuestHandlerSessionHostLikeCpp for WorldSession {
         npc_flags: u32,
         npc_guid: ObjectGuid,
     ) -> impl Future<Output = Option<GossipMessage>> + Send {
-        wow_world_character::build_gossip_menu(self, entry, npc_flags, npc_guid)
+        wow_world_character::build_prepared_questgiver_gossip_menu_like_cpp(
+            self, entry, npc_flags, npc_guid,
+        )
     }
     fn send_represented_creature_trainer_gossip_menu_like_cpp(
         &mut self,
