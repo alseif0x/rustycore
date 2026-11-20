@@ -103,10 +103,10 @@ async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
 
     let complete = send_rx
         .try_recv()
-        .expect("legacy represented accept confirmation should still be sent");
+        .expect("C++ SendCloseGossip must acknowledge the accepted quest");
     assert_eq!(
         wow_packet::WorldPacket::from_bytes(&complete).server_opcode(),
-        Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete)
+        Some(wow_constants::ServerOpcodes::GossipComplete)
     );
     let update = send_rx
         .try_recv()
@@ -995,7 +995,7 @@ fn quest_giver_session(
 
 /// `player.quest_accepted` (#1444 H1): AzerothCore `OnPlayerQuestAccept`
 /// (`PlayerQuest.cpp:426`). Once, after the status save applied, with no map
-/// guard held, before the legacy accept confirmation packet.
+/// guard held, before the close-gossip packet.
 #[tokio::test]
 async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
     let quest_id = 7202;
@@ -1021,10 +1021,10 @@ async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
         opcodes,
         vec![
             Some(wow_constants::ServerOpcodes::Chat),
-            Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
+            Some(wow_constants::ServerOpcodes::GossipComplete),
             Some(wow_constants::ServerOpcodes::UpdateObject),
         ],
-        "Map publishes the slot after the module message and legacy confirmation"
+        "Map publishes the slot after the module message and close-gossip packet"
     );
 }
 

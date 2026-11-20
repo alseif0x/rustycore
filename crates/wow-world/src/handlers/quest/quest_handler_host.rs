@@ -46,6 +46,10 @@ impl QuestHandlerSessionHostLikeCpp for WorldSession {
             self, npc_guid, entry, npc_flags,
         )
     }
+    fn close_gossip_like_cpp(&mut self) {
+        let (state, hub) = crate::session::split_interaction(self);
+        state.send_close_gossip_like_cpp(hub);
+    }
     fn record_represented_adventure_map_start_quest_like_cpp(
         &mut self,
         request: RepresentedAdventureMapStartQuestLikeCpp,

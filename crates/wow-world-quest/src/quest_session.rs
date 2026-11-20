@@ -290,6 +290,8 @@ pub trait QuestHandlerSessionHostLikeCpp: QuestItemStorageHostLikeCpp {
         entry: u32,
         npc_flags: u32,
     ) -> bool;
+    /// C++ `PlayerMenu::SendCloseGossip`: reset interaction data and reply.
+    fn close_gossip_like_cpp(&mut self);
     fn record_represented_adventure_map_start_quest_like_cpp(
         &mut self,
         request: RepresentedAdventureMapStartQuestLikeCpp,

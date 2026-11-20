@@ -144,15 +144,10 @@ pub async fn handle_quest_giver_accept_quest_with_generator_like_cpp<
 
     info!(account = host.core().account_id, quest_id, "Quest accepted");
 
-    // Notify client — quest added popup
-    host.send_packet(&QuestGiverQuestComplete {
-        quest_id,
-        xp: 0,
-        money: 0,
-        skill_line_id: 0,
-        skill_points: 0,
-        use_quest_reward_currency: false,
-    });
+    // C++ HandleQuestgiverAcceptQuestOpcode closes gossip after
+    // AddQuestAndCheckCompletion. An immediate reward already sent its own
+    // QuestGiverQuestComplete through the committed reward path.
+    host.close_gossip_like_cpp();
 }
 
 pub async fn handle_quest_confirm_accept_with_generator_like_cpp<
