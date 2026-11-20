@@ -97,8 +97,8 @@ use wow_packet::packets::query::{
     QuestPoiBlobData, QuestPoiBlobPoint, QuestPoiData, QuestPoiQuery, QuestPoiQueryResponse,
 };
 use wow_packet::packets::quest::{
-    AdventureMapStartQuest, PushQuestToParty, QuestConfirmAccept, QuestGiverQuestComplete,
-    QuestGiverStatus, QuestPushResultResponse, QuestRewardsBlock, quest_push_reason,
+    AdventureMapStartQuest, PushQuestToParty, QuestConfirmAccept, QuestGiverStatus,
+    QuestPushResultResponse, QuestRewardsBlock, quest_push_reason,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestFailed, QuestGiverQuestList,
@@ -294,6 +294,9 @@ pub trait QuestHandlerSessionHostLikeCpp: QuestItemStorageHostLikeCpp {
         &mut self,
         request: RepresentedAdventureMapStartQuestLikeCpp,
     );
+    /// C++ `PlayerMenu::SendCloseGossip` (`GossipDef.cpp`): reset the player's
+    /// interaction data and send SMSG_GOSSIP_COMPLETE on the realm connection.
+    fn close_gossip_like_cpp(&mut self);
     /// C++ `Player::RewardQuest`: the World reward commit.
     fn reward_represented_quest_with_generator_like_cpp(
         &mut self,
