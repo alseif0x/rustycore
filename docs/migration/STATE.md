@@ -1,5 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1495 Forever InspectResult layout accepted locally — 2026-11-20
+
+Committed candidate `1c13e72c446614f90da2dd9c079950ec7463c444`, based on
+`e3cf737e2`, aligns `SMSG_INSPECT_RESULT` with the complete Forever writer in
+`InspectPackets.cpp:96–150,216–250` and `ItemPacketsCommon.cpp:151–188` at
+`02245dcd245e7433e524577656177723d3e4992e`. The serializer now places item
+count after display data, writes ItemInstance before item index and Azerite
+counts, retains both talent counts plus the four PvP slots, emits the empty
+`ClassicTalentInfoUpdate`, uses nine PvP brackets with their exact field types,
+and orders honor and trait data before the glyph/talent arrays and optional
+guild/Azerite bits. It no longer invents random-property fields inside
+ItemInstance.
+
+One binary regression walks every field through one item, the classic talent
+block, all brackets, honor, traits and optional flags, then requires complete
+packet consumption. The committed
+`./tools/validation-v2 final --base e3cf737e2 --architecture --require-changes --timings --logs`
+campaign passed all eight commands from 10:34:11Z to 10:36:57Z (165.691
+seconds), within the 600-second target. All 819 `wow-packet` tests passed with
+zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T103411.935031Z-4011244-final.json`.
+The initial binary attempt exposed the ItemModList width/order mismatch; the
+corrected writer and reader-aware bit resets pass without offset-based masking.
+
+This intentionally does not implement #1495's 3.4.3-only layout: Forever keeps
+`Talents.Count`, adds `PvpTalents.Count`, and uses the different ordering above.
+That issue remains open for its own version. No Inspect capture-diff flow or
+live 1.60.1 client capture exists here, so this is synthetic source/wire
+evidence rather than live acceptance. Player runtime integration and character
+creation remain separate work.
+
 ## #1492 quest-accept close gossip accepted locally — 2026-11-20
 
 Committed candidate `57ddce2e329711bdf5c12065c91f0de25bee8737`, based on
