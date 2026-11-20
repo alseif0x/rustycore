@@ -1,5 +1,37 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1367 LootList fanout unified and accepted locally — 2026-11-20
+
+Committed candidate `d9c25cadefb1f18f9e453d5c7bd8471e29308d98`, based on
+`0f70f7985`, retires the shell's duplicate `NotifyLootList` implementation onto
+the existing loot-release owner. Following `Loot.cpp:736-754` at
+`02245dcd245e7433e524577656177723d3e4992e`, the owner now sends the typed packet
+to the current session unconditionally and the registry fan-out excludes that
+same current player rather than the loot object's GUID. The old group-only gate
+is removed, so every connected `_allowedLooters` member on the map receives the
+same bytes on open and round-robin release.
+
+One ungrouped round-robin regression proves local and remote delivery on open
+and release, including the winner being cleared. Existing master-loot and AE
+expectations now include the mandatory `LootList` frames, and their bounded
+packet queues hold the real response/list/ACK sequence instead of deadlocking.
+The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 0f70f7985 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 13:48:01Z to 13:50:53Z (171.554
+seconds), within the 600-second target. Suites passed 4,621 `wow-world` tests
+(one ignored), 297 `wow-world-core` and seven `wow-world-loot-ops`: 4,925
+passed, one ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T134801.899415Z-8677-final.json`.
+Architecture policy, session syntax ownership with 2,684 exact associated items
+and 747 direct-registry rows, formatting and all affected downstream checks
+also passed.
+
+The first campaign stopped on two obsolete shell-registry baseline rows; their
+retirement was recorded before the full rerun. This is synthetic
+source/behavior/wire evidence, not a live multi-client loot capture or a new
+whole-port loot audit. Player runtime integration and character creation remain
+separate work.
+
 ## #1473 creature melee damage school accepted locally — 2026-11-20
 
 Committed candidate `6cfb90d6420e6bb2bfc3535c69c6f8371bbdf37e`, based on
