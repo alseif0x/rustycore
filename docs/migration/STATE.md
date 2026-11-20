@@ -1,5 +1,39 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 live Pet persisted-aura removal accepted locally — 2026-11-20
+
+Committed candidate `5323e5e3779f30225635173f31fd0a0bb3876699`, based on
+`69d9e0ad7`, extends the bounded live `Player::RemovePet` path to persisted
+native auras. Following Forever `Player.cpp:22322–22408`, `Pet.cpp:452–546,
+1301–1345` and `Unit.cpp:4401–4436` at
+`02245dcd245e7433e524577656177723d3e4992e`, the save projection orders auras
+by their C++ key, clears a self-cast Pet GUID, and captures exact aura/effect
+rows before native cleanup. Only auras with complete loaded provenance and
+matching durable input are admitted; unknown, divergent or unsupported runtime
+state fails before mutation. Cleanup removes applied, owned, visible and
+per-effect amount state after CombatStop and before the first persistence
+await. Both ordered saves and every later revalidation retain the existing
+cancellation and detachment fences.
+
+An application regression covers two auras, C++ ordering, self-caster clearing,
+effect amounts and complete container cleanup. Two real release scenarios prove
+exact persisted rows followed by cleanup/detachment and reject a divergent
+loaded duration without writes or aura mutation. The committed
+`./tools/validation-v2 final --base 69d9e0ad7 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 09:27:09Z to 09:28:53Z (104.775 seconds),
+within the 600-second target. Suites passed 1,309 `wow-entities` tests, 4,615
+`wow-world` tests (one existing ignored) and all 32 `wow-world-application`
+tests, with zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T092709.216221Z-3931842-final.json`.
+An intermediate Session accounting misattribution was corrected and the complete
+campaign rerun; no production behavior changed during that metadata correction.
+
+This is synthetic source/persistence evidence, not real database durability or
+a live-client capture. Arbitrary runtime auras without persisted provenance,
+group, secondary-minion and combat/control continuations remain unadmitted and
+fail closed. #1354 remains open; Player runtime integration and character
+creation remain separate work.
+
 ## #1357 AE loot candidate phase and combat reach accepted locally — 2026-11-20
 
 Committed candidate `b2196c0108e6f90071002bb9165fa7c17edb582f`, based on
