@@ -5,6 +5,17 @@
 
 use super::*;
 
+fn alliance_faction_templates_for_auction_like_cpp()
+-> Arc<wow_data::progression_rewards::FactionTemplateStore> {
+    let alliance = wow_constants::FactionMasks::ALLIANCE.bits();
+    Arc::new(
+        wow_data::progression_rewards::FactionTemplateStore::from_entries([
+            faction_template_entry(1, 1, alliance, alliance, 0),
+            faction_template_entry(12, 12, alliance, alliance, 0),
+        ]),
+    )
+}
+
 #[tokio::test]
 async fn area_spirit_healer_query_sends_time_for_valid_healer_like_cpp() {
     let (mut session, send_rx, canonical) = make_area_spirit_healer_session(4);
@@ -666,6 +677,75 @@ async fn gossip_hello_canonical_only_direct_fallback_uses_resolved_flags_like_cp
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
 }
+
+#[tokio::test]
+async fn gossip_auctioneer_hello_and_select_resolve_house_ids_like_cpp() {
+    let direct_entry = 9312;
+    let direct_guid = creature_guid(direct_entry, 312);
+    let (mut direct_session, direct_rx) = make_quest_status_session();
+    direct_session.set_faction_template_store(alliance_faction_templates_for_auction_like_cpp());
+    direct_session.set_allow_two_side_interaction_auction_like_cpp(false);
+    attach_npc_creature_with_faction_template(
+        &mut direct_session,
+        direct_guid,
+        direct_entry,
+        12,
+        NPCFlags1::GOSSIP.bits() | NPCFlags1::AUCTIONEER.bits(),
+    );
+
+    direct_session
+        .handle_gossip_hello(Hello { unit: direct_guid })
+        .await;
+
+    assert_eq!(
+        direct_rx
+            .try_recv()
+            .expect("direct auctioneer hello response"),
+        wow_packet::packets::misc::AuctionHelloResponse::open(direct_guid, 2).to_bytes()
+    );
+    assert!(direct_rx.try_recv().is_err());
+
+    let select_entry = 9313;
+    let select_guid = creature_guid(select_entry, 313);
+    let (mut select_session, select_rx) = make_quest_status_session();
+    select_session.set_faction_template_store(alliance_faction_templates_for_auction_like_cpp());
+    attach_npc_creature_with_faction_template(
+        &mut select_session,
+        select_guid,
+        select_entry,
+        12,
+        NPCFlags1::GOSSIP.bits() | NPCFlags1::AUCTIONEER.bits(),
+    );
+    assert!(select_session.set_player_trainer_interaction_like_cpp(select_guid, 77));
+    select_session
+        .interaction
+        .gossip_options_for_test_mut_like_cpp()
+        .push(crate::session::GossipOptionInfo {
+            gossip_option_id: 314,
+            menu_id: 315,
+            order_index: 0,
+            option_npc: 10,
+            action_menu_id: 0,
+        });
+
+    select_session
+        .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
+            gossip_unit: select_guid,
+            gossip_id: 315,
+            gossip_option_id: 314,
+            promotion_code: String::new(),
+        })
+        .await;
+
+    assert_eq!(
+        select_rx
+            .try_recv()
+            .expect("auctioneer gossip option response"),
+        wow_packet::packets::misc::AuctionHelloResponse::open(select_guid, 1).to_bytes()
+    );
+    assert!(select_rx.try_recv().is_err());
+}
+
 #[tokio::test]
 async fn gossip_hello_trainer_fallback_uses_canonical_access_like_cpp() {
     let (mut session, send_rx) = make_quest_status_session();

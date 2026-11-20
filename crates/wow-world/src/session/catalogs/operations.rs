@@ -257,6 +257,9 @@ impl WorldSession {
     pub fn set_group_visibility_mode(&mut self, mode: i32) {
         self.config.group_visibility_mode = mode;
     }
+    pub fn set_allow_two_side_interaction_auction_like_cpp(&mut self, allow: bool) {
+        self.config.allow_two_side_interaction_auction_like_cpp = allow;
+    }
     #[cfg(test)]
     pub(crate) fn set_rested_xp_config_like_cpp(
         &mut self,

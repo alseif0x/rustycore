@@ -8,7 +8,7 @@ use crate::session::{
     RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionRemoveItemLikeCpp,
     RepresentedAuctionReplicateRequestLikeCpp, RepresentedAuctionSellItemLikeCpp,
 };
-use wow_constants::unit::NPCFlags1;
+use wow_constants::{FactionMasks, unit::NPCFlags1};
 use wow_packet::packets::misc::{
     AuctionPlaceBid, AuctionRemoveItem, AuctionReplicateItems, AuctionSellItem,
 };
@@ -56,6 +56,91 @@ async fn auction_list_items_is_silent_legacy_stub_like_cpp() {
         .await;
 
     assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn auction_hello_request_uses_auctioneer_faction_and_rejects_invalid_requests_like_cpp() {
+    let (mut session, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager_for_misc_test();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 86);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+        player_guid,
+        "Tester".to_string(),
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    add_canonical_test_player_on_map_for_misc_test(
+        &canonical,
+        player_guid,
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        0,
+    );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    session.set_player_faction_template_like_cpp(1);
+    let alliance = FactionMasks::ALLIANCE.bits();
+    session.set_faction_template_store(Arc::new(
+        wow_data::progression_rewards::FactionTemplateStore::from_entries([1, 120].map(|id| {
+            wow_data::progression_rewards::FactionTemplateEntry {
+                id,
+                faction: id as u16,
+                flags: 0,
+                faction_group: alliance,
+                friend_group: alliance,
+                enemy_group: 0,
+                enemies: [0; 8],
+                friend: [0; 8],
+            }
+        })),
+    ));
+    session.set_allow_two_side_interaction_auction_like_cpp(false);
+    add_canonical_auctioneer_with_faction_template_for_misc_test(
+        &canonical,
+        auctioneer,
+        Position::new(12.0, 0.0, 0.0, 0.0),
+        NPCFlags1::AUCTIONEER.bits(),
+        120,
+    );
+
+    let mut request = WorldPacket::new_empty();
+    request.write_packed_guid(&auctioneer);
+    request.reset_read();
+    session
+        .build_auction_handler_cx_like_cpp()
+        .handle_auction_hello_request(request)
+        .await;
+
+    assert_eq!(
+        send_rx.try_recv().expect("valid auctioneer opens house 7"),
+        wow_packet::packets::misc::AuctionHelloResponse::open(auctioneer, 7).to_bytes()
+    );
+
+    let missing_auctioneer =
+        ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 87);
+    let mut request = WorldPacket::new_empty();
+    request.write_packed_guid(&missing_auctioneer);
+    request.reset_read();
+    session
+        .build_auction_handler_cx_like_cpp()
+        .handle_auction_hello_request(request)
+        .await;
+    assert!(
+        send_rx.try_recv().is_err(),
+        "missing NPC receives no response"
+    );
+
+    session
+        .build_auction_handler_cx_like_cpp()
+        .handle_auction_hello_request(WorldPacket::new_empty())
+        .await;
+    assert!(send_rx.try_recv().is_err(), "malformed request is silent");
 }
 
 #[tokio::test]
@@ -196,7 +281,6 @@ async fn auction_remove_item_records_request_after_auctioneer_gate_like_cpp() {
         .handle_auction_remove_item(AuctionRemoveItem {
             auctioneer,
             auction_id: 1234,
-            item_id: 19019,
             tainted_by: Some(wow_packet::packets::misc::AuctionAddonInfo {
                 name: "Trade".to_string(),
                 version: "1.0".to_string(),
@@ -212,7 +296,6 @@ async fn auction_remove_item_records_request_after_auctioneer_gate_like_cpp() {
         &[RepresentedAuctionRemoveItemLikeCpp {
             auctioneer,
             auction_id: 1234,
-            item_id: 19019,
             tainted_by_present: true,
         }]
     );
@@ -250,7 +333,6 @@ async fn auction_remove_item_rejects_missing_auctioneer_like_cpp() {
         .handle_auction_remove_item(AuctionRemoveItem {
             auctioneer: missing_auctioneer,
             auction_id: 1234,
-            item_id: 19019,
             tainted_by: None,
         })
         .await;

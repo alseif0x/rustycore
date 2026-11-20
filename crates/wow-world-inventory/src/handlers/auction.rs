@@ -58,16 +58,32 @@ impl<'a> AuctionHandlerCxLikeCpp<'a> {
     /// CMSG_AUCTION_HELLO_REQUEST — open the auctioneer window.
     pub async fn handle_auction_hello_request(&mut self, mut pkt: wow_packet::WorldPacket) {
         use wow_packet::packets::misc::AuctionHelloResponse;
-        let guid = pkt
-            .read_packed_guid()
-            .unwrap_or(wow_core::ObjectGuid::EMPTY);
+        let Ok(guid) = pkt.read_packed_guid() else {
+            return;
+        };
+        let Some(auctioneer) = self
+            .hub
+            .shared()
+            .represented_npc_can_interact_with_like_cpp(guid, NPCFlags1::AUCTIONEER.bits(), 0)
+        else {
+            debug!(
+                account = self.hub.shared().core.account_id,
+                auctioneer = ?guid,
+                "AuctionHelloRequest rejected: auctioneer missing, invalid, hostile/dead, out of range, or lacks AUCTIONEER flag"
+            );
+            return;
+        };
+        let auction_house_id = self
+            .hub
+            .shared()
+            .auction_house_id_for_faction_template_like_cpp(auctioneer.faction_template_id);
         info!(
             "AuctionHelloRequest from {:?} account {}",
             guid,
             self.hub.shared().core.account_id
         );
         self.publication_like_cpp()
-            .send_packet(&AuctionHelloResponse::open(guid));
+            .send_packet(&AuctionHelloResponse::open(guid, auction_house_id));
     }
 
     pub async fn handle_auction_list_bidder_items(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -126,7 +142,6 @@ impl<'a> AuctionHandlerCxLikeCpp<'a> {
                 account = self.hub.shared().core.account_id,
                 auctioneer = ?packet.auctioneer,
                 auction_id = packet.auction_id,
-                item_id = packet.item_id,
                 "AuctionRemoveItem rejected: auctioneer missing, invalid, hostile/dead, out of range, or lacks AUCTIONEER flag"
             );
             return;
@@ -136,7 +151,6 @@ impl<'a> AuctionHandlerCxLikeCpp<'a> {
             .record_represented_auction_remove_item_like_cpp(RepresentedAuctionRemoveItemLikeCpp {
                 auctioneer: packet.auctioneer,
                 auction_id: packet.auction_id,
-                item_id: packet.item_id,
                 tainted_by_present: packet.tainted_by.is_some(),
             });
     }

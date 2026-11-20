@@ -119,6 +119,8 @@ pub struct SessionWorldConfig {
     pub vmap_indoor_check_like_cpp: bool,
     /// C++ `CONFIG_ENABLE_AE_LOOT` represented switch.
     pub enable_ae_loot_like_cpp: bool,
+    /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION` auction-house policy.
+    pub allow_two_side_interaction_auction_like_cpp: bool,
     /// C++ `CONFIG_ADDON_CHANNEL` represented switch.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub addon_channel_like_cpp: bool,
@@ -193,6 +195,7 @@ impl Default for SessionWorldConfig {
 
             vmap_indoor_check_like_cpp: false,
             enable_ae_loot_like_cpp: false,
+            allow_two_side_interaction_auction_like_cpp: true,
             #[cfg(any(test, feature = "test-fixtures"))]
             addon_channel_like_cpp: true,
             #[cfg(any(test, feature = "test-fixtures"))]

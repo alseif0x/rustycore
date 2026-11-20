@@ -94,7 +94,7 @@ fn auction_list_items_reads_empty_legacy_packet_like_cpp() {
 fn auction_replicate_items_reads_no_tainted_by_like_cpp() {
     let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_001, 7);
     let mut pkt = WorldPacket::new_empty();
-    pkt.write_guid(&auctioneer);
+    pkt.write_packed_guid(&auctioneer);
     pkt.write_uint32(11);
     pkt.write_uint32(22);
     pkt.write_uint32(33);
@@ -117,7 +117,7 @@ fn auction_replicate_items_reads_no_tainted_by_like_cpp() {
 fn auction_replicate_items_reads_tainted_by_like_cpp() {
     let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_002, 8);
     let mut pkt = WorldPacket::new_empty();
-    pkt.write_guid(&auctioneer);
+    pkt.write_packed_guid(&auctioneer);
     pkt.write_uint32(1);
     pkt.write_uint32(2);
     pkt.write_uint32(3);
@@ -157,7 +157,7 @@ fn auction_replicate_items_reads_tainted_by_like_cpp() {
 fn auction_place_bid_reads_no_tainted_by_like_cpp() {
     let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_003, 9);
     let mut pkt = WorldPacket::new_empty();
-    pkt.write_guid(&auctioneer);
+    pkt.write_packed_guid(&auctioneer);
     pkt.write_int32(1234);
     pkt.write_uint64(12_300);
     pkt.write_bit(false);
@@ -176,7 +176,7 @@ fn auction_place_bid_reads_no_tainted_by_like_cpp() {
 fn auction_place_bid_reads_tainted_by_like_cpp() {
     let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_004, 10);
     let mut pkt = WorldPacket::new_empty();
-    pkt.write_guid(&auctioneer);
+    pkt.write_packed_guid(&auctioneer);
     pkt.write_int32(5678);
     pkt.write_uint64(45_600);
     pkt.write_bit(true);
@@ -212,9 +212,8 @@ fn auction_place_bid_reads_tainted_by_like_cpp() {
 fn auction_remove_item_reads_no_tainted_by_like_cpp() {
     let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_005, 11);
     let mut pkt = WorldPacket::new_empty();
-    pkt.write_guid(&auctioneer);
+    pkt.write_packed_guid(&auctioneer);
     pkt.write_int32(1234);
-    pkt.write_int32(19019);
     pkt.write_bit(false);
     pkt.flush_bits();
     pkt.reset_read();
@@ -222,7 +221,6 @@ fn auction_remove_item_reads_no_tainted_by_like_cpp() {
     let request = AuctionRemoveItem::read(&mut pkt).unwrap();
     assert_eq!(request.auctioneer, auctioneer);
     assert_eq!(request.auction_id, 1234);
-    assert_eq!(request.item_id, 19019);
     assert!(request.tainted_by.is_none());
     assert_eq!(pkt.remaining(), 0);
 }
@@ -231,9 +229,8 @@ fn auction_remove_item_reads_no_tainted_by_like_cpp() {
 fn auction_remove_item_reads_tainted_by_like_cpp() {
     let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_006, 12);
     let mut pkt = WorldPacket::new_empty();
-    pkt.write_guid(&auctioneer);
+    pkt.write_packed_guid(&auctioneer);
     pkt.write_int32(5678);
-    pkt.write_int32(4306);
     pkt.write_bit(true);
     pkt.flush_bits();
     pkt.write_bits(6, 10); // "Trade" + '\0'
@@ -250,7 +247,6 @@ fn auction_remove_item_reads_tainted_by_like_cpp() {
     let request = AuctionRemoveItem::read(&mut pkt).unwrap();
     assert_eq!(request.auctioneer, auctioneer);
     assert_eq!(request.auction_id, 5678);
-    assert_eq!(request.item_id, 4306);
     assert_eq!(
         request.tainted_by,
         Some(AuctionAddonInfo {
@@ -264,18 +260,31 @@ fn auction_remove_item_reads_tainted_by_like_cpp() {
 }
 
 #[test]
+fn auction_remove_item_rejects_truncated_addon_payload_like_cpp() {
+    let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_007, 13);
+    let mut pkt = WorldPacket::new_empty();
+    pkt.write_packed_guid(&auctioneer);
+    pkt.write_int32(5678);
+    pkt.write_bit(true);
+    pkt.flush_bits();
+    pkt.reset_read();
+
+    assert!(AuctionRemoveItem::read(&mut pkt).is_err());
+}
+
+#[test]
 fn auction_sell_item_reads_single_item_no_tainted_by_like_cpp() {
     let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_007, 13);
     let item_guid = ObjectGuid::create_item(1, 19_019);
     let mut pkt = WorldPacket::new_empty();
-    pkt.write_guid(&auctioneer);
+    pkt.write_packed_guid(&auctioneer);
     pkt.write_uint64(10_000);
     pkt.write_uint64(25_000);
     pkt.write_uint32(720);
     pkt.write_bit(false);
     pkt.write_bits(1, 6);
     pkt.flush_bits();
-    pkt.write_guid(&item_guid);
+    pkt.write_packed_guid(&item_guid);
     pkt.write_uint32(1);
     pkt.reset_read();
 
@@ -300,7 +309,7 @@ fn auction_sell_item_reads_tainted_by_like_cpp() {
     let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_008, 14);
     let item_guid = ObjectGuid::create_item(1, 43_006);
     let mut pkt = WorldPacket::new_empty();
-    pkt.write_guid(&auctioneer);
+    pkt.write_packed_guid(&auctioneer);
     pkt.write_uint64(20_000);
     pkt.write_uint64(50_000);
     pkt.write_uint32(1440);
@@ -316,7 +325,7 @@ fn auction_sell_item_reads_tainted_by_like_cpp() {
     pkt.write_uint8(0);
     pkt.write_string("1.0");
     pkt.write_uint8(0);
-    pkt.write_guid(&item_guid);
+    pkt.write_packed_guid(&item_guid);
     pkt.write_uint32(1);
     pkt.reset_read();
 
@@ -879,4 +888,19 @@ fn bind_point_update_serializes() {
     assert_eq!(bytes.len(), 22);
     let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
     assert_eq!(opcode, 0x257d);
+}
+
+#[test]
+fn auction_remove_item_reads_live_3_4_3_54261_capture() {
+    // Real 3.4.3.54261 client: packed auctioneer guid, u32 AuctionID 1, tainted bit 0.
+    let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 8670, 482);
+    let bytes: [u8; 14] = [
+        0x03, 0xa7, 0xe2, 0x01, 0x80, 0x77, 0x08, 0x04, 0x20, 0x01, 0x00, 0x00, 0x00, 0x00,
+    ];
+    let mut pkt = WorldPacket::from_bytes(&bytes);
+    let request = AuctionRemoveItem::read(&mut pkt).unwrap();
+    assert_eq!(request.auctioneer, auctioneer);
+    assert_eq!(request.auction_id, 1);
+    assert!(request.tainted_by.is_none());
+    assert_eq!(pkt.remaining(), 0);
 }
