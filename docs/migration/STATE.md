@@ -1,5 +1,38 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1492 quest-accept close gossip accepted locally — 2026-11-20
+
+Committed candidate `57ddce2e329711bdf5c12065c91f0de25bee8737`, based on
+`9cf6270fa`, replaces the unconditional `QuestGiverQuestComplete` after a
+successful quest accept with the C++ close-gossip transition. Forever
+`QuestHandler.cpp:89–177` calls `PlayerMenu::SendCloseGossip` after
+`AddQuestAndCheckCompletion`; `GossipDef.cpp:292–298` resets interaction data
+and replies `GossipComplete`. The quest host now exposes that existing
+`InteractionState` operation through its narrow trait and the accept handler
+calls it after the established durability and hook phases. An immediate reward
+still emits its own `QuestGiverQuestComplete` through the committed reward path;
+failure paths retain their existing bounded behavior.
+
+The accept regression now requires `GossipComplete` before the quest-log map
+update, and the hook-order regression requires Chat, close gossip, then the map
+update. The committed
+`./tools/validation-v2 final --base 9cf6270fa --architecture --require-changes --timings --logs`
+campaign passed all twelve commands from 10:19:44Z to 10:22:01Z (136.607
+seconds), within the 600-second target. The `wow-world` suite passed 4,618
+tests with one existing ignored and `wow-world-quest` passed all eight tests,
+with zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T101944.487460Z-3996088-final.json`.
+The exact WorldSession method-surface entry, four-line quest-owner delta and
+54-method census are reviewed. Earlier attempts stopped on those missing
+metadata entries and were not accepted as final evidence.
+
+Related #1490 was not changed: Forever `HandleQuestgiverHelloOpcode` calls
+`PrepareQuestMenu`/`SendPreparedQuest`, whose empty-menu branch returns without
+a packet (`Player.cpp:14669–14699`). Its proposed always-reply behavior belongs
+to the 3.4.3 issue, not this target. No live-client capture is claimed for this
+synthetic source/wire acceptance. Player runtime integration and character
+creation remain separate work.
+
 ## #1354 live Pet alternate-minion retention accepted locally — 2026-11-20
 
 Committed candidate `5fb622307fde36e1a07b15bfb6886ce8c66fc87a`, based on
