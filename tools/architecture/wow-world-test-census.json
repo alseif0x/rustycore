@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4173,
+  "tests": 4174,
   "ignored": 1,
-  "session": 3869,
-  "shims": 3689,
+  "session": 3870,
+  "shims": 3690,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3694
+   "W": 3695
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3488
+   "W-world-logic": 3489
   },
   "by_owner": {
    "wow-world": {
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 45,
     "H": 5,
-    "W": 963
+    "W": 964
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3694
+    "W": 3695
    },
    "wow-world-application": {
     "P": 27,
@@ -844,6 +844,7 @@
   ["unit_tests/handlers/character_tests/quest.rs::gossip_hello_questgiver_without_quest_relation_keeps_empty_gossip_fallback", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::gossip_hello_hostile_questgiver_fallback_is_rejected_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::quest_giver_hello_trainer_questgiver_sends_mixed_gossip_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["player_interaction_source_guid_like_cpp", "player_interaction_trainer_id_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/character_tests/quest.rs::quest_giver_hello_without_available_quest_sends_prepared_gossip_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::quest_giver_hello_plain_questgiver_keeps_direct_quest_open_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::gossip_quest_text_filters_race_class_and_level_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["represented_creature_gossip_text_like_cpp", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::gossip_quest_text_offers_sallina_followup_after_hunter_training_rewarded_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["represented_creature_gossip_text_like_cpp", "set_player_guid", "set_quest_store"], []],

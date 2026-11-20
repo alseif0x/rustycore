@@ -530,13 +530,37 @@ fn gossip_menu_text_conditions_meet_like_cpp<H: CharacterLoginHostLikeCpp>(
     )
 }
 
-/// Build a GossipMessage from the database for a creature entry.
-/// Returns None if no gossip menu exists.
+/// Build a GossipMessage from the database for a normal GossipHello.
+/// Returns None when required catalog or interaction-state steps fail, or
+/// when the prepared menu has neither options nor quest text.
 pub async fn build_gossip_menu<H: CharacterLoginHostLikeCpp>(
     host: &mut H,
     entry: u32,
     npc_flags: u32,
     npc_guid: wow_core::ObjectGuid,
+) -> Option<GossipMessage> {
+    build_gossip_menu_with_empty_policy_like_cpp(host, entry, npc_flags, npc_guid, false).await
+}
+
+/// Build the prepared GossipMessage used by the questgiver hello path.
+///
+/// Questgiver hello sends the prepared menu even when it has no options or
+/// quest text, matching `QuestHandler.cpp:76-103`.
+pub async fn build_prepared_questgiver_gossip_menu_like_cpp<H: CharacterLoginHostLikeCpp>(
+    host: &mut H,
+    entry: u32,
+    npc_flags: u32,
+    npc_guid: wow_core::ObjectGuid,
+) -> Option<GossipMessage> {
+    build_gossip_menu_with_empty_policy_like_cpp(host, entry, npc_flags, npc_guid, true).await
+}
+
+async fn build_gossip_menu_with_empty_policy_like_cpp<H: CharacterLoginHostLikeCpp>(
+    host: &mut H,
+    entry: u32,
+    npc_flags: u32,
+    npc_guid: wow_core::ObjectGuid,
+    allow_empty: bool,
 ) -> Option<GossipMessage> {
     use wow_entities::PlayerGossipOptionLikeCpp as GossipOptionInfo;
     use wow_packet::packets::gossip::ClientGossipOption;
@@ -722,7 +746,7 @@ pub async fn build_gossip_menu<H: CharacterLoginHostLikeCpp>(
         Vec::new()
     };
 
-    if gossip_options.is_empty() && gossip_text.is_empty() {
+    if !allow_empty && gossip_options.is_empty() && gossip_text.is_empty() {
         return None;
     }
 
