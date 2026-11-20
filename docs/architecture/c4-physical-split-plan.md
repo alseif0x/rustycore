@@ -1132,6 +1132,22 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8an starts at `d7d37d481` and extracts runtime network
+configuration. `app.rs` shrinks from 2,041 to 2,011 lines and its physical
+ceiling tightens without retiring C4-8. The new private
+`runtime_network_configuration.rs` has 130 lines, thirty explicit inputs and
+seven results covering addresses, instance port, expansion, MMap and complete
+creature-aggro configuration. ExpectedStat loading, pathfinder construction,
+address errors/logging and every aggro attachment retain their original order.
+SessionManager and listener startup remain outside this stage.
+
+The moved sequence matches the original token stream after adapting borrowed
+inputs and canonical rustfmt. The `world-server` library check and both affected
+configuration tests pass; the library retains the same 35 existing warnings. The
+logical owner gains 100 production lines for the typed result, thirty-argument
+boundary and formatting, recorded as +100 production/+0 tests/+100 total. Later
+C4-8 stages still owe remaining startup dependencies and supervision/shutdown.
+
 On `forever`, C4-8am starts at `ad8062eb2` and extracts world listener startup.
 `app.rs` shrinks from 2,103 to 2,041 lines and its physical ceiling tightens
 without retiring C4-8. The new private `world_listener_startup.rs` has 130 lines,

@@ -177,7 +177,11 @@ mod session_player_policy_catalogs;
 #[path = "world_listener_startup.rs"]
 mod world_listener_startup;
 
+#[path = "runtime_network_configuration.rs"]
+mod runtime_network_configuration;
+
 use group_instance_startup::GroupInstanceStartup;
+use runtime_network_configuration::RuntimeNetworkConfiguration;
 use world_listener_startup::WorldListenerStartup;
 
 #[path = "entry.rs"]
@@ -1601,80 +1605,46 @@ async fn run_inner(
     // Create SessionManager for ConnectTo flow
     let session_mgr = Arc::new(SessionManager::new());
 
-    // Network configuration
-    let bind_ip = wow_config::get_string_default("BindIP", "0.0.0.0");
-    let world_port = world_config_u16(&world_configs, "CONFIG_PORT_WORLD", 8085);
-    let instance_port = world_config_u16(&world_configs, "CONFIG_PORT_INSTANCE", 8086);
-    let max_expansion = world_config_u8(&world_configs, "CONFIG_EXPANSION", 2);
-    let mmap_runtime_config = mmap_runtime_config_like_cpp(&world_configs, mmap_disabled_map_ids);
-    info!(
-        "WORLD: MMap pathfinding: {}, data directory: {}/mmaps",
-        if mmap_runtime_config.enabled {
-            "enabled"
-        } else {
-            "disabled"
-        },
-        mmap_runtime_config.data_dir
-    );
-    let mmap_pathfinder = mmap_runtime_config.enabled.then(|| {
-        Arc::new(
-            WorldMMapPathfinderWorkerLikeCpp::spawn_with_parent_map_data_like_cpp(
-                &mmap_runtime_config.data_dir,
-                map_store.parent_child_map_data_like_cpp(),
-            ),
-        )
-    });
-
-    let realm_addr: SocketAddr = format!("{bind_ip}:{world_port}")
-        .parse()
-        .context("Invalid bind address")?;
-    let instance_addr: SocketAddr = format!("{bind_ip}:{instance_port}")
-        .parse()
-        .context("Invalid instance bind address")?;
-
-    info!("Starting realm listener on {realm_addr}");
-    info!("Starting instance listener on {instance_addr}");
-    let mut creature_aggro_config = creature_aggro_config_like_cpp(&world_configs);
-    creature_aggro_config.expected_stat_store =
-        wow_data::ExpectedStatStore::load(&data_dir, &locale)
-            .ok()
-            .map(Arc::new);
-    creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
-    creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
-    creature_aggro_config.map_store = Some(Arc::clone(&map_store));
-    creature_aggro_config.disable_mgr = Some(Arc::clone(&disable_mgr));
-    creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
-    creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
-    creature_aggro_config.spell_duration_store = Some(Arc::clone(&spell_duration_store));
-    creature_aggro_config.spell_cooldowns_store = Some(Arc::clone(&spell_cooldowns_store));
-    creature_aggro_config.spell_category_store = Some(Arc::clone(&spell_category_store));
-    creature_aggro_config.spell_x_spell_visual_store =
-        Some(Arc::clone(&spell_x_spell_visual_store));
-    creature_aggro_config.spell_target_restrictions_store =
-        Some(Arc::clone(&spell_target_restrictions_store));
-    creature_aggro_config.spell_casting_requirements_store =
-        Some(Arc::clone(&spell_casting_requirements_store));
-    creature_aggro_config.spell_aura_restrictions_store =
-        Some(Arc::clone(&spell_aura_restrictions_store));
-    creature_aggro_config.spell_store = Some(Arc::clone(&spell_store));
-    creature_aggro_config.spell_threat_store = Some(Arc::clone(&spell_threat_store));
-    creature_aggro_config.spell_chain_store = Some(Arc::clone(&spell_chain_store));
-    creature_aggro_config.spell_linked_store = Some(Arc::clone(&spell_linked_store));
-    creature_aggro_config.spell_condition_store = Some(Arc::clone(&condition_store));
-    creature_aggro_config.spell_script_exact_spell_ids_like_cpp =
-        Some(Arc::clone(&spell_script_exact_spell_ids));
-    creature_aggro_config.spell_script_all_rank_root_spell_ids_like_cpp =
-        Some(Arc::clone(&spell_script_all_rank_root_spell_ids));
-    creature_aggro_config.legacy_spell_script_spell_ids_like_cpp =
-        Some(Arc::clone(&legacy_spell_script_spell_ids));
-    creature_aggro_config.spell_linked_rejected_trigger_spell_ids_like_cpp =
-        Some(Arc::clone(&spell_linked_rejected_trigger_spell_ids));
-    creature_aggro_config.spell_custom_attribute_store =
-        Some(Arc::clone(&spell_custom_attribute_store));
-    creature_aggro_config.difficulty_store = Some(Arc::clone(&difficulty_store));
-    creature_aggro_config.creature_template_lifecycle_store =
-        Some(Arc::clone(&creature_template_lifecycle_store));
-    creature_aggro_config.chr_races_store = Some(Arc::clone(&chr_races_store));
+    let RuntimeNetworkConfiguration {
+        realm_addr,
+        instance_addr,
+        instance_port,
+        max_expansion,
+        mmap_runtime_config,
+        mmap_pathfinder,
+        creature_aggro_config,
+    } = runtime_network_configuration::build_runtime_network_configuration(
+        &world_configs,
+        mmap_disabled_map_ids,
+        &map_store,
+        &data_dir,
+        &locale,
+        &faction_template_store,
+        &progression_faction_store,
+        &disable_mgr,
+        &spell_misc_store,
+        &spell_range_store,
+        &spell_duration_store,
+        &spell_cooldowns_store,
+        &spell_category_store,
+        &spell_x_spell_visual_store,
+        &spell_target_restrictions_store,
+        &spell_casting_requirements_store,
+        &spell_aura_restrictions_store,
+        &spell_store,
+        &spell_threat_store,
+        &spell_chain_store,
+        &spell_linked_store,
+        &condition_store,
+        &spell_script_exact_spell_ids,
+        &spell_script_all_rank_root_spell_ids,
+        &legacy_spell_script_spell_ids,
+        &spell_linked_rejected_trigger_spell_ids,
+        &spell_custom_attribute_store,
+        &difficulty_store,
+        &creature_template_lifecycle_store,
+        &chr_races_store,
+    )?;
 
     let WorldListenerStartup {
         mut realm_handle,
