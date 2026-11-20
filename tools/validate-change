@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""Independent pilot for documentation and Cargo changes. Run from the checkout."""
+import argparse
+import json
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+import time
+import tomllib
+
+
+def git(*args):
+    return subprocess.check_output(["git", *args])
+
+
+def paths(*args):
+    return {os.fsdecode(p) for p in git(*args).split(b"\0") if p}
+
+
+def cargo_scope(changed):
+    with open("Cargo.toml", "rb") as manifest:
+        config = tomllib.load(manifest)
+    metadata = json.loads(subprocess.check_output([
+        "cargo", "metadata", "--format-version", "1", "--locked", "--offline", "--no-deps",
+    ]))
+    root = Path.cwd()
+    members = set(metadata["workspace_members"])
+    packages = {p["id"]: p for p in metadata["packages"] if p["id"] in members}
+    owners = sorted(((Path(p["manifest_path"]).parent.relative_to(root), key)
+                     for key, p in packages.items()), key=lambda pair: -len(pair[0].parts))
+    direct = set()
+    for path in changed:
+        owner = next((key for directory, key in owners if Path(path).is_relative_to(directory)), None)
+        if owner is None:
+            raise ValueError(f"No workspace member owns {path}")
+        direct.add(owner)
+    by_directory = {str(Path(p["manifest_path"]).parent): key for key, p in packages.items()}
+    dependencies = {
+        key: {by_directory[d["path"]] for d in package["dependencies"] if d.get("path") in by_directory}
+        for key, package in packages.items()
+    }
+    # For patched or out-of-workspace paths, follow Cargo's resolved graph
+    # through external packages as well. The ordinary workspace needs no fetch.
+    if "patch" in config or "replace" in config or any(
+        d.get("path") and d["path"] not in by_directory for p in packages.values() for d in p["dependencies"]
+    ):
+        resolved = json.loads(subprocess.check_output([
+            "cargo", "metadata", "--format-version", "1", "--locked", "--all-features",
+        ]))
+        dependencies = {node["id"]: set(node["dependencies"]) for node in resolved["resolve"]["nodes"]}
+    consumers = set(direct)
+    for _ in range(len(dependencies)):
+        previous = len(consumers)
+        consumers.update(key for key, deps in dependencies.items() if consumers.intersection(deps))
+        if len(consumers) == previous:
+            break
+    return sorted(packages[k]["name"] for k in direct), sorted(packages[k]["name"] for k in consumers & members)
+
+
+def package_args(names):
+    return [arg for name in names for arg in ("-p", name)]
+
+
+def plan(changed, base, focus, package):
+    steps = []
+    needs = []
+    def add(reason, *args):
+        steps.append((reason, list(args)))
+
+    add("Changed lines", "git", "diff", "--check", base, "--")
+    docs, rust, manifests = [], [], []
+    registry = "tools/architecture/world-handler-contract.tsv" in changed
+    for path in sorted(changed):
+        f = Path(path)
+        if not f.is_file() or f.is_symlink():
+            needs.append(path)
+        elif path.startswith(("docs/operations/", "docs/audits/")) and f.suffix == ".md":
+            docs.append(path)
+        elif path.startswith("crates/") and f.suffix == ".rs" and f.name != "build.rs":
+            rust.append(path)
+        elif path.startswith("crates/") and f.name == "Cargo.toml":
+            manifests.append(path)
+        elif path == "tools/architecture/world-handler-contract.tsv":
+            continue
+        elif path in {"tools/architecture/physical-file-policy.json", "tools/architecture/runtime-ownership-ledger.json"}:
+            continue
+        else:
+            needs.append(path)
+    if docs:
+        add("Relative document links", sys.executable, str(Path(__file__).resolve().parent /
+            "ci/check_doc_links.py"), *docs)
+    registry |= any("handler_composition" in p or "handler_registry" in p for p in rust)
+    # The owning world-server suite already runs its integration targets.
+    if registry and not focus and not any(p.startswith("crates/world-server/") for p in rust + manifests):
+        add("Runtime handler composition", "cargo", "test", "--locked", "-p",
+            "world-server", "--test", "production_handler_registry_contract")
+    if rust or manifests:
+        direct, consumers = cargo_scope(rust + manifests)
+        flags = ["--locked"]
+        if focus:
+            if package is None and len(direct) != 1:
+                raise ValueError("Choose the test owner with --package for a multi-package edit")
+            owner = package or direct[0]
+            if owner not in consumers:
+                raise ValueError(f"{owner} is outside the affected packages")
+            add("Focused editing feedback", "cargo", "test", *flags, "-p", owner, "--lib", focus)
+        else:
+            if manifests:
+                for package in consumers:
+                    add("Own feature configuration", "cargo", "check", *flags, "--tests", "-p", package)
+            add("Changed packages and their test targets", "cargo", "test", *flags,
+                "--all-targets", *package_args(direct))
+            add("Production builds of owners and consumers", "cargo", "check", *flags, *package_args(consumers))
+            downstream = sorted(set(consumers) - set(direct))
+            if downstream:
+                add("Consumer production and test targets", "cargo", "check", *flags,
+                    "--all-targets", *package_args(downstream))
+            add("Format of changed packages", "cargo", "fmt", "--check", *package_args(direct))
+        if manifests:
+            needs.extend(manifests)
+    elif focus:
+        raise ValueError("--focus requires a Rust source change")
+    # Compile the changed tests before scanning policy. The runtime check
+    # includes the physical policy when both inputs changed.
+    if not focus:
+        if "tools/architecture/runtime-ownership-ledger.json" in changed:
+            add("Runtime ownership policy", sys.executable, "tools/architecture/check_architecture.py", "check")
+        elif "tools/architecture/physical-file-policy.json" in changed:
+            add("Physical source policy", sys.executable, "tools/architecture/check_architecture.py", "physical-files")
+    return steps, needs
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base", required=True, help="ancestor revision for the diff")
+    parser.add_argument("--working", action="store_true", help="include tracked working edits")
+    parser.add_argument("--plan", action="store_true", help="print the selected checks")
+    parser.add_argument("--focus", help="run matching library tests for editing feedback")
+    parser.add_argument("--package", help="package owning the focused library test")
+    opts = parser.parse_args()
+    if opts.package and not opts.focus:
+        parser.error("--package requires --focus")
+    start = time.monotonic()
+    os.chdir(os.fsdecode(git("rev-parse", "--show-toplevel")).rstrip("\n"))
+    head = git("rev-parse", "HEAD").decode().strip()
+    base = git("rev-parse", "--verify", "--end-of-options", opts.base + "^{commit}").decode().strip()
+    subprocess.run(["git", "merge-base", "--is-ancestor", base, head], check=True)
+    dirty = git("status", "--porcelain", "-z")
+    if dirty and not opts.working:
+        raise ValueError("Commit the candidate or pass --working for an editing run")
+    revisions = [base] if opts.working else [base, head]
+    changed = paths("diff", "--name-only", "--no-renames", "-z", *revisions, "--")
+    untracked = paths("ls-files", "--others", "--exclude-standard", "-z")
+    if not (changed or untracked):
+        raise ValueError("Empty change set")
+    steps, needs = plan(changed, base, opts.focus, opts.package)
+    needs.extend(sorted(untracked))
+    print(f"Pilot | base {base} | head {head} | working edits {bool(dirty)}", flush=True)
+    for reason, command in steps:
+        print(f"{reason}: {shlex.join(command)}", flush=True)
+    if needs:
+        print("Additional acceptance required for:", *needs, sep="\n  ", flush=True)
+    if opts.plan:
+        return 2 if needs else 0
+    env = os.environ.copy()
+    env.setdefault("CARGO_BUILD_JOBS", "1")
+    for reason, command in steps:
+        before = time.monotonic()
+        if opts.focus and reason == "Focused editing feedback":
+            result = subprocess.run(command, env=env, stdout=subprocess.PIPE, text=True)
+            print(result.stdout, end="")
+            if result.returncode == 0 and not any(line.startswith("test result: ok.") and
+                    int(line.split()[3]) > 0 for line in result.stdout.splitlines()):
+                raise ValueError("Focus matched no passing tests")
+        else:
+            result = subprocess.run(command, env=env)
+        print(f"{reason}: exit {result.returncode}, {time.monotonic()-before:.3f}s", flush=True)
+        if result.returncode:
+            print(f"Pilot stopped after {time.monotonic()-start:.3f}s.", flush=True)
+            return result.returncode
+    if not opts.working and (git("rev-parse", "HEAD").decode().strip() != head or git("status", "--porcelain", "-z")):
+        raise ValueError("Checkout changed during execution")
+    verdict = "Focused editing feedback only." if opts.focus else "Experimental evidence only."
+    print(f"Pilot checks passed in {time.monotonic()-start:.3f}s. " +
+          ("Additional acceptance required." if needs else verdict))
+    return 2 if needs else 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, subprocess.CalledProcessError, ValueError) as error:
+        sys.exit(f"validate-change: {error}")
