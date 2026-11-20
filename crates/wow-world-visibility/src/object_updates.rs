@@ -26,10 +26,27 @@ pub fn represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
     hasher.finish()
 }
 
-fn filter_unit_values_update_for_target_like_cpp(update: &mut UnitValuesUpdate, owner: bool) {
+const SPELL_AURA_EMPATHY_LIKE_CPP: i32 = 121;
+
+fn unit_has_empath_visibility_like_cpp(unit: &wow_entities::Unit, viewer_guid: ObjectGuid) -> bool {
+    unit.world().object().has_dynamic_flag(0x20)
+        && unit
+            .subsystems()
+            .auras
+            .has_aura_type_with_caster_like_cpp(SPELL_AURA_EMPATHY_LIKE_CPP, viewer_guid)
+}
+
+fn filter_unit_values_update_for_target_like_cpp(
+    update: &mut UnitValuesUpdate,
+    owner: bool,
+    empath: bool,
+) {
     let flags = owner
         .then_some(UpdateFieldVisibilityFlags::OWNER)
-        .unwrap_or_else(UpdateFieldVisibilityFlags::empty);
+        .unwrap_or_else(UpdateFieldVisibilityFlags::empty)
+        | empath
+            .then_some(UpdateFieldVisibilityFlags::EMPATH)
+            .unwrap_or_else(UpdateFieldVisibilityFlags::empty);
     if let Some(unit_data) = update.unit_data.as_mut() {
         filter_disallowed_fields(UpdateFieldSectionKind::UnitData, &mut unit_data.mask, flags);
         if !unit_data.mask.is_any_set() {
@@ -291,9 +308,10 @@ impl VisibilityState {
                                     .position()
                                     .is_within_dist_2d(&viewer_position, visibility_range),
                             owner == Some(viewer_guid),
+                            unit_has_empath_visibility_like_cpp(source.unit(), viewer_guid),
                         )
                     })
-                    .unwrap_or((false, false));
+                    .unwrap_or((false, false, false));
                 if !source_visibility.0 {
                     continue;
                 }
@@ -304,6 +322,7 @@ impl VisibilityState {
                 filter_unit_values_update_for_target_like_cpp(
                     &mut values_update,
                     source_visibility.1,
+                    source_visibility.2,
                 );
                 let Some(update) =
                     unit_values_update_to_update_object(source_guid, packet_map_id, &values_update)
@@ -434,6 +453,63 @@ mod tests {
         let mut unrelated_update = complete_update;
         filter_player_values_update_for_target_like_cpp(&mut unrelated_update, false, false);
         assert!(unrelated_update.player_data.is_none());
+    }
+
+    #[test]
+    fn empath_visibility_requires_special_info_and_viewer_aura() {
+        let viewer = ObjectGuid::create_player(1, 7304);
+        let other = ObjectGuid::create_player(1, 7305);
+        let mut unit = wow_entities::Unit::new(true);
+        assert!(!unit_has_empath_visibility_like_cpp(&unit, viewer));
+
+        unit.world_mut().object_mut().set_dynamic_flag(0x20);
+        assert!(!unit_has_empath_visibility_like_cpp(&unit, viewer));
+
+        let other_aura = wow_entities::AppliedAuraRef::new(999, other, 0, 1);
+        unit.subsystems_mut()
+            .auras
+            .register_applied_aura(other_aura, None, 0, 0);
+        unit.subsystems_mut()
+            .auras
+            .register_applied_aura_type_like_cpp(other_aura, SPELL_AURA_EMPATHY_LIKE_CPP);
+        assert!(!unit_has_empath_visibility_like_cpp(&unit, viewer));
+
+        let viewer_aura = wow_entities::AppliedAuraRef::new(1000, viewer, 0, 1);
+        unit.subsystems_mut()
+            .auras
+            .register_applied_aura(viewer_aura, None, 0, 0);
+        unit.subsystems_mut()
+            .auras
+            .register_applied_aura_type_like_cpp(viewer_aura, SPELL_AURA_EMPATHY_LIKE_CPP);
+        assert!(unit_has_empath_visibility_like_cpp(&unit, viewer));
+        unit.world_mut().object_mut().remove_dynamic_flag(0x20);
+        assert!(!unit_has_empath_visibility_like_cpp(&unit, viewer));
+
+        let complete_update = wow_entities::UnitValuesUpdate {
+            changed_object_type_mask: 0,
+            object_data: None,
+            unit_data: Some(wow_entities::UnitDataUpdate {
+                mask: wow_entities::UpdateMask::new(UpdateFieldSectionKind::UnitData.bit_count()),
+                values: unit.data().clone(),
+                aura_state: 0,
+                aura_state_per_caster: Vec::new(),
+            }),
+        };
+        let unit_data = complete_update.unit_data.as_ref().unwrap();
+        assert!(!unit_data.mask.is_set(190));
+        let mut with_empath_field = complete_update.clone();
+        with_empath_field.unit_data.as_mut().unwrap().mask.set(190);
+        with_empath_field.unit_data.as_mut().unwrap().mask.set(175);
+
+        let mut empath_update = with_empath_field.clone();
+        filter_unit_values_update_for_target_like_cpp(&mut empath_update, false, true);
+        let empath_mask = &empath_update.unit_data.as_ref().unwrap().mask;
+        assert!(empath_mask.is_set(190));
+        assert!(!empath_mask.is_set(175));
+
+        let mut public_update = with_empath_field;
+        filter_unit_values_update_for_target_like_cpp(&mut public_update, false, false);
+        assert!(public_update.unit_data.is_none());
     }
 
     #[test]
