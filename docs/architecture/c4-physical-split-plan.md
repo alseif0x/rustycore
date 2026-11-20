@@ -1079,6 +1079,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261119T235340.716238Z-3377866-final.json`.
 
+On `forever`, C4-8ac starts at `d835fa3be` and extracts ConditionMgr loading
+and attachments. `app.rs` shrinks from 3,118 to 3,030 lines and its physical
+ceiling tightens without retiring C4-8. The new private `condition_catalogs.rs`
+has 167 lines and returns ConditionEntriesByTypeStore. Thirty-two explicit
+inputs preserve every catalog dependency and the mutable SpellStore,
+GossipStore, PhaseInfoStore and GraveyardStore attachments. Global condition
+publication and graveyard Arc conversion remain in app.
+
+The moved body matches the original token stream after adapting references,
+the max-skill input and canonical rustfmt. The `world-server` library check
+passes with the same 35 existing warnings. The logical owner gains 79
+production lines for the function boundary and formatting, recorded as +79
+production/+0 tests/+79 total. Later C4-8 stages still owe remaining catalogs,
+dependencies and supervision/shutdown.
+
 On `forever`, the C4-6a lifecycle/load record split moves ten public types and
 their existing implementations to the private `player/records.rs` module. The
 root shrinks from 4,713 to 4,397 lines and the new module has 333. The logical

@@ -141,6 +141,9 @@ mod reputation_catalogs;
 
 use reputation_catalogs::ReputationCatalogs;
 
+#[path = "condition_catalogs.rs"]
+mod condition_catalogs;
+
 #[path = "entry.rs"]
 mod entry;
 pub use entry::{run, run_with_composition, run_with_modules};
@@ -1214,132 +1217,41 @@ async fn run_inner(
 
     let player_registry = Arc::new(PlayerRegistry::new());
     let active_session_registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
-    let mut condition_load_report = catalogs::condition_disable::load_conditions_like_cpp(
+    let condition_store = condition_catalogs::load_condition_store(
         &condition_disable_catalog_persistence,
-        |_| 0,
+        loot_stores.as_ref(),
+        item_store.as_ref(),
+        &mut spell_store,
+        area_table_store.as_ref(),
+        skill_line_store.as_ref(),
+        map_store.as_ref(),
+        phase_store.as_ref(),
+        quest_store.as_ref(),
+        area_trigger_db2_store.as_ref(),
+        &mut graveyard_store,
+        &spawn_group_store,
+        creature_template_store.as_ref(),
+        gameobject_template_store.as_ref(),
+        trainer_store.as_ref(),
+        conversation_line_template_store.as_ref(),
+        area_trigger_template_store.as_ref(),
+        creature_spawn_store.as_ref(),
+        gameobject_spawn_store.as_ref(),
+        active_event_store.as_ref(),
+        world_state_store.as_ref(),
+        difficulty_store.as_ref(),
+        faction_store.as_ref(),
+        achievement_store.as_ref(),
+        char_titles_store.as_ref(),
+        battle_pet_species_store.as_ref(),
+        scenario_step_store.as_ref(),
+        scene_script_package_store.as_ref(),
+        player_condition_store.as_ref(),
+        max_skill_value_like_cpp(&world_configs),
+        &mut gossip_store,
+        &mut phase_info_store,
     )
-    .await
-    .context("Failed to load C++ conditions table")?;
-    let loot_template_exists = |source_type: wow_constants::ConditionSourceType,
-                                source_group: u32| {
-        loot_store_kind_for_condition_source_type_like_cpp(source_type as i32)
-            .and_then(|kind| loot_stores.get(&kind))
-            .is_some_and(|store| store.have_loot_for(source_group))
-    };
-    let loot_source_entry_exists = |source_type: wow_constants::ConditionSourceType,
-                                    source_group: u32,
-                                    source_entry: i32| {
-        let Some(source_entry) = u32::try_from(source_entry).ok() else {
-            return false;
-        };
-        let Some(store) = loot_store_kind_for_condition_source_type_like_cpp(source_type as i32)
-            .and_then(|kind| loot_stores.get(&kind))
-        else {
-            return false;
-        };
-        let Some(template) = store.get_loot_for(source_group) else {
-            return false;
-        };
-
-        item_store.get(source_entry).is_some() || template.is_reference_like_cpp(source_entry)
-    };
-    let externally_skipped_conditions =
-        wow_data::conditions::apply_external_condition_validation_like_cpp(
-            &mut condition_load_report,
-            wow_data::conditions::ConditionExternalValidationStoresLikeCpp {
-                item_store: Some(item_store.as_ref()),
-                spell_store: Some(&spell_store),
-                area_table_store: Some(area_table_store.as_ref()),
-                skill_line_store: Some(skill_line_store.as_ref()),
-                map_store: Some(map_store.as_ref()),
-                phase_store: Some(phase_store.as_ref()),
-                quest_store: Some(quest_store.as_ref()),
-                area_trigger_db2_store: Some(area_trigger_db2_store.as_ref()),
-                graveyard_store: Some(&graveyard_store),
-                spawn_group_store: Some(&spawn_group_store),
-                creature_template_store: Some(creature_template_store.as_ref()),
-                gameobject_template_store: Some(gameobject_template_store.as_ref()),
-                trainer_store: Some(trainer_store.as_ref()),
-                conversation_line_template_store: Some(conversation_line_template_store.as_ref()),
-                area_trigger_template_store: Some(area_trigger_template_store.as_ref()),
-                creature_spawn_store: Some(creature_spawn_store.as_ref()),
-                gameobject_spawn_store: Some(gameobject_spawn_store.as_ref()),
-                active_event_store: Some(active_event_store.as_ref()),
-                world_state_store: Some(world_state_store.as_ref()),
-                difficulty_store: Some(difficulty_store.as_ref()),
-                faction_store: Some(faction_store.as_ref()),
-                achievement_store: Some(achievement_store.as_ref()),
-                char_titles_store: Some(char_titles_store.as_ref()),
-                battle_pet_species_store: Some(battle_pet_species_store.as_ref()),
-                scenario_step_store: Some(scenario_step_store.as_ref()),
-                scene_script_package_store: Some(scene_script_package_store.as_ref()),
-                player_condition_store: Some(player_condition_store.as_ref()),
-                max_skill_value: Some(max_skill_value_like_cpp(&world_configs)),
-                loot_template_exists: Some(&loot_template_exists),
-                loot_source_entry_exists: Some(&loot_source_entry_exists),
-            },
-        );
-    for skipped in &condition_load_report.skipped {
-        warn!(
-            "Condition row skipped during C++ load-shape parsing: {:?}: {:?}",
-            skipped.row, skipped.reason
-        );
-    }
-    for skipped in &externally_skipped_conditions {
-        warn!(
-            "Condition row skipped during C++ external validation: {:?}: {:?}",
-            skipped.condition, skipped.reason
-        );
-    }
-    for warning in &condition_load_report.warnings {
-        warn!("Condition load warning: {warning:?}");
-    }
-    let condition_store = Arc::new(condition_load_report.into_store_like_cpp());
-    let condition_attachment_report = wow_data::attach_loaded_conditions_like_cpp(
-        condition_store.as_ref(),
-        Some(&mut gossip_store),
-        Some(&mut spell_store),
-        Some(&mut phase_info_store),
-        Some(&mut graveyard_store),
-    );
-    for missing in &condition_attachment_report.gossip_menus.missing_menus {
-        warn!(
-            "ConditionMgr gossip attachment warning: GossipMenu {} not found for condition id {:?}",
-            missing.source_group, missing
-        );
-    }
-    for missing in &condition_attachment_report
-        .gossip_menu_items
-        .missing_menu_items
-    {
-        warn!(
-            "ConditionMgr gossip attachment warning: GossipMenuId {} Item {} not found for condition id {:?}",
-            missing.source_group, missing.source_entry, missing
-        );
-    }
-    info!(
-        "Loaded C++ ConditionMgr store: {} buckets, {} externally skipped conditions, {} spell-click aura spell ids, {} spell implicit target condition rows attached ({} deferred), {} gossip menu condition rows attached ({} missing menus), {} gossip menu option condition rows attached ({} missing items), {} phase condition rows attached, {} graveyard condition rows attached",
-        condition_store.bucket_count(),
-        externally_skipped_conditions.len(),
-        condition_attachment_report.spell_click_aura_spell_ids.len(),
-        condition_attachment_report.spell_implicit_target_condition_count,
-        condition_attachment_report.deferred_spell_implicit_target_condition_count,
-        condition_attachment_report
-            .gossip_menus
-            .attached_condition_count,
-        condition_attachment_report.gossip_menus.missing_menus.len(),
-        condition_attachment_report
-            .gossip_menu_items
-            .attached_condition_count,
-        condition_attachment_report
-            .gossip_menu_items
-            .missing_menu_items
-            .len(),
-        condition_attachment_report.phases.attached_condition_count,
-        condition_attachment_report
-            .graveyards
-            .attached_condition_count
-    );
+    .await?;
     wow_world::conditions::set_condition_mgr_store_like_cpp(Arc::clone(&condition_store));
     let graveyard_store = Arc::new(graveyard_store);
     let npc_spell_click_store = Arc::new(
