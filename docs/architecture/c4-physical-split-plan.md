@@ -1132,6 +1132,23 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8ag starts at `29d950df6` and extracts the required session
+persistence graph. `app.rs` shrinks from 2,625 to 2,447 lines and its physical
+ceiling tightens without retiring C4-8. The new private
+`session_persistence_startup.rs` has 207 lines, six explicit inputs and one direct
+SessionPersistencePortsLikeCpp result. The initial player-name/identity load
+remains first and startup-fatal; every adapter, gossip clone, represented-group
+move, instance-lock clone and all four required capability bundles retain their
+original order. Two existing source guards follow the moved construction without
+losing any assertion.
+
+The moved body matches the original token stream after wrapping the graph in `Ok`
+and canonical rustfmt. The `world-server` library check and both focused source
+guards pass; the library retains the same 35 existing warnings. The logical owner
+gains 29 production lines and one test-attributed formatting line, recorded as
++29 production/+1 test/+30 total. Later C4-8 stages still owe remaining session
+capabilities, dependencies and supervision/shutdown.
+
 On `forever`, C4-8af starts at `10a2fef4a` and extracts GameEvent StartSystem.
 `app.rs` shrinks from 2,814 to 2,625 lines and its physical ceiling tightens
 without retiring C4-8. The new private `game_event_startup.rs` has 208 lines,

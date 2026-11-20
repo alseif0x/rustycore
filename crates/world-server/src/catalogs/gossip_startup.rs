@@ -224,7 +224,7 @@ mod tests {
             1
         );
         assert!(catalogs.contains("load_gossip_startup_catalog_like_cpp"));
-        let source = include_str!("../app.rs");
+        let source = include_str!("../session_persistence_startup.rs");
         assert!(source.contains("gossip_catalog_adapter.clone()"));
     }
 }

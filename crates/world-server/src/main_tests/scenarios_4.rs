@@ -85,9 +85,10 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
 }
 #[test]
 fn production_persistence_capabilities_are_required_and_installed_atomically() {
-    let composition_source =
-        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
-            .expect("world-server composition source should be readable");
+    let composition_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_persistence_startup.rs"),
+    )
+    .expect("world-server session persistence startup source should be readable");
     let resources_source = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
