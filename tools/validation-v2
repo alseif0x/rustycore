@@ -627,6 +627,25 @@ def add_command(planned: list[list[str]], command: list[str]) -> None:
         planned.append(command)
 
 
+def workspace_format(repo: Path, groups: dict[str, list[str]]) -> list[str]:
+    """Use the member's manifest for ordinary edits under a single src tree."""
+    broad = ["cargo", "fmt", "--all", "--check"]
+    if "workspace-root" in groups:
+        return broad
+    roots = set()
+    for path in groups.get("workspace-rust", []):
+        source = Path(path)
+        if (len(source.parts) < 4 or source.parts[2] != "src"
+                or source.suffix != ".rs" or not (repo / source).is_file()):
+            return broad
+        roots.add(Path(*source.parts[:2]))
+    if len(roots) == 1:
+        manifest = roots.pop() / "Cargo.toml"
+        if (repo / manifest).is_file():
+            return ["cargo", "fmt", "--manifest-path", str(manifest), "--check"]
+    return broad
+
+
 def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
     """Declare the global read-only audit without nesting legacy wrappers."""
     commands = [
@@ -1029,11 +1048,16 @@ def validation_commands(
     handler_graph = profile == "final" and handler_graph_changed(repo, base_commit, all_paths)
     checker_affected = "architecture-checker" in groups or cargo_config_changed or handler_graph
 
+    if {"rustfmt.toml", ".rustfmt.toml"}.intersection(all_paths):
+        add_command(planned, ["cargo", "fmt", "--all", "--check"])
+        for manifest in (CHECKER_MANIFEST, BOT_MANIFEST):
+            add_command(planned, ["cargo", "fmt", "--manifest-path", manifest, "--", "--check"])
+    elif "workspace-rust" in groups or "workspace-root" in groups:
+        add_command(planned, workspace_format(repo, groups))
+
     if profile == "quick":
         # Iteration feedback only: Cargo fmt may inspect manifests, but never
         # resolve/build the dependency graph or run project/checker test suites.
-        if "workspace-rust" in groups or "workspace-root" in groups:
-            add_command(planned, ["cargo", "fmt", "--all", "--check"])
         for affected, manifest in ((checker_affected, CHECKER_MANIFEST),
                                    ("wow-test-bot" in groups or cargo_config_changed, BOT_MANIFEST)):
             if affected:
@@ -1042,7 +1066,6 @@ def validation_commands(
 
     workspace_changed = workspace is not None
     if workspace_changed:
-        add_command(planned, ["cargo", "fmt", "--all", "--check"])
         direct = list(workspace["direct_packages"])
         closure = list(workspace["reverse_closure_packages"])
         root_wide = bool(workspace["root_wide"])

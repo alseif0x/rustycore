@@ -53,6 +53,20 @@ before and 27.113 s after. Both emitted byte-identical JSON for all 979 mounts, 
 guides describe how to exercise the owning test during development. The QA wrapper uses
 the existing debug build for ordinary Rust scenarios.
 
+On integration revision `b17af773c`, putting the four extra bytes from #1496 back into
+`InspectResult` made the packet test fail in 6.840 s (594 bytes, expected 590).
+Restoring the encoder made the same test pass in 3.999 s. Both runs used a warm
+aarch64 debug cache, one Cargo job and this command:
+
+```bash
+cargo test --locked -p wow-packet --lib inspect_result_default_talents_have_exact_54261_size
+```
+
+Both runs executed one test. With a deliberate formatting error in the same source,
+the workspace and member rustfmt checks both identified the file and exited 1,
+in 12.718 s and 0.493 s respectively. These measurements cover a packet edit.
+Shared server rebuilds and whole-delivery acceptance have separate elapsed times.
+
 ## How to choose evidence
 
 | Change | First relevant result | Acceptance to retain |
@@ -69,7 +83,7 @@ Use the union for changes spanning several rows. Larger features get early evide
 
 Use existing manifests, Cargo timings and GitHub timestamps. Record review start, first relevant result after a coherent edit, candidate ready for acceptance, required verdicts complete and actual merge. Include retry counts and causes. On larger developments also measure implementation time and waiting per coherent operation. Count overlapping jobs once in elapsed time. Label cold builds, warm builds, external queues and live QA. Keep these few numbers in the existing PR evidence.
 
-For the next ten applicable deliveries, report the median, the slowest case and each budget miss. Include a shared-contract change and a larger delivery. If one is absent, report the gap and measure the next such delivery. Keep the existing **10-minute warm local acceptance budget**. Pilot **5 minutes to first relevant feedback** from a coherent edit and **20 minutes median from a ready ordinary external candidate to both required verdicts**. For larger deliveries, target **half the validation and coordination waiting per coherent operation** against a comparable pre-change delivery. Track total review-start-to-ready time as well so that shifting work earlier cannot hide it. These are proposed performance targets.
+For the next ten applicable deliveries, report the median, the slowest case and each budget miss. Include a shared-contract change and a larger delivery. If one is absent, report the gap and measure the next such delivery. Keep the existing **10-minute warm local acceptance budget**. Pilot **30 seconds to the first relevant result for a warm single-package edit with a focused test**, **5 minutes for a shared-contract edit**, and **20 minutes median from a ready ordinary external candidate to both required verdicts**. For larger deliveries, target **half the validation and coordination waiting per coherent operation** against a comparable pre-change delivery. Track total review-start-to-ready time as well so that shifting work earlier cannot hide it. These are proposed performance targets.
 
 Aim for a **30-minute median from active review start to required green checks** on comparable external corrections such as #1494. Record time from contribution to first maintainer response separately. For recoverable failures, use the next coherent edit as the feedback start while keeping the original start for total elapsed time. When comparable historical data is missing, record a baseline on the first similar operation before making a savings claim.
 

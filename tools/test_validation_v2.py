@@ -722,7 +722,21 @@ def test_planner_contract(repo: Path) -> None:
     }
     quick, _ = runner.validation_commands(repo, "quick", 2, "base", one_crate_groups, workspace)
     final, _ = runner.validation_commands(repo, "final", 2, "base", one_crate_groups, workspace)
-    assert ["cargo", "fmt", "--all", "--check"] in quick
+    member_fmt = ["cargo", "fmt", "--manifest-path", "crates/a/Cargo.toml", "--check"]
+    all_fmt = ["cargo", "fmt", "--all", "--check"]
+    for extra in ("crates/b/src/lib.rs", "crates/a/src/removed.rs", "crates/a/build.rs",
+                  "crates/a/tests/case.rs", "crates/missing/src/lib.rs", "crates/a/Cargo.toml",
+                  "Cargo.lock"):
+        groups = runner.grouped_paths([*one_crate_paths, extra])
+        assert runner.workspace_format(repo, groups) == all_fmt, extra
+    for mode, planned in (("quick", quick), ("final", final)):
+        assert member_fmt in planned and all_fmt not in planned
+        for config in (".rustfmt.toml", "rustfmt.toml"):
+            groups = runner.grouped_paths([*one_crate_paths, config])
+            commands, _ = runner.validation_commands(repo, mode, 2, "base", groups, workspace)
+            assert all_fmt in commands and member_fmt not in commands
+            for manifest in (runner.BOT_MANIFEST, runner.CHECKER_MANIFEST):
+                assert ["cargo", "fmt", "--manifest-path", manifest, "--", "--check"] in commands
     assert all(command[0] != "cargo" or command[1] == "fmt" for command in quick)
     final_check = next(command for command in final if command[:2] == ["cargo", "check"])
     assert all(package in final_check for package in ("a", "b", "c"))
