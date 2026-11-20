@@ -88,7 +88,7 @@
    "wow-world-inventory": {
     "P": 26,
     "H": 19,
-    "W": 412
+    "W": 413
    },
    "wow-world-lifecycle": {
     "P": 38,
@@ -128,7 +128,7 @@
    "wow-world-visibility": {
     "P": 0,
     "H": 0,
-    "W": 104
+    "W": 103
    }
   },
   "by_destination": {
@@ -1025,7 +1025,7 @@
   ["unit_tests/handlers/economy/tests/auction.rs::commerce_token_get_log_echoes_request_and_empty_success_like_cpp_todo_handler", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["handle_commerce_token_get_log"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auctionable_token_sell_is_silent_wotlk_stub_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["handle_auctionable_token_sell"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auction_list_items_is_silent_legacy_stub_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["handle_auction_list_items"], []],
-  ["unit_tests/handlers/economy/tests/auction.rs::auction_hello_request_uses_auctioneer_faction_and_rejects_invalid_requests_like_cpp", "W", "wow-world", "wow-world-visibility", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/auction.rs::auction_hello_request_uses_auctioneer_faction_and_rejects_invalid_requests_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "build_auction_handler_cx_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auction_place_bid_records_request_after_auctioneer_gate_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_auction_place_bid", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auction_place_bid_rejects_missing_auctioneer_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_auction_place_bid", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auction_remove_item_records_request_after_auctioneer_gate_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_auction_remove_item", "set_canonical_map_manager"], []],

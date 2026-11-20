@@ -112,7 +112,10 @@ async fn auction_hello_request_uses_auctioneer_faction_and_rejects_invalid_reque
     let mut request = WorldPacket::new_empty();
     request.write_packed_guid(&auctioneer);
     request.reset_read();
-    session.handle_auction_hello_request(request).await;
+    session
+        .build_auction_handler_cx_like_cpp()
+        .handle_auction_hello_request(request)
+        .await;
 
     assert_eq!(
         send_rx.try_recv().expect("valid auctioneer opens house 7"),
@@ -124,13 +127,17 @@ async fn auction_hello_request_uses_auctioneer_faction_and_rejects_invalid_reque
     let mut request = WorldPacket::new_empty();
     request.write_packed_guid(&missing_auctioneer);
     request.reset_read();
-    session.handle_auction_hello_request(request).await;
+    session
+        .build_auction_handler_cx_like_cpp()
+        .handle_auction_hello_request(request)
+        .await;
     assert!(
         send_rx.try_recv().is_err(),
         "missing NPC receives no response"
     );
 
     session
+        .build_auction_handler_cx_like_cpp()
         .handle_auction_hello_request(WorldPacket::new_empty())
         .await;
     assert!(send_rx.try_recv().is_err(), "malformed request is silent");
