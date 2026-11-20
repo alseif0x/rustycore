@@ -57,16 +57,17 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
         );
     }
 
-    let composition_source =
-        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
-            .expect("world-server composition source should be readable");
+    let composition_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_progression_policy.rs"),
+    )
+    .expect("world-server session progression policy source should be readable");
     let resources_source = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
     .expect("world-server session resources source should be readable");
     let materialization_needle = [
         "max_primary_trade_skills:",
-        " max_primary_trade_skills_like_cpp(&world_configs),",
+        " max_primary_trade_skills_like_cpp(world_configs),",
     ]
     .concat();
     let propagation_needle = [

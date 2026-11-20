@@ -1132,6 +1132,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8ai starts at `63ef87f68` and extracts session progression
+capabilities. `app.rs` shrinks from 2,386 to 2,359 lines and its physical ceiling
+tightens without retiring C4-8. The new private `session_progression_policy.rs`
+has 70 lines, fourteen borrowed catalogs plus configuration and a direct
+SessionProgressionCapabilitiesLikeCpp result. Every clone, helper, default and
+realm-type conversion retains its original order. The profession source guard
+follows the moved helper call without weakening its assertions.
+
+The moved initializer matches the original token stream after adapting borrowed
+catalog/config inputs and canonical rustfmt. The `world-server` library check and
+both affected source guards pass; the library retains the same 35 existing
+warnings. The logical owner gains 43 production lines and one test-attributed
+formatting line, recorded as +43 production/+1 test/+44 total. Later C4-8 stages
+still owe remaining session catalogs, dependencies and supervision/shutdown.
+
 On `forever`, C4-8ah starts at `feb3ff8f5` and extracts session runtime policy.
 `app.rs` shrinks from 2,447 to 2,386 lines and its physical ceiling tightens
 without retiring C4-8. The new private `session_runtime_policy.rs` has 79 lines,
