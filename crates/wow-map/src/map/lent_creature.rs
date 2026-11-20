@@ -16,18 +16,24 @@
 //! - a position the borrower changed is then applied through the map's own
 //!   relocation, which is C++ `Unit::UpdatePosition` → `Map::CreatureRelocation`
 //!   (`Map.cpp:1042-1072`): same cell, the position is updated in place;
-//!   another cell, the GUID moves cells; an unloaded target grid, nothing moves
-//!   (`if (!respawnRelocationOnFail && !getNGrid(...)) return;`).
+//!   another cell, the GUID moves cells; an unloaded target grid triggers the
+//!   respawn-or-removal fallback (`Map::CreatureRespawnRelocation`).
 
 use super::*;
 use crate::map_rules::map_record_unit_mut_like_cpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum CreatureRespawnRelocationOutcomeLikeCpp {
+pub enum CreatureRespawnRelocationOutcomeLikeCpp {
     RespawnRelocated,
     RemoveListQueued,
     PetRemoveRequested,
     Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreatureRelocationResultLikeCpp {
+    pub requested: Result<MapObjectRelocationOutcome, MapObjectRelocationError>,
+    pub fallback: Option<CreatureRespawnRelocationOutcomeLikeCpp>,
 }
 
 /// Where a lent creature came from: what it must return to.
@@ -47,10 +53,9 @@ pub enum LentCreatureReturnLikeCpp {
         /// The borrower rebound or unbound the creature's map, and the binding
         /// it left with was put back so the record could return.
         binding_restored: bool,
-        /// The relocation to the borrower's position, when the borrower moved
-        /// the creature. A blocked or refused relocation leaves the creature at
-        /// its origin, in the cell that holds its GUID.
-        relocation: Option<Result<MapObjectRelocationOutcome, MapObjectRelocationError>>,
+        /// The requested relocation and, when its grid is unloaded, the
+        /// subsequent home-respawn or removal fallback.
+        relocation: Option<CreatureRelocationResultLikeCpp>,
     },
     /// The record could not be rebuilt; the creature is gone. Unreachable while
     /// a creature's GUID cannot be changed, and reported loudly by the caller.
@@ -153,6 +158,23 @@ where
         }
     }
 
+    fn relocate_creature_with_respawn_fallback_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        requested_position: Position,
+    ) -> CreatureRelocationResultLikeCpp {
+        let requested = self.relocate_map_object_like_cpp(guid, requested_position);
+        if matches!(&requested, Ok(outcome) if outcome.relocated) {
+            self.mark_nearby_players_for_visibility_like_cpp(guid);
+        }
+        let fallback = matches!(&requested, Ok(outcome) if outcome.blocked_by_unloaded_grid)
+            .then(|| self.respawn_relocate_creature_after_unloaded_grid_like_cpp(guid));
+        CreatureRelocationResultLikeCpp {
+            requested,
+            fallback,
+        }
+    }
+
     /// Give a creature lent by [`Self::lend_creature_like_cpp`] back to its
     /// record, then apply the position the borrower left it at as a map
     /// relocation (C++ `Map::CreatureRelocation`).
@@ -186,11 +208,7 @@ where
             if is_valid_map_coord_2d(moved_to.x, moved_to.y) {
                 self.mark_nearby_players_for_visibility_like_cpp(origin.guid);
             }
-            let outcome = self.relocate_map_object_like_cpp(origin.guid, moved_to);
-            if matches!(&outcome, Ok(outcome) if outcome.relocated) {
-                self.mark_nearby_players_for_visibility_like_cpp(origin.guid);
-            }
-            outcome
+            self.relocate_creature_with_respawn_fallback_like_cpp(origin.guid, moved_to)
         });
         LentCreatureReturnLikeCpp::Returned {
             binding_restored,
@@ -209,7 +227,7 @@ where
         &mut self,
         guid: ObjectGuid,
         from: Position,
-    ) -> Option<Result<MapObjectRelocationOutcome, MapObjectRelocationError>> {
+    ) -> Option<CreatureRelocationResultLikeCpp> {
         let world = self.get_typed_creature_mut(guid)?.unit_mut().world_mut();
         let moved_to = world.position();
         if moved_to == from {
@@ -219,10 +237,6 @@ where
         if is_valid_map_coord_2d(moved_to.x, moved_to.y) {
             self.mark_nearby_players_for_visibility_like_cpp(guid);
         }
-        let outcome = self.relocate_map_object_like_cpp(guid, moved_to);
-        if matches!(&outcome, Ok(outcome) if outcome.relocated) {
-            self.mark_nearby_players_for_visibility_like_cpp(guid);
-        }
-        Some(outcome)
+        Some(self.relocate_creature_with_respawn_fallback_like_cpp(guid, moved_to))
     }
 }

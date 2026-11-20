@@ -1244,13 +1244,16 @@ fn creature_relocation_visibility_direct_in_place_success() {
         .relocate(fixture.destination);
     fixture.reset_player_notifications();
 
-    let outcome = fixture
+    let result = fixture
         .map
         .relocate_creature_moved_in_place_like_cpp(fixture.creature_guid, fixture.origin)
-        .expect("an actual creature move must produce a relocation")
+        .expect("an actual creature move must produce a relocation");
+    let outcome = result
+        .requested
         .expect("the destination must be relocatable");
 
     assert!(outcome.relocated);
+    assert_eq!(result.fallback, None);
     fixture.assert_creature_at_destination();
     fixture.assert_both_players_marked();
 }
@@ -1269,14 +1272,18 @@ fn creature_relocation_visibility_lend_return_success() {
     fixture.reset_player_notifications();
 
     let LentCreatureReturnLikeCpp::Returned {
-        relocation: Some(Ok(outcome)),
+        relocation: Some(result),
         ..
     } = fixture.map.return_lent_creature_like_cpp(creature, origin)
     else {
         panic!("the lent creature must return with a successful relocation");
     };
+    let outcome = result
+        .requested
+        .expect("the destination must be relocatable");
 
     assert!(outcome.relocated);
+    assert_eq!(result.fallback, None);
     fixture.assert_creature_at_destination();
     fixture.assert_both_players_marked();
 }
@@ -1311,15 +1318,16 @@ fn creature_relocation_visibility_direct_invalid_destination() {
         .relocate(Position::xyz(f32::NAN, 2.0, 3.0));
     fixture.reset_player_notifications();
 
-    let outcome = fixture
+    let result = fixture
         .map
         .relocate_creature_moved_in_place_like_cpp(fixture.creature_guid, fixture.origin)
         .expect("an actual creature move must produce a relocation");
 
     assert!(matches!(
-        outcome,
+        result.requested,
         Err(MapObjectRelocationError::InvalidCoordinates { .. })
     ));
+    assert_eq!(result.fallback, None);
     fixture.assert_both_players_unmarked();
 }
 
@@ -1462,4 +1470,97 @@ fn respawn_relocation_visibility_invalid_requested_marks_no_observers() {
         fixture.origin
     );
     fixture.assert_both_players_unmarked();
+}
+
+#[test]
+fn respawn_relocation_direct_in_place_uses_home_after_requested_grid_unloads() {
+    let mut fixture = CreatureRelocationVisibilityFixture::new();
+    fixture
+        .map
+        .get_typed_creature_mut(fixture.creature_guid)
+        .unwrap()
+        .set_ai_home_position(fixture.destination);
+    let requested = Position::xyz(5_000.0, 5_000.0, 1.0);
+    let refused_guid = add_respawn_refused_observer(&mut fixture, 4530201);
+    fixture
+        .map
+        .get_typed_creature_mut(fixture.creature_guid)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .relocate(requested);
+    unload_respawn_requested_grid(&mut fixture.map);
+    reset_respawn_visibility_flags(&mut fixture, refused_guid);
+
+    let result = fixture
+        .map
+        .relocate_creature_moved_in_place_like_cpp(fixture.creature_guid, fixture.origin)
+        .expect("an actual creature move must produce a relocation");
+
+    assert!(matches!(
+        result.requested,
+        Ok(outcome) if !outcome.relocated && outcome.blocked_by_unloaded_grid
+    ));
+    assert_eq!(
+        result.fallback,
+        Some(crate::map::lent_creature::CreatureRespawnRelocationOutcomeLikeCpp::RespawnRelocated)
+    );
+    fixture.assert_creature_at_destination();
+    fixture.assert_both_players_marked();
+    assert!(
+        !fixture
+            .map
+            .map_object(refused_guid)
+            .unwrap()
+            .object()
+            .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
+        "the direct fallback must not publish the refused destination"
+    );
+}
+
+#[test]
+fn respawn_relocation_lent_return_uses_home_after_requested_grid_unloads() {
+    let mut fixture = CreatureRelocationVisibilityFixture::new();
+    fixture
+        .map
+        .get_typed_creature_mut(fixture.creature_guid)
+        .unwrap()
+        .set_ai_home_position(fixture.destination);
+    let requested = Position::xyz(5_000.0, 5_000.0, 1.0);
+    let refused_guid = add_respawn_refused_observer(&mut fixture, 4530202);
+    let (mut creature, origin) = fixture
+        .map
+        .lend_creature_like_cpp(fixture.creature_guid)
+        .unwrap();
+    creature.unit_mut().world_mut().relocate(requested);
+    unload_respawn_requested_grid(&mut fixture.map);
+    reset_respawn_visibility_flags(&mut fixture, refused_guid);
+
+    let LentCreatureReturnLikeCpp::Returned {
+        relocation: Some(result),
+        ..
+    } = fixture.map.return_lent_creature_like_cpp(creature, origin)
+    else {
+        panic!("the lent creature must return with a relocation result");
+    };
+
+    assert!(matches!(
+        result.requested,
+        Ok(outcome) if !outcome.relocated && outcome.blocked_by_unloaded_grid
+    ));
+    assert_eq!(
+        result.fallback,
+        Some(crate::map::lent_creature::CreatureRespawnRelocationOutcomeLikeCpp::RespawnRelocated)
+    );
+    fixture.assert_creature_at_destination();
+    fixture.assert_both_players_marked();
+    assert!(
+        !fixture
+            .map
+            .map_object(refused_guid)
+            .unwrap()
+            .object()
+            .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
+        "the lent-return fallback must not publish the refused destination"
+    );
 }

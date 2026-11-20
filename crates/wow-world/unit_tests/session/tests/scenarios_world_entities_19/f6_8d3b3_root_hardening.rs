@@ -192,10 +192,10 @@ fn a_creature_moved_in_place_follows_into_its_new_cell_like_cpp() {
             .is_none(),
         "no move relative to the position it is at"
     );
-    let outcome = map
+    let result = map
         .relocate_creature_moved_in_place_like_cpp(guid, origin)
-        .expect("moved")
-        .expect("valid position");
+        .expect("moved");
+    let outcome = result.requested.expect("valid position");
     assert!(outcome.relocated && outcome.moved_between_cells);
     assert_eq!(map.get_typed_creature(guid).unwrap().position(), moved);
     drop(guard);

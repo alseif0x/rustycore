@@ -300,17 +300,20 @@ impl LentIncarnationLikeCpp<'_> {
                 relocation,
             } => {
                 match relocation {
-                    Some(Ok(outcome)) if !outcome.relocated => tracing::debug!(
-                        ?guid,
-                        ?outcome,
-                        "creature mutation moved the creature into an unloaded grid; it stays at its origin like C++ Map::CreatureRelocation"
-                    ),
-                    Some(Err(error)) => tracing::warn!(
-                        ?guid,
-                        ?error,
-                        "creature mutation left the creature at a position the map refused; it stays at its origin"
-                    ),
-                    _ => {}
+                    Some(result) => match result.requested {
+                        Ok(outcome) if !outcome.relocated => tracing::debug!(
+                            ?guid,
+                            ?outcome,
+                            "creature mutation moved the creature into an unloaded grid; the requested position was not applied and the respawn fallback was reported"
+                        ),
+                        Err(error) => tracing::warn!(
+                            ?guid,
+                            ?error,
+                            "creature mutation left the creature at a position the map refused; the respawn fallback was reported"
+                        ),
+                        _ => {}
+                    },
+                    None => {}
                 }
                 if binding_restored {
                     tracing::error!(
