@@ -61,8 +61,6 @@ pub(crate) async fn apply_quest_item_added_objective_progress_filtered_like_cpp<
     count: u32,
     bound_item_requirement: Option<bool>,
 ) -> Vec<u32> {
-    use wow_packet::packets::quest::QuestUpdateComplete;
-
     let Some(quest_store) = host.hub_ref().catalogs.quests.store.clone() else {
         return Vec::new();
     };
@@ -150,24 +148,12 @@ pub(crate) async fn apply_quest_item_added_objective_progress_filtered_like_cpp<
     }
     for quest_id in quests_to_complete {
         if let Some(quest) = quest_store.get(quest_id).cloned() {
-            let completed = complete_represented_quest_after_add_with_generator_like_cpp(
+            let _ = complete_represented_quest_after_add_with_generator_like_cpp(
                 host,
                 item_guid_generator,
                 &quest,
             )
             .await;
-            if completed
-                && host
-                    .player_quest_gameplay_snapshot_like_cpp()
-                    .is_some_and(|state| {
-                        state
-                            .statuses_like_cpp()
-                            .get(&quest_id)
-                            .is_some_and(|status| status.status == QUEST_STATUS_COMPLETE_LIKE_CPP)
-                    })
-            {
-                host.send_packet(&QuestUpdateComplete { quest_id });
-            }
         }
     }
     if objective_updates.len() == 1 && objective_updates[0].1 {
@@ -411,22 +397,8 @@ pub fn apply_quest_item_added_bound_state_like_cpp<H: QuestItemStorageHostLikeCp
 
 pub fn publish_quest_item_added_status_changes_like_cpp<H: QuestSessionHostLikeCpp>(
     host: &mut H,
-    changed_quest_ids: &[u32],
+    _changed_quest_ids: &[u32],
 ) {
-    use wow_packet::packets::quest::QuestUpdateComplete;
-
-    let Some(state) = host.player_quest_gameplay_snapshot_like_cpp() else {
-        return;
-    };
-    for &quest_id in changed_quest_ids {
-        if state
-            .statuses_like_cpp()
-            .get(&quest_id)
-            .is_some_and(|status| status.status == QUEST_STATUS_COMPLETE_LIKE_CPP)
-        {
-            host.send_packet(&QuestUpdateComplete { quest_id });
-        }
-    }
     host.sync_player_registry_state_like_cpp();
 }
 

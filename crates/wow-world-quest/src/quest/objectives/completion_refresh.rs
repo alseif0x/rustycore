@@ -29,7 +29,7 @@ use crate::quest::{
 use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 
 impl QuestObjectiveProgressCx<'_, '_> {
-    /// C++ `Player::UpdateVisibleGameobjectsOrSpellClicks` at quest completion.
+    /// C++ `Player::UpdateVisibleObjectInteractions` after objective completion-state changes.
     pub(super) fn update_visible_gameobjects_or_spell_clicks_like_cpp(&self) -> usize {
         let cx = VisibilityRefreshCxLikeCpp {
             access: self.reward.player.visibility_refresh_access_like_cpp(),

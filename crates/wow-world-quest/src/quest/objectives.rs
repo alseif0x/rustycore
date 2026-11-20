@@ -373,10 +373,16 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         ) else {
             return;
         };
-        let matching: Vec<(u32, usize, i32, u32)> = quests
+        let matching: Vec<(u32, usize, i32, u32, u32)> = quests
             .statuses_like_cpp()
             .values()
-            .filter(|qs| qs.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+            .filter(|qs| {
+                matches!(
+                    qs.status,
+                    wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                        | wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+                )
+            })
             .flat_map(|qs| {
                 let quest = store.get(qs.quest_id)?;
                 Some(quest.objectives.iter().filter_map(move |obj| {
@@ -395,7 +401,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     let Ok(idx) = usize::try_from(obj.storage_index) else {
                         return None;
                     };
-                    Some((qs.quest_id, idx, obj.amount, obj.id))
+                    Some((qs.quest_id, idx, obj.amount, obj.id, obj.flags))
                 }))
             })
             .flatten()
@@ -403,7 +409,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
 
         let mut quests_to_complete = Vec::new();
         let mut quests_to_save = Vec::new();
-        for (quest_id, obj_idx, required, objective_id) in matching {
+        let mut any_objective_changed_completion_state = false;
+        for (quest_id, obj_idx, required, objective_id, objective_flags) in matching {
             let Some(current) = update_objective_count_like_cpp(
                 &owner,
                 self.reward.quest_state,
@@ -427,6 +434,32 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 object_id,
                 "Quest objective progress"
             );
+
+            let objective_was_complete = current.saturating_sub(add_count) >= required;
+            let objective_is_now_complete = current >= required;
+            if objective_was_complete != objective_is_now_complete {
+                any_objective_changed_completion_state = true;
+            }
+            if !objective_is_now_complete
+                && (objective_flags & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
+                    == 0
+                && mark_quest_incomplete_if_complete_like_cpp(
+                    &owner,
+                    self.reward.quest_state,
+                    quest_id,
+                    wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                    wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                    store.get(quest_id).is_some_and(|quest| {
+                        super::objective_progress::should_mark_quest_status_default_like_cpp(
+                            quest,
+                            self.reward.config.quest_ignore_auto_complete_like_cpp,
+                        )
+                    }),
+                    self.reward.world_test_consumer,
+                )
+            {
+                quests_to_save.push(quest_id);
+            }
 
             if add_count > 0 {
                 if objective_type == wow_constants::quest::QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP {
@@ -492,6 +525,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 );
             }
         }
+        if any_objective_changed_completion_state {
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+        }
 
         let owner = self.reward.player.quest_objective_access_like_cpp();
         save_changed_quest_statuses_like_cpp(
@@ -530,10 +566,16 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         ) else {
             return;
         };
-        let matching: Vec<(u32, usize, u32)> = quests
+        let matching: Vec<(u32, usize, u32, u32)> = quests
             .statuses_like_cpp()
             .values()
-            .filter(|qs| qs.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+            .filter(|qs| {
+                matches!(
+                    qs.status,
+                    wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                        | wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+                )
+            })
             .flat_map(|qs| {
                 let quest = store.get(qs.quest_id)?;
                 Some(quest.objectives.iter().filter_map(move |obj| {
@@ -546,7 +588,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     let Ok(idx) = usize::try_from(obj.storage_index) else {
                         return None;
                     };
-                    Some((qs.quest_id, idx, obj.id))
+                    Some((qs.quest_id, idx, obj.id, obj.flags))
                 }))
             })
             .flatten()
@@ -554,7 +596,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
 
         let mut quests_to_complete = Vec::new();
         let mut quests_to_save = Vec::new();
-        for (quest_id, obj_idx, objective_id) in matching {
+        let mut any_objective_changed_completion_state = false;
+        for (quest_id, obj_idx, objective_id, objective_flags) in matching {
             let Some((objective_was_complete, objective_is_now_complete)) =
                 super::objective_progress::update_storing_flag_like_cpp(
                     &owner,
@@ -568,6 +611,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 continue;
             };
             if objective_was_complete != objective_is_now_complete {
+                any_objective_changed_completion_state = true;
                 quests_to_save.push(quest_id);
             }
             if add_count > 0 {
@@ -604,6 +648,25 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                         quests_to_complete.push((quest_id, objective_id));
                     }
                 }
+            } else if (objective_flags
+                & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
+                == 0
+                && mark_quest_incomplete_if_complete_like_cpp(
+                    &owner,
+                    self.reward.quest_state,
+                    quest_id,
+                    wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                    wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                    store.get(quest_id).is_some_and(|quest| {
+                        super::objective_progress::should_mark_quest_status_default_like_cpp(
+                            quest,
+                            self.reward.config.quest_ignore_auto_complete_like_cpp,
+                        )
+                    }),
+                    self.reward.world_test_consumer,
+                )
+            {
+                quests_to_save.push(quest_id);
             }
         }
 
@@ -623,6 +686,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     "Quest objectives complete"
                 );
             }
+        }
+        if any_objective_changed_completion_state {
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
         save_changed_quest_statuses_like_cpp(

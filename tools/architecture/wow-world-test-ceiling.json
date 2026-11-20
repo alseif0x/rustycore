@@ -505,6 +505,16 @@
    "unit_tests_lines": 287655,
    "unit_tests_tests": 4277,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-47",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "Six canonical-Player storing-value/storing-flag objective transition regressions: positive, negative and optional-negative status, credit, reward and visibility behavior.",
+   "unit_tests_lines": 287942,
+   "unit_tests_tests": 4283,
+   "src_tests": 345
   }
  ]
 }

@@ -280,7 +280,7 @@ impl QuestObjectiveAccessLikeCpp<'_> {
         })
     }
 
-    /// Revert one canonical completed quest when its threshold objective regresses.
+    /// Revert one canonical completed quest when a required objective regresses.
     pub fn mark_quest_incomplete_if_complete_like_cpp(
         &self,
         quest_id: u32,
