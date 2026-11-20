@@ -1,5 +1,39 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 raid objective admission accepted locally — 2026-11-20
+
+Committed candidate `bcae7a3cc26007aa622ab730a72e7c6c59ffe582`, based on
+`f4dc4da19`, enforces C++ raid admission across storing-value, storing-flag,
+money, currency and reputation progress. `QuestTemplate` now owns the objective
+exemption list and the `QuestInfoID`/difficulty/`QUEST_FLAGS_RAID_GROUP_OK`
+decision, while `Quests.IgnoreRaid` is loaded through the production policy with
+its default `false`. Current raid membership comes from the authoritative group
+registry and map difficulty from the selected canonical Player, matching
+`Player.cpp:17021-17028` and `QuestDef.cpp:IsRaidQuest/IsAllowedInRaid` at
+`02245dcd245e7433e524577656177723d3e4992e`.
+
+Two composed regressions cover both storage families rejected in raid,
+RAID_GROUP_OK and non-raid completion, plus money regressing in raid without a
+raid flag. A catalog matrix covers all quest-info/difficulty/config branches and
+a world-server test covers the configuration key. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base f4dc4da19 --architecture --require-changes --timings --logs`
+campaign passed all twelve commands from 17:22:59Z to 17:35:12Z (732.631
+seconds), exceeding the 600-second target by 132.631 seconds: 647
+`world-server` (one ignored), 1,081 `wow-data` (six ignored), 4,639 `wow-world`
+(one ignored), 297 `wow-world-core` and eight `wow-world-quest` tests passed,
+totaling 6,672 passed, eight ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T172259.917639Z-333726-final.json`.
+Architecture policy, session syntax ownership with 2,685 associated items and
+752 direct-registry rows, formatting and all affected downstream checks passed.
+Reviewed ledgers record the exact production/test growth, 105 new Session test
+lines and two test identities.
+
+This closes the raid-admission divergence in #1368. Inline completion ordering,
+immediate-save/persistence fences, effective team and completion effects remain
+open. This is synthetic source/behavior/wire evidence, not a live quest capture
+or full quest parity acceptance. Player runtime integration and character
+creation remain separate work.
+
 ## #1368 threshold negative transitions accepted locally — 2026-11-20
 
 Committed candidate `94460fac95e0f8eb15e8faf4b6f5b3e1d29a543b`, based on
