@@ -775,15 +775,19 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             new_money_i64,
             false,
         );
-
         let mut quests_to_complete = Vec::new();
         let mut quests_to_save = Vec::new();
+        let mut any_objective_changed_completion_state = false;
         for change in matching {
             let quest_id = change.quest_id;
             let objective_id = change.objective_id;
             let required = change.required;
             let objective_was_complete = change.objective_was_complete;
             let objective_is_now_complete = change.objective_is_now_complete;
+            let objective_flags = change.objective_flags;
+            if objective_was_complete != objective_is_now_complete {
+                any_objective_changed_completion_state = true;
+            }
             tracing::debug!(
                 account = owner.account_id_like_cpp(),
                 quest_id,
@@ -821,6 +825,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     }
                 }
             } else if objective_was_complete
+                && (objective_flags & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
+                    == 0
                 && mark_quest_incomplete_if_complete_like_cpp(
                     &owner,
                     self.reward.quest_state,
@@ -857,6 +863,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     "Quest objectives complete"
                 );
             }
+        }
+        if any_objective_changed_completion_state {
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
         save_changed_quest_statuses_like_cpp(
@@ -917,12 +926,17 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
 
         let mut quests_to_complete = Vec::new();
         let mut quests_to_save = Vec::new();
+        let mut any_objective_changed_completion_state = false;
         for change in matching {
             let quest_id = change.quest_id;
             let objective_id = change.objective_id;
             let required = change.required;
             let objective_was_complete = change.objective_was_complete;
             let objective_is_now_complete = change.objective_is_now_complete;
+            let objective_flags = change.objective_flags;
+            if objective_was_complete != objective_is_now_complete {
+                any_objective_changed_completion_state = true;
+            }
             tracing::debug!(
                 account = owner.account_id_like_cpp(),
                 quest_id,
@@ -960,6 +974,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     }
                 }
             } else if objective_was_complete
+                && (objective_flags & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
+                    == 0
                 && mark_quest_incomplete_if_complete_like_cpp(
                     &owner,
                     self.reward.quest_state,
@@ -996,6 +1012,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     "Quest objectives complete"
                 );
             }
+        }
+        if any_objective_changed_completion_state {
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
         save_changed_quest_statuses_like_cpp(
@@ -1067,12 +1086,17 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
 
         let mut quests_to_complete = Vec::new();
         let mut quests_to_save = Vec::new();
+        let mut any_objective_changed_completion_state = false;
         for change in matching {
             let quest_id = change.quest_id;
             let objective_id = change.objective_id;
             let required = change.required;
             let objective_was_complete = change.objective_was_complete;
             let objective_is_now_complete = change.objective_is_now_complete;
+            let objective_flags = change.objective_flags;
+            if objective_was_complete != objective_is_now_complete {
+                any_objective_changed_completion_state = true;
+            }
             tracing::debug!(
                 account = owner.account_id_like_cpp(),
                 quest_id,
@@ -1111,6 +1135,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     }
                 }
             } else if objective_was_complete
+                && (objective_flags & wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP)
+                    == 0
                 && mark_quest_incomplete_if_complete_like_cpp(
                     &owner,
                     self.reward.quest_state,
@@ -1147,6 +1173,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     "Quest objectives complete"
                 );
             }
+        }
+        if any_objective_changed_completion_state {
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
         save_changed_quest_statuses_like_cpp(

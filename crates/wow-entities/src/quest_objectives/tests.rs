@@ -136,6 +136,7 @@ fn threshold_planner_preserves_direction_and_skips_already_complete_positive_cha
             required: 10,
             objective_was_complete: false,
             objective_is_now_complete: true,
+            objective_flags: 0,
         }]
     );
     assert!(

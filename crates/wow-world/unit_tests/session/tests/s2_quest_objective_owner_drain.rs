@@ -575,3 +575,208 @@ async fn completed_storing_flag_ignores_nonnegative_repeat_events_like_cpp() {
         );
     }
 }
+
+const THRESHOLD_QUEST_ID: u32 = 13_634;
+const THRESHOLD_CLICK_NPC_ENTRY: u32 = 714;
+const THRESHOLD_CLICK_SPELL_ID: u32 = 914;
+
+async fn threshold_negative_outcome_like_cpp(
+    objective_type: u8,
+    objective_flags: u32,
+) -> (u8, Vec<ServerOpcodes>) {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 46);
+    let creature_guid = test_creature_guid(134);
+    let mut quest = test_quest_template(THRESHOLD_QUEST_ID);
+    quest.objectives.push(wow_data::quest::QuestObjective {
+        id: THRESHOLD_QUEST_ID * 10,
+        quest_id: THRESHOLD_QUEST_ID,
+        obj_type: objective_type,
+        order: 0,
+        storage_index: -1,
+        object_id: if objective_type == QUEST_OBJECTIVE_MONEY_LIKE_CPP {
+            0
+        } else if objective_type == QUEST_OBJECTIVE_CURRENCY_LIKE_CPP {
+            395
+        } else {
+            7
+        },
+        amount: 100,
+        flags: objective_flags,
+        flags2: 0,
+        progress_bar_weight: 0.0,
+        description: String::new(),
+    });
+    session.set_player_guid(Some(player_guid));
+    session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+        [quest],
+    )));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Tester".to_string(),
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical threshold viewer map");
+    assert!(
+        session
+            .mutate_player_quest_gameplay_like_cpp(|state| {
+                state.insert_status_like_cpp(
+                    THRESHOLD_QUEST_ID,
+                    crate::handlers::quest::PlayerQuestStatus {
+                        quest_id: THRESHOLD_QUEST_ID,
+                        status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                        explored: false,
+                        accept_time_secs: 0,
+                        end_time_secs: 0,
+                        objective_counts: vec![],
+                        slot: 0,
+                    },
+                );
+            })
+            .is_some(),
+        "threshold fixture must use the canonical Player owner"
+    );
+    session.set_player_gold_like_cpp(100);
+    assert!(
+        session.set_player_currencies_like_cpp(std::collections::HashMap::from([(
+            395,
+            wow_entities::PlayerCurrency {
+                state: wow_entities::PlayerCurrencyState::Unchanged,
+                quantity: 100,
+                weekly_quantity: 0,
+                tracked_quantity: 0,
+                increased_cap_quantity: 0,
+                earned_quantity: 0,
+                flags: 0,
+            },
+        )]))
+    );
+    let mut faction = FactionEntry::for_test_like_cpp(7, 5);
+    faction.reputation_flags[0] = ReputationFlagsLikeCpp::VISIBLE.bits();
+    session.set_faction_store(Arc::new(FactionStore::from_entries([faction])));
+    let mut reputation =
+        wow_progression::FactionStateLikeCpp::new_like_cpp(7, 5, ReputationFlagsLikeCpp::VISIBLE);
+    reputation.standing = 100;
+    assert!(
+        session
+            .mutate_reputation_mgr_like_cpp(|manager| {
+                manager.insert_state_for_test_like_cpp(reputation);
+            })
+            .is_some(),
+        "threshold reputation must use the canonical Player owner"
+    );
+    session.set_condition_store(Arc::new(
+        ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
+            source_type: ConditionSourceType::SpellClickEvent,
+            source_group: THRESHOLD_CLICK_NPC_ENTRY,
+            source_entry: THRESHOLD_CLICK_SPELL_ID as i32,
+            source_id: 0,
+            condition_type: ConditionType::Aura,
+            condition_value1: 999_999,
+            ..Condition::default()
+        }]),
+    ));
+    session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+        [wow_data::NpcSpellClickRowLikeCpp {
+            npc_entry: THRESHOLD_CLICK_NPC_ENTRY,
+            spell_id: THRESHOLD_CLICK_SPELL_ID,
+            cast_flags: 0,
+            user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+        }],
+        |entry| entry == THRESHOLD_CLICK_NPC_ENTRY,
+        |spell| spell == THRESHOLD_CLICK_SPELL_ID,
+    )));
+    add_canonical_test_creature(
+        &canonical,
+        creature_guid,
+        THRESHOLD_CLICK_NPC_ENTRY,
+        Position::new(12.0, 0.0, 0.0, 0.0),
+        UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+    );
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
+    let _ = drain_server_opcodes(&send_rx);
+
+    session.set_item_guid_generator_like_cpp(Arc::new(wow_core::ObjectGuidGenerator::new(
+        wow_core::guid::HighGuid::Item,
+        1,
+    )));
+
+    match objective_type {
+        QUEST_OBJECTIVE_MONEY_LIKE_CPP => session.money_changed_like_cpp(90).await,
+        QUEST_OBJECTIVE_CURRENCY_LIKE_CPP => session.currency_changed_like_cpp(395, -10).await,
+        QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP => {
+            session.reputation_changed_like_cpp(7, -10).await
+        }
+        _ => unreachable!("threshold regression objective type"),
+    }
+
+    let status = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .and_then(|state| {
+            state
+                .status_like_cpp(THRESHOLD_QUEST_ID)
+                .map(|status| status.status)
+        })
+        .expect("threshold quest status");
+    (status, drain_server_opcodes(&send_rx))
+}
+
+async fn assert_threshold_negative_transitions_like_cpp(objective_type: u8) {
+    for (flags, expected_status) in [
+        (0, QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+        (
+            wow_constants::quest::QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP,
+            QUEST_STATUS_COMPLETE_LIKE_CPP,
+        ),
+    ] {
+        let (status, opcodes) = threshold_negative_outcome_like_cpp(objective_type, flags).await;
+        assert_eq!(status, expected_status, "transition packets: {opcodes:?}");
+        assert_eq!(
+            opcodes
+                .iter()
+                .filter(|opcode| **opcode == ServerOpcodes::UpdateObject)
+                .count(),
+            1,
+            "a threshold completion-state change must refresh once: {opcodes:?}"
+        );
+        for unexpected in [
+            ServerOpcodes::QuestUpdateAddCredit,
+            ServerOpcodes::QuestUpdateAddCreditSimple,
+            ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::QuestGiverQuestComplete,
+        ] {
+            assert!(
+                !opcodes.contains(&unexpected),
+                "negative threshold progress must not publish {unexpected:?}: {opcodes:?}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn money_negative_transition_honors_optional_and_refreshes_like_cpp() {
+    assert_threshold_negative_transitions_like_cpp(QUEST_OBJECTIVE_MONEY_LIKE_CPP).await;
+}
+
+#[tokio::test]
+async fn currency_negative_transition_honors_optional_and_refreshes_like_cpp() {
+    assert_threshold_negative_transitions_like_cpp(QUEST_OBJECTIVE_CURRENCY_LIKE_CPP).await;
+}
+
+#[tokio::test]
+async fn reputation_negative_transition_honors_optional_and_refreshes_like_cpp() {
+    assert_threshold_negative_transitions_like_cpp(QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP).await;
+}

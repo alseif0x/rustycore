@@ -555,6 +555,16 @@
    "unit_tests_lines": 288156,
    "unit_tests_tests": 4290,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-52",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "Three threshold regressions cover money, currency and reputation reductions from 100 to 90: required objectives mark the quest incomplete, optional objectives preserve completion, and both refresh interactions once.",
+   "unit_tests_lines": 288361,
+   "unit_tests_tests": 4293,
+   "src_tests": 345
   }
  ]
 }

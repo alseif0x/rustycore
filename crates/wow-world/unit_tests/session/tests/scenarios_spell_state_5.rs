@@ -302,7 +302,7 @@ async fn complete_quest_triggers_visible_spellclick_refresh_like_cpp() {
     session.money_changed_like_cpp(100).await;
 
     let packets = drain_server_packet_bytes(&send_rx);
-    assert_eq!(update_object_packet_count_like_cpp(&packets), 1);
+    assert_eq!(update_object_packet_count_like_cpp(&packets), 2);
     assert!(packets.iter().any(|bytes| {
         wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
             == Some(ServerOpcodes::UpdateObject)

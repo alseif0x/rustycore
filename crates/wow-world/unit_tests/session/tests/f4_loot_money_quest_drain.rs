@@ -194,8 +194,8 @@ async fn loot_money_completing_a_money_objective_refreshes_visibility_during_com
         "the drained money change completed the quest in the canonical owner"
     );
     assert_eq!(control_status, status);
-    // The visible spell-click creature adds exactly one UpdateObject inside
-    // the completion; every other packet keeps the control's order.
+    // CompleteQuest and the end-of-call transition each refresh the visible
+    // spell-click creature; every other packet keeps the control's order.
     let updates = |opcodes: &[ServerOpcodes]| {
         opcodes
             .iter()
@@ -204,10 +204,10 @@ async fn loot_money_completing_a_money_objective_refreshes_visibility_during_com
     };
     assert_eq!(
         updates(&opcodes),
-        updates(&control_opcodes) + 1,
+        updates(&control_opcodes) + 2,
         "visible: {opcodes:?}; control: {control_opcodes:?}"
     );
-    assert_eq!(opcodes.len(), control_opcodes.len() + 1);
+    assert_eq!(opcodes.len(), control_opcodes.len() + 2);
     assert!(
         opcodes
             .iter()
@@ -228,7 +228,7 @@ async fn loot_money_completing_a_money_objective_refreshes_visibility_during_com
         update,
     );
     let refresh = refresh.to_bytes();
-    assert_eq!(packets.iter().filter(|p| **p == refresh).count(), 1);
+    assert_eq!(packets.iter().filter(|p| **p == refresh).count(), 2);
     assert!(!control_packets.contains(&refresh));
 }
 

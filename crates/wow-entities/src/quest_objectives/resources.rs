@@ -19,6 +19,7 @@ pub struct ThresholdQuestObjectiveChangeLikeCpp {
     pub required: i32,
     pub objective_was_complete: bool,
     pub objective_is_now_complete: bool,
+    pub objective_flags: u32,
 }
 
 /// Plan threshold transitions for an objective type and object identity.
@@ -65,6 +66,7 @@ pub fn plan_threshold_quest_objective_changes_like_cpp<'a>(
                     required: objective.amount,
                     objective_was_complete,
                     objective_is_now_complete,
+                    objective_flags: objective.flags,
                 })
             }))
         })

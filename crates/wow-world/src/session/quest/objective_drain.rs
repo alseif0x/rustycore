@@ -200,7 +200,7 @@ impl WorldSession {
     /// `UpdateQuestObjectiveProgress` (`Player.cpp:16162`–`:16176`), drained in
     /// recorded order by the App owner
     /// `QuestObjectiveProgressCx::drain_represented_quest_objective_progress_like_cpp`,
-    /// whose completions run the `SendQuestUpdate` visibility refresh themselves.
+    /// whose completion-state changes run the end-of-call visibility refresh.
     pub(crate) async fn drain_represented_quest_objective_progress_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
