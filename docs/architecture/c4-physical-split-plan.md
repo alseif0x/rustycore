@@ -1132,6 +1132,21 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8af starts at `10a2fef4a` and extracts GameEvent StartSystem.
+`app.rs` shrinks from 2,814 to 2,625 lines and its physical ceiling tightens
+without retiring C4-8. The new private `game_event_startup.rs` has 208 lines,
+seven borrowed inputs and one direct scheduler result. It preserves the initial
+metadata update, both database phases, all three side-effect locks, seasonal
+session fanout, complete diagnostics and scheduler construction in their original
+order; both awaits remain outside every mutex guard.
+
+The moved body matches the original token stream after narrowing borrowed inputs
+and wrapping the scheduler in `Ok`. The `world-server` library check passes with
+the same 35 existing warnings. The logical owner gains 19 production lines for
+the function boundary, module wiring and canonical rustfmt, recorded as +19
+production/+0 tests/+19 total. Later C4-8 stages still owe remaining dependencies
+and supervision/shutdown.
+
 On `forever`, C4-8ae starts at `d7cc0777f` and extracts group, terrain and
 instance-lock startup. `app.rs` shrinks from 2,856 to 2,814 lines and its
 physical ceiling tightens without retiring C4-8. The new private
