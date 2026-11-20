@@ -1,5 +1,23 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 map-rebind wording accepted locally — 2026-11-20
+
+Committed candidate `33596380857e527484301c2c401af5cbfb87f2d9`, based on
+`0b3610ff2`, resolves the map-rebind wording review item in #1354. The mutation
+root documentation, `BindingRestored` comment and error log now state that the
+mutation result is discarded after the original map binding is restored. The
+`canonical_application_refused` outcome, log fields and severity are unchanged.
+
+The committed
+`./tools/validation-v2 final --base 0b3610ff2 --architecture --require-changes --timings --logs`
+campaign passed all nine commands from 04:40:14Z to 04:43:49Z (214.841 seconds),
+within the 600-second target. The `wow-world-core` library passed all 297 tests
+with zero failures or ignored tests. Verified manifest:
+`target/validation-v2/manifests/20261120T044014.507070Z-3666869-final.json`.
+
+Only unloaded-grid respawn relocation remains open in #1354; no runtime behavior
+or issue closeout is claimed from this wording correction.
+
 ## #1354 inaccessible chase target retention accepted locally — 2026-11-20
 
 Committed candidate `9317820b50c3628dd756b14770a7aea7899b0cfa`, based on
