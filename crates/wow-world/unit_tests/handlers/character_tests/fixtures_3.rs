@@ -724,6 +724,16 @@ pub(super) fn attach_npc_creature(
     entry: u32,
     npc_flags: u32,
 ) {
+    attach_npc_creature_with_faction_template(session, guid, entry, 35, npc_flags);
+}
+
+pub(super) fn attach_npc_creature_with_faction_template(
+    session: &mut WorldSession,
+    guid: ObjectGuid,
+    entry: u32,
+    faction_template_id: u32,
+    npc_flags: u32,
+) {
     let manager = fixtures::ensure_canonical_creature_store_for_session_like_cpp(session);
     manager.lock().unwrap().add_creature(
         571,
@@ -738,7 +748,7 @@ pub(super) fn attach_npc_creature(
             2,
             0.0,
             1,
-            35,
+            faction_template_id,
             npc_flags,
             0,
         ),

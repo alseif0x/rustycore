@@ -375,6 +375,16 @@
    "unit_tests_lines": 278832,
    "unit_tests_tests": 4152,
    "src_tests": 22
+  },
+  {
+   "id": "raise-1494-35",
+   "kind": "raise",
+   "issue": 1494,
+   "reviewed_at": "2026-11-20",
+   "reason": "PR1494: canonical auction Hello requests and both gossip producers resolve faction/config house IDs; reject malformed, missing-NPC and GameObject auction requests. Preserve all existing auction gate assertions while removing the absent 54261 ItemID.",
+   "unit_tests_lines": 279029,
+   "unit_tests_tests": 4154,
+   "src_tests": 22
   }
  ]
 }

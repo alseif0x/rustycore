@@ -1024,9 +1024,18 @@ fn party_raid_warnings_uses_cpp_world_config_key() {
 #[test]
 fn party_invite_configs_use_cpp_world_config_keys() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+    wow_config::load_config_from_str("").expect("empty config should load");
+    let defaults = wow_config::load_world_config_values();
+    assert!(world_config_bool(
+        &defaults,
+        "CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION",
+        false
+    ));
+
     wow_config::load_config_from_str(
         "GM.AllowInvite = 1\n\
          AllowTwoSide.Interaction.Group = 1\n\
+         AllowTwoSide.Interaction.Auction = 0\n\
          PartyLevelReq = 12\n",
     )
     .expect("config should load");
@@ -1037,6 +1046,11 @@ fn party_invite_configs_use_cpp_world_config_keys() {
         &configs,
         "CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP",
         false
+    ));
+    assert!(!world_config_bool(
+        &configs,
+        "CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION",
+        true
     ));
     assert_eq!(world_config_u32(&configs, "CONFIG_PARTY_LEVEL_REQ", 1), 12);
 }

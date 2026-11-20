@@ -221,7 +221,6 @@ fn auction_remove_item_reads_no_tainted_by_like_cpp() {
     let request = AuctionRemoveItem::read(&mut pkt).unwrap();
     assert_eq!(request.auctioneer, auctioneer);
     assert_eq!(request.auction_id, 1234);
-    assert_eq!(request.item_id, 0);
     assert!(request.tainted_by.is_none());
     assert_eq!(pkt.remaining(), 0);
 }
@@ -248,7 +247,6 @@ fn auction_remove_item_reads_tainted_by_like_cpp() {
     let request = AuctionRemoveItem::read(&mut pkt).unwrap();
     assert_eq!(request.auctioneer, auctioneer);
     assert_eq!(request.auction_id, 5678);
-    assert_eq!(request.item_id, 0);
     assert_eq!(
         request.tainted_by,
         Some(AuctionAddonInfo {
@@ -259,6 +257,19 @@ fn auction_remove_item_reads_tainted_by_like_cpp() {
         })
     );
     assert_eq!(pkt.remaining(), 0);
+}
+
+#[test]
+fn auction_remove_item_rejects_truncated_addon_payload_like_cpp() {
+    let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_007, 13);
+    let mut pkt = WorldPacket::new_empty();
+    pkt.write_packed_guid(&auctioneer);
+    pkt.write_int32(5678);
+    pkt.write_bit(true);
+    pkt.flush_bits();
+    pkt.reset_read();
+
+    assert!(AuctionRemoveItem::read(&mut pkt).is_err());
 }
 
 #[test]
@@ -882,13 +893,14 @@ fn bind_point_update_serializes() {
 #[test]
 fn auction_remove_item_reads_live_3_4_3_54261_capture() {
     // Real 3.4.3.54261 client: packed auctioneer guid, u32 AuctionID 1, tainted bit 0.
+    let auctioneer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 8670, 482);
     let bytes: [u8; 14] = [
         0x03, 0xa7, 0xe2, 0x01, 0x80, 0x77, 0x08, 0x04, 0x20, 0x01, 0x00, 0x00, 0x00, 0x00,
     ];
     let mut pkt = WorldPacket::from_bytes(&bytes);
     let request = AuctionRemoveItem::read(&mut pkt).unwrap();
+    assert_eq!(request.auctioneer, auctioneer);
     assert_eq!(request.auction_id, 1);
-    assert_eq!(request.item_id, 0);
     assert!(request.tainted_by.is_none());
     assert_eq!(pkt.remaining(), 0);
 }

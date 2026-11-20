@@ -59,14 +59,13 @@ impl ClientPacket for AuctionReplicateItems {
 }
 
 /// C++ `WorldPackets::AuctionHouse::AuctionRemoveItem`. The 3.4.3.54261 client writes
-/// `guid, u32 AuctionID, bit TaintedBy, flush, [AddOnInfo]` (verified in IDA and by a live
-/// capture of 14 bytes); TC's extra `i32 ItemID` is the retail layout and is not on this
-/// client's wire, so `item_id` stays 0.
+/// `guid, u32 AuctionID, bit TaintedBy, flush, [AddOnInfo]`; the verified 14-byte fixture and
+/// reader analysis are documented in `docs/audits/auction-packets-54261.md` (contributor evidence).
+/// No item ID is present in this client's packet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuctionRemoveItem {
     pub auctioneer: ObjectGuid,
     pub auction_id: i32,
-    pub item_id: i32,
     pub tainted_by: Option<AuctionAddonInfo>,
 }
 
@@ -76,7 +75,6 @@ impl ClientPacket for AuctionRemoveItem {
     fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
         let auctioneer = pkt.read_packed_guid()?;
         let auction_id = pkt.read_int32()?;
-        let item_id = 0;
         let tainted_by = if pkt.read_bit()? {
             Some(AuctionAddonInfo::read(pkt)?)
         } else {
@@ -86,7 +84,6 @@ impl ClientPacket for AuctionRemoveItem {
         Ok(Self {
             auctioneer,
             auction_id,
-            item_id,
             tainted_by,
         })
     }

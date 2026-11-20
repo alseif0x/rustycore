@@ -5167,6 +5167,11 @@ async fn run_inner(
                 "CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN",
                 true,
             ),
+            allow_two_side_interaction_auction: world_config_bool(
+                &world_configs,
+                "CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION",
+                true,
+            ),
             vmap_indoor_check: world_config_bool(&world_configs, "CONFIG_VMAP_INDOOR_CHECK", false),
             cast_unstuck_enabled: world_config_bool(&world_configs, "CONFIG_CAST_UNSTUCK", true),
             quest_low_level_hide_diff: world_config_u32(

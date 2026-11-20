@@ -5,9 +5,13 @@
 use super::*;
 
 #[test]
-fn auction_hello_response_writes_cpp_layout_without_auction_house_id() {
+fn auction_hello_response_writes_54261_client_layout() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 123, 1);
-    let bytes = AuctionHelloResponse::open(guid).to_bytes();
+    let mut response = AuctionHelloResponse::open(guid, 2);
+    response.purchased_item_delivery_delay = 11;
+    response.cancelled_item_delivery_delay = 23;
+    let bytes = response.to_bytes();
+    assert_eq!(bytes.last(), Some(&0x80));
     let mut packet = WorldPacket::from_bytes(&bytes);
 
     assert_eq!(
@@ -15,10 +19,9 @@ fn auction_hello_response_writes_cpp_layout_without_auction_house_id() {
         ServerOpcodes::AuctionHelloResponse as u16
     );
     assert_eq!(packet.read_packed_guid().expect("auctioneer guid"), guid);
-    assert_eq!(packet.read_uint32().expect("purchased delivery delay"), 0);
-    assert_eq!(packet.read_uint32().expect("cancelled delivery delay"), 0);
-    // 3.4.3.54261 reads a third u32 (AuctionHouseID) before OpenForBusiness.
-    assert_eq!(packet.read_uint32().expect("auction house id"), 7);
+    assert_eq!(packet.read_uint32().expect("purchased delivery delay"), 11);
+    assert_eq!(packet.read_uint32().expect("cancelled delivery delay"), 23);
+    assert_eq!(packet.read_uint32().expect("auction house id"), 2);
     assert!(packet.read_bit().expect("open for business"));
     assert!(packet.is_empty());
 }

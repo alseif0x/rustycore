@@ -8,8 +8,40 @@ use crate::session::{
     HubRef, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, RepresentedCreatureAccessLikeCpp,
     RepresentedGetReactionInputLikeCpp,
 };
-use wow_constants::{CreatureTypeFlags, UnitFlags2};
+use wow_constants::{CreatureTypeFlags, FactionMasks, UnitFlags2};
 use wow_core::ObjectGuid;
+
+const SHARED_AUCTION_HOUSE_ID_LIKE_CPP: u32 = 1;
+const ALLIANCE_AUCTION_HOUSE_ID_LIKE_CPP: u32 = 2;
+const HORDE_AUCTION_HOUSE_ID_LIKE_CPP: u32 = 6;
+const GOBLIN_AUCTION_HOUSE_ID_LIKE_CPP: u32 = 7;
+
+/// Mirrors C++ `AuctionHouseMgr::GetAuctionHouseEntry` policy (`AuctionHouseMgr.cpp:806-842`).
+fn auction_house_id_from_faction_template_like_cpp(
+    allow_two_side_interaction_auction: bool,
+    faction_template_id: u32,
+    faction_group: Option<u8>,
+) -> u32 {
+    if allow_two_side_interaction_auction {
+        return SHARED_AUCTION_HOUSE_ID_LIKE_CPP;
+    }
+
+    if matches!(faction_template_id, 120 | 474 | 855) {
+        return GOBLIN_AUCTION_HOUSE_ID_LIKE_CPP;
+    }
+
+    let Some(faction_group) = faction_group else {
+        return SHARED_AUCTION_HOUSE_ID_LIKE_CPP;
+    };
+    let faction_group = FactionMasks::from_bits_retain(faction_group);
+    if faction_group.contains(FactionMasks::ALLIANCE) {
+        ALLIANCE_AUCTION_HOUSE_ID_LIKE_CPP
+    } else if faction_group.contains(FactionMasks::HORDE) {
+        HORDE_AUCTION_HOUSE_ID_LIKE_CPP
+    } else {
+        SHARED_AUCTION_HOUSE_ID_LIKE_CPP
+    }
+}
 
 impl NpcInteractionAccessLikeCpp<'_> {
     pub fn represented_npc_can_interact_with_like_cpp(
@@ -202,5 +234,49 @@ impl HubRef<'_> {
     ) -> Option<RepresentedCreatureAccessLikeCpp> {
         self.trainer_npc_interaction_access_like_cpp()
             .represented_npc_can_interact_with_like_cpp(guid, npc_flags, npc_flags2)
+    }
+
+    pub fn auction_house_id_for_faction_template_like_cpp(&self, faction_template_id: u32) -> u32 {
+        let faction_group = self
+            .catalogs
+            .factions
+            .template_store
+            .as_deref()
+            .and_then(|store| store.get(faction_template_id))
+            .map(|template| template.faction_group);
+        auction_house_id_from_faction_template_like_cpp(
+            self.config.allow_two_side_interaction_auction_like_cpp,
+            faction_template_id,
+            faction_group,
+        )
+    }
+}
+
+#[cfg(test)]
+mod auction_house_id_tests {
+    use super::auction_house_id_from_faction_template_like_cpp as resolve;
+    use wow_constants::FactionMasks;
+
+    #[test]
+    fn auction_house_id_matches_cpp_policy_precedence() {
+        let alliance = FactionMasks::ALLIANCE.bits();
+        let horde = FactionMasks::HORDE.bits();
+
+        assert!(
+            crate::session::state::SessionWorldConfig::default()
+                .allow_two_side_interaction_auction_like_cpp
+        );
+
+        for special_template in [120, 474, 855] {
+            assert_eq!(resolve(false, special_template, Some(horde)), 7);
+        }
+        assert_eq!(resolve(false, 1, Some(alliance)), 2);
+        assert_eq!(resolve(false, 1, Some(horde)), 6);
+        assert_eq!(resolve(false, 1, Some(alliance | horde)), 2);
+        assert_eq!(resolve(false, 1, Some(FactionMasks::MONSTER.bits())), 1);
+        assert_eq!(resolve(false, 1, None), 1);
+
+        // Cross-faction auction policy wins before a faction template's special mapping.
+        assert_eq!(resolve(true, 120, Some(alliance)), 1);
     }
 }

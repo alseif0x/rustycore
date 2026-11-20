@@ -852,9 +852,6 @@ impl crate::ClientPacket for ShowTradeSkill {
     }
 }
 
-/// AuctionHouse DB2 id of the neutral (goblin) auction house.
-pub const NEUTRAL_AUCTION_HOUSE_ID: u32 = 7;
-
 /// SMSG_AUCTION_HELLO_RESPONSE — opens the auction house UI on the client.
 /// C++ ref: `WorldPackets::AuctionHouse::AuctionHelloResponse`.
 pub struct AuctionHelloResponse {
@@ -874,13 +871,13 @@ pub struct AuctionHelloResponse {
 }
 
 impl AuctionHelloResponse {
-    /// Convenience: open neutral auction house for a given NPC guid.
-    pub fn open(auctioneer_guid: wow_core::ObjectGuid) -> Self {
+    /// Convenience: open the selected auction house for a given NPC guid.
+    pub fn open(auctioneer_guid: wow_core::ObjectGuid, auction_house_id: u32) -> Self {
         Self {
             auctioneer_guid,
             purchased_item_delivery_delay: 0,
             cancelled_item_delivery_delay: 0,
-            auction_house_id: NEUTRAL_AUCTION_HOUSE_ID,
+            auction_house_id,
             open_for_business: true,
         }
     }

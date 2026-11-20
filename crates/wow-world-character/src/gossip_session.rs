@@ -262,6 +262,7 @@ async fn handle_npc_direct_interaction<H: CharacterLoginHostLikeCpp>(
     host: &mut H,
     hello: Hello,
     npc_flags: u32,
+    faction_template_id: u32,
 ) {
     use wow_packet::packets::misc::{AuctionHelloResponse, NpcInteractionOpenResult};
 
@@ -287,7 +288,10 @@ async fn handle_npc_direct_interaction<H: CharacterLoginHostLikeCpp>(
     } else if npc_flags & DIRECT_TRAINER_MASK_LIKE_CPP != 0 {
         host.handle_trainer_list(hello).await;
     } else if npc_flags & DIRECT_AUCTIONEER_LIKE_CPP != 0 {
-        host.send_packet(&AuctionHelloResponse::open(hello.unit));
+        let auction_house_id = host
+            .hub_ref()
+            .auction_house_id_for_faction_template_like_cpp(faction_template_id);
+        host.send_packet(&AuctionHelloResponse::open(hello.unit, auction_house_id));
     } else if npc_flags & DIRECT_BANKER_LIKE_CPP != 0 {
         host.send_show_bank_like_cpp(hello.unit);
     } else if npc_flags & DIRECT_FLIGHT_MASTER_LIKE_CPP != 0 {
@@ -336,7 +340,11 @@ pub async fn handle_gossip_hello<H: CharacterLoginHostLikeCpp>(host: &mut H, hel
         );
         return;
     };
-    let (resolved_npc_flags, resolved_entry) = (validated_access.npc_flags, validated_access.entry);
+    let (resolved_npc_flags, resolved_entry, resolved_faction_template_id) = (
+        validated_access.npc_flags,
+        validated_access.entry,
+        validated_access.faction_template_id,
+    );
     info!(
         "GossipHello npc_flags=0x{:X} entry={} for {:?}",
         resolved_npc_flags, resolved_entry, hello.unit
@@ -415,7 +423,13 @@ pub async fn handle_gossip_hello<H: CharacterLoginHostLikeCpp>(host: &mut H, hel
     }
 
     // No gossip or quest menu found — fall back to direct interaction based on NPC flags.
-    handle_npc_direct_interaction(host, hello, resolved_npc_flags).await;
+    handle_npc_direct_interaction(
+        host,
+        hello,
+        resolved_npc_flags,
+        resolved_faction_template_id,
+    )
+    .await;
 }
 
 fn gossip_conditions_meet_like_cpp<H: CharacterLoginHostLikeCpp>(
@@ -811,7 +825,7 @@ pub async fn handle_gossip_select_option<H: CharacterLoginHostLikeCpp>(
         return;
     }
     let npc_guid = select.gossip_unit;
-    let source_is_interactable = if npc_guid.is_any_type_creature() {
+    let canonical_creature_access = if npc_guid.is_any_type_creature() {
         let required_flags = if option_npc == GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP {
             NPCFlags1::GOSSIP.bits() | TRAINER_NPC_FLAGS_MASK_LIKE_CPP
         } else {
@@ -819,7 +833,11 @@ pub async fn handle_gossip_select_option<H: CharacterLoginHostLikeCpp>(
         };
         host.hub_ref()
             .represented_npc_can_interact_with_like_cpp(npc_guid, required_flags, 0)
-            .is_some()
+    } else {
+        None
+    };
+    let source_is_interactable = if npc_guid.is_any_type_creature() {
+        canonical_creature_access.is_some()
     } else if npc_guid.is_game_object() {
         represented_gameobject_gossip_can_interact_with_like_cpp(host, npc_guid).is_some()
     } else {
@@ -900,7 +918,20 @@ pub async fn handle_gossip_select_option<H: CharacterLoginHostLikeCpp>(
         10 => {
             // Auctioneer
             use wow_packet::packets::misc::AuctionHelloResponse;
-            host.send_packet(&AuctionHelloResponse::open(npc_guid));
+            let Some(creature_access) = canonical_creature_access else {
+                warn!(
+                    account = host.core().account_id,
+                    source = ?npc_guid,
+                    "GossipSelectOption rejected: auctioneer option requires a creature source"
+                );
+                return;
+            };
+            let auction_house_id = host
+                .hub_ref()
+                .auction_house_id_for_faction_template_like_cpp(
+                    creature_access.faction_template_id,
+                );
+            host.send_packet(&AuctionHelloResponse::open(npc_guid, auction_house_id));
         }
         12 => {
             // Stable Master
