@@ -1,5 +1,29 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 production Creature respawn relocation accepted locally — 2026-11-20
+
+Committed candidate `f75a9578cbc2596380d00fa5299b9b6a91ab21aa`, based on
+`9594502da`, implements the production move-list fallback for #1354. A valid
+move to an unloaded destination now tries the creature's actual home position
+with combat/motion cleanup and direct reinitialization on success. If home also
+fails, a normal Creature queues remove-list; a Pet records only a removal
+request, without deleting the canonical record, invoking persistence or claiming
+an unimplemented Pet::Remove. Refused destinations are never marked as successful
+walks; origin and actual-home observers use the existing deferred rail.
+
+Seven new tests cover home success, Creature removal, Pet request-only and
+invalid coordinates, including origin/home/refused visibility. The committed
+`./tools/validation-v2 final --base 9594502da --architecture --require-changes --timings --logs`
+campaign passed all nine commands from 05:07:42Z to 05:11:29Z (228.043 seconds),
+within the 600-second target. The `wow-map` library passed 785 tests with zero
+failures and one existing ignored test. Verified manifest:
+`target/validation-v2/manifests/20261120T050741.776808Z-3685572-final.json`.
+
+Direct in-place and lent-return still snap back after MONSTER_MOVE and require
+their own explicit fallback result; #1354 remains open until those paths are
+covered. The pre-production focused attempt failed compilation because the new
+`respawn_relocated` field did not yet exist, not a behavioral regression claim.
+
 ## #1354 map-rebind wording accepted locally — 2026-11-20
 
 Committed candidate `33596380857e527484301c2c401af5cbfb87f2d9`, based on
