@@ -1,5 +1,35 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1357 AE loot candidate phase and combat reach accepted locally — 2026-11-20
+
+Committed candidate `b2196c0108e6f90071002bb9165fa7c17edb582f`, based on
+`b1109ee11`, aligns the bounded AE loot candidate query with the target C++
+visitor. It snapshots the canonical Player's phase and combat reach, fails
+closed when that Player is unavailable, visits cells within `radius + viewer
+reach`, and admits only dead creatures visible in that phase within `radius +
+viewer reach + creature reach`. The caller retains its existing main-target and
+loot-permission checks.
+
+The new regression admits a 32-yard corpse, rejects a 33-yard corpse and a
+corpse in another phase, and excludes a living target without relying on cell
+iteration order. The original candidate case and four existing AE integration
+scenarios pass; those integration fixtures now install and adopt their canonical
+Player explicitly. The committed
+`./tools/validation-v2 final --base b1109ee11 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 08:43:28Z to 08:45:27Z (118.708 seconds),
+within the 600-second target. The `wow-world` suite passed 4,613 tests with one
+existing ignored and `wow-world-core` passed all 297 tests, with zero failures.
+Verified manifest:
+`target/validation-v2/manifests/20261120T084328.358306Z-3878681-final.json`.
+
+The first final attempt exposed four AE fixtures without a canonical Player;
+only their fixture setup and the order-independent candidate assertion changed
+before the green campaign, with the exact test-ceiling reviews updated. That
+failed attempt is not behavioral evidence. `CONFIG_ENABLE_AE_LOOT` remains
+disabled by default; this is synthetic source evidence, not a live-client
+capture or a global #1357 closeout. Player runtime integration and character
+creation remain separate work.
+
 ## #584 Unit VALUES Empath visibility accepted locally — 2026-11-20
 
 Committed candidate `d9ff480fca8100ef8b7c1e62e6466718859707b9`, based on
