@@ -37,6 +37,22 @@ As a control, the omitted SQL command was run directly after the replay on the s
 
 6. **Shorten the builds still on the critical path.** The build maintainer compares a warm leaf edit and a shared protocol/config edit on aarch64, then checks the result on hosted x86_64. Use Cargo timings with the same toolchain, jobs and comparable cache state. Measure the current linker against supported aarch64 LLD and test whether a commit-only change forces an expensive server rebuild. Change one variable at a time. If the large test targets still dominate, move domain-local tests to existing owner crates using the distribution work already underway. Keep production wiring tests in the server and compare test identities, features and ignored cases across owners. Adopt an optimisation only when representative runs improve and debug usability, version reporting and coverage pass. [Build configuration](../../.cargo/config.toml) · [Build-input probe](../../tools/measure_build_inputs.py)
 
+## Day-to-day development measurements
+
+The main development checkout retained 154 successful `final` runs with changed paths
+and recorded commands from 23 August to 1 November 2026. Their median was about 11 minutes,
+and 82 exceeded the 600-second warm-campaign target. This is a historical sample of final
+checks across different scopes and cache states. It cannot measure time spent editing or
+waiting for people.
+
+The module-mount scan used by the hotspot check now avoids parsing a file a second time
+to find explicit module paths when its source lacks either required token. On the same
+aarch64 checkout, running the already-built release checkers in sequence took 36.000 s
+before and 27.113 s after. Both emitted byte-identical JSON for all 979 mounts, including
+349 test-only mounts. These times exclude compilation. The contributor and refactor
+guides describe how to exercise the owning test during development. The QA wrapper uses
+the existing debug build for ordinary Rust scenarios.
+
 ## How to choose evidence
 
 | Change | First relevant result | Acceptance to retain |

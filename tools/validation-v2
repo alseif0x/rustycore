@@ -1018,6 +1018,8 @@ def validation_commands(
         add_command(planned, ["python3", WORKFLOW_CONTRACT_SUITE])
     if profile == "final" and any(path in {BUILD_INPUT_DIAGNOSTIC, BUILD_INPUT_CONTRACT_SUITE} for path in all_paths):
         add_command(planned, ["python3", BUILD_INPUT_CONTRACT_SUITE])
+    if profile == "final" and {"tools/qa-runtime.sh", "tools/qa_runtime_self_test.sh"}.intersection(all_paths):
+        add_command(planned, ["bash", "tools/qa-runtime.sh", "self-test"])
 
     cargo_config_changed = bool(CARGO_CONFIG_PATHS.intersection(all_paths))
     # Final also runs the checker suite when the checked package set can

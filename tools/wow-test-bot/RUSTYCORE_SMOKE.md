@@ -664,9 +664,11 @@ WOW_BOT_FIXTURE_JOURNAL="$(mktemp -d)/trade.journal" \
 ```
 
 Guarded through the build swap: `./tools/qa-runtime.sh --allow-runtime-qa
---ack-disposable-trade --world-exec target/release/world-server --report
-/tmp/trade-qa.json trade` (evidence JSON in the printed `rustycore-trade-qa.*`
-directory).
+--ack-disposable-trade --report /tmp/trade-qa.json trade` (evidence JSON in the
+printed `rustycore-trade-qa.*` directory). Rust QA uses the checkout's
+`CARGO_TARGET_DIR/debug/world-server` by default, or `target/debug/world-server`
+when `CARGO_TARGET_DIR` is unset. Pass `--world-exec PATH` to select a different
+build explicitly.
 
 Accounts A/B default to `TESTBOT1@bot.local`/`TESTBOT2@bot.local`
 (`WOW_BOT_TRADE_ACCOUNT_A/B`); both must be offline, alive, same team, and own

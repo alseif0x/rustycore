@@ -942,6 +942,11 @@ pub(crate) fn path_module_children(
     source_path: &Path,
     source: &str,
 ) -> Vec<(PathBuf, String, Vec<syn::Attribute>)> {
+    // A top-level #[path] mod item needs both tokens. All potential matches
+    // still go through syn, including attributes split across lines or comments.
+    if !source.contains("path") || !source.contains("mod") {
+        return Vec::new();
+    }
     let Ok(syntax) = syn::parse_file(source) else {
         return Vec::new();
     };

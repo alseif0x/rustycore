@@ -269,6 +269,9 @@ manifest-only diff. The self-test has, for each of those five tables and the pac
 a fixture in which only that part differs, plus fixtures for the spellings above; it covers
 those cases, not every possible manifest edit. The checker's own lib test pins the package list. Committed capture contracts belong to `audit`,
 and live database/runtime/capture operations to explicit QA procedures.
+Changes to `tools/qa-runtime.sh` or its self-test run the simulated service checks in
+`final`. These exercise candidate selection and restoration with temporary fixtures.
+
 A `final` diff under `tools/modules/` also runs `tools/modules/test_rustycore_module.py`, and one
 under `tools/modules/`, `crates/world-modules/` or `crates/wow-module-api/` runs
 `tools/modules/check_sql_compositor.py` (#1468). Changes to the public entry, its

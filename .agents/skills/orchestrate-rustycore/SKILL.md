@@ -80,10 +80,9 @@ to one owner, including when they span several crates.
 
 - Split larger deliveries at independently testable behaviours. At triage identify the
   actual Cargo target that compiles the changed regression and its required features.
-- For a restructuring (for example splitting a large file), first assign a read-only
-  exploration that returns a map: phases with line ranges, the locals each phase reads
-  and writes, the locks it holds, early returns. The parent then fixes the cut points,
-  module names and signatures, and assigns one module per implementation task.
+- For restructuring, map the affected phases, state, locks and exit paths. Reuse the
+  current operation's map. Delegate exploration when the boundary is unclear and the
+  result will change the implementation decision.
 - Give the worker a self-contained task: checkout/base, owned paths, objective, exact
   line ranges or symbols, the Rust/C++ anchors, the contract and non-goals, the crate
   and test filter to check with, and the acceptance criteria. Quote the rules that
@@ -96,13 +95,10 @@ no worker spawns children. Run it in the
 background and keep doing useful parent work (settling consumers, preparing the next
 unit's contract, reviewing the previous diff) without duplicating the worker's edits.
 
-- **Heartbeat:** check the worker's output every ~5 minutes. It should be editing
-  within ~15 tool calls or ~8 minutes of starting an implementation unit.
-- **Stall:** if two heartbeats pass with reads but no edit, stop it and reassign the
-  unit smaller or with the missing decision made. A stall is a sizing problem, not a
-  reason to change model or provider.
-- **Review every diff** against the contract and its consumers before assigning the
-  next unit, not just the summary. Assign corrections as a new small unit.
+- Respond when a worker returns a result or identifies a blocker. If investigation
+  repeats without resolving the boundary, supply the missing decision or narrow the unit.
+- Review the diff against the contract and its consumers. Keep a related correction
+  with the owner who already has the context and regression.
 
 Within a shared checkout, parent and worker must not edit overlapping files, perform
 Git mutations, or change shared generated/policy files concurrently. The parent owns

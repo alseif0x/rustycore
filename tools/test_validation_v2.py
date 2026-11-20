@@ -732,6 +732,13 @@ def test_planner_contract(repo: Path) -> None:
     ratchet = ["python3", "tools/architecture/check_architecture.py", "hotspot-ratchet"]
     assert final.index(final_check) < final.index(ratchet) < final.index(final_test)
     assert ratchet not in quick
+    qa_self_test = ["bash", "tools/qa-runtime.sh", "self-test"]
+    for changed in ("tools/qa-runtime.sh", "tools/qa_runtime_self_test.sh"):
+        groups = runner.grouped_paths([changed])
+        for profile in ("quick", "final"):
+            planned, _ = runner.validation_commands(repo, profile, 1, "base", groups, None)
+            assert (qa_self_test in planned) == (profile == "final")
+    assert qa_self_test not in final
     physical = ["python3", "tools/architecture/check_architecture.py", "physical-files"]
     assert physical in final and physical not in quick
     # Not conditional on a workspace crate: source deletions, integrated tools
