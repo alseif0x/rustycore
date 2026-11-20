@@ -262,6 +262,11 @@ fn build_starting_equipment_cache_like_cpp(
 
     for loadout in creation.loadouts.new_character_loadouts_for(race, class) {
         for item_id in creation.loadout_items.items_for_loadout(loadout.id) {
+            // C++ ObjectMgr.cpp:3249-3264 requires Item.db2 when building ItemTemplate.
+            let item = match creation.items.get(item_id) {
+                Some(item) => item,
+                None => continue,
+            };
             let sparse = creation.item_stats.sparse_template(item_id);
             let inventory_type = sparse.map(|s| s.inventory_type).unwrap_or(0);
             let slot = match equip_slot_for_inventory_type_like_cpp(inventory_type, &taken) {
@@ -281,7 +286,9 @@ fn build_starting_equipment_cache_like_cpp(
             visual[slot as usize] = (
                 u32::from(inventory_type.unsigned_abs()),
                 display_id,
-                0, // subclass: not in the ItemSparse subset; the reader tolerates 0
+                // ItemTemplate.h:759 sources Subclass from Item.db2; CharacterPackets.cpp:175-197
+                // parses the fourth cache field (index 3) and serializes it as u8.
+                u32::from(item.subclass_id),
             );
         }
     }
@@ -301,6 +308,173 @@ fn build_starting_equipment_cache_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::equip_slot_for_inventory_type_like_cpp;
+
+    use std::sync::Arc;
+
+    use wow_data::character_progression::{
+        CharacterLoadoutEntry, CharacterLoadoutItemEntry, CharacterLoadoutItemStore,
+        CharacterLoadoutStore,
+    };
+    use wow_data::item::appearance::{ItemAppearanceEntry, ItemAppearanceStore};
+    use wow_data::item::modified_appearance::{
+        ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore,
+    };
+    use wow_data::item::stats::{ItemSparseTemplateEntry, ItemStatsStore};
+    use wow_data::item::{ItemRecord, ItemStore};
+    use wow_world_core::session::CharacterCreationCatalogsLikeCpp;
+
+    fn starting_gear_catalog(
+        rows: &[(u32, u8, i8, u32)],
+        item_record_ids: &[u32],
+    ) -> CharacterCreationCatalogsLikeCpp {
+        let items = ItemStore::from_records(rows.iter().filter_map(
+            |&(item_id, subclass_id, inventory_type, _)| {
+                item_record_ids.contains(&item_id).then_some(ItemRecord {
+                    id: item_id,
+                    class_id: 2,
+                    subclass_id,
+                    material: 0,
+                    inventory_type,
+                    sheathe_type: 0,
+                    random_select: 0,
+                    random_suffix_group_id: 0,
+                    scaling_stat_distribution_id: 0,
+                    scaling_stat_value: 0,
+                })
+            },
+        ));
+        let item_stats = ItemStatsStore::from_sparse_templates(rows.iter().map(
+            |&(item_id, _, inventory_type, _)| {
+                (
+                    item_id,
+                    ItemSparseTemplateEntry {
+                        flags: [0; 4],
+                        bag_family: 0,
+                        start_quest_id: 0,
+                        stackable: 1,
+                        max_count: 0,
+                        lock_id: 0,
+                        required_reputation_rank: 0,
+                        sell_price: 0,
+                        buy_price: 0,
+                        vendor_stack_count: 0,
+                        price_variance: 0.0,
+                        price_random_value: 0.0,
+                        max_durability: 0,
+                        other_faction_item_id: 0,
+                        content_tuning_id: 0,
+                        player_level_to_item_level_curve_id: 0,
+                        limit_category: 0,
+                        instance_bound: 0,
+                        zone_bound: [0; 2],
+                        required_reputation_faction: 0,
+                        allowable_class: -1,
+                        required_expansion: 0,
+                        bonding: 0,
+                        container_slots: 0,
+                        inventory_type,
+                    },
+                )
+            },
+        ));
+        let modified_appearances =
+            ItemModifiedAppearanceStore::from_entries(rows.iter().enumerate().map(
+                |(index, &(item_id, _, _, _))| ItemModifiedAppearanceEntry {
+                    id: index as u32 + 1,
+                    item_id: item_id as i32,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: index as i32 + 100,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+            ));
+        let appearances = ItemAppearanceStore::from_entries(rows.iter().enumerate().map(
+            |(index, &(_, _, _, display_id))| ItemAppearanceEntry {
+                id: index as u32 + 100,
+                display_type: 0,
+                item_display_info_id: display_id as i32,
+                default_icon_file_data_id: 0,
+                ui_order: 0,
+            },
+        ));
+
+        CharacterCreationCatalogsLikeCpp {
+            loadouts: Arc::new(CharacterLoadoutStore::from_entries([
+                CharacterLoadoutEntry {
+                    id: 1,
+                    race_mask: 1,
+                    chr_class_id: 1,
+                    purpose: 9,
+                    item_context: 0,
+                },
+            ])),
+            loadout_items: Arc::new(CharacterLoadoutItemStore::from_entries(
+                rows.iter().enumerate().map(|(index, &(item_id, _, _, _))| {
+                    CharacterLoadoutItemEntry {
+                        id: index as u32 + 1,
+                        character_loadout_id: 1,
+                        item_id,
+                    }
+                }),
+            )),
+            items: Arc::new(items),
+            item_stats: Arc::new(item_stats),
+            modified_appearances: Arc::new(modified_appearances),
+            appearances: Arc::new(appearances),
+        }
+    }
+
+    fn assert_only_mainhand_visual(
+        cache: &str,
+        expected_inv_type: u8,
+        expected_display: u32,
+        expected_subclass: u8,
+    ) {
+        let equipment = crate::character_handlers::parse_equipment_cache(cache);
+        for (slot, visual) in equipment.iter().enumerate() {
+            if slot == 15 {
+                assert_eq!(visual.inv_type, expected_inv_type);
+                assert_eq!(visual.display_id, expected_display);
+                assert_eq!(visual.display_enchant_id, 0);
+                assert_eq!(visual.subclass, expected_subclass);
+                assert_eq!(visual.secondary_item_modified_appearance_id, 0);
+            } else {
+                assert_eq!(visual.inv_type, 0, "unexpected item in slot {slot}");
+                assert_eq!(visual.display_id, 0, "unexpected item in slot {slot}");
+                assert_eq!(
+                    visual.display_enchant_id, 0,
+                    "unexpected item in slot {slot}"
+                );
+                assert_eq!(visual.subclass, 0, "unexpected item in slot {slot}");
+                assert_eq!(visual.secondary_item_modified_appearance_id, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn starting_equipment_cache_uses_item_entry_subclass_for_weapon_visuals() {
+        for (item_id, subclass, inventory_type, display_id) in [
+            (101, 0, 21, 12001),
+            (102, 7, 21, 12002),
+            (103, 10, 17, 12003),
+        ] {
+            let catalogs = starting_gear_catalog(
+                &[(item_id, subclass, inventory_type, display_id)],
+                &[item_id],
+            );
+            let cache = super::build_starting_equipment_cache_like_cpp(&catalogs, 1, 1);
+
+            assert_only_mainhand_visual(&cache, inventory_type as u8, display_id, subclass);
+        }
+    }
+
+    #[test]
+    fn missing_item_entry_does_not_claim_the_slot_before_valid_starting_gear() {
+        let catalogs = starting_gear_catalog(&[(200, 0, 21, 13000), (201, 7, 21, 13001)], &[201]);
+        let cache = super::build_starting_equipment_cache_like_cpp(&catalogs, 1, 1);
+
+        assert_only_mainhand_visual(&cache, 21, 13001, 7);
+    }
 
     #[test]
     fn inventory_types_map_to_cpp_create_slots() {

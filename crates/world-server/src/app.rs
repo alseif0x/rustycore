@@ -5015,6 +5015,7 @@ async fn run_inner(
                 wow_world::session::CharacterCreationCatalogsLikeCpp {
                     loadouts: character_loadout_store,
                     loadout_items: character_loadout_item_store,
+                    items: Arc::clone(&item_store),
                     item_stats: Arc::clone(&item_stats_store),
                     modified_appearances: Arc::clone(&item_modified_appearance_store),
                     appearances: Arc::clone(&item_appearance_store),
