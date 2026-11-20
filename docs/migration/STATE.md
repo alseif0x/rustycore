@@ -1,5 +1,31 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #584 Unit VALUES Empath visibility accepted locally — 2026-11-20
+
+Committed candidate `d9ff480fca8100ef8b7c1e62e6466718859707b9`, based on
+`45fa2c4a2`, implements the target's remaining Empath receiver branch for Unit
+VALUES. Matching `Unit::GetUpdateFieldFlagsFor`, a Creature or Pet exposes its
+Empath-only fields only when UNIT_DYNFLAG_SPECIALINFO (0x20) is set and its
+SPELL_AURA_EMPATHY (121) was cast by the receiver. Owner filtering, public field
+selection and PartyMember behavior are unchanged; an update with no visible
+fields emits no UnitData section.
+
+A focused regression covers no flag, flag without the viewer aura, an unrelated
+caster, the qualifying viewer aura, and flag removal. It also proves that field
+190 survives only with Empath while an unrelated owner-only field is removed.
+The committed `./tools/validation-v2 final --base 45fa2c4a2 --architecture --require-changes --timings --logs`
+campaign passed all nine commands from 08:01:34Z to 08:04:25Z (170.560 seconds),
+within the 600-second target. All four `wow-world-visibility` tests passed with
+zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T080134.908541Z-3843642-final.json`.
+The earlier attempt stopped only on rustfmt after fixture repairs and was not
+used as behavioral evidence. No production dependency or policy changed.
+
+The target's `Unit::GetUpdateFieldFlagsFor` has no UNIT_ALL branch, so no such
+visibility is invented. This is synthetic source evidence, not a live capture.
+Remaining lifecycle work, character creation and their required acceptance stay
+open under #584 and the separate Forever objective.
+
 ## #584 Player CREATE PartyMember visibility accepted locally — 2026-11-20
 
 Committed candidate `988aeebd9e331678478710468e34b501643e8a2e`, based on
