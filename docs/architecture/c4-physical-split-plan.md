@@ -1132,6 +1132,23 @@ and restored the checkout. R1 is not applicable because no `wow-world/src`
 root shrank. Verified manifest:
 `target/validation-v2/manifests/20261120T001856.965378Z-3464624-final.json`.
 
+On `forever`, C4-8ak starts at `983a559c2` and extracts GUID allocator startup.
+`app.rs` shrinks from 2,243 to 2,135 lines and its physical ceiling tightens
+without retiring C4-8. The new private `guid_generator_startup.rs` has 144 lines,
+one CharacterDatabase input and five results: four generators plus the exclusive
+item advisory lock. Player lookup fallback, lock acquisition, item validation,
+cleanup commit before item publication, and equipment/void ordering are preserved.
+The lock remains owned by app for loss monitoring and explicit release. The
+no-schema-mutation guard now includes the moved source explicitly.
+
+The moved sequence matches the original token stream after borrowing char_db,
+removing only the child-local redundant lock `mut`, and canonical rustfmt. The
+`world-server` library check and affected startup guard pass; the library retains
+the same 35 existing warnings. The logical owner gains 36 production lines and
+one test line for the staged result and source composition, recorded as +36
+production/+1 test/+37 total. Later C4-8 stages still owe remaining session
+catalogs, dependencies and supervision/shutdown.
+
 On `forever`, C4-8aj starts at `b80c8b420` and extracts four session handler
 policy builders. `app.rs` shrinks from 2,359 to 2,243 lines and its physical
 ceiling tightens without retiring C4-8. The new private

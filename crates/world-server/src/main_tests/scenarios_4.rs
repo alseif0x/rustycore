@@ -640,6 +640,7 @@ fn startup_has_no_schema_mutation_and_validates_before_runtime_writes() {
         include_str!("../databases.rs"),
         &app[database_end..]
     );
+    let source = format!("{source}{}", include_str!("../guid_generator_startup.rs"));
     assert!(!source.contains(&["populate_typed_", "database_like_cpp"].concat()));
     assert!(!source.contains(&["update_typed_", "database_like_cpp"].concat()));
     assert!(!source.contains("Updates.SourcePath"));
