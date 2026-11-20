@@ -645,6 +645,16 @@
    "unit_tests_lines": 289051,
    "unit_tests_tests": 4300,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-61",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "Four composed regressions extend the real completion-spell boundary to storing-flag, money, currency and reputation while preserving each family credit and interaction-refresh order.",
+   "unit_tests_lines": 289169,
+   "unit_tests_tests": 4304,
+   "src_tests": 345
   }
  ]
 }

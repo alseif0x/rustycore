@@ -669,12 +669,19 @@ async fn threshold_negative_outcome_like_cpp(
     status_requests: Option<
         Arc<std::sync::Mutex<Vec<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp>>>,
     >,
+    initial_status: u8,
+    initial_quantity: i32,
+    new_quantity: i32,
+    completion_spell_id: Option<u32>,
 ) -> (
     u8,
     Vec<ServerOpcodes>,
     Option<wow_entities::PlayerQuestStatusSaveTypeLikeCpp>,
 ) {
     let (mut session, _, send_rx) = make_session();
+    session.set_creature_spawn_catalogs_like_cpp(Arc::new(
+        session.creature_spawn_catalogs_for_test_like_cpp(),
+    ));
     if let Some(status_requests) = status_requests {
         session.set_player_quest_persistence_port_like_cpp(Arc::new(
             crate::player::quest_persistence_test_fixture::PlayerQuestPersistencePortFixtureLikeCpp {
@@ -708,6 +715,19 @@ async fn threshold_negative_outcome_like_cpp(
         completion_effect: None,
         description: String::new(),
     });
+    if let Some(spell_id) = completion_spell_id {
+        quest.objectives.last_mut().unwrap().completion_effect =
+            Some(wow_data::quest::QuestObjectiveAction {
+                game_event_id: None,
+                spell_id: Some(spell_id),
+                conversation_id: None,
+                update_phase_shift: false,
+                update_zone_auras: false,
+            });
+        session.set_spell_store(Arc::new(first_login_noop_spell_store_like_cpp([
+            spell_id as i32
+        ])));
+    }
     session.set_player_guid(Some(player_guid));
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
@@ -737,7 +757,7 @@ async fn threshold_negative_outcome_like_cpp(
                     THRESHOLD_QUEST_ID,
                     crate::handlers::quest::PlayerQuestStatus {
                         quest_id: THRESHOLD_QUEST_ID,
-                        status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                        status: initial_status,
                         explored: false,
                         accept_time_secs: 0,
                         end_time_secs: 0,
@@ -749,13 +769,13 @@ async fn threshold_negative_outcome_like_cpp(
             .is_some(),
         "threshold fixture must use the canonical Player owner"
     );
-    session.set_player_gold_like_cpp(100);
+    session.set_player_gold_like_cpp(initial_quantity as u64);
     assert!(
         session.set_player_currencies_like_cpp(std::collections::HashMap::from([(
             395,
             wow_entities::PlayerCurrency {
                 state: wow_entities::PlayerCurrencyState::Unchanged,
-                quantity: 100,
+                quantity: initial_quantity as u32,
                 weekly_quantity: 0,
                 tracked_quantity: 0,
                 increased_cap_quantity: 0,
@@ -769,7 +789,7 @@ async fn threshold_negative_outcome_like_cpp(
     session.set_faction_store(Arc::new(FactionStore::from_entries([faction])));
     let mut reputation =
         wow_progression::FactionStateLikeCpp::new_like_cpp(7, 5, ReputationFlagsLikeCpp::VISIBLE);
-    reputation.standing = 100;
+    reputation.standing = initial_quantity;
     assert!(
         session
             .mutate_reputation_mgr_like_cpp(|manager| {
@@ -818,10 +838,16 @@ async fn threshold_negative_outcome_like_cpp(
     )));
 
     match objective_type {
-        QUEST_OBJECTIVE_MONEY_LIKE_CPP => session.money_changed_like_cpp(90).await,
-        QUEST_OBJECTIVE_CURRENCY_LIKE_CPP => session.currency_changed_like_cpp(395, -10).await,
+        QUEST_OBJECTIVE_MONEY_LIKE_CPP => session.money_changed_like_cpp(new_quantity as u64).await,
+        QUEST_OBJECTIVE_CURRENCY_LIKE_CPP => {
+            session
+                .currency_changed_like_cpp(395, new_quantity - initial_quantity)
+                .await
+        }
         QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP => {
-            session.reputation_changed_like_cpp(7, -10).await
+            session
+                .reputation_changed_like_cpp(7, new_quantity - initial_quantity)
+                .await
         }
         _ => unreachable!("threshold regression objective type"),
     }
@@ -853,8 +879,17 @@ async fn assert_threshold_negative_transitions_like_cpp(objective_type: u8) {
             QUEST_STATUS_COMPLETE_LIKE_CPP,
         ),
     ] {
-        let (status, opcodes, _) =
-            threshold_negative_outcome_like_cpp(objective_type, flags, false, None).await;
+        let (status, opcodes, _) = threshold_negative_outcome_like_cpp(
+            objective_type,
+            flags,
+            false,
+            None,
+            QUEST_STATUS_COMPLETE_LIKE_CPP,
+            100,
+            90,
+            None,
+        )
+        .await;
         assert_eq!(status, expected_status, "transition packets: {opcodes:?}");
         assert_eq!(
             opcodes
@@ -949,8 +984,17 @@ async fn raid_objectives_require_quest_admission_in_both_storage_families_like_c
 
 #[tokio::test]
 async fn raid_money_progresses_without_a_raid_quest_flag_like_cpp() {
-    let (status, opcodes, _) =
-        threshold_negative_outcome_like_cpp(QUEST_OBJECTIVE_MONEY_LIKE_CPP, 0, true, None).await;
+    let (status, opcodes, _) = threshold_negative_outcome_like_cpp(
+        QUEST_OBJECTIVE_MONEY_LIKE_CPP,
+        0,
+        true,
+        None,
+        QUEST_STATUS_COMPLETE_LIKE_CPP,
+        100,
+        90,
+        None,
+    )
+    .await;
     assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
     assert_eq!(
         opcodes
@@ -1154,6 +1198,10 @@ async fn negative_objective_marks_default_without_immediate_persistence_like_cpp
         0,
         false,
         Some(status_requests.clone()),
+        QUEST_STATUS_COMPLETE_LIKE_CPP,
+        100,
+        90,
+        None,
     )
     .await;
 
@@ -1244,4 +1292,74 @@ async fn completion_spell_runs_between_credit_and_quest_completion_like_cpp() {
             ServerOpcodes::UpdateObject,
         ]
     );
+}
+
+#[tokio::test]
+async fn storing_flag_completion_spell_runs_before_quest_completion_like_cpp() {
+    let (status, count, opcodes) = storing_objective_transition_outcome_with_persistence_like_cpp(
+        true,
+        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        0,
+        1,
+        0,
+        0,
+        false,
+        None,
+        0,
+        false,
+        false,
+        None,
+        Some(50_101),
+    )
+    .await;
+
+    assert_eq!(status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+    assert_eq!(count, 1);
+    assert_eq!(
+        opcodes,
+        vec![
+            ServerOpcodes::QuestUpdateAddCreditSimple,
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::UpdateObject,
+        ]
+    );
+}
+
+async fn assert_threshold_completion_spell_like_cpp(objective_type: u8) {
+    let (status, opcodes, _) = threshold_negative_outcome_like_cpp(
+        objective_type,
+        0,
+        false,
+        None,
+        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        0,
+        100,
+        Some(50_101),
+    )
+    .await;
+    assert_eq!(status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+    assert_eq!(
+        opcodes,
+        vec![
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::UpdateObject,
+        ]
+    );
+}
+
+#[tokio::test]
+async fn money_completion_spell_runs_before_quest_completion_like_cpp() {
+    assert_threshold_completion_spell_like_cpp(QUEST_OBJECTIVE_MONEY_LIKE_CPP).await;
+}
+
+#[tokio::test]
+async fn currency_completion_spell_runs_before_quest_completion_like_cpp() {
+    assert_threshold_completion_spell_like_cpp(QUEST_OBJECTIVE_CURRENCY_LIKE_CPP).await;
+}
+
+#[tokio::test]
+async fn reputation_completion_spell_runs_before_quest_completion_like_cpp() {
+    assert_threshold_completion_spell_like_cpp(QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP).await;
 }

@@ -579,19 +579,13 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             }
 
             if current >= required {
-                if let Some((spell_id, target_guid)) = store
-                    .get(quest_id)
-                    .and_then(|quest| {
-                        quest
-                            .objectives
-                            .iter()
-                            .find(|objective| objective.id == objective_id)
-                    })
-                    .and_then(|objective| objective.completion_effect.as_ref())
-                    .and_then(|effect| effect.spell_id)
-                    .filter(|spell_id| *spell_id != 0)
-                    .zip(owner.player_guid_like_cpp())
-                {
+                if let Some(deferred) = context::completion_spell_for_objective_like_cpp(
+                    &store,
+                    quest_id,
+                    objective_id,
+                    owner.player_guid_like_cpp(),
+                    any_objective_changed_completion_state,
+                ) {
                     if !quests_to_complete.is_empty() {
                         drop(owner);
                         let _ = self
@@ -602,14 +596,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                             .await;
                         owner = self.reward.player.quest_objective_access_like_cpp();
                     }
-                    self.deferred_completion_spell =
-                        Some(context::QuestObjectiveCompletionSpellLikeCpp {
-                            quest_id,
-                            objective_id,
-                            spell_id,
-                            target_guid,
-                            completion_state_changed: any_objective_changed_completion_state,
-                        });
+                    self.deferred_completion_spell = Some(deferred);
                     return;
                 }
                 if let (Some(quest), Some(quests)) = (
@@ -787,6 +774,26 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     });
             }
             if !objective_was_complete && objective_is_now_complete {
+                if let Some(deferred) = context::completion_spell_for_objective_like_cpp(
+                    &store,
+                    quest_id,
+                    objective_id,
+                    owner.player_guid_like_cpp(),
+                    any_objective_changed_completion_state,
+                ) {
+                    if !quests_to_complete.is_empty() {
+                        drop(owner);
+                        let _ = self
+                            .complete_represented_quests_after_objective_inline_like_cpp(
+                                &store,
+                                &mut quests_to_complete,
+                            )
+                            .await;
+                        owner = self.reward.player.quest_objective_access_like_cpp();
+                    }
+                    self.deferred_completion_spell = Some(deferred);
+                    return;
+                }
                 if let (Some(quest), Some(quests)) = (
                     store.get(quest_id),
                     current_quest_gameplay_snapshot_like_cpp(
@@ -861,6 +868,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         }
         if any_objective_changed_completion_state {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+            self.completion_state_refreshed = true;
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
         self.sync_player_registry_state_like_cpp(&owner);
@@ -934,6 +942,26 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             );
 
             if objective_is_now_complete {
+                if let Some(deferred) = context::completion_spell_for_objective_like_cpp(
+                    &store,
+                    quest_id,
+                    objective_id,
+                    owner.player_guid_like_cpp(),
+                    any_objective_changed_completion_state,
+                ) {
+                    if !quests_to_complete.is_empty() {
+                        drop(owner);
+                        let _ = self
+                            .complete_represented_quests_after_objective_inline_like_cpp(
+                                &store,
+                                &mut quests_to_complete,
+                            )
+                            .await;
+                        owner = self.reward.player.quest_objective_access_like_cpp();
+                    }
+                    self.deferred_completion_spell = Some(deferred);
+                    return;
+                }
                 if let (Some(quest), Some(quests)) = (
                     store.get(quest_id),
                     current_quest_gameplay_snapshot_like_cpp(
@@ -1008,6 +1036,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         }
         if any_objective_changed_completion_state {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+            self.completion_state_refreshed = true;
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
         self.sync_player_registry_state_like_cpp(&owner);
@@ -1092,6 +1121,26 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 "Quest currency objective progress"
             );
             if objective_is_now_complete {
+                if let Some(deferred) = context::completion_spell_for_objective_like_cpp(
+                    &store,
+                    quest_id,
+                    objective_id,
+                    owner.player_guid_like_cpp(),
+                    any_objective_changed_completion_state,
+                ) {
+                    if !quests_to_complete.is_empty() {
+                        drop(owner);
+                        let _ = self
+                            .complete_represented_quests_after_objective_inline_like_cpp(
+                                &store,
+                                &mut quests_to_complete,
+                            )
+                            .await;
+                        owner = self.reward.player.quest_objective_access_like_cpp();
+                    }
+                    self.deferred_completion_spell = Some(deferred);
+                    return;
+                }
                 if let (Some(quest), Some(quests)) = (
                     store.get(quest_id),
                     current_quest_gameplay_snapshot_like_cpp(
@@ -1166,6 +1215,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         }
         if any_objective_changed_completion_state {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+            self.completion_state_refreshed = true;
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
         self.sync_player_registry_state_like_cpp(&owner);
@@ -1262,6 +1312,26 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 "Quest reputation objective progress"
             );
             if objective_is_now_complete {
+                if let Some(deferred) = context::completion_spell_for_objective_like_cpp(
+                    &store,
+                    quest_id,
+                    objective_id,
+                    owner.player_guid_like_cpp(),
+                    any_objective_changed_completion_state,
+                ) {
+                    if !quests_to_complete.is_empty() {
+                        drop(owner);
+                        let _ = self
+                            .complete_represented_quests_after_objective_inline_like_cpp(
+                                &store,
+                                &mut quests_to_complete,
+                            )
+                            .await;
+                        owner = self.reward.player.quest_objective_access_like_cpp();
+                    }
+                    self.deferred_completion_spell = Some(deferred);
+                    return;
+                }
                 if let (Some(quest), Some(quests)) = (
                     store.get(quest_id),
                     current_quest_gameplay_snapshot_like_cpp(
@@ -1336,6 +1406,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         }
         if any_objective_changed_completion_state {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+            self.completion_state_refreshed = true;
         }
         let owner = self.reward.player.quest_objective_access_like_cpp();
         self.sync_player_registry_state_like_cpp(&owner);

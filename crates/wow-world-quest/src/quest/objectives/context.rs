@@ -60,6 +60,33 @@ pub struct QuestObjectiveCompletionSpellLikeCpp {
     pub completion_state_changed: bool,
 }
 
+pub fn completion_spell_for_objective_like_cpp(
+    store: &wow_data::quest::QuestStore,
+    quest_id: u32,
+    objective_id: u32,
+    target_guid: Option<ObjectGuid>,
+    completion_state_changed: bool,
+) -> Option<QuestObjectiveCompletionSpellLikeCpp> {
+    let spell_id = store
+        .get(quest_id)
+        .and_then(|quest| {
+            quest
+                .objectives
+                .iter()
+                .find(|objective| objective.id == objective_id)
+        })
+        .and_then(|objective| objective.completion_effect.as_ref())
+        .and_then(|effect| effect.spell_id)
+        .filter(|spell_id| *spell_id != 0)?;
+    Some(QuestObjectiveCompletionSpellLikeCpp {
+        quest_id,
+        objective_id,
+        spell_id,
+        target_guid: target_guid?,
+        completion_state_changed,
+    })
+}
+
 /// A borrowed view of the reward operation, the existing loot publication state
 /// and the represented world entities the completion visibility refresh scans.
 ///
