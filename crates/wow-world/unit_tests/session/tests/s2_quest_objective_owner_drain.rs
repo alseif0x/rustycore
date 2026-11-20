@@ -228,23 +228,26 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
         ])));
     }
     if completion_update_zone_auras {
-        session.set_spell_store(Arc::new(first_login_noop_spell_store_like_cpp([50_101])));
+        session.set_spell_store(Arc::new(first_login_noop_spell_store_like_cpp([
+            50_101, 50_102,
+        ])));
+        let spell_area = |spell_id, area_id| wow_data::SpellAreaRowLikeCpp {
+            spell_id,
+            area_id,
+            quest_start: 0,
+            quest_start_status: 0,
+            quest_end_status: 0,
+            quest_end: 0,
+            aura_spell: 0,
+            race_mask: 0,
+            gender: wow_data::GENDER_NONE_LIKE_CPP,
+            flags: wow_data::SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP,
+        };
         session.set_spell_area_store(Arc::new(
             wow_data::SpellAreaStoreLikeCpp::from_rows_like_cpp(
-                [wow_data::SpellAreaRowLikeCpp {
-                    spell_id: 50_101,
-                    area_id: 12,
-                    quest_start: 0,
-                    quest_start_status: 0,
-                    quest_end_status: 0,
-                    quest_end: 0,
-                    aura_spell: 0,
-                    race_mask: 0,
-                    gender: wow_data::GENDER_NONE_LIKE_CPP,
-                    flags: wow_data::SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP,
-                }],
-                |spell| spell == 50_101,
-                |area| area == 12,
+                [spell_area(50_102, 12), spell_area(50_101, 34)],
+                |spell| matches!(spell, 50_101 | 50_102),
+                |area| matches!(area, 12 | 34),
                 |_| true,
             )
             .store,
@@ -271,7 +274,7 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical objective-transition viewer map");
     if completion_update_zone_auras {
-        crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 0);
+        crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
         session.set_player_zone_area_authority_complete_like_cpp(true);
         assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true,));
     }
@@ -1399,7 +1402,7 @@ async fn reputation_completion_spell_runs_before_quest_completion_like_cpp() {
 }
 
 #[tokio::test]
-async fn zone_aura_completion_effect_casts_after_final_refresh_like_cpp() {
+async fn zone_and_area_aura_completion_effects_cast_after_final_refresh_like_cpp() {
     let (status, count, opcodes) = storing_objective_transition_outcome_with_persistence_like_cpp(
         false,
         QUEST_STATUS_INCOMPLETE_LIKE_CPP,
@@ -1426,6 +1429,7 @@ async fn zone_aura_completion_effect_casts_after_final_refresh_like_cpp() {
             ServerOpcodes::QuestUpdateAddCredit,
             ServerOpcodes::UpdateObject,
             ServerOpcodes::UpdateObject,
+            ServerOpcodes::SpellGo,
             ServerOpcodes::SpellGo,
         ]
     );

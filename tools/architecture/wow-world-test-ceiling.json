@@ -665,6 +665,16 @@
    "unit_tests_lines": 289236,
    "unit_tests_tests": 4305,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-63",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "The existing zone-effect regression now also covers the area spell-area cast after the zone cast; identity count is unchanged and CheckLocation removal remains outside scope.",
+   "unit_tests_lines": 289240,
+   "unit_tests_tests": 4305,
+   "src_tests": 345
   }
  ]
 }

@@ -27,7 +27,7 @@ pub use player_death::{
 mod quest_failure;
 pub use quest_failure::{
     fail_quests_with_flag_like_cpp, send_quest_update_like_cpp,
-    update_zone_dependent_auras_like_cpp,
+    update_area_dependent_auras_like_cpp, update_zone_dependent_auras_like_cpp,
 };
 mod session_lifecycle;
 pub use continue_login::{

@@ -251,6 +251,18 @@ impl WorldSession {
                                 "Quest objective zone aura update failed"
                             );
                         }
+                        if let Err(reason) =
+                            wow_world_application::update_area_dependent_auras_like_cpp(
+                                self, catalogs,
+                            )
+                            .await
+                        {
+                            tracing::warn!(
+                                account = self.core.account_id,
+                                reason,
+                                "Quest objective area aura update failed"
+                            );
+                        }
                     } else {
                         tracing::warn!(
                             account = self.core.account_id,

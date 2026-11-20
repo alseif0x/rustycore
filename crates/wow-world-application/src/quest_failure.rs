@@ -157,11 +157,12 @@ fn spell_area_fits<H: QuestSessionHostLikeCpp>(
     Ok(true)
 }
 
-/// C++ `Player::UpdateZoneDependentAuras`: autocast every eligible spell-area
-/// row for the current zone that is not already present.
-pub async fn update_zone_dependent_auras_like_cpp<H>(
+async fn cast_spell_area_auras_like_cpp<H>(
     host: &mut H,
     catalogs: ResurrectionOperationCatalogs<'_>,
+    zone: u32,
+    sub_area: u32,
+    lookup_area: u32,
 ) -> Result<(), &'static str>
 where
     H: QuestSessionHostLikeCpp + CorpseHostLikeCpp + wow_world_spell::PlayerCastHostLikeCpp,
@@ -169,32 +170,31 @@ where
     let handle = host
         .core()
         .player_handle_like_cpp
-        .ok_or("Zone aura owner is unavailable")?;
-    let (zone, rows) = {
+        .ok_or("SpellArea aura owner is unavailable")?;
+    let rows = {
         let hub = host.hub_ref();
         let local = hub
             .player_world_local_state_like_cpp()
-            .ok_or("Zone aura world state is unavailable")?;
+            .ok_or("SpellArea world state is unavailable")?;
         if !local.has_zone_area_authority_like_cpp() {
-            return Err("Zone aura zone and area authority is unavailable");
+            return Err("SpellArea zone and area authority is unavailable");
         }
-        let zone = local.zone_area_like_cpp().0;
         let store = hub
             .catalogs
             .spell_catalogs
             .spell_area_store
             .as_ref()
-            .ok_or("Zone aura SpellArea catalog is unavailable")?;
-        (zone, store.spell_area_for_area_map_bounds_like_cpp(zone))
+            .ok_or("SpellArea catalog is unavailable")?;
+        store.spell_area_for_area_map_bounds_like_cpp(lookup_area)
     };
     let mut casts = BTreeSet::new();
     for row in rows {
         if row.flags & SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP != 0
-            && spell_area_fits(host, row, zone, 0)?
+            && spell_area_fits(host, row, zone, sub_area)?
             && !host
                 .hub_ref()
                 .player_has_visible_aura_spell_like_cpp(row.spell_id as i32)
-                .ok_or("Zone aura authority is unavailable")?
+                .ok_or("SpellArea aura authority is unavailable")?
         {
             casts.insert(row.spell_id);
         }
@@ -204,7 +204,7 @@ where
             host,
             catalogs.item_guid_generator,
             catalogs.creature_spawns,
-            i32::try_from(spell).map_err(|_| "Invalid zone aura spell key")?,
+            i32::try_from(spell).map_err(|_| "Invalid SpellArea spell key")?,
             handle.guid(),
             wow_entities::SpellCastMetadata {
                 cast_flags: 1,
@@ -219,10 +219,45 @@ where
                 .with_owned_player_like_cpp(|player| player.guid())
                 != Some(handle.guid())
         {
-            return Err("Zone aura Player incarnation changed during cast");
+            return Err("SpellArea Player incarnation changed during cast");
         }
     }
     Ok(())
+}
+
+/// C++ `Player::UpdateZoneDependentAuras`: autocast every eligible spell-area
+/// row for the current zone that is not already present.
+pub async fn update_zone_dependent_auras_like_cpp<H>(
+    host: &mut H,
+    catalogs: ResurrectionOperationCatalogs<'_>,
+) -> Result<(), &'static str>
+where
+    H: QuestSessionHostLikeCpp + CorpseHostLikeCpp + wow_world_spell::PlayerCastHostLikeCpp,
+{
+    let zone = host
+        .hub_ref()
+        .player_world_local_state_like_cpp()
+        .ok_or("Zone aura world state is unavailable")?
+        .zone_area_like_cpp()
+        .0;
+    cast_spell_area_auras_like_cpp(host, catalogs, zone, 0, zone).await
+}
+
+/// C++ `Player::UpdateAreaDependentAuras` spell-area casts, excluding the
+/// separate `SpellInfo::CheckLocation` removal pass.
+pub async fn update_area_dependent_auras_like_cpp<H>(
+    host: &mut H,
+    catalogs: ResurrectionOperationCatalogs<'_>,
+) -> Result<(), &'static str>
+where
+    H: QuestSessionHostLikeCpp + CorpseHostLikeCpp + wow_world_spell::PlayerCastHostLikeCpp,
+{
+    let (zone, area) = host
+        .hub_ref()
+        .player_world_local_state_like_cpp()
+        .ok_or("Area aura world state is unavailable")?
+        .zone_area_like_cpp();
+    cast_spell_area_auras_like_cpp(host, catalogs, zone, area, area).await
 }
 
 /// Source Player.cpp:15626–15672. Freeze the sets for this one quest, run
