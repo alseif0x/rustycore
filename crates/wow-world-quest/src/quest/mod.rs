@@ -39,9 +39,9 @@ pub use self::objective_progress::{
     invalidate_player_quest_status_authority_like_cpp, plan_quest_status_save_like_cpp,
     save_changed_quest_statuses_like_cpp, save_quest_to_db_like_cpp,
 };
-pub use self::objectives::QuestObjectiveProgressCx;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use self::objectives::QuestObjectiveRegistryFixtureRefsLikeCpp;
+pub use self::objectives::{QuestObjectiveCompletionSpellLikeCpp, QuestObjectiveProgressCx};
 pub(crate) use self::quest_log::apply_quest_log_status_delta_like_cpp;
 pub(crate) use self::quest_log::initialize_quest_log_from_loaded_state_like_cpp;
 pub use self::quest_log::{get_quest_slot_quest_id_like_cpp, quest_log_create_entries_like_cpp};

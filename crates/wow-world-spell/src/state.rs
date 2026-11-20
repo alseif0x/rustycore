@@ -23,6 +23,8 @@ use crate::test_support::PlayerSpellAndTraitTestFixtureLikeCpp;
 /// effects and the offhand re-check switch, until the owning Player runtime and the
 /// spell-acquisition module take them over.
 pub struct SessionSpellState {
+    /// Immutable process-owned catalogs required by represented spell execution.
+    pub creature_spawns: Option<Arc<wow_world_entities::CreatureSpawnCatalogsLikeCpp>>,
     pub(crate) legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     pub(crate) spell_linked_rejected_trigger_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     pub(crate) spell_script_all_rank_root_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
@@ -96,6 +98,7 @@ impl SessionSpellState {
     /// Construct the represented fields in their former WorldSession order.
     pub fn new_like_cpp() -> Self {
         Self {
+            creature_spawns: None,
             legacy_spell_script_spell_ids_like_cpp: None,
             spell_linked_rejected_trigger_spell_ids_like_cpp: None,
             spell_script_all_rank_root_spell_ids_like_cpp: None,

@@ -420,6 +420,9 @@ pub(super) async fn create_session(
     // #1445: the hook ports dispatch to the compositor's immutable module
     // registry, the same `Arc` the dispatch catalogs carry.
     session.install_module_hooks_like_cpp(Arc::clone(&resources.core.handler_catalogs.modules));
+    session.set_creature_spawn_catalogs_like_cpp(Arc::clone(
+        &resources.core.handler_catalogs.creature_spawns,
+    ));
 
     // Select the correct realm IP for ConnectTo based on client address.
     // C++ delegates to Trinity::Net::SelectAddressForClient after scanning

@@ -15,7 +15,7 @@ impl WorldSession {
         creature_guid: wow_core::ObjectGuid,
     ) {
         // C++ QUEST_OBJECTIVE_MONSTER.
-        self.quest_objective_operation_like_cpp(
+        Box::pin(self.quest_objective_operation_like_cpp(
             item_guid_generator,
             crate::session::quest::QuestObjectiveOperationLikeCpp::StoringValue {
                 objective_type: 0,
@@ -23,7 +23,7 @@ impl WorldSession {
                 add_count: 1,
                 credit_guid: creature_guid,
             },
-        )
+        ))
         .await;
     }
 }

@@ -12,6 +12,12 @@ impl WorldSession {
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.spell_catalogs.spell_store = Some(store);
     }
+    pub fn set_creature_spawn_catalogs_like_cpp(
+        &mut self,
+        catalogs: Arc<wow_world_entities::CreatureSpawnCatalogsLikeCpp>,
+    ) {
+        self.spell_state.creature_spawns = Some(catalogs);
+    }
     pub fn set_spell_chain_store(&mut self, store: Arc<SpellChainStoreLikeCpp>) {
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();

@@ -171,6 +171,7 @@ pub(crate) fn quest_reward_fixture_refs_like_cpp<'a>(
 /// (`wow-world-quest/src/quest/objectives.rs`): C++
 /// `Player::UpdateQuestObjectiveProgress` and `Player::CompleteQuest`. The
 /// World shell only lends the selected owners; it keeps no copy of either body.
+#[derive(Clone, Copy)]
 pub(crate) enum QuestObjectiveOperationLikeCpp<'q> {
     /// Recorded money/currency/reputation events, in order.
     Drain,
@@ -218,6 +219,84 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         operation: QuestObjectiveOperationLikeCpp<'_>,
     ) -> bool {
+        let mut completion_state_changed = false;
+        loop {
+            let (result, deferred, completion_state_refreshed) = Box::pin(
+                self.quest_objective_operation_once_like_cpp(item_guid_generator, operation),
+            )
+            .await;
+            let Some(deferred) = deferred else {
+                if completion_state_changed && !completion_state_refreshed {
+                    self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+                }
+                return result;
+            };
+            completion_state_changed |= deferred.completion_state_changed;
+            if let Some(creature_spawns) = self.spell_state.creature_spawns.clone() {
+                if let Err(reason) = wow_world_spell::execute_server_triggered_spell_like_cpp(
+                    self,
+                    item_guid_generator,
+                    creature_spawns.as_ref(),
+                    deferred.spell_id as i32,
+                    deferred.target_guid,
+                    wow_entities::SpellCastMetadata {
+                        cast_flags: 1,
+                        trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
+                        ..Default::default()
+                    },
+                )
+                .await
+                {
+                    tracing::warn!(
+                        account = self.core.account_id,
+                        quest_id = deferred.quest_id,
+                        objective_id = deferred.objective_id,
+                        spell_id = deferred.spell_id,
+                        reason,
+                        "Quest objective completion spell failed"
+                    );
+                }
+            } else {
+                tracing::warn!(
+                    account = self.core.account_id,
+                    quest_id = deferred.quest_id,
+                    objective_id = deferred.objective_id,
+                    spell_id = deferred.spell_id,
+                    "Quest objective completion spell catalogs are unavailable"
+                );
+            }
+            let Some(quest) = self
+                .catalogs
+                .quests
+                .store
+                .as_ref()
+                .and_then(|store| store.get(deferred.quest_id).cloned())
+            else {
+                return false;
+            };
+            let (completed, _, _) = Box::pin(self.quest_objective_operation_once_like_cpp(
+                item_guid_generator,
+                QuestObjectiveOperationLikeCpp::Complete {
+                    quest: &quest,
+                    ignored_objective_id: deferred.objective_id,
+                },
+            ))
+            .await;
+            if !completed {
+                return false;
+            }
+        }
+    }
+
+    async fn quest_objective_operation_once_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        operation: QuestObjectiveOperationLikeCpp<'_>,
+    ) -> (
+        bool,
+        Option<wow_world_quest::QuestObjectiveCompletionSpellLikeCpp>,
+        bool,
+    ) {
         #[cfg(any(test, feature = "test-fixtures"))]
         let mut fixtures = quest_reward_fixture_refs_like_cpp(
             &mut self.fixtures,
@@ -272,7 +351,7 @@ impl WorldSession {
                 fixtures.vehicle_and_pet.3,
             ),
         );
-        match operation {
+        let result = match operation {
             QuestObjectiveOperationLikeCpp::Drain => {
                 progress
                     .drain_represented_quest_objective_progress_like_cpp()
@@ -321,6 +400,9 @@ impl WorldSession {
                     )
                     .await
             }
-        }
+        };
+        let deferred = progress.take_deferred_completion_spell_like_cpp();
+        let completion_state_refreshed = progress.take_completion_state_refreshed_like_cpp();
+        (result, deferred, completion_state_refreshed)
     }
 }

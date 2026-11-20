@@ -21,11 +21,12 @@ pub use quest::QuestRewardDurablePlanLikeCpp;
 pub use quest::add_currency_quest_reward_like_cpp;
 pub use quest::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
 pub use quest::{
-    MAX_QUEST_LOG_SIZE_LIKE_CPP, QuestObjectiveProgressCx, QuestRewardCommitCx, QuestRewardCx,
-    QuestSourceItemBoundPersistencePlanLikeCpp, QuestSourceItemBoundPreflightLikeCpp,
-    RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
-    RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
-    RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
+    MAX_QUEST_LOG_SIZE_LIKE_CPP, QuestObjectiveCompletionSpellLikeCpp, QuestObjectiveProgressCx,
+    QuestRewardCommitCx, QuestRewardCx, QuestSourceItemBoundPersistencePlanLikeCpp,
+    QuestSourceItemBoundPreflightLikeCpp, RepresentedPendingQuestSharingLikeCpp,
+    RepresentedPushQuestToPartyOutcomeLikeCpp, RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
+    RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
+    RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
     RepresentedQuestRewardReputationSourceLikeCpp, SessionQuestState,
     begin_exclusive_player_money_persistence_like_cpp, find_quest_slot_like_cpp,

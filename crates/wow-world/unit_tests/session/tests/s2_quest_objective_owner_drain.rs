@@ -138,6 +138,7 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
         in_raid_group,
         false,
         None,
+        None,
     )
     .await
 }
@@ -157,8 +158,12 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
     persistence: Option<
         crate::player::quest_persistence_test_fixture::PlayerQuestPersistencePortFixtureLikeCpp,
     >,
+    completion_spell_id: Option<u32>,
 ) -> (u8, i32, Vec<ServerOpcodes>) {
     let (mut session, _, send_rx) = make_session();
+    session.set_creature_spawn_catalogs_like_cpp(Arc::new(
+        session.creature_spawn_catalogs_for_test_like_cpp(),
+    ));
     session.set_quest_enable_quest_tracker_like_cpp(quest_tracker_enabled);
     if let Some(persistence) = persistence {
         session.set_player_quest_persistence_port_like_cpp(Arc::new(persistence));
@@ -205,6 +210,19 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
         completion_effect: None,
         description: String::new(),
     });
+    if let Some(spell_id) = completion_spell_id {
+        quest.objectives.last_mut().unwrap().completion_effect =
+            Some(wow_data::quest::QuestObjectiveAction {
+                game_event_id: None,
+                spell_id: Some(spell_id),
+                conversation_id: None,
+                update_phase_shift: false,
+                update_zone_auras: false,
+            });
+        session.set_spell_store(Arc::new(first_login_noop_spell_store_like_cpp([
+            spell_id as i32
+        ])));
+    }
 
     session.set_player_guid(Some(player_guid));
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
@@ -1178,6 +1196,7 @@ async fn completion_updates_tracker_only_when_enabled_without_status_save_like_c
             false,
             enabled,
             Some(fixture),
+            None,
         )
         .await;
 
@@ -1193,4 +1212,36 @@ async fn completion_updates_tracker_only_when_enabled_without_status_save_like_c
             }
         );
     }
+}
+
+#[tokio::test]
+async fn completion_spell_runs_between_credit_and_quest_completion_like_cpp() {
+    let (status, count, opcodes) = storing_objective_transition_outcome_with_persistence_like_cpp(
+        false,
+        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        0,
+        1,
+        0,
+        0,
+        false,
+        None,
+        0,
+        false,
+        false,
+        None,
+        Some(50_101),
+    )
+    .await;
+
+    assert_eq!(status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+    assert_eq!(count, 1);
+    assert_eq!(
+        opcodes,
+        vec![
+            ServerOpcodes::QuestUpdateAddCredit,
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::UpdateObject,
+        ]
+    );
 }

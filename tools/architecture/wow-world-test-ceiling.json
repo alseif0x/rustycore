@@ -635,6 +635,16 @@
    "unit_tests_lines": 289000,
    "unit_tests_tests": 4299,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-60",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "One composed storing-value regression proves the real triggered SpellGo between objective credit and CompleteQuest, with both interaction refreshes preserved across operation resumption.",
+   "unit_tests_lines": 289051,
+   "unit_tests_tests": 4300,
+   "src_tests": 345
   }
  ]
 }

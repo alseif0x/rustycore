@@ -51,6 +51,15 @@ impl<'a> QuestObjectiveRegistryFixtureRefsLikeCpp<'a> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuestObjectiveCompletionSpellLikeCpp {
+    pub quest_id: u32,
+    pub objective_id: u32,
+    pub spell_id: u32,
+    pub target_guid: ObjectGuid,
+    pub completion_state_changed: bool,
+}
+
 /// A borrowed view of the reward operation, the existing loot publication state
 /// and the represented world entities the completion visibility refresh scans.
 ///
@@ -74,4 +83,6 @@ pub struct QuestObjectiveProgressCx<'cx, 'session> {
     pub(in crate::quest) player_game_master_fixture: &'cx bool,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(super) registry_fixtures: QuestObjectiveRegistryFixtureRefsLikeCpp<'cx>,
+    pub(super) deferred_completion_spell: Option<QuestObjectiveCompletionSpellLikeCpp>,
+    pub(super) completion_state_refreshed: bool,
 }

@@ -101,22 +101,23 @@
     "session_logic_over_quest_reward_context": [
       "session/xp_grants.rs::give_xp",
       "session/quest/objective_drain.rs::quest_objective_operation_like_cpp",
+      "session/quest/objective_drain.rs::quest_objective_operation_once_like_cpp",
       "session/world_entities/gameobject.rs::represented_gameobject_dynamic_flags_for_player_like_cpp",
       "session/world_entities/spell_click.rs::represented_can_see_spell_click_on_creature_like_cpp",
       "session/rest_progression.rs::resolved_player_flags_for_create_like_cpp"
     ]
   },
   "staying_bound": {
-    "methods": 94,
-    "lines": 2854
+    "methods": 95,
+    "lines": 2920
   },
   "outside_ceiling": {
     "methods": 0,
     "lines": 0
   },
   "crate_ceiling": {
-    "methods": 120,
-    "lines": 4090
+    "methods": 121,
+    "lines": 4170
   },
   "reasons": {
     "session/lifecycle/finalization.rs::interrupt_finalization_like_cpp": "world-server session-factory finalization cancel (session_factory/finalization.rs): interrupts the lifecycle-owned in-flight finalization and returns its report; the session driver's own teardown API.",
@@ -166,7 +167,8 @@
     "session/spell_state/aura_application.rs::player_aura_application_cx_like_cpp": "builds the borrowed aura-application context from spell, inventory, loot and quest state plus the hub.",
     "session/xp_grants.rs::quest_xp_gain_context_like_cpp": "builds the borrowed QuestRewardCx from inventory, lifecycle, quest state, catalogs, config and social.",
     "session/xp_grants.rs::give_xp": "session logic: runs the XP gain over the quest reward context (with its fixture split in test builds); the persistence boundary follows the publication phases. QuestRewardCx is built from inventory, lifecycle, quest state, catalogs, config, social and the fixtures.",
-    "session/quest/objective_drain.rs::quest_objective_operation_like_cpp": "session logic: builds QuestRewardCx and QuestObjectiveProgressCx from nine session fields and the fixture refs, then dispatches one objective operation (extracting the dispatch match and its enum to wow-world-quest is follow-up E: the cfg(test) StoringFlag variant would need a test-fixtures cfg).",
+    "session/quest/objective_drain.rs::quest_objective_operation_like_cpp": "session spell-execution boundary: runs a deferred objective-completion spell through the real server-triggered executor, completes the quest and resumes the event while preserving the pending interaction refresh; only WorldSession implements SpellExecutionHostLikeCpp.",
+    "session/quest/objective_drain.rs::quest_objective_operation_once_like_cpp": "session logic: builds QuestRewardCx and QuestObjectiveProgressCx from nine session fields and the fixture refs, then dispatches one objective operation and returns its deferred spell and refresh state (extracting the dispatch match and its enum to wow-world-quest is follow-up E: the cfg(test) StoringFlag variant would need a test-fixtures cfg).",
     "session/world_entities/gameobject.rs::represented_gameobject_dynamic_flags_for_player_like_cpp": "session logic: the gameobject quest-activation flags over core accessors, five fixture refs, quest state, catalogs and the player-condition projection.",
     "session/world_entities/spell_click.rs::represented_can_see_spell_click_on_creature_like_cpp": "session logic: the spell-click visibility over the NPC and player-condition accesses (37 fixture refs) and the condition projection; behind QuestSessionHostLikeCpp::represented_can_see_spell_click_on_creature_like_cpp.",
     "session/rest_progression.rs::resolved_player_flags_for_create_like_cpp": "session logic: combines the canonical flags-ex with the rest-state-save flags, which the World resolves through QuestRewardCx over the XP-gain access, social and fixtures."

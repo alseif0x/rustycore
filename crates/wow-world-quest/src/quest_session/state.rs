@@ -194,10 +194,12 @@ pub async fn complete_represented_quest_after_add_with_generator_like_cpp<
     item_guid_generator: &wow_core::ObjectGuidGenerator,
     quest: &wow_data::quest::QuestTemplate,
 ) -> bool {
-    host.complete_represented_quest_after_objective_with_generator_like_cpp(
-        item_guid_generator,
-        quest,
-        0,
+    Box::pin(
+        host.complete_represented_quest_after_objective_with_generator_like_cpp(
+            item_guid_generator,
+            quest,
+            0,
+        ),
     )
     .await
 }
