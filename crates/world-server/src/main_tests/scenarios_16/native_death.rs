@@ -1,6 +1,8 @@
 use super::*;
 use wow_world_core::session::SessionHubHostLikeCpp;
 
+const HIT_SPELL: i32 = 96_480;
+
 async fn native_map_fixture(
     base: i64,
 ) -> (
@@ -248,6 +250,38 @@ fn install_player_damage_aura(
         );
 }
 
+fn prepare_single_normal_split_swing(world: &D3bWorldLikeCpp, primary: ObjectGuid) {
+    {
+        let mut manager = world.canonical.lock().unwrap();
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        // Match C++ Unit.cpp:2272-2312, where attacks from behind suppress player avoidance.
+        let unit = map.get_typed_player_mut(primary).unwrap().unit_mut();
+        let mut position = unit.world().position();
+        position.orientation = 0.0;
+        unit.world_mut().relocate(position);
+
+        let creature = map.get_typed_creature_mut(world.creature).unwrap();
+        let flags_extra = creature.lifecycle_metadata().flags_extra
+            | wow_constants::CreatureFlagsExtra::NO_CRIT.bits();
+        // Unit.cpp:2777 honors NO_CRIT; the 60s attack time leaves the first swing ready only.
+        creature.set_flags_extra_runtime_like_cpp(flags_extra);
+        creature
+            .unit_mut()
+            .set_base_attack_time_like_cpp(wow_constants::WeaponAttackType::BaseAttack, 60_000);
+    }
+
+    // Unit.cpp:11682 applies this aura to remove the remaining attacker miss roll.
+    install_player_damage_aura(
+        world,
+        primary,
+        primary,
+        12,
+        HIT_SPELL,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+        100,
+    );
+}
+
 fn set_player_health(world: &D3bWorldLikeCpp, guid: ObjectGuid, health: u64) {
     let mut manager = world.canonical.lock().unwrap();
     let player = manager
@@ -422,8 +456,12 @@ async fn secondary_split_deaths_finish_before_each_log_and_primary_hit() {
     const SPLIT_ONE: i32 = 96_481;
     const SPLIT_TWO: i32 = 96_482;
     let split = wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT;
-    let (spell_store, spell_class_options_store) =
-        damage_aura_spell_catalog(&[(SPLIT_ONE, split, 50), (SPLIT_TWO, split, 50)]);
+    let hit_chance = wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE;
+    let (spell_store, spell_class_options_store) = damage_aura_spell_catalog(&[
+        (SPLIT_ONE, split, 50),
+        (SPLIT_TWO, split, 50),
+        (HIT_SPELL, hit_chance, 100),
+    ]);
     let (world, mut primary_session, primary_send, _peer, primary) =
         native_map_fixture(96_510).await;
     attach_test_spell_catalog(
@@ -462,6 +500,7 @@ async fn secondary_split_deaths_finish_before_each_log_and_primary_hit() {
     assert!(primary_session.client_sees_guid_for_test_like_cpp(secondary_one));
     assert!(primary_session.client_sees_guid_for_test_like_cpp(secondary_two));
     for _ in primary_send.try_iter() {}
+    prepare_single_normal_split_swing(&world, primary);
     let (task, probe) = spawn_canonical_loop_with_spell_store(&world, spell_store);
     let started = Instant::now();
     let mut primary_packets = Vec::new();
@@ -560,8 +599,12 @@ async fn secondary_split_death_failure_fences_next_aura_and_primary_mutation() {
     const SPLIT_ONE: i32 = 96_483;
     const SPLIT_TWO: i32 = 96_484;
     let split = wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT;
-    let (spell_store, spell_class_options_store) =
-        damage_aura_spell_catalog(&[(SPLIT_ONE, split, 50), (SPLIT_TWO, split, 50)]);
+    let hit_chance = wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE;
+    let (spell_store, spell_class_options_store) = damage_aura_spell_catalog(&[
+        (SPLIT_ONE, split, 50),
+        (SPLIT_TWO, split, 50),
+        (HIT_SPELL, hit_chance, 100),
+    ]);
     let (world, mut primary_session, primary_send, _peer, primary) =
         native_map_fixture(96_520).await;
     attach_test_spell_catalog(
@@ -606,6 +649,7 @@ async fn secondary_split_death_failure_fences_next_aura_and_primary_mutation() {
         spells.set_row_authority_like_cpp(false, false);
         player.replace_spell_runtime_like_cpp(spells);
     }
+    prepare_single_normal_split_swing(&world, primary);
     let (task, probe) = spawn_canonical_loop_with_spell_store(&world, spell_store);
     let started = Instant::now();
     let mut primary_packets = Vec::new();
