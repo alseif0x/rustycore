@@ -1,5 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 objective completability accepted locally — 2026-11-20
+
+Committed candidate `e8c5a97c367b16484b6becd94c3ed4497dadae0b`, based on
+`881edb4bc`, applies the existing represented `IsQuestObjectiveCompletable` rule
+to storing-value and storing-flag objective selection. Following
+`Player.cpp:17025-17039,17376-17431` at
+`02245dcd245e7433e524577656177723d3e4992e`, a sequenced objective now waits for
+its prerequisite before any counter mutation, credit, completion or visibility
+publication. The shared rule retains its optional/progress-bar handling and
+recursive sequence checks; no second sequence authority was added.
+
+Two composed canonical-Player regressions cover both storage families with an
+incomplete prerequisite (unchanged status/count and no packets) and a completed
+prerequisite (credit, completion and both interaction refreshes). The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 881edb4bc --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 15:50:54Z to 15:54:24Z (209.193 seconds),
+within the 600-second target: 4,633 `wow-world` tests (one ignored) and eight
+`wow-world-quest` tests passed, totaling 4,641 passed, one ignored and zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T155054.902050Z-152561-final.json`.
+Architecture policy, session syntax ownership, formatting and all affected
+downstream checks passed. The reviewed ledgers record exactly 73 new Session test
+lines and two test identities, with no production growth in that logical owner.
+
+This closes only the represented completability/sequencing divergence in #1368.
+Inline completion ordering, raid admission, other objective families' negative
+transitions, immediate-save/persistence fences, effective team and completion
+effects remain open. This is synthetic source/behavior/wire evidence, not a live
+quest capture or full quest parity acceptance. Player runtime integration and
+character creation remain separate work.
+
 ## #1368 NO_CREDIT_FOR_PROXY admission accepted locally — 2026-11-20
 
 Committed candidate `01eced0fbf98cd3635055a8c8eb466f52710f6a7`, based on
