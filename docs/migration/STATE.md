@@ -1,5 +1,39 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 live Pet summon-reagent return accepted locally — 2026-11-20
+
+Committed candidate `60a7bc3b61d4a23d33b24176fcf186c50a38f47b`, based on
+`207d5a11b`, extends the bounded live Player::RemovePet operation to summon
+spells. The captured removal input now freezes CreatedBySpell and the actual
+nonzero battleground-instance state. Outside map guards and before CombatStop
+or either pet-save transaction, the existing inventory/quest operation returns
+reagents under the same cancellation fence. The complete pet/save/BG input is
+revalidated after callbacks and after every save. Battleground removal skips
+the refund and preserves the temporary-unsummoned marker; ordinary removal
+clears it. The saved pet row retains CreatedBySpell.
+
+Two regressions prove refund-before-ClearPetSpells and saved spell identity,
+plus nonzero-BG refund suppression and marker preservation. Existing reagent
+(six) and live-release (five) scenarios also pass. The committed
+`./tools/validation-v2 final --base 207d5a11b --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 07:05:31Z to 07:08:04Z (152.973 seconds),
+within the 600-second target. The `wow-world` suite passed 4,611 tests with one
+existing ignored and `wow-world-application` passed all 31 tests, with zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T070531.612638Z-3793839-final.json`.
+
+The first BG=0 fixture failed because zero is the correct no-battleground
+sentinel; changing only the fixture to instance 31 exposed the intended branch.
+The first final campaign then stopped on the quest hotspot's unreviewed +232
+test lines, which were reconciled alongside the two-test census raise. No failed
+attempt is claimed as behavioral evidence. Recording ports do not establish real
+DB durability, restart or live-client behavior.
+
+Group, secondary-minion, non-empty-aura and combat/control continuations remain
+unadmitted and fail closed. #1354 therefore remains open rather than claiming
+full RemovePet parity. Player runtime integration and character creation remain
+separate work.
+
 ## #1354 unloaded-move Pet removal accepted locally — 2026-11-20
 
 Committed candidate `53e848cafd09a565f462084cabb4c83a6f00a3ab`, based on
