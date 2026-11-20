@@ -1,5 +1,35 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 NO_CREDIT_FOR_PROXY admission accepted locally — 2026-11-20
+
+Committed candidate `01eced0fbf98cd3635055a8c8eb466f52710f6a7`, based on
+`bee14fd01`, applies `QUEST_FLAGS_EX_NO_CREDIT_FOR_PROXY` (`0x4000`) before any
+storing-value objective mutation or publication. Following
+`Player.cpp:17025-17039` at `02245dcd245e7433e524577656177723d3e4992e`, a
+`MONSTER` objective with that quest flag now ignores an empty victim GUID. A real
+victim GUID remains eligible, and an empty GUID still progresses when the quest
+does not carry the flag.
+
+Two composed canonical-Player regressions prove the rejected proxy preserves its
+incomplete status and zero count without packets, while both admitted controls
+complete with credit and the expected two visibility refreshes. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base bee14fd01 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 15:34:39Z to 15:39:26Z (287.877 seconds),
+within the 600-second target: seven `wow-constants` tests, 4,631 `wow-world`
+tests (one ignored) and eight `wow-world-quest` tests passed, totaling 4,646
+passed, one ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T153439.013291Z-135005-final.json`.
+Architecture policy, session syntax ownership, formatting and all affected
+downstream checks passed. The reviewed ledgers record exactly 75 new Session test
+lines and two test identities, with no production growth in that logical owner.
+
+This closes only the NO_CREDIT_FOR_PROXY divergence in #1368. Inline objective
+ordering, raid/completability admission, other objective families' negative
+transitions, immediate-save/persistence fences, effective team and completion
+effects remain open. This is synthetic source/behavior/wire evidence, not a live
+quest capture or full quest parity acceptance. Player runtime integration and
+character creation remain separate work.
+
 ## #1368 HIDE_CREDIT_MSG publication accepted locally — 2026-11-20
 
 Committed candidate `3f951bb6cda4367f2e526438bf52cecb4a254f86`, based on
