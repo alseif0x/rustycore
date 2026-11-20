@@ -116,8 +116,36 @@ impl CharacterEnumerationPersistencePortLikeCpp
                 }
             }
 
+            let mut statement = self
+                .character_db
+                .prepare(CharStatements::SEL_ENUM_CUSTOMIZATIONS);
+            statement.set_u32(0, request.account_id);
+            let mut result = match self.character_db.query(&statement).await {
+                Ok(result) => result,
+                Err(error) => {
+                    return CharacterEnumerationLoadOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                        expired_ban_cleanup_error,
+                    };
+                }
+            };
+            let mut customizations = Vec::new();
+            if !result.is_empty() {
+                loop {
+                    customizations.push(wow_persistence::CharacterCustomizationLoadRowLikeCpp {
+                        guid_low: result.read(0),
+                        option_id: result.read(1),
+                        choice_id: result.read(2),
+                    });
+                    if !result.next_row() {
+                        break;
+                    }
+                }
+            }
+
             CharacterEnumerationLoadOutcomeLikeCpp::Loaded {
                 rows,
+                customizations,
                 expired_ban_cleanup_error,
             }
         })

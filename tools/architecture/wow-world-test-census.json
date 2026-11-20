@@ -22,17 +22,17 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4619,
+  "tests": 4620,
   "ignored": 1,
-  "session": 3903,
-  "shims": 3700,
+  "session": 3904,
+  "shims": 3701,
   "by_class": {
    "P": 716,
-   "H": 146,
+   "H": 147,
    "W": 3757
   },
   "by_reason": {
-   "H-host": 146,
+   "H-host": 147,
    "P-domain": 159,
    "P-library": 35,
    "P-lowest-covering": 39,
@@ -92,7 +92,7 @@
    },
    "wow-world-lifecycle": {
     "P": 38,
-    "H": 39,
+    "H": 40,
     "W": 158
    },
    "wow-world-loot": {
@@ -179,7 +179,7 @@
    },
    "wow-world-lifecycle": {
     "P": 18,
-    "H": 35,
+    "H": 36,
     "W": 0
    },
    "wow-world-loot": {
@@ -1199,6 +1199,7 @@
   ["unit_tests/handlers/character_tests/misc_3.rs::start_zones_are_valid", "P", "wow-world-character", "wow-world-character", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/character_tests/misc_3.rs::cancel_temp_enchantment_ignores_missing_enchant_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["handle_cancel_temp_enchantment", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/handlers/character_tests/misc_4.rs::character_enumeration_uses_typed_rows_and_keeps_cleanup_best_effort_like_cpp", "H", "wow-world-lifecycle", "wow-world-lifecycle", "H-host", true, true, false, [], []],
+  ["unit_tests/handlers/character_tests/misc_4.rs::character_enumeration_publishes_stored_customizations_like_cpp", "H", "wow-world-lifecycle", "wow-world-lifecycle", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/character_tests/misc_4.rs::character_enumeration_query_failure_publishes_failure_and_no_legit_guid", "H", "wow-world-lifecycle", "wow-world-lifecycle", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/character_tests/misc_4.rs::enum_character_flags_keep_declined_names_config_gated_like_cpp", "P", "wow-world-character", "wow-world-character", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/character_tests/misc_4.rs::enum_character_flags_suppress_ghost_by_resurrect_like_cpp", "P", "wow-world-character", "wow-world-character", "P-domain", false, false, false, [], []],

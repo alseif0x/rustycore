@@ -4,7 +4,7 @@
 
 //! Character handler family: character-list enumeration (`HandleCharEnumOpcode`).
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use tracing::{debug, warn};
 use wow_constants::character::{
@@ -58,11 +58,15 @@ impl CharacterHandlerCxLikeCpp<'_> {
             account_id: self.hub.shared().core.account_id,
             declined_names_used: policy.declined_names_used,
         };
-        let (rows, cleanup_error) = match port.load_character_enumeration_like_cpp(request).await {
+        let (rows, customizations, cleanup_error) = match port
+            .load_character_enumeration_like_cpp(request)
+            .await
+        {
             CharacterEnumerationLoadOutcomeLikeCpp::Loaded {
                 rows,
+                customizations,
                 expired_ban_cleanup_error,
-            } => (rows, expired_ban_cleanup_error),
+            } => (rows, customizations, expired_ban_cleanup_error),
             CharacterEnumerationLoadOutcomeLikeCpp::Failed {
                 reason,
                 expired_ban_cleanup_error,
@@ -90,6 +94,17 @@ impl CharacterHandlerCxLikeCpp<'_> {
                 "Failed to expire elapsed character bans before enum for account {}: {error}",
                 self.hub.shared().core.account_id
             );
+        }
+
+        let mut customizations_by_guid = HashMap::new();
+        for row in customizations {
+            customizations_by_guid
+                .entry(row.guid_low)
+                .or_insert_with(Vec::new)
+                .push(wow_packet::packets::character::ChrCustomizationChoice {
+                    option_id: row.option_id as i32,
+                    choice_id: row.choice_id as i32,
+                });
         }
 
         let mut characters = Vec::new();
@@ -136,6 +151,9 @@ impl CharacterHandlerCxLikeCpp<'_> {
                 race_id: row.race,
                 class_id: row.class,
                 sex_id: row.gender,
+                customizations: customizations_by_guid
+                    .remove(&row.guid_low)
+                    .unwrap_or_default(),
                 experience_level: row.level,
                 zone_id: row.zone,
                 map_id: row.map,

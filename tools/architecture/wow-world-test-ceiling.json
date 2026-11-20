@@ -445,6 +445,16 @@
    "unit_tests_lines": 287358,
    "unit_tests_tests": 4274,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1486-42",
+   "kind": "raise",
+   "issue": 1486,
+   "reviewed_at": "2026-11-20",
+   "reason": "Character enum stored-customization publication regression (+44 lines, +1 test).",
+   "unit_tests_lines": 287402,
+   "unit_tests_tests": 4275,
+   "src_tests": 345
   }
  ]
 }

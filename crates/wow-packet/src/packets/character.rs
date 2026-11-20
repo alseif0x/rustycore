@@ -50,6 +50,7 @@ pub struct CharacterInfo {
     pub race_id: u8,
     pub class_id: u8,
     pub sex_id: u8,
+    pub customizations: Vec<ChrCustomizationChoice>,
     pub experience_level: u8,
     pub zone_id: i32,
     pub map_id: i32,
@@ -81,6 +82,7 @@ impl Default for CharacterInfo {
             race_id: 0,
             class_id: 0,
             sex_id: 0,
+            customizations: Vec::new(),
             experience_level: 0,
             zone_id: 0,
             map_id: 0,
@@ -165,7 +167,11 @@ impl ServerPacket for EnumCharactersResult {
             pkt.write_uint8(ch.race_id);
             pkt.write_uint8(ch.class_id);
             pkt.write_uint8(ch.sex_id);
-            pkt.write_int32(0); // Customizations.Count (no customizations)
+            pkt.write_int32(ch.customizations.len() as i32);
+            for choice in &ch.customizations {
+                pkt.write_int32(choice.option_id);
+                pkt.write_int32(choice.choice_id);
+            }
 
             pkt.write_uint8(ch.experience_level);
             pkt.write_int32(ch.zone_id);

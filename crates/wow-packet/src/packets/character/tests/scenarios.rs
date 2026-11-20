@@ -440,3 +440,56 @@ fn enum_characters_with_one_character() {
     // Should be a reasonably sized packet
     assert!(bytes.len() > 50);
 }
+
+#[test]
+fn enum_characters_writes_customizations_immediately_after_sex() {
+    let char_info = CharacterInfo {
+        guid: ObjectGuid::create_player(1, 42),
+        sex_id: 1,
+        customizations: vec![
+            ChrCustomizationChoice {
+                option_id: 10,
+                choice_id: 100,
+            },
+            ChrCustomizationChoice {
+                option_id: 20,
+                choice_id: 200,
+            },
+        ],
+        experience_level: 42,
+        ..CharacterInfo::default()
+    };
+    let bytes = EnumCharactersResult {
+        success: true,
+        characters: vec![char_info],
+        race_unlock_data: vec![],
+    }
+    .to_bytes();
+    let mut packet = WorldPacket::from_bytes(&bytes);
+    assert_eq!(
+        packet.read_uint16().unwrap(),
+        ServerOpcodes::EnumCharactersResult as u16
+    );
+    for _ in 0..6 {
+        packet.read_bit().unwrap();
+    }
+    packet.reset_bits();
+    for _ in 0..5 {
+        packet.read_int32().unwrap();
+    }
+    assert_eq!(
+        packet.read_packed_guid().unwrap(),
+        ObjectGuid::create_player(1, 42)
+    );
+    assert_eq!(packet.read_uint64().unwrap(), 0);
+    assert_eq!(packet.read_uint8().unwrap(), 0);
+    assert_eq!(packet.read_uint8().unwrap(), 0);
+    assert_eq!(packet.read_uint8().unwrap(), 0);
+    assert_eq!(packet.read_uint8().unwrap(), 1);
+    assert_eq!(packet.read_int32().unwrap(), 2);
+    assert_eq!(packet.read_int32().unwrap(), 10);
+    assert_eq!(packet.read_int32().unwrap(), 100);
+    assert_eq!(packet.read_int32().unwrap(), 20);
+    assert_eq!(packet.read_int32().unwrap(), 200);
+    assert_eq!(packet.read_uint8().unwrap(), 42);
+}

@@ -41,10 +41,18 @@ pub struct CharacterEnumerationRowLikeCpp {
     pub declined_genitive: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CharacterCustomizationLoadRowLikeCpp {
+    pub guid_low: u64,
+    pub option_id: u32,
+    pub choice_id: u32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum CharacterEnumerationLoadOutcomeLikeCpp {
     Loaded {
         rows: Vec<CharacterEnumerationRowLikeCpp>,
+        customizations: Vec<CharacterCustomizationLoadRowLikeCpp>,
         /// `CHAR_DEL_EXPIRED_BANS` is best effort in C++; a failure is logged
         /// but does not suppress the subsequent enumeration result.
         expired_ban_cleanup_error: Option<String>,

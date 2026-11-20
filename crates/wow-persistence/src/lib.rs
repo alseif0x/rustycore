@@ -475,8 +475,9 @@ pub use player::{
 
 mod character_enumeration;
 pub use character_enumeration::{
-    CharacterEnumerationLoadOutcomeLikeCpp, CharacterEnumerationPersistencePortLikeCpp,
-    CharacterEnumerationRequestLikeCpp, CharacterEnumerationRowLikeCpp,
+    CharacterCustomizationLoadRowLikeCpp, CharacterEnumerationLoadOutcomeLikeCpp,
+    CharacterEnumerationPersistencePortLikeCpp, CharacterEnumerationRequestLikeCpp,
+    CharacterEnumerationRowLikeCpp,
 };
 
 pub use quest::{

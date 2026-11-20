@@ -10,6 +10,7 @@ async fn character_enumeration_uses_typed_rows_and_keeps_cleanup_best_effort_lik
     let port = CharacterEnumerationPortFixtureLikeCpp::new([
         CharacterEnumerationLoadOutcomeLikeCpp::Loaded {
             rows: vec![character_enumeration_row_like_cpp()],
+            customizations: vec![],
             expired_ban_cleanup_error: Some("best-effort cleanup failed".to_owned()),
         },
     ]);
@@ -29,6 +30,49 @@ async fn character_enumeration_uses_typed_rows_and_keeps_cleanup_best_effort_lik
     assert!(session.is_legit_character(&ObjectGuid::create_player(1, 42)));
     assert!(send_rx.try_recv().is_ok());
 }
+#[tokio::test]
+async fn character_enumeration_publishes_stored_customizations_like_cpp() {
+    let port = CharacterEnumerationPortFixtureLikeCpp::new([
+        CharacterEnumerationLoadOutcomeLikeCpp::Loaded {
+            rows: vec![character_enumeration_row_like_cpp()],
+            customizations: vec![
+                wow_persistence::CharacterCustomizationLoadRowLikeCpp {
+                    guid_low: 42,
+                    option_id: 10,
+                    choice_id: 100,
+                },
+                wow_persistence::CharacterCustomizationLoadRowLikeCpp {
+                    guid_low: 42,
+                    option_id: 20,
+                    choice_id: 200,
+                },
+            ],
+            expired_ban_cleanup_error: None,
+        },
+    ]);
+    let (mut session, send_rx) = make_session_with_send_capacity(2);
+    session.set_character_enumeration_persistence_port_like_cpp(port);
+
+    session.handle_enum_characters().await;
+
+    let bytes = send_rx.try_recv().expect("enum response");
+    let expected = [
+        2_i32.to_le_bytes(),
+        10_i32.to_le_bytes(),
+        100_i32.to_le_bytes(),
+        20_i32.to_le_bytes(),
+        200_i32.to_le_bytes(),
+    ]
+    .concat();
+    assert!(
+        bytes
+            .windows(expected.len())
+            .any(|window| window == expected),
+        "the enum must carry both stored option/choice pairs"
+    );
+    assert!(send_rx.try_recv().is_err());
+}
+
 #[tokio::test]
 async fn character_enumeration_query_failure_publishes_failure_and_no_legit_guid() {
     let port = CharacterEnumerationPortFixtureLikeCpp::new([
