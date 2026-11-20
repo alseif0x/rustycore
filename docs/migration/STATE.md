@@ -1,5 +1,38 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 UpdateZoneDependentAuras accepted locally — 2026-11-21
+
+Committed candidate `a10132e10a71fc1816ddd6bd3f08908cbd1f733c`, based on
+`ce9e3d6d5`, implements the C++ zone-half of completion-effect aura updates.
+Every represented objective family records `UpdateZoneAuras` when an objective
+becomes complete. After the final interaction refresh, WorldSession asks the
+application owner to select current-zone `spell_area` rows with AUTOCAST and to
+run each missing spell through the real triggered executor in spell-id order.
+Requirements and zone/aura authority fail closed instead of fabricating a cast.
+`UpdateAreaDependentAuras` and full `SpellInfo::CheckLocation` are deliberately
+outside this slice.
+
+One regression completes a storing-value objective with a zone action and a real
+`spell_area` row. It requires credit, the CompleteQuest refresh, the final
+refresh and only then `SpellGo`. Zone and aura authorities are installed after
+canonical Player attachment. The complete objective suite passed 28 tests. The
+committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base ce9e3d6d5 --architecture --require-changes --timings --logs`
+campaign passed all twelve commands from 23:26:03Z to 23:29:04Z (181.063
+seconds), within the 600-second target: 4,649 `wow-world` tests (one ignored),
+32 `wow-world-application` and eight `wow-world-quest` tests passed, totaling
+4,689 passed, one ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T232603.119351Z-1057856-final.json`.
+Architecture policy, session syntax ownership, method-index, hotspot/census,
+formatting and all affected downstream checks passed. Reviewed ledgers record
+36 production and 67 test lines in Session and one new test identity.
+
+This closes only `UpdateZoneDependentAuras` in #1368. Area-dependent removal
+and casts with full `CheckLocation`, UpdatePhaseShift, GameEvent and
+Conversation remain open. This is synthetic production-path source/behavior/wire
+evidence, not a live quest capture or full completion-effect parity claim.
+Player runtime integration and character creation remain separate work.
+
 ## #1368 completion spells across objective families accepted locally — 2026-11-20
 
 Committed candidate `6dab45a9f70104cfe9930ca825f2d7d478eddf23`, based on
