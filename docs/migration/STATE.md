@@ -1,5 +1,38 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 effective-team PvP credit accepted locally — 2026-11-20
+
+Committed candidate `6a2075da3b227e77a4c0ac4afe671a2747dad028`, based on
+`0be460bd5`, replaces race-only comparison for `KILL_PLAYERS_SAME_FACTION` with
+`Player::GetEffectiveTeam`. The shared rule maps race through the existing team
+helper and swaps Alliance/Horde only for `PLAYER_FLAGS_EX_MERCENARY_MODE`
+(`0x0002`). The victim's flags are resolved through `PlayerRegistry`'s canonical
+Player owner, while the actor uses the selected canonical Player directly,
+matching `Player.cpp:17044-17047` and `Player.h:GetEffectiveTeam` at
+`02245dcd245e7433e524577656177723d3e4992e`. No Session identity projection or
+second team authority is added.
+
+One composed regression covers a mercenary victim, a mercenary actor and an
+opposite-effective-team rejection: matching effective teams progress despite
+different races, while different effective teams do not progress even with the
+same race. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 0be460bd5 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 18:14:08Z to 18:17:08Z (180.156 seconds),
+within the 600-second target: 4,640 `wow-world` tests (one ignored), 297
+`wow-world-core` tests and eight `wow-world-quest` tests passed, totaling 4,945
+passed, one ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T181408.754101Z-448688-final.json`.
+Architecture policy, session syntax ownership, method-index, hotspot/census,
+formatting and all affected downstream checks passed. An earlier campaign stopped
+when registry projection added nine forbidden Session production lines; the
+accepted candidate instead resolves those flags in the existing registry owner.
+
+This closes only the effective-team divergence in #1368. Inline completion
+ordering, immediate-save/persistence fences and completion effects remain open.
+This is synthetic source/behavior/wire evidence, not a live quest capture or full
+quest parity acceptance. Player runtime integration and character creation
+remain separate work.
+
 ## #1368 raid objective admission accepted locally — 2026-11-20
 
 Committed candidate `bcae7a3cc26007aa622ab730a72e7c6c59ffe582`, based on
