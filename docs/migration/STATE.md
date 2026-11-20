@@ -1,5 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1487 starting loadout accepted locally — 2026-11-20
+
+Committed candidate `f9c3614878c2e39e73216a97ac7ab86c758a0b36`, based on
+`0b877b4bd`, projects the initial character loadout and persists its item
+instances, inventory rows and 34-slot `equipmentCache`. The creation path
+selects purpose-9 DB2 loadouts by class and race mask, applies the positive and
+negative `playercreateinfo_item` overrides, allocates unique item GUIDs and
+places equipment, equipped bags and backpack items without duplicating slots.
+Each projected row retains its count and maximum durability; equipped entries
+publish inventory type, display ID, subclass and the remaining visual fields in
+the same five-integer-per-slot cache format consumed by character enumeration.
+
+A combined regression covers shirt, weapon, backpack, equipped bag, negative
+weapon removal and positive weapon readmission, including complete cache
+contents, quantities, durability, slots and GUID uniqueness. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 0b877b4bd --architecture --require-changes --timings --logs`
+campaign passed all thirteen commands from 12:02:00Z to 12:12:33Z (633.299
+seconds), exceeding the 600-second target by 33.299 seconds. Suites passed 646
+`world-server`, 1,080 `wow-data`, 632 `wow-database` (nine ignored), 36
+`wow-persistence`, 4,619 `wow-world` (one ignored), four
+`wow-world-character` and 297 `wow-world-core` tests: 7,314 passed, 16 ignored
+and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T120200.334569Z-4094830-final.json`.
+The manifest records the clean candidate SHA above; architecture policy,
+session syntax ownership, formatting, downstream checks and SQL composition
+also passed.
+
+This is synthetic catalog/persistence/wire evidence, not real MariaDB
+durability or a live character-create/select capture. The remaining
+`CharacterCreator` phases and Player runtime integration stay open separately.
+
 ## #1486 character-enum stored customizations accepted locally — 2026-11-20
 
 Committed candidate `b8e79d342c598be917928a2542487fffc42bf94e`, based on
