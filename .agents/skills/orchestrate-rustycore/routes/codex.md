@@ -5,7 +5,7 @@ Applies only to a native Codex session. Defaults: `.codex/config.toml` and
 
 - **Parent: GPT-6.1 Sol** (`gpt-6.1-sol`) at `medium` (forever's default; raise only when the effective session confirms it). It owns architecture,
   decomposition, contracts, coordination, review, Git, integration and final acceptance;
-  it does not implement routine units.
+  it can implement a bounded fix directly under the shared routing rule.
 - **Worker: `luna_worker`**, GPT-6 Luna (`gpt-6-luna`) at `max`, for a bounded
   implementation, focused read-only exploration or the parent's exclusive final sequence.
   Custom TOML roles apply only on clients that load them; otherwise pass the supported

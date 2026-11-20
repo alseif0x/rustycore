@@ -1,6 +1,8 @@
 # Validation V2 canonical runner
 
 Validation V2 is the clean-room validation path shared by local development and GitHub Actions.
+The [delivery time improvement plan](delivery-time-plan.md) records the measured delays,
+proposed changes and criteria for adopting them on `3.4.3`.
 The old `pr-preflight.sh` and `local-harness.sh` wrappers were retired in #331 (PR #335). Do not use
 their former `full` or `capture` subcommands; code review and live QA have separate tools in
 [local-first-development.md](local-first-development.md).
@@ -45,6 +47,12 @@ shell/JSON/Python syntax, optional `actionlint`, and `cargo fmt` for routed work
 or standalone tools. Cargo fmt may inspect manifests. Level 2 never runs `cargo
 check`, `cargo test`, `cargo build`, `cargo run`, locked dependency metadata, a
 protobuf probe, or self-test/architecture/contract suites.
+
+For edits confined to Rust sources under one member's `crates/<member>/src/`,
+both `quick` and `final` check formatting through that member's Cargo manifest.
+Changes spanning members, removed files, manifests, or other workspace inputs
+keep the whole-workspace format check. A root rustfmt configuration change also
+checks both standalone tools. The integration audit checks formatting everywhere.
 
 Level 3 (`final`) collects the same path scope and preserves the current final
 acceptance: it compiles the workspace reverse-dependent closure and runs library
@@ -110,6 +118,9 @@ The flag also honors an explicit request when there are no changed paths. It doe
 exhaustive persistence inventory, terminal physical closeout, production integration or live
 QA when the issue requires those; include their actual additional time in campaign evidence.
 
+A workspace compile in `final` checks downstream test targets before the hotspot scan.
+With `--architecture` the combined policy and syntax checks follow that compile too.
+This puts a compiler diagnostic for a broken consumer or test ahead of both full scans.
 A `final` run whose diff touches workspace Rust also enforces the curated hotspot LOC ceilings
 (`check_architecture.py hotspot-ratchet`; timing depends on cached scanner/build state).
 Every nonempty `final` diff also runs the cheap `check_architecture.py physical-files` scan,
@@ -264,11 +275,18 @@ manifest-only diff. The self-test has, for each of those five tables and the pac
 a fixture in which only that part differs, plus fixtures for the spellings above; it covers
 those cases, not every possible manifest edit. The checker's own lib test pins the package list. Committed capture contracts belong to `audit`,
 and live database/runtime/capture operations to explicit QA procedures.
+Changes to `tools/qa-runtime.sh` or its self-test run the simulated service checks in
+`final`. These exercise candidate selection and restoration with temporary fixtures.
+
 A `final` diff under `tools/modules/` also runs `tools/modules/test_rustycore_module.py`, and one
-under `tools/modules/`, `crates/world-modules/`, `crates/wow-module-api/` or touching
-`crates/world-server/src/{entry,app,lib}.rs` (where `run_with_composition` is defined and
-re-exported) runs `tools/modules/check_sql_compositor.py` (#1468): no
-checked-in tree composes a module with SQL, so the SQL-mode compositor
+under `tools/modules/`, `crates/world-modules/` or `crates/wow-module-api/` runs
+`tools/modules/check_sql_compositor.py` (#1468). Changes to the public entry, its
+re-exports, the module lock or shared build inputs also select the build.
+For `world-server/src/app.rs` the planner compares
+the runtime policy initializer with its base. A change confined to literal
+`world_config_bool` fields there keeps the ordinary consumer compilation and library
+tests. An unrecognised edit takes the full SQL route. Moves route both the old path
+and its destination. The checked-in launcher has zero modules, so the SQL-mode compositor
 (`run_with_composition` plus the embedded lock) compiles only there. It installs the example
 module under the ignored `modules/`, syncs, adds the workspace member, runs
 `cargo test -p example-milestones` and `cargo check -p world-modules` (offline, not `--locked`:
