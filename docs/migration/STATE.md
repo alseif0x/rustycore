@@ -1,5 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 HIDE_CREDIT_MSG publication accepted locally — 2026-11-20
+
+Committed candidate `3f951bb6cda4367f2e526438bf52cecb4a254f86`, based on
+`11c4baa3b`, applies `QUEST_OBJECTIVE_FLAG_HIDE_CREDIT_MSG` (`0x0010`) to
+storing-value and storing-flag objective progress. Following
+`Player.cpp:17049-17079` at `02245dcd245e7433e524577656177723d3e4992e`, positive
+progress no longer publishes the corresponding credit packet when that flag is
+present. Objective counts, quest completion, rewards and interaction refreshes
+are unchanged.
+
+Two composed canonical-Player regressions prove that both storage families still
+complete and run their two visibility refreshes while `QuestUpdateAddCredit` or
+`QuestUpdateAddCreditSimple` is suppressed; neither `QuestUpdateComplete` nor a
+reward is invented. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 11c4baa3b --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 15:20:41Z to 15:25:49Z (308.629 seconds),
+within the 600-second target: seven `wow-constants` tests, 4,629 `wow-world`
+tests (one ignored) and eight `wow-world-quest` tests passed, totaling 4,644
+passed, one ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T152041.242691Z-109152-final.json`.
+Architecture policy, session syntax ownership, formatting and all affected
+downstream checks passed. The reviewed ledgers record exactly 46 new Session test
+lines and two test identities, with no production growth in that logical owner.
+
+This closes only the HIDE_CREDIT_MSG divergence in #1368. Inline objective
+ordering, the remaining admission filters, other objective families' negative
+transitions, immediate-save/persistence fences, effective team and completion
+effects remain open. This is synthetic source/behavior/wire evidence, not a live
+quest capture or full quest parity acceptance. Player runtime integration and
+character creation remain separate work.
+
 ## #1368 objective completion transitions accepted locally — 2026-11-20
 
 Committed candidate `f908ef40e2e5cfcbe66109a8cf393d72380957cf`, based on
