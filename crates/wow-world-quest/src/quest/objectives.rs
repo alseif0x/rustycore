@@ -389,6 +389,14 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     if obj.obj_type != objective_type || obj.object_id != object_id {
                         return None;
                     }
+                    if (quest.flags_ex
+                        & wow_constants::quest::QUEST_FLAGS_EX_NO_CREDIT_FOR_PROXY_LIKE_CPP)
+                        != 0
+                        && objective_type == wow_constants::quest::QUEST_OBJECTIVE_MONSTER_LIKE_CPP
+                        && credit_guid.is_empty()
+                    {
+                        return None;
+                    }
                     if objective_type
                         == wow_constants::quest::QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP
                         && (obj.flags

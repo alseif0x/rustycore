@@ -525,6 +525,16 @@
    "unit_tests_lines": 287988,
    "unit_tests_tests": 4285,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-49",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "Two NO_CREDIT_FOR_PROXY regressions reject a flagged empty MONSTER victim without mutation or publication and preserve real-victim and unflagged-proxy completion.",
+   "unit_tests_lines": 288063,
+   "unit_tests_tests": 4287,
+   "src_tests": 345
   }
  ]
 }

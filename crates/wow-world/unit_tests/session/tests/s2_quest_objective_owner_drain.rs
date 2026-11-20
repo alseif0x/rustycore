@@ -87,6 +87,27 @@ async fn storing_objective_transition_outcome_like_cpp(
     add_count: i32,
     objective_flags: u32,
 ) -> (u8, i32, Vec<ServerOpcodes>) {
+    storing_objective_transition_outcome_with_proxy_rule_like_cpp(
+        storing_flag,
+        initial_status,
+        initial_count,
+        add_count,
+        objective_flags,
+        0,
+        false,
+    )
+    .await
+}
+
+async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
+    storing_flag: bool,
+    initial_status: u8,
+    initial_count: i32,
+    add_count: i32,
+    objective_flags: u32,
+    quest_flags_ex: u32,
+    empty_credit_guid: bool,
+) -> (u8, i32, Vec<ServerOpcodes>) {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 45);
@@ -98,6 +119,7 @@ async fn storing_objective_transition_outcome_like_cpp(
     };
     let object_id = TRANSITION_CLICK_NPC_ENTRY as i32;
     let mut quest = test_quest_template(TRANSITION_QUEST_ID);
+    quest.flags_ex = quest_flags_ex;
     quest.objectives.push(wow_data::quest::QuestObjective {
         id: TRANSITION_QUEST_ID * 10,
         quest_id: TRANSITION_QUEST_ID,
@@ -196,7 +218,11 @@ async fn storing_objective_transition_outcome_like_cpp(
             objective_type,
             object_id,
             add_count,
-            credit_guid: creature_guid,
+            credit_guid: if empty_credit_guid {
+                ObjectGuid::EMPTY
+            } else {
+                creature_guid
+            },
         }
     };
     session
@@ -406,4 +432,53 @@ async fn storing_value_hide_credit_msg_completes_without_credit_packet_like_cpp(
 #[tokio::test]
 async fn storing_flag_hide_credit_msg_completes_without_credit_packet_like_cpp() {
     assert_hidden_credit_transition_like_cpp(true).await;
+}
+
+#[tokio::test]
+async fn monster_no_credit_for_proxy_rejects_empty_victim_guid_like_cpp() {
+    let (status, count, opcodes) = storing_objective_transition_outcome_with_proxy_rule_like_cpp(
+        false,
+        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        0,
+        1,
+        0,
+        wow_constants::quest::QUEST_FLAGS_EX_NO_CREDIT_FOR_PROXY_LIKE_CPP,
+        true,
+    )
+    .await;
+    assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+    assert_eq!(count, 0);
+    assert!(
+        opcodes.is_empty(),
+        "a rejected proxy must not mutate or publish quest progress: {opcodes:?}"
+    );
+}
+
+#[tokio::test]
+async fn monster_no_credit_for_proxy_allows_real_or_unflagged_proxy_credit_like_cpp() {
+    for (quest_flags_ex, empty_credit_guid) in [
+        (
+            wow_constants::quest::QUEST_FLAGS_EX_NO_CREDIT_FOR_PROXY_LIKE_CPP,
+            false,
+        ),
+        (0, true),
+    ] {
+        let outcome = storing_objective_transition_outcome_with_proxy_rule_like_cpp(
+            false,
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+            0,
+            1,
+            0,
+            quest_flags_ex,
+            empty_credit_guid,
+        )
+        .await;
+        assert_storing_objective_transition_like_cpp(
+            outcome,
+            QUEST_STATUS_COMPLETE_LIKE_CPP,
+            1,
+            2,
+            ServerOpcodes::QuestUpdateAddCredit,
+        );
+    }
 }
