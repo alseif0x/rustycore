@@ -25,6 +25,7 @@ use wow_packet::packets::inspect::{
     InspectHonorStatsResponse, InspectItem, InspectResult, QueryInspectAchievements,
     RequestHonorStats, RespondInspectAchievements,
 };
+use wow_packet::packets::misc::UpdateTalentData;
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::directory::PlayerRegistry;
 use wow_world_core::session::{PacketPublicationAccessLikeCpp, SharedCanonicalMapManager};
@@ -108,6 +109,9 @@ impl<'a> InspectHandlerCxLikeCpp<'a> {
             gender: entry.sex,
             level: entry.level as u32,
             items,
+            // The inspect snapshot carries no talent data yet; send the same
+            // empty single-group block used by SMSG_UPDATE_TALENT_DATA.
+            talents: UpdateTalentData::default(),
         };
 
         self.publication.send_packet(&result);
