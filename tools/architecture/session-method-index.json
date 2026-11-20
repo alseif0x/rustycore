@@ -18,6 +18,7 @@
     ],
     "construction_api": [
       "session/catalogs/operations.rs::set_chr_specialization_store",
+      "session/player_items/appearance.rs::set_character_loadout_catalogs_like_cpp",
       "session/catalogs/operations.rs::set_faction_store",
       "session/catalogs/operations.rs::set_mount_store",
       "session/catalogs/operations.rs::set_mount_definition_store_like_cpp",
@@ -114,8 +115,8 @@
     "lines": 0
   },
   "crate_ceiling": {
-    "methods": 121,
-    "lines": 4084
+    "methods": 120,
+    "lines": 4090
   },
   "reasons": {
     "session/lifecycle/finalization.rs::interrupt_finalization_like_cpp": "world-server session-factory finalization cancel (session_factory/finalization.rs): interrupts the lifecycle-owned in-flight finalization and returns its report; the session driver's own teardown API.",
@@ -123,6 +124,7 @@
     "session/object_updates.rs::send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp": "driver phase step: called only by session/driver (and its cfg(test)/test-fixtures cross-crate fixture); the visibility split forward stays so the driver's staying lines do not grow.",
     "session/visibility/operations.rs::sync_represented_farsight_clear_from_canonical_like_cpp": "driver phase step: called by session/driver and the visibility host impl; the visibility split forward stays so the driver's staying lines do not grow.",
     "session/world_entities/gameobject_state.rs::send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp": "driver phase step: called only by session/driver; the world-entities split forward stays so the driver's staying lines do not grow.",
+    "session/player_items/appearance.rs::set_character_loadout_catalogs_like_cpp": "world-server construction setter (session_resources.rs): installs CharacterLoadout, CharacterLoadoutItem and playercreateinfo_item catalogs into the existing ItemCatalogs aggregate; no new WorldSession field or second authority.",
     "session/progression/skills.rs::set_max_primary_trade_skills_like_cpp": "world-server construction setter (session_resources.rs): installs the clamped MaxPrimaryTradeSkill config value.",
     "session/pets/battle_pet.rs::set_battle_pet_account_attachment_like_cpp": "world-server session-factory setter (session_factory.rs): attaches the canonical battle-pet journal owner and invalidates the spell-hit authority proof.",
     "session/persistence/load.rs::load_global_account_data_like_cpp": "world-server session-factory login load (session_factory.rs): the global account-data load over the lifecycle split.",

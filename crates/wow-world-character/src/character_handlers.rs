@@ -278,6 +278,8 @@ pub trait CharacterHandlerHostLikeCpp<C> {
     /// C++ `sObjectMgr->GenerateCharacterGuid()`: the player GUID generator
     /// lives on the shell catalogs, which the generic thunk cannot name.
     fn character_guid_generator_like_cpp(catalogs: &C) -> &ObjectGuidGenerator;
+    /// C++ `sObjectMgr->GenerateItemGuid()` for the starting loadout instances.
+    fn item_guid_generator_like_cpp(catalogs: &C) -> &ObjectGuidGenerator;
 
     /// C++ `HandlePlayerLoginOpcode` reads `PlayerLoading()`; the represented
     /// `m_playerLoading` lives on the session's player-lifecycle state, which
@@ -491,9 +493,15 @@ where
             Ok(create) => {
                 let port = session.character_administration_persistence_port_like_cpp();
                 let generator = S::character_guid_generator_like_cpp(catalogs);
+                let item_generator = S::item_guid_generator_like_cpp(catalogs);
                 let step = session
                     .character_handler_cx_like_cpp(catalogs)
-                    .handle_create_character_with_generator_like_cpp(port, generator, create)
+                    .handle_create_character_with_generator_like_cpp(
+                        port,
+                        generator,
+                        item_generator,
+                        create,
+                    )
                     .await;
                 if let CreateCharacterStepLikeCpp::RefreshRealmCharacters { guid } = step {
                     session.update_realm_characters_like_cpp().await;

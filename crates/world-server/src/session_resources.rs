@@ -82,6 +82,7 @@ pub(super) struct SessionInventoryCapabilitiesLikeCpp {
     pub(super) item_set_store: Arc<wow_data::ItemSetStore>,
     pub(super) item_set_spell_store: Arc<wow_data::ItemSetSpellStore>,
     pub(super) item_stats_store: Arc<wow_data::ItemStatsStore>,
+    pub(super) starting_items: wow_world_core::catalogs::item::StartingItemCatalogs,
     pub(super) durability_costs_store: Arc<wow_data::DurabilityCostsStore>,
     pub(super) durability_quality_store: Arc<wow_data::DurabilityQualityStore>,
     pub(super) item_effect_store: Arc<wow_data::ItemEffectStore>,
@@ -125,6 +126,11 @@ impl SessionInventoryCapabilitiesLikeCpp {
         session.set_item_set_store(Arc::clone(&self.item_set_store));
         session.set_item_set_spell_store(Arc::clone(&self.item_set_spell_store));
         session.set_item_stats_store(Arc::clone(&self.item_stats_store));
+        session.set_character_loadout_catalogs_like_cpp(
+            Arc::clone(&self.starting_items.loadouts),
+            Arc::clone(&self.starting_items.loadout_items),
+            self.starting_items.overrides.clone(),
+        );
         session.set_durability_costs_store(Arc::clone(&self.durability_costs_store));
         session.set_durability_quality_store(Arc::clone(&self.durability_quality_store));
         session.set_item_effect_store(Arc::clone(&self.item_effect_store));

@@ -132,7 +132,7 @@ impl CharacterAdministrationPersistencePortLikeCpp
             for index in 54..=64 {
                 statement.set_u32(index, 0);
             }
-            statement.set_string(65, "");
+            statement.set_string(65, &request.equipment_cache);
             statement.set_string(66, "");
             statement.set_string(67, "");
             statement.set_u8(68, 0);
@@ -145,8 +145,8 @@ impl CharacterAdministrationPersistencePortLikeCpp
             }
 
             // Preserve the existing best-effort order: character, choices,
-            // then initial action buttons. C++-parity atomic creation remains
-            // a gameplay gap; this boundary extraction does not alter it.
+            // starting items, then initial action buttons. C++-parity atomic
+            // creation remains a gameplay gap; this boundary does not alter it.
             for customization in &request.customizations {
                 let mut statement = self
                     .character_db
@@ -155,6 +155,31 @@ impl CharacterAdministrationPersistencePortLikeCpp
                 statement.set_i32(1, customization.option_id);
                 statement.set_i32(2, customization.choice_id);
                 let _ = self.character_db.execute(&statement).await;
+            }
+
+            for item in &request.starting_items {
+                let mut statement = self.character_db.prepare(CharStatements::INS_ITEM_INSTANCE);
+                statement.set_u64(0, item.guid);
+                statement.set_u32(1, item.item_id);
+                statement.set_u64(2, request.guid);
+                statement.set_u32(3, item.count);
+                statement.set_u32(4, item.durability);
+                if let Err(error) = self.character_db.execute(&statement).await {
+                    return MutationOutcome::Failed {
+                        reason: error.to_string(),
+                    };
+                }
+                let mut statement = self
+                    .character_db
+                    .prepare(CharStatements::INS_CHAR_INVENTORY);
+                statement.set_u64(0, request.guid);
+                statement.set_u8(1, item.slot);
+                statement.set_u64(2, item.guid);
+                if let Err(error) = self.character_db.execute(&statement).await {
+                    return MutationOutcome::Failed {
+                        reason: error.to_string(),
+                    };
+                }
             }
 
             let action_statement = self

@@ -124,6 +124,10 @@ pub use battlemaster_list::{
     HolidayWorldStateLookupLikeCpp, MAP_ARENA_LIKE_CPP, MAP_BATTLEGROUND_LIKE_CPP,
     weekend_holiday_id_to_bg_type_like_cpp,
 };
+pub use character_progression::{
+    CharacterLoadoutEntry, CharacterLoadoutItemEntry, CharacterLoadoutItemStore,
+    CharacterLoadoutStore,
+};
 pub use chr_specialization::{ChrSpecializationEntry, ChrSpecializationStore};
 pub use condition_attachments::{
     ConditionAttachmentReportLikeCpp, attach_loaded_conditions_like_cpp,

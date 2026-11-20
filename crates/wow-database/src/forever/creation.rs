@@ -34,6 +34,10 @@ impl ForeverCreationWorldRepository {
     pub fn new(world: Arc<WorldDatabase>) -> Self {
         Self(world)
     }
+
+    pub async fn load_item_overrides_like_cpp(&self) -> Result<Vec<ItemOverride>, LoadError> {
+        rows(&self.0, QUERIES[1], item).await
+    }
 }
 
 async fn rows<T>(

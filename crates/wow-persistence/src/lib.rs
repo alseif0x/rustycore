@@ -161,7 +161,7 @@ pub use character_administration::{
     CharacterAdministrationLoadOutcomeLikeCpp, CharacterAdministrationMutationOutcomeLikeCpp,
     CharacterAdministrationPersistencePortLikeCpp, CharacterCreatePersistenceRequestLikeCpp,
     CharacterCustomizationPersistenceLikeCpp, CharacterCustomizeCandidateLikeCpp,
-    CharacterRenameCandidateLikeCpp,
+    CharacterRenameCandidateLikeCpp, CharacterStartingItemPersistenceLikeCpp,
 };
 pub use hotfix::{
     ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,

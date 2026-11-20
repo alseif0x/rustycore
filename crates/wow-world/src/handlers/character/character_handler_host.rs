@@ -77,6 +77,11 @@ impl CharacterHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession
     ) -> &ObjectGuidGenerator {
         catalogs.id_generators.player.as_ref()
     }
+    fn item_guid_generator_like_cpp(
+        catalogs: &SessionHandlerCatalogsLikeCpp,
+    ) -> &ObjectGuidGenerator {
+        catalogs.id_generators.item.as_ref()
+    }
 
     fn session_player_loading_like_cpp(&self) -> Option<ObjectGuid> {
         self.lifecycle.player_loading()

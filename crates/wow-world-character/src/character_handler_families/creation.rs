@@ -4,6 +4,8 @@
 
 //! Character handler family: character creation (`HandleCharCreateOpcode`).
 
+mod starting_items;
+
 use std::sync::Arc;
 
 use tracing::{info, warn};
@@ -36,6 +38,7 @@ impl CharacterHandlerCxLikeCpp<'_> {
         &mut self,
         port: Option<Arc<dyn CharacterAdministrationPersistencePortLikeCpp>>,
         generator: &ObjectGuidGenerator,
+        item_generator: &ObjectGuidGenerator,
         pkt: CreateCharacter,
     ) -> CreateCharacterStepLikeCpp {
         let port = match port {
@@ -119,6 +122,13 @@ impl CharacterHandlerCxLikeCpp<'_> {
             .unwrap_or_default()
             .as_secs() as i64;
 
+        let (starting_items, equipment_cache) = starting_items::project_starting_items_like_cpp(
+            self.hub.catalogs,
+            pkt.race,
+            pkt.class,
+            item_generator,
+        );
+
         let request = wow_persistence::CharacterCreatePersistenceRequestLikeCpp {
             guid: new_guid_counter as u64,
             account_id: self.hub.shared().core.account_id,
@@ -136,6 +146,8 @@ impl CharacterHandlerCxLikeCpp<'_> {
             health,
             power1,
             last_login_build: self.hub.shared().core.build,
+            equipment_cache,
+            starting_items,
             customizations: pkt
                 .customizations
                 .iter()

@@ -342,6 +342,10 @@ impl BarberShopStyleStore {
 }
 
 impl CharacterLoadoutStore {
+    pub fn values(&self) -> impl Iterator<Item = &CharacterLoadoutEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "CharacterLoadout.db2", |id, idx, r| {
             CharacterLoadoutEntry {
@@ -356,6 +360,10 @@ impl CharacterLoadoutStore {
 }
 
 impl CharacterLoadoutItemStore {
+    pub fn values(&self) -> impl Iterator<Item = &CharacterLoadoutItemEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,

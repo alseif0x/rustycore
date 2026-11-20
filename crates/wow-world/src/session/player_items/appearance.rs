@@ -14,6 +14,16 @@ impl WorldSession {
     pub fn set_item_modified_appearance_store(&mut self, store: Arc<ItemModifiedAppearanceStore>) {
         self.catalogs.items.modified_appearance_store = Some(store);
     }
+    pub fn set_character_loadout_catalogs_like_cpp(
+        &mut self,
+        loadouts: Arc<wow_data::CharacterLoadoutStore>,
+        loadout_items: Arc<wow_data::CharacterLoadoutItemStore>,
+        overrides: Vec<wow_persistence::forever::creation::ItemOverride>,
+    ) {
+        self.catalogs.items.character_loadout_store = Some(loadouts);
+        self.catalogs.items.character_loadout_item_store = Some(loadout_items);
+        self.catalogs.items.starting_item_overrides = overrides;
+    }
     /// Set the transmog set item store for this session.
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
         self.catalogs.transmog_set_item_store = Some(store);

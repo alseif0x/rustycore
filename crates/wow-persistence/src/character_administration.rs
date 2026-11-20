@@ -12,6 +12,15 @@ pub struct CharacterCustomizationPersistenceLikeCpp {
     pub choice_id: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CharacterStartingItemPersistenceLikeCpp {
+    pub guid: u64,
+    pub item_id: u32,
+    pub slot: u8,
+    pub count: u32,
+    pub durability: u32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CharacterCreatePersistenceRequestLikeCpp {
     pub guid: u64,
@@ -27,6 +36,8 @@ pub struct CharacterCreatePersistenceRequestLikeCpp {
     pub health: u32,
     pub power1: u32,
     pub last_login_build: u32,
+    pub equipment_cache: String,
+    pub starting_items: Vec<CharacterStartingItemPersistenceLikeCpp>,
     pub customizations: Vec<CharacterCustomizationPersistenceLikeCpp>,
 }
 

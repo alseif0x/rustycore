@@ -8,11 +8,13 @@ pub(super) struct PlayerCreationCatalogs {
     pub(super) player_create_cast_spell_store: Arc<wow_data::PlayerCreateInfoCastSpellStoreLikeCpp>,
     pub(super) player_create_custom_spell_store:
         Arc<wow_data::PlayerCreateInfoCustomSpellStoreLikeCpp>,
+    pub(super) starting_items: wow_world_core::catalogs::item::StartingItemCatalogs,
 }
 
 pub(super) async fn load_player_creation_catalogs(
     data_dir: &str,
     locale: &str,
+    world_db: &Arc<WorldDatabase>,
     player_creation_catalog_persistence: &wow_database::MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp,
     player_base_stats_persistence: &wow_database::MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp,
     map_store: &wow_data::MapStore,
@@ -108,10 +110,29 @@ pub(super) async fn load_player_creation_catalogs(
         "Loaded C++ player create custom spell assignments"
     );
 
+    let character_loadout_store = Arc::new(
+        wow_data::CharacterLoadoutStore::load(&data_dir, &locale)
+            .context("Failed to load CharacterLoadout.db2")?,
+    );
+    let character_loadout_item_store = Arc::new(
+        wow_data::CharacterLoadoutItemStore::load(&data_dir, &locale)
+            .context("Failed to load CharacterLoadoutItem.db2")?,
+    );
+    let starting_item_overrides =
+        wow_database::forever::ForeverCreationWorldRepository::new(Arc::clone(world_db))
+            .load_item_overrides_like_cpp()
+            .await
+            .map_err(|error| anyhow::anyhow!("Failed to load playercreateinfo_item: {error:?}"))?;
+
     Ok(PlayerCreationCatalogs {
         player_create_info_store,
         player_stats,
         player_create_cast_spell_store,
         player_create_custom_spell_store,
+        starting_items: wow_world_core::catalogs::item::StartingItemCatalogs {
+            loadouts: character_loadout_store,
+            loadout_items: character_loadout_item_store,
+            overrides: starting_item_overrides,
+        },
     })
 }

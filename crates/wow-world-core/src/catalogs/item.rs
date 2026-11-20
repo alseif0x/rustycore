@@ -15,6 +15,12 @@ use wow_constants::{BagFamilyMask, InventoryType, ItemBondingType, ItemClass, It
 use wow_data::{ItemStatsStore, ItemStore};
 use wow_entities::ItemStorageTemplate;
 
+pub struct StartingItemCatalogs {
+    pub loadouts: Arc<wow_data::CharacterLoadoutStore>,
+    pub loadout_items: Arc<wow_data::CharacterLoadoutItemStore>,
+    pub overrides: Vec<wow_persistence::forever::creation::ItemOverride>,
+}
+
 #[derive(Default)]
 pub struct ItemCatalogsLikeCpp {
     pub appearance_store: Option<Arc<wow_data::ItemAppearanceStore>>,
@@ -34,6 +40,9 @@ pub struct ItemCatalogsLikeCpp {
     pub spec_override_store: Option<Arc<wow_data::ItemSpecOverrideStore>>,
     pub stats_store: Option<Arc<wow_data::ItemStatsStore>>,
     pub store: Option<Arc<wow_data::ItemStore>>,
+    pub character_loadout_store: Option<Arc<wow_data::CharacterLoadoutStore>>,
+    pub character_loadout_item_store: Option<Arc<wow_data::CharacterLoadoutItemStore>>,
+    pub starting_item_overrides: Vec<wow_persistence::forever::creation::ItemOverride>,
 }
 
 /// Resolve the storage-validation subset of C++ `ItemTemplate` from its two

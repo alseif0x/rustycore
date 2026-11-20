@@ -3833,6 +3833,20 @@
           "module": "crate::handlers::character::character_handler_host",
           "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "item_guid_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn item_guid_generator_like_cpp (catalogs : & SessionHandlerCatalogsLikeCpp ,) -> & ObjectGuidGenerator",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "character_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn character_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> CharacterHandlerCxLikeCpp < 'a >",
@@ -32700,6 +32714,20 @@
           "name": "set_item_limit_category_store",
           "visibility": "pub",
           "signature": "fn set_item_limit_category_store (& mut self , store : Arc < ItemLimitCategoryStore >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_character_loadout_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_character_loadout_catalogs_like_cpp (& mut self , loadouts : Arc < wow_data :: CharacterLoadoutStore > , loadout_items : Arc < wow_data :: CharacterLoadoutItemStore > , overrides : Vec < wow_persistence :: forever :: creation :: ItemOverride > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
