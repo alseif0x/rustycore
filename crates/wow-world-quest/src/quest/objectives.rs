@@ -585,7 +585,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         ) else {
             return;
         };
-        let matching: Vec<(u32, usize, u32, u32)> = quests
+        let matching: Vec<(u32, usize, u32, u32, bool)> = quests
             .statuses_like_cpp()
             .values()
             .filter(|qs| {
@@ -615,7 +615,11 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                         ) {
                             return None;
                         }
-                        Some((qs.quest_id, idx, obj.id, obj.flags))
+                        let objective_was_complete = qs
+                            .objective_counts
+                            .get(idx)
+                            .is_some_and(|count| *count != 0);
+                        Some((qs.quest_id, idx, obj.id, obj.flags, objective_was_complete))
                     },
                 ))
             })
@@ -625,7 +629,10 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         let mut quests_to_complete = Vec::new();
         let mut quests_to_save = Vec::new();
         let mut any_objective_changed_completion_state = false;
-        for (quest_id, obj_idx, objective_id, objective_flags) in matching {
+        for (quest_id, obj_idx, objective_id, objective_flags, objective_was_complete) in matching {
+            if objective_was_complete && add_count >= 0 {
+                continue;
+            }
             let Some((objective_was_complete, objective_is_now_complete)) =
                 super::objective_progress::update_storing_flag_like_cpp(
                     &owner,

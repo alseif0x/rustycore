@@ -555,3 +555,23 @@ async fn sequenced_objective_progresses_after_prerequisite_in_both_storage_famil
         );
     }
 }
+
+#[tokio::test]
+async fn completed_storing_flag_ignores_nonnegative_repeat_events_like_cpp() {
+    for add_count in [0, 1] {
+        let (status, count, opcodes) = storing_objective_transition_outcome_like_cpp(
+            true,
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+            1,
+            add_count,
+            0,
+        )
+        .await;
+        assert_eq!(status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+        assert_eq!(count, 1);
+        assert!(
+            opcodes.is_empty(),
+            "a completed flag must ignore add_count {add_count}: {opcodes:?}"
+        );
+    }
+}

@@ -545,6 +545,16 @@
    "unit_tests_lines": 288136,
    "unit_tests_tests": 4289,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-51",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-20",
+   "reason": "One repeated storing-flag regression proves addCount zero and positive are ignored before mutation or publication when the objective is already complete.",
+   "unit_tests_lines": 288156,
+   "unit_tests_tests": 4290,
+   "src_tests": 345
   }
  ]
 }
