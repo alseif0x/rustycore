@@ -1149,6 +1149,17 @@ one test line for the staged result and source composition, recorded as +36
 production/+1 test/+37 total. Later C4-8 stages still owe remaining session
 catalogs, dependencies and supervision/shutdown.
 
+Committed candidate `3b0e753adbb7aa4dcf7ac34af3612bf0c9ae443a` passed
+`./tools/validation-v2 final --base 983a559c2 --architecture --require-changes --timings --logs`
+on the warm x86_64 checkout with Protoc 28.3 and one Cargo job. All eleven
+commands passed from 02:39:33Z to 02:41:30Z on 2026-11-20 (117.353 seconds),
+within the 600-second target. The `world-server` library passed 645 tests with
+zero failures and one existing ignored test; all 769 source test identities are
+preserved. The session syntax check retains 747 exact direct-registry rows. The
+SQL module compositor also passed and restored the checkout. R1 is not
+applicable because no `wow-world/src` root shrank. Verified manifest:
+`target/validation-v2/manifests/20261120T023933.378308Z-3585809-final.json`.
+
 On `forever`, C4-8aj starts at `b80c8b420` and extracts four session handler
 policy builders. `app.rs` shrinks from 2,359 to 2,243 lines and its physical
 ceiling tightens without retiring C4-8. The new private
