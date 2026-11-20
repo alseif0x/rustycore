@@ -48,6 +48,12 @@ or standalone tools. Cargo fmt may inspect manifests. Level 2 never runs `cargo
 check`, `cargo test`, `cargo build`, `cargo run`, locked dependency metadata, a
 protobuf probe, or self-test/architecture/contract suites.
 
+For edits confined to Rust sources under one member's `crates/<member>/src/`,
+both `quick` and `final` check formatting through that member's Cargo manifest.
+Changes spanning members, removed files, manifests, or other workspace inputs
+keep the whole-workspace format check. A root rustfmt configuration change also
+checks both standalone tools. The integration audit checks formatting everywhere.
+
 Level 3 (`final`) collects the same path scope and preserves the current final
 acceptance: it compiles the workspace reverse-dependent closure and runs library
 tests for directly changed library packages. A root Cargo, toolchain, protobuf, or
