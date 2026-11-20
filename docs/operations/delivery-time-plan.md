@@ -17,7 +17,178 @@ PR #1494 took **63 min 52 s** from the replayed contributor commit at 15:07:55 U
 
 The local manifests are `20261120T154155.959988Z-539846-final`, `20261120T154924.905404Z-541635-final` and `20261120T105600.034096Z-495384-final` under `target/validation-v2/manifests/` in the review checkout.
 
-## Implementation order
+## Replacement pilot
+
+Develop the replacement independently on `perf/validation-from-scratch`, based
+on `316a7387c`. Design its checks from the failures they must detect. Use the
+existing runner and recorded results as the control for comparison. Earlier
+optimisations and their measurements follow below.
+
+### What the new validation must prove
+
+| Changed contract | Required evidence |
+| --- | --- |
+| Documentation | Diff hygiene and touched links. Treat documents consumed as fixtures, build inputs, or policy as part of the consuming contract. |
+| Behavior inside one package | Run the owning tests. Verify its production build when test compilation uses different configuration. |
+| Public API, wire format, registration or startup | Exercise the affected producer and consumer. Build affected production targets. Run the applicable integration or capture tests. |
+| SQL, durability, lifetime or runtime | Check the touched boundary with current ownership policy, transactional tests and the required runtime or database exercise. |
+| Cargo features, build inputs, toolchain, checker or unknown scope | Require broad validation. Test changed feature forwarding in isolation, where Cargo feature unification could otherwise hide a failure. |
+
+Use existing tests and domain checkers as evidence. The new entry point should
+stay small and take the exact Git base and candidate. Derive Rust ownership
+and dependency edges from Cargo metadata. Use explicit inputs for generated
+code, captures and integration contracts so ambiguous edits select the wider
+route. A plan lists each command and the condition that selected it. Each run
+records its head, base, selected targets, features, elapsed time and exit status.
+
+### Prototype and compare
+
+Compare both entry points on the same change and host. Record cold setup,
+warm feedback, and time to a complete verdict separately. Challenge the
+routes with the failures below before considering a switch. A required gate
+needs equivalent coverage of feature, production and state boundaries and
+repeatable savings. Move the global audit off the PR path only when the
+candidate already checks the relevant inputs.
+
+Pilot targets are 30 seconds to useful feedback on a warm local leaf change
+and two minutes for ordinary hosted validation with a warm cache. Use five
+minutes as a separate target for cross-crate contract changes such as #1494.
+An ordinary change that routinely needs the full server build misses the
+design target. Move its regression into its owning package where the same
+behavior can be exercised there. Run production-linked tests when changes
+can affect production composition. Track reviewer and queue time in the
+total delivery measurement.
+
+### First workload to replace
+
+The hosted final for #1494 took 425.543 s with a restored Cargo cache.
+The downstream test-target check took 152.764 s, the library test build and
+execution took 163.276 s, and the global hotspot scan took 90.770 s. The two
+Cargo commands spent their longest compilation on `world-server`.
+Measure which production and test targets the two commands both compile.
+Evaluate the hotspot rule against affected owners first and retain the full
+scan for changes to its policy or uncertain mount inputs. The two steps under
+review cost 243.534 s in that run. This is measured work to examine. Savings
+depend on the cost and coverage of their replacements.
+[Hosted timing artifacts](https://github.com/alseif0x/rustycore/actions/runs/44829841624/artifacts/14675574137)
+
+An exploratory combined Cargo command on `ee15604ee`, with the same tree as
+`316a7387c`, ran the six affected library suites and
+`production_handler_registry_contract` together. It passed 5,941 tests with
+two ignored in 221.900 s on aarch64 with three jobs, existing dependency
+artifacts and a fresh production test build. Cargo compiled `world-server`.
+The original 239.985 s local final used a different target set and cache state.
+The 221.900 s run proves the combined test route for this candidate. A paired
+comparison must still account for the omitted consumer and architecture checks.
+With the same command and the production test already built, removing a row
+from its expected registry fixture failed the production comparison in
+28.778 s. Restoring the fixture passed in 28.190 s. The fixture edit exercises
+the assertion. The production registration replay is recorded below.
+
+### Run the independent pilot
+
+From the checkout:
+
+```bash
+# During editing, run the named test for the changed package.
+./tools/validate-change --base HEAD --working --focus distance_2d_ignores_y
+# For a multi-package diff, name the affected package containing the test.
+./tools/validate-change --base HEAD --working --package wow-world --focus auction_hello_request_uses_auctioneer_faction
+# See the selected commands for a committed candidate, then execute them.
+./tools/validate-change --base origin/3.4.3 --plan
+./tools/validate-change --base origin/3.4.3
+```
+
+The planner reads workspace manifests without fetching Cargo dependencies.
+Cargo fetches missing dependencies for the selected targets during execution.
+The declared path graph on `316a7387c` matched all 395 workspace edges in
+Cargo's all-feature resolution. Set `CARGO_NET_OFFLINE=true` for an offline
+build with populated Cargo caches. Set `PROTOC` for
+protobuf-dependent builds and use the checkout's own target directory. The
+pilot defaults to one Cargo job and honours `CARGO_BUILD_JOBS`. It runs the
+changed packages' test targets, checks their production builds and affected
+consumers, checks downstream test targets and checks member formatting. Focused
+mode runs matching library tests and rejects a filter that executes zero tests.
+Documentation-only edits under `docs/operations` and `docs/audits` check
+whitespace and relative inline file links without starting Cargo.
+
+Exit 0 records the checks shown for the selected mode. Exit 2 means the diff
+contains a path needing additional acceptance, including untracked inputs and
+changed member manifests. Other nonzero exits identify a failed check or an
+invalid invocation. A successful pilot is editing or comparison evidence.
+Required publication checks continue through the existing workflow. Dependency
+edges describe build relationships. They cannot prove client packet captures,
+durability, database migrations, runtime behaviour or the #1241 net-move
+contract. A change involving those contracts still needs their specific evidence.
+
+### Local failure replays
+
+These timings include starting the pilot through its exit on aarch64, with
+three Cargo jobs and an existing target directory. The checkout was
+`ee15604ee`, which has the same Git tree as integration revision `316a7387c`.
+Each defect was applied to the working tree, tested, repaired and tested
+again. The second invocation can reuse compilation from the first.
+
+| Change exercised | Failure detected | Corrected result |
+| --- | ---: | ---: |
+| An extra coordinate changed the 2D distance | 5.606 s | 0.833 s, one focused test |
+| #1496 added four bytes to `InspectResult` | 4.566 s, 594 bytes instead of 590 | 3.388 s, one focused test |
+| #1494 reintroduced the test call to the missing auction handler from `52ecf58d9` | 67.359 s, compiler rejected the method call | 106.563 s, one focused test |
+| Removed a bank registrar from the real server composition | 285.959 s, production registry disagreed with the snapshot | 327.866 s for the full route, including 12.714 s for the production-linked test command |
+| Removed the required state writer in the runtime ownership ledger | 3.186 s, checker identified `test_only_fixtures` and its missing writer | 59.853 s, full architecture policy check |
+
+The packet replay inserted `w.write_uint32(0)` immediately before
+`self.talents.write(w)`. The auction replay used the original
+`crates/wow-world/unit_tests/handlers/economy/tests/auction.rs` from the
+failing commit. The registration replay removed the call to
+`wow_world_inventory::register_bank_handlers_like_cpp` in
+`crates/wow-world/src/handler_composition.rs` without changing the expected
+snapshot. The production-linked test reported the missing registrations.
+The largest cost on the corrected registration was checking downstream
+production and test targets (252.410 s). Rustc compiled both the ordinary
+and test configurations of the `world-server` library. This first full run
+exceeded the shared-change budget by 27.866 s.
+
+The CLI regression suite uses a small Git/Cargo workspace to exercise a broken
+documentation link, mixed documentation and unknown input, a broken downstream
+test, a production build that only compiles with a test feature, and broken
+Cargo feature forwarding. Run `python3 tools/ci/test_validate_change.py` to
+reproduce those cases without compiling the server.
+
+### Paired elapsed times
+
+The following edits were held constant while the current `validation-v2 final`
+and the independent pilot ran on the same checkout for each pair.
+
+| Edit on aarch64 | Existing final | Independent pilot |
+| --- | ---: | ---: |
+| One local link in this document | 1.965 s | 0.180 s |
+| Comment in `wow-math`, warm cache | 40.135 s | 0.758 s |
+| Same math change again, with the pilot running before the control | 40.747 s | 0.589 s |
+
+The math pilot ran all 29 tests, checked the production library and checked
+formatting. The existing runner spent 37.246 s of its 40.135 s on the global
+hotspot ratchet. `wow-math` had no reverse package dependencies and the edit
+touched none of the eight audited owners. These results establish the
+measured saving for this leaf. They do not establish the same saving for
+arbitrary Rust edits or equivalence of global architecture coverage.
+
+On hosted Ubuntu x86_64 (`2bb13186c`), Actions took **42 s** from run
+creation to completion, including 3 s before the job, checkout, Rust setup
+and both measurements. The first pass checked documentation and the leaf
+crate in **5.370 s** from an empty Cargo target. The second ran the warm
+math gate in **0.294 s**. Both ran all 29 tests. The workflow used one job
+and restored no Rust build cache. It ran on an isolated branch, so these
+42 s exclude contributor review and merge time. [Hosted run](https://github.com/alseif0x/rustycore/actions/runs/44837541667)
+
+Planning the complete #1494 diff (`31841d891..316a7387c`) selected six
+changed packages and twenty additional consumer packages. It returned exit 2
+for the persistence snapshot, session ownership policy, test ceiling and test
+census. The timings for the individual auction regression do not establish
+the five-minute target for accepting that whole PR. A cutover for shared
+changes needs that comparison including all four inputs.
+
+## First delivery and measured changes
 
 The first delivery changes the implementer's feedback loop, the order of compiler and architecture checks, and SQL composition routing. On aarch64, the focused test reproduced the original #1494 compiler error at `52ecf58d9` in 192.506 s (Cargo exit 101). The earlier full attempt ended after 412.460 s. These were different commands with different cache histories. In a separate negative check, removing the public `run_with_composition` export made Cargo reject the real generated SQL launcher. The checkout was restored after the experiment.
 
