@@ -1,5 +1,39 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 threshold negative transitions accepted locally — 2026-11-20
+
+Committed candidate `94460fac95e0f8eb15e8faf4b6f5b3e1d29a543b`, based on
+`2ef7286b8`, completes negative completion-state handling for money, currency and
+reputation objectives. The shared threshold planner now carries objective flags;
+all three consumers preserve quest completion for optional regressions, invoke
+`IncompleteQuest` for required ones and run the end-of-call interaction refresh
+on every completion-state change. Following `Player.cpp:17161-17194` at
+`02245dcd245e7433e524577656177723d3e4992e`, positive transitions retain both the
+`CompleteQuest` refresh and the final refresh.
+
+Three composed canonical-Player regressions reduce each resource from 100 to 90:
+required objectives mark the quest incomplete, optional objectives preserve its
+complete status and both publish exactly one visibility update without credit or
+reward. Existing positive-money expectations now prove two updates. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 2ef7286b8 --architecture --require-changes --timings --logs`
+campaign passed all twelve commands from 16:37:13Z to 16:46:04Z (531.483
+seconds), within the 600-second target: 1,309 `wow-entities` tests, 4,637
+`wow-world` tests (one ignored) and eight `wow-world-quest` tests passed,
+totaling 5,954 passed, one ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T163713.022551Z-235496-final.json`.
+Architecture policy, session syntax ownership, formatting and all affected
+downstream checks passed. The reviewed ledgers record exactly 205 new Session
+test lines and three test identities, with no production growth in that logical
+owner. Initial fixture-only failures installed the missing item GUID generator
+and canonical reputation owner before the accepted run; no assertion or required
+suite was narrowed.
+
+This closes the threshold negative-transition divergence in #1368. Inline
+completion ordering, raid admission, immediate-save/persistence fences, effective
+team and completion effects remain open. This is synthetic source/behavior/wire
+evidence, not a live quest capture or full quest parity acceptance. Player
+runtime integration and character creation remain separate work.
+
 ## #1368 completed storing-flag repeat guard accepted locally — 2026-11-20
 
 Committed candidate `8b5358e93e224260f5eb3d3005819c5dee502b11`, based on
