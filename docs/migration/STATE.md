@@ -1,5 +1,44 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 objective completion transitions accepted locally — 2026-11-20
+
+Committed candidate `f908ef40e2e5cfcbe66109a8cf393d72380957cf`, based on
+`787e7d77a`, removes the remaining item-added `QuestUpdateComplete` emissions and
+implements completion-state transitions for storing-value and storing-flag
+objectives. Following `Player.cpp:16980-17194` at
+`02245dcd245e7433e524577656177723d3e4992e`, both families now visit active
+`INCOMPLETE` and `COMPLETE` quests, call the existing `IncompleteQuest` owner when
+a required objective regresses, preserve quest completion for an optional
+objective and refresh visible interactions after every objective completion-state
+change. A positive transition retains the `CompleteQuest` refresh and the
+end-of-call refresh; `AreaExploredOrEventHappens` remains the only
+`QuestUpdateComplete` emitter.
+
+Six composed canonical-Player regressions cover positive, negative and
+optional-negative transitions for both storage families. They prove final status
+and count, positive-only credit, no `QuestUpdateComplete` or reward, and the exact
+one/two visibility-refresh counts. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 787e7d77a --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 15:08:42Z to 15:11:38Z (176.316 seconds),
+within the 600-second target: 4,627 `wow-world` tests (one ignored), 297
+`wow-world-core` tests and eight `wow-world-quest` tests passed, totaling 4,932
+passed, one ignored and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T150842.176658Z-86174-final.json`.
+Architecture policy, session syntax ownership with 2,684 exact associated items,
+formatting and all affected downstream checks passed. The reviewed ledgers record
+exactly 287 new Session test lines and six test identities; production remains
+unchanged in that logical owner. Earlier campaigns stopped on those unrecorded
+hotspot and census deltas before running the library suites, then were rerun with
+the reviewed records rather than narrowing acceptance.
+
+This closes only item-added packet duplication and storing-value/storing-flag
+completion transitions in #1368. Inline objective ordering and filters, the other
+objective families' negative transitions, immediate-save/persistence fences,
+effective team and completion effects remain open. This is synthetic
+source/behavior/wire evidence, not a live quest capture or full quest parity
+acceptance. Player runtime integration and character creation remain separate
+work.
+
 ## #1368 QuestUpdateComplete publication corrected locally — 2026-11-20
 
 Committed candidate `9e3bf55cc46efe29dc3e88c00ca44dc20d0ce532`, based on
