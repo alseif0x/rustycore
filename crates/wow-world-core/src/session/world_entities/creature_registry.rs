@@ -159,9 +159,9 @@ impl SessionCore {
     /// `mutation` is caught, the incarnation is put back into its record and
     /// cell, the canonical guard is released (so the mutex the map loop needs
     /// is not poisoned), and the panic resumes; a guard also returns it if
-    /// anything else unwinds. A mutation that rebinds the creature's map is
-    /// refused loudly and the binding it was lent with restored. A position the
-    /// mutation changed is applied as C++ `Unit::UpdatePosition` →
+    /// anything else unwinds. A mutation that rebinds the creature's map logs an
+    /// error, has its result discarded, and has the binding it was lent with
+    /// restored. A position the mutation changed is applied as C++ `Unit::UpdatePosition` →
     /// `Map::CreatureRelocation`, so the grid cell follows (vehicle, possess and
     /// mind-control movers write it through `set_ai_position`). No I/O,
     /// delivery, await or manager re-entry happens inside the guard, and the
@@ -263,7 +263,7 @@ enum LentIncarnationReturnLikeCpp {
     /// Back in its record, relocated to where the mutation left it.
     Clean,
     /// Back in its record, but only after the binding it was lent with was put
-    /// back: the mutation rebound or unbound its map, which is refused.
+    /// back: the mutation rebound or unbound its map, so its result is discarded.
     BindingRestored,
     /// The record could not be rebuilt and the incarnation is gone.
     Lost,
@@ -317,7 +317,7 @@ impl LentIncarnationLikeCpp<'_> {
                         ?guid,
                         map_id = self.origin.map_id,
                         instance_id = self.origin.instance_id,
-                        "creature mutation rebound the creature's map; the binding it was lent with was restored and the mutation is refused"
+                        "creature mutation rebound the creature's map; the binding it was lent with was restored and the mutation result is discarded"
                     );
                     LentIncarnationReturnLikeCpp::BindingRestored
                 } else {
