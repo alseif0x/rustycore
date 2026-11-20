@@ -1,5 +1,44 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 unloaded-move Pet removal accepted locally — 2026-11-20
+
+Committed candidate `53e848cafd09a565f462084cabb4c83a6f00a3ab`, based on
+`a680f365c`, connects the unloaded-grid Pet fallback to the existing bounded
+Player::RemovePet operation. Map now emits exact pet/owner GUIDs, the canonical
+manager transfers each request once, and world-server attaches map/instance
+identity before publishing through the owner's durable mailbox outside map
+locks. The session ignores stale pet or residence identities, then revalidates
+and executes the two ordered pet-save transactions before clearing the active
+pet/stable/minion links, queueing remove-list and publishing empty pet spells.
+Execution or retention failure disconnects rather than silently dropping the
+obligation. No SQL, persistence await or session call occurs under a map guard.
+
+Five new regressions plus the strengthened existing Map case cover exact request
+identity, one-shot handoff, current/wrong/missing-owner delivery, ordered saves
+and detachment, stale-command refusal, and disconnect on save failure. The
+committed `./tools/validation-v2 final --base a680f365c --architecture --require-changes --timings --logs`
+campaign passed all twelve commands from 06:34:08Z to 06:42:58Z (529.872
+seconds), within the 600-second target. Suites passed 646 `world-server` tests,
+788 `wow-map` tests and 4,609 `wow-world` tests (one existing ignored in each),
+plus all 31 `wow-world-application` and 297 `wow-world-core` tests, with zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T063408.850088Z-3759666-final.json`.
+Architecture retains 43 exact command variants and 749 direct-registry rows;
+the three-test census increase is explicitly reviewed under #1354.
+
+Earlier attempts stopped without acceptance: one lacked pinned `protoc` (exit
+64), then command/policy metadata was incomplete, its canonical order was wrong,
+and the new tests were not censused. Those inputs were corrected before the
+green candidate; none is presented as behavioral evidence. The recording port
+proves operation order, not real database durability, restart or live-client
+behavior.
+
+The live operation still admits only quiescent pets with complete empty aura
+input and no summon-spell, group, secondary-minion or combat/control
+continuation. Other pets fail and disconnect instead of completing full C++
+RemovePet behavior. Consequently #1354 remains open for those lifecycle gaps;
+Player runtime integration and character creation remain separate work.
+
 ## #1354 direct and lent Creature respawn relocation accepted locally — 2026-11-20
 
 Committed candidate `f471c9aee88fcd93f4caae1bcf32ebce87477873`, based on
