@@ -1,5 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 live Pet alternate-minion retention accepted locally — 2026-11-20
+
+Committed candidate `5fb622307fde36e1a07b15bfb6886ce8c66fc87a`, based on
+`a66052059`, extends bounded live `Player::RemovePet` to owners with an
+alternate current minion. Forever `Unit::SetMinion` (`Unit.cpp:6271–6440` at
+`02245dcd245e7433e524577656177723d3e4992e`) erases only the removed Pet when
+it is not the current minion. The Rust admission now permits that case and the
+existing cleanup removes only the selected Pet's controlled identity. An
+inconsistent alternate identity, or a selected current minion with another
+controlled unit that could require guardian promotion and spell-bar
+initialization, still fails before mutation.
+
+One real release regression proves both saves and corpse creation while the
+alternate GUID remains current and controlled, and the removed Pet disappears
+from those sets. The negative scenario proves no writes, clear-spells packet or
+identity mutation when promotion would be required. The committed
+`./tools/validation-v2 final --base a66052059 --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 09:55:20Z to 09:58:41Z (201.921 seconds),
+within the 600-second target. The `wow-world` suite passed 4,618 tests with one
+existing ignored and `wow-world-application` passed all 32 tests, with zero
+failures. Verified manifest:
+`target/validation-v2/manifests/20261120T095520.056239Z-3974055-final.json`.
+No audited logical production owner grew; the two-test census increase is
+reviewed under #1354.
+
+This is synthetic source/lifecycle evidence, not a live-client capture.
+Selected-minion promotion, Pet-owned control cleanup, combat continuations and
+arbitrary runtime auras without persisted provenance remain unadmitted. #1354
+remains open; Player runtime integration and character creation remain separate
+work.
+
 ## #1354 live Pet group-update flag accepted locally — 2026-11-20
 
 Committed candidate `5db0b73b6828445c0f9d5901059ec3a920383780`, based on
