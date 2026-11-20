@@ -1,5 +1,26 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 inaccessible chase target retention accepted locally — 2026-11-20
+
+Committed candidate `9317820b50c3628dd756b14770a7aea7899b0cfa`, based on
+`93d1b60e1`, fixes the inaccessible-chase review item in #1354. The Rust branch
+now retains `last_target_position` after `CannotReachTarget`, matching C++'s
+assignment before its early return; a second identical update returns `Continue`
+instead of rebuilding and rejecting the same path every tick. The unrelated
+lost-target/immobilized reset and all other branches are unchanged.
+
+The strengthened existing regression failed before the fix with `None` rather
+than the target position, then passed with retention and `Continue` on the next
+update. The committed
+`./tools/validation-v2 final --base 93d1b60e1 --architecture --require-changes --timings --logs`
+campaign passed all eight commands from 04:29:57Z to 04:34:24Z (266.860
+seconds), within the 600-second target. The `wow-movement` library passed all
+128 tests with zero failures or ignored tests. Verified manifest:
+`target/validation-v2/manifests/20261120T042957.407476Z-3660047-final.json`.
+
+Unloaded-grid respawn relocation and the map-rebind wording item remain open in
+#1354; no live client capture or issue closeout is claimed.
+
 ## #1354 creature relocation visibility accepted locally — 2026-11-20
 
 Committed candidate `59ceb11c674f4e855607e99a093d85fe1c897ffb`, based on
