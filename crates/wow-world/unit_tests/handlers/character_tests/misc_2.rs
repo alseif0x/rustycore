@@ -604,7 +604,39 @@ async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
             .interaction
             .gossip_options_for_test_like_cpp()
             .is_empty(),
-        "C++ HandleGossipHelloOpcode clears the prior menu before opening a direct service"
+        "GossipHello clears the prior menu before opening the represented direct service"
+    );
+
+    // A catalog-backed menu with no options or quest text must still fall
+    // through to the ordinary GossipHello banker service.
+    let (mut empty_menu_session, empty_menu_rx) = make_quest_status_session();
+    let empty_menu_entry = 9310;
+    let empty_menu_guid = creature_guid(empty_menu_entry, 310);
+    attach_npc_creature(
+        &mut empty_menu_session,
+        empty_menu_guid,
+        empty_menu_entry,
+        NPCFlags1::GOSSIP.bits() | NPCFlags1::BANKER.bits(),
+    );
+    let empty_menu_catalog = GossipCatalogPortFixtureLikeCpp::new(
+        [GossipCatalogReadOutcomeLikeCpp::Found(701)],
+        [GossipCatalogReadOutcomeLikeCpp::Missing],
+        [GossipCatalogReadOutcomeLikeCpp::Missing],
+        [GossipCatalogReadOutcomeLikeCpp::Missing],
+        [],
+    );
+    empty_menu_session.set_gossip_catalog_persistence_port_like_cpp(empty_menu_catalog);
+
+    empty_menu_session
+        .handle_gossip_hello(Hello {
+            unit: empty_menu_guid,
+        })
+        .await;
+
+    assert_eq!(
+        drain_server_opcodes(&empty_menu_rx),
+        vec![ServerOpcodes::NpcInteractionOpenResult],
+        "an empty prepared menu must not consume the direct banker interaction"
     );
 }
 #[tokio::test]
