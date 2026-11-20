@@ -1,5 +1,36 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1354 live Pet group-update flag accepted locally — 2026-11-20
+
+Committed candidate `5db0b73b6828445c0f9d5901059ec3a920383780`, based on
+`2afd2e26b`, admits grouped owners in the bounded live `Player::RemovePet`
+operation. `PlayerGameplayState` now owns the C++ `m_groupUpdateMask` beside its
+existing membership and update-sequence state. Following `Player.cpp:22322–22408`
+and `Player.h:2832–2834` at
+`02245dcd245e7433e524577656177723d3e4992e`, the operation evaluates current
+membership after `ClearPetSpells` and ORs `GROUP_UPDATE_FLAG_PET` without
+discarding existing bits. No map lock is held during packet delivery, and group
+membership is deliberately re-evaluated at the C++ point rather than frozen at
+admission.
+
+The real release regression proves both ordered saves, corpse creation, pet
+detachment, one clear-spells packet and preservation of an unrelated mask bit;
+the existing ungrouped scenario now also proves a zero final mask. The committed
+`./tools/validation-v2 final --base 2afd2e26b --architecture --require-changes --timings --logs`
+campaign passed all ten commands from 09:46:10Z to 09:47:54Z (104.310 seconds),
+within the 600-second target. Suites passed 1,309 `wow-entities` tests, 4,616
+`wow-world` tests (one existing ignored) and all 32 `wow-world-application`
+tests, with zero failures. Verified manifest:
+`target/validation-v2/manifests/20261120T094610.537477Z-3961526-final.json`.
+The Player ownership ledger records the measured nine-line production delta;
+its initial textual estimate was corrected before this accepted run.
+
+This proves canonical flag state, not a live group-update publication or client
+capture. Arbitrary runtime auras without persisted provenance, secondary-minion
+and combat/control continuations remain unadmitted and fail closed. #1354
+remains open; Player runtime integration and character creation remain separate
+work.
+
 ## #1354 live Pet persisted-aura removal accepted locally — 2026-11-20
 
 Committed candidate `5323e5e3779f30225635173f31fd0a0bb3876699`, based on
