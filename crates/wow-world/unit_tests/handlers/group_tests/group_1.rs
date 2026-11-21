@@ -150,6 +150,51 @@ async fn leave_group_disband_queues_remote_group_removal_like_cpp() {
     assert!(command.send_group_destroyed);
     assert!(command.refresh_visible_gameobjects_or_spellclicks);
 }
+
+#[tokio::test]
+async fn malformed_leave_group_presence_or_index_is_rejected_before_group_mutation() {
+    for truncated_explicit_index in [false, true] {
+        let (mut session, send_rx) = make_session_with_send();
+        let leaving_guid = ObjectGuid::create_player(1, 42);
+        let other_guid = ObjectGuid::create_player(1, 77);
+        let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leaving_guid);
+        group.add_member(other_guid);
+        let group_guid = group.group_guid;
+        group_registry.register_group_like_cpp(group_guid, group);
+
+        session.set_player_guid(Some(leaving_guid));
+        session
+            .social
+            .set_group_guid_for_test_like_cpp(Some(group_guid));
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        let mut packet = WorldPacket::new_empty();
+        if truncated_explicit_index {
+            packet.write_bit(true);
+            packet.flush_bits();
+        }
+        packet.reset_read();
+        session.handle_leave_group(packet).await;
+
+        assert_eq!(
+            group_registry.get(&group_guid).unwrap().members,
+            vec![leaving_guid, other_guid],
+            "malformed presence/index must not mutate the canonical group"
+        );
+        assert_eq!(
+            session.social.group_guid_for_test_like_cpp(),
+            Some(group_guid),
+            "malformed presence/index must not mutate the sender's group"
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "malformed presence/index must not publish group packets"
+        );
+    }
+}
 #[tokio::test]
 async fn party_invite_party_index_instance_does_not_use_full_home_group_like_cpp() {
     let (mut session, _send_rx) = make_session_with_send();

@@ -531,9 +531,14 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
         &mut self,
         mut pkt: WorldPacket,
     ) -> GroupPublicationTailLikeCpp {
-        let has_party_index = pkt.read_bit().unwrap_or(false);
+        let Ok(has_party_index) = pkt.read_bit() else {
+            return GroupPublicationTailLikeCpp::None;
+        };
         let party_index = if has_party_index {
-            pkt.read_uint8().ok()
+            let Ok(party_index) = pkt.read_uint8() else {
+                return GroupPublicationTailLikeCpp::None;
+            };
+            Some(party_index)
         } else {
             None
         };
