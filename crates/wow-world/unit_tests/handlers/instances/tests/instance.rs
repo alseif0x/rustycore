@@ -786,7 +786,7 @@ async fn occupied_expiry_orders_flags_and_current_lock_mask_for_each_occupant_li
         );
         // The shared initialization row has mask 1; C++ GetData() uses the
         // attached lock's own mask (0xA5). Extending=true, WarningOnly=false.
-        assert_eq!(&pending[2..], &[0x60, 0xea, 0, 0, 0xa5, 0, 0, 0, 1]);
+        assert_eq!(&pending[2..], &[0x60, 0xea, 0, 0, 0xa5, 0, 0, 0, 0x80]);
         assert!(realm_rx.try_recv().is_err());
     }
     assert_eq!(
@@ -962,7 +962,7 @@ async fn flex_raid_expiry_prompt_is_warning_only_and_does_not_bind_like_cpp() {
         WorldPacket::from_bytes(&pending).server_opcode(),
         Some(ServerOpcodes::PendingRaidLock)
     );
-    assert_eq!(&pending[2..], &[0x60, 0xea, 0, 0, 0xa5, 0, 0, 0, 3]);
+    assert_eq!(&pending[2..], &[0x60, 0xea, 0, 0, 0xa5, 0, 0, 0, 0xc0]);
     assert!(canonical_player_pending_bind_for_test_like_cpp(&session).is_none());
     assert!(realm_rx.try_recv().is_err());
 }
