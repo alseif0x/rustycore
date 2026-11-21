@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import copy
 import json
-from pathlib import Path
+import os
+import struct
 import sys
 import tempfile
+import time
+from pathlib import Path
 import unittest
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -852,115 +855,256 @@ def lock_inside_state(selected: dict, instance_id: int = 42) -> dict:
     }
 
 
-def lock_row(selected: dict, instance_id: int = 42, expiry: int = 1_700_604_800) -> str:
+def lock_row(selected: dict, *, instance_id: int = 42, data: str | None = None,
+             completed_mask: int = 1, expiry: int | None = None, extended: int = 0) -> str:
+    if data is None:
+        data = scenario.ICC_SHARED_SAVE_DATA
+    if expiry is None:
+        expiry = int(time.time()) + 3600
     return "\t".join([
         str(selected["guid"]), str(scenario.LOCK_MAP), str(scenario.LOCK_ID),
-        str(instance_id), str(scenario.LOCK_DIFFICULTY), "", "1", "0", str(expiry), "0",
+        str(instance_id), str(scenario.LOCK_DIFFICULTY), data, str(completed_mask),
+        "0", str(expiry), str(extended),
     ])
 
 
-class LockFixtureTests(unittest.TestCase):
-    def test_seed_uses_lock_id_12_difficulty_4_and_no_instance_row(self) -> None:
+def instance_row(instance_id: int = 42) -> str:
+    return "\t".join([str(instance_id), scenario.ICC_SHARED_SAVE_DATA, "1", "0"])
+
+
+def calendar_event(instance_id: int = 42, sequence: int = 40) -> dict:
+    # 2026-01-02, Friday, 12:34 in the packed WoW calendar timestamp.
+    packed_time = (26 << 24) | (1 << 14) | (5 << 11) | (12 << 6) | 34
+    body = struct.pack("<QIiIi", instance_id, packed_time, scenario.LOCK_MAP,
+                       scenario.LOCK_DIFFICULTY, 30 * 24 * 60 * 60)
+    return group_event("realm", scenario.SMSG_CALENDAR_RAID_LOCKOUT_ADDED,
+                       body.hex(), sequence)
+
+
+def lock_bind_evidence(*, accept: bool, extending: bool = False,
+                       instance_id: int = 42) -> dict:
+    prompt = group_event("realm", scenario.SMSG_PENDING_RAID_LOCK,
+                         scenario.pending_lock_body(extending=extending).hex(), 10)
+    response = typed("instance_lock_response", "realm", scenario.CMSG_INSTANCE_LOCK_RESPONSE,
+                     "80" if accept else "00", 20)
+    events = [prompt]
+    if accept:
+        events.extend([
+            group_event("realm", scenario.SMSG_INSTANCE_SAVE_CREATED, "00", 30),
+            calendar_event(instance_id, 40),
+        ])
+    return {"sent_packets": [response], "events": events}
+
+
+def raid_info_evidence(*, instance_id: int = 42, mask: int = 1,
+                       flags: int = 0x80, response_sequence: int = 20) -> dict:
+    body = (struct.pack("<I", 1)
+            + struct.pack("<IIQII", scenario.LOCK_MAP, scenario.LOCK_DIFFICULTY,
+                          instance_id, 86_400, mask)
+            + bytes([flags]))
+    return {
+        "sent_packets": [typed("request_raid_info", "realm",
+                               scenario.CMSG_REQUEST_RAID_INFO, "", 10)],
+        "events": [group_event("realm", scenario.SMSG_INSTANCE_INFO,
+                               body.hex(), response_sequence)],
+    }
+
+
+class LockPlanAndWireTests(unittest.TestCase):
+    def test_member_plan_captures_rejection_and_accepted_publication(self) -> None:
+        member = member_actor()
+        rejected = scenario.member_lock_plan(member, False)
+        self.assertEqual(rejected["timeout_ms"], 70_000)
+        self.assertEqual(rejected["actions"][0], {
+            "action": "wait_for_packet", "connection": "realm",
+            "opcode": scenario.SMSG_PENDING_RAID_LOCK, "timeout_ms": 30_000,
+        })
+        self.assertEqual(rejected["actions"][1], {
+            "action": "instance_lock_response", "accept": False,
+        })
+        self.assertEqual(rejected["actions"][2], {"action": "wait", "milliseconds": 1_000})
+        self.assertEqual(rejected["expect"][0]["body_hex"],
+                         scenario.pending_lock_body(extending=False).hex())
+        scenario.validate_lock_response_evidence(lock_bind_evidence(accept=False), accept=False)
+
+        accepted = scenario.member_lock_plan(member, True)
+        self.assertEqual([action.get("opcode") for action in accepted["actions"][2:]],
+                         [scenario.SMSG_INSTANCE_SAVE_CREATED,
+                          scenario.SMSG_CALENDAR_RAID_LOCKOUT_ADDED])
+        facts = scenario.validate_lock_response_evidence(
+            lock_bind_evidence(accept=True), accept=True, expected_instance_id=42)
+        self.assertEqual(facts["calendar_lockout"]["instance_id"], 42)
+        self.assertEqual(facts["save_created_sequence"], 30)
+        self.assertEqual(facts["calendar_lockout"]["sequence"], 40)
+
+    def test_member_bind_evidence_rejects_wrong_route_payload_and_order(self) -> None:
+        bad = lock_bind_evidence(accept=True)
+        bad["sent_packets"][0]["connection"] = "instance"
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_response_evidence(bad, accept=True)
+
+        bad = lock_bind_evidence(accept=True)
+        bad["events"][1]["observation_sequence"] = 15
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_response_evidence(bad, accept=True)
+
+        bad = lock_bind_evidence(accept=False)
+        bad["events"].append(group_event("realm", scenario.SMSG_INSTANCE_SAVE_CREATED, "00", 30))
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_response_evidence(bad, accept=False)
+
+        bad = lock_bind_evidence(accept=False)
+        bad["events"].append(calendar_event(sequence=30))
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_response_evidence(bad, accept=False)
+
+    def test_expired_extended_leader_auto_confirms_without_client_response(self) -> None:
+        leader = actor()
+        plan = scenario.leader_auto_lock_plan(leader)
+        self.assertEqual(plan["timeout_ms"], 130_000)
+        self.assertEqual(plan["actions"], [
+            {"action": "wait_for_packet", "connection": "realm",
+             "opcode": scenario.SMSG_PENDING_RAID_LOCK, "timeout_ms": 30_000},
+            {"action": "wait_for_packet", "connection": "realm",
+             "opcode": scenario.SMSG_CALENDAR_RAID_LOCKOUT_ADDED, "timeout_ms": 90_000},
+        ])
+        self.assertEqual(plan["expect"][0]["body_hex"],
+                         scenario.pending_lock_body(extending=True).hex())
+        auto_evidence = lock_bind_evidence(accept=True, extending=True)
+        auto_evidence["sent_packets"].clear()
+        facts = scenario.validate_leader_auto_lock_evidence(
+            auto_evidence, expected_instance_id=42)
+        self.assertTrue(facts["automatic_confirmation"])
+        self.assertFalse(facts["client_response_sent"])
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_leader_auto_lock_evidence(lock_bind_evidence(
+                accept=True, extending=True))
+
+    def test_raid_info_plan_and_wire_prove_reloaded_same_id_content(self) -> None:
+        leader = actor()
+        plan = scenario.raid_info_plan(leader)
+        self.assertEqual(plan["actions"][0], {"action": "request_raid_info"})
+        self.assertEqual(plan["actions"][1]["connection"], "realm")
+        facts = scenario.validate_raid_info_evidence(
+            raid_info_evidence(), leader, 42, expected_mask=1)
+        self.assertEqual(facts["entry"], {
+            "map_id": scenario.LOCK_MAP, "difficulty_id": scenario.LOCK_DIFFICULTY,
+            "instance_id": 42, "time_remaining_seconds": 86_400,
+            "completed_encounters_mask": 1, "flags": 0x80,
+        })
+
+        for malformed in (raid_info_evidence(mask=0), raid_info_evidence(flags=0x00),
+                          raid_info_evidence(response_sequence=9)):
+            with self.subTest(evidence=malformed), self.assertRaises(scenario.ScenarioFailure):
+                scenario.validate_raid_info_evidence(malformed, leader, 42, expected_mask=1)
+
+
+class LockStateTests(unittest.TestCase):
+    def test_initial_seed_requires_distinct_shared_save_and_nonzero_leader_mask(self) -> None:
         leader = actor()
         member = member_actor()
+        expiry = int(time.time()) - 3600
         db = Mock()
-        db.character_identities.side_effect = lambda _journal: [identity_row(leader), identity_row(member)]
         db.execute.side_effect = [
-            position_row(leader, scenario.LOCK_MAP, 42, scenario.LOCK_POSITION),
-            position_row(member, scenario.LOCK_MAP, 42, scenario.LOCK_POSITION),
-            lock_row(leader), "7\t2\t4\t3", "73\n74",
+            lock_row(leader, data=scenario.ICC_LEADER_LOCK_SEED_DATA,
+                     expiry=expiry, extended=1),
+            "", instance_row(), "53\t2\t4\t3", "73\n74",
         ]
-        facts = scenario.seed_lock_fixture(db, {}, (leader, member), 42, 1_700_604_800)
-        self.assertEqual(facts["instance_id"], 42)
-        self.assertEqual(facts["expiry_time"], 1_700_604_800)
-        statements = db.transaction.call_args.args[0]
-        self.assertIn("mapId,lockId,instanceId,difficulty", statements[0])
-        self.assertIn("631,12,42,4", statements[0])
-        self.assertIn("completedEncountersMask", statements[0])
-        self.assertIn("groupType=2,raidDifficulty=4,legacyRaidDifficulty=3", statements[1])
-        self.assertFalse(any(statement.startswith("INSERT INTO instance ") for statement in statements))
-
-    def test_collision_guard_chooses_above_all_three_maxima(self) -> None:
-        db = Mock()
-        db.execute.side_effect = ["4", "7", "2", "0"]
-        self.assertEqual(scenario.choose_lock_instance_id(db), 8)
-        db.execute.side_effect = ["4", "7", "2", "1"]
-        with self.assertRaises(scenario.ScenarioFailure):
-            scenario.choose_lock_instance_id(db)
-
-    def test_exact_lock_reload_and_expiry_remain_unchanged(self) -> None:
-        leader = actor()
-        member = member_actor()
-        db = Mock()
-        db.execute.side_effect = [lock_row(leader), "7\t2\t4\t3", "73\n74"]
-        facts = scenario.require_lock_fixture(db, (leader, member), 42, 1_700_604_800)
-        self.assertEqual(facts["expiry_time"], 1_700_604_800)
+        facts = scenario.require_lock_fixture(db, (leader, member), 42, expiry)
         self.assertEqual(facts["completed_encounters_mask"], 1)
+        self.assertEqual(facts["data"], scenario.ICC_SHARED_SAVE_DATA)
+        self.assertNotEqual(scenario.ICC_LEADER_LOCK_SEED_DATA, facts["data"])
         self.assertEqual(facts["group"]["raid_difficulty"], 4)
-        db.execute.side_effect = [lock_row(leader, expiry=1_700_604_801), "7\t2\t4\t3", "73\n74"]
+
+        db = Mock()
+        db.execute.side_effect = [lock_row(leader, data=scenario.ICC_LEADER_LOCK_SEED_DATA,
+                                           completed_mask=0, expiry=expiry, extended=1)]
         with self.assertRaises(scenario.ScenarioFailure):
-            scenario.require_lock_fixture(db, (leader, member), 42, 1_700_604_800)
+            scenario.require_lock_fixture(db, (leader, member), 42, expiry)
 
-
-class LockResetEvidenceTests(unittest.TestCase):
-    def test_cannot_reset_has_one_request_zero_responses_and_no_expulsion(self) -> None:
+    def test_pre_auto_and_post_bind_rows_preserve_shared_state_and_mask(self) -> None:
         leader = actor()
         member = member_actor()
-        reset = {"sent_packets": [typed("reset_instances", "instance", scenario.CMSG_RESET_INSTANCES, "")]}
-        member_evidence = {"events": []}
-        scenario.validate_lock_reset_evidence(reset, member_evidence)
+        expiry = int(time.time()) - 3600
+        db = Mock()
+        db.execute.side_effect = [
+            "\n".join([
+                lock_row(leader, data=scenario.ICC_LEADER_LOCK_SEED_DATA,
+                         expiry=expiry, extended=1),
+                lock_row(member),
+            ]),
+            instance_row(),
+        ]
+        before_auto = scenario.require_bound_lock_rows(
+            db, (leader, member), 42, leader_renewed=False)
+        self.assertEqual(before_auto["completed_encounters_mask"], 1)
+        self.assertNotEqual(before_auto["leader_lock"][5], before_auto["member_lock"][5])
+
+        db = Mock()
+        db.execute.side_effect = ["\n".join([lock_row(leader), lock_row(member)]), instance_row()]
+        after_bind = scenario.require_bound_lock_rows(
+            db, (leader, member), 42, leader_renewed=True)
+        self.assertEqual(after_bind["leader_lock"][5], after_bind["member_lock"][5])
+        self.assertEqual(after_bind["instance_row"][1], after_bind["member_lock"][5])
+        self.assertEqual(after_bind["completed_encounters_mask"], 1)
+
+
+class LockResetAndEpochTests(unittest.TestCase):
+    def test_reset_request_is_outside_while_member_stays_inside(self) -> None:
+        leader = actor()
+        member = member_actor()
+        reset_plan = scenario.lock_reset_plan(leader)
+        occupant_plan = scenario.lock_occupant_plan(member)
+        self.assertEqual(reset_plan["actions"], [
+            {"action": "reset_instances"}, {"action": "wait", "milliseconds": 2_000},
+        ])
+        self.assertEqual(occupant_plan["actions"], [{"action": "wait", "milliseconds": 18_000}])
+        reset = {"sent_packets": [typed(
+            "reset_instances", "instance", scenario.CMSG_RESET_INSTANCES, "")]}
+        scenario.validate_lock_reset_evidence(reset, {"events": []})
         scenario.validate_lock_inside_state(lock_inside_state(member), 42)
         bad = copy.deepcopy(reset)
         bad["events"] = [group_event("realm", scenario.SMSG_INSTANCE_RESET_FAILED, "2100000000")]
         with self.assertRaises(scenario.ScenarioFailure):
-            scenario.validate_lock_reset_evidence(bad, member_evidence)
+            scenario.validate_lock_reset_evidence(bad, {"events": []})
 
-    def test_cleanup_deletes_only_seeded_lock_and_scenario_group(self) -> None:
-        leader = actor()
-        member = member_actor()
-        db = Mock()
-        db.execute.return_value = ""
-        scenario.cleanup_seed_lock(db, leader, 42)
-        statement = db.transaction.call_args.args[0][0]
-        self.assertIn("DELETE FROM character_instance_lock", statement)
-        self.assertIn(f"guid={leader['guid']}", statement)
-        self.assertIn("mapId=631 AND lockId=12 AND instanceId=42", statement)
-        self.assertNotIn("DELETE FROM instance ", statement)
-
-
-class LockFailureCleanupTests(unittest.TestCase):
-    def test_epoch_two_failure_restores_positions_and_deletes_owned_rows(self) -> None:
-        leader = actor()
-        member = member_actor()
-        bot_pass_type = death_scenario.BotPass
-
-        def ready_bot(actor, plan, label):
-            pass_ = bot_pass_type(actor, plan, label)
-            pass_.ready.set()
-            return pass_
-
-        with patch.object(scenario, "load_lock_identity", return_value=(42, 1_700_604_800)), \
-                patch.object(scenario.death_scenario, "BotPass", side_effect=ready_bot), \
-                patch.object(scenario, "require_lock_fixture"), \
-                patch.object(scenario, "_require_offline"), \
-                patch.object(scenario.death_scenario, "start_bot"), \
-                patch.object(scenario.logout_scenario, "_run_single",
-                             side_effect=RuntimeError("restart failed")), \
-                patch.object(scenario, "restore_outside") as restore, \
-                patch.object(scenario, "cleanup_seed_lock") as lock_cleanup, \
-                patch.object(scenario, "cleanup_group") as group_cleanup, \
-                patch.object(scenario.death_scenario, "ACTIVE_BOTS", [object()]), \
-                patch.object(scenario.death_scenario, "_stop_owned") as stop, \
-                patch.object(scenario.death_scenario, "_poll_actor_offline"):
-            with self.assertRaisesRegex(RuntimeError, "restart failed"):
-                scenario._run_lock_case(
-                    {"scenario": scenario.LOCK_SCENARIO, "epoch": 2,
-                     "capture": Path("/capture"), "bot_exec": Path("/bot"),
-                     "bot_config": Path("/config.json")}, {"actors": [leader, member]}, 1, Mock())
-        self.assertEqual(restore.call_count, 2)
-        lock_cleanup.assert_called_once_with(ANY, leader, 42)
-        group_cleanup.assert_called_once()
-        stop.assert_called_once()
+    def test_lock_scenario_gates_exactly_three_epochs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            capture = root / "capture"
+            capture.mkdir(mode=0o700)
+            journal = root / "journal.json"
+            bot_config = root / "bot.json"
+            world_config = root / "world.conf"
+            bot_exec = root / "bot"
+            for path in (journal, bot_config, world_config, bot_exec):
+                path.write_text("fixture\n", encoding="utf-8")
+            bot_exec.chmod(0o700)
+            env = {
+                "RUSTYCORE_DEATH_JOURNAL": str(journal),
+                "RUSTYCORE_DEATH_EPOCH": "epoch-003",
+                "RUSTYCORE_DEATH_EPOCH_INDEX": "3",
+                "RUSTYCORE_DEATH_BOT_CONFIG": str(bot_config),
+                "RUSTYCORE_DEATH_WORLD_CONFIG": str(world_config),
+                "RUSTYCORE_DEATH_SCENARIO": scenario.LOCK_SCENARIO,
+                "RUSTYCORE_CAPTURE_DIR": str(capture),
+                "RUSTYCORE_CAPTURE_REPORT": str(capture / "scenario-report.json"),
+                "RUSTYCORE_CAPTURE_BACKEND": "rust",
+                "RUSTYCORE_CAPTURE_CANDIDATE_SHA256": "a" * 64,
+                "WOW_BOT_EXEC": str(bot_exec),
+                "WOW_BOT_EXEC_SHA256": death_scenario._sha256(bot_exec),
+            }
+            with patch.dict(os.environ, env, clear=True):
+                self.assertEqual(scenario._runtime_identity()["epoch"], 3)
+                os.environ["RUSTYCORE_DEATH_EPOCH"] = "epoch-004"
+                os.environ["RUSTYCORE_DEATH_EPOCH_INDEX"] = "4"
+                with self.assertRaises(scenario.ScenarioFailure):
+                    scenario._runtime_identity()
+                os.environ["RUSTYCORE_DEATH_SCENARIO"] = scenario.DIFFICULTY_SCENARIO
+                os.environ["RUSTYCORE_DEATH_EPOCH"] = "epoch-003"
+                os.environ["RUSTYCORE_DEATH_EPOCH_INDEX"] = "3"
+                with self.assertRaises(scenario.ScenarioFailure):
+                    scenario._runtime_identity()
 
 
 if __name__ == "__main__":

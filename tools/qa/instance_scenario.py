@@ -1154,8 +1154,12 @@ def validate_lock_response_evidence(evidence: dict[str, Any], *, accept: bool,
             raise ScenarioFailure("accepted ICC bind did not publish one ordered save-created opcode")
         calendar_facts = validate_calendar_lockout_added(
             evidence, saves[0], expected_instance_id=expected_instance_id)
-    elif all_saves:
-        raise ScenarioFailure("rejected ICC bind unexpectedly published a save-created opcode")
+    else:
+        calendars = [event for event in evidence.get("events", [])
+                     if isinstance(event, dict)
+                     and event.get("opcode") == SMSG_CALENDAR_RAID_LOCKOUT_ADDED]
+        if all_saves or calendars:
+            raise ScenarioFailure("rejected ICC bind unexpectedly published lockout state")
     return {"prompt_sequence": _sequence(prompts[0]),
             "response_sequence": _sequence(response[0]), "accepted": accept,
             "save_created_sequence": _sequence(saves[0]) if saves else None,
@@ -1535,7 +1539,7 @@ def _run_lock_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: 
             observations.append(logout_scenario._observation(
                 member_reject, reject_evidence, rejected_state, rejected_path,
                 {**reject_facts, "member_lock_absent": True,
-                 "rejected_member_left_instance": True}))
+                 "member_bind_rejected_without_lockout_publication": True}))
 
             restore_outside(db, journal, member)
             relocate_lock_inside(db, journal, member, instance_id)
