@@ -7,7 +7,7 @@ ordering. Its original contents are recoverable from
 Use [STATE.md](migration/STATE.md), [PORT_PLAN.md](migration/PORT_PLAN.md) and the
 active issue/checkpoint. For login/connection investigation, use the
 [current reference map](world-entry-implementation.md) and the dated
-[world-load audit](migration/world-load-audit.md).
+[world-load audit](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/world-load-audit.md).
 
 No old proposed fix is accepted merely by this redirect. Contrast the affected
 C++ functions and real captures before changing behavior; preserve explicit

@@ -21,6 +21,7 @@ MODULE_INPUTS = {"modules.lock.toml", "crates/world-server/src/app.rs",
 FULL_TOOLS = {"tools/validate-full", "tools/ci/full_policy.py", "tools/ci/full_snapshot.py",
               "tools/ci/test_validate_full.py", "tools/ci/test_full_policy.py"}
 WORKFLOW_CONTRACT_TOOLS = {"tools/test_validation_workflows.py"}
+LOCAL_VALIDATION_TOOLS = {"tools/validation-v2", "tools/test_validation_v2.py"}
 DOCUMENT_LINK_TOOLS = {"tools/ci/check_doc_links.py", "tools/ci/test_check_doc_links.py"}
 ROOT_MARKDOWN = {"AGENTS.md", "CLAUDE.md", "CLAUDE_PLAN_AUTONOMO.md", "CONTRIBUTING.md",
                  "MIGRATION_STATUS.md", "README.md"}
@@ -71,9 +72,15 @@ def capture_contract(name):
                                          "--", "verify-required", name])
 
 
+def workspace_input(path):
+    if path.startswith("crates/wow-world/_attic/") and path.endswith(".md"):
+        return False
+    return path.startswith(WORKSPACE_SOURCES)
+
+
 def rust_commands(files):
     wide = global_build(files)
-    inputs = {p for p in files if p.startswith(WORKSPACE_SOURCES)}
+    inputs = {p for p in files if workspace_input(p)}
     if not inputs and not wide:
         return []
     metadata = json.loads(output("cargo", "metadata", "--format-version", "1", "--locked", "--all-features"))
@@ -118,7 +125,7 @@ def rust_commands(files):
 
 def build_plan(files, base, head):
     commands = [("Diff hygiene", ["git", "diff", "--check", base, head, "--"])]
-    metadata_runs = global_build(files) or any(p.startswith(WORKSPACE_SOURCES) for p in files)
+    metadata_runs = global_build(files) or any(workspace_input(p) for p in files)
     unsupported = set()
     existing = [p for p in sorted(files) if Path(p).is_file()]
     documents = repository_markdown()
@@ -132,11 +139,19 @@ def build_plan(files, base, head):
             ast.parse(Path(path).read_text(encoding="utf-8"), filename=path)
         if path.endswith(".sh"):
             commands.append((f"Shell syntax of {path}", ["bash", "-n", path]))
+    route_inputs = {"opencode.json", ".opencode/model-route"}
+    if route_inputs & files:
+        commands.append(("OpenCode project configuration", [sys.executable, ".opencode/model-route", "status"]))
+    plugin = ".opencode/plugins/project-environment.js"
+    if plugin in existing:
+        commands.append(("OpenCode environment plugin syntax", ["node", "--experimental-default-type=module", "--check", plugin]))
     workflows = [p for p in existing if p.startswith(".github/workflows/")]
     if workflows:
         commands.append(("Workflow syntax", ["actionlint", *workflows]))
     if workflows or files & WORKFLOW_CONTRACT_TOOLS:
         commands.append(("Workflow contracts", [sys.executable, "tools/test_validation_workflows.py"]))
+    if files & LOCAL_VALIDATION_TOOLS:
+        commands.append(("Local validation regressions", [sys.executable, "tools/test_validation_v2.py"]))
     if files & DOCUMENT_LINK_TOOLS:
         commands.append(("Markdown link checker regression tests",
                          [sys.executable, "tools/ci/test_check_doc_links.py"]))
@@ -174,12 +189,12 @@ def build_plan(files, base, head):
     for path in files:
         standalone_doc = established_markdown(path)
         if (path in GLOBAL_BUILD | MODULE_INPUTS or standalone_doc
-                or path in workflows
+                or path in workflows or path in route_inputs or (path == plugin and path in existing)
                 or path.startswith(WORKSPACE_SOURCES + (".cargo/", "proto/", "tools/architecture/", "tools/wow-test-bot/", "tools/modules/"))):
             continue
         if path.startswith("tools/full-validation/") or path in FULL_TOOLS:
             continue
-        if path in WORKFLOW_CONTRACT_TOOLS | DOCUMENT_LINK_TOOLS:
+        if path in WORKFLOW_CONTRACT_TOOLS | DOCUMENT_LINK_TOOLS | LOCAL_VALIDATION_TOOLS:
             continue
         unsupported.add(path)
     if files & FULL_TOOLS or any(p.startswith("tools/full-validation/") for p in files):

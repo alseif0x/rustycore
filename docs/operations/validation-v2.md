@@ -317,6 +317,8 @@ services, connects to a database, records a fresh capture, regenerates a baselin
 or calls either legacy wrapper. Those mutating or live operations require their own explicit QA
 procedure.
 
+Markdown under `crates/wow-world/_attic/` records archived work and uses the documentation route. Other crate files, including fixtures, retain their normal workspace routing.
+
 ## Verdict rules
 
 A run is green only when every executed command is green. The runner refuses the failure modes

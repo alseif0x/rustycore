@@ -98,6 +98,17 @@ class FullValidationTests(unittest.TestCase):
         self.assertIn("Affected test targets: exit 0", result)
         self.assertIn("Production feature configuration: exit 101", result)
 
+    def test_archived_markdown_uses_document_checks_and_keeps_crate_inputs(self):
+        is_input = runpy.run_path(str(RUNNER))["workspace_input"]
+        self.assertFalse(is_input("crates/wow-world/_attic/README.md"))
+        self.assertTrue(is_input("crates/wow-world/src/fixture.md"))
+        self.assertTrue(is_input("crates/wow-world/_attic/data.rs.txt"))
+        self.write("crates/wow-world/_attic/README.md", "# Archived notes\n")
+        self.commit()
+        plan = self.build("--plan")
+        self.assertIn("Repository Markdown links:", plan)
+        self.assertNotIn("Affected test targets:", plan)
+
     def test_unknown_paths_are_not_accepted(self):
         self.write("new-format", "data\n")
         self.commit()
