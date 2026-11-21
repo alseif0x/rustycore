@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        implementation: [tests, production, compositor, policy]
+        implementation: [tests, production, compositor, policy, inventory]
     env:
       VALIDATION_V2_CARGO_JOBS: "2"
       IMPLEMENTATION: ${{ matrix.implementation }}
@@ -70,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           export CARGO_BUILD_JOBS="$(nproc)"
-          "$RUNNER_TEMP/new/tools/validate-full" --base 31841d89165fb71eac6b106b63d3f3317bafbdf7 --part "$IMPLEMENTATION" --report "$RUNNER_TEMP/$IMPLEMENTATION-result.json"
+          "$RUNNER_TEMP/new/tools/validate-full" --workspace --base 31841d89165fb71eac6b106b63d3f3317bafbdf7 --part "$IMPLEMENTATION" --report "$RUNNER_TEMP/$IMPLEMENTATION-result.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -113,15 +113,15 @@ jobs:
 
           run = get_json(api)
           jobs = get_json(api + "/jobs?per_page=100")["jobs"]
-          new_jobs = [job for job in jobs if job["name"] in {"tests", "production", "compositor", "policy"}]
-          if len(new_jobs) != 4 or any(not job.get("completed_at") for job in new_jobs):
-              raise SystemExit("All four parts must finish before measuring wall time.")
+          new_jobs = [job for job in jobs if job["name"] in {"tests", "production", "compositor", "policy", "inventory"}]
+          if len(new_jobs) != 5 or any(not job.get("completed_at") for job in new_jobs):
+              raise SystemExit("All five parts must finish before measuring wall time.")
           start = datetime.datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
           final_new = max(datetime.datetime.fromisoformat(job["completed_at"].replace("Z", "+00:00")) for job in new_jobs)
           seconds = int((final_new - start).total_seconds())
           print("Queued run to later replacement completion: {} s (from run created_at {} to {}).".format(seconds, run["created_at"], final_new.isoformat()))
           print("Comparison result: {}.".format(os.environ["COMPARISON_RESULT"]))
-          print("Tests, ordinary production configuration, SQL composition and policy used four parallel VMs.")
+          print("All workspace tests, production, SQL, native policy tests and the exhaustive persistence inventory used five parallel VMs.")
           PY
           if [[ "$COMPARISON_RESULT" != success ]]; then
             echo "Full validation failed: $COMPARISON_RESULT" >&2
