@@ -214,6 +214,8 @@ impl WorldSession {
     }
 
     /// Run one App quest-objective operation; only `Complete` reports a result.
+    /// C++ `Player::UpdateQuestObjectiveProgress` publishes the final interaction
+    /// refresh, then phase changes, then zone/area aura updates.
     pub(crate) async fn quest_objective_operation_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -221,16 +223,64 @@ impl WorldSession {
     ) -> bool {
         let mut completion_state_changed = false;
         let mut update_zone_auras = false;
+        let mut update_phase_shift = false;
         loop {
-            let (result, deferred, completion_state_refreshed, operation_update_zone_auras) =
-                Box::pin(
-                    self.quest_objective_operation_once_like_cpp(item_guid_generator, operation),
-                )
-                .await;
+            let (
+                result,
+                deferred,
+                completion_state_refreshed,
+                operation_update_zone_auras,
+                operation_update_phase_shift,
+            ) = Box::pin(
+                self.quest_objective_operation_once_like_cpp(item_guid_generator, operation),
+            )
+            .await;
             update_zone_auras |= operation_update_zone_auras;
+            update_phase_shift |= operation_update_phase_shift;
             let Some(deferred) = deferred else {
                 if completion_state_changed && !completion_state_refreshed {
                     self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+                }
+                if update_phase_shift {
+                    match wow_world_quest::update_phase_shift_on_condition_change_like_cpp(self) {
+                        Ok((phase_shift, true)) => {
+                            if let Some(player_guid) = self.player_guid() {
+                                match wow_world_core::phasing::phase_shift_change_for_player_like_cpp(
+                                    player_guid,
+                                    &phase_shift,
+                                ) {
+                                    Ok(packet) => {
+                                        self.core.send_packet(&packet);
+                                        if let Some(creature_spawns) =
+                                            self.spell_state.creature_spawns.clone()
+                                        {
+                                            wow_world_entities::force_update_visibility_with_catalogs_like_cpp(
+                                                self,
+                                                creature_spawns.as_ref(),
+                                            )
+                                            .await;
+                                        } else {
+                                            tracing::warn!(
+                                                account = self.core.account_id,
+                                                "Quest objective phase visibility catalogs are unavailable"
+                                            );
+                                        }
+                                    }
+                                    Err(error) => tracing::warn!(
+                                        account = self.core.account_id,
+                                        ?error,
+                                        "Quest objective phase packet build failed"
+                                    ),
+                                }
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(reason) => tracing::warn!(
+                            account = self.core.account_id,
+                            reason,
+                            "Quest objective phase update failed"
+                        ),
+                    }
                 }
                 if update_zone_auras {
                     if let Some(creature_spawns) = self.spell_state.creature_spawns.clone() {
@@ -315,7 +365,7 @@ impl WorldSession {
             else {
                 return false;
             };
-            let (completed, _, _, _) = Box::pin(self.quest_objective_operation_once_like_cpp(
+            let (completed, _, _, _, _) = Box::pin(self.quest_objective_operation_once_like_cpp(
                 item_guid_generator,
                 QuestObjectiveOperationLikeCpp::Complete {
                     quest: &quest,
@@ -336,6 +386,7 @@ impl WorldSession {
     ) -> (
         bool,
         Option<wow_world_quest::QuestObjectiveCompletionSpellLikeCpp>,
+        bool,
         bool,
         bool,
     ) {
@@ -446,11 +497,13 @@ impl WorldSession {
         let deferred = progress.take_deferred_completion_spell_like_cpp();
         let completion_state_refreshed = progress.take_completion_state_refreshed_like_cpp();
         let update_zone_auras = progress.take_update_zone_auras_like_cpp();
+        let update_phase_shift = progress.take_update_phase_shift_like_cpp();
         (
             result,
             deferred,
             completion_state_refreshed,
             update_zone_auras,
+            update_phase_shift,
         )
     }
 }

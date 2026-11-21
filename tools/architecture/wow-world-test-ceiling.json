@@ -675,6 +675,16 @@
    "unit_tests_lines": 289240,
    "unit_tests_tests": 4305,
    "src_tests": 345
+  },
+  {
+   "id": "raise-1368-64",
+   "kind": "raise",
+   "issue": 1368,
+   "reviewed_at": "2026-11-21",
+   "reason": "Two phase completion regressions prove suppressed-phase reactivation and the C++ order before zone and area aura casts.",
+   "unit_tests_lines": 289347,
+   "unit_tests_tests": 4307,
+   "src_tests": 345
   }
  ]
 }

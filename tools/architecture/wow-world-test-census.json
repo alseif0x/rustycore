@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4650,
+  "tests": 4652,
   "ignored": 1,
-  "session": 3934,
-  "shims": 3731,
+  "session": 3936,
+  "shims": 3733,
   "by_class": {
    "P": 716,
    "H": 147,
-   "W": 3787
+   "W": 3789
   },
   "by_reason": {
    "H-host": 147,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 32,
-   "W-world-logic": 3532
+   "W-world-logic": 3534
   },
   "by_owner": {
    "wow-world": {
@@ -113,7 +113,7 @@
    "wow-world-quest": {
     "P": 7,
     "H": 13,
-    "W": 371
+    "W": 373
    },
    "wow-world-social": {
     "P": 18,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 518,
     "H": 0,
-    "W": 3787
+    "W": 3789
    },
    "wow-world-application": {
     "P": 27,
@@ -3131,6 +3131,8 @@
   ["unit_tests/session/tests/s2_quest_objective_owner_drain.rs::currency_completion_spell_runs_before_quest_completion_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "currency_changed_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp"], []],
   ["unit_tests/session/tests/s2_quest_objective_owner_drain.rs::reputation_completion_spell_runs_before_quest_completion_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "currency_changed_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp"], []],
   ["unit_tests/session/tests/s2_quest_objective_owner_drain.rs::zone_and_area_aura_completion_effects_cast_after_final_refresh_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "mutate_player_quest_gameplay_like_cpp"], []],
+  ["unit_tests/session/tests/s2_quest_objective_owner_drain.rs::completion_phase_shift_runs_after_final_interaction_refresh_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "mutate_player_quest_gameplay_like_cpp"], []],
+  ["unit_tests/session/tests/s2_quest_objective_owner_drain.rs::completion_phase_shift_precedes_zone_and_area_aura_casts_like_cpp", "W", "wow-world", "wow-world-quest", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "mutate_player_quest_gameplay_like_cpp"], []],
   ["unit_tests/session/tests/save_plan_order.rs::the_character_save_request_is_semantic_and_deterministic_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["current_player_character_save_request_like_cpp", "current_player_save_to_db_snapshot_like_cpp", "mark_represented_glyphs_loaded_like_cpp", "set_player_guid"], []],
   ["unit_tests/session/tests/save_snapshot_owner.rs::save_request_consumes_frozen_header_without_replaying_or_rereading_runtime", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "current_player_character_save_request_like_cpp", "current_player_save_to_db_snapshot_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/save_snapshot_owner.rs::save_snapshot_reads_active_and_detached_owner_without_changing_state", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "current_player_save_to_db_snapshot_like_cpp", "set_canonical_map_manager", "set_loaded_player_powers_like_cpp"], []],

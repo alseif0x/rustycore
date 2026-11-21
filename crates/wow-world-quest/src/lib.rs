@@ -35,7 +35,7 @@ pub use quest::{
     quest_log_create_entries_like_cpp, reconcile_durable_loot_money_before_save_like_cpp,
     represented_can_see_spell_click_on_like_cpp,
     represented_viewer_dependent_creature_npc_flags_like_cpp, save_changed_quest_statuses_like_cpp,
-    save_quest_to_db_like_cpp,
+    save_quest_to_db_like_cpp, update_phase_shift_on_condition_change_like_cpp,
 };
 pub use quest::{QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]

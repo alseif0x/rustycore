@@ -13,6 +13,8 @@ mod loot_requirements;
 mod money_persistence;
 mod objective_progress;
 mod objectives;
+mod phase;
+pub use phase::update_phase_shift_on_condition_change_like_cpp;
 mod quest_log;
 mod reward;
 mod reward_commit;

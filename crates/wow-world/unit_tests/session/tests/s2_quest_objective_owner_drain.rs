@@ -140,6 +140,7 @@ async fn storing_objective_transition_outcome_with_proxy_rule_like_cpp(
         None,
         None,
         false,
+        false,
     )
     .await
 }
@@ -161,6 +162,7 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
     >,
     completion_spell_id: Option<u32>,
     completion_update_zone_auras: bool,
+    completion_update_phase_shift: bool,
 ) -> (u8, i32, Vec<ServerOpcodes>) {
     let (mut session, _, send_rx) = make_session();
     session.set_creature_spawn_catalogs_like_cpp(Arc::new(
@@ -212,13 +214,16 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
         completion_effect: None,
         description: String::new(),
     });
-    if completion_spell_id.is_some() || completion_update_zone_auras {
+    if completion_spell_id.is_some()
+        || completion_update_zone_auras
+        || completion_update_phase_shift
+    {
         quest.objectives.last_mut().unwrap().completion_effect =
             Some(wow_data::quest::QuestObjectiveAction {
                 game_event_id: None,
                 spell_id: completion_spell_id,
                 conversation_id: None,
-                update_phase_shift: false,
+                update_phase_shift: completion_update_phase_shift,
                 update_zone_auras: completion_update_zone_auras,
             });
     }
@@ -253,6 +258,19 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
             .store,
         ));
     }
+    if completion_update_phase_shift {
+        let phase_store = Arc::new(wow_data::PhaseStore::from_entries([]));
+        session.set_phase_group_store(Arc::new(wow_data::PhaseGroupStore::from_entries(
+            phase_store.as_ref(),
+            [],
+        )));
+        session.set_phase_store(phase_store);
+        session.set_terrain_swap_store(Arc::new(wow_data::TerrainSwapStore::default()));
+        if completion_spell_id.is_none() && !completion_update_zone_auras {
+            session.set_spell_store(Arc::new(first_login_noop_spell_store_like_cpp([])));
+        }
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([])));
+    }
 
     session.set_player_guid(Some(player_guid));
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
@@ -273,6 +291,19 @@ async fn storing_objective_transition_outcome_with_persistence_like_cpp(
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical objective-transition viewer map");
+    if completion_update_phase_shift {
+        assert!(
+            session
+                .with_owned_player_mut_like_cpp(|player| {
+                    player
+                        .unit_mut()
+                        .world_mut()
+                        .suppressed_phase_shift_mut()
+                        .insert(10)
+                })
+                .is_some()
+        );
+    }
     if completion_update_zone_auras {
         crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
         session.set_player_zone_area_authority_complete_like_cpp(true);
@@ -1280,6 +1311,7 @@ async fn completion_updates_tracker_only_when_enabled_without_status_save_like_c
             Some(fixture),
             None,
             false,
+            false,
         )
         .await;
 
@@ -1314,6 +1346,7 @@ async fn completion_spell_runs_between_credit_and_quest_completion_like_cpp() {
         None,
         Some(50_101),
         false,
+        false,
     )
     .await;
 
@@ -1346,6 +1379,7 @@ async fn storing_flag_completion_spell_runs_before_quest_completion_like_cpp() {
         false,
         None,
         Some(50_101),
+        false,
         false,
     )
     .await;
@@ -1418,6 +1452,7 @@ async fn zone_and_area_aura_completion_effects_cast_after_final_refresh_like_cpp
         None,
         None,
         true,
+        false,
     )
     .await;
 
@@ -1428,6 +1463,78 @@ async fn zone_and_area_aura_completion_effects_cast_after_final_refresh_like_cpp
         vec![
             ServerOpcodes::QuestUpdateAddCredit,
             ServerOpcodes::UpdateObject,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::SpellGo,
+        ]
+    );
+}
+
+#[tokio::test]
+async fn completion_phase_shift_runs_after_final_interaction_refresh_like_cpp() {
+    let (status, count, opcodes) = storing_objective_transition_outcome_with_persistence_like_cpp(
+        false,
+        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        0,
+        1,
+        0,
+        0,
+        false,
+        None,
+        0,
+        false,
+        false,
+        None,
+        None,
+        false,
+        true,
+    )
+    .await;
+
+    assert_eq!(status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+    assert_eq!(count, 1);
+    assert_eq!(
+        opcodes,
+        vec![
+            ServerOpcodes::QuestUpdateAddCredit,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::PhaseShiftChange,
+            ServerOpcodes::UpdateObject,
+        ]
+    );
+}
+
+#[tokio::test]
+async fn completion_phase_shift_precedes_zone_and_area_aura_casts_like_cpp() {
+    let (status, count, opcodes) = storing_objective_transition_outcome_with_persistence_like_cpp(
+        false,
+        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        0,
+        1,
+        0,
+        0,
+        false,
+        None,
+        0,
+        false,
+        false,
+        None,
+        None,
+        true,
+        true,
+    )
+    .await;
+
+    assert_eq!(status, QUEST_STATUS_COMPLETE_LIKE_CPP);
+    assert_eq!(count, 1);
+    assert_eq!(
+        opcodes,
+        vec![
+            ServerOpcodes::QuestUpdateAddCredit,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::UpdateObject,
+            ServerOpcodes::PhaseShiftChange,
             ServerOpcodes::UpdateObject,
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellGo,

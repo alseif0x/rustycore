@@ -66,6 +66,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             deferred_completion_spell: None,
             completion_state_refreshed: false,
             update_zone_auras: false,
+            update_phase_shift: false,
         }
     }
 
@@ -81,6 +82,10 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
 
     pub fn take_update_zone_auras_like_cpp(&mut self) -> bool {
         std::mem::take(&mut self.update_zone_auras)
+    }
+
+    pub fn take_update_phase_shift_like_cpp(&mut self) -> bool {
+        std::mem::take(&mut self.update_phase_shift)
     }
 
     pub(in crate::quest) fn current_quest_status_like_cpp(&self, quest_id: u32) -> Option<u8> {
@@ -584,6 +589,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             }
 
             if current >= required {
+                if context::objective_updates_phase_shift_like_cpp(&store, quest_id, objective_id) {
+                    self.update_phase_shift = true;
+                }
                 if context::objective_updates_zone_auras_like_cpp(&store, quest_id, objective_id) {
                     self.update_zone_auras = true;
                 }
@@ -782,6 +790,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     });
             }
             if !objective_was_complete && objective_is_now_complete {
+                if context::objective_updates_phase_shift_like_cpp(&store, quest_id, objective_id) {
+                    self.update_phase_shift = true;
+                }
                 if context::objective_updates_zone_auras_like_cpp(&store, quest_id, objective_id) {
                     self.update_zone_auras = true;
                 }
@@ -953,6 +964,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             );
 
             if objective_is_now_complete {
+                if context::objective_updates_phase_shift_like_cpp(&store, quest_id, objective_id) {
+                    self.update_phase_shift = true;
+                }
                 if context::objective_updates_zone_auras_like_cpp(&store, quest_id, objective_id) {
                     self.update_zone_auras = true;
                 }
@@ -1135,6 +1149,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 "Quest currency objective progress"
             );
             if objective_is_now_complete {
+                if context::objective_updates_phase_shift_like_cpp(&store, quest_id, objective_id) {
+                    self.update_phase_shift = true;
+                }
                 if context::objective_updates_zone_auras_like_cpp(&store, quest_id, objective_id) {
                     self.update_zone_auras = true;
                 }
@@ -1329,6 +1346,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 "Quest reputation objective progress"
             );
             if objective_is_now_complete {
+                if context::objective_updates_phase_shift_like_cpp(&store, quest_id, objective_id) {
+                    self.update_phase_shift = true;
+                }
                 if context::objective_updates_zone_auras_like_cpp(&store, quest_id, objective_id) {
                     self.update_zone_auras = true;
                 }
