@@ -19,7 +19,7 @@
   <a href="#extractor">Extractor</a> ·
   <a href="#build-and-test">Build & test</a> ·
   <a href="#documentation">Documentation</a> ·
-  <a href="#community">Community</a>
+  <a href="#community-and-contributing">Community</a>
 </p>
 
 ## What is RustyCore Forever?

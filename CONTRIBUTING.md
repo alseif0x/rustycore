@@ -1,8 +1,7 @@
 # Contributing to RustyCore
 
-Thanks for helping bring Azeroth to Rust. RustyCore is an active port of a TrinityCore-style
-WotLK Classic 3.4.3 server, and contributions are most useful when they leave a clear trail
-from the observed C++ behavior to the Rust change.
+This branch targets WoW Forever. Include the client build and show how the change follows
+its source, captured behavior or applicable shared contract.
 
 ## Start here
 
@@ -12,7 +11,7 @@ what remains open. For project-wide rules, see [AGENTS.md](AGENTS.md).
 
 Choose an existing issue when one matches your idea. For a new problem or bounded improvement,
 open an issue before starting substantial work so the scope and ownership can be coordinated.
-Create one feature branch from `3.4.3` for the issue and keep one pull request for its agreed scope.
+Create one feature branch from `forever` for the issue and keep one pull request for its agreed scope.
 
 ## Ways to help
 
@@ -35,7 +34,7 @@ configuration; use a private channel for sensitive material.
 For protocol, gameplay, persistence, database, or runtime work:
 
 1. Find the complete operation and its current callers and owner.
-2. Locate the exact 3.4.3 C++ classes/functions, or capture the target behavior when source is ambiguous.
+2. Trace the versioned source and the target client evidence for this operation. Record which build the evidence covers.
 3. Implement the complete agreed change, preserving the established phase/order contract.
 4. Keep one canonical authority per concept; do not introduce a detached mirror just to move code.
 5. Add focused tests and update the owning checkpoint or documentation when the evidence changes.
@@ -52,23 +51,12 @@ language for project documentation.
 
 ## Local validation
 
-Run checks that cover the files and behavior you changed. Typical code checks are:
-
-```bash
-cargo fmt --all -- --check
-git diff --check
-PROTOC=/path/to/protoc cargo check --locked -j 1 -p world-server
-PROTOC=/path/to/protoc cargo test --locked -j 1 -p <affected-crate> <focused-test> --lib
-```
-
-Use `--lib` only for library tests; select the actual binary or integration target when needed.
-Use a `protoc` installation matching [`.protoc-version`](.protoc-version). For the project-level
+Use the affected library, binary or integration target for implementation feedback and record the target exercised. Set up the [pinned sibling extractor](README.md#required-checkout-layout) before invoking Cargo. For the project-level
 profiles, follow [Validation V2](docs/operations/validation-v2.md) and
 [local-first development](docs/operations/local-first-development.md):
 
 ```bash
-VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-v2 quick --base origin/3.4.3
-VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-v2 final --base origin/3.4.3
+VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-v2 final --base origin/forever
 ```
 
 The final profile belongs on the committed candidate before publication; follow the runner's
@@ -80,7 +68,7 @@ appropriate authorized integration or live evidence; library tests alone are not
 
 ## Pull requests
 
-Open or update one PR into `3.4.3` for the issue-linked branch. A useful PR description includes:
+Open or update one PR into `forever` for the issue-linked branch. A useful PR description includes:
 
 - the user-visible or maintainer-visible problem and resulting behavior;
 - the relevant C++ anchor, capture identity, or reason a source comparison is not applicable;

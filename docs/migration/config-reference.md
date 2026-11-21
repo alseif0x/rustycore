@@ -214,7 +214,7 @@ The config layer is process-internal — it does not originate packets. It does,
   - **Auction**: `Auction.*`, `AuctionHouseBot.*`, `BlackMarket.*`.
   - **Cryptography**: `TOTPMasterSecret` (bnet side reads `CertificatesFile` but **does not parse** the TOTP secret — 2FA effectively broken for any account that has one stored).
 
-**Suspicious / likely divergent (hipótesis pre-auditoría):**
+**Suspicious / likely divergent (hypotheses recorded before the audit):**
 
 - **DB connection format**: canonical TC semicolon strings are now parsed, but every deployment still needs an explicit runtime check against the intended auth/world/characters/hotfix DB names before replacing C++.
 - **Silent default drift**: every `Rate.*` not read defaults to `1.0` somewhere in code, but the *somewhere* is per-subsystem and undocumented. Two subsystems may pick different defaults for the same conceptual rate.

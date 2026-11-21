@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Shared operating guide for agents working in RustyCore. CLAUDE.md imports this file.
+Shared operating guide for agents working in RustyCore. Start here for repository instructions.
 Use current code to establish implementation state and versioned C++/capture evidence
 to establish required base-server behavior. Neither old documentation nor existing Rust
 is correctness proof. This guide does not override explicit user scope or approval gates.
@@ -13,8 +13,7 @@ On the `forever` branch (renamed from `1.60.1` on 2026-10-02), the explicit
 target is modern WoW Forever `1.60.1.70170` Beta x64. It is a long-lived version
 line forked from `3.4.3`, not a feature branch to merge back wholesale. Work on
 this port stays on `forever`; any future feature PR for this target uses
-`forever` as its base. The `3.4.3` integration/PR instructions below continue
-to govern WotLK work, not cross-version merging. Versioned target evidence is
+`forever` as its base. This is also the GitHub default branch. WotLK work goes to `3.4.3`. Versioned target evidence is
 recorded in `docs/operations/forever-login.md`; inherited code is not 70170 proof.
 The operator confirmed on 2026-10-03 (Europe/Madrid) that compatibility with
 3.4.3 is not a Forever requirement. Reuse code only where target evidence supports
@@ -27,14 +26,10 @@ documented experimental waiver; a branch rename does not waive checks.
 ### Shared project baseline
 
 - Repository: /home/server/rustycore; remote: https://github.com/alseif0x/rustycore.git.
-- Target-version reference: /home/server/woltk-trinity-legacy (3.4.3).
+- Inherited gameplay comparison: /home/server/woltk-trinity-legacy (3.4.3). Use the Forever runbook and exact client build for modern protocol behavior.
 - Complementary gameplay reference: /home/server/azerothcore-wotlk-reference (3.3.5a).
   The pinned source checkout and its coverage are recorded in docs/README.md.
-- Target: full functional parity with the TrinityCore-derived WoW 3.4.3 server, not a
-  smaller compatible subset. A bounded milestone never silently reduces the full port.
-- Integration/default branch: 3.4.3. One implementation macro-issue, one feature branch,
-  one PR into 3.4.3. Main is only an optional stable release pointer; releases are tags.
-  Exception: see "#1241 wow-world split programme" below.
+- Keep one feature branch per agreed Forever delivery and target `forever` explicitly.
 - Toolchain is declared in rust-toolchain.toml / Cargo.toml (currently Rust 1.98, edition 2024).
 - Development host is aarch64; hosted runners are x86_64. Label machine-dependent evidence.
 - Local protoc: /home/ubuntu/.local/protoc/bin/protoc. Set PROTOC for protobuf-dependent builds.
@@ -67,8 +62,7 @@ Documentation entry point: [docs/README.md](docs/README.md). Current authorities
 - Runtime ADRs and [clock trace](docs/architecture/runtime-clock-phase-trace.md): relevant
   decisions and dated evidence; verify current spawn/call paths before changing runtime owners.
 
-Historical migration tables, percentage headlines, old checklists and the frozen
-current-session-handoff.md are not active instructions or current completion proof.
+The historical subsystem index and inventories preserve evidence from their recorded revisions.
 Read them for a specific historical question, not as a mandatory session preflight.
 Update the owning current document instead of creating another competing plan or status log.
 
@@ -116,8 +110,8 @@ Audit behavior against the relevant versioned C++ paths and appropriate real cap
 The user approved AzerothCore as a complementary source for missing or suspect gameplay in
 the Classic fork; neither core is complete or infallible, and shared ancestry is not independent
 proof. Compare the complete operation, scripts and effective data before adapting its logic.
-Keep 3.4.3 packet layouts, IDs/data schemas, admission and lifecycle contracts explicit: 3.3.5
-wire formats or SQL are not drop-in replacements. Resolve version differences using target-build
+For Forever, verify packet layouts, IDs, data schemas, admission and lifecycle against build 70170.
+Record the version whenever comparing inherited WotLK wire formats or SQL. Resolve version differences using target-build
 evidence and an explicit behavior contract; record source SHA/functions and retained uncertainty.
 A #1241 move-only step is exempt from a new C++ re-audit (see the programme note below).
 Use secondary references selectively for the active responsibility, not as a new whole-port audit.
@@ -209,14 +203,15 @@ evidence as passing.
 
 ### #1241 wow-world split programme
 
-This programme exception is owned by #1241, continued by #1263, and
+The historical 3.4.3 distribution programme (#1241 and #1263) used this contract.
+Apply it only to work that explicitly inherits the programme. See
 [wow-world-distribution-plan.md](docs/architecture/wow-world-distribution-plan.md):
 
 - It uses one PR per phase (F0, F1, ...) or per domain, merged continuously into 3.4.3,
   instead of one long-lived branch.
 - A move-only step (R2: no semantic change, no rename, no new canonical path) keeps its
   C++ anchors unchanged and needs no new C++ re-audit or per-helper source comparison.
-  Behavior changes go to #1241 F6 with parity evidence.
+  Track behavior changes separately and attach parity evidence to the owning issue.
 - The level-1 deferral does not apply. Each #1241 PR must compile
   (`cargo check -p wow-world --all-targets` plus the moved domain's crate), pass the moved
   domain's tests (R3) and pass the R1 net-move check
@@ -285,10 +280,7 @@ and available RAM/disk before launching. On this shared host start Cargo with on
 Do not kill unrelated processes to obtain resources. Agent-count limits are not resource locks.
 Live runtime QA (`tools/qa-runtime.sh`) uses a debug `world-server` candidate built from the committed
 head; release builds are reserved for deployment or a documented need for release speed.
-When several worktrees share one `CARGO_TARGET_DIR`, cargo can reuse another worktree's artifacts
-(path crates share artifact names and freshness is mtime-based): serialize builds behind one host
-lock and, before each build, touch in your worktree every file any active worktree changed, so the
-affected crates rebuild from your own sources. Architecture checkers build in the checkout-local
+Architecture checkers build in the checkout-local
 `target/arch-tools` and must print a scan-root banner naming the checkout.
 
 Keep direct Cargo and runner commands on the same per-worktree target directory; the
@@ -304,8 +296,8 @@ Use [validation-v2](docs/operations/validation-v2.md) and
 
 ~~~bash
 ./tools/validation-v2                              # level 1 / none: acknowledgement only
-./tools/validation-v2 2 --base origin/3.4.3       # quick hygiene
-./tools/validation-v2 3 --base origin/3.4.3       # final acceptance
+./tools/validation-v2 2 --base origin/forever       # quick hygiene
+./tools/validation-v2 3 --base origin/forever       # final acceptance
 ~~~
 
 At completed-delivery acceptance, select the real library/binary/integration target
@@ -320,7 +312,7 @@ alone do not establish production composition. Record evidence at the actual tes
 Ownership/module acceptance commands (select by affected scope, not per helper):
 
 For an acceptance requiring architecture policy, its fixtures and syntax ownership, use
-`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` to run their
+`./tools/validation-v2 final --base origin/forever --architecture --timings` to run their
 combined checks inside the same timed manifest. This replaces the three separate commands
 below and final's duplicate physical/hotspot scans; retain any required exhaustive inventory,
 terminal, production-integration and live acceptance that the combined command does not cover.
@@ -344,7 +336,7 @@ tab-separated columns. Do not pipe checks through a command that masks their exi
 Before an authorized push, validate the committed publication candidate:
 
 ~~~bash
-./tools/validation-v2 final --base origin/3.4.3
+./tools/validation-v2 final --base origin/forever
 ~~~
 
 Use the publication-evidence rules in `docs/operations/validation-v2.md`: unrelated
@@ -356,8 +348,7 @@ delta; never relabel an earlier run as having tested a later SHA.
 For exactly alseif0x-authored PRs, local final plus focused evidence is the required gate;
 configured hosted validation/reviewer jobs intentionally skip. External authors retain
 configured remote checks/review. Never broaden trust to an author-association role.
-The audit profile is exhaustive, not the routine pre-push profile; integration-branch
-pushes run it remotely. Preserve explicit issue acceptance even when a profile is green.
+The scheduled audit runs on the default branch. Use the local final profile for ordinary publication. Preserve explicit issue acceptance even when a profile is green.
 
 Capture-diff applies to changed bytes, metadata, connection or observable order. Fresh
 action-specific captures are distinct from regression goldens. Live lifecycle/runtime changes
@@ -386,10 +377,10 @@ configuration for secrets. A file being ignored does not make it safe to print.
 Reuse the active issue branch. At first implementation branch creation use:
 
 ~~~bash
-gh issue develop <N> --repo alseif0x/rustycore --base 3.4.3 --checkout
+gh issue develop <N> --repo alseif0x/rustycore --base forever --checkout
 ~~~
 
-PRs target 3.4.3 with Closes #<N> in the body. After an authorized push, create the PR if it
+Target `forever`. Use `Closes #<N>` only for a completed issue. For partial or cross-version work use `Refs #<N>` and name the branch. After an authorized push, create the PR if it
 does not already exist; update the existing PR rather than duplicating it. Resolve or explicitly
 defer actionable review findings and resolve conversations before an authorized merge.
 Do not infer merge authority from a commit, push or PR request.
@@ -398,7 +389,7 @@ Use rg for search and apply_patch for manual edits. Preserve unrelated dirty wor
 agents' changes; inspect overlaps before relying on them. Stage exact validated paths only.
 Do not revert, delete or overwrite unrelated work to obtain a clean tree.
 
-AGENTS.md, CLAUDE.md and the selected .agents/skills resources are tracked shared instructions.
+AGENTS.md and the selected .agents/skills resources are tracked shared instructions.
 Other local agent/workflow paths may be ignored; consult git ls-files and .gitignore rather than
 assuming. Do not force-add private local context unless explicitly requested. Keep one source
 for each rule; retire or redirect superseded guidance without discarding useful evidence.

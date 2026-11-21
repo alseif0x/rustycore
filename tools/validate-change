@@ -1,0 +1,385 @@
+#!/usr/bin/env python3
+"""Experimental scoped feedback for local Forever edits; not publication acceptance."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+import time
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DOC_LINK_CHECKER = "tools/ci/check_doc_links.py"
+DOC_LINK_TEST = "tools/ci/test_check_doc_links.py"
+SELF_TEST = "tools/test_validate_change.py"
+ROOT_CARGO_PATHS = {
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    ".protoc-version",
+    ".cargo/config",
+    ".cargo/config.toml",
+}
+RUSTFMT_PATHS = {"rustfmt.toml", ".rustfmt.toml"}
+
+
+def git(repo: Path, *arguments: str) -> bytes:
+    return subprocess.check_output(["git", *arguments], cwd=repo)
+
+
+def git_paths(repo: Path, *arguments: str) -> set[str]:
+    return {os.fsdecode(path) for path in git(repo, *arguments).split(b"\0") if path}
+
+
+def cargo_metadata(repo: Path) -> dict[str, object]:
+    command = [
+        "cargo", "metadata", "--format-version", "1", "--locked", "--offline", "--no-deps",
+    ]
+    result = subprocess.run(command, cwd=repo, text=True, capture_output=True)
+    if result.returncode:
+        if result.stderr:
+            print(result.stderr, file=sys.stderr, end="")
+        raise ValueError("locked offline Cargo metadata failed")
+    try:
+        metadata = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise ValueError("Cargo metadata returned invalid JSON") from error
+    if not isinstance(metadata, dict):
+        raise ValueError("Cargo metadata returned an invalid document")
+    return metadata
+
+
+def workspace_scope(
+    repo: Path, changed: list[str], metadata: dict[str, object]
+) -> tuple[list[str], list[str], bool, dict[str, str]]:
+    """Return direct packages, reverse consumers, broadness and manifest paths."""
+    members = metadata.get("workspace_members")
+    packages = metadata.get("packages")
+    if not isinstance(members, list) or not isinstance(packages, list):
+        raise ValueError("Cargo metadata has no workspace package inventory")
+    member_ids = set(members)
+    by_id: dict[str, dict[str, object]] = {}
+    roots: list[tuple[Path, str]] = []
+    manifest_paths: dict[str, str] = {}
+    for package in packages:
+        if not isinstance(package, dict) or package.get("id") not in member_ids:
+            continue
+        package_id = package.get("id")
+        manifest = package.get("manifest_path")
+        name = package.get("name")
+        if not all(isinstance(value, str) for value in (package_id, manifest, name)):
+            raise ValueError("Cargo metadata contains an invalid workspace package")
+        manifest_path = Path(manifest).resolve()
+        try:
+            manifest_path.parent.relative_to(repo)
+        except ValueError as error:
+            raise ValueError(f"workspace package is outside this checkout: {manifest}") from error
+        if package_id in by_id:
+            raise ValueError("Cargo metadata contains duplicate workspace package identities")
+        if name in manifest_paths:
+            raise ValueError(f"workspace package name is ambiguous: {name}")
+        by_id[package_id] = package
+        roots.append((manifest_path.parent, package_id))
+        manifest_paths[name] = manifest_path.relative_to(repo).as_posix()
+    if set(by_id) != member_ids:
+        raise ValueError("Cargo metadata workspace members do not map exactly to packages")
+    roots.sort(key=lambda item: (-len(item[0].parts), item[0].as_posix()))
+    by_directory = {root: package_id for root, package_id in roots}
+
+    direct_ids: set[str] = set()
+    removed_package_paths: list[str] = []
+    for path in changed:
+        source = (repo / path).resolve()
+        owner = next(
+            (package_id for root, package_id in roots if source == root or root in source.parents),
+            None,
+        )
+        if owner is not None:
+            direct_ids.add(owner)
+        elif path.startswith("crates/") and not (repo / path).exists():
+            # A removed member can have consumers no longer visible in current metadata.
+            removed_package_paths.append(path)
+        else:
+            raise ValueError(f"no workspace member owns {path}; full acceptance is required")
+
+    reverse: dict[str, set[str]] = {package_id: set() for package_id in member_ids}
+    for package_id, package in by_id.items():
+        dependencies = package.get("dependencies", [])
+        if not isinstance(dependencies, list):
+            raise ValueError(f"Cargo metadata has invalid dependencies for {package.get('name')}")
+        for dependency in dependencies:
+            if not isinstance(dependency, dict):
+                continue
+            raw_path = dependency.get("path")
+            if not isinstance(raw_path, str):
+                continue
+            path = Path(raw_path)
+            package_root = Path(str(by_id[package_id]["manifest_path"])).resolve().parent
+            dependency_root = path.resolve() if path.is_absolute() else (package_root / path).resolve()
+            dependency_id = by_directory.get(dependency_root)
+            if dependency_id is not None:
+                reverse[dependency_id].add(package_id)
+
+    root_wide = bool(removed_package_paths)
+    if root_wide:
+        direct_ids = set(member_ids)
+    closure = set(direct_ids)
+    pending = list(sorted(direct_ids))
+    while pending:
+        dependency = pending.pop()
+        for consumer in sorted(reverse[dependency]):
+            if consumer not in closure:
+                closure.add(consumer)
+                pending.append(consumer)
+
+    names = lambda ids: sorted(str(by_id[package_id]["name"]) for package_id in ids)
+    return names(direct_ids), names(closure), root_wide, manifest_paths
+
+
+def markdown_files(repo: Path) -> list[str]:
+    paths = git_paths(repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
+    return sorted(path for path in paths if Path(path).suffix.lower() == ".md" and (repo / path).is_file())
+
+
+def add(steps: list[tuple[str, list[str]]], reason: str, *command: str) -> None:
+    candidate = (reason, list(command))
+    if candidate not in steps:
+        steps.append(candidate)
+
+
+def package_args(packages: list[str]) -> list[str]:
+    return [argument for package in packages for argument in ("-p", package)]
+
+
+def plan(
+    repo: Path,
+    changed: list[str],
+    base: str,
+    focus: str | None = None,
+    package: str | None = None,
+    features: list[str] | None = None,
+    no_default_features: bool = False,
+) -> tuple[list[tuple[str, list[str]]], list[str]]:
+    steps: list[tuple[str, list[str]]] = []
+    needs: list[str] = []
+    add(steps, "Changed lines", "git", "diff", "--check", base, "--")
+
+    docs_changed = any(
+        Path(path).suffix.lower() == ".md" or not (repo / path).exists()
+        for path in changed
+    )
+    if docs_changed:
+        documents = markdown_files(repo)
+        if documents:
+            add(
+                steps,
+                "Relative links across current Markdown files",
+                sys.executable,
+                DOC_LINK_CHECKER,
+                *documents,
+            )
+        else:
+            needs.append("no current Markdown files remain for the link scan")
+    if {DOC_LINK_CHECKER, DOC_LINK_TEST}.intersection(changed):
+        add(steps, "Markdown link checker tests", sys.executable, DOC_LINK_TEST)
+    if {"tools/validate-change", SELF_TEST}.intersection(changed):
+        add(steps, "Scoped feedback tool tests", sys.executable, SELF_TEST)
+
+    rust_paths: list[str] = []
+    manifests: list[str] = []
+    root_wide = False
+    for path in sorted(changed):
+        if Path(path).suffix.lower() == ".md":
+            continue
+        if path in ROOT_CARGO_PATHS or path.startswith(".cargo/") or path.startswith("proto/"):
+            root_wide = True
+            needs.append(path)
+        elif path.startswith("crates/") and path.endswith("/Cargo.toml"):
+            manifests.append(path)
+            rust_paths.append(path)
+            needs.append(path)
+        elif path.startswith("crates/") and Path(path).suffix == ".rs":
+            rust_paths.append(path)
+            if Path(path).name == "build.rs":
+                needs.append(path)
+        elif path in RUSTFMT_PATHS:
+            continue
+        else:
+            needs.append(path)
+
+    direct: list[str] = []
+    consumers: list[str] = []
+    manifest_paths: dict[str, str] = {}
+    if rust_paths and not root_wide:
+        direct, consumers, removed, manifest_paths = workspace_scope(repo, rust_paths, cargo_metadata(repo))
+        if removed:
+            root_wide = True
+            needs.extend(path for path in rust_paths if not (repo / path).exists())
+
+    if any(path in RUSTFMT_PATHS for path in changed):
+        add(steps, "Workspace formatting configuration", "cargo", "fmt", "--all", "--check")
+    elif root_wide:
+        add(steps, "Workspace formatting", "cargo", "fmt", "--all", "--check")
+    else:
+        for name in direct:
+            add(
+                steps,
+                f"Formatting {name}",
+                "cargo", "fmt", "--manifest-path", manifest_paths[name], "--check",
+            )
+
+    if focus and not rust_paths:
+        raise ValueError("--focus requires a Rust workspace change")
+    if focus and root_wide:
+        raise ValueError("--focus cannot select a workspace-wide change")
+
+    if root_wide:
+        add(
+            steps,
+            "Workspace build targets",
+            "cargo", "check", "--locked", "--workspace", "--all-targets", "--jobs", "1",
+        )
+    elif rust_paths:
+        if focus:
+            if package is None and len(direct) != 1:
+                raise ValueError("choose the test owner with --package for a multi-package edit")
+            owner = package or direct[0]
+            if owner not in consumers:
+                raise ValueError(f"{owner} is outside the affected workspace packages")
+            feature_args = [argument for feature in features or [] for argument in ("--features", feature)]
+            if no_default_features:
+                feature_args.append("--no-default-features")
+            add(
+                steps,
+                "Focused editing feedback",
+                "cargo", "test", "--locked", "--jobs", "1", "-p", owner,
+                "--lib", *feature_args, "--", focus,
+            )
+        else:
+            if manifests:
+                for name in consumers:
+                    add(
+                        steps,
+                        f"Own feature configuration: {name}",
+                        "cargo", "check", "--locked", "--all-targets", "--jobs", "1", "-p", name,
+                    )
+            for name in direct:
+                add(
+                    steps,
+                    f"Changed package tests: {name}",
+                    "cargo", "test", "--locked", "--all-targets", "--jobs", "1", "-p", name,
+                )
+            for name in sorted(set(consumers) - set(direct)):
+                add(
+                    steps,
+                    f"Consumer targets: {name}",
+                    "cargo", "check", "--locked", "--all-targets", "--jobs", "1", "-p", name,
+                )
+
+    return steps, sorted(set(needs))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base", required=True, help="ancestor revision for the change set")
+    parser.add_argument("--working", action="store_true", help="include tracked working edits and untracked files")
+    parser.add_argument("--plan", action="store_true", help="print selected checks without running them")
+    parser.add_argument("--focus", help="run one matching library test for editing feedback")
+    parser.add_argument("--package", help="workspace package that owns the focused library test")
+    parser.add_argument("--features", action="append", help="Cargo feature for --focus (repeatable)")
+    parser.add_argument("--no-default-features", action="store_true", help="disable default features for --focus")
+    options = parser.parse_args()
+    if options.package and not options.focus:
+        parser.error("--package requires --focus")
+    if (options.features or options.no_default_features) and not options.focus:
+        parser.error("--features and --no-default-features require --focus")
+
+    try:
+        root_bytes = git(ROOT, "rev-parse", "--show-toplevel")
+        repo = Path(os.fsdecode(root_bytes).rstrip("\n")).resolve()
+        if repo != ROOT:
+            raise ValueError(f"tool root {ROOT} differs from Git root {repo}")
+        head = os.fsdecode(git(repo, "rev-parse", "HEAD")).strip()
+        base = os.fsdecode(git(repo, "rev-parse", "--verify", "--end-of-options", f"{options.base}^{{commit}}")).strip()
+        subprocess.run(["git", "merge-base", "--is-ancestor", base, head], cwd=repo, check=True)
+        status = git(repo, "status", "--porcelain=v1", "-z", "--untracked-files=normal")
+        dirty = bool(status)
+        if dirty and not options.working:
+            raise ValueError("commit the candidate or pass --working for local edits")
+        revisions = [base] if options.working else [base, head]
+        changed = sorted(git_paths(repo, "diff", "--no-renames", "--name-only", "-z", *revisions, "--"))
+        untracked = git_paths(repo, "ls-files", "--others", "--exclude-standard", "-z")
+        changed = sorted(set(changed) | untracked)
+        if not changed:
+            raise ValueError("empty change set")
+
+        steps, needs = plan(
+            repo,
+            changed,
+            base,
+            options.focus,
+            options.package,
+            options.features,
+            options.no_default_features,
+        )
+        target = Path(os.environ.get("CARGO_TARGET_DIR", repo / "target"))
+        if not target.is_absolute():
+            raise ValueError("CARGO_TARGET_DIR must be an absolute per-checkout path")
+        print(f"validate-change | base {base} | head {head} | working edits {dirty}", flush=True)
+        print(f"Cargo target: {target} | jobs: 1", flush=True)
+        for reason, command in steps:
+            print(f"{reason}: {shlex.join(command)}", flush=True)
+        if needs:
+            print("Additional acceptance required for:", *needs, sep="\n  ", flush=True)
+        print("Experimental editing evidence only; canonical validation-v2 acceptance remains required.", flush=True)
+        if options.plan:
+            return 2 if needs else 0
+
+        environment = os.environ.copy()
+        environment.setdefault("CARGO_BUILD_JOBS", "1")
+        environment["CARGO_TARGET_DIR"] = str(target)
+        started = time.monotonic()
+        for reason, command in steps:
+            before = time.monotonic()
+            focused = options.focus is not None and reason == "Focused editing feedback"
+            result = subprocess.run(
+                command,
+                cwd=repo,
+                env=environment,
+                stdout=subprocess.PIPE if focused else None,
+                stderr=subprocess.STDOUT if focused else None,
+                text=focused,
+            )
+            if focused and result.stdout:
+                print(result.stdout, end="")
+            print(f"{reason}: exit {result.returncode}, {time.monotonic() - before:.3f}s", flush=True)
+            if result.returncode:
+                print(f"Pilot stopped after {time.monotonic() - started:.3f}s.", flush=True)
+                return result.returncode
+            if focused:
+                matched = sum(
+                    int(line.split()[3])
+                    for line in (result.stdout or "").splitlines()
+                    if line.startswith("test result: ok.") and len(line.split()) > 3
+                )
+                if matched == 0:
+                    raise ValueError("focused test filter matched no passing tests")
+        if not options.working and (
+            os.fsdecode(git(repo, "rev-parse", "HEAD")).strip() != head
+            or git(repo, "status", "--porcelain=v1", "-z", "--untracked-files=normal")
+        ):
+            raise ValueError("checkout changed during the run")
+        print(f"Pilot checks passed in {time.monotonic() - started:.3f}s.", flush=True)
+        return 2 if needs else 0
+    except (OSError, subprocess.CalledProcessError, ValueError) as error:
+        print(f"validate-change: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -11,26 +11,20 @@ and [modularity plan](architecture/modularity-and-ecs-plan.md). Examples below
 are contrast techniques, not a current code/ownership inventory or a required
 mechanical migration order. Internal slices need not become micro-issues or PRs.
 
-Primary C++ source of truth:
+For Forever, start with the [target-build runbook](operations/forever-login.md) and verify the selected operation on build 70170. The checkout below is the inherited WotLK gameplay reference.
 
 - `/home/server/woltk-trinity-legacy`
 
-Secondary logic reference, only when legacy is incomplete or suspicious:
-
-- archived TrinityCore 3.3.5, for logic comparison only
-- do not copy code from it
-- record when it was used and why the legacy source was insufficient
+For inherited WotLK gameplay, AzerothCore WotLK supplies a complementary comparison when the Classic reference is missing or suspect. Identify the revision, function and version differences. Validate the operation against Forever's build before adapting it. [Reference checkouts](README.md#wotlk-reference-sources-inherited-by-forever)
 
 ## Non-negotiable Rules
 
 1. Do not trust existing Rust code.
    Existing Rust may be useful context, but every behavior must be contrasted
-   against C++ before it is accepted.
+   against versioned sources and target-build evidence before it is accepted.
 
 2. Do not trust previous AI work.
-   A commit message, roadmap checkbox or comment is not proof. C++ defines required
-   base-server behavior; Rust implementation, integration and relevant tests/captures
-   establish whether the port satisfies it.
+   A commit message, roadmap checkbox or comment is not proof. Use a versioned C++ reference for inherited base-server behavior and verify Forever-specific requirements against the target build. Rust integration, tests and captures establish which requirements the port satisfies.
 
 3. Do not mark roadmap tasks as done for scaffolding.
    Adding fields, enums, snapshots, queues, or placeholder hooks is not a

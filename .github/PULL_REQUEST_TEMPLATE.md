@@ -4,7 +4,7 @@
 
 ## C++ reference
 
-<!-- Required for port work. Link exact upstream C++ files/functions/lines from the canonical source you used. -->
+<!-- For port work give the Forever build, versioned source and relevant capture. -->
 
 - C++:
 - Rust:
@@ -26,7 +26,7 @@ retains remote validation/reviewer checks. Final publication evidence names the 
 HEAD. Add focused evidence for changed behavior AND explicit issue acceptance; internal macro
 checkpoints are not separate PRs. A skipped hosted job is not a test result. -->
 
-- [ ] `./tools/validation-v2 final --base origin/3.4.3`
+- [ ] `./tools/validation-v2 final --base origin/forever`
 - [ ] Focused tests:
 - [ ] Capture-diff (only packet/metadata/connection/order changes): not needed / result
 - [ ] Runtime QA (only lifecycle/runtime changes): not needed / result

@@ -11,6 +11,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RUST_CI = ROOT / ".github" / "workflows" / "rust-ci.yml"
+CODEX_REVIEW = ROOT / ".github" / "workflows" / "codex-review-gate.yml"
 DETERMINISM = ROOT / ".github" / "workflows" / "validation-determinism.yml"
 
 
@@ -164,16 +165,29 @@ def test_rust_ci_contract() -> None:
     workflow = RUST_CI.read_text(encoding="utf-8")
     assert "login != 'alseif0x'" in workflow
     assert "uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5" in workflow
+    assert (
+        '  pull_request:\n    branches:\n      - "3.4.3"\n      - "forever"\n'
+        '  push:\n    branches:\n      - "3.4.3"\n'
+    ) in workflow
     assert "uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659" in workflow
     assert "uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in workflow
+    assert "working-directory: rustycore" in workflow
     assert "base:\n        description: Explicit ancestor base required for a manual final run" in workflow
     assert "required: false\n        type: string" in workflow
 
     checkout = workflow.index("- name: Check out exact validation SHA")
+    extractor = workflow.index("- name: Check out pinned read-only extractor sibling")
     manual_base = workflow.index("- name: Validate manual final base")
     toolchain = workflow.index("- name: Install pinned Rust")
     fetch = workflow.index("- name: Prepare locked offline inputs")
-    assert checkout < manual_base < toolchain < fetch
+    assert checkout < extractor < manual_base < toolchain < fetch
+    extractor_step = step_block(workflow, "Check out pinned read-only extractor sibling")
+    assert "repository: alseif0x/rustycore-extractors" in extractor_step
+    assert "ref: d8f4044f63f4d47fcb44d655d11cea90889ec8ea" in extractor_step
+    assert "path: rustycore-extractors" in extractor_step
+    assert "persist-credentials: false" in extractor_step
+    assert "path: rustycore\n" in step_block(workflow, "Check out exact validation SHA")
+    assert "rust-src-dir: rustycore" in step_block(workflow, "Install pinned Rust")
 
     profile_expression = "${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}"
     head_expression = "${{ github.event.pull_request.head.sha || github.sha }}"
@@ -227,7 +241,7 @@ def test_rust_ci_contract() -> None:
     assert "name: validation-v2-${{ env.VALIDATION_V2_PROFILE }}-${{ github.sha }}-${{ github.run_attempt }}" in upload
     assert "validation-v2-manifest.json" in upload
     assert "validation-v2-manifest-logs/" in upload
-    assert "target/cargo-timings/*.html" in upload
+    assert "rustycore/target/cargo-timings/*.html" in upload
     assert "target/**" not in upload
     assert "if-no-files-found: error" in upload
 
@@ -261,9 +275,18 @@ def test_determinism_contract() -> None:
         assert "${{" not in block
 
 
+def test_codex_review_branch_contract() -> None:
+    workflow = CODEX_REVIEW.read_text(encoding="utf-8")
+    assert (
+        '  pull_request:\n    branches:\n      - "3.4.3"\n      - "forever"\n'
+    ) in workflow
+    assert "if: github.event.pull_request.user.login != 'alseif0x'" in workflow
+
+
 def main() -> None:
     test_manual_base_validation()
     test_rust_ci_contract()
+    test_codex_review_branch_contract()
     test_determinism_contract()
     print("validation workflow tests passed")
 

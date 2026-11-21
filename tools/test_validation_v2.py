@@ -77,6 +77,7 @@ def stable_manifest(value: object) -> object:
 
 
 def test_no_validation_level() -> None:
+    assert runner.DEFAULT_BASE == "origin/forever"
     for arguments in ([], ["none"], ["1"]):
         captured = io.StringIO()
         with patch.object(sys, "argv", ["validation-v2", *arguments]), \
@@ -1124,8 +1125,28 @@ def test_planner_contract(repo: Path) -> None:
     }
     quick, _ = runner.validation_commands(repo, "quick", 2, "base", one_crate_groups, workspace)
     final, _ = runner.validation_commands(repo, "final", 2, "base", one_crate_groups, workspace)
-    assert ["cargo", "fmt", "--all", "--check"] in quick
+    member_fmt = ["cargo", "fmt", "--manifest-path", "crates/a/Cargo.toml", "--check"]
+    all_fmt = ["cargo", "fmt", "--all", "--check"]
+    assert member_fmt in quick and all_fmt not in quick
+    assert member_fmt in final and all_fmt not in final
     assert all(command[0] != "cargo" or command[1] == "fmt" for command in quick)
+    for extra in (
+        "crates/b/src/lib.rs",
+        "crates/a/src/deleted.rs",
+        "crates/a/build.rs",
+        "crates/a/tests/case.rs",
+        "crates/missing/src/lib.rs",
+        "crates/a/Cargo.toml",
+        "Cargo.lock",
+    ):
+        groups = runner.grouped_paths([*one_crate_paths, extra])
+        assert runner.workspace_format(repo, groups) == all_fmt, extra
+    for mode in ("quick", "final"):
+        groups = runner.grouped_paths([*one_crate_paths, "rustfmt.toml"])
+        commands, _ = runner.validation_commands(repo, mode, 2, "base", groups, workspace)
+        assert all_fmt in commands and member_fmt not in commands
+        for manifest in (runner.CHECKER_MANIFEST, runner.BOT_MANIFEST):
+            assert ["cargo", "fmt", "--manifest-path", manifest, "--", "--check"] in commands
     final_check = next(command for command in final if command[:2] == ["cargo", "check"])
     assert all(package in final_check for package in ("a", "b", "c"))
     final_test = next(command for command in final if command[:2] == ["cargo", "test"])
@@ -1391,6 +1412,9 @@ def test_planner_contract(repo: Path) -> None:
                 ])
                 assert runner.validation_commands(repo, mode, 1, "base", overlapping, config_workspace)[0] == planned
 
+    assert runner.classify_path("crates/wow-world/_attic/README.md") == "documentation"
+    assert runner.classify_path("crates/wow-world/_attic/data.rs.txt") == "workspace-rust"
+    assert runner.classify_path("crates/wow-world/src/fixture.md") == "workspace-rust"
     assert runner.classify_path("docs/config.toml") == "documentation"
     assert runner.classify_path(".cargo/unrelated-note") == "other"
 

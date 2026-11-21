@@ -2,7 +2,7 @@
 
 **Original decision:** 2026-05-29, base `6671dee`. **Current documentation review:**
 2026-09-05 at `7eaf8ddc`, production code `93e4002a`. **Status:** single-writer and phase
-invariants retained; convergence acceptance remains open under #578.
+invariants retained; remaining core convergence acceptance belongs to #584.
 
 This ADR preserves the runtime decision and its dated implementation history. Current execution
 follows [PORT_PLAN.md](PORT_PLAN.md), the [#578 checkpoint](../architecture/session-578-checkpoint.md)
@@ -15,7 +15,7 @@ selective-hecs decision; it does not replace the runtime invariants here.
 production spawns no legacy creature loop and the `RustyCore.LegacyCreatureGlobalRuntime` /
 `RustyCore.CanonicalCreatureRuntime` keys are retired. Context item 1 below describes the
 state before that change. See §8 of the
-[distribution plan](../architecture/wow-world-distribution-plan.md) (F6-8D3b-2).
+[archived distribution plan](https://github.com/alseif0x/rustycore/blob/5fe18d391a4adb43e72a764f9235d855761fdf24/docs/architecture/wow-world-distribution-plan.md) (F6-8D3b-2).
 
 **2026-10-11 update (#1263 F6-8E-1):** `RuntimeTickOwner` itself is deleted, together with every
 runtime it selected besides the canonical map loop: the per-session creature and combat ticks,
@@ -1969,7 +1969,7 @@ Current navigation anchors; the earlier log's paths/counts belong to its histori
 - `crates/world-server/src/app.rs` — composition/spawns; `runtime/{map,delivery}.rs` — loops
   and delivery bridges; `bootstrap/config.rs` — production configuration default.
 - C++: `World.cpp:2748` (`sMapMgr->Update`), `Map.cpp:666` (`Map::Update` phase order).
-- `docs/migration/honest-progress-audit.md`, `crates/wow-world/_attic/README.md` (big-bang lesson).
+- [dated R8 coverage audit](https://github.com/alseif0x/rustycore/blob/5fe18d391a4adb43e72a764f9235d855761fdf24/docs/migration/honest-progress-audit.md), `crates/wow-world/_attic/README.md` (big-bang lesson).
 
 ## 2026-08-22 — Issue #188: the recorded clock/phase trace and the tick-owner default
 

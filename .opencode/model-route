@@ -36,7 +36,7 @@ def status():
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in {"go", "api", "status"}:
-        print("Uso: .opencode/model-route {go|api|status}", file=sys.stderr)
+        print("Usage: .opencode/model-route {go|api|status}", file=sys.stderr)
         return 2
     if sys.argv[1] == "status":
         status()
@@ -44,7 +44,7 @@ def main():
     missing = [path for path in FILES if not path.is_file()]
     if missing:
         for path in missing:
-            print(f"No existe: {path.relative_to(ROOT)}", file=sys.stderr)
+            print(f"File missing: {path.relative_to(ROOT)}", file=sys.stderr)
         return 1
     mapping = GO_TO_API if sys.argv[1] == "api" else API_TO_GO
     for path in FILES:
@@ -55,13 +55,13 @@ def main():
     status()
     if sys.argv[1] == "api":
         print(
-            "Aviso: `api` deja opencode.json (y .opencode/agents/*.md) modificados en el checkout; "
-            "no commitees ese cambio. Vuelve con `.opencode/model-route go` antes de commitear.",
+            "The API route edits opencode.json and matching agent files in this checkout. "
+            "Restore the Go route with `.opencode/model-route go` before committing.",
             file=sys.stderr,
         )
     # Reload the shared background server; a --standalone instance needs a restart.
     if shutil.which("opencode") is None:
-        print("opencode no está instalado: se omite `opencode reload`.", file=sys.stderr)
+        print("OpenCode is unavailable. Skipping `opencode reload`.", file=sys.stderr)
     else:
         subprocess.run(["opencode", "reload"], cwd=ROOT, check=False)
     return 0
