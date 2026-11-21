@@ -246,7 +246,7 @@ pub fn create_map_active_instance_lock_context_with_expiry_like_cpp<
     difficulty_id: wow_map::Difficulty,
 ) -> Option<(
     wow_map::CreateMapInstanceLockContext,
-    wow_map::InstanceMapExpiryContextLikeCpp,
+    wow_map::manager::InstanceMapExpiryContextLikeCpp,
 )> {
     with_active_map_lock_like_cpp(
         host,
@@ -255,7 +255,7 @@ pub fn create_map_active_instance_lock_context_with_expiry_like_cpp<
         |context, lock, entries, schedule| {
             (
                 context,
-                wow_map::InstanceMapExpiryContextLikeCpp {
+                wow_map::manager::InstanceMapExpiryContextLikeCpp {
                     current_expiry_time: lock.expiry_time,
                     entries: *entries,
                     reset_schedule: schedule,

@@ -229,10 +229,10 @@ fn add_second_expiry_occupant_like_cpp(
 }
 
 fn expiry_occupant_command_like_cpp(
-    update: &wow_map::MapTickInstanceExpiryUpdateLikeCpp,
+    update: &wow_map::manager::MapTickInstanceExpiryUpdateLikeCpp,
     occupant: wow_map::MapSessionPassParticipantLikeCpp,
-) -> wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand {
-    wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand {
+) -> wow_world_core::session::mailbox::ExpireInstanceMapOccupantLikeCppCommand {
+    wow_world_core::session::mailbox::ExpireInstanceMapOccupantLikeCppCommand {
         recipient: occupant.guid,
         handle: occupant.handle,
         residence_revision: occupant.residence_revision,
@@ -259,7 +259,7 @@ fn assert_expired_notice_like_cpp(packet_bytes: &[u8]) {
 
 fn apply_expiry_command_like_cpp(
     session: &mut crate::session::WorldSession,
-    command: wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand,
+    command: wow_world_core::session::mailbox::ExpireInstanceMapOccupantLikeCppCommand,
 ) {
     use wow_world_core::session::SessionHubHostLikeCpp;
     wow_world_instances::apply_instance_map_expiry_to_occupant_like_cpp(
@@ -278,11 +278,13 @@ fn attach_expiry_context_like_cpp(
     manager
         .find_map_mut(key.map_id, key.instance_id)
         .unwrap()
-        .set_instance_expiry_context_like_cpp(Some(wow_map::InstanceMapExpiryContextLikeCpp {
-            current_expiry_time: expiry_time,
-            entries,
-            reset_schedule: wow_instances::ResetSchedule::default(),
-        }));
+        .set_instance_expiry_context_like_cpp(Some(
+            wow_map::manager::InstanceMapExpiryContextLikeCpp {
+                current_expiry_time: expiry_time,
+                entries,
+                reset_schedule: wow_instances::ResetSchedule::default(),
+            },
+        ));
 }
 
 struct GroupPersistenceFixtureLikeCpp {
@@ -876,7 +878,7 @@ async fn stale_expiry_map_or_player_incarnation_publishes_nothing_like_cpp() {
                 .1,
         )
     };
-    let command = wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand {
+    let command = wow_world_core::session::mailbox::ExpireInstanceMapOccupantLikeCppCommand {
         recipient: player_guid,
         handle,
         residence_revision,
@@ -893,10 +895,11 @@ async fn stale_expiry_map_or_player_incarnation_publishes_nothing_like_cpp() {
     );
     assert!(canonical_player_pending_bind_for_test_like_cpp(&session).is_none());
 
-    let stale_player_command = wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand {
-        map_incarnation,
-        ..command
-    };
+    let stale_player_command =
+        wow_world_core::session::mailbox::ExpireInstanceMapOccupantLikeCppCommand {
+            map_incarnation,
+            ..command
+        };
     let relogged_handle = {
         let mut manager = canonical.lock().unwrap();
         assert!(manager.retire_player_like_cpp(handle).is_some());

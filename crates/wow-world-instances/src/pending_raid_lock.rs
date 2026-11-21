@@ -3,7 +3,7 @@ use wow_packet::packets::instance::{
     PendingRaidLock, RaidInstanceMessage, RaidInstanceMessageType,
 };
 use wow_world_core::session::{
-    ExpireInstanceMapOccupantLikeCppCommand, HubMut, HubRef, connection_identity::unix_now,
+    HubMut, HubRef, connection_identity::unix_now, mailbox::ExpireInstanceMapOccupantLikeCppCommand,
 };
 
 /// C++ InstanceMap::AddPlayerToMap, before Map::AddPlayerToMap sends the self create.

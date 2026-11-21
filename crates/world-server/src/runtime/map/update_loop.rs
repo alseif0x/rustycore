@@ -157,7 +157,7 @@ fn consume_pending_instance_map_last_leave_checks_like_cpp(
 }
 
 fn deliver_instance_map_expiry_updates_like_cpp(
-    updates: &[wow_map::MapTickInstanceExpiryUpdateLikeCpp],
+    updates: &[wow_map::manager::MapTickInstanceExpiryUpdateLikeCpp],
     player_registry: &PlayerRegistry,
 ) {
     let Some(map_manager) = player_registry.canonical_map_manager_like_cpp() else {

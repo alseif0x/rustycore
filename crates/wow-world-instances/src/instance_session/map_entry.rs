@@ -323,7 +323,7 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
                 (
                     Some(context),
                     (!lock.is_new).then(|| lock.instance_initialization_data()),
-                    Some(wow_map::InstanceMapExpiryContextLikeCpp {
+                    Some(wow_map::manager::InstanceMapExpiryContextLikeCpp {
                         current_expiry_time: lock.expiry_time,
                         entries: *entries,
                         reset_schedule,
