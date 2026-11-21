@@ -81,7 +81,12 @@ appropriate authorized integration or live evidence; library tests alone are not
 
 ## Pull requests
 
-Open or update one PR into `3.4.3` for the issue-linked branch. A useful PR description includes:
+Select `3.4.3` explicitly as the base for this client version. GitHub defaults to `forever`.
+External PRs need `Full validation` and `Codex reviewer verdict`. For PRs authored by
+`alseif0x`, both jobs skip and the maintainer supplies local acceptance evidence.
+[Local and hosted checks](docs/operations/local-first-development.md)
+
+Open or update one PR for the issue-linked branch. A useful PR description includes:
 
 - the user-visible or maintainer-visible problem and resulting behavior;
 - the relevant C++ anchor, capture identity, or reason a source comparison is not applicable;

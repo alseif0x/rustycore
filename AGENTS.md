@@ -13,7 +13,8 @@ is correctness proof. This guide does not override explicit user scope or approv
   The pinned source checkout and its coverage are recorded in docs/README.md.
 - Target: full functional parity with the TrinityCore-derived WoW 3.4.3 server, not a
   smaller compatible subset. A bounded milestone never silently reduces the full port.
-- Integration/default branch: 3.4.3. One implementation macro-issue, one feature branch,
+- Target `3.4.3` explicitly for work on this client version. GitHub's default branch is
+  `forever`, which has its own development and CI configuration. One implementation macro-issue, one feature branch,
   one PR into 3.4.3. Main is only an optional stable release pointer; releases are tags.
   Exception: see "#1241 wow-world split programme" below.
 - Toolchain is declared in rust-toolchain.toml / Cargo.toml (currently Rust 1.98, edition 2024).
@@ -197,7 +198,8 @@ evidence as passing.
 
 ### #1241 wow-world split programme
 
-This programme exception is owned by #1241, continued by #1263, and
+The closed #1241 and #1263 programmes used the following phase-specific acceptance.
+It applies to follow-ups that explicitly inherit it. See
 [wow-world-distribution-plan.md](docs/architecture/wow-world-distribution-plan.md):
 
 - It uses one PR per phase (F0, F1, ...) or per domain, merged continuously into 3.4.3,
@@ -343,7 +345,8 @@ delta; never relabel an earlier run as having tested a later SHA.
 
 For exactly alseif0x-authored PRs, local final plus focused evidence is the required gate;
 configured hosted validation/reviewer jobs intentionally skip. External authors retain
-configured remote checks/review. Never broaden trust to an author-association role.
+`Full validation` on the proposed merge and `Codex reviewer verdict` on the PR head.
+Never broaden trust to an author-association role.
 The audit profile is exhaustive, not the routine pre-push profile; integration-branch
 pushes run it remotely. Preserve explicit issue acceptance even when a profile is green.
 
@@ -377,7 +380,9 @@ Reuse the active issue branch. At first implementation branch creation use:
 gh issue develop <N> --repo alseif0x/rustycore --base 3.4.3 --checkout
 ~~~
 
-PRs target 3.4.3 with Closes #<N> in the body. After an authorized push, create the PR if it
+Target `3.4.3` explicitly. Use `Closes #<N>` only when all acceptance criteria are met.
+For a partial delivery, use `Refs #<N>` and record the remaining work on the issue.
+After an authorized push, create the PR if it
 does not already exist; update the existing PR rather than duplicating it. Resolve or explicitly
 defer actionable review findings and resolve conversations before an authorized merge.
 Do not infer merge authority from a commit, push or PR request.

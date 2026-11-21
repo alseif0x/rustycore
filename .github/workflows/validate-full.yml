@@ -10,13 +10,18 @@ on:
         default: false
   pull_request:
     branches: ["3.4.3"]
-    paths:
-      - ".github/workflows/validate-full.yml"
-      - "tools/validate-full"
-      - "tools/full-validation/**"
-      - "tools/ci/full_*.py"
-      - "tools/ci/test_full_policy.py"
-      - "tools/ci/test_validate_full.py"
+
+concurrency:
+  # Reusable calls inherit the caller's github context; scope cancellation to
+  # direct runs from this file and keep each workflow_call run independent.
+  group: >-
+    ${{ github.event_name == 'pull_request' &&
+        contains(github.workflow_ref, '/.github/workflows/validate-full.yml@') &&
+        format('full-validation-pr-{0}', github.event.pull_request.number) ||
+        format('full-validation-run-{0}', github.run_id) }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' &&
+        contains(github.workflow_ref, '/.github/workflows/validate-full.yml@') }}
 
 permissions:
   contents: read

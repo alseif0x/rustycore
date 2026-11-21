@@ -20,6 +20,11 @@ MODULE_INPUTS = {"modules.lock.toml", "crates/world-server/src/app.rs",
                  "crates/world-server/src/entry.rs", "crates/world-server/src/lib.rs"}
 FULL_TOOLS = {"tools/validate-full", "tools/ci/full_policy.py", "tools/ci/full_snapshot.py",
               "tools/ci/test_validate_full.py", "tools/ci/test_full_policy.py"}
+WORKFLOW_CONTRACT_TOOLS = {"tools/test_validation_workflows.py"}
+DOCUMENT_LINK_TOOLS = {"tools/ci/check_doc_links.py", "tools/ci/test_check_doc_links.py"}
+ROOT_MARKDOWN = {"AGENTS.md", "CLAUDE.md", "CLAUDE_PLAN_AUTONOMO.md", "CONTRIBUTING.md",
+                 "MIGRATION_STATUS.md", "README.md"}
+ESTABLISHED_MARKDOWN_PREFIXES = (".agents/", ".claude/", ".github/", ".opencode/", "docs/")
 WORKSPACE_SOURCES = ("crates/", "tools/xtask/")
 SQL_CHECKER = "tools/modules/check_sql_compositor.py"
 CAPTURE_FLOWS = Path("crates/capture-diff/flows")
@@ -41,6 +46,24 @@ def switches(packages):
 
 def global_build(files):
     return bool(files & GLOBAL_BUILD) or any(p.startswith((".cargo/", "proto/")) for p in files)
+
+
+def established_markdown(path):
+    """Whether Markdown belongs to a repository document tree with link coverage."""
+    if path in ROOT_MARKDOWN or path.startswith(ESTABLISHED_MARKDOWN_PREFIXES):
+        return path.endswith(".md")
+    if path in {"assets/brand/README.md", "modules/README.md", "tools/codex-review-policy.md"}:
+        return True
+    if path.startswith(("crates/capture-diff/", "crates/wow-world/_attic/", "tools/wow-test-bot/")):
+        return path.endswith(".md")
+    if path.startswith(("tools/architecture/", "tools/modules/")):
+        return path.endswith("/README.md")
+    return False
+
+
+def repository_markdown():
+    """Return every tracked Markdown document in the immutable candidate."""
+    return [os.fsdecode(path) for path in output("git", "ls-files", "-z", "--", "*.md").split(b"\0") if path]
 
 
 def capture_contract(name):
@@ -98,9 +121,10 @@ def build_plan(files, base, head):
     metadata_runs = global_build(files) or any(p.startswith(WORKSPACE_SOURCES) for p in files)
     unsupported = set()
     existing = [p for p in sorted(files) if Path(p).is_file()]
-    docs = [p for p in existing if p.endswith(".md")]
-    if docs:
-        commands.append(("Document file links", [sys.executable, str(HERE / "ci/check_doc_links.py"), *docs]))
+    documents = repository_markdown()
+    if documents:
+        commands.append(("Repository Markdown links", [sys.executable, str(HERE / "ci/check_doc_links.py"),
+                                                        *documents]))
     for path in existing:
         if path.endswith(".json"):
             json.loads(Path(path).read_text(encoding="utf-8"))
@@ -111,7 +135,11 @@ def build_plan(files, base, head):
     workflows = [p for p in existing if p.startswith(".github/workflows/")]
     if workflows:
         commands.append(("Workflow syntax", ["actionlint", *workflows]))
+    if workflows or files & WORKFLOW_CONTRACT_TOOLS:
         commands.append(("Workflow contracts", [sys.executable, "tools/test_validation_workflows.py"]))
+    if files & DOCUMENT_LINK_TOOLS:
+        commands.append(("Markdown link checker regression tests",
+                         [sys.executable, "tools/ci/test_check_doc_links.py"]))
     for manifest in ("tools/wow-test-bot/Cargo.toml", "tools/architecture/handler-contract-check/Cargo.toml"):
         directory = Path(manifest).parent
         if global_build(files) or any(Path(p).is_relative_to(directory) for p in files):
@@ -144,13 +172,14 @@ def build_plan(files, base, head):
         commands.append(("Composed SQL launcher", [sys.executable, SQL_CHECKER,
                                                    "--jobs", os.environ.get("CARGO_BUILD_JOBS", "1")]))
     for path in files:
-        standalone_doc = (path.startswith(("docs/operations/", "docs/audits/"))
-                          or path == "docs/architecture/ownership-and-boundaries.md")
-        if (path in GLOBAL_BUILD | MODULE_INPUTS or (standalone_doc and path.endswith(".md") and path in existing)
+        standalone_doc = established_markdown(path)
+        if (path in GLOBAL_BUILD | MODULE_INPUTS or standalone_doc
                 or path in workflows
                 or path.startswith(WORKSPACE_SOURCES + (".cargo/", "proto/", "tools/architecture/", "tools/wow-test-bot/", "tools/modules/"))):
             continue
         if path.startswith("tools/full-validation/") or path in FULL_TOOLS:
+            continue
+        if path in WORKFLOW_CONTRACT_TOOLS | DOCUMENT_LINK_TOOLS:
             continue
         unsupported.add(path)
     if files & FULL_TOOLS or any(p.startswith("tools/full-validation/") for p in files):
@@ -168,6 +197,7 @@ def workspace_plan(base, head, part):
     bot = "tools/wow-test-bot/Cargo.toml"
     native = ["--release", "--locked", "--manifest-path", checker, "--target-dir", "target/arch-tools"]
     jobs = os.environ["CARGO_BUILD_JOBS"]
+    documents = repository_markdown()
     checks = []
     if part in ("build", "all"):
         checks.extend([
@@ -181,6 +211,9 @@ def workspace_plan(base, head, part):
             ("Composed SQL launcher", [sys.executable, SQL_CHECKER, "--jobs", jobs]),
             ("Bot suite", ["cargo", "test", "--locked", "--manifest-path", bot, "--no-fail-fast"]),
         ])
+        if documents:
+            checks.insert(3, ("Repository Markdown links", [sys.executable, str(HERE / "ci/check_doc_links.py"),
+                                                            *documents]))
         checks.extend(capture_contract(name) for name in sorted(AUDITED_FLOWS))
     if part in ("policy", "all"):
         checks.extend([

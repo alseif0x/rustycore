@@ -3,6 +3,7 @@ import json
 import fcntl
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -304,6 +305,42 @@ class FullValidationTests(unittest.TestCase):
         self.write("new-inputs/fixture.md", "build input\n")
         self.commit()
         self.assertIn("Coverage required", self.build("--plan", expected=2))
+
+    def test_established_markdown_path_coverage_is_complete(self):
+        repository = RUNNER.parent.parent
+        paths = subprocess.check_output(
+            ["git", "ls-files", "-z", "--", "*.md"], cwd=repository
+        ).split(b"\0")
+        is_established = runpy.run_path(str(RUNNER))["established_markdown"]
+        unowned = [path.decode() for path in paths if path and not is_established(path.decode())]
+        self.assertEqual(unowned, [])
+
+    def test_established_markdown_uses_repository_wide_link_check(self):
+        self.write("README.md", "# Root\n")
+        self.write("docs/architecture/new-contract.md", "[Guide](../README.md)\n")
+        self.commit()
+
+        plan = self.build("--plan")
+        self.assertIn("Repository Markdown links:", plan)
+        self.assertIn("README.md", plan)
+        self.assertIn("docs/architecture/new-contract.md", plan)
+        self.assertNotIn("Coverage required", plan)
+
+    def test_workflow_contract_test_is_covered_when_it_changes_alone(self):
+        self.write("tools/test_validation_workflows.py", "# workflow contract fixture\n")
+        self.commit()
+
+        plan = self.build("--plan")
+        self.assertIn("Workflow contracts:", plan)
+        self.assertNotIn("Coverage required", plan)
+
+    def test_document_link_checker_tests_are_selected_with_the_checker(self):
+        self.write("tools/ci/check_doc_links.py", "# checker fixture\n")
+        self.commit()
+
+        plan = self.build("--plan")
+        self.assertIn("Markdown link checker regression tests:", plan)
+        self.assertNotIn("Coverage required", plan)
 
 
 if __name__ == "__main__":
