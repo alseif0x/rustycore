@@ -1117,7 +1117,7 @@ def validate_calendar_lockout_added(evidence: dict[str, Any], save_event: dict[s
     flags = (packed_time >> 29) & 0x03
     if (map_id != LOCK_MAP or difficulty_id != LOCK_DIFFICULTY or remaining <= 0
             or (expected_instance_id is not None and instance_id != expected_instance_id)
-            or packed_time & (1 << 31)
+            or packed_time & (1 << 31) or flags != 3
             or not (year < 31 and month < 12 and month_day < 31 and week_day < 7
                     and hour < 24 and minute < 60)):
         raise ScenarioFailure("calendar raid-lockout identity, remaining time, or packed time is invalid")
@@ -1210,8 +1210,8 @@ def validate_raid_info_evidence(evidence: dict[str, Any], actor: dict[str, Any],
     if len(responses) != 1:
         raise ScenarioFailure("RaidInfo response was not observed once after the requested action")
     event = responses[0]
-    if _sequence(event) <= _sequence(requests[0]):
-        raise ScenarioFailure("RaidInfo response was not observed after the requested action")
+    if event.get("connection") != "realm":
+        raise ScenarioFailure("RaidInfo response arrived on the wrong connection")
     try:
         body = bytes.fromhex(event.get("body_hex", ""))
     except ValueError:
@@ -1220,7 +1220,7 @@ def validate_raid_info_evidence(evidence: dict[str, Any], actor: dict[str, Any],
         raise ScenarioFailure("RaidInfo response is shorter than its lock count")
     count = int.from_bytes(body[:4], "little")
     row_size = 25
-    if count < 0 or len(body) != 4 + count * row_size:
+    if len(body) != 4 + count * row_size:
         raise ScenarioFailure("RaidInfo response count does not match its wire rows")
     locks = []
     for index in range(count):

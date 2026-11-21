@@ -37,4 +37,6 @@ pub use string::{
     string_contains_string_i_like_cpp, utf8_to_lower_only_latin_like_cpp,
     utf8_to_upper_only_latin_like_cpp,
 };
-pub use time::{GameTime, IntervalTimer, ServerTime};
+pub use time::{
+    GameTime, IntervalTimer, ServerTime, pack_local_wow_time_from_unix_seconds_like_cpp,
+};

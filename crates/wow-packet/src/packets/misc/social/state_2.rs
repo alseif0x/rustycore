@@ -262,7 +262,9 @@ impl CalendarSendCalendar {
 
     pub fn empty_at_unix(unix_seconds: i64) -> Self {
         Self {
-            server_time_packed: wow_time_packed_from_unix_seconds(unix_seconds),
+            server_time_packed: calendar_server_time_packed_from_unix_seconds_like_cpp(
+                unix_seconds,
+            ),
             invite_count: 0,
             event_count: 0,
             raid_lockout_count: 0,
@@ -301,7 +303,9 @@ impl CalendarRaidLockoutAdded {
     ) -> Self {
         Self {
             instance_id,
-            server_time_packed: wow_time_packed_from_unix_seconds(unix_seconds),
+            server_time_packed: calendar_server_time_packed_from_unix_seconds_like_cpp(
+                unix_seconds,
+            ),
             map_id,
             difficulty_id,
             time_remaining,
@@ -358,7 +362,9 @@ impl CalendarRaidLockoutUpdated {
         new_time_remaining: i32,
     ) -> Self {
         Self {
-            server_time_packed: wow_time_packed_from_unix_seconds(unix_seconds),
+            server_time_packed: calendar_server_time_packed_from_unix_seconds_like_cpp(
+                unix_seconds,
+            ),
             map_id,
             difficulty_id,
             old_time_remaining,

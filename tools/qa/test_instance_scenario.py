@@ -1006,8 +1006,10 @@ class LockPlanAndWireTests(unittest.TestCase):
             "completed_encounters_mask": 1, "flags": 0x80,
         })
 
+        wrong_route = raid_info_evidence()
+        wrong_route["events"][0]["connection"] = "instance"
         for malformed in (raid_info_evidence(mask=0), raid_info_evidence(flags=0x00),
-                          raid_info_evidence(response_sequence=9)):
+                          raid_info_evidence(response_sequence=9), wrong_route):
             with self.subTest(evidence=malformed), self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_raid_info_evidence(malformed, leader, 42, expected_mask=1)
 

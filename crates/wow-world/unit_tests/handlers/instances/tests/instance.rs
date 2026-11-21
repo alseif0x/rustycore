@@ -1010,7 +1010,8 @@ async fn set_saved_instance_extend_updates_lock_and_sends_calendar_like_cpp() {
         ServerOpcodes::CalendarRaidLockoutUpdated as u16
     );
     let mut pkt = WorldPacket::from_bytes(&sent[2..]);
-    let _server_time = pkt.read_uint32().unwrap();
+    let server_time = pkt.read_uint32().unwrap();
+    assert_eq!((server_time >> 29) & 0x03, 0x03);
     assert_eq!(pkt.read_int32().unwrap(), 631);
     assert_eq!(pkt.read_uint32().unwrap(), 4);
     let old_remaining = pkt.read_int32().unwrap();
@@ -1189,7 +1190,8 @@ async fn instance_lock_response_accept_confirms_and_clears_pending_bind_like_cpp
     );
     let mut pkt = WorldPacket::from_bytes(&sent[2..]);
     assert_eq!(pkt.read_uint64().unwrap(), 9001);
-    let _server_time = pkt.read_uint32().unwrap();
+    let server_time = pkt.read_uint32().unwrap();
+    assert_eq!((server_time >> 29) & 0x03, 0x03);
     assert_eq!(pkt.read_int32().unwrap(), 631);
     assert_eq!(pkt.read_uint32().unwrap(), 4);
     assert!(pkt.read_int32().unwrap() > 0);

@@ -603,39 +603,10 @@ fn unix_timestamp() -> i64 {
         .as_secs() as i64
 }
 
-fn wow_time_packed_from_unix_seconds(unix_seconds: i64) -> u32 {
-    let days = unix_seconds.div_euclid(86_400);
-    let seconds_of_day = unix_seconds.rem_euclid(86_400);
-    let (year, month, month_day) = civil_from_days(days);
-    let week_day = (days + 4).rem_euclid(7) as u32;
-    let hour = (seconds_of_day / 3_600) as u32;
-    let minute = ((seconds_of_day % 3_600) / 60) as u32;
-
-    let year_field = ((year - 2000).rem_euclid(100) as u32) & 0x1f;
-    let month_field = (month - 1) & 0x0f;
-    let month_day_field = (month_day - 1) & 0x3f;
-
-    (year_field << 24)
-        | (month_field << 20)
-        | (month_day_field << 14)
-        | ((week_day & 0x07) << 11)
-        | ((hour & 0x1f) << 6)
-        | (minute & 0x3f)
-}
-
-fn civil_from_days(days_since_unix_epoch: i64) -> (i32, u32, u32) {
-    let z = days_since_unix_epoch + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = mp + if mp < 10 { 3 } else { -9 };
-    let year = y + i64::from(month <= 2);
-
-    (year as i32, month as u32, day as u32)
+fn calendar_server_time_packed_from_unix_seconds_like_cpp(unix_seconds: i64) -> u32 {
+    // C++ CalendarHandler uses GameTime::GetWowTime(), whose default WowTime
+    // flags are -1 and therefore serialize as 3 in the top two packed bits.
+    wow_core::pack_local_wow_time_from_unix_seconds_like_cpp(unix_seconds, 0x03)
 }
 
 // ── ShowTradeSkill (client → server) ────────────────────────────────────────
