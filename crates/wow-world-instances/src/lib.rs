@@ -60,10 +60,11 @@ pub use group_session::{
     handle_apply_group_removal_command_like_cpp, handle_apply_group_subgroup_command_like_cpp,
     handle_send_party_update_command_like_cpp, reconcile_group_state_like_cpp,
 };
+pub use handlers::confirm_pending_bind_like_cpp;
 pub use handlers::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,
     InstanceLockResponseOutcomeLikeCpp, InstanceRaidInfoHandlerCxLikeCpp,
-    InstanceResetMethodLikeCpp, InstancesHandlerHostLikeCpp, confirm_pending_bind_like_cpp,
+    InstanceResetMethodLikeCpp, InstancesHandlerHostLikeCpp,
     handle_instance_lock_response_like_cpp, handle_request_raid_info_like_cpp,
     handle_reset_instances_like_cpp, handle_set_difficulty_id_like_cpp,
     handle_set_dungeon_difficulty_like_cpp, handle_set_raid_difficulty_like_cpp,

@@ -334,14 +334,12 @@ async fn party_action_without_realm_fails_without_instance_send() {
     .unwrap();
 
     assert!(controller.evidence.sent_packets.is_empty());
-    assert!(
-        controller
-            .evidence
-            .failure
-            .as_deref()
-            .unwrap()
-            .contains("party_invite_response requires a realm connection")
-    );
+    assert!(controller
+        .evidence
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("party_invite_response requires a realm connection"));
     assert!(controller.evidence.trace.iter().any(|entry| {
         entry.action.as_deref() == Some("party_invite_response")
             && entry.kind == TraceKind::ActionFailed
@@ -706,22 +704,18 @@ async fn instance_eof_is_fatal_during_actions_even_with_a_previous_logout_marker
         )
         .await
         .unwrap();
-        assert!(
-            controller
-                .evidence
-                .failure
-                .as_deref()
-                .unwrap()
-                .contains("cast lifecycle instance packet: connection closed")
-        );
-        assert!(
-            controller
-                .evidence
-                .trace
-                .iter()
-                .any(|entry| entry.action.as_deref() == Some("wait")
-                    && entry.kind == TraceKind::ActionFailed)
-        );
+        assert!(controller
+            .evidence
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("cast lifecycle instance packet: connection closed"));
+        assert!(controller
+            .evidence
+            .trace
+            .iter()
+            .any(|entry| entry.action.as_deref() == Some("wait")
+                && entry.kind == TraceKind::ActionFailed));
         assert!(!controller.evidence.logout_confirmed);
     }
 }
@@ -975,14 +969,12 @@ async fn packet_wait_times_out_despite_historical_match_and_fails_on_early_logou
     .await
     .unwrap();
     assert!(timed_out.evidence.expected_rules[0].matched);
-    assert!(
-        timed_out
-            .evidence
-            .failure
-            .as_deref()
-            .unwrap()
-            .contains("timed out waiting for Instance packet 0x276B")
-    );
+    assert!(timed_out
+        .evidence
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("timed out waiting for Instance packet 0x276B"));
     assert!(timed_out.evidence.trace.iter().any(|entry| {
         entry.action.as_deref() == Some("wait_for_packet") && entry.kind == TraceKind::ActionFailed
     }));
@@ -1027,14 +1019,12 @@ async fn packet_wait_times_out_despite_historical_match_and_fails_on_early_logou
     .await
     .unwrap();
     send_logout.await.unwrap().unwrap();
-    assert!(
-        logged_out
-            .evidence
-            .failure
-            .as_deref()
-            .unwrap()
-            .contains("LogoutComplete arrived before wait_for_packet")
-    );
+    assert!(logged_out
+        .evidence
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("LogoutComplete arrived before wait_for_packet"));
     assert!(logged_out.evidence.trace.iter().any(|entry| {
         entry.action.as_deref() == Some("wait_for_packet") && entry.kind == TraceKind::ActionFailed
     }));
