@@ -927,16 +927,20 @@ class LockPlanAndWireTests(unittest.TestCase):
             "opcode": scenario.SMSG_PENDING_RAID_LOCK, "timeout_ms": 30_000,
         })
         self.assertEqual(rejected["actions"][1], {
+            "action": "wait_for_packet", "connection": "realm",
+            "opcode": scenario.SMSG_PENDING_RAID_LOCK, "timeout_ms": 5_000,
+        })
+        self.assertEqual(rejected["actions"][2], {
             "action": "instance_lock_response", "accept": False,
         })
-        self.assertEqual(rejected["actions"][2], {"action": "wait", "milliseconds": 1_000})
+        self.assertEqual(rejected["actions"][3], {"action": "wait", "milliseconds": 1_000})
         self.assertEqual(rejected["expect"][0]["opcode"], scenario.LOGOUT_COMPLETE)
         scenario.validate_lock_response_evidence(lock_bind_evidence(accept=False), accept=False)
 
         accepted = scenario.member_lock_plan(member, True)
         self.assertEqual([rule["opcode"] for rule in accepted["expect"]],
                          [scenario.SMSG_INSTANCE_SAVE_CREATED])
-        self.assertEqual([action.get("opcode") for action in accepted["actions"][2:]],
+        self.assertEqual([action.get("opcode") for action in accepted["actions"][3:]],
                          [scenario.SMSG_INSTANCE_SAVE_CREATED,
                           scenario.SMSG_CALENDAR_RAID_LOCKOUT_ADDED])
         facts = scenario.validate_lock_response_evidence(

@@ -429,6 +429,26 @@ pub(super) async fn collect_logout_until(
     }
 }
 
+fn consume_next_raid_prompt(controller: &mut Controller) -> bool {
+    let after = controller
+        .evidence
+        .sent_packets
+        .iter()
+        .rev()
+        .find(|sent| sent.opcode == CMSG_INSTANCE_LOCK_RESPONSE)
+        .map(|sent| sent.observation_sequence)
+        .max(controller.last_waited_raid_prompt);
+    let Some(event) = controller.evidence.events.iter().find(|event| {
+        event.connection == Connection::Realm
+            && event.opcode == SMSG_PENDING_RAID_LOCK
+            && after.is_none_or(|seq| event.observation_sequence > seq)
+    }) else {
+        return false;
+    };
+    controller.last_waited_raid_prompt = Some(event.observation_sequence);
+    true
+}
+
 pub(super) async fn wait_for_packet(
     deadline: tokio::time::Instant,
     connection: Connection,
@@ -440,21 +460,9 @@ pub(super) async fn wait_for_packet(
     controller: &mut Controller,
 ) -> Result<()> {
     // Login can deliver its raid prompt before the scripted actions begin.
-    if connection == Connection::Realm && opcode == SMSG_PENDING_RAID_LOCK {
-        let last_reply = controller
-            .evidence
-            .sent_packets
-            .iter()
-            .rev()
-            .find(|sent| sent.opcode == CMSG_INSTANCE_LOCK_RESPONSE)
-            .map(|sent| sent.observation_sequence);
-        if controller.evidence.events.iter().rev().any(|event| {
-            event.connection == connection
-                && event.opcode == opcode
-                && last_reply.is_none_or(|seq| event.observation_sequence > seq)
-        }) {
-            return Ok(());
-        }
+    let waits_for_raid_prompt = connection == Connection::Realm && opcode == SMSG_PENDING_RAID_LOCK;
+    if waits_for_raid_prompt && consume_next_raid_prompt(controller) {
+        return Ok(());
     }
     if connection == Connection::Realm
         && opcode == SMSG_LOGOUT_COMPLETE
@@ -478,6 +486,9 @@ pub(super) async fn wait_for_packet(
     )
     .await?
     {
+        if waits_for_raid_prompt && !consume_next_raid_prompt(controller) {
+            bail!("received raid prompt was absent from the recorded realm events");
+        }
         Ok(())
     } else {
         bail!(

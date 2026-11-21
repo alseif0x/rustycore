@@ -1027,6 +1027,7 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
 def member_lock_plan(member: dict[str, Any], accept: bool) -> dict[str, Any]:
     actions: list[dict[str, Any]] = [
         death_scenario._wait("realm", SMSG_PENDING_RAID_LOCK, 30_000),
+        death_scenario._wait("realm", SMSG_PENDING_RAID_LOCK, 5_000),
         {"action": "instance_lock_response", "accept": accept},
     ]
     if accept:

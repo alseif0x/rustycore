@@ -405,6 +405,38 @@ async fn logout_eof_never_substitutes_for_ack_and_frame_errors_remain_fatal() {
 }
 
 #[tokio::test]
+async fn consecutive_waits_consume_distinct_login_raid_prompts() {
+    let mut controller = logout_controller();
+    for (sequence, flags) in [(2, 0), (4, 0x80)] {
+        let body = [0x60, 0xea, 0, 0, 1, 0, 0, 0, flags];
+        let mut event = decode_event(sequence, Connection::Realm, SMSG_PENDING_RAID_LOCK, &body);
+        event.observation_sequence = sequence;
+        controller.evidence.events.push(event);
+    }
+    let (mut stream, _peer) = tcp_pair().await;
+    let mut crypt = WorldCrypt::new_with_counters(&[0x6d; 16], 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = None;
+    for expected_sequence in [Some(2), Some(4), None] {
+        let result = wait_for_packet(
+            tokio::time::Instant::now(),
+            Connection::Realm,
+            SMSG_PENDING_RAID_LOCK,
+            &mut stream,
+            &mut crypt,
+            &mut inflater,
+            &mut realm,
+            &mut controller,
+        )
+        .await;
+        assert_eq!(result.is_ok(), expected_sequence.is_some());
+        if let Some(sequence) = expected_sequence {
+            assert_eq!(controller.last_waited_raid_prompt, Some(sequence));
+        }
+    }
+}
+
+#[tokio::test]
 async fn wait_for_logout_complete_allows_instance_eof_after_completed_request() {
     let mut controller = logout_controller();
     controller.evidence.logout_request_completed = true;
