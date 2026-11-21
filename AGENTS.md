@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Shared operating guide for agents working in RustyCore. CLAUDE.md imports this file.
+Shared operating guide for agents working in RustyCore. Start here for repository instructions.
 Use current code to establish implementation state and versioned C++/capture evidence
 to establish required base-server behavior. Neither old documentation nor existing Rust
 is correctness proof. This guide does not override explicit user scope or approval gates.
@@ -391,7 +391,7 @@ Use rg for search and apply_patch for manual edits. Preserve unrelated dirty wor
 agents' changes; inspect overlaps before relying on them. Stage exact validated paths only.
 Do not revert, delete or overwrite unrelated work to obtain a clean tree.
 
-AGENTS.md, CLAUDE.md and the selected .agents/skills resources are tracked shared instructions.
+AGENTS.md and the selected .agents/skills resources are tracked shared instructions.
 Other local agent/workflow paths may be ignored; consult git ls-files and .gitignore rather than
 assuming. Do not force-add private local context unless explicitly requested. Keep one source
 for each rule; retire or redirect superseded guidance without discarding useful evidence.

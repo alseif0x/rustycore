@@ -54,7 +54,6 @@ data and gameplay differences must be resolved for 3.4.3 before production adapt
 - [Documentation site](wiki/README.md): VitePress authoring and local build instructions.
   Published guides link to the maintained sources here; they are not a second status ledger.
 - [AGENTS.md](../AGENTS.md): shared scope, approval, fidelity, validation and Git rules.
-  [CLAUDE.md](../CLAUDE.md) imports it; it is not a second operating guide.
 - [Validation V2](operations/validation-v2.md) and
   [local-first development](operations/local-first-development.md): actual validation profiles.
 - [DB bootstrap](operations/db-bootstrap.md), [live client debugging](operations/live-client-debug.md)

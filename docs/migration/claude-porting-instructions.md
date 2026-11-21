@@ -1,7 +1,7 @@
 # Claude Porting Instructions
 
 This legacy prompt path is retained for existing references. Use
-[AGENTS.md](../../AGENTS.md), which `CLAUDE.md` imports, as the shared operating
+[AGENTS.md](../../AGENTS.md) as the shared operating
 guide. There is no Claude-specific branch, approval, commit, or completion policy.
 
 For a session, read [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md), and the
