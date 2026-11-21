@@ -63,7 +63,14 @@ case "${1:-}" in
   show)
     case "$*" in
       *ActiveState*) if world_up; then printf 'active\n'; else printf 'inactive\n'; fi ;;
-      *MainPID*) if world_up; then printf '4242\n'; else printf '0\n'; fi ;;
+      *MainPID*)
+        if ! world_up; then
+          printf '0\n'
+        elif [[ "${QA_FAKE_NEW_PID_ON_START:-0}" == 1 && -f "${state}.log" ]]; then
+          printf '%s\n' "$((4242 + $(grep -c '^started$' "${state}.log" || true)))"
+        else
+          printf '4242\n'
+        fi ;;
       *NRestarts*) printf '7\n' ;;
       *Environment*)
         environment="${QA_FAKE_ENVIRONMENT:-}"
@@ -223,6 +230,7 @@ with Path(os.environ["QA_FAKE_STATE"] + ".death-fixture").open("a", encoding="ut
     calls.write(mode + "\n")
 journal = Path(sys.argv[sys.argv.index("--journal") + 1])
 if mode == "prepare":
+    assert ("--icc-lock-fixture" in sys.argv) == (os.environ.get("RUSTYCORE_DEATH_SCENARIO") == "instance-lock-reset")
     journal.write_text(json.dumps({"state": "prepared", "actors": [
         {"guid": 901}, {"guid": 902}]}), encoding="utf-8")
     journal.chmod(0o600)
@@ -338,6 +346,8 @@ run_qa() {
 
 run_death_qa() {
   local output_dir="${1:-$WORK/death-campaign}"
+  local count="${2:-1}" i runners=()
+  for ((i=0; i<count; i++)); do runners+=(--scenario-runner "$WORK/bin/capture-runner"); done
   env \
     QA_SYSTEMCTL="$WORK/bin/systemctl" QA_SERVICE=fake-world \
     QA_LIVE_DIR="$WORK/live" QA_LIVE_NAME=world-server QA_BOT="$WORK/bin/bot" \
@@ -357,7 +367,7 @@ run_death_qa() {
     --allow-runtime-qa --ack-disposable-death-fixture --backend rust \
     --world-exec "$WORK/candidate" --candidate-sha256 "$CAPTURE_CANDIDATE_SHA" \
     --output-dir "$output_dir" --bot-config "$WORK/death-bot-config.json" \
-    --scenario-runner "$WORK/bin/capture-runner"
+    "${runners[@]}"
 }
 
 reset_state() {
@@ -435,6 +445,17 @@ check "death wrapper help is available without a service operation" \
   grep -q -- "--scenario-runner" <<<"$help_output"
 check "death wrapper help does not acquire a runtime lock" test ! -e "$WORK/death-help.lock"
 check "death wrapper help does not call the fake service" test ! -e "$WORK/state.calls"
+
+reset_state
+EXTRA_ENV=(RUSTYCORE_DEATH_SCENARIO=instance-lock-reset QA_FAKE_CAPTURE_STATUS=0 QA_FAKE_OMIT_CAPTURE_REPORT=0 QA_FAKE_NEW_PID_ON_START=1)
+CASE_RUN_LOG="$WORK/icc.log"
+status=0
+run_death_qa "$WORK/icc-three-epochs" 3 >"$CASE_RUN_LOG" 2>&1 || status=$?
+check "the three-epoch ICC wrapper completes" test "$status" -eq 0
+check "the ICC wrapper runs three distinct candidate processes and restores the fixture" \
+  jq -e '.cleanup.status == "restored" and .scenario_observation.status == "observed"
+    and ([.scenario_observation.epochs[].candidate_pid] | unique | length) == 3' \
+    "$WORK/icc-three-epochs/death-runtime-report.json" >/dev/null
 
 # A runner may fail before writing its scenario report. A complete capture
 # restore report still permits the owned fixture restore and normal restart.
