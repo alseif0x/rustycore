@@ -480,7 +480,17 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         level,
         sex,
     );
-    if attached_controller && host.ensure_canonical_login_map_for_current_player_like_cpp() {
+    let login_map_selected = if attached_controller {
+        host.ensure_canonical_login_map_for_current_player_like_cpp()
+    } else {
+        // `continue_login` normally attached the Player and selected this
+        // canonical map before entering the packet sequence. Preserve that
+        // already-owned map instead of asking the selector to create it again.
+        authoritative_grid_map_key.is_some_and(|expected_key| {
+            host.core().current_canonical_player_map_key_like_cpp() == Some(expected_key)
+        })
+    };
+    if login_map_selected {
         wow_world_instances::start_raid_lock_on_map_entry(&mut host.hub_mut(), true);
     }
     // #1263 C2: the login attach result, reported at the C++

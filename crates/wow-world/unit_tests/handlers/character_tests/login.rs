@@ -5,6 +5,122 @@
 
 use super::*;
 
+#[tokio::test]
+async fn login_add_player_to_map_prompts_an_unbound_member_with_a_preattached_controller_like_cpp()
+{
+    let (mut session, _instance_rx, realm_rx) = make_session_with_realm_send_capacity(256);
+    let player_guid = ObjectGuid::create_player(1, 9_001_703);
+    let locks = crate::handlers::test_support::install_pending_bind_instance_context_like_cpp(
+        &mut session,
+        player_guid,
+        631,
+        9_001,
+        4,
+        10,
+    );
+
+    assert_eq!(
+        session.current_canonical_player_map_key_like_cpp(),
+        Some(wow_map::MapKey::new(631, 9_001)),
+        "the earlier login stage already attached this Player to the intended instance"
+    );
+    let entries = session
+        .create_map_db2_entries_like_cpp(631, 4)
+        .expect("the fixture exposes ICC's saved lock entry");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    assert!(
+        locks
+            .read()
+            .unwrap()
+            .find_active_instance_lock_at(player_guid, &entries, now)
+            .is_none(),
+        "the member is unbound before AddPlayerToMap"
+    );
+
+    let player_grid_loader: crate::session::PlayerGridLoadResolverLikeCpp =
+        Arc::new(|_, _, _| crate::session::PlayerGridLoadOutcomeLikeCpp::default());
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawn_catalogs = session.creature_spawn_catalogs_for_test_like_cpp();
+    let feature_policy = session.support_feature_policy_for_test_like_cpp();
+    let position = Position::ZERO;
+
+    let _ = wow_world_character::send_login_sequence(
+        &mut session,
+        generators.item.as_ref(),
+        &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+        &creature_spawn_catalogs,
+        &feature_policy,
+        &player_grid_loader,
+        player_guid,
+        1,
+        1,
+        0,
+        10,
+        49,
+        &position,
+        631,
+        0,
+        CharacterLoginLocationLikeCpp {
+            map_id: 631,
+            bind_area_id: Some(0),
+            position,
+        },
+        None,
+        [(0, 0, 0); 19],
+        [ObjectGuid::EMPTY; 141],
+        Vec::new(),
+        PlayerCombatStats::default(),
+        0,
+        0,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        [0; 180],
+        Vec::new(),
+        Vec::new(),
+    )
+    .await;
+
+    let prompts: Vec<_> = std::iter::from_fn(|| realm_rx.try_recv().ok())
+        .filter(|packet| {
+            packet.len() >= 2
+                && u16::from_le_bytes([packet[0], packet[1]])
+                    == ServerOpcodes::PendingRaidLock as u16
+        })
+        .collect();
+    assert_eq!(
+        prompts.len(),
+        1,
+        "AddPlayerToMap emits one pending-lock prompt"
+    );
+    assert_eq!(
+        &prompts[0][2..],
+        &[0x60, 0xea, 0, 0, 0xa5, 0, 0, 0, 0],
+        "the realm prompt carries the attached ICC lock's timer and mask"
+    );
+    assert_eq!(
+        crate::handlers::test_support::canonical_player_pending_bind_for_test_like_cpp(&session),
+        Some(crate::session::RepresentedPendingBind {
+            map_id: 631,
+            instance_id: 9_001,
+            completed_mask: 0xa5,
+            time_until_lock_ms: 60_000,
+        })
+    );
+    assert!(
+        locks
+            .read()
+            .unwrap()
+            .find_active_instance_lock_at(player_guid, &entries, now)
+            .is_none(),
+        "receiving a prompt leaves the member unbound until acceptance"
+    );
+}
+
 #[test]
 fn continue_login_no_longer_names_the_core_character_statement() {
     let handler = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
