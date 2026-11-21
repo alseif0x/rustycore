@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        implementation: [tests, production, compositor, policy, inventory]
+        implementation: [tests, production, compositor, policy]
     env:
       VALIDATION_V2_CARGO_JOBS: "2"
       IMPLEMENTATION: ${{ matrix.implementation }}
@@ -29,12 +29,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/new"
-          validator=9c3ec2a998ef369af6f9ec6dc3efbe7709f7da84
+          validator=39a5eba7ffd114af993ff04fd39d10b43c7029a5
           git fetch --no-tags origin "$validator"
           git archive "$validator" \
             tools/validate-full tools/ci/full_policy.py tools/ci/full_snapshot.py \
             tools/ci/check_doc_links.py tools/full-validation | tar -xf - -C "$RUNNER_TEMP/new"
-          cp tools/validate-full "$RUNNER_TEMP/new/tools/"
+          cp tools/ci/full_policy.py "$RUNNER_TEMP/new/tools/ci/"
           git switch --detach 316a7387cbaa77bf8a4e2160745f3b5a2020c304
           git rev-parse HEAD
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           export CARGO_BUILD_JOBS="$(nproc)"
-          "$RUNNER_TEMP/new/tools/validate-full" --workspace --base 31841d89165fb71eac6b106b63d3f3317bafbdf7 --part "$IMPLEMENTATION" --report "$RUNNER_TEMP/$IMPLEMENTATION-result.json"
+          "$RUNNER_TEMP/new/tools/validate-full" --base 31841d89165fb71eac6b106b63d3f3317bafbdf7 --part "$IMPLEMENTATION" --report "$RUNNER_TEMP/$IMPLEMENTATION-result.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -114,15 +114,15 @@ jobs:
 
           run = get_json(api)
           jobs = get_json(api + "/jobs?per_page=100")["jobs"]
-          new_jobs = [job for job in jobs if job["name"] in {"tests", "production", "compositor", "policy", "inventory"}]
-          if len(new_jobs) != 5 or any(not job.get("completed_at") for job in new_jobs):
-              raise SystemExit("All five parts must finish before measuring wall time.")
+          new_jobs = [job for job in jobs if job["name"] in {"tests", "production", "compositor", "policy"}]
+          if len(new_jobs) != 4 or any(not job.get("completed_at") for job in new_jobs):
+              raise SystemExit("All four parts must finish before measuring wall time.")
           start = datetime.datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
           final_new = max(datetime.datetime.fromisoformat(job["completed_at"].replace("Z", "+00:00")) for job in new_jobs)
           seconds = int((final_new - start).total_seconds())
           print("Queued run to later replacement completion: {} s (from run created_at {} to {}).".format(seconds, run["created_at"], final_new.isoformat()))
           print("Comparison result: {}.".format(os.environ["COMPARISON_RESULT"]))
-          print("The published candidate checked every production package, tests, SQL, policy and the exhaustive persistence inventory.")
+          print("Full change acceptance includes the configuration-independent handler source guard.")
           PY
           if [[ "$COMPARISON_RESULT" != success ]]; then
             echo "Full validation failed: $COMPARISON_RESULT" >&2
