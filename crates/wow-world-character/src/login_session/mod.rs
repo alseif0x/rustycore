@@ -145,9 +145,7 @@ pub use world_entry::{
 pub use world_entry::{motd_lines_like_cpp, send_handle_player_login_packets_like_cpp};
 
 pub trait CharacterLoginHostLikeCpp:
-    VendorSessionHostLikeCpp
-    + CorpseHostLikeCpp
-    + WorldEntitiesHostLikeCpp
+    VendorSessionHostLikeCpp + CorpseHostLikeCpp + WorldEntitiesHostLikeCpp
 {
     fn lifecycle_mut(&mut self) -> &mut SessionLifecycleState;
     fn split_lifecycle_ref(&self) -> (&SessionLifecycleState, HubRef<'_>);

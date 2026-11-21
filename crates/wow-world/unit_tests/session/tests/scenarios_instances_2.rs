@@ -938,17 +938,18 @@ fn login_map_selection_skips_transfer_access_condition_like_cpp() {
         },
     ])));
 
-    let decision = wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(
-        &mut session,
-    )
-    .expect("login map creation follows Player::LoadFromDB admission");
+    let decision =
+        wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(&mut session)
+            .expect("login map creation follows Player::LoadFromDB admission");
     let key = decision.map_key().expect("dungeon map was selected");
     assert_eq!(key.map_id, 631);
-    assert!(canonical
-        .lock()
-        .unwrap()
-        .find_map(key.map_id, key.instance_id)
-        .is_some());
+    assert!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(key.map_id, key.instance_id)
+            .is_some()
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -999,17 +1000,18 @@ fn login_map_selection_skips_transfer_raid_group_preflight_like_cpp() {
         .to_bytes()
     );
 
-    let decision = wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(
-        &mut session,
-    )
-    .expect("login map creation does not apply the transfer raid-group gate");
+    let decision =
+        wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(&mut session)
+            .expect("login map creation does not apply the transfer raid-group gate");
     let key = decision.map_key().expect("dungeon map was selected");
     assert_eq!(key.map_id, 631);
-    assert!(canonical
-        .lock()
-        .unwrap()
-        .find_map(key.map_id, key.instance_id)
-        .is_some());
+    assert!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(key.map_id, key.instance_id)
+            .is_some()
+    );
     assert!(send_rx.try_recv().is_err());
 }
 

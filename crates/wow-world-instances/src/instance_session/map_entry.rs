@@ -145,9 +145,7 @@ pub fn ensure_canonical_world_map_for_current_player_like_cpp<H: InstanceSession
 /// Select and attach the saved login map using `Player::LoadFromDB` admission.
 /// Login creates the map and calls `Map::CannotEnter`; it does not run the
 /// separate `Map::PlayerCannotEnter` access and raid-group preflight.
-pub fn ensure_canonical_login_map_for_current_player_like_cpp<
-    H: InstanceSessionHostLikeCpp,
->(
+pub fn ensure_canonical_login_map_for_current_player_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &mut H,
 ) -> Option<wow_map::CreateMapDecision> {
     ensure_canonical_map_for_current_player_in_phase_like_cpp(host, MapEntryPhaseLikeCpp::Login)
