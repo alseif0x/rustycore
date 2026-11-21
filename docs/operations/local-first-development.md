@@ -167,7 +167,7 @@ and valid local bot credentials; it never runs as part of ordinary validation.
 ## What runs remotely
 
 - a pull request whose author is not `alseif0x`;
-- **a push to `3.4.3`, which is every merge**;
+- **every push to `3.4.3`** starts the [whole-workspace audit](../../.github/workflows/rust-ci.yml) for the merged SHA. Its five jobs run in parallel and publish one verdict;
 - the scheduled audit configured on the repository's default branch;
 - an explicit `workflow_dispatch` run.
 

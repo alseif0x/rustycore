@@ -346,8 +346,7 @@ For exactly alseif0x-authored PRs, local final plus focused evidence is the requ
 configured hosted validation/reviewer jobs intentionally skip. External authors retain
 `Full validation` on the proposed merge and `Codex reviewer verdict` on the PR head.
 Never broaden trust to an author-association role.
-The audit profile is exhaustive, not the routine pre-push profile; integration-branch
-pushes run it remotely. Preserve explicit issue acceptance even when a profile is green.
+Every push to `3.4.3` runs the whole-workspace audit in GitHub Actions. Local publication uses the final profile. Preserve explicit issue acceptance even when a profile is green.
 
 Capture-diff applies to changed bytes, metadata, connection or observable order. Fresh
 action-specific captures are distinct from regression goldens. Live lifecycle/runtime changes

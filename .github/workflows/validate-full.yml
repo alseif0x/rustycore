@@ -94,11 +94,23 @@ jobs:
           if [[ "$WHOLE_WORKSPACE" == true ]]; then scope+=(--workspace); fi
           export CARGO_BUILD_JOBS="$(nproc)"
           ./tools/validate-full "${scope[@]}" --base "$FULL_BASE" --part "$PART" --report "$RUNNER_TEMP/full-report.json"
+      - name: Verify whole-workspace evidence
+        if: inputs.whole_workspace
+        env:
+          PART: ${{ matrix.part }}
+        run: |
+          jq -e --arg head "$GITHUB_SHA" --arg base "$FULL_BASE" --arg part "$PART" '
+            .head == $head and .base == $base and .part == $part and .workspace == true and
+            .status == "passed" and .exit == 0 and .uncovered == [] and
+            (.commands | length > 0 and all(.[]; .exit == 0))
+          ' "$RUNNER_TEMP/full-report.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: full-${{ matrix.part }}
           path: ${{ runner.temp }}/full-report.json
+          if-no-files-found: error
+          retention-days: 14
   verdict:
     name: Full validation
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x') }}

@@ -31,8 +31,7 @@ LOCKED_ERROR = 75
 DEFAULT_JOBS = 1
 MAX_JOBS = 8
 DEFAULT_TIMEOUT = 900
-# The exhaustive persistence inventory alone runs 870-900s on a four-core host,
-# so the ordinary per-command budget cannot be the audit's.
+# Cold whole-workspace checks have a separate per-command budget.
 AUDIT_TIMEOUT = 3600
 DEFAULT_BASE = "origin/3.4.3"
 LEVEL_PROFILES = {"1": "none", "2": "quick", "3": "final"}
@@ -77,9 +76,8 @@ SQL_COMPOSITOR_ROOT_INPUTS = frozenset({
     "crates/world-server/build.rs",
     "modules.lock.toml",
 })
-# #1468 item 1: inputs of the exhaustive persistence inventory that `final`
-# does not run (870-900 s alone, over the 600 s campaign budget): every
-# workspace Rust source it inventories, the whole checker and its policies.
+# Inputs of the exhaustive persistence inventory: workspace Rust sources,
+# the checker and its policies.
 PERSISTENCE_INVENTORY_PATHS = frozenset({
     "tools/architecture/persistence-access-snapshot.json",
     "tools/architecture/persistence-boundary-policy.json",
@@ -1159,16 +1157,13 @@ def validation_commands(
                 f"SQL compositor input changed but required check is missing: {SQL_COMPOSITOR_CHECK}"
             )
         add_command(planned, ["python3", SQL_COMPOSITOR_CHECK, "--jobs", str(jobs)])
-    # #1468 item 1: the exhaustive session-ownership/persistence inventory
-    # costs 870-900 s by itself, so final cannot run it inside the 600 s
-    # budget; `audit` (every push to 3.4.3 and the weekly cron) does. Say so
-    # in the manifest when this diff changes that inventory's inputs.
+    # Record which whole-workspace evidence a change-scoped final leaves to the audit.
     if profile == "final" and any(persistence_inventory_input(path) for path in all_paths):
         optional_skips.append(
             "persistence inventory inputs changed (crates/ Rust, the checker or its "
             "policies); the exhaustive "
-            "`session-ownership-check check` (870-900 s) is not part of final - run "
-            "`./tools/validation-v2 audit` (or that command) before relying on it"
+            "`session-ownership-check check` runs in the 3.4.3 integration audit. "
+            "Use the inventory job's report or run that command locally for evidence."
         )
     if "wow-test-bot" in groups or cargo_config_changed:
         add_command(

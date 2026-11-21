@@ -188,14 +188,16 @@ def test_rust_ci_contract() -> None:
     validation_step = step_block(workflow, "Run canonical Validation V2 profile")
     validation_run = next(iter(run_blocks(validation_step)))
     assert "${{" not in validation_run
-    assert "BASE_SHA: ${{ github.event.before || github.sha }}" in workflow
-    assert "EXPECTED_HEAD: ${{ github.sha }}" in workflow
-    assert "PROFILE: ${{ github.event.inputs.profile || 'audit' }}" in workflow
+    audit_job = workflow.split("  audit:\n", 1)[1].split("  validation:\n", 1)[0]
+    assert "uses: ./.github/workflows/validate-full.yml" in audit_job
+    assert "whole_workspace: true" in audit_job
+    assert "base: ${{ github.event.before || github.sha }}" in audit_job
+    assert "if: github.event_name != 'workflow_dispatch' || inputs.profile == 'audit'" in audit_job
+    assert "if: github.event_name == 'workflow_dispatch' && inputs.profile == 'final'" in workflow
+    assert "EXPECTED_HEAD: ${{ github.sha }}" in validation_step
     assert "ref: ${{ github.sha }}" in workflow
-    assert "BASE_SHA=\"${VALIDATED_MANUAL_BASE_SHA:?manual final base was not validated}\"" in validation_run
-    assert "args=(\"$PROFILE\" --base \"$BASE_SHA\" --timings --logs)" in validation_run
-    assert 'if [ "$PROFILE" = "final" ]; then' in validation_step
-    assert "args+=(--require-changes)" in validation_run
+    assert './tools/validation-v2 final --base "$VALIDATED_MANUAL_BASE_SHA" --require-changes' in validation_run
+    assert "concurrency:" not in audit_job
 
     manual_step = step_block(workflow, "Validate manual final base")
     manual_run = next(iter(run_blocks(manual_step)))
@@ -246,6 +248,10 @@ def test_full_validation_contract() -> None:
     assert "if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x') }}" in workflow
     assert "OUTCOME: ${{ needs.validate.result }}" in workflow
     assert 'run: test "$OUTCOME" = success' in workflow
+    assert '["tests","production","compositor","policy","inventory"]' in workflow
+    assert 'if [[ "$WHOLE_WORKSPACE" == true ]]; then scope+=(--workspace); fi' in workflow
+    assert "if: inputs.whole_workspace" in workflow
+    assert "if-no-files-found: error" in workflow
 
     for block in run_blocks(workflow):
         assert "${{" not in block

@@ -314,6 +314,15 @@ invocation of the native inventory checker. It passed the same inventory
 with 44,916 cache hits out of 52,947 parses and took 1,066.399 s. The
 baseline took 1,060.396 s. The published validator uses the normal parser.
 
+The last serial integration run on `3.4.3` used **23 min 25 s** of runner
+time after **10 min** in the queue. The persistence check alone took
+**10 min 20 s**. Integration pushes now use the five workspace jobs above.
+Each job records the integrated SHA and its commands. The persistence checker
+builds each package's visible types when it reaches that package in dependency
+analysis. It still scans production and test sources on every integration.
+[Serial run](https://github.com/alseif0x/rustycore/actions/runs/44860162072)
+· [Hosted timings and inventory comparison](https://github.com/alseif0x/rustycore/issues/1497)
+
 ## First delivery and measured changes
 
 The first delivery changes the implementer's feedback loop, the order of compiler and architecture checks, and SQL composition routing. On aarch64, the focused test reproduced the original #1494 compiler error at `52ecf58d9` in 192.506 s (Cargo exit 101). The earlier full attempt ended after 412.460 s. These were different commands with different cache histories. In a separate negative check, removing the public `run_with_composition` export made Cargo reject the real generated SQL launcher. The checkout was restored after the experiment.
