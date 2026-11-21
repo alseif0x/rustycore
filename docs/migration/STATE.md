@@ -74,8 +74,40 @@ respectively). From fixture preparation to final report, Rust took
 12m52s and C++ took 6m58s. The paired result is
 `target/qa/issue45-restart/difficulty-comparison.json`. The strict
 change and leave windows had zero missing, extra, body or route
-differences. The integrated branch's final, architecture and exhaustive
-persistence checks remain outstanding.
+differences. The earlier solo and group reset captures remain recorded
+at `7eb4fccca`; their raw files were unavailable for replay on November 21.
+For empty map 33 the historical capture shows the successful reset response.
+The current map-manager test observes destruction on the next update. The
+production lifetime test also verifies that a failed destroy keeps an occupied
+instance ID allocated. The live ICC comparison covers reset with an attached lock.
+
+### Local acceptance on November 21
+
+The aarch64 host tested clean code revision `411dde392eb1a6dcb2a0862c216a10be3c0fbcd8`
+against `3.4.3` at `229d28970e74faf1cd4e54db1e1346d59c3a6f9b`. With two Cargo
+jobs and one test thread, `./tools/validation-v2 final --base origin/3.4.3
+--architecture --timings --logs --require-changes --keep-going` passed all 23 steps
+in 611.8 seconds. The 14 affected library suites passed 8,392 tests with 12
+ignored. The handler-contract checker passed all 465 tests. The verified local
+manifest is `target/qa/issue45-restart/terminal-final-411dde392.json`, SHA-256
+`d9ea1680bcb73964c8bf5f43b0d639fadd1e42760c60fce46e50344ce6891cbe`.
+
+The three production integration targets (`production_handler_registry_contract`,
+`production_player_lifetime` and `production_login_player_owner`) passed 56 tests.
+The standalone `tools/wow-test-bot` Cargo suite passed 267. The three Python
+suites `test_instance_scenario`, `test_death_fixture` and `test_death_scenario`
+passed all 87 distinct tests, including a follow-up of the optional DDL check
+against the pinned C++ checkout. The ordinary campaign ran from 21:29:43 to
+21:44:09 UTC (14m26s), plus 0.004s for that DDL test. It exceeded the ten-minute
+budget. The contract suite took 4m30s and compiling the production tests took
+3m48s. Two earlier attempts took 17m34s and 20m26s and exposed the missing
+map-command classification, registrar export grouping and bot formatting.
+
+The separate `target/arch-tools/release/session-ownership-check check` passed
+in 7m22s. It matched 43 session commands, 784 direct registry rows, 8,206
+production and 2,681 fixture persistence accesses, and 1,095 semantic groups.
+The four added production accesses belong to the read-only instance script
+template loader. The local log is `target/qa/issue45-restart/terminal-exhaustive-411dde392.log`.
 
 ## Earlier evidence
 
