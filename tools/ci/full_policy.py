@@ -50,14 +50,9 @@ def py(*args: str | Path) -> list[str]:
     return [sys.executable, *(str(arg) for arg in args)]
 
 
-def checker(*args: str) -> list[str]:
+def checker(*args: str, binary: str = "session-ownership-check") -> list[str]:
     return ["cargo", "run", "--release", "--locked", "--manifest-path", CHECKER,
-            "--target-dir", "target/arch-tools", "--bin", "session-ownership-check", "--", *args]
-
-
-def handler_checker(*args: str) -> list[str]:
-    return ["cargo", "run", "--release", "--locked", "--manifest-path", CHECKER,
-            "--target-dir", "target/arch-tools", "--bin", "handler-contract-check", "--", *args]
+            "--target-dir", "target/arch-tools", "--bin", binary, "--", *args]
 
 
 def changed_paths(base: str) -> list[str]:
@@ -80,35 +75,14 @@ def policy_lane(paths: set[str]) -> bool:
     )
 
 
-def handler_contract_lane(paths: set[str], root: Path) -> bool:
-    if (HANDLER_CONTRACT in paths or HANDLER_MODULE_POLICY in paths
-            or paths & {"Cargo.toml", "Cargo.lock"}
-            or any(path.startswith(CHECKER_SOURCE) for path in paths)):
-        return True
-    if not any(path.startswith("crates/") for path in paths):
-        return False
-
-    policy = json.loads((root / HANDLER_MODULE_POLICY).read_text(encoding="utf-8"))
-    owners = policy.get("capability_owners") if isinstance(policy, dict) else None
-    if not isinstance(owners, list):
-        raise ValueError(f"{HANDLER_MODULE_POLICY} must contain capability_owners")
-    packages = {"world-server"}
-    for owner in owners:
-        if not isinstance(owner, dict):
-            raise ValueError(f"{HANDLER_MODULE_POLICY} contains an invalid capability owner")
-        if owner.get("capability") in {"handler_registration", "packet_dispatcher"}:
-            package = owner.get("package")
-            if not isinstance(package, str) or not package:
-                raise ValueError(f"{HANDLER_MODULE_POLICY} contains an invalid handler package")
-            packages.add(package)
-    for path in paths:
-        for package in packages:
-            prefix = f"crates/{package}/"
-            if ((path.startswith(prefix) and path.endswith(".rs")) or path in {
-                f"crates/{package}/Cargo.toml", f"crates/{package}/Cargo.lock",
-            }):
-                return True
-    return False
+def handler_contract_lane(paths: set[str]) -> bool:
+    # The native guard also rejects registrations outside the declared owners.
+    return bool(paths & {HANDLER_CONTRACT, HANDLER_MODULE_POLICY, "Cargo.toml", "Cargo.lock"}) or any(
+        path.startswith(CHECKER_SOURCE)
+        or (path.startswith(("crates/", "tools/xtask/"))
+            and (path.endswith(".rs") or Path(path).name in {"Cargo.toml", "Cargo.lock"}))
+        for path in paths
+    )
 
 
 def own_python_tests(paths: set[str], root: Path) -> list[tuple[str, list[str], str]]:
@@ -145,7 +119,7 @@ def select_checks(paths: set[str] | list[str], base: str, root: Path | None = No
     values = set(paths)
     root = root or Path.cwd()
     unsupported = sorted(path for path in values if path.startswith(UNSUPPORTED))
-    handler_contract_changed = handler_contract_lane(values, root)
+    handler_contract_changed = handler_contract_lane(values)
     if not policy_lane(values) and not handler_contract_changed:
         return [], unsupported
 
@@ -165,7 +139,8 @@ def select_checks(paths: set[str] | list[str], base: str, root: Path | None = No
             checks.append((f"Tool self-test: {path}", py(owner_path, "self-test"), "command"))
 
     if handler_contract_changed:
-        checks.append(("Handler registration and composition contract", handler_checker("check"), "command"))
+        checks.append(("Handler registration and composition contract",
+                       checker("check", binary="handler-contract-check"), "command"))
 
     checker_changed = any(path.startswith(CHECKER_SOURCE) for path in values)
     persistence_rules_changed = bool(values & {PERSISTENCE_POLICY, WORKFLOWS})
