@@ -32,6 +32,33 @@ The working candidate now implements:
   `instance-group-reset` forms a real party, proves occupied notification and
   non-expulsion, then resets empty and disbands. All 15 runner tests pass.
 
+### Storage and reload diagnostic — 2026-11-21
+
+On aarch64 at `af6919ee0`, the production MariaDB adapter committed a new
+member's character lock to a private MariaDB instance. The two tables used
+the DDL from the pinned C++ reference. Only the shared ICC instance and a
+different player's leader lock existed before the write. After stopping and
+restarting MariaDB, a new Rust process ran the adapter and the same lock
+loader used by `world-server` startup. It recovered the member's instance
+9001, map 631, difficulty 4, saved payload, encounter mask and entrance in
+realm 7. The same character counter in realm 1 did not resolve a lock.
+Removing the shared row in the disposable database made the loader reject
+both character rows. The leader's saved payload survived the member's write.
+
+The crate regression `new_id_bound_icc_member_bind_survives_lock_reload`
+checks the exact member-only transaction and reloads its result alongside
+the original leader's lock. All 53 tests passed with
+`cargo test --locked -p wow-instances --lib --jobs 1`.
+The private run used `cargo build --locked -j 1 -p wow-instances -p wow-database
+--message-format=json > target/qa/issue45-restart/cargo-artifacts.jsonl`
+and `python3 target/qa/issue45-restart/run_storage_probe.py`. Its local
+report is `target/qa/issue45-restart/result.json` (SHA-256
+`6425e7c07e5251a0f6484ec6a151dfa4bda3c5577ad549211dfa5b5f3f2dcfb3`).
+The storage probe supplied its own event payload. The gameplay prompt, client
+reply, world-server restart and subsequent character login still need live
+evidence. The existing two-epoch reset runner seeds the leader's lock and
+cannot establish acquisition by the member.
+
 ### Resumption audit — 2026-11-06
 
 The clean branch head at resumption was `9e99be318798120472655894ca80c0b40bea7535`.
