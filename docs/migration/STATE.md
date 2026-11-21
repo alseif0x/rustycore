@@ -1,5 +1,43 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## #1368 UpdatePhaseShift objective completion accepted locally — 2026-11-21
+
+Committed candidate `51bda221d641b984f51c4e3e3f8706ea77ba35ee`, based on
+`1ff5297ca`, implements the objective-completion `UpdatePhaseShift` action in
+all five represented objective-progress families. Following
+`Player::UpdateQuestObjectiveProgress` and `PhasingHandler::OnConditionChange`
+at `02245dcd245e7433e524577656177723d3e4992e`, the final interaction refresh
+runs first, then the canonical Player phase conditions, phase auras/groups and
+terrain swaps are recomputed. A real mutation publishes `PhaseShiftChange` and
+forces visibility before the existing zone and area aura casts. Unsupported
+conditions fail closed instead of forcing a transition.
+
+Two regressions prove suppressed-phase reactivation and the complete combined
+packet order: credit, both interaction refreshes, phase change, visibility
+refresh, then zone and area `SpellGo` packets. The objective suite passed 30
+tests. The committed
+`RUSTYCORE_CPP_REFERENCE_ROOT=target/publication-20261111/legacy-reference ./tools/validation-v2 final --base 1ff5297ca --architecture --require-changes --timings --logs`
+campaign passed all twelve commands from 00:55:12Z to 00:58:41Z (208.609
+seconds), within the 600-second target: 4,651 `wow-world` tests (one ignored)
+and eight `wow-world-quest` tests passed, totaling 4,659 passed, one ignored
+and zero failures. Verified manifest:
+`target/validation-v2/manifests/20261121T005511.910853Z-1259835-final.json`.
+Architecture policy, session syntax ownership, method-index, hotspot/census,
+formatting and all affected downstream checks passed. Reviewed ledgers record
+53 production and 107 test lines in Session and two new test identities. The
+exhaustive persistence inventory was not rerun; it previously timed out and is
+not claimed by this bounded acceptance.
+
+This closes the objective-triggered phase mutation/publication action in the
+current represented phase model, not every generic `OnConditionChange` side
+effect. Controlled-unit inheritance, `Unit::OnPhaseChange`, removal of
+non-own single-target auras and the `DisableMgr` phase-area gate remain outside
+this slice. Full `SpellInfo::CheckLocation` removal, GameEvent and Conversation
+also remain open in #1368. This is synthetic production-path
+source/behavior/wire evidence, not a live quest capture or full
+completion-effect parity claim. Player runtime integration and character
+creation remain separate work.
+
 ## #1368 UpdateAreaDependentAuras spell-area casts accepted locally — 2026-11-21
 
 Committed candidate `63ee53527665e244e6019e626909f7e424c11d64`, based on
