@@ -204,8 +204,9 @@ evidence. The default command runs both in sequence on the development host.
 audit of the entire workspace, including the full persistence inventory,
 native checker fixtures, both committed capture contracts, the SQL launcher
 and the standalone bot. It also works on a commit with no diff. The reusable
-Actions workflow runs the test targets, production configuration and policy
-on independent runners. With `whole_workspace: true` it also starts a
+Actions workflow runs test targets, the ordinary production configuration,
+the generated SQL launcher and policy on independent runners. With
+`whole_workspace: true` it also starts a
 dedicated inventory runner. One verdict requires every selected part to
 pass. Local execution uses one checkout and runs the checks in sequence.
 
@@ -236,6 +237,15 @@ workflow. It routed the new standalone Rust parser to a workspace build.
 The independent validator ran its own regression suite and workflow checks
 on that candidate in **7.654 s**. The existing final exceeded the ten-minute
 warm publication budget on this change.
+
+The initial hosted replay checked out `316a7387c` on fresh Ubuntu x86_64
+runners. All arms missed the dependency cache. The previous complete
+change validation took **11 min 07 s** from run creation through its job.
+The independent validation took **9 min 04 s** through the slower of its
+two jobs. The build spent 258 s on test targets, 119 s on production and
+87 s on SQL composition. Both implementations passed. Setting Cargo's job
+count after cache restoration allows the integration cache key to match.
+[Cold comparison](https://github.com/alseif0x/rustycore/actions/runs/44844996285)
 
 ## First delivery and measured changes
 

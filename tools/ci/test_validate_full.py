@@ -114,11 +114,15 @@ class FullValidationTests(unittest.TestCase):
         def planned(part):
             result = self.run_cmd(RUNNER, "--base", self.base, "--part", part, "--plan")
             return set(result.splitlines()[1:])
-        tests, production = planned("tests"), planned("production")
+        tests, production, compositor = (planned(part) for part in ("tests", "production", "compositor"))
         self.assertTrue(any("cargo test --locked" in step for step in tests))
         self.assertTrue(any("cargo check --locked" in step for step in production))
         self.assertTrue(tests.isdisjoint(production))
-        self.assertEqual(tests | production, planned("build"))
+        self.assertEqual(tests | production | compositor, planned("build"))
+        self.write("modules.lock.toml", "")
+        self.commit()
+        self.assertTrue(any("check_sql_compositor.py" in row for row in planned("compositor")))
+        self.assertTrue(planned("production").isdisjoint(planned("compositor")))
 
     def test_source_bound_snapshot_rejects_stale_and_forged_rows(self):
         checker = RUNNER.parent / "ci/full_snapshot.py"

@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        part: ${{ fromJSON(inputs.whole_workspace && '["tests","production","policy","inventory"]' || '["tests","production","policy"]') }}
+        part: ${{ fromJSON(inputs.whole_workspace && '["tests","production","compositor","policy","inventory"]' || '["tests","production","compositor","policy"]') }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
@@ -44,10 +44,6 @@ jobs:
           base_commit="$(git rev-parse --verify --end-of-options "${BASE}^{commit}")"
           merge_base="$(git merge-base HEAD "$base_commit")"
           echo "FULL_BASE=$merge_base" >> "$GITHUB_ENV"
-          if ! command -v rg >/dev/null; then
-            sudo apt-get update -qq
-            sudo apt-get install -y ripgrep
-          fi
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
         with:
           cache: false
@@ -57,7 +53,7 @@ jobs:
           shared-key: validation-v2
           save-if: ${{ github.event_name == 'push' }}
       - name: Install build fixtures
-        if: matrix.part == 'tests' || matrix.part == 'production'
+        if: matrix.part == 'tests' || matrix.part == 'production' || matrix.part == 'compositor'
         shell: bash
         run: |
           set -euo pipefail
