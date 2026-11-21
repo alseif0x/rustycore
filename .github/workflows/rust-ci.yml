@@ -119,7 +119,7 @@ jobs:
         with:
           shared-key: validation-v2
           workspaces: |
-            rustycore -> rustycore/target
+            rustycore -> target
 
       - name: Install pinned orchestration dependencies
         shell: bash
