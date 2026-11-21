@@ -114,7 +114,9 @@ a `<Domain>State`. Hook call points move unchanged (same point, order and contex
 
 ## Programme workflow for structural moves
 
-Read [refactor-rustycore-safely](../refactor-rustycore-safely/SKILL.md) first. For #1241/#1263:
+Read [refactor-rustycore-safely](../refactor-rustycore-safely/SKILL.md) first. The closed
+#1241/#1263 programme used the following rules. Apply them when a follow-up explicitly
+inherits the distribution contract.
 
 - Open one PR per phase or domain and merge it continuously into `3.4.3`. Don't keep a
   long-lived WIP branch.

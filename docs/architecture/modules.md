@@ -3,15 +3,11 @@
 Issue #228 earned the source API; issue #229 makes independent module repositories
 compilable into the server through an explicit, reproducible step.
 
-**Bounded source review:** local feature HEAD `7eaf8ddc`, 2026-09-05 (production code
-`93e4002a`; no fresh live acceptance in this document review). #228–#231 provide
-the source/build tooling, typed configuration and the bounded
-`player.login -> SendSystemMessageSelf` contract. They do not yet provide general gameplay
-policies, behavior scripting or host-managed persistent module state. The
-[approved modularity and ECS plan](modularity-and-ecs-plan.md) defines the next #99
-acceptance, implemented by the single #583 macro after #231/#578 and audited by #153
-before #133 closes. #578 does not wait for the whole SDK. The approved direction below
-is not an inventory of implemented APIs.
+The first source API (#228–#231) provided composition, typed configuration and the login
+hook. `3.4.3` also includes source API 2, the [hook catalogue](#hook-catalogue-1444-first-wave),
+`example.milestones` and module SQL from #1444. The catalogue records coverage limits at
+each production call site. The [modularity plan](modularity-and-ecs-plan.md) and #583
+specify remaining host-managed state, lifecycle and Wasm acceptance.
 
 ## Trust model, stated plainly
 
@@ -501,11 +497,9 @@ equipped stack (`PlayerStorage.cpp:2932`), or for a new character's starting out
 ## Approved next direction — #583 under #99, not implemented yet
 
 The [modularity and ECS plan](modularity-and-ecs-plan.md) keeps external extension contracts
-independent of private runtime storage. #99 owns the module product; #578 retains its full
-canonical ownership/lifetime/phase acceptance and supplies the boundaries the modules use.
-#583 is the single next functional module macro; #153 audits it and #578 before #133 closes.
-Use coherent macrodeliverables with internal checkpoints, not a hook-by-hook micro-PR tree.
-Neither a pilot module nor a backend choice closes the full #133/#578 contract.
+independent of private runtime storage. #99 owns the module product. #578 and #133 are closed.
+The remaining sequence is the required core work in #584, stateful native/Wasm acceptance
+in #583 and the independent audit in #153.
 
 ### Useful extension contracts
 
@@ -606,10 +600,8 @@ Use focused tests during internal cuts and the relevant production/live evidence
 existing migration, deployment, push and merge approvals remain unchanged.
 
 Follow the [shared reanalysis cadence](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication):
-#578 first proves conformance and a real C1/C2 vertical before replication, then completes its
-C4 balance. #583 tests its first independent production module before extending the API and
-finishes the durable/operator contract before #153 audits both macros. These are internal
-evidence checkpoints, not another issue or routine approval for each hook.
+use #584 for outstanding core obligations. #583 tests its first independent production module
+before extending the API and finishes the durable/operator contract before the #153 audit.
 
 ## Remaining boundaries
 
@@ -617,5 +609,5 @@ Remote checkout management and typed configuration are already implemented by #2
 The broader policy/behavior/state contracts and integrated migration/disable lifecycle above
 remain #583 work under #99, now including the operator-optional Wasm adapter and Rust/C proof.
 No production sandbox, native ABI stability or hot reload exists. The selected executor/backend
-direction is not a claim of installation or acceptance; current source manager commands and the
-bounded login hook remain the implemented product at the reviewed code above.
+direction is tracked separately from the shipped source manager commands, source API 2 hooks
+and module SQL lifecycle documented above.

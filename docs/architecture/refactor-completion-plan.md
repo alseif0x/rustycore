@@ -1,5 +1,10 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
+For current delivery status see [#584](https://github.com/alseif0x/rustycore/issues/584).
+The creature runtime removal landed in #1355 and #1356. The dated inventories below explain
+the design at their respective commits. The outstanding real-client acceptance has its own
+[issue #1342](https://github.com/alseif0x/rustycore/issues/1342).
+
 **Sincronización de la entrega #748, F1/#61/#63 y PR #933/#931/#929/#927/#925/#924/#923/#922/#921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-15; actualización #524 genérico, SQL hotfix, locale y P2/P3.13/P3.12/P3.11/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus

@@ -1,5 +1,10 @@
 # Distribución de `wow-world` — programa #1241, continuación #1263
 
+**Programme status (2026-11-21).** [#1263](https://github.com/alseif0x/rustycore/issues/1263)
+closed on 2026-10-11. The phase notes below preserve the state when they were written.
+The real-client terminal exercise is tracked in [#1342](https://github.com/alseif0x/rustycore/issues/1342).
+Follow [#584](https://github.com/alseif0x/rustycore/issues/584) for remaining core work.
+
 **Aceptación P4a — 2026-10-02:** F0–F3 y F4a P1–P3 integradas;
 P4a aceptada en `d9c9e3637`, con publicación/integración registradas en #1263.
 **Responsabilidad pendiente:** [#1263](https://github.com/alseif0x/rustycore/issues/1263),

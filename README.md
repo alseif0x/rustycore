@@ -73,9 +73,8 @@ cover the operator prerequisites.
 Clone the integration branch and let `rustup` use the repository's pinned toolchain:
 
 ```bash
-git clone https://github.com/alseif0x/rustycore.git
+git clone --branch 3.4.3 https://github.com/alseif0x/rustycore.git
 cd rustycore
-git switch 3.4.3
 ```
 
 Install a `protoc` release matching `.protoc-version` (`28.3`), then point `PROTOC` at it.
