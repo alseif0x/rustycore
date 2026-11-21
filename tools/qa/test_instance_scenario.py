@@ -497,7 +497,7 @@ class GroupResetEvidenceTests(unittest.TestCase):
         success = {"sent_packets": [sent_reset()], "events": [reset_event()]}
         self.assertEqual(scenario.validate_reset_evidence(success)["map_id"], 33)
         leave = {
-            "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")],
+            "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "00")],
             "events": [party_command_result(leader["name"])],
         }
         self.assertEqual(
@@ -517,7 +517,7 @@ class GroupResetEvidenceTests(unittest.TestCase):
         self.assertEqual(
             party_command_result(scenario.ACTOR_NAME)["body_hex"],
             "0590000000000000005161646561746863617374")
-        request = typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "", sequence=10)
+        request = typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "00", sequence=10)
         valid = {"sent_packets": [request],
                  "events": [party_command_result(leader["name"], sequence=11)]}
         facts = scenario.validate_leave_group_evidence(valid, leader["name"])
@@ -531,6 +531,8 @@ class GroupResetEvidenceTests(unittest.TestCase):
         missing_request_order = copy.deepcopy(valid)
         del missing_request_order["sent_packets"][0]["observation_sequence"]
         cases = [
+            ("missing party-index presence bit", {
+                "sent_packets": [{**request, "body_hex": ""}], "events": valid["events"]}),
             ("missing", {"sent_packets": [request], "events": []}),
             ("malformed", malformed),
             ("missing request sequence", missing_request_order),
@@ -716,7 +718,7 @@ class DifficultyRestartTests(unittest.TestCase):
             "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
         }
         leave = {
-            "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")],
+            "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "00")],
             "events": [party_command_result(leader["name"])],
         }
         order = []
@@ -774,7 +776,7 @@ class DifficultyRestartTests(unittest.TestCase):
             "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
         }
         leave = {
-            "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "")],
+            "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "00")],
             "events": [party_command_result(leader["name"])],
         }
         order = []

@@ -543,9 +543,9 @@ def validate_reset_failed_notify_evidence(evidence: dict[str, Any]) -> dict[str,
 def validate_leave_group_evidence(evidence: dict[str, Any], expected_leader_name: str) -> dict[str, Any]:
     requests = [packet for packet in evidence.get("sent_packets", [])
                 if isinstance(packet, dict) and packet.get("action") == "leave_group"]
-    completed = _typed_packets(evidence, "leave_group", "realm", CMSG_LEAVE_GROUP, "")
+    completed = _typed_packets(evidence, "leave_group", "realm", CMSG_LEAVE_GROUP, "00")
     if len(requests) != 1 or len(completed) != 1:
-        raise ScenarioFailure("leader must complete exactly one empty realm LeaveGroup")
+        raise ScenarioFailure("leader must send exactly one realm LeaveGroup with the party index absent")
 
     name = expected_leader_name.encode("utf-8")
     if not name or len(name) >= (1 << 9):

@@ -306,7 +306,7 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
     assert_eq!(sent[4].body_hex, "40");
     assert_eq!(sent[5].connection, Connection::Realm);
     assert_eq!(sent[5].opcode, CMSG_LEAVE_GROUP);
-    assert_eq!(sent[5].body_hex, "");
+    assert_eq!(sent[5].body_hex, "00");
     assert!(sent.iter().all(|packet| packet.write_completed));
 }
 

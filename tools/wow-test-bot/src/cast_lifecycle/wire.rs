@@ -60,7 +60,8 @@ pub(super) fn build_realm_action_packet(action: &Action) -> Result<(u16, Vec<u8>
             CMSG_PARTY_INVITE_RESPONSE,
             vec![if *accept { 0x40 } else { 0x00 }],
         )),
-        Action::LeaveGroup {} => Ok((CMSG_LEAVE_GROUP, Vec::new())),
+        // LeaveGroup::Read always reads the presence bit for the optional party index.
+        Action::LeaveGroup {} => Ok((CMSG_LEAVE_GROUP, vec![0])),
         _ => unreachable!("only typed realm actions use this builder"),
     }
 }
