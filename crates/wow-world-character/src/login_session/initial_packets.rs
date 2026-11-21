@@ -237,6 +237,9 @@ pub async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp<
     // `Player::SendInitialPacketsAfterAddToMap`
     // (`CharacterHandler.cpp:1241-1262`).
     host.register_in_player_registry();
+    wow_world_instances::complete_instance_map_player_entry_if_registered_like_cpp(
+        &mut host.hub_mut(),
+    );
 
     // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject`, then
     // `Player::SendInitialPacketsAfterAddToMap`; that method starts with

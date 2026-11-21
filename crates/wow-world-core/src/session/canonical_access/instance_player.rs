@@ -58,6 +58,38 @@ impl InstancePlayerAccessLikeCpp<'_> {
             .is_some()
     }
 
+    pub fn recent_instances_snapshot_like_cpp(&self) -> Option<Vec<(u32, u32)>> {
+        self.core.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .recent_instances
+                .iter()
+                .map(|(map_id, instance_id)| (*map_id, *instance_id))
+                .collect()
+        })
+    }
+
+    pub fn forget_recent_instance_like_cpp(&self, map_id: u32) -> Option<bool> {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| player.forget_recent_instance_like_cpp(map_id))
+    }
+
+    pub fn has_pending_bind_like_cpp(&self) -> bool {
+        self.core
+            .with_owned_player_like_cpp(|player| player.has_pending_bind_like_cpp())
+            .unwrap_or(false)
+    }
+
+    pub fn take_pending_bind_like_cpp(&self) -> Option<wow_entities::RepresentedPendingBind> {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| player.take_pending_bind_like_cpp())
+            .flatten()
+    }
+
+    pub fn current_map_key_like_cpp(&self) -> Option<wow_map::MapKey> {
+        self.core.current_canonical_player_map_key_like_cpp()
+    }
+
     pub fn game_master_with_fixture_like_cpp(&self, fixture_value: &bool) -> Option<bool> {
         self.core
             .player_is_game_master_with_fixture_like_cpp(fixture_value)

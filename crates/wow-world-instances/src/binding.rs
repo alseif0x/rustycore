@@ -24,6 +24,42 @@ pub fn create_map_instance_lock_token_like_cpp(
     hash
 }
 
+pub(crate) fn resolve_attached_raid_lock(
+    locks: &wow_world_core::session::InstanceLockManagerAccessLikeCpp<'_>,
+    context: wow_map::CreateMapInstanceLockContext,
+    key: wow_map::MapKey,
+    difficulty: wow_map::Difficulty,
+    maps: Option<&wow_data::MapStore>,
+    difficulties: Option<&wow_data::MapDifficultyStore>,
+) -> Option<(wow_instances::InstanceLock, wow_instances::MapDb2Entries)> {
+    let (lock, entries) = locks.active_lock_for_map_reset_like_cpp(
+        context,
+        key.map_id,
+        key.instance_id,
+        difficulty,
+        maps,
+        difficulties,
+    )?;
+    let owner = locks.player_guid_for_instance_lock_owner_like_cpp(context.owner_guid_counter)?;
+    (create_map_instance_lock_token_like_cpp(owner, &entries, &lock) == context.token)
+        .then_some((lock, entries))
+}
+
+pub(crate) fn player_instance_reset_forgets_recent_like_cpp(
+    result: GroupInstanceResetResultLikeCpp,
+    method: GroupInstanceResetMethodLikeCpp,
+) -> bool {
+    match result {
+        GroupInstanceResetResultLikeCpp::Success => true,
+        GroupInstanceResetResultLikeCpp::NotEmpty => {
+            method == GroupInstanceResetMethodLikeCpp::OnChangeDifficulty
+        }
+        GroupInstanceResetResultLikeCpp::CannotReset | GroupInstanceResetResultLikeCpp::Other => {
+            false
+        }
+    }
+}
+
 impl InstanceState {
     /// C++ `Player::IsLockedToDungeonEncounter(uint32)`.
     ///
@@ -107,7 +143,7 @@ impl InstanceState {
     ) -> Option<wow_instances::TransferAbortReason> {
         let player_guid = hub.core.player_guid?;
         let owner_guid_counter = i64::try_from(target_lock_context.owner_guid_counter).ok()?;
-        let owner_guid = ObjectGuid::create_player(1, owner_guid_counter);
+        let owner_guid = ObjectGuid::create_player(hub.core.realm_id(), owner_guid_counter);
         let entries = self.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)?;
         let now = u64::try_from(unix_now()).unwrap_or(0);
         let mgr = hub.core.instance_lock_mgr.as_ref()?;
@@ -168,18 +204,10 @@ impl InstanceState {
         result: GroupInstanceResetResultLikeCpp,
         method: GroupInstanceResetMethodLikeCpp,
     ) -> bool {
-        match result {
-            GroupInstanceResetResultLikeCpp::Success => {
-                self.forget_represented_player_recent_instance_like_cpp(hub, map_id)
-            }
-            GroupInstanceResetResultLikeCpp::NotEmpty
-                if method == GroupInstanceResetMethodLikeCpp::OnChangeDifficulty =>
-            {
-                self.forget_represented_player_recent_instance_like_cpp(hub, map_id)
-            }
-            GroupInstanceResetResultLikeCpp::NotEmpty
-            | GroupInstanceResetResultLikeCpp::CannotReset
-            | GroupInstanceResetResultLikeCpp::Other => false,
+        if player_instance_reset_forgets_recent_like_cpp(result, method) {
+            self.forget_represented_player_recent_instance_like_cpp(hub, map_id)
+        } else {
+            false
         }
     }
 }

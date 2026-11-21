@@ -30,6 +30,187 @@ use super::{
     represented_game_event_world_conditions_met_like_cpp, warn_about_sync_queries_scope_like_cpp,
 };
 
+pub(crate) struct CanonicalMapLifecycleOwnersLikeCpp {
+    pub instance_lock_mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
+    pub group_registry: Arc<wow_social::group::GroupRegistry>,
+    realm_id: u16,
+}
+
+impl CanonicalMapLifecycleOwnersLikeCpp {
+    pub(crate) fn new(
+        instance_lock_mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
+        group_registry: Arc<wow_social::group::GroupRegistry>,
+        realm_id: u16,
+    ) -> Self {
+        Self {
+            instance_lock_mgr,
+            group_registry,
+            realm_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct DestroyedMapCleanupSummaryLikeCpp {
+    pub locks_cleared: u32,
+    pub lock_cleanup_failures: u32,
+    pub group_links_removed: u32,
+}
+
+pub(crate) fn consume_destroyed_map_cleanup_like_cpp(
+    destroyed_maps: &[wow_map::MapTickDestroyedMapLikeCpp],
+    owners: &CanonicalMapLifecycleOwnersLikeCpp,
+) -> DestroyedMapCleanupSummaryLikeCpp {
+    let mut summary = DestroyedMapCleanupSummaryLikeCpp::default();
+    for destroyed in destroyed_maps {
+        if let Some(context) = destroyed.instance_lock_context {
+            let cleared = i64::try_from(context.owner_guid_counter)
+                .ok()
+                .and_then(|counter| {
+                    owners.instance_lock_mgr.write().ok().map(|mut manager| {
+                        manager.set_instance_lock_in_use_like_cpp(
+                            wow_core::ObjectGuid::create_player(owners.realm_id, counter),
+                            destroyed.key.map_id,
+                            context.difficulty_id,
+                            context.instance_id,
+                            false,
+                        )
+                    })
+                })
+                .unwrap_or(false);
+            if cleared {
+                summary.locks_cleared += 1;
+            } else {
+                summary.lock_cleanup_failures += 1;
+                tracing::error!(
+                    map_id = destroyed.key.map_id,
+                    instance_id = context.instance_id,
+                    difficulty_id = context.difficulty_id,
+                    owner_guid_counter = context.owner_guid_counter,
+                    "failed to clear destroyed map's exact instance lock in-use state"
+                );
+            }
+        }
+
+        if let Some(group_guid) = destroyed.owning_group_guid
+            && let Ok(outcome) = owners
+                .group_registry
+                .unlink_owned_instance_transition_like_cpp(
+                    group_guid,
+                    destroyed.key.map_id,
+                    destroyed.key.instance_id,
+                )
+            && outcome.facts
+        {
+            summary.group_links_removed += 1;
+        }
+    }
+    summary
+}
+
+fn consume_pending_instance_map_last_leave_checks_like_cpp(
+    map_manager: &SharedCanonicalMapManager,
+    owners: &CanonicalMapLifecycleOwnersLikeCpp,
+) {
+    let snapshots = match map_manager.lock() {
+        Ok(mut manager) => manager.take_pending_instance_map_last_leave_checks_like_cpp(),
+        Err(_) => {
+            tracing::error!("Canonical MapManager mutex poisoned before last-leave expiry check");
+            return;
+        }
+    };
+
+    for snapshot in snapshots {
+        let context = snapshot.instance_lock_context;
+        let Ok(owner_counter) = i64::try_from(context.owner_guid_counter) else {
+            continue;
+        };
+        let owner_guid = wow_core::ObjectGuid::create_player(owners.realm_id, owner_counter);
+        let lock_is_expired = {
+            let Ok(lock_manager) = owners.instance_lock_mgr.read() else {
+                continue;
+            };
+            lock_manager
+                .find_instance_lock_exact_like_cpp(
+                    owner_guid,
+                    snapshot.key.map_id,
+                    context.difficulty_id,
+                    snapshot.key.instance_id,
+                )
+                .is_some_and(|lock| lock.is_expired_at(snapshot.leave_time))
+        };
+        if !lock_is_expired {
+            continue;
+        }
+
+        match map_manager.lock() {
+            Ok(mut manager) => {
+                manager.arm_expired_instance_unload_like_cpp(snapshot);
+            }
+            Err(_) => {
+                tracing::error!(
+                    "Canonical MapManager mutex poisoned while applying last-leave expiry"
+                );
+            }
+        }
+    }
+}
+
+fn deliver_instance_map_expiry_updates_like_cpp(
+    updates: &[wow_map::manager::MapTickInstanceExpiryUpdateLikeCpp],
+    player_registry: &PlayerRegistry,
+) {
+    let Some(map_manager) = player_registry.canonical_map_manager_like_cpp() else {
+        return;
+    };
+    for update in updates {
+        if !matches!(
+            &update.update.reset_result,
+            wow_map::InstanceResetResultLikeCpp::NotEmpty { .. }
+        ) {
+            continue;
+        }
+        let map_is_current = map_manager.lock().ok().is_some_and(|manager| {
+            manager.map_incarnation_like_cpp(update.key) == Some(update.incarnation)
+                && manager
+                    .find_map(update.key.map_id, update.key.instance_id)
+                    .is_some_and(|map| {
+                        map.instance_lock_context() == Some(update.update.instance_lock_context)
+                    })
+        });
+        if !map_is_current {
+            continue;
+        }
+        for occupant in &update.occupants {
+            let Some((registration, _)) = player_registry.selected_packet_recipient_at_residence(
+                occupant.guid,
+                occupant.handle,
+                update.key,
+                occupant.residence_revision,
+                None,
+            ) else {
+                continue;
+            };
+            let command = wow_world::session::mailbox::ExpireInstanceMapOccupantLikeCppCommand {
+                recipient: occupant.guid,
+                handle: occupant.handle,
+                residence_revision: occupant.residence_revision,
+                map_key: update.key,
+                map_incarnation: update.incarnation,
+                event_time: update.update.event_time,
+                instance_lock_context: update.update.instance_lock_context,
+                has_instance_script: update.update.has_instance_script,
+            };
+            let _ = player_registry.queue_current_command_reliably(
+                registration,
+                wow_world::session::mailbox::SessionCommand::ExpireInstanceMapOccupantLikeCpp(
+                    command,
+                ),
+            );
+        }
+    }
+}
+
 pub(crate) fn spawn_canonical_map_update_loop(
     map_manager: SharedCanonicalMapManager,
     tick_interval_ms: u32,
@@ -45,6 +226,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
     area_trigger_template_store: Arc<wow_data::AreaTriggerTemplateStore>,
     mut game_event_scheduler: CanonicalGameEventSchedulerLikeCpp,
     player_registry: Arc<PlayerRegistry>,
+    lifecycle_owners: CanonicalMapLifecycleOwnersLikeCpp,
     active_session_registry: Arc<crate::ActiveWorldSessionRegistryLikeCpp>,
     battlemaster_list_store: Arc<wow_data::BattlemasterListStore>,
     world_state_mgr: SharedWorldStateMgrLikeCpp,
@@ -195,6 +377,14 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 continue;
             }
 
+            // `InstanceMap::RemovePlayerFromMap` checks the live attached lock
+            // only after the last reference leaves. Resolve its owned intent
+            // outside MapManager, before the next admission/unload check.
+            consume_pending_instance_map_last_leave_checks_like_cpp(
+                &map_manager,
+                &lifecycle_owners,
+            );
+
             let (area_trigger_sweep_summary, session_plan) = {
                 // Respawn mutations of every producer share this ordering
                 // gate. Statements are coalesced before releasing it, so
@@ -225,6 +415,13 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 drop(manager);
                 (area_trigger_sweep_summary, session_plan)
             };
+
+            if let Some(plan) = session_plan.as_ref() {
+                let _ = consume_destroyed_map_cleanup_like_cpp(
+                    plan.plan.destroyed_maps_like_cpp(),
+                    &lifecycle_owners,
+                );
+            }
 
             // #787: every synchronous guard of the split is released above,
             // including the respawn mutation-order gate, before any session
@@ -485,7 +682,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 None
             };
             let creature_tick_diff_ms = prelude.plan().effective_diff_ms();
-            let (tick_summary, creature_phases) = {
+            let (tick_summary, creature_phases, instance_expiry_updates) = {
                 let _respawn_db_mutation_order = respawn_db_mutation_order
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -553,6 +750,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                         None,
                     )
                 };
+                let instance_expiry_updates = manager.take_last_instance_expiry_updates_like_cpp();
                 drop(canonical_spawn_metadata);
                 drop(manager);
 
@@ -588,7 +786,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 // Player combat callbacks. P3 GameObject statements use distinct
                 // (type, spawnId) keys and retain the writer's per-key order.
 
-                (tick_summary, creature_phases)
+                (tick_summary, creature_phases, instance_expiry_updates)
             };
 
             // C++ `Creature::Update` publishes as it runs, before the map's
@@ -661,6 +859,11 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     );
                 }
             }
+
+            deliver_instance_map_expiry_updates_like_cpp(
+                &instance_expiry_updates,
+                &player_registry,
+            );
 
             if area_trigger_sweep_summary.loaded_grid_primary_records > 0
                 || area_trigger_sweep_summary.load_record_missing > 0

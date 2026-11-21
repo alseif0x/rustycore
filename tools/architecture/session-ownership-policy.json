@@ -5469,6 +5469,20 @@
           "module": "crate::handlers::character_login_host",
           "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
+          "name": "ensure_canonical_login_map_for_current_player_like_cpp",
+          "visibility": "private",
+          "signature": "fn ensure_canonical_login_map_for_current_player_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character_login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
           "name": "ensure_login_player_controller_like_cpp",
           "visibility": "private",
           "signature": "fn ensure_login_player_controller_like_cpp (& mut self , guid : ObjectGuid , name : String , position : wow_core :: Position , map_id : u16 , race : u8 , class : u8 , level : u8 , gender : u8 ,) -> bool",
@@ -5964,6 +5978,20 @@
           "name": "send_contact_list_like_cpp",
           "visibility": "private",
           "signature": "fn send_contact_list_like_cpp (& mut self , flags : u32) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character_login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "send_initial_group_update_after_login_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_initial_group_update_after_login_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8147,6 +8175,20 @@
           "module": "crate::handlers::entities::corpse::host",
           "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
           "kind": "method",
+          "name": "finish_player_non_alive_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn finish_player_non_alive_state_like_cpp (& mut self) -> Result < () , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
           "name": "force_player_visibility_with_catalogs_like_cpp",
           "visibility": "private",
           "signature": "fn force_player_visibility_with_catalogs_like_cpp < 'a > (& 'a mut self , creature_spawns : & 'a wow_world_entities :: CreatureSpawnCatalogsLikeCpp ,) -> impl std :: future :: Future < Output = bool > + Send + 'a",
@@ -8292,6 +8334,20 @@
           "name": "save_player_after_corpse_bones_like_cpp",
           "visibility": "private",
           "signature": "fn save_player_after_corpse_bones_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl std :: future :: Future < Output = wow_world_entities :: ResurrectionSaveOutcome > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "send_player_power_update_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_player_power_update_like_cpp (& self , guid : wow_core :: ObjectGuid , power : wow_constants :: PowerType , value : i32 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38126,6 +38182,19 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "InstancesHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "repop_after_declining_bind",
+          "visibility": "private",
+          "signature": "fn repop_after_declining_bind < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_handler :: HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
           "trait_path": "InventoryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
           "name": "auction_handler_cx_like_cpp",
@@ -39171,6 +39240,19 @@
           "name": "session_account_save_cx_like_cpp",
           "visibility": "private",
           "signature": "fn session_account_save_cx_like_cpp (& mut self) -> SessionAccountSaveCxLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SessionLifecycleHostLikeCpp",
+          "kind": "method",
+          "name": "stop_combat_for_logout_death_release_like_cpp",
+          "visibility": "private",
+          "signature": "fn stop_combat_for_logout_death_release_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41516,47 +41598,6 @@
           "source_class": "production",
           "guards": [
             "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::corpse::host",
-          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
-          "kind": "method",
-          "name": "finish_player_non_alive_state_like_cpp",
-          "visibility": "private",
-          "signature": "fn finish_player_non_alive_state_like_cpp (& mut self) -> Result < () , & 'static str >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::corpse::host",
-          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
-          "kind": "method",
-          "name": "send_player_power_update_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_player_power_update_like_cpp (& self , guid : wow_core :: ObjectGuid , power : wow_constants :: PowerType , value : i32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "SessionLifecycleHostLikeCpp",
-          "kind": "method",
-          "name": "stop_combat_for_logout_death_release_like_cpp",
-          "visibility": "private",
-          "signature": "fn stop_combat_for_logout_death_release_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
             "trait_impl"
           ]
         }
@@ -47704,6 +47745,16 @@
           "count": 1
         },
         {
+          "module": "crate::handlers::entities::tests::corpse",
+          "callee": "WorldSession::new",
+          "argument_count": 11,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 1
+        },
+        {
           "module": "crate::handlers::group::tests",
           "callee": "WorldSession::new",
           "argument_count": 11,
@@ -47871,7 +47922,7 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "count": 1
+          "count": 2
         },
         {
           "module": "crate::session::tests::fixtures::session_fixtures",
@@ -47923,16 +47974,6 @@
         },
         {
           "module": "crate::tests::scenarios_16",
-          "callee": "WorldSession::new",
-          "argument_count": 11,
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "count": 1
-        },
-        {
-          "module": "crate::handlers::entities::tests::corpse",
           "callee": "WorldSession::new",
           "argument_count": 11,
           "cfg": [
@@ -48304,6 +48345,21 @@
             {
               "name": "0",
               "type": "DestroyVisibleObjectLikeCppCommand",
+              "visibility": "private",
+              "cfg": [],
+              "source_class": "production"
+            }
+          ],
+          "discriminant": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "ExpireInstanceMapOccupantLikeCpp",
+          "fields": [
+            {
+              "name": "0",
+              "type": "ExpireInstanceMapOccupantLikeCppCommand",
               "visibility": "private",
               "cfg": [],
               "source_class": "production"
@@ -49634,6 +49690,76 @@
           {
             "name": "object_guid",
             "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::protocol",
+          "name": "ExpireInstanceMapOccupantLikeCppCommand",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "event_time",
+            "type": "u64",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "handle",
+            "type": "PlayerHandle",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "has_instance_script",
+            "type": "bool",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "instance_lock_context",
+            "type": "CreateMapInstanceLockContext",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "map_incarnation",
+            "type": "u64",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "map_key",
+            "type": "MapKey",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "recipient",
+            "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "residence_revision",
+            "type": "u64",
             "visibility": "pub",
             "cfg": [],
             "source_class": "production"
@@ -51481,6 +51607,14 @@
       },
       {
         "module": "crate::session::mailbox::protocol",
+        "target": "ExpireInstanceMapOccupantLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
         "target": "KickLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -52006,7 +52140,7 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "& group_registry",
-          "count": 3
+          "count": 4
         },
         {
           "package": "world-server",
@@ -52044,6 +52178,19 @@
           "symbol": "new",
           "visibility": "",
           "cfg": [],
+          "fingerprint": "Arc :: clone (& group_registry)",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn run_inner",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [],
           "fingerprint": "GroupRegistry :: new ()",
           "count": 1
         },
@@ -52058,6 +52205,19 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "Some (Arc :: clone (& group_registry))",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn run_inner",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "spawn_canonical_map_update_loop",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "CanonicalMapLifecycleOwnersLikeCpp :: new (Arc :: clone (& instance_lock_mgr) , Arc :: clone (& group_registry) , realm_id ,)",
           "count": 1
         },
         {
@@ -53026,6 +53186,32 @@
           "package": "world-server",
           "module": "crate::runtime::map::update_loop",
           "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn consume_destroyed_map_cleanup_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "owners . group_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn deliver_instance_map_expiry_updates_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
           "enclosing": "fn spawn_canonical_map_update_loop",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -53133,6 +53319,19 @@
           "enclosing": "fn spawn_canonical_map_update_loop",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
+          "symbol": "deliver_instance_map_expiry_updates_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& player_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
           "symbol": "fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp",
           "visibility": "pub (crate)",
           "cfg": [],
@@ -53182,6 +53381,19 @@
           "package": "world-server",
           "module": "crate::runtime::map::update_loop",
           "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "impl CanonicalMapLifecycleOwnersLikeCpp::new",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "Arc < wow_social :: group :: GroupRegistry >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
           "enclosing": "module",
           "registry": "PlayerRegistry",
           "operation": "import_alias",
@@ -53189,6 +53401,19 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "super::{CanonicalGameEventSchedulerLikeCpp,CanonicalRespawnConditionSchedulerLikeCpp,LoadedGridCreatureRespawnCachesLikeCpp,PlayerRegistry,RespawnDbWriterSenderLikeCpp,SharedCanonicalMapManager,SharedCanonicalSpawnMetadataLikeCpp,SharedRespawnDbMutationOrderLikeCpp,SharedRespawnDbProducerStopLikeCpp,SharedWorldStateMgrLikeCpp,canonical_map_coordinator_id_like_cpp,canonical_map_tick_begin_like_cpp,consume_game_event_live_update_side_effects_like_cpp,current_unix_time_secs_like_cpp,execute_game_event_seasonal_quest_db_deletes_like_cpp,execute_game_event_world_event_state_db_bridge_like_cpp,fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp,load_loaded_grid_area_triggers_like_cpp,materialize_game_event_world_event_state_db_bridge_like_cpp,represented_game_event_world_conditions_met_like_cpp,warn_about_sync_queries_scope_like_cpp}",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "struct CanonicalMapLifecycleOwnersLikeCpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "Arc < wow_social :: group :: GroupRegistry >",
           "count": 1
         },
         {
@@ -53986,6 +54211,84 @@
         },
         {
           "package": "wow-world",
+          "module": "crate::session::instance_handler_contexts",
+          "source": "crates/wow-world/src/session/instance_handler_contexts.rs",
+          "enclosing": "impl WorldSession::build_instance_difficulty_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . core . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instance_handler_contexts",
+          "source": "crates/wow-world/src/session/instance_handler_contexts.rs",
+          "enclosing": "impl WorldSession::build_instance_difficulty_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "return",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "InstanceDifficultyHandlerCxLikeCpp :: new (& mut self . instances , player , locks , group_owner , groups , & self . social , & self . lifecycle , packets , map_store , map_difficulty_store , difficulty_store , self . core . canonical_map_manager . as_ref () , self . core . player_registry . as_ref () , cfg ! (test) ,)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instance_handler_contexts",
+          "source": "crates/wow-world/src/session/instance_handler_contexts.rs",
+          "enclosing": "impl WorldSession::build_instance_difficulty_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "new",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . core . player_registry . as_ref ()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instance_handler_contexts",
+          "source": "crates/wow-world/src/session/instance_handler_contexts.rs",
+          "enclosing": "impl WorldSession::build_instance_lock_operations_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . core . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instance_handler_contexts",
+          "source": "crates/wow-world/src/session/instance_handler_contexts.rs",
+          "enclosing": "impl WorldSession::build_instance_lock_operations_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "return",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "InstanceLockOperationsHandlerCxLikeCpp :: new (& mut self . instances , player , locks , group_owner , groups , & self . social , & self . lifecycle , packets , map_store , map_difficulty_store , difficulty_store , self . core . canonical_map_manager . as_ref () , self . core . player_registry . as_ref () , cfg ! (test) , # [cfg (any (test , feature = \"test-fixtures\"))] game_master_fixture ,)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::instance_handler_contexts",
+          "source": "crates/wow-world/src/session/instance_handler_contexts.rs",
+          "enclosing": "impl WorldSession::build_instance_lock_operations_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "new",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . core . player_registry . as_ref ()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
           "module": "crate::session::instances::map_resolution",
           "source": "crates/wow-world/src/session/instances/map_resolution.rs",
           "enclosing": "impl WorldSession::set_canonical_map_manager",
@@ -54684,6 +54987,19 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::group_difficulty",
+          "source": "crates/wow-world-core/src/session/canonical_access/group_difficulty.rs",
+          "enclosing": "impl GroupDifficultyAccessLikeCpp::apply_instance_reset_transition_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -57948,6 +58264,188 @@
         },
         {
           "package": "wow-world-instances",
+          "module": "crate::handlers::context",
+          "source": "crates/wow-world-instances/src/handlers/context.rs",
+          "enclosing": "impl InstanceDifficultyHandlerCxLikeCpp::new",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "Option < & 'a Arc < PlayerRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::context",
+          "source": "crates/wow-world-instances/src/handlers/context.rs",
+          "enclosing": "impl InstanceLockOperationsHandlerCxLikeCpp::new",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "Option < & 'a Arc < PlayerRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::context",
+          "source": "crates/wow-world-instances/src/handlers/context.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "wow_world_core::session::directory::PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::context",
+          "source": "crates/wow-world-instances/src/handlers/context.rs",
+          "enclosing": "struct InstanceDifficultyHandlerCxLikeCpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "Option < & 'a Arc < PlayerRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::context",
+          "source": "crates/wow-world-instances/src/handlers/context.rs",
+          "enclosing": "struct InstanceLockOperationsHandlerCxLikeCpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "Option < & 'a Arc < PlayerRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::difficulty",
+          "source": "crates/wow-world-instances/src/handlers/difficulty.rs",
+          "enclosing": "fn apply_represented_difficulty_change_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "cx . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::difficulty",
+          "source": "crates/wow-world-instances/src/handlers/difficulty.rs",
+          "enclosing": "fn apply_represented_difficulty_change_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "reset_maps_with_access_like_cpp",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "cx . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::lock_operations",
+          "source": "crates/wow-world-instances/src/handlers/lock_operations.rs",
+          "enclosing": "fn notify_reset_failed_occupants_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "Option < & Arc < PlayerRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::lock_operations",
+          "source": "crates/wow-world-instances/src/handlers/lock_operations.rs",
+          "enclosing": "fn notify_reset_failed_occupants_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::lock_operations",
+          "source": "crates/wow-world-instances/src/handlers/lock_operations.rs",
+          "enclosing": "fn reset_maps_with_access_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "Option < & Arc < PlayerRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::lock_operations",
+          "source": "crates/wow-world-instances/src/handlers/lock_operations.rs",
+          "enclosing": "fn reset_maps_with_access_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "notify_reset_failed_occupants_like_cpp",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::lock_operations",
+          "source": "crates/wow-world-instances/src/handlers/lock_operations.rs",
+          "enclosing": "fn reset_represented_instances_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "cx . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::lock_operations",
+          "source": "crates/wow-world-instances/src/handlers/lock_operations.rs",
+          "enclosing": "fn reset_represented_instances_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "reset_maps_with_access_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "cx . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::handlers::lock_operations",
+          "source": "crates/wow-world-instances/src/handlers/lock_operations.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "wow_world_core::session::directory::PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
           "module": "crate::instance_session::access_requirement",
           "source": "crates/wow-world-instances/src/instance_session/access_requirement.rs",
           "enclosing": "fn access_requirement_leader_has_achievement_like_cpp",
@@ -58048,6 +58546,110 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "host . core () . directory . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::instance_session::map_entry",
+          "source": "crates/wow-world-instances/src/instance_session/map_entry.rs",
+          "enclosing": "fn prepare_canonical_map_entry_with_publication_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "host . core () . directory . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::pending_raid_lock",
+          "source": "crates/wow-world-instances/src/pending_raid_lock.rs",
+          "enclosing": "fn complete_instance_map_player_entry_if_registered_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::pending_raid_lock",
+          "source": "crates/wow-world-instances/src/pending_raid_lock.rs",
+          "enclosing": "fn complete_instance_map_player_entry_if_registered_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "guid",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::pending_raid_lock",
+          "source": "crates/wow-world-instances/src/pending_raid_lock.rs",
+          "enclosing": "fn complete_instance_map_player_entry_if_registered_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "handle",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "handle:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::pending_raid_lock",
+          "source": "crates/wow-world-instances/src/pending_raid_lock.rs",
+          "enclosing": "fn complete_instance_map_player_entry_if_registered_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "key",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "key:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::pending_raid_lock",
+          "source": "crates/wow-world-instances/src/pending_raid_lock.rs",
+          "enclosing": "fn complete_instance_map_player_entry_if_registered_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "manager",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "manager:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::pending_raid_lock",
+          "source": "crates/wow-world-instances/src/pending_raid_lock.rs",
+          "enclosing": "fn complete_instance_map_player_entry_if_registered_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::pending_raid_lock",
+          "source": "crates/wow-world-instances/src/pending_raid_lock.rs",
+          "enclosing": "fn complete_instance_map_player_entry_if_registered_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "cloned()",
           "count": 1
         },
         {
@@ -60563,6 +61165,97 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::group_fanout",
+          "source": "crates/wow-world-social/src/group_fanout.rs",
+          "enclosing": "fn send_initial_group_update_after_login_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "hub . core . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::group_fanout",
+          "source": "crates/wow-world-social/src/group_fanout.rs",
+          "enclosing": "fn send_initial_group_update_after_login_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::group_fanout",
+          "source": "crates/wow-world-social/src/group_fanout.rs",
+          "enclosing": "fn send_initial_group_update_after_login_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::group_fanout",
+          "source": "crates/wow-world-social/src/group_fanout.rs",
+          "enclosing": "fn send_initial_group_update_after_login_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "hub . core . directory . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::group_fanout",
+          "source": "crates/wow-world-social/src/group_fanout.rs",
+          "enclosing": "fn send_initial_group_update_after_login_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::group_fanout",
+          "source": "crates/wow-world-social/src/group_fanout.rs",
+          "enclosing": "fn send_initial_group_update_after_login_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "cloned()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::group_fanout",
+          "source": "crates/wow-world-social/src/group_fanout.rs",
+          "enclosing": "fn send_initial_group_update_after_login_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
           "count": 1
         },
         {

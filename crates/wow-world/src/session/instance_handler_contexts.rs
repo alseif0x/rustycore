@@ -46,9 +46,6 @@ impl WorldSession {
         let difficulty_store = self.catalogs.difficulty_store().map(AsRef::as_ref);
         #[cfg(any(test, feature = "test-fixtures"))]
         let game_master_fixture = &self.fixtures.combat.player_game_master_like_cpp;
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let rejected_response_counter =
-            &mut self.fixtures.combat.represented_repop_at_graveyard_count;
         InstanceLockOperationsHandlerCxLikeCpp::new(
             &mut self.instances,
             player,
@@ -61,11 +58,11 @@ impl WorldSession {
             map_store,
             map_difficulty_store,
             difficulty_store,
+            self.core.canonical_map_manager.as_ref(),
+            self.core.player_registry.as_ref(),
             cfg!(test),
             #[cfg(any(test, feature = "test-fixtures"))]
             game_master_fixture,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            rejected_response_counter,
         )
     }
 
@@ -94,12 +91,27 @@ impl WorldSession {
             map_store,
             map_difficulty_store,
             difficulty_store,
+            self.core.canonical_map_manager.as_ref(),
+            self.core.player_registry.as_ref(),
             cfg!(test),
         )
     }
 }
 
 impl InstancesHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+    fn repop_after_declining_bind<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+    ) -> wow_handler::HandlerFuture<'a, ()> {
+        Box::pin(wow_world_entities::repop_at_graveyard_like_cpp(
+            self,
+            wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+                item_guid_generator: catalogs.id_generators.item.as_ref(),
+                creature_spawns: catalogs.creature_spawns.as_ref(),
+                graveyards: catalogs.graveyards.as_ref(),
+            },
+        ))
+    }
     fn instance_raid_info_handler_cx_like_cpp<'a>(
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,

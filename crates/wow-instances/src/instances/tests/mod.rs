@@ -56,3 +56,4 @@ fn update_event(instance_id: u32, bit: Option<u8>) -> InstanceLockUpdateEvent {
 
 mod scenarios_1;
 mod scenarios_2;
+mod scenarios_3;

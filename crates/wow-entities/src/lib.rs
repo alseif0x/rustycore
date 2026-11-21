@@ -34,7 +34,8 @@ mod world_object;
 
 pub use character_rules::represented_character_rename_name_result_like_cpp;
 pub use player::{
-    QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp, is_buyback_slot,
+    QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp,
+    RepresentedPendingBind, is_buyback_slot,
 };
 pub use player_rules::{
     apply_pct_modifier_to_u32_like_cpp, chair_stand_state_like_cpp,

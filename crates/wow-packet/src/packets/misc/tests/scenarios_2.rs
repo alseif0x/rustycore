@@ -4,6 +4,10 @@
 
 use super::*;
 
+fn calendar_server_time_at_unix(unix_seconds: u64) -> u32 {
+    wow_core::GameTime::from_unix(unix_seconds).to_packed() | 0x6000_0000
+}
+
 #[test]
 fn gm_ticket_system_status_matches_cpp_int32_shape() {
     let bytes = GmTicketSystemStatus::from_support_enabled_like_cpp(true).to_bytes();
@@ -277,7 +281,9 @@ fn calendar_send_calendar_empty_matches_cpp_header_shape() {
     assert_eq!(bytes.len(), 2 + 4 + 4 + 4 + 4);
 
     let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
-    assert_eq!(pkt.read_uint32().unwrap(), 0x0000_3000); // 2000-01-01 00:00 UTC
+    let server_time = pkt.read_uint32().unwrap();
+    assert_eq!(server_time, calendar_server_time_at_unix(946_684_800));
+    assert_eq!((server_time >> 29) & 0x03, 0x03);
     assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
     assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
     assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
@@ -294,7 +300,9 @@ fn calendar_raid_lockout_added_matches_cpp_field_order() {
 
     let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
     assert_eq!(pkt.read_uint64().unwrap(), 9001);
-    assert_eq!(pkt.read_uint32().unwrap(), 0x0000_3000); // 2000-01-01 00:00 UTC
+    let server_time = pkt.read_uint32().unwrap();
+    assert_eq!(server_time, calendar_server_time_at_unix(946_684_800));
+    assert_eq!((server_time >> 29) & 0x03, 0x03);
     assert_eq!(pkt.read_int32().unwrap(), 631);
     assert_eq!(pkt.read_uint32().unwrap(), 4);
     assert_eq!(pkt.read_int32().unwrap(), 86_400);
@@ -331,7 +339,9 @@ fn calendar_raid_lockout_updated_matches_cpp_field_order() {
     assert_eq!(bytes.len(), 2 + 4 + 4 + 4 + 4 + 4);
 
     let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
-    assert_eq!(pkt.read_uint32().unwrap(), 0x0000_3000); // 2000-01-01 00:00 UTC
+    let server_time = pkt.read_uint32().unwrap();
+    assert_eq!(server_time, calendar_server_time_at_unix(946_684_800));
+    assert_eq!((server_time >> 29) & 0x03, 0x03);
     assert_eq!(pkt.read_int32().unwrap(), 631);
     assert_eq!(pkt.read_uint32().unwrap(), 4);
     assert_eq!(pkt.read_int32().unwrap(), 3_600);

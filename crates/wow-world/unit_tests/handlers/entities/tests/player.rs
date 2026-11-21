@@ -149,7 +149,7 @@ async fn set_dungeon_difficulty_updates_solo_dungeon_difficulty_like_cpp() {
 
 #[tokio::test]
 async fn toggle_difficulty_uses_raid_toggle_before_dungeon_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
         difficulty_entry_with_toggle(14, 2, DifficultyFlags::CAN_SELECT, 15),
         difficulty_entry(15, 2, DifficultyFlags::CAN_SELECT),
@@ -165,6 +165,7 @@ async fn toggle_difficulty_uses_raid_toggle_before_dungeon_like_cpp() {
         .handle_toggle_difficulty(WorldPacket::new_empty())
         .await;
 
+    assert!(instance_rx.try_recv().is_err());
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 1);
     let sent = send_rx.try_recv().expect("raid difficulty packet");
@@ -179,7 +180,7 @@ async fn toggle_difficulty_uses_raid_toggle_before_dungeon_like_cpp() {
 
 #[tokio::test]
 async fn toggle_difficulty_falls_back_to_dungeon_when_raid_has_no_toggle_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
         difficulty_entry(14, 2, DifficultyFlags::CAN_SELECT),
         difficulty_entry_with_toggle(1, 1, DifficultyFlags::CAN_SELECT, 2),
@@ -194,6 +195,7 @@ async fn toggle_difficulty_falls_back_to_dungeon_when_raid_has_no_toggle_like_cp
         .handle_toggle_difficulty(WorldPacket::new_empty())
         .await;
 
+    assert!(instance_rx.try_recv().is_err());
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 14);
     let sent = send_rx.try_recv().expect("dungeon difficulty packet");
@@ -224,7 +226,7 @@ async fn toggle_difficulty_without_available_toggle_is_silent_like_cpp() {
 
 #[tokio::test]
 async fn set_difficulty_id_same_dungeon_difficulty_is_silent_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
         2,
         1,
@@ -243,12 +245,13 @@ async fn set_difficulty_id_same_dungeon_difficulty_is_silent_like_cpp() {
         .handle_set_difficulty_id(set_difficulty_request(2))
         .await;
 
+    assert!(instance_rx.try_recv().is_err());
     assert!(send_rx.try_recv().is_err());
 }
 
 #[tokio::test]
 async fn set_difficulty_id_updates_solo_raid_difficulty_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
         15,
         2,
@@ -263,6 +266,7 @@ async fn set_difficulty_id_updates_solo_raid_difficulty_like_cpp() {
         .handle_set_difficulty_id(set_difficulty_request(15))
         .await;
 
+    assert!(instance_rx.try_recv().is_err());
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
     let sent = send_rx.try_recv().expect("raid difficulty packet");
     assert_eq!(
@@ -276,7 +280,7 @@ async fn set_difficulty_id_updates_solo_raid_difficulty_like_cpp() {
 
 #[tokio::test]
 async fn set_raid_difficulty_updates_solo_raid_difficulty_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
         15,
         2,
@@ -291,6 +295,7 @@ async fn set_raid_difficulty_updates_solo_raid_difficulty_like_cpp() {
         .handle_set_raid_difficulty(set_raid_difficulty_request(15, 0))
         .await;
 
+    assert!(instance_rx.try_recv().is_err());
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
     let sent = send_rx.try_recv().expect("raid difficulty packet");
     assert_eq!(
@@ -304,7 +309,7 @@ async fn set_raid_difficulty_updates_solo_raid_difficulty_like_cpp() {
 
 #[tokio::test]
 async fn set_difficulty_id_updates_solo_legacy_raid_difficulty_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
         4,
         2,
@@ -319,6 +324,7 @@ async fn set_difficulty_id_updates_solo_legacy_raid_difficulty_like_cpp() {
         .handle_set_difficulty_id(set_difficulty_request(4))
         .await;
 
+    assert!(instance_rx.try_recv().is_err());
     assert_eq!(session.represented_legacy_raid_difficulty_id_like_cpp(), 4);
     let sent = send_rx.try_recv().expect("legacy raid difficulty packet");
     assert_eq!(
@@ -369,7 +375,7 @@ async fn set_raid_difficulty_negative_id_is_silent_like_cpp() {
 
 #[tokio::test]
 async fn set_difficulty_id_group_leader_updates_group_dungeon_difficulty_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let leader = ObjectGuid::create_player(1, 100);
     let member = ObjectGuid::create_player(1, 101);
     let group_registry = Arc::new(GroupRegistry::default());
@@ -406,6 +412,7 @@ async fn set_difficulty_id_group_leader_updates_group_dungeon_difficulty_like_cp
         .handle_set_difficulty_id(set_difficulty_request(2))
         .await;
 
+    assert!(instance_rx.try_recv().is_err());
     let group = group_registry.get(&group_guid).expect("group");
     assert_eq!(group.dungeon_difficulty_id, 2);
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
@@ -476,7 +483,7 @@ async fn set_difficulty_id_group_non_leader_is_silent_like_cpp() {
 
 #[tokio::test]
 async fn group_difficulty_command_updates_remote_member_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, instance_rx, send_rx) = make_session_with_realm_send();
     let group_guid = 7001;
     session
         .social
@@ -497,6 +504,7 @@ async fn group_difficulty_command_updates_remote_member_like_cpp() {
         .process_represented_session_commands_like_cpp()
         .await;
 
+    assert!(instance_rx.try_recv().is_err());
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
     let sent = send_rx.try_recv().expect("remote raid difficulty packet");
     assert_eq!(

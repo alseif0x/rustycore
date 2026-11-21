@@ -22,6 +22,7 @@ impl WorldSession {
             &mut self.inventory,
             &mut self.lifecycle,
             cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
             &self.instances,
             wow_world_core::session::LootReleaseStatsInputsLikeCpp::new_like_cpp(
                 &self.catalogs,

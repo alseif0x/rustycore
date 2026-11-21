@@ -317,7 +317,7 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
             host.hub_mut()
                 .set_player_map_position_like_cpp(fallback_map_id, fallback.position);
             let _ =
-                wow_world_instances::ensure_canonical_world_map_for_current_player_like_cpp(host);
+                wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(host);
             info!(
                 player_guid = guid.counter(),
                 map_id,
@@ -331,7 +331,7 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
             );
         }
     } else if attached_controller {
-        let _ = wow_world_instances::ensure_canonical_world_map_for_current_player_like_cpp(host);
+        let _ = wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(host);
     }
     if retry_login_at_homebind_like_cpp(host, &mut map_id, &mut zone, &mut position, login_homebind)
     {

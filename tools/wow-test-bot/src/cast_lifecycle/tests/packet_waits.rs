@@ -33,6 +33,21 @@ fn raw_packet_expectation(connection: Connection, opcode: u16, body: &[u8]) -> E
     }
 }
 
+#[test]
+fn group_leave_plan_can_wait_for_the_server_acknowledgement() {
+    let plan: Plan = serde_json::from_value(serde_json::json!({
+        "character_guid": 24,
+        "timeout_ms": 10000,
+        "actions": [
+            {"action": "leave_group"},
+            {"action": "wait_for_packet", "connection": "realm", "opcode": 0x2796, "timeout_ms": 5000}
+        ],
+        "expect": [{"event": "packet", "connection": "realm", "opcode": 0x2684, "body_hex": ""}],
+        "finish_policy": "logout"
+    })).unwrap();
+    plan::validate_plan(&plan).unwrap();
+}
+
 async fn tcp_pair() -> (TcpStream, TcpStream) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -210,6 +225,128 @@ async fn typed_logout_request_marks_completion_only_after_successful_write() {
 }
 
 #[tokio::test]
+async fn instance_and_party_actions_route_exact_packets_on_their_native_connections() {
+    let target = Guid {
+        low: 0x11,
+        high: 0x22,
+    };
+    let mut plan = packet_plan(
+        Action::ResetInstances {},
+        raw_packet_expectation(Connection::Instance, CMSG_RESET_INSTANCES, &[]),
+        20,
+    );
+    plan.actions = vec![
+        Action::ResetInstances {},
+        Action::SetDifficultyId { difficulty_id: 2 },
+        Action::SetDungeonDifficulty { difficulty_id: 2 },
+        Action::PartyInvite {
+            name: "Peer".to_string(),
+            target,
+        },
+        Action::PartyInviteResponse { accept: true },
+        Action::LeaveGroup {},
+        Action::InstanceLockResponse { accept: true },
+        Action::InstanceLockResponse { accept: false },
+        Action::RequestRaidInfo {},
+    ];
+    let mut controller = packet_controller(plan);
+    let (mut stream, _instance_peer) = tcp_pair().await;
+    let (realm_stream, _realm_peer) = tcp_pair().await;
+    let key = [0x6d; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = Some(EncryptedWorldConnection {
+        stream: realm_stream,
+        crypt: WorldCrypt::new_with_counters(&key, 0, 0),
+        inflater: ServerPacketInflater::default(),
+    });
+
+    execute(
+        &mut controller,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+    )
+    .await
+    .unwrap();
+
+    let sent = &controller.evidence.sent_packets;
+    assert_eq!(sent.len(), 9);
+    assert_eq!(
+        (
+            sent[8].connection,
+            sent[8].opcode,
+            sent[8].body_hex.as_str()
+        ),
+        (Connection::Realm, CMSG_REQUEST_RAID_INFO, "")
+    );
+    for (index, body) in [(6, "80"), (7, "00")] {
+        assert_eq!(sent[index].connection, Connection::Realm);
+        assert_eq!(sent[index].opcode, CMSG_INSTANCE_LOCK_RESPONSE);
+        assert_eq!(sent[index].body_hex, body);
+    }
+    assert_eq!(sent[0].connection, Connection::Instance);
+    assert_eq!(sent[0].opcode, CMSG_RESET_INSTANCES);
+    assert_eq!(sent[0].body_hex, "");
+    assert_eq!(sent[1].connection, Connection::Instance);
+    assert_eq!(sent[1].opcode, CMSG_SET_DIFFICULTY_ID);
+    assert_eq!(sent[1].body_hex, hex::encode(2u32.to_le_bytes()));
+    assert_eq!(sent[2].connection, Connection::Instance);
+    assert_eq!(sent[2].opcode, CMSG_SET_DUNGEON_DIFFICULTY);
+    assert_eq!(sent[2].body_hex, hex::encode(2u32.to_le_bytes()));
+    assert_eq!(sent[3].connection, Connection::Realm);
+    assert_eq!(sent[3].opcode, CMSG_PARTY_INVITE);
+    assert_eq!(
+        sent[3].body_hex,
+        hex::encode(crate::loot_race::build_party_invite("Peer", target.low, target.high).unwrap())
+    );
+    assert_eq!(sent[4].connection, Connection::Realm);
+    assert_eq!(sent[4].opcode, CMSG_PARTY_INVITE_RESPONSE);
+    assert_eq!(sent[4].body_hex, "40");
+    assert_eq!(sent[5].connection, Connection::Realm);
+    assert_eq!(sent[5].opcode, CMSG_LEAVE_GROUP);
+    assert_eq!(sent[5].body_hex, "00");
+    assert!(sent.iter().all(|packet| packet.write_completed));
+}
+
+#[tokio::test]
+async fn party_action_without_realm_fails_without_instance_send() {
+    let mut controller = packet_controller(packet_plan(
+        Action::PartyInviteResponse { accept: false },
+        raw_packet_expectation(Connection::Realm, CMSG_PARTY_INVITE_RESPONSE, &[0]),
+        20,
+    ));
+    let (mut stream, _instance_peer) = tcp_pair().await;
+    let key = [0x6e; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = None;
+
+    execute(
+        &mut controller,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+    )
+    .await
+    .unwrap();
+
+    assert!(controller.evidence.sent_packets.is_empty());
+    assert!(controller
+        .evidence
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("party_invite_response requires a realm connection"));
+    assert!(controller.evidence.trace.iter().any(|entry| {
+        entry.action.as_deref() == Some("party_invite_response")
+            && entry.kind == TraceKind::ActionFailed
+    }));
+}
+
+#[tokio::test]
 async fn logout_eof_never_substitutes_for_ack_and_frame_errors_remain_fatal() {
     for case in [
         "missing_ack",
@@ -262,6 +399,38 @@ async fn logout_eof_never_substitutes_for_ack_and_frame_errors_remain_fatal() {
         }
         assert!(!controller.evidence.logout_confirmed, "{case}");
         assert!(!controller.evidence.finish_completed, "{case}");
+    }
+}
+
+#[tokio::test]
+async fn consecutive_waits_consume_distinct_login_raid_prompts() {
+    let mut controller = logout_controller();
+    for (sequence, flags) in [(2, 0), (4, 0x80)] {
+        let body = [0x60, 0xea, 0, 0, 1, 0, 0, 0, flags];
+        let mut event = decode_event(sequence, Connection::Realm, SMSG_PENDING_RAID_LOCK, &body);
+        event.observation_sequence = sequence;
+        controller.evidence.events.push(event);
+    }
+    let (mut stream, _peer) = tcp_pair().await;
+    let mut crypt = WorldCrypt::new_with_counters(&[0x6d; 16], 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = None;
+    for expected_sequence in [Some(2), Some(4), None] {
+        let result = wait_for_packet(
+            tokio::time::Instant::now(),
+            Connection::Realm,
+            SMSG_PENDING_RAID_LOCK,
+            &mut stream,
+            &mut crypt,
+            &mut inflater,
+            &mut realm,
+            &mut controller,
+        )
+        .await;
+        assert_eq!(result.is_ok(), expected_sequence.is_some());
+        if let Some(sequence) = expected_sequence {
+            assert_eq!(controller.last_waited_raid_prompt, Some(sequence));
+        }
     }
 }
 

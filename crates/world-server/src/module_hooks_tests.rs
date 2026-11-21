@@ -546,7 +546,7 @@ fn the_creature_event_dispatch_sits_after_the_guards_of_the_tick() {
         .find("deliver_canonical_creature_phases_like_cpp(phases, &player_registry)")
         .expect("the creature phases are delivered");
     let guards_released = source
-        .find("(tick_summary, creature_phases)\n            };")
+        .find("(tick_summary, creature_phases, instance_expiry_updates)\n            };")
         .expect("the tick's guarded block ends");
     assert!(guards_released < delivery && delivery < dispatch);
     assert_eq!(source.matches(".creature_events_like_cpp(").count(), 1);

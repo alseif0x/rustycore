@@ -358,27 +358,29 @@ async fn reclaim_corpse_alive_or_not_ghost_returns_like_cpp() {
 #[tokio::test]
 async fn instance_lock_response_decline_repops_and_clears_pending_bind_like_cpp() {
     let (mut session, _send_rx) = make_session();
-    session
-        .instances
-        .set_represented_pending_bind_for_test_like_cpp(Some(
-            crate::session::RepresentedPendingBind {
-                map_id: 0,
-                instance_id: 77,
-                completed_mask: 0xA5,
-                time_until_lock_ms: 60_000,
-            },
-        ));
+    install_pending_bind_instance_context_like_cpp(
+        &mut session,
+        ObjectGuid::create_player(1, 42),
+        0,
+        77,
+        4,
+        10,
+    );
+    assert!(set_canonical_player_pending_bind_for_test_like_cpp(
+        &session,
+        crate::session::RepresentedPendingBind {
+            map_id: 0,
+            instance_id: 77,
+            completed_mask: 0xA5,
+            time_until_lock_ms: 60_000,
+        },
+    ));
 
     session
         .handle_instance_lock_response(WorldPacket::from_bytes(&[0x00]))
         .await;
 
-    assert!(
-        session
-            .instances
-            .represented_pending_bind_for_test_like_cpp()
-            .is_none()
-    );
+    assert!(canonical_player_pending_bind_for_test_like_cpp(&session).is_none());
     assert!(
         session
             .instances

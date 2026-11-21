@@ -37,7 +37,15 @@ impl crate::session::WorldSession {
     }
     pub(crate) async fn handle_instance_lock_response(&mut self, pkt: wow_packet::WorldPacket) {
         let mut cx = self.build_instance_lock_operations_handler_cx_like_cpp();
-        let _ = wow_world_instances::handle_instance_lock_response_like_cpp(&mut cx, pkt).await;
+        if wow_world_instances::handle_instance_lock_response_like_cpp(&mut cx, pkt).await
+            == wow_world_instances::InstanceLockResponseOutcomeLikeCpp::Declined
+        {
+            wow_world_instances::InstancesHandlerHostLikeCpp::repop_after_declining_bind(
+                self,
+                &crate::session::SessionHandlerCatalogsLikeCpp::default(),
+            )
+            .await;
+        }
     }
     /// The opcode remains in the legacy Loot registry; only its operation body
     /// is owned by the application crate.

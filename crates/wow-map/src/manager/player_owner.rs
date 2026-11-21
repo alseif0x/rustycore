@@ -334,6 +334,10 @@ impl MapManager {
                 }
             });
         }
+        // C++ AddPlayerToMap cancels an armed unload timer for this map.
+        self.find_map_mut(key.map_id, key.instance_id)
+            .expect("target map retained after Player insertion")
+            .set_can_unload(false);
         let owner = self
             .player_owners_like_cpp
             .get_mut(&handle.guid)
@@ -351,22 +355,32 @@ impl MapManager {
         let PlayerResidenceLikeCpp::Active(key) = owner.residence else {
             return Err(PlayerOwnerError::NotActive);
         };
-        let player = self
-            .find_map_mut(key.map_id, key.instance_id)
-            .ok_or(PlayerOwnerError::MissingMap { key })?
-            .runtime
-            .detach_player_like_cpp(handle.guid)
-            .map_err(|error| match error {
-                MapRuntimePlayerDetachErrorLikeCpp::MissingPlayer { guid } => {
-                    PlayerOwnerError::MissingPlayer { guid }
-                }
-                MapRuntimePlayerDetachErrorLikeCpp::ObjectNotPlayer { guid } => {
-                    PlayerOwnerError::ActiveObjectNotPlayer { guid, key }
-                }
-                MapRuntimePlayerDetachErrorLikeCpp::RemoveFromMap(error) => {
-                    PlayerOwnerError::RemoveFromMap(error)
-                }
-            })?;
+        let last_leave = self.instance_map_last_leave_snapshot_like_cpp(key, handle.guid);
+        let player = {
+            let managed_map = self
+                .find_map_mut(key.map_id, key.instance_id)
+                .ok_or(PlayerOwnerError::MissingMap { key })?;
+            let player = managed_map
+                .runtime
+                .detach_player_like_cpp(handle.guid)
+                .map_err(|error| match error {
+                    MapRuntimePlayerDetachErrorLikeCpp::MissingPlayer { guid } => {
+                        PlayerOwnerError::MissingPlayer { guid }
+                    }
+                    MapRuntimePlayerDetachErrorLikeCpp::ObjectNotPlayer { guid } => {
+                        PlayerOwnerError::ActiveObjectNotPlayer { guid, key }
+                    }
+                    MapRuntimePlayerDetachErrorLikeCpp::RemoveFromMap(error) => {
+                        PlayerOwnerError::RemoveFromMap(error)
+                    }
+                })?;
+            managed_map.complete_instance_player_entry_like_cpp(handle.guid);
+            player
+        };
+        if let Some(last_leave) = last_leave {
+            self.pending_instance_map_last_leave_checks_like_cpp
+                .push(last_leave);
+        }
         self.detached_players_like_cpp.insert(handle.guid, player);
         let owner = self
             .player_owners_like_cpp

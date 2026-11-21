@@ -4219,6 +4219,7 @@ async fn run_inner(
         };
     let mut loaded_instance_lock_mgr = InstanceLockMgr::default();
     let instance_lock_load_issues = loaded_instance_lock_mgr.load_from_rows_like_cpp(
+        realm_id,
         shared_instance_lock_rows,
         character_instance_lock_rows,
         |map_id, difficulty_id| {
@@ -4238,7 +4239,11 @@ async fn run_inner(
     let registered_instance_ids = loaded_instance_lock_mgr.registered_instance_ids_like_cpp_order();
     let instance_lock_mgr = Arc::new(std::sync::RwLock::new(loaded_instance_lock_mgr));
 
-    let canonical_map_manager = Arc::new(Mutex::new(create_canonical_map_manager(&world_configs)));
+    let mut canonical_map_manager = create_canonical_map_manager(&world_configs);
+    let mut templates = wow_database::world::load_instance_script_templates(&world_db).await?;
+    templates.retain(|map_id, _| map_store.get(*map_id).is_some());
+    canonical_map_manager.set_instance_script_templates(templates);
+    let canonical_map_manager = Arc::new(Mutex::new(canonical_map_manager));
     assert!(player_registry.bind_canonical_map_manager(Arc::clone(&canonical_map_manager)));
     match canonical_map_manager.lock() {
         Ok(mut manager) => install_canonical_spawn_group_initializer_like_cpp(
@@ -5449,6 +5454,11 @@ async fn run_inner(
         Arc::clone(&area_trigger_template_store),
         game_event_scheduler,
         Arc::clone(&player_registry),
+        CanonicalMapLifecycleOwnersLikeCpp::new(
+            Arc::clone(&instance_lock_mgr),
+            Arc::clone(&group_registry),
+            realm_id,
+        ),
         Arc::clone(&active_session_registry),
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),

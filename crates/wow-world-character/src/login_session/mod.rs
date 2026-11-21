@@ -186,6 +186,8 @@ pub trait CharacterLoginHostLikeCpp:
         level: u8,
         gender: u8,
     ) -> bool;
+    /// Select the saved login map with C++ `Player::LoadFromDB` admission.
+    fn ensure_canonical_login_map_for_current_player_like_cpp(&mut self) -> bool;
     #[allow(clippy::too_many_arguments)]
     fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
         &mut self,
@@ -251,6 +253,9 @@ pub trait CharacterLoginHostLikeCpp:
     ) -> bool;
     fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self);
     fn load_represented_group_by_db_store_id_like_cpp(&mut self, db_store_id: u32) -> bool;
+    /// C++ `CharacterHandler::HandlePlayerLogin` calls `Group::SendUpdate`
+    /// after successful map insertion and before `Player::LoadCorpse`.
+    fn send_initial_group_update_after_login_like_cpp(&mut self);
     fn mark_represented_talents_loaded_like_cpp(&mut self);
     fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid>;
     fn notify_other_players_visibility_changed_like_cpp(&self);

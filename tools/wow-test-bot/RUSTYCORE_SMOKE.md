@@ -1101,3 +1101,20 @@ for Wisp behavior. Aura rows are checked only where the actual saved sickness
 row is required; ghost spell persistence and full aura application are not
 inferred from them. These bounded cases do not exercise adversarial C++
 decline-after-accepted-ack timing or general unknown-commit fault injection.
+
+## ICC raid lock and restart
+
+For `instance-lock-reset`, use the guarded wrapper with the absolute path to
+`tools/qa/instance_scenario.py` for each of three epochs. The wrapper uses the
+same private configuration and disposable accounts as the death scenarios.
+
+1. Form the raid and prepare the shared ICC save and the leader's lock. The
+   second character must enter the next epoch without a lock.
+2. Observe the realm's `SMSG_PENDING_RAID_LOCK`. The member replies with the
+   typed action `{"action":"instance_lock_response","accept":true}` or uses
+   `false` to decline. Verify acquisition against the character's database
+   row and retain the save before restarting the server.
+3. Log the characters back into the restarted candidate. Send
+   `{"action":"request_raid_info"}` and compare the returned instance ID and
+   encounter mask with epoch two. Check the saved state in the database and
+   verify cleanup and restoration in the wrapper report.

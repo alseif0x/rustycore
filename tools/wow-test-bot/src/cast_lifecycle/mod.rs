@@ -32,6 +32,18 @@ const CMSG_SELF_RES: u16 = 0x3531;
 const CMSG_ATTACK_SWING: u16 = 0x3255;
 const CMSG_ATTACK_STOP: u16 = 0x3256;
 const CMSG_LOGOUT_CANCEL: u16 = 0x34D8;
+const CMSG_RESET_INSTANCES: u16 = 0x366A;
+const CMSG_INSTANCE_LOCK_RESPONSE: u16 = 0x350B;
+const CMSG_REQUEST_RAID_INFO: u16 = 0x36D2;
+const SMSG_INSTANCE_INFO: u16 = 0x2634;
+const SMSG_PENDING_RAID_LOCK: u16 = 0x26F8;
+const SMSG_INSTANCE_SAVE_CREATED: u16 = 0x2780;
+const SMSG_CALENDAR_RAID_LOCKOUT_ADDED: u16 = 0x2699;
+const CMSG_SET_DIFFICULTY_ID: u16 = 0x3222;
+const CMSG_SET_DUNGEON_DIFFICULTY: u16 = 0x3684;
+const CMSG_PARTY_INVITE: u16 = 0x3604;
+const CMSG_PARTY_INVITE_RESPONSE: u16 = 0x3606;
+const CMSG_LEAVE_GROUP: u16 = 0x364C;
 const SMSG_LOGOUT_RESPONSE: u16 = 0x2683;
 const SMSG_LOGOUT_CANCEL_ACK: u16 = 0x2685;
 const SMSG_SPELL_PREPARE: u16 = 0x2C35;
@@ -63,6 +75,12 @@ const RAW_SMSG_PRE_RESSURECT: u16 = 0x276B;
 const RAW_SMSG_REATTACH_RESURRECT: u16 = 0x274B;
 const RAW_SMSG_RESURRECT_REQUEST: u16 = 0x257E;
 const RAW_SMSG_UPDATE_OBJECT: u16 = 0x27CB;
+const SMSG_INSTANCE_RESET: u16 = 0x2686;
+const SMSG_INSTANCE_RESET_FAILED: u16 = 0x2687;
+const SMSG_RESET_FAILED_NOTIFY: u16 = 0x26B7;
+const SMSG_SET_DUNGEON_DIFFICULTY: u16 = 0x26A4;
+const SMSG_PARTY_INVITE: u16 = 0x25BD;
+const SMSG_PARTY_UPDATE: u16 = 0x25F4;
 
 const MAX_ACTIONS: usize = 128;
 const MAX_EXPECTATIONS: usize = 256;
@@ -151,6 +169,45 @@ pub(super) async fn execute(
                 )
                 .await
             }
+            Action::ResetInstances {}
+            | Action::SetDifficultyId { .. }
+            | Action::SetDungeonDifficulty { .. } => {
+                let (opcode, body) = build_action_packet(action);
+                send_traced_packet(
+                    stream,
+                    crypt,
+                    &mut controller.evidence,
+                    Connection::Instance,
+                    Some(action_index),
+                    action_name,
+                    opcode,
+                    &body,
+                )
+                .await
+            }
+            Action::RequestRaidInfo {}
+            | Action::InstanceLockResponse { .. }
+            | Action::PartyInvite { .. }
+            | Action::PartyInviteResponse { .. }
+            | Action::LeaveGroup {} => match action_realm_connection(realm, action_name) {
+                Ok(realm) => match build_realm_action_packet(action) {
+                    Ok((opcode, body)) => {
+                        send_traced_packet(
+                            &mut realm.stream,
+                            &mut realm.crypt,
+                            &mut controller.evidence,
+                            Connection::Realm,
+                            Some(action_index),
+                            action_name,
+                            opcode,
+                            &body,
+                        )
+                        .await
+                    }
+                    Err(error) => Err(error),
+                },
+                Err(error) => Err(error),
+            },
             Action::ReleaseSpirit { .. }
             | Action::ReclaimCorpse { .. }
             | Action::SpiritHealerActivate { .. }
@@ -498,6 +555,15 @@ pub(super) async fn finish(
     }
 }
 
+fn action_realm_connection<'a>(
+    realm: &'a mut Option<EncryptedWorldConnection>,
+    action: &str,
+) -> Result<&'a mut EncryptedWorldConnection> {
+    realm
+        .as_mut()
+        .ok_or_else(|| anyhow!("{action} requires a realm connection"))
+}
+
 fn action_name(action: &Action) -> &'static str {
     match action {
         Action::Cast { .. } => "cast",
@@ -518,6 +584,14 @@ fn action_name(action: &Action) -> &'static str {
         Action::AttackStop => "attack_stop",
         Action::LogoutRequest { .. } => "logout_request",
         Action::LogoutCancel {} => "logout_cancel",
+        Action::ResetInstances {} => "reset_instances",
+        Action::InstanceLockResponse { .. } => "instance_lock_response",
+        Action::RequestRaidInfo {} => "request_raid_info",
+        Action::SetDifficultyId { .. } => "set_difficulty_id",
+        Action::SetDungeonDifficulty { .. } => "set_dungeon_difficulty",
+        Action::PartyInvite { .. } => "party_invite",
+        Action::PartyInviteResponse { .. } => "party_invite_response",
+        Action::LeaveGroup {} => "leave_group",
         Action::Movement { kind, .. } => match kind {
             MovementKind::Heartbeat => "movement_heartbeat",
             MovementKind::StartForward => "movement_start_forward",

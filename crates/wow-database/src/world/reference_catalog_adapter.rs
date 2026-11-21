@@ -11,6 +11,23 @@ use wow_persistence::{
 
 use crate::{SqlResult, WorldDatabase, WorldStatements};
 
+/// Effective script names from ObjectMgr::LoadInstanceTemplate, keyed by Map.db2 ID.
+pub async fn load_instance_script_templates(
+    world: &WorldDatabase,
+) -> Result<std::collections::HashMap<u32, String>> {
+    use crate::field_like_cpp::FieldRowLikeCpp;
+    let result = world
+        .direct_query("SELECT map, script FROM instance_template WHERE script <> ''")
+        .await?;
+    let rows = crate::result::collect_rows_like_cpp(result, "instance_template", |row| {
+        Ok((
+            u32::from(row.get_like_cpp::<u16>(0, "map")?),
+            row.get_string_like_cpp(1, "script")?,
+        ))
+    })?;
+    Ok(rows.into_iter().collect())
+}
+
 pub struct MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp {
     world_db: Arc<WorldDatabase>,
 }

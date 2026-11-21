@@ -71,19 +71,6 @@ impl InstanceState {
         self.represented_explored_zones_like_cpp[index] = value;
     }
 
-    pub fn represented_pending_bind_for_test_like_cpp(
-        &self,
-    ) -> Option<crate::RepresentedPendingBind> {
-        self.pending_bind
-    }
-
-    pub fn set_represented_pending_bind_for_test_like_cpp(
-        &mut self,
-        pending_bind: Option<crate::RepresentedPendingBind>,
-    ) {
-        self.pending_bind = pending_bind;
-    }
-
     pub fn represented_confirmed_pending_binds_for_test_like_cpp(&self) -> &[u32] {
         &self.represented_confirmed_pending_binds
     }

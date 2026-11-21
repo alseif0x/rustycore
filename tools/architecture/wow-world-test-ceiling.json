@@ -385,6 +385,16 @@
    "unit_tests_lines": 279036,
    "unit_tests_tests": 4154,
    "src_tests": 22
+  },
+  {
+   "id": "raise-45-36",
+   "kind": "raise",
+   "issue": 45,
+   "reviewed_at": "2026-11-21",
+   "reason": "#45 adds 2,198 physical World test lines and 30 net tests over integrated 3.4.3. They exercise manual and difficulty resets, loaded or stale lock ownership, login and worldport bind admission, persistence failure, expiry delivery, recovered party publication and malformed group leave. Existing ignored state is preserved.",
+   "unit_tests_lines": 281234,
+   "unit_tests_tests": 4184,
+   "src_tests": 22
   }
  ]
 }

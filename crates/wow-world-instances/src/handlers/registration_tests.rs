@@ -14,6 +14,12 @@ struct NonCopyHost {
 }
 
 impl InstancesHandlerHostLikeCpp<()> for NonCopyHost {
+    fn repop_after_declining_bind<'a>(
+        &'a mut self,
+        _: &'a (),
+    ) -> wow_handler::HandlerFuture<'a, ()> {
+        panic!("registration must not execute a handler")
+    }
     fn instance_raid_info_handler_cx_like_cpp<'a>(
         &'a mut self,
         _catalogs: &'a (),

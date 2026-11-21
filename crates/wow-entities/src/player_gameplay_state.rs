@@ -55,6 +55,9 @@ pub struct PlayerGameplayState {
     pub(crate) legacy_raid_difficulty_id: u32,
     /// C++ `Player::m_recentInstances`, keyed by map ID.
     pub recent_instances: HashMap<u32, u32>,
+    /// C++ `Player::_pendingBindId` and `_pendingBindTimer`, with the current
+    /// represented map and encounter-mask inputs retained for bind confirmation.
+    pub(crate) pending_bind: Option<crate::RepresentedPendingBind>,
     /// C++ `Player::_instanceResetTimes`, keyed by instance ID and retained
     /// for the account's instance-entry rate limit until its release time.
     pub instance_reset_times: BTreeMap<u32, u64>,

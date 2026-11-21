@@ -888,6 +888,133 @@ fn canonical_access_requirement_map_difficulty_condition_sends_condition_abort_l
         .to_bytes()
     );
 }
+
+#[test]
+fn login_map_selection_skips_transfer_access_condition_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 87_001);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "LoginAdmissionPhase".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        631,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .instances
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
+    session.set_instance_ignore_raid_like_cpp(true);
+    install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+        &mut session,
+        631,
+        3,
+        77,
+        2,
+        2,
+        25,
+    );
+    session.set_map_difficulty_x_condition_store(Arc::new(
+        wow_data::MapDifficultyXConditionStore::from_entries([
+            wow_data::MapDifficultyXConditionEntry {
+                id: 222,
+                failure_description: String::new(),
+                player_condition_id: 333,
+                order_index: 0,
+                map_difficulty_id: 900,
+            },
+        ]),
+    ));
+    session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
+        wow_data::PlayerConditionEntry {
+            id: 333,
+            class_mask: 1 << 1,
+            ..Default::default()
+        },
+    ])));
+
+    let decision =
+        wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(&mut session)
+            .expect("login map creation follows Player::LoadFromDB admission");
+    let key = decision.map_key().expect("dungeon map was selected");
+    assert_eq!(key.map_id, 631);
+    assert!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(key.map_id, key.instance_id)
+            .is_some()
+    );
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
+fn login_map_selection_skips_transfer_raid_group_preflight_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 87_002);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "LoginRaidGroupPhase".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        631,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .instances
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
+    install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+        &mut session,
+        631,
+        3,
+        77,
+        2,
+        2,
+        25,
+    );
+
+    assert_eq!(
+        session.ensure_canonical_world_map_for_current_player_like_cpp(),
+        Some(wow_map::CreateMapDecision::Reject {
+            side_effects: Vec::new()
+        })
+    );
+    assert_eq!(
+        send_rx.try_recv().expect("raid-group transfer abort"),
+        wow_packet::packets::misc::TransferAborted {
+            map_id: 631,
+            arg: 0,
+            map_difficulty_x_condition_id: 0,
+            transfer_abort: wow_world_instances::TRANSFER_ABORT_NEED_GROUP_LIKE_CPP,
+        }
+        .to_bytes()
+    );
+
+    let decision =
+        wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(&mut session)
+            .expect("login map creation does not apply the transfer raid-group gate");
+    let key = decision.map_key().expect("dungeon map was selected");
+    assert_eq!(key.map_id, 631);
+    assert!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(key.map_id, key.instance_id)
+            .is_some()
+    );
+    assert!(send_rx.try_recv().is_err());
+}
+
 #[test]
 fn instance_count_allows_under_limit_and_existing_instance_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();

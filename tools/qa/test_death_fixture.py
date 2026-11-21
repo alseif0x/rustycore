@@ -87,6 +87,34 @@ class FakeDB:
                                         for actor in journal["actors"]] if self.seeded else []}}
 
 
+class IccFixtureDB(FakeDB):
+    def __init__(self):
+        super().__init__()
+        self.foreign_character = False
+        self.orphan_shared_row = False
+        self.saved_data = fixture.ICC_LEADER_LOCK_SEED_DATA
+
+    def execute(self, query):
+        if query.startswith("SELECT COALESCE(MAX("):
+            return "9000"
+        if query.startswith("SELECT (SELECT COUNT(*) FROM characters WHERE instance_id="):
+            return "0"
+        raise AssertionError(f"unexpected fixture metadata query: {query}")
+
+    def rows_under_ids(self, journal):
+        rows = super().rows_under_ids(journal)
+        r = journal["instance_lock_reservation"]
+        instance_id = str(r["instance_id"])
+        shared = [instance_id, fixture.ICC_SHARED_SAVE_DATA, "1", "0"]
+        leader = [str(r["seed_guid"]), "631", "12", instance_id, "4", self.saved_data,
+                  "1", "0", str(r["seed_expiry_time"]), "1"]
+        rows["character_instance_lock.guid"] = [leader] if self.seeded else []
+        rows["instance.reserved_locks"] = rows["character_instance_lock.guid"].copy()
+        rows["instance.instanceId"] = [shared] if self.seeded or self.orphan_shared_row else []
+        rows["instance.character_references"] = [["999999"]] if self.foreign_character else []
+        return rows
+
+
 class DeathFixtureTests(unittest.TestCase):
     def private_journal_dir(self, root):
         path = Path(root) / "journal"
@@ -290,6 +318,44 @@ class DeathFixtureTests(unittest.TestCase):
                 db.fail_transaction = None
                 fixture.restore(db, journal_path, ack=True, world_stopped=True)
                 self.assertTrue(Path(str(journal_path) + ".cleanup-complete").is_file())
+
+    def test_icc_unknown_seed_commit_can_recover_but_cannot_delete_a_foreign_orphan(self):
+        for outcome, orphan in (("rollback", False), ("commit-then-error", False), ("rollback", True)):
+            with self.subTest(outcome=outcome, orphan=orphan), tempfile.TemporaryDirectory() as root:
+                path = self.private_journal_dir(root) / "death-fixture.journal"
+                db = IccFixtureDB()
+                db.fail_transaction = outcome
+                with self.assertRaises(RuntimeError):
+                    fixture.prepare(db, self.bot_config(), path, ack=True, world_stopped=True,
+                                    icc_lock_fixture=True)
+                db.fail_transaction = None
+                db.orphan_shared_row = orphan
+                writes = len(db.statements)
+                if orphan:
+                    with self.assertRaises(fixture.FixtureError):
+                        fixture.restore(db, path, ack=True, world_stopped=True)
+                    self.assertEqual(len(db.statements), writes)
+                else:
+                    fixture.restore(db, path, ack=True, world_stopped=True)
+                    self.assertEqual(json.loads(path.read_text())["state"], "restored")
+
+    def test_icc_cleanup_checks_foreign_references_and_handles_a_bad_save(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = self.private_journal_dir(root) / "death-fixture.journal"
+            db = IccFixtureDB()
+            journal = fixture.prepare(db, self.bot_config(), path, ack=True, world_stopped=True,
+                                      icc_lock_fixture=True)
+            self.assertEqual(journal["instance_lock_reservation"]["instance_id"], 9001)
+            writes = len(db.statements)
+            db.foreign_character = True
+            with self.assertRaises(fixture.FixtureError):
+                fixture.restore(db, path, ack=True, world_stopped=True)
+            self.assertEqual(len(db.statements), writes)
+            db.foreign_character = False
+            db.saved_data = "invalid payload from the candidate"
+            fixture.restore(db, path, ack=True, world_stopped=True)
+            deletes = [s for s in db.statements[writes:] if s.startswith("DELETE FROM instance ")]
+            self.assertEqual(deletes, ["DELETE FROM instance WHERE instanceId=9001"])
 
     def test_restore_is_owned_and_idempotent(self):
         with tempfile.TemporaryDirectory() as root:

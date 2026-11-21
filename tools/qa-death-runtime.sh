@@ -43,7 +43,8 @@ Usage:
     --output-dir ABSOLUTE_PATH --scenario-runner ABSOLUTE_EXECUTABLE [OPTIONS]
 
 Options:
-  --scenario-runner PATH       Add one capture epoch; repeat at most twice.
+  --scenario-runner PATH       Supply one path per epoch. instance-lock-reset uses
+                               three epochs. Other cases use one or two.
   --source-path PATH           Required for cpp; canonical source checkout.
   --source-revision REV        Required for cpp provenance.
   --derivation TEXT            Required for cpp provenance.
@@ -98,8 +99,13 @@ done
 DEATH_CANDIDATE_SHA="${DEATH_CANDIDATE_SHA,,}"
 [[ "$(sha256_of "$WORLD_EXEC")" == "$DEATH_CANDIDATE_SHA" ]] \
   || die "candidate executable does not match its SHA-256 pin"
-[[ "${#DEATH_RUNNERS[@]}" -ge 1 && "${#DEATH_RUNNERS[@]}" -le 2 ]] \
-  || die "supply one or two --scenario-runner paths"
+DEATH_PREPARE_OPTIONS=()
+if [[ "${RUSTYCORE_DEATH_SCENARIO:-}" == instance-lock-reset ]]; then
+  ((${#DEATH_RUNNERS[@]} == 3)) || die "instance-lock-reset requires three --scenario-runner paths"
+  DEATH_PREPARE_OPTIONS+=(--icc-lock-fixture)
+elif ((${#DEATH_RUNNERS[@]} < 1 || ${#DEATH_RUNNERS[@]} > 2)); then
+  die "supply one or two --scenario-runner paths"
+fi
 [[ "$DEATH_OFFLINE_TIMEOUT" =~ ^[1-9][0-9]*$ && "$DEATH_OFFLINE_TIMEOUT" -le 300 ]] \
   || die "offline timeout must be between 1 and 300 seconds"
 
@@ -400,7 +406,7 @@ DEATH_STOPPED=1
 if python3 "$DEATH_FIXTURE_SCRIPT" prepare \
   --world-config "$QA_CAPTURE_WORLD_CONFIG" --bot-config "$DEATH_BOT_CONFIG" \
   --journal "$DEATH_JOURNAL" --ack-disposable-death-fixture --world-stopped \
-  --reincarnation-ankh-count "$DEATH_REINCARNATION_ANKH_COUNT" \
+  --reincarnation-ankh-count "$DEATH_REINCARNATION_ANKH_COUNT" "${DEATH_PREPARE_OPTIONS[@]}" \
   >"$DEATH_OUTPUT/fixture-prepare.json" 2>"$DEATH_OUTPUT/fixture-prepare.stderr"; then
   DEATH_PREPARED=1
 else
@@ -414,6 +420,10 @@ death_runtime_start_original || die "original service did not restart after fixt
 DEATH_STOPPED=0
 for DEATH_INDEX in "${!DEATH_RUNNERS[@]}"; do
   death_runtime_capture_epoch "$((DEATH_INDEX + 1))" "${DEATH_RUNNERS[$DEATH_INDEX]}"
+  if [[ "${RUSTYCORE_DEATH_SCENARIO:-}" == instance-lock-reset ]] &&
+     [[ "$DEATH_SCENARIO_STATUS" == failed || "$DEATH_COLLECTION_STATUS" == failed ]]; then
+    break
+  fi
 done
 if [[ "$DEATH_SCENARIO_STATUS" == failed || "$DEATH_COLLECTION_STATUS" == failed ]]; then exit 1; fi
 exit 0

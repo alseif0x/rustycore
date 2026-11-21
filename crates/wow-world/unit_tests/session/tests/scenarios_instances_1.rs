@@ -477,8 +477,9 @@ fn create_map_side_effects_set_player_recent_instance_like_cpp() {
 #[test]
 fn create_map_side_effects_set_group_recent_instance_like_cpp() {
     let (mut session, _, _) = make_session();
-    let leader = ObjectGuid::create_player(1, 42);
-    let owner = ObjectGuid::create_player(1, 77);
+    session.core.set_realm_id(7);
+    let leader = ObjectGuid::create_player(7, 42);
+    let owner = ObjectGuid::create_player(7, 77);
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
@@ -515,7 +516,8 @@ fn create_map_side_effects_set_group_recent_instance_like_cpp() {
 #[test]
 fn create_map_side_effects_create_instance_lock_for_new_instance_like_cpp() {
     let (mut session, _, _) = make_session();
-    let owner = ObjectGuid::create_player(1, 77);
+    session.core.set_realm_id(7);
+    let owner = ObjectGuid::create_player(7, 77);
     session.core.player_guid = Some(owner);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(
@@ -551,11 +553,36 @@ fn create_map_side_effects_create_instance_lock_for_new_instance_like_cpp() {
     );
     assert_eq!(context.instance_id, 9001);
     assert_eq!(context.difficulty_id, 3);
+    let entries = session.create_map_db2_entries_like_cpp(631, 3).unwrap();
+    let now = u64::try_from(unix_now()).unwrap_or(0);
+    let locks = session
+        .core
+        .instance_lock_mgr
+        .as_ref()
+        .unwrap()
+        .read()
+        .unwrap();
+    assert!(
+        locks
+            .find_instance_lock_exact_like_cpp(owner, 631, 3, 9001)
+            .is_some()
+    );
+    assert!(
+        locks
+            .find_instance_lock_exact_like_cpp(ObjectGuid::create_player(1, 77), 631, 3, 9001)
+            .is_none()
+    );
+    assert!(
+        locks
+            .find_active_instance_lock_at(owner, &entries, now)
+            .is_some()
+    );
 }
 #[test]
 fn create_map_side_effects_set_instance_lock_instance_id_like_cpp() {
     let (mut session, _, _) = make_session();
-    let owner = ObjectGuid::create_player(1, 77);
+    session.core.set_realm_id(7);
+    let owner = ObjectGuid::create_player(7, 77);
     session.core.player_guid = Some(owner);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);

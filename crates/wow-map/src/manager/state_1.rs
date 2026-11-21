@@ -2,6 +2,8 @@
 //!
 //! Separated from the manager.rs root under #644. Behaviour is preserved.
 
+use std::collections::BTreeSet;
+
 use super::*;
 use wow_entities::AccessorObjectKind;
 
@@ -132,6 +134,15 @@ pub enum CreateMapDecision {
     },
 }
 
+impl CreateMapDecision {
+    pub fn map_key(&self) -> Option<MapKey> {
+        match self {
+            Self::Existing { key, .. } | Self::Create { key, .. } => Some(*key),
+            Self::Reject { .. } => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExistingInstanceMapContext {
     pub instance_lock_token: Option<u64>,
@@ -202,10 +213,20 @@ pub type ManagedMapInnerLikeCpp = Map<NoopTerrainGridLoader, NoopGridLifecycle>;
 pub struct ManagedMap {
     pub(super) runtime: MapRuntime,
     pub(super) kind: ManagedMapKind,
+    pub(super) instance_script: Option<wow_instances::IccInstanceScriptLikeCpp>,
     pub(super) can_unload: bool,
     pub(super) instance_encounter_in_progress: bool,
     pub(super) instance_lock_token: Option<u64>,
     pub(super) instance_lock_context: Option<CreateMapInstanceLockContext>,
+    pub(super) instance_expiry_context: Option<InstanceMapExpiryContextLikeCpp>,
+    /// The `InstanceMap` constructor's one-shot raw-expiry event. Repeated
+    /// player admissions update the attached lock snapshot but never re-arm it.
+    pub(super) instance_expire_event_time: Option<u64>,
+    /// Players selected for a map before `InstanceMap::AddPlayerToMap`; expiry
+    /// waits until their entry phase publishes the prompt and completes it.
+    pub(super) pending_instance_map_entries: std::collections::BTreeSet<ObjectGuid>,
+    pub(super) last_instance_expiry_update: Option<ManagedMapInstanceExpiryUpdateLikeCpp>,
+    pub(super) owning_group_guid: Option<u64>,
     pub(super) update_calls: Vec<u32>,
     pub(super) delayed_update_calls: Vec<u32>,
     pub(super) last_dynamic_tree_update_summary_like_cpp: DynamicMapTreeUpdateSummaryLikeCpp,
@@ -256,10 +277,16 @@ impl ManagedMap {
         Self {
             runtime: MapRuntime::new(Map::new(map_id, instance_id, difficulty, grid_expiry_ms)),
             kind,
+            instance_script: None,
             can_unload: false,
             instance_encounter_in_progress: false,
             instance_lock_token: None,
             instance_lock_context: None,
+            instance_expiry_context: None,
+            instance_expire_event_time: None,
+            pending_instance_map_entries: BTreeSet::new(),
+            last_instance_expiry_update: None,
+            owning_group_guid: None,
             update_calls: Vec::new(),
             delayed_update_calls: Vec::new(),
             last_dynamic_tree_update_summary_like_cpp: DynamicMapTreeUpdateSummaryLikeCpp::default(
@@ -306,6 +333,56 @@ impl ManagedMap {
         self.kind
     }
 
+    /// Whether C++ `InstanceMap::CreateInstanceData` has selected a map-owned
+    /// instance script for this map.
+    pub const fn has_instance_script(&self) -> bool {
+        self.instance_script.is_some()
+    }
+
+    /// Current instance-script save bytes used when persisting an instance bind.
+    pub fn instance_script_save_data(&self) -> Option<String> {
+        self.instance_script
+            .as_ref()
+            .map(wow_instances::IccInstanceScriptLikeCpp::get_save_data_like_cpp)
+    }
+
+    /// Initialize the registered ICC instance script for this canonical map.
+    ///
+    /// The manager supplies the effective world `InstanceTemplate` script name.
+    /// `Some(lock_data)` denotes an existing attached lock, including one with
+    /// an empty payload; `None` denotes no attached lock or a newly created lock.
+    pub fn initialize_instance_script_like_cpp(
+        &mut self,
+        effective_script_name: &str,
+        lock_data: Option<&wow_instances::InstanceLockData>,
+    ) -> bool {
+        if self.instance_script.is_some() {
+            return true;
+        }
+
+        if effective_script_name != wow_instances::ICC_INSTANCE_SCRIPT_NAME_LIKE_CPP
+            || self.map_id() != wow_instances::ICC_MAP_ID_LIKE_CPP
+            || self.instance_id() == 0
+            || !matches!(
+                self.kind,
+                ManagedMapKind::Dungeon {
+                    has_reset_schedule: true
+                }
+            )
+            || !wow_instances::ICC_DIFFICULTY_IDS_LIKE_CPP.contains(&self.difficulty())
+        {
+            return false;
+        }
+
+        self.instance_script = Some(
+            wow_instances::IccInstanceScriptLikeCpp::initialize_for_binding_like_cpp(
+                self.difficulty(),
+                lock_data,
+            ),
+        );
+        true
+    }
+
     pub fn map(&self) -> &Map<NoopTerrainGridLoader, NoopGridLifecycle> {
         &self.runtime.map
     }
@@ -345,13 +422,31 @@ impl ManagedMap {
     pub fn set_instance_lock_token(&mut self, token: Option<u64>) {
         self.instance_lock_token = token;
         if token.is_none() {
-            self.instance_lock_context = None;
+            self.set_instance_lock_context(None);
         }
     }
 
     pub fn set_instance_lock_context(&mut self, context: Option<CreateMapInstanceLockContext>) {
         self.instance_lock_token = context.map(|context| context.token);
+        if context.is_none() {
+            self.instance_expire_event_time = None;
+            self.instance_expiry_context = None;
+            self.pending_instance_map_entries.clear();
+        }
         self.instance_lock_context = context;
+    }
+
+    pub const fn owning_group_guid_like_cpp(&self) -> Option<u64> {
+        self.owning_group_guid
+    }
+
+    /// C++ `InstanceMap::TrySetOwningGroup`: the first linked group wins.
+    pub fn try_set_owning_group_like_cpp(&mut self, group_guid: u64) -> bool {
+        if self.owning_group_guid.is_some() {
+            return false;
+        }
+        self.owning_group_guid = Some(group_guid);
+        true
     }
 
     pub fn update_calls(&self) -> &[u32] {
@@ -918,6 +1013,13 @@ impl ManagedMap {
             },
             metrics: self.runtime.map.map_update_metrics_like_cpp(),
         };
+
+        // C++ `InstanceMap::Update` runs after `Map::Update` returns
+        // (`Map.cpp:2930-2934`). Keep the raw-expiry check in this same map
+        // update owner; packet fanout is returned as owned work for delivery
+        // after MapManager releases its guard.
+        self.last_instance_expiry_update =
+            self.expire_instance_after_map_update_at_like_cpp(GameTime::now().as_secs());
     }
 
     pub(super) fn delayed_update(&mut self, diff_ms: u32) {
@@ -1069,6 +1171,9 @@ impl IntervalTimer {
 pub struct MapManager {
     pub(super) grid_cleanup_delay_ms: u32,
     pub(super) maps: BTreeMap<MapKey, ManagedMap>,
+    /// Effective `InstanceTemplate` script name indexed by map id, installed
+    /// during startup before instance maps are initialized.
+    pub(super) instance_script_templates: HashMap<u32, String>,
     pub(super) timer: IntervalTimer,
     pub(super) instance_ids: InstanceIdAllocator,
     pub(super) updater: MapUpdater,
@@ -1081,6 +1186,13 @@ pub struct MapManager {
     pub(super) next_map_incarnation_like_cpp: u64,
     pub(super) tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp,
     pub(super) next_tick_epoch_like_cpp: u64,
+    /// Owned expiry resets from the most recently resumed `Map::Update` pass.
+    /// The world coordinator consumes them after releasing this manager's guard.
+    pub(super) last_instance_expiry_updates_like_cpp: Vec<MapTickInstanceExpiryUpdateLikeCpp>,
+    /// Last-player leave identities awaiting canonical lock-expiry resolution
+    /// by the world coordinator outside this manager's guard.
+    pub(super) pending_instance_map_last_leave_checks_like_cpp:
+        Vec<InstanceMapLastLeaveSnapshotLikeCpp>,
     /// #1263 F6-8D3b-2 (R7b-1): creature registrations deferred because no
     /// map instance existed for their key yet. They join that map's own
     /// respawn queue (C++ `Map::_respawnTimes`) the moment the instance is
@@ -1110,6 +1222,7 @@ impl fmt::Debug for MapManager {
         f.debug_struct("MapManager")
             .field("grid_cleanup_delay_ms", &self.grid_cleanup_delay_ms)
             .field("maps", &self.maps)
+            .field("instance_script_templates", &self.instance_script_templates)
             .field("timer", &self.timer)
             .field("instance_ids", &self.instance_ids)
             .field("updater", &self.updater)

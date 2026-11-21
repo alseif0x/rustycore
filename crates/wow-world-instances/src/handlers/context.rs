@@ -4,11 +4,14 @@
 
 //! Borrowed participants for the three existing instance-handler families.
 
+use std::sync::Arc;
+
 use crate::InstanceState;
 use wow_data::{DifficultyStore, MapDifficultyStore, MapStore};
+use wow_world_core::session::directory::PlayerRegistry;
 use wow_world_core::session::{
     GroupDifficultyAccessLikeCpp, InstanceLockManagerAccessLikeCpp, InstancePlayerAccessLikeCpp,
-    PacketPublicationAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
+    PacketPublicationAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp, SharedCanonicalMapManager,
 };
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_social::SessionSocialLimits;
@@ -51,11 +54,11 @@ pub struct InstanceLockOperationsHandlerCxLikeCpp<'a> {
     pub(super) map_store: Option<&'a MapStore>,
     pub(super) map_difficulty_store: Option<&'a MapDifficultyStore>,
     pub(super) difficulty_store: Option<&'a DifficultyStore>,
+    pub(super) canonical_map_manager: Option<&'a SharedCanonicalMapManager>,
+    pub(super) player_registry: Option<&'a Arc<PlayerRegistry>>,
     pub(super) consumer_test: bool,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(super) game_master_fixture: &'a bool,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(super) rejected_response_counter: &'a mut u32,
 }
 
 impl<'a> InstanceLockOperationsHandlerCxLikeCpp<'a> {
@@ -72,9 +75,10 @@ impl<'a> InstanceLockOperationsHandlerCxLikeCpp<'a> {
         map_store: Option<&'a MapStore>,
         map_difficulty_store: Option<&'a MapDifficultyStore>,
         difficulty_store: Option<&'a DifficultyStore>,
+        canonical_map_manager: Option<&'a SharedCanonicalMapManager>,
+        player_registry: Option<&'a Arc<PlayerRegistry>>,
         consumer_test: bool,
         #[cfg(any(test, feature = "test-fixtures"))] game_master_fixture: &'a bool,
-        #[cfg(any(test, feature = "test-fixtures"))] rejected_response_counter: &'a mut u32,
     ) -> Self {
         Self {
             instances,
@@ -88,11 +92,11 @@ impl<'a> InstanceLockOperationsHandlerCxLikeCpp<'a> {
             map_store,
             map_difficulty_store,
             difficulty_store,
+            canonical_map_manager,
+            player_registry,
             consumer_test,
             #[cfg(any(test, feature = "test-fixtures"))]
             game_master_fixture,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            rejected_response_counter,
         }
     }
 
@@ -121,6 +125,8 @@ pub struct InstanceDifficultyHandlerCxLikeCpp<'a> {
     pub(super) map_store: Option<&'a MapStore>,
     pub(super) map_difficulty_store: Option<&'a MapDifficultyStore>,
     pub(super) difficulty_store: Option<&'a DifficultyStore>,
+    pub(super) canonical_map_manager: Option<&'a SharedCanonicalMapManager>,
+    pub(super) player_registry: Option<&'a Arc<PlayerRegistry>>,
     pub(super) consumer_test: bool,
 }
 
@@ -138,6 +144,8 @@ impl<'a> InstanceDifficultyHandlerCxLikeCpp<'a> {
         map_store: Option<&'a MapStore>,
         map_difficulty_store: Option<&'a MapDifficultyStore>,
         difficulty_store: Option<&'a DifficultyStore>,
+        canonical_map_manager: Option<&'a SharedCanonicalMapManager>,
+        player_registry: Option<&'a Arc<PlayerRegistry>>,
         consumer_test: bool,
     ) -> Self {
         Self {
@@ -152,6 +160,8 @@ impl<'a> InstanceDifficultyHandlerCxLikeCpp<'a> {
             map_store,
             map_difficulty_store,
             difficulty_store,
+            canonical_map_manager,
+            player_registry,
             consumer_test,
         }
     }
@@ -160,6 +170,10 @@ impl<'a> InstanceDifficultyHandlerCxLikeCpp<'a> {
 /// Supplies only the three selected operation contexts to the generic handler
 /// registrar. No WorldSession or universal Hub crosses this boundary.
 pub trait InstancesHandlerHostLikeCpp<C> {
+    fn repop_after_declining_bind<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+    ) -> wow_handler::HandlerFuture<'a, ()>;
     fn instance_raid_info_handler_cx_like_cpp<'a>(
         &'a mut self,
         catalogs: &'a C,

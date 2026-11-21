@@ -1422,6 +1422,102 @@ fn logout_actions_preserve_native_wire_shapes_and_strict_plan_fields() {
 }
 
 #[test]
+fn instance_and_party_action_builders_match_native_shapes_and_strict_fields() {
+    let target = Guid {
+        low: 0x11,
+        high: 0x22,
+    };
+    let plan: Plan = serde_json::from_str(
+        r#"{
+            "actions":[
+                {"action":"reset_instances"},
+                {"action":"set_difficulty_id","difficulty_id":2},
+                {"action":"party_invite","name":"Peer","target":{"low":17,"high":34}},
+                {"action":"party_invite_response","accept":true},
+                {"action":"party_invite_response","accept":false}
+            ],
+            "expect":[{"event":"packet","connection":"instance","opcode":9859,"body_hex":"0000000000"}]
+        }"#,
+    )
+    .unwrap();
+    plan::validate_plan(&plan).unwrap();
+
+    assert_eq!(action_name(&plan.actions[0]), "reset_instances");
+    assert_eq!(action_name(&plan.actions[1]), "set_difficulty_id");
+    assert_eq!(action_name(&plan.actions[2]), "party_invite");
+    assert_eq!(action_name(&plan.actions[3]), "party_invite_response");
+    assert_eq!(
+        build_action_packet(&plan.actions[0]),
+        (CMSG_RESET_INSTANCES, Vec::new())
+    );
+    assert_eq!(
+        build_action_packet(&plan.actions[1]),
+        (CMSG_SET_DIFFICULTY_ID, 2u32.to_le_bytes().to_vec())
+    );
+    assert_eq!(CMSG_RESET_INSTANCES, 0x366A);
+    assert_eq!(CMSG_SET_DIFFICULTY_ID, 0x3222);
+    assert_eq!(
+        build_realm_action_packet(&plan.actions[2]).unwrap(),
+        (
+            CMSG_PARTY_INVITE,
+            crate::loot_race::build_party_invite("Peer", target.low, target.high).unwrap(),
+        )
+    );
+    assert_eq!(
+        build_realm_action_packet(&plan.actions[3]).unwrap(),
+        (CMSG_PARTY_INVITE_RESPONSE, vec![0x40])
+    );
+    assert_eq!(
+        build_realm_action_packet(&plan.actions[4]).unwrap(),
+        (CMSG_PARTY_INVITE_RESPONSE, vec![0x00])
+    );
+    assert_eq!(CMSG_PARTY_INVITE, 0x3604);
+    assert_eq!(CMSG_PARTY_INVITE_RESPONSE, 0x3606);
+    let leave = Action::LeaveGroup {};
+    assert_eq!(action_name(&leave), "leave_group");
+    assert_eq!(
+        build_realm_action_packet(&leave).unwrap(),
+        (CMSG_LEAVE_GROUP, vec![0])
+    );
+    assert_eq!(CMSG_LEAVE_GROUP, 0x364C);
+    assert!(serde_json::from_str::<Action>(r#"{"action":"leave_group","unexpected":1}"#).is_err());
+
+    for action in [
+        r#"{"action":"reset_instances","unexpected":1}"#,
+        r#"{"action":"set_difficulty_id","difficulty_id":2,"unexpected":1}"#,
+        r#"{"action":"party_invite","name":"Peer","target":{"low":17,"high":34},"unexpected":1}"#,
+        r#"{"action":"party_invite_response","accept":true,"unexpected":1}"#,
+    ] {
+        assert!(serde_json::from_str::<Action>(action).is_err(), "{action}");
+    }
+}
+
+#[test]
+fn set_dungeon_difficulty_action_preserves_instance_wire_shape_and_strict_fields() {
+    let action = Action::SetDungeonDifficulty { difficulty_id: 2 };
+    assert_eq!(action_name(&action), "set_dungeon_difficulty");
+    assert_eq!(
+        build_action_packet(&action),
+        (CMSG_SET_DUNGEON_DIFFICULTY, 2u32.to_le_bytes().to_vec())
+    );
+    assert_eq!(CMSG_SET_DUNGEON_DIFFICULTY, 0x3684);
+
+    let plan: Plan = serde_json::from_str(
+        r#"{"actions":[{"action":"set_dungeon_difficulty","difficulty_id":2}],"expect":[{"event":"packet","connection":"realm","opcode":9892,"body_hex":"02000000"}]}"#,
+    )
+    .unwrap();
+    plan::validate_plan(&plan).unwrap();
+    assert!(matches!(
+        plan.actions.as_slice(),
+        [Action::SetDungeonDifficulty { difficulty_id: 2 }]
+    ));
+    assert!(serde_json::from_str::<Action>(
+        r#"{"action":"set_dungeon_difficulty","difficulty_id":2,"unexpected":1}"#
+    )
+    .is_err());
+}
+
+#[test]
 fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
     let plan: Plan = serde_json::from_str(
         r#"{
@@ -1471,6 +1567,38 @@ fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
     )
     .unwrap();
     assert_eq!(explicit_disconnect.finish_policy, FinishPolicy::Disconnect);
+}
+
+#[test]
+fn instance_and_party_packets_are_supported_for_waits_and_exact_expectations() {
+    for (opcode, body_hex) in [
+        (SMSG_INSTANCE_RESET, "21000000"),
+        (SMSG_INSTANCE_RESET_FAILED, "2100000000"),
+        (SMSG_RESET_FAILED_NOTIFY, ""),
+        (SMSG_SET_DUNGEON_DIFFICULTY, "02000000"),
+        (SMSG_PARTY_INVITE, ""),
+        (SMSG_PARTY_UPDATE, ""),
+    ] {
+        assert!(plan::supported_exact_packet_opcode(opcode));
+        assert!(plan::supported_wait_packet_opcode(opcode));
+        let json = format!(
+            r#"{{"actions":[{{"action":"wait_for_packet","connection":"instance","opcode":{opcode},"timeout_ms":100}}],"expect":[{{"event":"packet","connection":"instance","opcode":{opcode},"body_hex":"{body_hex}"}}]}}"#
+        );
+        let plan: Plan = serde_json::from_str(&json).unwrap();
+        plan::validate_plan(&plan).unwrap();
+    }
+
+    for opcode in [
+        REDACTED_SMSG_AUTH_CHALLENGE,
+        REDACTED_SMSG_AUTH_FAILED,
+        REDACTED_SMSG_AUTH_RESPONSE,
+        REDACTED_SMSG_ENTER_ENCRYPTED_MODE,
+        REDACTED_SMSG_CONNECT_TO,
+        0xFFFF,
+    ] {
+        assert!(!plan::supported_exact_packet_opcode(opcode));
+        assert!(!plan::supported_wait_packet_opcode(opcode));
+    }
 }
 
 #[test]

@@ -95,6 +95,7 @@ pub(super) struct Outbound {
 pub(crate) struct Controller {
     pub(super) options: Options,
     pub(super) evidence: Evidence,
+    pub(super) last_waited_raid_prompt: Option<usize>,
     mover: Guid,
     position: Option<Position>,
     flags: u32,
@@ -139,6 +140,7 @@ impl Controller {
             login_active_mover_complete_sent: false,
             active_mover_complete_count: 0,
             pending_acks: Vec::new(),
+            last_waited_raid_prompt: None,
         };
         controller.update_report_state();
         controller

@@ -68,6 +68,7 @@ pub struct LootReleaseCxLikeCpp<'a> {
     inventory: &'a mut wow_world_inventory::InventoryState,
     lifecycle: &'a mut wow_world_lifecycle::SessionLifecycleState,
     consumer_test: bool,
+    #[cfg(any(test, feature = "test-fixtures"))]
     instances: &'a wow_world_instances::InstanceState,
     stats_inputs: wow_world_core::session::LootReleaseStatsInputsLikeCpp<'a>,
     quest_state: &'a wow_world_quest::SessionQuestState,
@@ -89,6 +90,7 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         inventory: &'a mut wow_world_inventory::InventoryState,
         lifecycle: &'a mut wow_world_lifecycle::SessionLifecycleState,
         consumer_test: bool,
+        #[cfg(any(test, feature = "test-fixtures"))]
         instances: &'a wow_world_instances::InstanceState,
         stats_inputs: wow_world_core::session::LootReleaseStatsInputsLikeCpp<'a>,
         quest_state: &'a wow_world_quest::SessionQuestState,
@@ -107,6 +109,7 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
             inventory,
             lifecycle,
             consumer_test,
+            #[cfg(any(test, feature = "test-fixtures"))]
             instances,
             stats_inputs,
             quest_state,
@@ -280,7 +283,6 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         publication::LootReleasePublicationCxLikeCpp::new(
             self.owner.transitions_like_cpp(),
             self.owner.publication_like_cpp(),
-            self.instances,
         )
         .send_creature_loot_release_dynamic_flags_update_like_cpp(guid, update, authority)
     }

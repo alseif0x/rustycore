@@ -62,13 +62,11 @@ impl GameTime {
         self.0
     }
 
-    /// Get the packed WoW time format.
-    /// Bits: [minute:6][hour:5][weekday:3][monthDay:6][month:4][year:5][unused:3]
+    /// Get the packed local WoW time format with unset flags.
+    /// Bits: [minute:6][hour:5][weekday:3][monthDay:6][month:4][year:5][flags:2][unused:1]
     pub fn to_packed(&self) -> u32 {
         let secs = i64::try_from(self.0).unwrap_or(i64::MAX);
-        local_wow_time_fields_like_cpp(secs)
-            .map(pack_wow_time_fields_like_cpp)
-            .unwrap_or_else(|| pack_wow_time_fields_like_cpp(utc_wow_time_fields_like_cpp(0)))
+        pack_local_wow_time_from_unix_seconds_like_cpp(secs, 0)
     }
 
     /// Check if this time has passed (is before now).
@@ -90,6 +88,15 @@ impl GameTime {
     pub fn add_secs(&self, secs: u64) -> Self {
         Self(self.0 + secs)
     }
+}
+
+/// Pack local WoW calendar fields from a signed Unix timestamp and explicit
+/// two-bit flags, matching C++ `WowTime::GetPackedTime`.
+pub fn pack_local_wow_time_from_unix_seconds_like_cpp(unix_seconds: i64, flags: u32) -> u32 {
+    let mut fields = local_wow_time_fields_like_cpp(unix_seconds)
+        .unwrap_or_else(|| utc_wow_time_fields_like_cpp(0));
+    fields.flags = flags & 0x03;
+    pack_wow_time_fields_like_cpp(fields)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -330,6 +337,22 @@ mod tests {
         assert_eq!((packed >> 14) & 0x3F, 30);
         assert_eq!((packed >> 20) & 0x0F, 11);
         assert_eq!((packed >> 24) & 0x1F, 24);
+    }
+
+    #[test]
+    fn signed_local_wow_time_packing_preserves_explicit_flags() {
+        let unset = pack_local_wow_time_from_unix_seconds_like_cpp(-1, 0);
+        let unspecified = pack_local_wow_time_from_unix_seconds_like_cpp(-1, u32::MAX);
+
+        assert_eq!(unspecified & 0x1FFF_FFFF, unset & 0x1FFF_FFFF);
+        assert_eq!((unspecified >> 29) & 0x03, 0x03);
+    }
+
+    #[test]
+    fn game_time_packing_keeps_flags_zero_for_non_calendar_protocols() {
+        let packed = GameTime::from_unix(946_684_800).to_packed();
+
+        assert_eq!((packed >> 29) & 0x03, 0);
     }
 
     #[test]

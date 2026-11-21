@@ -355,7 +355,9 @@ impl LootSessionHostLikeCpp for WorldSession {
         self.sync_player_registry_state_like_cpp()
     }
     fn has_pending_bind_like_cpp(&self) -> bool {
-        self.instances.has_pending_bind_like_cpp()
+        self.core
+            .instance_player_access_like_cpp()
+            .has_pending_bind_like_cpp()
     }
     fn take_durable_item_loot_completions_like_cpp(&self) -> Vec<DurableItemLootCompletionLikeCpp> {
         crate::session::cx_inventory_ref(self).take_durable_item_loot_completions_like_cpp()

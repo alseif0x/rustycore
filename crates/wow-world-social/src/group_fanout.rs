@@ -9,7 +9,7 @@
 //! and group snapshots directly; the two helpers that need the `WorldSession`
 //! itself stay in the World facade.
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use tracing::warn;
 use wow_core::ObjectGuid;
@@ -190,6 +190,179 @@ pub fn party_player_info_like_cpp(
     })
 }
 
+fn party_update_like_cpp(
+    group: &GroupInfo,
+    player_list: Vec<PartyPlayerInfo>,
+    my_index: i32,
+    sequence_num: i32,
+    leader_faction_group: u8,
+    include_group_settings: bool,
+) -> PartyUpdate {
+    PartyUpdate {
+        party_flags: group.group_flags,
+        party_index: group.group_category_like_cpp(),
+        party_type: 1,
+        my_index,
+        party_guid: group.group_guid,
+        sequence_num,
+        leader_guid: group.leader_guid,
+        leader_faction_group,
+        player_list,
+        loot_settings: include_group_settings.then(|| PartyLootSettings {
+            method: group.loot_method,
+            loot_master: if group.loot_method == 2 {
+                group.master_looter_guid
+            } else {
+                ObjectGuid::EMPTY
+            },
+            threshold: group.loot_threshold,
+        }),
+        difficulty_settings: include_group_settings.then(|| PartyDifficultySettings {
+            dungeon_difficulty_id: group.dungeon_difficulty_id,
+            raid_difficulty_id: group.raid_difficulty_id,
+            legacy_raid_difficulty_id: group.legacy_raid_difficulty_id,
+        }),
+    }
+}
+
+/// Publish the initial C++ `Group::SendUpdateToPlayer` projection after login
+/// map insertion. The logging-in member receives its packet directly because
+/// its session has not reached `LoggedIn`; other connected members receive the
+/// existing incarnation-bound command without a full-state packet tail.
+pub fn send_initial_group_update_after_login_like_cpp(
+    social: &mut crate::SessionSocialLimits,
+    hub: &mut wow_world_core::session::HubMut<'_>,
+) {
+    let Some(current_guid) = hub.core.player_guid() else {
+        return;
+    };
+    let Some(group_registry) = hub.core.directory.group_registry.as_ref().cloned() else {
+        return;
+    };
+    let Some(Some(group_guid)) = hub
+        .core
+        .player_group_owner_access_like_cpp()
+        .canonical_group_guid_like_cpp()
+    else {
+        return;
+    };
+    let Some(group) = group_registry.get(&group_guid) else {
+        return;
+    };
+    if group.group_guid != group_guid || !group.members.contains(&current_guid) {
+        return;
+    }
+    let Some(my_index) = group
+        .member_slots
+        .iter()
+        .position(|slot| slot.guid == current_guid)
+        .and_then(|index| i32::try_from(index).ok())
+    else {
+        return;
+    };
+    let Some(leader_slot) = group
+        .member_slots
+        .iter()
+        .find(|slot| slot.guid == group.leader_guid)
+    else {
+        return;
+    };
+
+    let player_registry = hub.core.player_registry.as_ref().map(Arc::clone);
+    let (player_list, leader_faction_group) = {
+        let catalogs = hub.catalogs;
+        let faction_group_for_race = |race: u8| {
+            catalogs
+                .chr
+                .races_store
+                .as_ref()
+                .and_then(|store| store.get(u32::from(race)))
+                .and_then(|race| u32::try_from(race.faction_id).ok())
+                .and_then(|faction_id| {
+                    catalogs
+                        .factions
+                        .template_store
+                        .as_ref()
+                        .and_then(|store| store.get(faction_id))
+                })
+                .map(|template| template.faction_group)
+                .unwrap_or(1)
+        };
+        let players: Vec<PartyPlayerInfo> = group
+            .member_slots
+            .iter()
+            .map(|slot| PartyPlayerInfo {
+                guid: slot.guid,
+                name: slot.name.clone(),
+                class: slot.class,
+                faction_group: faction_group_for_race(slot.race),
+                subgroup: slot.subgroup,
+                flags: slot.flags,
+                roles_assigned: slot.roles,
+                connected: slot.guid == current_guid
+                    || player_registry
+                        .as_ref()
+                        .is_some_and(|registry| registry.social_recipient(slot.guid).is_some()),
+            })
+            .collect();
+        (players, faction_group_for_race(leader_slot.race))
+    };
+    let remote_recipients = group
+        .member_slots
+        .iter()
+        .enumerate()
+        .filter(|(_, slot)| slot.guid != current_guid)
+        .filter_map(|(index, slot)| {
+            let registry = player_registry.as_ref()?;
+            registry.social_recipient(slot.guid)?;
+            let registration = registry.control_address(slot.guid)?.registration();
+            Some((slot.guid, i32::try_from(index).ok()?, registration))
+        })
+        .collect::<Vec<_>>();
+
+    let Some(sequence_num) =
+        social.next_group_update_sequence_number_like_cpp(hub, group.group_category)
+    else {
+        return;
+    };
+    let include_group_settings = group.member_slots.len() > 1;
+    let current_update = party_update_like_cpp(
+        &group,
+        player_list.clone(),
+        my_index,
+        sequence_num,
+        leader_faction_group,
+        include_group_settings,
+    );
+    hub.core.send_packet_realm(&current_update);
+
+    if let Some(registry) = player_registry.as_ref() {
+        for (recipient, recipient_index, registration) in remote_recipients {
+            let command = SendPartyUpdateLikeCppCommand {
+                recipient,
+                party_update: party_update_like_cpp(
+                    &group,
+                    player_list.clone(),
+                    recipient_index,
+                    0,
+                    leader_faction_group,
+                    include_group_settings,
+                ),
+                member_full_state_packets: Vec::new(),
+            };
+            if registry
+                .try_send_current_command(
+                    registration,
+                    SessionCommand::SendPartyUpdateLikeCpp(command),
+                )
+                .is_err()
+            {
+                warn!(member = %recipient, "failed to queue login party update for remote session");
+            }
+        }
+    }
+}
+
 /// Sends `PartyUpdate` + `PartyMemberFullState` to every member of `group`.
 ///
 /// Each member gets a `PartyUpdate` where their own `my_index` reflects their
@@ -209,33 +382,7 @@ pub fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32
             None => continue,
         };
 
-        let update = PartyUpdate {
-            party_flags: group.group_flags,
-            party_index: group.group_category_like_cpp(),
-            party_type: 1,
-            my_index: my_idx as i32,
-            party_guid: group.group_guid,
-            // Filled by the receiver's WorldSession from its per-player
-            // `NextGroupUpdateSequenceNumber` state.
-            sequence_num: 0,
-            leader_guid: group.leader_guid,
-            leader_faction_group: 0,
-            player_list: all_players.clone(), // ALL members, receiver included
-            loot_settings: Some(PartyLootSettings {
-                method: group.loot_method,
-                loot_master: if group.loot_method == 2 {
-                    group.master_looter_guid
-                } else {
-                    ObjectGuid::EMPTY
-                },
-                threshold: group.loot_threshold,
-            }),
-            difficulty_settings: Some(PartyDifficultySettings {
-                dungeon_difficulty_id: group.dungeon_difficulty_id,
-                raid_difficulty_id: group.raid_difficulty_id,
-                legacy_raid_difficulty_id: group.legacy_raid_difficulty_id,
-            }),
-        };
+        let update = party_update_like_cpp(group, all_players.clone(), my_idx as i32, 0, 0, true);
 
         let mut member_full_state_packets = Vec::new();
         for &other_guid in &group.members {

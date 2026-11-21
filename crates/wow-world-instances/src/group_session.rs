@@ -140,6 +140,13 @@ pub fn handle_send_party_update_command_like_cpp<H: GroupSessionHostLikeCpp>(
     if host.player_guid() != Some(command.recipient) {
         return;
     }
+    // The queued registration can outlive its group membership. Resolve the
+    // receiving Player's current group through the canonical owner and group
+    // registry before publishing a snapshot selected for an earlier member
+    // list.
+    if host.authoritative_group_membership_like_cpp() != Some(command.party_update.party_guid) {
+        return;
+    }
 
     let Some(sequence_num) = ({
         let (state, mut hub) = host.split_social_mut();

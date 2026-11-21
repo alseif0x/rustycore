@@ -16,7 +16,7 @@ use wow_persistence::{
 };
 use wow_social::group::GroupDifficultyKindLikeCpp;
 
-use crate::handlers::lock_operations::reset_locks_with_access_like_cpp;
+use crate::handlers::lock_operations::reset_maps_with_access_like_cpp;
 use crate::handlers::{InstanceDifficultyHandlerCxLikeCpp, InstanceResetMethodLikeCpp};
 
 impl InstanceDifficultyHandlerCxLikeCpp<'_> {
@@ -123,17 +123,21 @@ async fn apply_represented_difficulty_change_like_cpp(
     difficulty_id: u32,
 ) {
     if let Some(reset_owner) = represented_set_difficulty_reset_owner_like_cpp(cx, difficulty_id) {
-        let _ = reset_locks_with_access_like_cpp(
+        let group_guid = resolved_group_guid_like_cpp(cx);
+        let _ = reset_maps_with_access_like_cpp(
+            cx.instances,
             &cx.locks,
-            cx.lifecycle,
+            &cx.player,
+            &cx.groups,
             &cx.packets,
             cx.map_store,
             cx.map_difficulty_store,
-            &cx.player,
+            cx.canonical_map_manager,
+            cx.player_registry,
+            group_guid,
             reset_owner,
             InstanceResetMethodLikeCpp::OnChangeDifficulty,
-        )
-        .await;
+        );
     }
 
     let commands = represented_set_difficulty_id_like_cpp(cx, difficulty_id);
@@ -255,7 +259,7 @@ fn represented_set_difficulty_id_like_cpp(
         ) {
             return Vec::new();
         }
-        cx.packets.send_packet(&DungeonDifficultySet {
+        cx.packets.send_packet_realm(&DungeonDifficultySet {
             difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
         });
         Vec::new()
@@ -291,7 +295,7 @@ fn represented_set_difficulty_id_like_cpp(
         ) {
             return Vec::new();
         }
-        cx.packets.send_packet(&RaidDifficultySet {
+        cx.packets.send_packet_realm(&RaidDifficultySet {
             difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
             legacy,
         });
@@ -355,18 +359,18 @@ fn apply_group_difficulty_like_cpp(
     }
     match kind {
         GroupDifficultyKindLikeCpp::Dungeon => {
-            cx.packets.send_packet(&DungeonDifficultySet {
+            cx.packets.send_packet_realm(&DungeonDifficultySet {
                 difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
             });
         }
         GroupDifficultyKindLikeCpp::Raid => {
-            cx.packets.send_packet(&RaidDifficultySet {
+            cx.packets.send_packet_realm(&RaidDifficultySet {
                 difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
                 legacy: false,
             });
         }
         GroupDifficultyKindLikeCpp::LegacyRaid => {
-            cx.packets.send_packet(&RaidDifficultySet {
+            cx.packets.send_packet_realm(&RaidDifficultySet {
                 difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
                 legacy: true,
             });

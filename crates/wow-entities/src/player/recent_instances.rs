@@ -15,7 +15,47 @@ use crate::Player;
 
 const INSTANCE_RESET_WINDOW_SECS_LIKE_CPP: u64 = 60 * 60;
 
+/// The pending instance bind owned by one canonical Player lifetime.
+///
+/// The four represented values preserve the current World contract while
+/// moving ownership alongside C++ `Player::_pendingBindId` and its timer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RepresentedPendingBind {
+    pub map_id: u32,
+    pub instance_id: u32,
+    pub completed_mask: u32,
+    pub time_until_lock_ms: u32,
+}
+
 impl Player {
+    pub fn set_pending_bind_like_cpp(&mut self, pending_bind: RepresentedPendingBind) {
+        self.gameplay_state_mut().pending_bind = Some(pending_bind);
+    }
+
+    pub fn pending_bind_like_cpp(&self) -> Option<RepresentedPendingBind> {
+        self.gameplay_state().pending_bind
+    }
+
+    pub fn has_pending_bind_like_cpp(&self) -> bool {
+        self.pending_bind_like_cpp().is_some()
+    }
+
+    pub fn take_pending_bind_like_cpp(&mut self) -> Option<RepresentedPendingBind> {
+        self.gameplay_state_mut().pending_bind.take()
+    }
+
+    pub fn advance_pending_bind_like_cpp(
+        &mut self,
+        elapsed_ms: u32,
+    ) -> Option<RepresentedPendingBind> {
+        let pending = self.gameplay_state_mut().pending_bind.as_mut()?;
+        if pending.time_until_lock_ms > elapsed_ms {
+            pending.time_until_lock_ms -= elapsed_ms;
+            return None;
+        }
+        self.take_pending_bind_like_cpp()
+    }
+
     /// C++ `Player::SetRecentInstance` (Player.h:2518).
     pub fn set_recent_instance_like_cpp(&mut self, map_id: u32, instance_id: u32) {
         self.gameplay_state_mut()

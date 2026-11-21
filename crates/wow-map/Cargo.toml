@@ -10,6 +10,7 @@ wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-entities = { workspace = true }
 rand = { workspace = true }
+wow-instances = { workspace = true }
 
 [dev-dependencies]
 wow-loot = { workspace = true }

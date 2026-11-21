@@ -166,6 +166,25 @@ pub(crate) enum Action {
         idle_logout: bool,
     },
     LogoutCancel {},
+    ResetInstances {},
+    RequestRaidInfo {},
+    InstanceLockResponse {
+        accept: bool,
+    },
+    SetDifficultyId {
+        difficulty_id: u32,
+    },
+    SetDungeonDifficulty {
+        difficulty_id: u32,
+    },
+    PartyInvite {
+        name: String,
+        target: Guid,
+    },
+    PartyInviteResponse {
+        accept: bool,
+    },
+    LeaveGroup {},
     /// One finite client movement packet. The opcode comes from the closed
     /// `MovementKind` set; control flags remain owned by the live controller.
     Movement {
@@ -708,6 +727,14 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
                 validate_creature_target(target, "attack_swing.target")?;
             }
             Action::AttackStop => {}
+            Action::PartyInvite { name, target } => {
+                if name.len() > 0x1FF {
+                    bail!("party invite name is too long");
+                }
+                if target.empty() {
+                    bail!("party invite target must be non-empty");
+                }
+            }
             Action::Movement {
                 kind,
                 x,
@@ -745,7 +772,14 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             | Action::ResurrectResponse { .. }
             | Action::SelfRes { .. }
             | Action::LogoutRequest { .. }
-            | Action::LogoutCancel {} => {}
+            | Action::LogoutCancel {}
+            | Action::ResetInstances {}
+            | Action::InstanceLockResponse { .. }
+            | Action::RequestRaidInfo {}
+            | Action::SetDifficultyId { .. }
+            | Action::SetDungeonDifficulty { .. }
+            | Action::PartyInviteResponse { .. }
+            | Action::LeaveGroup {} => {}
         }
     }
     for rule in &plan.expect {
@@ -866,6 +900,18 @@ pub(super) fn supported_exact_packet_opcode(opcode: u16) -> bool {
             | SMSG_SPELL_PREPARE
             | SMSG_SPELL_START
             | RAW_SMSG_UPDATE_OBJECT
+            | SMSG_INSTANCE_RESET
+            | SMSG_PENDING_RAID_LOCK
+            | SMSG_INSTANCE_SAVE_CREATED
+            | SMSG_CALENDAR_RAID_LOCKOUT_ADDED
+            | SMSG_INSTANCE_INFO
+            | SMSG_LOGIN_VERIFY_WORLD
+            | SMSG_INSTANCE_RESET_FAILED
+            | SMSG_RESET_FAILED_NOTIFY
+            | SMSG_SET_DUNGEON_DIFFICULTY
+            | SMSG_PARTY_INVITE
+            | SMSG_PARTY_UPDATE
+            | crate::loot_race::SMSG_PARTY_COMMAND_RESULT
     )
 }
 

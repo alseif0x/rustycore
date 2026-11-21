@@ -20,6 +20,10 @@ mod map_key;
 mod map_resolution;
 mod operations;
 mod pending_raid_lock;
+pub use pending_raid_lock::{
+    apply_instance_map_expiry_to_occupant_like_cpp,
+    complete_instance_map_player_entry_if_registered_like_cpp, start_raid_lock_on_map_entry,
+};
 mod state;
 
 pub use battleground_handlers::{
@@ -56,6 +60,7 @@ pub use group_session::{
     handle_apply_group_removal_command_like_cpp, handle_apply_group_subgroup_command_like_cpp,
     handle_send_party_update_command_like_cpp, reconcile_group_state_like_cpp,
 };
+pub use handlers::confirm_pending_bind_like_cpp;
 pub use handlers::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,
     InstanceLockResponseOutcomeLikeCpp, InstanceRaidInfoHandlerCxLikeCpp,
@@ -84,7 +89,9 @@ pub use instance_session::{
     apply_create_map_side_effects_like_cpp,
     check_area_explore_and_outdoor_represented_with_catalogs_like_cpp,
     check_area_triggers_with_catalogs_like_cpp, create_map_active_instance_lock_context_like_cpp,
+    create_map_active_instance_lock_context_with_expiry_like_cpp,
     create_map_instance_owner_guid_like_cpp, create_map_player_context_like_cpp,
+    ensure_canonical_login_map_for_current_player_like_cpp,
     ensure_canonical_player_owner_for_map_like_cpp,
     ensure_canonical_world_map_for_current_player_like_cpp, handle_activate_taxi,
     handle_area_trigger_with_catalogs_like_cpp,

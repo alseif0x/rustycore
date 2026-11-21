@@ -18,7 +18,8 @@ use super::{
     InstanceSessionHostLikeCpp, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
     TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP,
     TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
-    apply_create_map_side_effects_like_cpp, create_map_active_instance_lock_context_like_cpp,
+    apply_create_map_side_effects_like_cpp,
+    create_map_active_instance_lock_context_with_expiry_like_cpp,
     create_map_player_context_like_cpp,
 };
 
@@ -30,6 +31,12 @@ fn create_map_decision_difficulty_id_like_cpp(
         | wow_map::CreateMapDecision::Create { difficulty_id, .. } => Some(*difficulty_id),
         wow_map::CreateMapDecision::Reject { .. } => None,
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MapEntryPhaseLikeCpp {
+    Login,
+    Transfer,
 }
 
 /// Resolve the one canonical Player identity and move that exact value to
@@ -104,15 +111,25 @@ pub fn try_attach_worldport_destination_with_publication_like_cpp<H: InstanceSes
     let Some(
         wow_map::CreateMapDecision::Existing { key, .. }
         | wow_map::CreateMapDecision::Create { key, .. },
-    ) = prepare_canonical_map_entry_with_publication_like_cpp(host, map_id, publish)
+    ) = prepare_canonical_map_entry_with_publication_like_cpp(
+        host,
+        map_id,
+        publish,
+        MapEntryPhaseLikeCpp::Transfer,
+        true,
+    )
     else {
         return false;
     };
     if !host
         .hub_mut()
         .remove_current_player_from_canonical_current_map_like_cpp()
-        || !ensure_canonical_player_owner_for_map_like_cpp(host, key, position)
     {
+        clear_pending_map_entry_like_cpp(host, key);
+        return false;
+    }
+    if !ensure_canonical_player_owner_for_map_like_cpp(host, key, position) {
+        clear_pending_map_entry_like_cpp(host, key);
         return false;
     }
     host.hub_mut()
@@ -128,13 +145,30 @@ pub fn try_attach_worldport_destination_with_publication_like_cpp<H: InstanceSes
 pub fn ensure_canonical_world_map_for_current_player_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &mut H,
 ) -> Option<wow_map::CreateMapDecision> {
+    ensure_canonical_map_for_current_player_in_phase_like_cpp(host, MapEntryPhaseLikeCpp::Transfer)
+}
+
+/// Select and attach the saved login map using `Player::LoadFromDB` admission.
+/// Login creates the map and calls `Map::CannotEnter`; it does not run the
+/// separate `Map::PlayerCannotEnter` access and raid-group preflight.
+pub fn ensure_canonical_login_map_for_current_player_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &mut H,
+) -> Option<wow_map::CreateMapDecision> {
+    ensure_canonical_map_for_current_player_in_phase_like_cpp(host, MapEntryPhaseLikeCpp::Login)
+}
+
+fn ensure_canonical_map_for_current_player_in_phase_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &mut H,
+    phase: MapEntryPhaseLikeCpp,
+) -> Option<wow_map::CreateMapDecision> {
     let map_id = u32::from(host.core().player_map_id_like_cpp());
     let position = host.hub_ref().player_position_like_cpp()?;
-    let decision = prepare_canonical_map_entry_like_cpp(host, map_id)?;
+    let decision = prepare_canonical_map_entry_for_phase_like_cpp(host, map_id, phase, true)?;
     if let wow_map::CreateMapDecision::Existing { key, .. }
     | wow_map::CreateMapDecision::Create { key, .. } = &decision
         && !ensure_canonical_player_owner_for_map_like_cpp(host, *key, position)
     {
+        clear_pending_map_entry_like_cpp(host, *key);
         return None;
     }
     Some(decision)
@@ -147,13 +181,36 @@ pub fn prepare_canonical_map_entry_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &mut H,
     map_id: u32,
 ) -> Option<wow_map::CreateMapDecision> {
-    prepare_canonical_map_entry_with_publication_like_cpp(host, map_id, true)
+    prepare_canonical_map_entry_with_publication_like_cpp(
+        host,
+        map_id,
+        true,
+        MapEntryPhaseLikeCpp::Transfer,
+        false,
+    )
+}
+
+fn prepare_canonical_map_entry_for_phase_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &mut H,
+    map_id: u32,
+    phase: MapEntryPhaseLikeCpp,
+    mark_pending_entry: bool,
+) -> Option<wow_map::CreateMapDecision> {
+    prepare_canonical_map_entry_with_publication_like_cpp(
+        host,
+        map_id,
+        true,
+        phase,
+        mark_pending_entry,
+    )
 }
 
 fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &mut H,
     map_id: u32,
     publish: bool,
+    phase: MapEntryPhaseLikeCpp,
+    mark_pending_entry: bool,
 ) -> Option<wow_map::CreateMapDecision> {
     let map_entry = host
         .hub_ref()
@@ -204,10 +261,13 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
             side_effects: Vec::new(),
         });
     }
-    let bypass_player_cannot_enter_like_cpp =
+    let is_game_master =
         is_dungeon && host.hub_ref().player_is_game_master_like_cpp() == Some(true);
+    let run_player_cannot_enter_preflight =
+        phase == MapEntryPhaseLikeCpp::Transfer && !is_game_master;
+    let run_instance_map_cannot_enter = !is_game_master;
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_player_cannot_enter_preflight
         && let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
             host.access_requirement_abort_like_cpp(map_id, requested_difficulty as u8)
     {
@@ -224,7 +284,7 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
         });
     }
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_player_cannot_enter_preflight
         && map_entry.instance_type == wow_data::map::MAP_RAID
         && map_entry.expansion_like_cpp() >= host.core().realm_policy.server_expansion_like_cpp
         && !host.core().realm_policy.instance_ignore_raid_like_cpp
@@ -254,10 +314,29 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
         split_by_faction: map_entry.is_split_by_faction(),
         flex_locking: map_entry.is_flex_locking(),
     };
-    let active_instance_lock = is_dungeon
-        .then(|| {
-            create_map_active_instance_lock_context_like_cpp(host, map_id, requested_difficulty)
-        })
+    let (active_instance_lock, initialization_data, expiry_context) = if is_dungeon {
+        super::admission::with_active_map_lock_like_cpp(
+            host,
+            map_id,
+            requested_difficulty,
+            |context, lock, entries, reset_schedule| {
+                (
+                    Some(context),
+                    (!lock.is_new).then(|| lock.instance_initialization_data()),
+                    Some(wow_map::manager::InstanceMapExpiryContextLikeCpp {
+                        current_expiry_time: lock.expiry_time,
+                        entries: *entries,
+                        reset_schedule,
+                    }),
+                )
+            },
+        )
+        .unwrap_or_default()
+    } else {
+        (None, None, None)
+    };
+    let owning_group_guid = is_dungeon
+        .then(|| host.authoritative_group_membership_like_cpp())
         .flatten();
 
     let manager = Arc::clone(host.core().canonical_map_manager.as_ref()?);
@@ -283,14 +362,21 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
         let map = manager.create_map_entry(key.map_id, key.instance_id, *difficulty_id, *kind);
         if is_dungeon {
             map.set_instance_lock_context(active_instance_lock);
+            map.set_instance_expiry_context_like_cpp(expiry_context);
+            manager.initialize_instance_script_for_map(
+                key.map_id,
+                key.instance_id,
+                initialization_data.as_ref(),
+            );
         }
     }
 
-    let key = match &decision {
-        wow_map::CreateMapDecision::Existing { key, .. }
-        | wow_map::CreateMapDecision::Create { key, .. } => Some(*key),
-        wow_map::CreateMapDecision::Reject { .. } => None,
-    };
+    let key = decision.map_key();
+    if let (Some(key), Some(group_guid)) = (key, owning_group_guid)
+        && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
+    {
+        let _ = map.try_set_owning_group_like_cpp(group_guid);
+    }
     let existing_instance_lock_context = match &decision {
         wow_map::CreateMapDecision::Existing { key, .. } if is_dungeon => manager
             .find_map(key.map_id, key.instance_id)
@@ -309,7 +395,53 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
             .map(|map| map.instance_encounter_in_progress_like_cpp()),
         _ => None,
     };
+    if mark_pending_entry && let Some(key) = key {
+        manager.mark_instance_player_entry_pending_like_cpp(key, player_guid);
+    }
     drop(manager);
+
+    // C++ `InstanceMap::InstanceMap` marks an already attached lock in use at
+    // construction, before any later admission check can reject the entry.
+    if is_dungeon
+        && matches!(&decision, wow_map::CreateMapDecision::Create { .. })
+        && let Some(lock) = active_instance_lock
+        && !set_final_map_lock_in_use_like_cpp(host, map_id, lock)
+    {
+        warn!(
+            account = host.core().account_id,
+            map_id,
+            instance_id = lock.instance_id,
+            difficulty_id = lock.difficulty_id,
+            "failed to mark a new canonical map's initial instance lock in use"
+        );
+    }
+
+    if let (Some(key), Some(group_guid)) = (key, owning_group_guid) {
+        let linked = host
+            .core()
+            .directory
+            .group_registry
+            .as_ref()
+            .and_then(|registry| {
+                registry
+                    .link_owned_instance_transition_like_cpp(
+                        group_guid,
+                        key.map_id,
+                        key.instance_id,
+                    )
+                    .ok()
+            })
+            .is_some();
+        if !linked {
+            warn!(
+                account = host.core().account_id,
+                group_guid,
+                map_id = key.map_id,
+                instance_id = key.instance_id,
+                "failed to link canonical instance map to its owning group"
+            );
+        }
+    }
 
     // C++ `MapManager::CreateMap` receives the live `Player*` before it
     // performs admission checks and instance-entry accounting. Materialize
@@ -318,11 +450,12 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
     if let Some(key) = key
         && !host.ensure_canonical_player_owner_exists_like_cpp(key)
     {
+        clear_pending_map_entry_like_cpp(host, key);
         return None;
     }
 
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_instance_map_cannot_enter
         && let wow_map::CreateMapDecision::Existing {
             key, difficulty_id, ..
         } = &decision
@@ -337,14 +470,16 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
             host.hub_ref()
                 .send_transfer_aborted_like_cpp(key.map_id, TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP);
         }
+        clear_pending_map_entry_like_cpp(host, *key);
         return Some(wow_map::CreateMapDecision::Reject {
             side_effects: Vec::new(),
         });
     }
 
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_instance_map_cannot_enter
         && map_entry.instance_type == wow_data::map::MAP_RAID
+        && phase != MapEntryPhaseLikeCpp::Login
         && host.player_loading() != Some(player_guid)
         && let wow_map::CreateMapDecision::Existing { key, .. } = &decision
         && existing_instance_encounter_in_progress == Some(true)
@@ -353,13 +488,14 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
             host.hub_ref()
                 .send_transfer_aborted_like_cpp(key.map_id, TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP);
         }
+        clear_pending_map_entry_like_cpp(host, *key);
         return Some(wow_map::CreateMapDecision::Reject {
             side_effects: Vec::new(),
         });
     }
 
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_instance_map_cannot_enter
         && let wow_map::CreateMapDecision::Existing {
             key, difficulty_id, ..
         } = &decision
@@ -380,6 +516,7 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
                 host.hub_ref()
                     .send_transfer_aborted_like_cpp(key.map_id, deny_reason as u32);
             }
+            clear_pending_map_entry_like_cpp(host, *key);
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
             });
@@ -387,7 +524,7 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
     }
 
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_player_cannot_enter_preflight
         && !map_entry.ignores_instance_farm_limit_like_cpp()
         && let Some(key) = key
         && !{
@@ -402,6 +539,7 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
                 TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
             );
         }
+        clear_pending_map_entry_like_cpp(host, key);
         return Some(wow_map::CreateMapDecision::Reject {
             side_effects: Vec::new(),
         });
@@ -420,16 +558,87 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
     if is_dungeon
         && let Some(key) = key
         && let Some(difficulty_id) = create_map_decision_difficulty_id_like_cpp(&decision)
-        && let Some(lock) =
-            create_map_active_instance_lock_context_like_cpp(host, map_id, difficulty_id)
     {
-        let manager = Arc::clone(host.core().canonical_map_manager.as_ref()?);
-        if let Ok(mut manager) = manager.lock()
-            && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
+        let has_reset_schedule = {
+            let (state, hub) = host.split_instances_ref();
+            state
+                .create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)
+                .is_some_and(|entries| entries.has_reset_schedule())
+        };
+        if let Some((lock, expiry_context)) =
+            create_map_active_instance_lock_context_with_expiry_like_cpp(
+                host,
+                map_id,
+                difficulty_id,
+            )
         {
-            map.set_instance_lock_context(Some(lock));
+            let manager_arc = Arc::clone(host.core().canonical_map_manager.as_ref()?);
+            if let Ok(mut manager) = manager_arc.lock() {
+                if let Some(map) = manager.find_map_mut(key.map_id, key.instance_id) {
+                    map.set_instance_lock_context(Some(lock));
+                    map.set_instance_expiry_context_like_cpp(Some(expiry_context));
+                }
+                if mark_pending_entry {
+                    manager.mark_instance_player_entry_pending_like_cpp(key, player_guid);
+                }
+            }
+
+            if !set_final_map_lock_in_use_like_cpp(host, map_id, lock) {
+                warn!(
+                    account = host.core().account_id,
+                    map_id,
+                    instance_id = lock.instance_id,
+                    difficulty_id = lock.difficulty_id,
+                    "failed to mark the canonical map's exact instance lock in use"
+                );
+            }
+        } else if has_reset_schedule {
+            warn!(
+                account = host.core().account_id,
+                map_id,
+                instance_id = key.instance_id,
+                difficulty_id,
+                "failed to resolve the canonical map's final active instance lock"
+            );
         }
     }
 
     Some(decision)
+}
+
+fn clear_pending_map_entry_like_cpp<H: InstanceSessionHostLikeCpp>(host: &H, key: wow_map::MapKey) {
+    let Some(guid) = host.core().player_guid else {
+        return;
+    };
+    let Some(manager) = host.core().canonical_map_manager.as_ref().map(Arc::clone) else {
+        return;
+    };
+    if let Ok(mut manager) = manager.lock() {
+        manager.complete_instance_player_entry_like_cpp(key, guid);
+    }
+}
+
+fn set_final_map_lock_in_use_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &H,
+    map_id: u32,
+    context: wow_map::CreateMapInstanceLockContext,
+) -> bool {
+    let Ok(owner_guid_counter) = i64::try_from(context.owner_guid_counter) else {
+        return false;
+    };
+    let owner_guid =
+        wow_core::ObjectGuid::create_player(host.core().realm_id(), owner_guid_counter);
+    host.core()
+        .instance_lock_mgr
+        .as_ref()
+        .and_then(|manager| manager.write().ok())
+        .is_some_and(|mut manager| {
+            manager.set_instance_lock_in_use_like_cpp(
+                owner_guid,
+                map_id,
+                context.difficulty_id,
+                context.instance_id,
+                true,
+            )
+        })
 }

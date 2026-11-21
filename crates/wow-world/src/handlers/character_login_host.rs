@@ -120,6 +120,11 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             self, guid, name, position, map_id, race, class, level, gender,
         )
     }
+    fn ensure_canonical_login_map_for_current_player_like_cpp(&mut self) -> bool {
+        wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(self)
+            .and_then(|decision| decision.map_key())
+            .is_some()
+    }
     #[allow(clippy::too_many_arguments)]
     fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
         &mut self,
@@ -357,6 +362,12 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool {
         let (state, mut hub) = crate::session::split_social_mut(self);
         state.set_owned_player_group_like_cpp(&mut hub, membership)
+    }
+    fn send_initial_group_update_after_login_like_cpp(&mut self) {
+        let (social, mut hub) = crate::session::split_social_mut(self);
+        wow_world_social::group_fanout::send_initial_group_update_after_login_like_cpp(
+            social, &mut hub,
+        );
     }
     fn void_storage_is_unlocked_like_cpp(&self) -> bool {
         WorldSession::void_storage_is_unlocked_like_cpp(self)

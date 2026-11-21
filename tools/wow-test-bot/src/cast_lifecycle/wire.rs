@@ -33,7 +33,36 @@ pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
             (CMSG_LOGOUT_REQUEST, vec![u8::from(*idle_logout)])
         }
         Action::LogoutCancel {} => (CMSG_LOGOUT_CANCEL, Vec::new()),
+        Action::ResetInstances {} => (CMSG_RESET_INSTANCES, Vec::new()),
+        Action::SetDifficultyId { difficulty_id } => {
+            (CMSG_SET_DIFFICULTY_ID, difficulty_id.to_le_bytes().to_vec())
+        }
+        Action::SetDungeonDifficulty { difficulty_id } => (
+            CMSG_SET_DUNGEON_DIFFICULTY,
+            difficulty_id.to_le_bytes().to_vec(),
+        ),
         _ => unreachable!("only typed non-cast actions use this builder"),
+    }
+}
+
+pub(super) fn build_realm_action_packet(action: &Action) -> Result<(u16, Vec<u8>)> {
+    match action {
+        Action::RequestRaidInfo {} => Ok((CMSG_REQUEST_RAID_INFO, Vec::new())),
+        Action::InstanceLockResponse { accept } => Ok((
+            CMSG_INSTANCE_LOCK_RESPONSE,
+            vec![if *accept { 0x80 } else { 0 }],
+        )),
+        Action::PartyInvite { name, target } => Ok((
+            CMSG_PARTY_INVITE,
+            crate::loot_race::build_party_invite(name, target.low, target.high)?,
+        )),
+        Action::PartyInviteResponse { accept } => Ok((
+            CMSG_PARTY_INVITE_RESPONSE,
+            vec![if *accept { 0x40 } else { 0x00 }],
+        )),
+        // LeaveGroup::Read always reads the presence bit for the optional party index.
+        Action::LeaveGroup {} => Ok((CMSG_LEAVE_GROUP, vec![0])),
+        _ => unreachable!("only typed realm actions use this builder"),
     }
 }
 
@@ -400,6 +429,26 @@ pub(super) async fn collect_logout_until(
     }
 }
 
+fn consume_next_raid_prompt(controller: &mut Controller) -> bool {
+    let after = controller
+        .evidence
+        .sent_packets
+        .iter()
+        .rev()
+        .find(|sent| sent.opcode == CMSG_INSTANCE_LOCK_RESPONSE)
+        .map(|sent| sent.observation_sequence)
+        .max(controller.last_waited_raid_prompt);
+    let Some(event) = controller.evidence.events.iter().find(|event| {
+        event.connection == Connection::Realm
+            && event.opcode == SMSG_PENDING_RAID_LOCK
+            && after.is_none_or(|seq| event.observation_sequence > seq)
+    }) else {
+        return false;
+    };
+    controller.last_waited_raid_prompt = Some(event.observation_sequence);
+    true
+}
+
 pub(super) async fn wait_for_packet(
     deadline: tokio::time::Instant,
     connection: Connection,
@@ -410,6 +459,11 @@ pub(super) async fn wait_for_packet(
     realm: &mut Option<EncryptedWorldConnection>,
     controller: &mut Controller,
 ) -> Result<()> {
+    // Login can deliver its raid prompt before the scripted actions begin.
+    let waits_for_raid_prompt = connection == Connection::Realm && opcode == SMSG_PENDING_RAID_LOCK;
+    if waits_for_raid_prompt && consume_next_raid_prompt(controller) {
+        return Ok(());
+    }
     if connection == Connection::Realm
         && opcode == SMSG_LOGOUT_COMPLETE
         && controller.evidence.logout_confirmed
@@ -432,6 +486,9 @@ pub(super) async fn wait_for_packet(
     )
     .await?
     {
+        if waits_for_raid_prompt && !consume_next_raid_prompt(controller) {
+            bail!("received raid prompt was absent from the recorded realm events");
+        }
         Ok(())
     } else {
         bail!(

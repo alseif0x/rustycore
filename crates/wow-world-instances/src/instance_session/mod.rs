@@ -47,8 +47,10 @@ pub use activate_taxi::handle_activate_taxi;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use activate_taxi::represented_taxi_usable_mount_displays_like_cpp;
 pub use admission::{
-    create_map_active_instance_lock_context_like_cpp, create_map_instance_owner_guid_like_cpp,
-    create_map_player_context_like_cpp, player_cannot_enter_target_map_like_cpp,
+    create_map_active_instance_lock_context_like_cpp,
+    create_map_active_instance_lock_context_with_expiry_like_cpp,
+    create_map_instance_owner_guid_like_cpp, create_map_player_context_like_cpp,
+    player_cannot_enter_target_map_like_cpp,
 };
 pub use area_trigger_opcode::{AreaTriggerHostLikeCpp, handle_area_trigger_with_catalogs_like_cpp};
 pub use area_triggers::{
@@ -68,6 +70,7 @@ pub use login_load::{
     load_represented_explored_zones_like_cpp, load_represented_player_difficulties_like_cpp,
 };
 pub use map_entry::{
+    ensure_canonical_login_map_for_current_player_like_cpp,
     ensure_canonical_player_owner_for_map_like_cpp,
     ensure_canonical_world_map_for_current_player_like_cpp, prepare_canonical_map_entry_like_cpp,
     try_attach_worldport_destination_like_cpp,

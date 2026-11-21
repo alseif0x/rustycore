@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 from typing import Any
 
 try:
@@ -32,6 +33,15 @@ MAX_COUNTER = (1 << 40) - 1
 ENCHANTMENT_FIELD_COUNT = 13 * 3
 ACK_TEXT = "--ack-disposable-death-fixture"
 REINCARNATION_ANKH_COUNT_KEY = "reincarnation_ankh_initial_count"
+ICC_INSTANCE_LOCK_MAP_ID = 631
+ICC_INSTANCE_LOCK_ID = 12
+ICC_INSTANCE_LOCK_DIFFICULTY = 4
+ICC_SHARED_SAVE_DATA = (
+    '{"Header":"ICCv1","BossStates":[3,0,0,0,0,0,0,0,0,0,0,0,0]}'
+)
+ICC_LEADER_LOCK_SEED_DATA = (
+    '{"Header":"ICCv1","BossStates":[0,0,0,0,0,0,0,0,0,0,0,0,0]}'
+)
 
 # Existing character GUIDs are checked and retained, never edited.
 ACCOUNTS = (
@@ -372,6 +382,14 @@ class MariaDB:
         item_ids = ",".join(str(item["guid"]) for item in journal["items"])
         rows: dict[str, list[list[str]]] = {}
         for table, owner in CHAR_OWNER_TABLES:
+            if table == "character_instance_lock":
+                rows[f"{table}.{owner}"] = self._rows(
+                    self.execute(
+                        "SELECT guid,mapId,lockId,instanceId,difficulty,data,"
+                        "completedEncountersMask,entranceWorldSafeLocId,expiryTime,extended "
+                        f"FROM {table} WHERE {owner} IN ({guids}) ORDER BY guid,mapId,lockId"
+                    ), 10)
+                continue
             rows[f"{table}.{owner}"] = self._rows(
                 self.execute(f"SELECT {owner} FROM {table} WHERE {owner} IN ({guids})"), 1)
         for table, owner in ITEM_CHILD_TABLES:
@@ -381,6 +399,29 @@ class MariaDB:
             self.execute(f"SELECT guid,owner_guid FROM item_instance WHERE guid IN ({item_ids})"), 2)
         rows["character_inventory.item"] = self._rows(
             self.execute(f"SELECT item,guid FROM character_inventory WHERE item IN ({item_ids})"), 2)
+        reservation = journal.get("instance_lock_reservation")
+        if reservation is not None:
+            instance_id = int(reservation["instance_id"])
+            rows["instance.instanceId"] = self._rows(
+                self.execute(
+                    "SELECT instanceId,data,completedEncountersMask,entranceWorldSafeLocId "
+                    f"FROM instance WHERE instanceId={instance_id}"
+                ), 4)
+            rows["instance.reserved_locks"] = self._rows(
+                self.execute(
+                    "SELECT guid,mapId,lockId,instanceId,difficulty,data,"
+                    "completedEncountersMask,entranceWorldSafeLocId,expiryTime,extended "
+                    f"FROM character_instance_lock WHERE instanceId={instance_id} "
+                    "ORDER BY guid,mapId,lockId"
+                ), 10)
+            rows["instance.character_references"] = self._rows(
+                self.execute(
+                    f"SELECT guid FROM characters WHERE instance_id={instance_id} ORDER BY guid"
+                ), 1)
+        else:
+            rows["instance.instanceId"] = []
+            rows["instance.reserved_locks"] = []
+            rows["instance.character_references"] = []
         return rows
 
     def unsupported_rows(self, journal: dict[str, Any]) -> dict[str, str]:
@@ -510,6 +551,8 @@ def seed_record(char_ids: list[int], item_ids: list[int], slots: list[int],
             "target_database": dict(target_database), "actors": actors,
             "items": items, "account_bindings": [{"email": a["email"], "account_id": a["account_id"],
                                                     "preserved_guid": a["old_guid"]} for a in ACCOUNTS],
+            "instance_lock_reservation": None,
+            "icc_post_bind_snapshot": None,
             "prior_row_absence": {"character_ids": char_ids, "item_ids": item_ids,
                 "character_owner_tables": [f"{table}.{owner}" for table, owner in CHAR_OWNER_TABLES],
                 "character_reference_tables": [f"{table}.{owner}" for table, owner in CHAR_GUID_REFERENCE_TABLES],
@@ -521,6 +564,46 @@ def seed_record(char_ids: list[int], item_ids: list[int], slots: list[int],
                 REINCARNATION_ANKH_COUNT_KEY: reincarnation_ankh_count,
                 "spells": list(SPELL_SEEDS), "achievements": list(ACHIEVEMENT_SEEDS),
                 "world_stopped_asserted": True}}
+
+
+def reserve_icc_instance_id(db: Any, actors: list[dict[str, Any]]) -> dict[str, Any]:
+    maxima = []
+    for query in (
+        "SELECT COALESCE(MAX(instance_id),0) FROM characters",
+        "SELECT COALESCE(MAX(instanceId),0) FROM character_instance_lock",
+        "SELECT COALESCE(MAX(instanceId),0) FROM instance",
+    ):
+        value = db.execute(query) or "0"
+        try:
+            maxima.append(int(value))
+        except ValueError:
+            raise FixtureError("ICC instance allocator returned an invalid maximum") from None
+    instance_id = max(maxima) + 1
+    if not 1 <= instance_id <= 0xFFFFFFFF:
+        raise FixtureError("ICC fixture instance ID is outside the 32-bit instance range")
+    collision = db.execute(
+        "SELECT (SELECT COUNT(*) FROM characters WHERE instance_id="
+        f"{instance_id})+(SELECT COUNT(*) FROM character_instance_lock WHERE instanceId={instance_id})"
+        f"+(SELECT COUNT(*) FROM instance WHERE instanceId={instance_id})"
+    )
+    if collision != "0":
+        raise FixtureError("reserved ICC instance ID collided before stopped-world preparation")
+    by_name = {actor["name"]: actor for actor in actors}
+    try:
+        seed_actor = by_name["Qadeathcast"]
+        member_actor = by_name["Qadeathfall"]
+    except KeyError:
+        raise FixtureError("ICC lock fixture actors are missing from the journal") from None
+    return {
+        "map_id": ICC_INSTANCE_LOCK_MAP_ID,
+        "lock_id": ICC_INSTANCE_LOCK_ID,
+        "instance_id": instance_id,
+        "difficulty_id": ICC_INSTANCE_LOCK_DIFFICULTY,
+        "actor_guids": [int(seed_actor["guid"]), int(member_actor["guid"])],
+        "seed_guid": int(seed_actor["guid"]),
+        "seed_expiry_time": int(time.time()) - 3600,
+        "ownership_state": "reserved",
+    }
 
 
 def validate_journal(journal: dict[str, Any], path: Path) -> None:
@@ -564,12 +647,146 @@ def validate_journal(journal: dict[str, Any], path: Path) -> None:
             or absence.get("character_reference_tables") != [f"{t}.{o}" for t, o in CHAR_GUID_REFERENCE_TABLES]
             or absence.get("item_id_tables") != [f"{t}.{o}" for t, o in ITEM_ID_TABLES]):
         raise FixtureError("death fixture journal reservation record is invalid")
+    validate_instance_lock_reservation(journal.get("instance_lock_reservation"), journal["actors"])
+    validate_icc_post_bind_snapshot(journal.get("icc_post_bind_snapshot"),
+                                    journal["actors"], journal.get("instance_lock_reservation"))
     expected_accounts = [{"email": a["email"], "account_id": a["account_id"],
                           "preserved_guid": a["old_guid"]} for a in ACCOUNTS]
     if journal.get("account_bindings") != expected_accounts:
         raise FixtureError("death fixture account identity drifted")
     if "cleanup_snapshot" in journal and not isinstance(journal["cleanup_snapshot"], dict):
         raise FixtureError("death fixture cleanup snapshot is invalid")
+
+
+def validate_instance_lock_reservation(reservation: Any,
+                                       actors: list[dict[str, Any]]) -> None:
+    if reservation is None:
+        return
+    expected_actor_names = ("Qadeathcast", "Qadeathfall")
+    expected_actor_guids = [next(actor["guid"] for actor in actors
+                                 if actor["name"] == name)
+                            for name in expected_actor_names]
+    if (not isinstance(reservation, dict)
+            or set(reservation) != {"map_id", "lock_id", "instance_id", "difficulty_id",
+                                    "actor_guids", "seed_guid", "seed_expiry_time",
+                                    "ownership_state"}
+            or type(reservation.get("map_id")) is not int
+            or reservation["map_id"] != ICC_INSTANCE_LOCK_MAP_ID
+            or type(reservation.get("lock_id")) is not int
+            or reservation["lock_id"] != ICC_INSTANCE_LOCK_ID
+            or type(reservation.get("difficulty_id")) is not int
+            or reservation["difficulty_id"] != ICC_INSTANCE_LOCK_DIFFICULTY
+            or type(reservation.get("instance_id")) is not int
+            or not 1 <= reservation["instance_id"] <= 0xFFFFFFFF
+            or reservation.get("actor_guids") != expected_actor_guids
+            or type(reservation.get("seed_guid")) is not int
+            or reservation["seed_guid"] != expected_actor_guids[0]
+            or type(reservation.get("seed_expiry_time")) is not int
+            or reservation["seed_expiry_time"] <= 0
+            or reservation["seed_expiry_time"] >= int(time.time())
+            or reservation.get("ownership_state") not in {"reserved", "owned"}):
+        raise FixtureError("ICC lock ownership reservation is invalid")
+
+
+def validate_icc_instance_save_data(data: str) -> None:
+    try:
+        saved = json.loads(data)
+        states = saved["BossStates"]
+    except (TypeError, ValueError, KeyError):
+        raise FixtureError("reserved ICC instance save data is malformed") from None
+    if (not isinstance(saved, dict) or saved.get("Header") != "ICCv1"
+            or not isinstance(states, list) or len(states) != 13
+            or any(type(state) is not int or not 0 <= state <= 3 for state in states)):
+        raise FixtureError("reserved ICC instance save data is not a 13-boss ICCv1 payload")
+
+
+def validate_icc_post_bind_snapshot(snapshot: Any, actors: list[dict[str, Any]],
+                                    reservation: Any) -> None:
+    if snapshot is None:
+        return
+    if reservation is None or (not isinstance(snapshot, dict)
+            or set(snapshot) != {"instance_id", "lock_rows", "instance_row"}
+            or type(snapshot.get("instance_id")) is not int
+            or snapshot["instance_id"] != reservation["instance_id"]
+            or not isinstance(snapshot.get("lock_rows"), list)
+            or not isinstance(snapshot.get("instance_row"), list)):
+        raise FixtureError("ICC post-bind snapshot is invalid")
+    expected_guids = [str(guid) for guid in reservation["actor_guids"]]
+    lock_rows = snapshot["lock_rows"]
+    if len(lock_rows) != len(expected_guids):
+        raise FixtureError("ICC post-bind snapshot does not contain both actors")
+    by_guid = {}
+    for row in lock_rows:
+        if not isinstance(row, list) or len(row) != 10 or row[0] in by_guid:
+            raise FixtureError("ICC post-bind lock snapshot row is invalid")
+        by_guid[row[0]] = row
+    if set(by_guid) != set(expected_guids):
+        raise FixtureError("ICC post-bind lock snapshot actor ownership is invalid")
+    canonical_rows = [by_guid[guid] for guid in expected_guids]
+    for row in canonical_rows:
+        if (row[1] != str(ICC_INSTANCE_LOCK_MAP_ID)
+                or row[2] != str(ICC_INSTANCE_LOCK_ID)
+                or row[3] != str(snapshot["instance_id"])
+                or row[4] != str(ICC_INSTANCE_LOCK_DIFFICULTY)
+                or row[5] != ICC_SHARED_SAVE_DATA or row[6] != "1"
+                or not row[8].isdecimal() or row[9] != "0"):
+            raise FixtureError("ICC post-bind lock snapshot key or renewal state is invalid")
+        validate_icc_instance_save_data(row[5])
+    instance_row = snapshot["instance_row"]
+    if (len(instance_row) != 4 or instance_row[0] != str(snapshot["instance_id"])
+            or instance_row[1] != ICC_SHARED_SAVE_DATA or instance_row[2] != "1"
+            or not instance_row[2].isdecimal() or not instance_row[3].isdecimal()):
+        raise FixtureError("ICC post-bind instance snapshot row is invalid")
+    validate_icc_instance_save_data(instance_row[1])
+    if any(row[5] != instance_row[1] for row in canonical_rows):
+        raise FixtureError("ICC post-bind instance and character save payloads differ")
+
+
+def validate_reserved_instance_lock_rows(rows: dict[str, list[list[str]]],
+                                         journal: dict[str, Any]) -> None:
+    reservation = journal.get("instance_lock_reservation")
+    lock_rows = rows.get("character_instance_lock.guid", [])
+    instance_rows = rows.get("instance.instanceId", [])
+    locks_for_instance = rows.get("instance.reserved_locks", [])
+    character_references = rows.get("instance.character_references", [])
+    if reservation is None:
+        if instance_rows or locks_for_instance or character_references:
+            raise FixtureError("unreserved instance lock or instance rows found; cleanup held")
+        if any(len(row) != 10 for row in lock_rows):
+            raise FixtureError("generic fixture lock row has an unexpected shape; cleanup held")
+        return
+
+    allowed_guids = {str(guid) for guid in reservation["actor_guids"]}
+    instance_id = str(reservation["instance_id"])
+    seen_guids: set[str] = set()
+    for row in lock_rows:
+        if len(row) != 10:
+            raise FixtureError("reserved ICC lock row has an unexpected shape; cleanup held")
+        guid, map_id, lock_id, row_instance_id, difficulty, _data, _completed, _entrance, _expiry, _extended = row
+        if (guid not in allowed_guids or guid in seen_guids
+                or map_id != str(reservation["map_id"])
+                or lock_id != str(reservation["lock_id"])
+                or row_instance_id != instance_id
+                or difficulty != str(reservation["difficulty_id"])
+                or not all(value.isdecimal() for value in (_completed, _entrance, _expiry))
+                or _extended not in {"0", "1"}):
+            raise FixtureError("ICC lock row drifted outside its durable ownership reservation")
+        seen_guids.add(guid)
+
+    if reservation["ownership_state"] == "reserved" \
+            and (lock_rows or instance_rows or locks_for_instance or character_references):
+        raise FixtureError("ICC shared-row ownership was not confirmed before interruption; cleanup held")
+    if locks_for_instance != lock_rows:
+        raise FixtureError("foreign character lock references the reserved ICC instance; cleanup held")
+    if any(len(row) != 1 or row[0] not in allowed_guids for row in character_references):
+        raise FixtureError("foreign character references the reserved ICC instance; cleanup held")
+    if len(instance_rows) > 1:
+        raise FixtureError("reserved ICC instance ID has ambiguous instance rows")
+    for row in instance_rows:
+        if len(row) != 4 or row[0] != instance_id:
+            raise FixtureError("ICC instance row drifted outside its durable reservation")
+        if not row[2].isdecimal() or not row[3].isdecimal():
+            raise FixtureError("ICC instance row has invalid key-associated numeric fields")
 
 
 def make_character_insert(actor: dict[str, Any]) -> str:
@@ -586,6 +803,18 @@ def make_character_insert(actor: dict[str, Any]) -> str:
 
 def seed_statements(journal: dict[str, Any]) -> list[str]:
     out = [make_character_insert(actor) for actor in journal["actors"]]
+    reservation = journal.get("instance_lock_reservation")
+    if reservation is not None:
+        out.extend([
+            "INSERT INTO instance (instanceId,data,completedEncountersMask,entranceWorldSafeLocId) "
+            f"VALUES ({reservation['instance_id']},{sql_quote(ICC_SHARED_SAVE_DATA)},1,0)",
+            "INSERT INTO character_instance_lock "
+            "(guid,mapId,lockId,instanceId,difficulty,data,completedEncountersMask,"
+            "entranceWorldSafeLocId,expiryTime,extended) VALUES "
+            f"({reservation['seed_guid']},{reservation['map_id']},{reservation['lock_id']},"
+            f"{reservation['instance_id']},{reservation['difficulty_id']},"
+            f"{sql_quote(ICC_LEADER_LOCK_SEED_DATA)},1,0,{reservation['seed_expiry_time']},1)",
+        ])
     out.extend(
         "INSERT INTO character_homebind (guid,mapId,zoneId,posX,posY,posZ,orientation) "
         f"VALUES ({actor['guid']},{actor['map']},{actor['zone']},{actor['home'][0]},"
@@ -612,6 +841,25 @@ def seed_statements(journal: dict[str, Any]) -> list[str]:
         out.append("INSERT INTO character_achievement (guid,achievement,date) "
                    f"VALUES ({actor['guid']},{achievement['achievement']},UNIX_TIMESTAMP())")
     return out
+
+
+def verify_icc_fixture_seed(rows: dict[str, list[list[str]]],
+                            reservation: dict[str, Any]) -> None:
+    expected_lock = [
+        str(reservation["seed_guid"]), str(reservation["map_id"]),
+        str(reservation["lock_id"]), str(reservation["instance_id"]),
+        str(reservation["difficulty_id"]), ICC_LEADER_LOCK_SEED_DATA, "1", "0",
+        str(reservation["seed_expiry_time"]), "1",
+    ]
+    if rows.get("character_instance_lock.guid") != [expected_lock]:
+        raise FixtureError("stopped-world ICC seed lock ownership verification failed; journal retained")
+    if rows.get("instance.instanceId") != [
+            [str(reservation["instance_id"]), ICC_SHARED_SAVE_DATA, "1", "0"]]:
+        raise FixtureError("stopped-world ICC shared row ownership verification failed; journal retained")
+    if rows.get("instance.reserved_locks") != [expected_lock]:
+        raise FixtureError("stopped-world ICC lock reference verification failed; journal retained")
+    if rows.get("instance.character_references"):
+        raise FixtureError("ICC fixture actors were not outside before the server restart")
 
 
 def verify_fresh_journal_path(path: Path) -> None:
@@ -651,7 +899,8 @@ def require_offline_acknowledgement(ack: bool, world_stopped: bool) -> None:
 
 def prepare(db: Any, config_raw: dict[str, Any], journal_path: Path, *,
             ack: bool = False, world_stopped: bool = False,
-            reincarnation_ankh_count: int = 10) -> dict[str, Any]:
+            reincarnation_ankh_count: int = 10,
+            icc_lock_fixture: bool = False) -> dict[str, Any]:
     require_offline_acknowledgement(ack, world_stopped)
     reincarnation_ankh_count = validate_reincarnation_ankh_count(reincarnation_ankh_count)
     info = db.inspect()
@@ -660,6 +909,8 @@ def prepare(db: Any, config_raw: dict[str, Any], journal_path: Path, *,
     db.assert_ids_unoccupied(char_ids, item_ids)
     record = seed_record(char_ids, item_ids, assign_slots(info), db.target_database,
                          reincarnation_ankh_count=reincarnation_ankh_count)
+    if icc_lock_fixture:
+        record["instance_lock_reservation"] = reserve_icc_instance_id(db, record["actors"])
     record["state"] = "prepare-attempted"
     create_journal(journal_path, record)
     # Recheck identities, slots, names and reservations after the durable journal exists.
@@ -691,7 +942,11 @@ def prepare(db: Any, config_raw: dict[str, Any], journal_path: Path, *,
                          if online == "0"}
     if actual_characters != expected_characters or db.unsupported_rows(record):
         raise FixtureError("seed transaction identity or owned-row verification failed; journal retained")
+    if record.get("instance_lock_reservation") is not None:
+        verify_icc_fixture_seed(owned, record["instance_lock_reservation"])
+        record["instance_lock_reservation"]["ownership_state"] = "owned"
     record["state"] = "prepared"
+    validate_journal(record, journal_path)
     write_journal(journal_path, record, create=False)
     return record
 
@@ -707,9 +962,23 @@ def cleanup_statements(journal: dict[str, Any]) -> list[str]:
     # Corpse ownership is the character GUID, never the runtime corpse-object GUID.
     for table, owner in reversed(CHAR_OWNER_TABLES):
         # Inventory was deleted above with both its exact item and character IDs.
-        if table == "character_inventory":
+        if table == "character_inventory" or (
+                table == "character_instance_lock"
+                and journal.get("instance_lock_reservation") is not None):
             continue
         out.append(f"DELETE FROM {table} WHERE {owner} IN ({ids})")
+    reservation = journal.get("instance_lock_reservation")
+    if reservation is not None:
+        lock_guids = ",".join(str(guid) for guid in reservation["actor_guids"])
+        out.append(
+            "DELETE FROM character_instance_lock "
+            f"WHERE guid IN ({lock_guids}) AND mapId={reservation['map_id']} "
+            f"AND lockId={reservation['lock_id']} AND instanceId={reservation['instance_id']}"
+        )
+        out.append(
+            "DELETE FROM instance "
+            f"WHERE instanceId={reservation['instance_id']}"
+        )
     return out
 
 
@@ -736,9 +1005,19 @@ def restore(db: Any, journal_path: Path, *, ack: bool = False, world_stopped: bo
         raise FixtureError("unsupported linked rows found; journal retained and cleanup held")
     rows = db.rows_under_ids(journal)
     expected = {int(a["guid"]): (int(a["account_id"]), a["name"]) for a in journal["actors"]}
-    for guid, account_id, name, online in db.character_identities(journal):
+    identities = db.character_identities(journal)
+    for guid, account_id, name, online in identities:
         if int(guid) not in expected or (int(account_id), name) != expected[int(guid)] or online != "0":
             raise FixtureError("fixture character ownership or offline state drifted; cleanup held")
+    reservation = journal.get("instance_lock_reservation")
+    if (reservation and reservation["ownership_state"] == "reserved"
+            and journal["state"] == "prepare-attempted"
+            and {int(row[0]) for row in identities} == set(expected)):
+        # Characters, leader lock and shared row were inserted in one transaction.
+        # An exact seed can recover a commit whose acknowledgement was lost.
+        verify_icc_fixture_seed(rows, reservation)
+        reservation["ownership_state"] = "owned"
+    validate_reserved_instance_lock_rows(rows, journal)
     allowed_items = {int(item["guid"]): int(item["owner_guid"]) for item in journal["items"]}
     for row in rows.get("item_instance.guid", []):
         if int(row[0]) not in allowed_items or int(row[1]) != allowed_items[int(row[0])]:
@@ -795,6 +1074,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--world-config", type=Path, default=DEFAULT_WORLD_CONFIG)
     parser.add_argument("--journal", type=Path)
     parser.add_argument("--reincarnation-ankh-count", type=int, choices=(1, 10), default=10)
+    parser.add_argument("--icc-lock-fixture", action="store_true",
+                        help="reserve and seed the ICC shared lock while the world is stopped")
     parser.add_argument(ACK_TEXT, dest="ack", action="store_true")
     parser.add_argument("--world-stopped", action="store_true",
                         help="caller assertion only; the parent runtime guard must verify every PID and port")
@@ -821,10 +1102,13 @@ def main(argv: list[str] | None = None, db_factory=MariaDB) -> int:
                 raise FixtureError(f"{args.mode} requires {ACK_TEXT} and --world-stopped")
             if not args.journal:
                 raise FixtureError(f"{args.mode} requires --journal")
+            if args.icc_lock_fixture and args.mode != "prepare":
+                raise FixtureError("--icc-lock-fixture is valid only with prepare")
             if args.mode == "prepare":
                 prepared = prepare(db, bot_raw, args.journal,
                                    ack=args.ack, world_stopped=args.world_stopped,
-                                   reincarnation_ankh_count=args.reincarnation_ankh_count)
+                                   reincarnation_ankh_count=args.reincarnation_ankh_count,
+                                   icc_lock_fixture=args.icc_lock_fixture)
                 result = {"mode": "prepared", "journal": str(args.journal),
                           "actors": [{"name": a["name"], "guid": a["guid"], "account_id": a["account_id"]}
                                      for a in prepared["actors"]]}

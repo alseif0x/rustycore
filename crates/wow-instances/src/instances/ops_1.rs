@@ -21,6 +21,7 @@ impl InstanceLockMgr {
     }
     pub fn load_from_rows_like_cpp(
         &mut self,
+        realm_id: u16,
         shared_rows: impl IntoIterator<Item = SharedInstanceLockRow>,
         character_rows: impl IntoIterator<Item = CharacterInstanceLockRow>,
         mut entries_for: impl FnMut(u32, u8) -> Option<MapDb2Entries>,
@@ -58,8 +59,7 @@ impl InstanceLockMgr {
                 is_flex_locking: true,
                 is_using_encounter_locks: true,
             });
-            let player_guid =
-                ObjectGuid::create_global(HighGuid::Player, 0, row.player_guid_counter as i64);
+            let player_guid = ObjectGuid::create_player(realm_id, row.player_guid_counter as i64);
             let data = InstanceLockData {
                 data: row.data,
                 completed_encounters_mask: row.completed_encounters_mask,
@@ -147,6 +147,66 @@ impl InstanceLockMgr {
     ) -> Option<&InstanceLock> {
         self.find_active_instance_lock_inner(player_guid, entries, now, false, true)
     }
+    /// Read the one exact attached lock without applying active/expiry admission rules.
+    pub fn find_instance_lock_exact_like_cpp(
+        &self,
+        owner_guid: ObjectGuid,
+        map_id: u32,
+        difficulty_id: u8,
+        instance_id: u32,
+    ) -> Option<&InstanceLock> {
+        let mut matches = self
+            .instance_locks_by_player
+            .get(&owner_guid)
+            .into_iter()
+            .chain(self.temporary_instance_locks_by_player.get(&owner_guid))
+            .flat_map(|locks| locks.values())
+            .filter(|lock| {
+                lock.map_id == map_id
+                    && lock.difficulty_id == difficulty_id
+                    && lock.instance_id == instance_id
+            });
+        let lock = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(lock)
+    }
+
+    /// Mark the one exact live-map lock without requiring DB2 lock identity or
+    /// filtering expired locks that can still be attached to a live map.
+    pub fn set_instance_lock_in_use_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        map_id: u32,
+        difficulty_id: u8,
+        instance_id: u32,
+        in_use: bool,
+    ) -> bool {
+        if self
+            .find_instance_lock_exact_like_cpp(owner_guid, map_id, difficulty_id, instance_id)
+            .is_none()
+        {
+            return false;
+        }
+
+        for lock in self
+            .instance_locks_by_player
+            .get_mut(&owner_guid)
+            .into_iter()
+            .chain(self.temporary_instance_locks_by_player.get_mut(&owner_guid))
+            .flat_map(|locks| locks.values_mut())
+            .filter(|lock| {
+                lock.map_id == map_id
+                    && lock.difficulty_id == difficulty_id
+                    && lock.instance_id == instance_id
+            })
+        {
+            lock.is_in_use = in_use;
+        }
+        true
+    }
+
     pub fn set_active_instance_lock_instance_id_at(
         &mut self,
         player_guid: ObjectGuid,
@@ -228,88 +288,48 @@ impl InstanceLockMgr {
         schedule: ResetSchedule,
         now: InstanceResetTime,
     ) -> Option<&InstanceLock> {
+        let updated =
+            self.prepare_player_lock_update(player_guid, entries, update_event, schedule, now)?;
+        Some(self.install_player_lock_update(player_guid, entries, updated, now))
+    }
+
+    /// Compute one player's next row without publishing a bind before its transaction commits.
+    pub fn prepare_player_lock_update(
+        &self,
+        player_guid: ObjectGuid,
+        entries: &MapDb2Entries,
+        update_event: InstanceLockUpdateEvent,
+        schedule: ResetSchedule,
+        now: InstanceResetTime,
+    ) -> Option<InstanceLock> {
         if !entries.has_reset_schedule() {
             return None;
         }
-
-        let key = entries.key();
-        if !self
-            .instance_locks_by_player
-            .get(&player_guid)
-            .and_then(|locks| locks.get(&key))
-            .is_some_and(|lock| !lock.is_expired_at(now) || lock.extended)
-        {
-            let mut promoted_temporary = false;
-            if let Some(temp) = self
-                .temporary_instance_locks_by_player
-                .get_mut(&player_guid)
-                .and_then(|locks| locks.remove(&key))
-            {
-                self.instance_locks_by_player
-                    .entry(player_guid)
-                    .or_default()
-                    .insert(key, temp);
-                promoted_temporary = true;
-            }
-            if self
-                .temporary_instance_locks_by_player
-                .get(&player_guid)
-                .is_some_and(HashMap::is_empty)
-            {
-                self.temporary_instance_locks_by_player.remove(&player_guid);
-            }
-            if !promoted_temporary {
-                if let Some(player_locks) = self.instance_locks_by_player.get_mut(&player_guid) {
-                    player_locks.remove(&key);
-                }
-            }
-        }
-
-        if !self
-            .instance_locks_by_player
-            .get(&player_guid)
-            .is_some_and(|locks| locks.contains_key(&key))
-        {
-            let expiry_time = next_reset_time_at(entries, schedule, now);
-            let instance_lock = if entries.is_instance_id_bound() {
-                let shared_data = self
-                    .instance_lock_data_by_id
-                    .get(&update_event.instance_id)
-                    .and_then(Weak::upgrade)
-                    .unwrap_or_else(|| {
-                        let shared_data = Arc::new(RwLock::new(SharedInstanceLockData {
-                            instance_id: update_event.instance_id,
-                            data: InstanceLockData::default(),
-                        }));
+        let mut instance_lock = self
+            .find_active_instance_lock_at(player_guid, entries, now)
+            .cloned()
+            .unwrap_or_else(|| {
+                let mut lock = InstanceLock::new(
+                    entries.map_id,
+                    entries.difficulty_id,
+                    next_reset_time_at(entries, schedule, now),
+                    update_event.instance_id,
+                );
+                if entries.is_instance_id_bound() {
+                    lock.shared_data = Some(
                         self.instance_lock_data_by_id
-                            .insert(update_event.instance_id, Arc::downgrade(&shared_data));
-                        shared_data
-                    });
-                InstanceLock::new_shared(
-                    entries.map_id,
-                    entries.difficulty_id,
-                    expiry_time,
-                    update_event.instance_id,
-                    shared_data,
-                )
-            } else {
-                InstanceLock::new(
-                    entries.map_id,
-                    entries.difficulty_id,
-                    expiry_time,
-                    update_event.instance_id,
-                )
-            };
-            self.instance_locks_by_player
-                .entry(player_guid)
-                .or_default()
-                .insert(key, instance_lock);
-        }
-
-        let instance_lock = self
-            .instance_locks_by_player
-            .get_mut(&player_guid)?
-            .get_mut(&key)?;
+                            .get(&update_event.instance_id)
+                            .and_then(Weak::upgrade)
+                            .unwrap_or_else(|| {
+                                Arc::new(RwLock::new(SharedInstanceLockData {
+                                    instance_id: update_event.instance_id,
+                                    data: InstanceLockData::default(),
+                                }))
+                            }),
+                    );
+                }
+                lock
+            });
         instance_lock.instance_id = update_event.instance_id;
         instance_lock.is_new = false;
         instance_lock.data.data = update_event.new_data;
@@ -328,9 +348,70 @@ impl InstanceLockMgr {
             instance_lock.extended = false;
         }
 
+        Some(instance_lock)
+    }
+
+    pub fn install_player_lock_update(
+        &mut self,
+        player_guid: ObjectGuid,
+        entries: &MapDb2Entries,
+        mut updated: InstanceLock,
+        now: InstanceResetTime,
+    ) -> &InstanceLock {
+        let key = entries.key();
+        if let Some(active) = self.find_active_instance_lock_at(player_guid, entries, now) {
+            updated.is_in_use = active.is_in_use;
+        }
+        if !self
+            .instance_locks_by_player
+            .get(&player_guid)
+            .and_then(|locks| locks.get(&key))
+            .is_some_and(|lock| !lock.is_expired_at(now) || lock.extended)
+            && let Some(temporary) = self
+                .temporary_instance_locks_by_player
+                .get_mut(&player_guid)
+        {
+            temporary.remove(&key);
+            if temporary.is_empty() {
+                self.temporary_instance_locks_by_player.remove(&player_guid);
+            }
+        }
+        if let Some(shared) = &mut updated.shared_data {
+            if let Some(existing) = self
+                .instance_lock_data_by_id
+                .get(&updated.instance_id)
+                .and_then(Weak::upgrade)
+            {
+                *shared = existing;
+            } else {
+                self.instance_lock_data_by_id
+                    .insert(updated.instance_id, Arc::downgrade(shared));
+            }
+        }
         self.instance_locks_by_player
-            .get(&player_guid)?
-            .get(&entries.key())
+            .entry(player_guid)
+            .or_default()
+            .entry(key)
+            .insert_entry(updated)
+            .into_mut()
+    }
+
+    pub fn player_lock_persistence_plan(
+        player_guid: ObjectGuid,
+        entries: &MapDb2Entries,
+        lock: &InstanceLock,
+    ) -> InstanceLockPersistencePlanLikeCpp {
+        let mut plan = InstanceLockPersistencePlanLikeCpp::default();
+        plan.push(Self::delete_character_instance_lock_mutation(
+            player_guid,
+            entries,
+        ));
+        plan.push(Self::insert_character_instance_lock_mutation(
+            player_guid,
+            entries,
+            lock,
+        ));
+        plan
     }
     /// C++ `InstanceLockMgr::UpdateInstanceLockForPlayer(trans, ...)`.
     ///
@@ -350,15 +431,8 @@ impl InstanceLockMgr {
             .update_instance_lock_for_player_at(player_guid, entries, update_event, schedule, now)?
             .clone();
 
-        plan.push(Self::delete_character_instance_lock_mutation(
-            player_guid,
-            entries,
-        ));
-        plan.push(Self::insert_character_instance_lock_mutation(
-            player_guid,
-            entries,
-            &lock,
-        ));
+        plan.mutations
+            .extend(Self::player_lock_persistence_plan(player_guid, entries, &lock).mutations);
 
         Some(lock)
     }

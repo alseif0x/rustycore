@@ -28,6 +28,127 @@ fn instance_script_load_persistent_values_like_cpp() {
 }
 
 #[test]
+fn new_id_bound_icc_member_bind_survives_lock_reload() {
+    let realm = 7;
+    let leader = ObjectGuid::create_player(realm, 4101);
+    let member = ObjectGuid::create_player(realm, 4102);
+    let entries = MapDb2Entries {
+        lock_id: 12,
+        ..raid_entries()
+    };
+    let now = 5 * 86_400;
+    let schedule = ResetSchedule::default();
+    let save = r#"{"Header":"ICCv1","BossStates":[3,0,3,0,0,0,0,0,0,0,0,0,0]}"#;
+    let shared = SharedInstanceLockRow {
+        instance_id: 9001,
+        data: save.into(),
+        completed_encounters_mask: 5,
+        entrance_world_safe_loc_id: 321,
+    };
+    let leader_row = CharacterInstanceLockRow {
+        player_guid_counter: leader.counter() as u64,
+        map_id: entries.map_id,
+        lock_id: entries.lock_id,
+        instance_id: shared.instance_id,
+        difficulty_id: entries.difficulty_id,
+        data: "leader's previous save".into(),
+        completed_encounters_mask: 1,
+        entrance_world_safe_loc_id: 321,
+        expiry_time: now + 20 * 86_400,
+        extended: false,
+    };
+    let load = |rows: Vec<CharacterInstanceLockRow>| {
+        let mut mgr = InstanceLockMgr::default();
+        let issues =
+            mgr.load_from_rows_like_cpp(realm, [shared.clone()], rows, |_, _| Some(entries));
+        assert!(issues.is_empty(), "{issues:?}");
+        mgr
+    };
+    let mut mgr = load(vec![leader_row.clone()]);
+    assert!(
+        mgr.find_active_instance_lock_at(member, &entries, now)
+            .is_none()
+    );
+
+    let mut plan = InstanceLockPersistencePlanLikeCpp::default();
+    mgr.update_instance_lock_for_player_with_persistence_at(
+        &mut plan,
+        member,
+        &entries,
+        InstanceLockUpdateEvent {
+            instance_id: shared.instance_id,
+            new_data: save.into(),
+            instance_completed_encounters_mask: shared.completed_encounters_mask,
+            completed_encounter_bit: None,
+            entrance_world_safe_loc_id: None,
+        },
+        schedule,
+        now,
+    )
+    .expect("a new member binds to the existing instance");
+
+    let row = CharacterInstanceLockRow {
+        player_guid_counter: member.counter() as u64,
+        data: save.into(),
+        completed_encounters_mask: shared.completed_encounters_mask,
+        entrance_world_safe_loc_id: 0,
+        expiry_time: next_reset_time_at(&entries, schedule, now),
+        ..leader_row.clone()
+    };
+    use InstanceLockPersistenceMutationLikeCpp::{DeleteCharacterLock, InsertCharacterLock};
+    assert_eq!(
+        plan.mutations,
+        [
+            DeleteCharacterLock {
+                player_guid_counter: row.player_guid_counter,
+                map_id: row.map_id,
+                lock_id: row.lock_id
+            },
+            InsertCharacterLock {
+                player_guid_counter: row.player_guid_counter,
+                map_id: row.map_id,
+                lock_id: row.lock_id,
+                instance_id: row.instance_id,
+                difficulty_id: row.difficulty_id,
+                data: row.data.clone(),
+                completed_encounters_mask: row.completed_encounters_mask,
+                entrance_world_safe_loc_id: row.entrance_world_safe_loc_id,
+                expiry_time: row.expiry_time,
+                extended: row.extended
+            },
+        ]
+    );
+    let restarted = load(vec![leader_row.clone(), row.clone()]);
+    let old_lock = restarted
+        .find_active_instance_lock_at(leader, &entries, now)
+        .unwrap();
+    let new_lock = restarted
+        .find_active_instance_lock_at(member, &entries, now)
+        .unwrap();
+    assert_eq!(old_lock.data.data, leader_row.data);
+    assert_eq!(old_lock.expiry_time, leader_row.expiry_time);
+    assert_eq!(new_lock.instance_id, row.instance_id);
+    assert_eq!(new_lock.expiry_time, row.expiry_time);
+    assert_eq!(
+        new_lock.data,
+        InstanceLockData {
+            data: row.data,
+            completed_encounters_mask: row.completed_encounters_mask,
+            entrance_world_safe_loc_id: row.entrance_world_safe_loc_id
+        }
+    );
+    assert!(Arc::ptr_eq(
+        old_lock.shared_data.as_ref().unwrap(),
+        new_lock.shared_data.as_ref().unwrap()
+    ));
+    assert!(
+        restarted
+            .find_active_instance_lock_at(ObjectGuid::create_player(0, 4102), &entries, now)
+            .is_none()
+    );
+}
+
+#[test]
 fn instance_script_load_rejects_cpp_error_cases() {
     let mut script = InstanceScriptBase::new(4, 1);
     script.set_header("TEST");

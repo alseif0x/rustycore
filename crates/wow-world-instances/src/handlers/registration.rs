@@ -59,7 +59,11 @@ where
 {
     Box::pin(async move {
         let mut cx = session.instance_lock_operations_handler_cx_like_cpp(catalogs);
-        let _ = handle_instance_lock_response_like_cpp(&mut cx, pkt).await;
+        if handle_instance_lock_response_like_cpp(&mut cx, pkt).await
+            == super::InstanceLockResponseOutcomeLikeCpp::Declined
+        {
+            session.repop_after_declining_bind(catalogs).await;
+        }
     })
 }
 

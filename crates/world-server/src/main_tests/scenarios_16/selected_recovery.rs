@@ -32,6 +32,13 @@ fn spawn_selected_recovery_root(world: &D3bWorldLikeCpp) -> tokio::task::JoinHan
         Arc::new(wow_data::AreaTriggerTemplateStore::default()),
         CanonicalGameEventSchedulerLikeCpp::start_system(3_600_000),
         Arc::clone(&world.registry),
+        crate::CanonicalMapLifecycleOwnersLikeCpp::new(
+            Arc::new(std::sync::RwLock::new(
+                wow_instances::InstanceLockMgr::default(),
+            )),
+            Arc::new(wow_social::group::GroupRegistry::default()),
+            1,
+        ),
         Arc::new(ActiveWorldSessionRegistryLikeCpp::new()),
         Arc::new(wow_data::BattlemasterListStore::from_entries([])),
         Arc::clone(&guards.world_state_mgr),
