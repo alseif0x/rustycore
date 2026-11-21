@@ -143,12 +143,9 @@ must exercise the corrected barrier.
 
 ### Remaining delivery and acceptance gates
 
-The source audit at `3145e4247` also found that the earlier description of pending
-bind as implemented was too broad. `pending_raid_lock.rs` has no production caller,
-and no Player update consumer advances its timer. The opcode consumer cannot
-establish an enter/bind lifecycle by itself. The lock loader constructs realm-zero
-Player GUIDs, whereas login uses realm-qualified Player GUIDs; its exact-key lookup
-therefore needs a configured-realm regression before restart acceptance.
+At `3145e4247`, the pending bind had no production entry caller or Player
+timer consumer. The loader constructed realm-zero Player GUIDs while login
+used realm-qualified GUIDs. The following changes address those findings.
 
 The local lock-identity repair now passes the configured realm into loading and
 uses it for admission, create-map owner reconstruction, reset token checks and
@@ -296,6 +293,50 @@ The scoped restart evidence with links and hashes for both independent
 client reports is `target/qa/issue45-restart/native-restart-evidence.json`;
 the native packet capture is in
 `/tmp/rustycore45-icc-bind-cpp-c05eaca39-r3/epochs/epoch-003/`.
+
+The Rust debug candidate at `cf61fbe99` (executable SHA-256
+`aef985a4ecb3879403ca080894667f6470ef692c890cf23e090adf1eea0dace0`)
+starts the entry prompt on the map already selected for the Player during
+login. In the second world process the unbound member received a 60-second
+prompt for mask 1 and declined on the realm connection. The server sent
+neither save notification and the database contained no member lock. On
+re-entry the member accepted. The realm client observed the response at
+sequence 62, save creation at 67 and the subsequent calendar update. The
+leader then renewed its lock automatically. Before stopping that process,
+the runner verified both character locks and the shared ICC save.
+
+In the third Rust process both clients explicitly requested RaidInfo.
+Each received one active lock on the realm connection for instance 1,
+map 631, difficulty 4 and completed encounter mask 1, with flags `80`.
+The occupied reset and subsequent group leave preserved both character
+locks and the shared save. All three Rust scenario runs passed (PIDs
+1139955, 1143466 and 1147781). The wrapper restored the fixture, original
+executable and configuration. The report is
+`/tmp/rustycore45-icc-bind-rust-cf61fbe99-r4/death-runtime-report.json`
+(SHA-256 `b869c6c1adecb3832416262b94367beebe694a041df94424817573e43485d0d2`).
+Fixture preparation through the restored report took 21m18s on aarch64.
+This includes three live debug server starts and bot logins.
+
+Comparing the two captures with `capture-diff diff --strict` matched the
+first entry prompt, decline, save-created notice and post-restart RaidInfo
+request byte for byte on their recorded connections. Both post-restart
+RaidInfo responses matched across backends on lock identity, encounter
+mask and active status. Remaining times reflect the individual run clocks.
+The C++ reference also emitted an occupied-map expiry announcement and a
+second, extending prompt on each of the three bind actions. Rust sent
+only the entry prompt on each action. The reference schedules this event
+from the original expiry, including for an extended lock
+(`Map.cpp:2813,2930-2933,3021-3045`). The per-action results are in
+`target/qa/issue45-restart/icc-bind-epoch{2,3}-comparison.json`. The
+expiry notification sequence remains an open difference.
+
+The preattached-Player regression at `85d977f24` acknowledges the realm
+and instance writer fences used by the production login sequence. Running
+`cargo test --locked -j1 -p wow-world --lib` on that tree passed 4,197
+tests, including this regression. One manual snapshot refresh helper was
+ignored. Compilation took 1m39s and the suite ran in 3.71s. The unchanged
+`wow-core` and `wow-packet` suites passed 82 and 777 tests respectively
+on the `cf61fbe99` production source.
 
 The full issue remains open. Preserve passing scenario evidence at its actual
 code/binary hashes and assess invalidation before rerunning it. A complete raid
