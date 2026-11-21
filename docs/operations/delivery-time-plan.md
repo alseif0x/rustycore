@@ -203,7 +203,9 @@ evidence. The default command runs both in sequence on the development host.
 `./tools/validate-full --workspace --base HEAD` requests an independent
 audit of the entire workspace, including the full persistence inventory,
 native checker fixtures, both committed capture contracts, the SQL launcher
-and the standalone bot. It also works on a commit with no diff. The reusable
+and the standalone bot. Its production build covers every workspace member,
+including independent binaries such as `bnet-server`. It also works on a
+commit with no diff. The reusable
 Actions workflow runs test targets, the ordinary production configuration,
 the generated SQL launcher and policy on independent runners. With
 `whole_workspace: true` it also starts a
@@ -213,7 +215,9 @@ pass. Local execution uses one checkout and runs the checks in sequence.
 The build uses Cargo's resolved dependency graph to run the changed packages
 and their consumers together, including integration targets. A second check
 uses the production feature configuration. Changes to the launcher or its
-composition inputs also exercise the generated SQL launcher. The policy
+composition inputs also exercise the generated SQL launcher. A change to
+the module list alone fetches the locked dependencies before the offline
+compositor starts on its own runner. The policy
 checks exercise the architecture fixtures, session ownership and reviewed
 persistence data. Supported local-binding fingerprint changes are checked
 against both Git revisions. Changes to the persistence scanner, semantic
@@ -267,7 +271,7 @@ fixes. These are individual measurements on hosted x86_64 machines.
 The four-minute result covers change acceptance. The repository-wide audit
 additionally rebuilds the entire persistence inventory.
 
-On the aarch64 development host, the independent serial workspace audit of
+On the aarch64 development host, the first independent serial workspace audit of
 the same tree passed in **34 min 40 s**. It used the existing target
 directory and three Cargo jobs. The broader workspace test configuration
 took 9 min 48 s, and the fresh persistence census alone took 17 min 40 s.
@@ -277,7 +281,9 @@ capture flows and the SQL launcher. Run it separately from editing feedback.
 On hosted x86_64 the previous integration audit of `316a7387c` took
 **22 min 13 s** from run creation to job completion. The independent global
 audit of the same tree passed in **11 min 58 s** through its aggregate
-verdict. Its five workers and verdict used 29 min 17 s of cumulative runner
+verdict. This first hosted measurement checked the production launcher
+and its dependencies. Review subsequently extended production coverage to
+every workspace member. Its five workers and verdict used 29 min 17 s of cumulative runner
 time. The exhaustive inventory finished last. An initial run exposed a
 missing offline SQL dependency on an isolated runner. Fetching the locked
 dependencies before SQL composition fixes fresh runners.

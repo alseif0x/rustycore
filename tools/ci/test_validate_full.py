@@ -128,6 +128,30 @@ class FullValidationTests(unittest.TestCase):
         self.assertLess(compositor.index("cargo fetch --locked"), compositor.index("check_sql_compositor.py"))
         self.assertIn("requires --workspace", self.run_cmd(*args, "--part", "inventory", expected=2))
 
+    def test_modules_lock_only_compositor_fetches_before_offline_sql(self):
+        self.write("modules.lock.toml", "")
+        self.commit()
+        plan = self.run_cmd(RUNNER, "--base", self.base, "--part", "compositor", "--plan")
+        self.assertLess(plan.index("cargo fetch --locked"), plan.index("check_sql_compositor.py"))
+
+    def test_workspace_production_checks_independent_binary_without_test_cfg(self):
+        self.write("crates/launcher/Cargo.toml",
+                   '[package]\nname="launcher"\nversion="0.1.0"\nedition="2021"\n')
+        self.write("crates/launcher/src/main.rs",
+                   '#[cfg(not(test))]\ncompile_error!("production-only launcher failure");\nfn main() {}\n')
+        self.write("tools/wow-test-bot/Cargo.toml",
+                   '[package]\nname="fixture-bot"\nversion="0.1.0"\nedition="2021"\n\n[workspace]\n')
+        self.write("tools/wow-test-bot/src/main.rs", "fn main() {}\n")
+        self.run_cmd("cargo", "generate-lockfile", "--offline")
+        self.commit()
+
+        plan = self.run_cmd(RUNNER, "--base", self.base, "--workspace", "--part", "production", "--plan")
+        self.assertIn("cargo check --locked --workspace", plan)
+        self.run_cmd("cargo", "test", "--locked", "-p", "launcher", "--all-targets")
+        result = self.run_cmd(RUNNER, "--base", self.base, "--workspace", "--part", "production", expected=101)
+        self.assertIn("Workspace production targets: exit 101", result)
+        self.assertIn("production-only launcher failure", result)
+
     def test_hosted_partitions_cover_the_serial_commands_once(self):
         path = self.root / "crates/domain/src/lib.rs"
         path.write_text(path.read_text() + "// Test the same candidate on each worker.\n")

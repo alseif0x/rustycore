@@ -95,6 +95,7 @@ def rust_commands(files):
 
 def build_plan(files, base, head):
     commands = [("Diff hygiene", ["git", "diff", "--check", base, head, "--"])]
+    metadata_runs = global_build(files) or any(p.startswith(WORKSPACE_SOURCES) for p in files)
     unsupported = set()
     existing = [p for p in sorted(files) if Path(p).is_file()]
     docs = [p for p in existing if p.endswith(".md")]
@@ -138,6 +139,8 @@ def build_plan(files, base, head):
         commands.append(("Module manager regression tests", [sys.executable, "tools/modules/test_rustycore_module.py"]))
     if (global_build(files) or files & MODULE_INPUTS
             or any(p.startswith(("tools/modules/", "crates/world-modules/", "crates/wow-module-api/")) for p in files)):
+        if not metadata_runs:
+            commands.append(("Fetch locked inputs for the offline SQL compositor", ["cargo", "fetch", "--locked"]))
         commands.append(("Composed SQL launcher", [sys.executable, SQL_CHECKER,
                                                    "--jobs", os.environ.get("CARGO_BUILD_JOBS", "1")]))
     for path in files:
@@ -173,9 +176,9 @@ def workspace_plan(base, head, part):
             ("Bot formatting", ["cargo", "fmt", "--check", "--manifest-path", bot]),
             ("Workspace test targets", ["cargo", "test", "--locked", "--workspace", "--all-targets",
                                        "--exclude", "world-modules", "--no-fail-fast"]),
+            ("Workspace production targets", ["cargo", "check", "--locked", "--workspace"]),
             ("Fetch locked inputs for the offline SQL compositor", ["cargo", "fetch", "--locked"]),
             ("Composed SQL launcher", [sys.executable, SQL_CHECKER, "--jobs", jobs]),
-            ("World modules launcher", ["cargo", "check", "--locked", "-p", "world-modules"]),
             ("Bot suite", ["cargo", "test", "--locked", "--manifest-path", bot, "--no-fail-fast"]),
         ])
         checks.extend(capture_contract(name) for name in sorted(AUDITED_FLOWS))
