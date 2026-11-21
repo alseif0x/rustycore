@@ -192,6 +192,120 @@ census. The timings for the individual auction regression do not establish
 the five-minute target for accepting that whole PR. A cutover for shared
 changes needs that comparison including all four inputs.
 
+### Independent full validation
+
+Run `./tools/validate-full --base origin/3.4.3` on a committed candidate.
+Use `--report /tmp/full-result.json` to retain the commit pair, commands,
+exit codes and elapsed time. `--plan` prints the proposed work. An uncovered
+input exits with code 2. A build-only or policy-only report supplies partial
+evidence. The default command runs both in sequence on the development host.
+
+`./tools/validate-full --workspace --base HEAD` requests an independent
+audit of the entire workspace, including the full persistence inventory,
+native checker fixtures, both committed capture contracts, the SQL launcher
+and the standalone bot. Its production build covers every workspace member,
+including independent binaries such as `bnet-server`. It also works on a
+commit with no diff. The reusable
+Actions workflow runs test targets, the ordinary production configuration,
+the generated SQL launcher and policy on independent runners. With
+`whole_workspace: true` it also starts a
+dedicated inventory runner. One verdict requires every selected part to
+pass. Local execution uses one checkout and runs the checks in sequence.
+
+The build uses Cargo's resolved dependency graph to run the changed packages
+and their consumers together, including integration targets. A second check
+uses the production feature configuration. Changes to the launcher or its
+composition inputs also exercise the generated SQL launcher. A change to
+the module list alone fetches the locked dependencies before the offline
+compositor starts on its own runner. The policy
+checks exercise the architecture fixtures, session ownership and reviewed
+persistence data. Rust source and module-graph changes also run the native
+handler contract. It examines registrations in the source, including
+configuration-dependent registrations that the debug tests can miss.
+On the auction checkout, gating the battle-pet journal opcode with
+`#[cfg(debug_assertions)]` made the source guard fail in 50.179 s.
+Supported local-binding fingerprint changes are checked
+against both Git revisions. Changes to the persistence scanner, semantic
+policy or an unsupported snapshot shape require the native full inventory.
+The independent global audit and any required live evidence have their own
+scope.
+
+On aarch64 the auction replay used tree `dec6207b8` from #1494, base
+`31841d891`, three Cargo jobs and the checkout's existing debug target.
+It passed 6,387 Rust tests across affected targets, with two ignored, plus
+the SQL compositor and policy checks. The first complete run following two
+deliberately broken candidates took **235.662 s**. Repeating the same tree
+with the built artifacts in place took **152.625 s**. The earlier local
+final took **239.985 s** under a different cache history. The full build
+detected the missing auction handler method in **13.550 s** and the
+four extra bytes in the inspect packet in **66.606 s**.
+
+On the same local checkout and commit `c5a74048e`, the existing final spent
+**735.734 s** checking the new standalone validator and its benchmark
+workflow. It routed the new standalone Rust parser to a workspace build.
+The independent validator ran its own regression suite and workflow checks
+on that candidate in **7.654 s**. The existing final exceeded the ten-minute
+warm publication budget on this change.
+
+The initial hosted replay checked out `316a7387c` on fresh Ubuntu x86_64
+runners. All arms missed the dependency cache. The previous complete
+change validation took **11 min 07 s** from run creation through its job.
+The independent validation took **9 min 04 s** through the slower of its
+two jobs. The build spent 258 s on test targets, 119 s on production and
+87 s on SQL composition. Both implementations passed. Setting Cargo's job
+count after cache restoration allows the integration cache key to match.
+[Cold comparison](https://github.com/alseif0x/rustycore/actions/runs/44844996285)
+
+Subsequent runs checked the same auction tree with a hit on the same
+integration dependency cache. Times include the queue and setup. The
+reference time ends when its job completed. For the last two runs the
+independent time includes its aggregate verdict.
+
+| Hosted comparison on #1494 | Elapsed |
+| --- | ---: |
+| Existing full change validation | [9 min 08 s](https://github.com/alseif0x/rustycore/actions/runs/44845909587) |
+| Independent build and policy on two runners | [11 min 18 s](https://github.com/alseif0x/rustycore/actions/runs/44845909587) |
+| Tests parallel to production with SQL and policy | [5 min 44 s](https://github.com/alseif0x/rustycore/actions/runs/44846574051) |
+| Independent tests, production, SQL and policy | [4 min 14 s](https://github.com/alseif0x/rustycore/actions/runs/44847824091) |
+
+The four-runner result used 13 min 45 s of aggregate runner time including
+the verdict, compared with 9 min 04 s of active time for the reference job.
+Two preparatory runs failed on an unused tooling prerequisite and on missing
+repository history for policy provenance. The passing replay includes both
+fixes. These are individual measurements on hosted x86_64 machines.
+The four-minute result covers change acceptance. The repository-wide audit
+additionally rebuilds the entire persistence inventory.
+
+On the aarch64 development host, the first independent serial workspace audit of
+the same tree passed in **34 min 40 s**. It used the existing target
+directory and three Cargo jobs. The broader workspace test configuration
+took 9 min 48 s, and the fresh persistence census alone took 17 min 40 s.
+This global measurement includes the native checker suite, bot, both pinned
+capture flows and the SQL launcher. Run it separately from editing feedback.
+
+On hosted x86_64 the previous integration audit of `316a7387c` took
+**22 min 13 s** from run creation to job completion. The independent global
+audit of the same tree passed in **11 min 58 s** through its aggregate
+verdict. This first hosted measurement checked the production launcher
+and its dependencies. Review subsequently extended production coverage to
+every workspace member. Its five workers and verdict used 29 min 17 s of cumulative runner
+time. The exhaustive inventory finished last. An initial run exposed a
+missing offline SQL dependency on an isolated runner. Fetching the locked
+dependencies before SQL composition fixes fresh runners.
+[Previous integration audit](https://github.com/alseif0x/rustycore/actions/runs/44831037358)
+· [Independent global audit](https://github.com/alseif0x/rustycore/actions/runs/44848959133)
+
+With every independent production binary included, the global audit passed
+in **12 min 26 s** and used 30 min 38 s of aggregate runner time. All five
+reports contain the same auction commit. The production report records
+`cargo check --locked --workspace`, and the inventory report records the
+fresh native check. [Complete production coverage](https://github.com/alseif0x/rustycore/actions/runs/44851618587)
+
+An isolated aarch64 experiment cached parsed syntax trees inside one
+invocation of the native inventory checker. It passed the same inventory
+with 44,916 cache hits out of 52,947 parses and took 1,066.399 s. The
+baseline took 1,060.396 s. The published validator uses the normal parser.
+
 ## First delivery and measured changes
 
 The first delivery changes the implementer's feedback loop, the order of compiler and architecture checks, and SQL composition routing. On aarch64, the focused test reproduced the original #1494 compiler error at `52ecf58d9` in 192.506 s (Cargo exit 101). The earlier full attempt ended after 412.460 s. These were different commands with different cache histories. In a separate negative check, removing the public `run_with_composition` export made Cargo reject the real generated SQL launcher. The checkout was restored after the experiment.

@@ -1,0 +1,105 @@
+name: Full change validation
+on:
+  workflow_call:
+    inputs:
+      base:
+        required: true
+        type: string
+      whole_workspace:
+        type: boolean
+        default: false
+  pull_request:
+    branches: ["3.4.3"]
+    paths:
+      - ".github/workflows/validate-full.yml"
+      - "tools/validate-full"
+      - "tools/full-validation/**"
+      - "tools/ci/full_*.py"
+      - "tools/ci/test_full_policy.py"
+      - "tools/ci/test_validate_full.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Full change / ${{ matrix.part }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ${{ fromJSON(inputs.whole_workspace && '["tests","production","compositor","policy","inventory"]' || '["tests","production","compositor","policy"]') }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          # Architecture policies verify immutable commits in their provenance.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve the candidate diff
+        shell: bash
+        env:
+          BASE: ${{ inputs.base || github.event.pull_request.base.sha }}
+        run: |
+          base_commit="$(git rev-parse --verify --end-of-options "${BASE}^{commit}")"
+          merge_base="$(git merge-base HEAD "$base_commit")"
+          echo "FULL_BASE=$merge_base" >> "$GITHUB_ENV"
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          cache: false
+          rustflags: ""
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
+        with:
+          shared-key: validation-v2
+          save-if: ${{ github.event_name == 'push' }}
+      - name: Install build fixtures
+        if: matrix.part == 'tests' || matrix.part == 'production' || matrix.part == 'compositor'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          test "$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/.protoc-version")" = 28.3
+          curl -fsSL --retry 3 https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip -o protoc.zip
+          echo '0ad949f04a6a174da83cdcbdb36dee0a4925272a5b6d83f79a6bf9852076d53f  protoc.zip' | sha256sum -c
+          python3 -m zipfile -e protoc.zip protoc
+          chmod +x protoc/bin/protoc
+          echo "PROTOC=$RUNNER_TEMP/protoc/bin/protoc" >> "$GITHUB_ENV"
+          if ! git -C "$GITHUB_WORKSPACE" diff --quiet "$FULL_BASE" HEAD -- .github/workflows; then
+            curl -fsSL --retry 3 https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o lint.tgz
+            echo '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  lint.tgz' | sha256sum -c
+            tar -xzf lint.tgz actionlint
+            echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          fi
+          cpp_path=src/server/database/Database/Implementation
+          mkdir -p "reference/$cpp_path"
+          cd "reference/$cpp_path"
+          for source in CharacterDatabase.cpp HotfixDatabase.cpp; do
+            curl -fsSL --retry 3 "https://raw.githubusercontent.com/TrinityCoreLegacy/TrinityCore/92796557f9b0ba3d2d1c7c770f535153154cf83e/$cpp_path/$source" -o "$source"
+          done
+          echo '1bc7a3647d8cf5646ad9e0a7ed2a6d9e88f6a6de21bd3b329cc52725b40c89f9  CharacterDatabase.cpp' | sha256sum -c
+          echo '7c224e902a3a11743d60432f0975e86994eabe521dd1d49708db5ad17cb52097  HotfixDatabase.cpp' | sha256sum -c
+          echo "RUSTYCORE_CPP_REFERENCE_ROOT=$RUNNER_TEMP/reference" >> "$GITHUB_ENV"
+      - name: Validate candidate
+        env:
+          PART: ${{ matrix.part }}
+          WHOLE_WORKSPACE: ${{ inputs.whole_workspace }}
+        run: |
+          scope=()
+          if [[ "$WHOLE_WORKSPACE" == true ]]; then scope+=(--workspace); fi
+          export CARGO_BUILD_JOBS="$(nproc)"
+          ./tools/validate-full "${scope[@]}" --base "$FULL_BASE" --part "$PART" --report "$RUNNER_TEMP/full-report.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: full-${{ matrix.part }}
+          path: ${{ runner.temp }}/full-report.json
+  verdict:
+    name: Full validation
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x') }}
+    needs: validate
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          OUTCOME: ${{ needs.validate.result }}
+        run: test "$OUTCOME" = success
