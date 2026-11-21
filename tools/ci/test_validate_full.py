@@ -267,6 +267,8 @@ class FullValidationTests(unittest.TestCase):
 
     def test_capture_artifacts_require_their_own_contract(self):
         flow = "crates/capture-diff/flows/sample"
+        self.package("capture-diff", "", "pub fn fixture() {}\n")
+        self.run_cmd("cargo", "generate-lockfile", "--offline")
         self.write(f"{flow}/sample.pkt", "fixture")
         self.commit()
         self.assertIn("Coverage required", self.build("--plan", expected=2))
