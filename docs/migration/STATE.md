@@ -338,6 +338,35 @@ ignored. Compilation took 1m39s and the suite ran in 3.71s. The unchanged
 `wow-core` and `wow-packet` suites passed 82 and 777 tests respectively
 on the `cf61fbe99` production source.
 
+### ICC expiry and group-leave follow-up — 2026-11-21
+
+The expired fixture now requires the entry prompt, an expired raid message
+and an extending prompt on the realm connection before the client decision.
+At `0b6a4b468`, replay of all three recorded C++ bind actions passed this
+check. Each of the three pre-fix Rust recordings failed it. The new runner
+also rejects an early reply and a misplaced or malformed expiry message.
+
+With the party-result opcode enabled, the next native run reached
+`CMSG_LEAVE_GROUP` after both successful relogs and the occupied reset.
+The client sent an empty body and received no successful party result.
+`PartyPackets.cpp:288-292` requires the party-index presence bit even
+when the client uses its current group. `GroupHandler.cpp:333-361`
+sends the successful result before removing the member. The capture and
+restoration record is `/tmp/rustycore45-icc-bind-cpp-cf61fbe99-r4/`.
+At `9e2c716fc` the bot sends the one-byte `00` body and the scenario
+checks it on the realm connection. All 62 cast-lifecycle bot tests and
+33 instance-scenario tests passed.
+
+The native R6 run with the corrected bot then passed all three epochs.
+After the restart and both RaidInfo replies, the leader sent `00` on
+realm at observation 72. The server returned `PartyCommandResult`
+at 76 with operation 2 (leave), result 0 and the leader's name.
+The group rows disappeared and both character locks and the shared save
+matched the pre-restart snapshot. The wrapper restored the fixture and
+original serving configuration. The 12m35s campaign report is
+`/tmp/rustycore45-icc-bind-cpp-9e2c716fc-r5/death-runtime-report.json`
+(SHA-256 `e4edb9f5f4fd7c9454ff83c43d74903936fc93051c29f2eb389f6cabe0fd0462`).
+
 The full issue remains open. Preserve passing scenario evidence at its actual
 code/binary hashes and assess invalidation before rerunning it. A complete raid
 gameplay/script port is not implied by this bounded entry/bind responsibility.
