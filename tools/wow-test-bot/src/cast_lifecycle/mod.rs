@@ -33,6 +33,10 @@ const CMSG_ATTACK_SWING: u16 = 0x3255;
 const CMSG_ATTACK_STOP: u16 = 0x3256;
 const CMSG_LOGOUT_CANCEL: u16 = 0x34D8;
 const CMSG_RESET_INSTANCES: u16 = 0x366A;
+const CMSG_INSTANCE_LOCK_RESPONSE: u16 = 0x350B;
+const SMSG_PENDING_RAID_LOCK: u16 = 0x26F8;
+const SMSG_INSTANCE_SAVE_CREATED: u16 = 0x2780;
+const SMSG_CALENDAR_RAID_LOCKOUT_ADDED: u16 = 0x2699;
 const CMSG_SET_DIFFICULTY_ID: u16 = 0x3222;
 const CMSG_SET_DUNGEON_DIFFICULTY: u16 = 0x3684;
 const CMSG_PARTY_INVITE: u16 = 0x3604;
@@ -163,7 +167,9 @@ pub(super) async fn execute(
                 )
                 .await
             }
-            Action::ResetInstances {} | Action::SetDifficultyId { .. } | Action::SetDungeonDifficulty { .. } => {
+            Action::ResetInstances {}
+            | Action::SetDifficultyId { .. }
+            | Action::SetDungeonDifficulty { .. } => {
                 let (opcode, body) = build_action_packet(action);
                 send_traced_packet(
                     stream,
@@ -177,27 +183,28 @@ pub(super) async fn execute(
                 )
                 .await
             }
-            Action::PartyInvite { .. } | Action::PartyInviteResponse { .. } | Action::LeaveGroup {} => {
-                match party_realm_connection(realm, action_name) {
-                    Ok(realm) => match build_party_action_packet(action) {
-                        Ok((opcode, body)) => {
-                            send_traced_packet(
-                                &mut realm.stream,
-                                &mut realm.crypt,
-                                &mut controller.evidence,
-                                Connection::Realm,
-                                Some(action_index),
-                                action_name,
-                                opcode,
-                                &body,
-                            )
-                            .await
-                        }
-                        Err(error) => Err(error),
-                    },
+            Action::InstanceLockResponse { .. }
+            | Action::PartyInvite { .. }
+            | Action::PartyInviteResponse { .. }
+            | Action::LeaveGroup {} => match party_realm_connection(realm, action_name) {
+                Ok(realm) => match build_party_action_packet(action) {
+                    Ok((opcode, body)) => {
+                        send_traced_packet(
+                            &mut realm.stream,
+                            &mut realm.crypt,
+                            &mut controller.evidence,
+                            Connection::Realm,
+                            Some(action_index),
+                            action_name,
+                            opcode,
+                            &body,
+                        )
+                        .await
+                    }
                     Err(error) => Err(error),
-                }
-            }
+                },
+                Err(error) => Err(error),
+            },
             Action::ReleaseSpirit { .. }
             | Action::ReclaimCorpse { .. }
             | Action::SpiritHealerActivate { .. }
@@ -575,6 +582,7 @@ fn action_name(action: &Action) -> &'static str {
         Action::LogoutRequest { .. } => "logout_request",
         Action::LogoutCancel {} => "logout_cancel",
         Action::ResetInstances {} => "reset_instances",
+        Action::InstanceLockResponse { .. } => "instance_lock_response",
         Action::SetDifficultyId { .. } => "set_difficulty_id",
         Action::SetDungeonDifficulty { .. } => "set_dungeon_difficulty",
         Action::PartyInvite { .. } => "party_invite",

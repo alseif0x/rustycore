@@ -34,10 +34,9 @@ pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
         }
         Action::LogoutCancel {} => (CMSG_LOGOUT_CANCEL, Vec::new()),
         Action::ResetInstances {} => (CMSG_RESET_INSTANCES, Vec::new()),
-        Action::SetDifficultyId { difficulty_id } => (
-            CMSG_SET_DIFFICULTY_ID,
-            difficulty_id.to_le_bytes().to_vec(),
-        ),
+        Action::SetDifficultyId { difficulty_id } => {
+            (CMSG_SET_DIFFICULTY_ID, difficulty_id.to_le_bytes().to_vec())
+        }
         Action::SetDungeonDifficulty { difficulty_id } => (
             CMSG_SET_DUNGEON_DIFFICULTY,
             difficulty_id.to_le_bytes().to_vec(),
@@ -48,6 +47,10 @@ pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
 
 pub(super) fn build_party_action_packet(action: &Action) -> Result<(u16, Vec<u8>)> {
     match action {
+        Action::InstanceLockResponse { accept } => Ok((
+            CMSG_INSTANCE_LOCK_RESPONSE,
+            vec![if *accept { 0x80 } else { 0 }],
+        )),
         Action::PartyInvite { name, target } => Ok((
             CMSG_PARTY_INVITE,
             crate::loot_race::build_party_invite(name, target.low, target.high)?,
@@ -434,6 +437,23 @@ pub(super) async fn wait_for_packet(
     realm: &mut Option<EncryptedWorldConnection>,
     controller: &mut Controller,
 ) -> Result<()> {
+    // Login can deliver its raid prompt before the scripted actions begin.
+    if connection == Connection::Realm && opcode == SMSG_PENDING_RAID_LOCK {
+        let last_reply = controller
+            .evidence
+            .sent_packets
+            .iter()
+            .rev()
+            .find(|sent| sent.opcode == CMSG_INSTANCE_LOCK_RESPONSE)
+            .map(|sent| sent.observation_sequence);
+        if controller.evidence.events.iter().rev().any(|event| {
+            event.connection == connection
+                && event.opcode == opcode
+                && last_reply.is_none_or(|seq| event.observation_sequence > seq)
+        }) {
+            return Ok(());
+        }
+    }
     if connection == Connection::Realm
         && opcode == SMSG_LOGOUT_COMPLETE
         && controller.evidence.logout_confirmed

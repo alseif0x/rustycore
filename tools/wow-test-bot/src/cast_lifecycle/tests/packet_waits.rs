@@ -230,6 +230,8 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
         },
         Action::PartyInviteResponse { accept: true },
         Action::LeaveGroup {},
+        Action::InstanceLockResponse { accept: true },
+        Action::InstanceLockResponse { accept: false },
     ];
     let mut controller = packet_controller(plan);
     let (mut stream, _instance_peer) = tcp_pair().await;
@@ -254,7 +256,12 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
     .unwrap();
 
     let sent = &controller.evidence.sent_packets;
-    assert_eq!(sent.len(), 6);
+    assert_eq!(sent.len(), 8);
+    for (index, body) in [(6, "80"), (7, "00")] {
+        assert_eq!(sent[index].connection, Connection::Realm);
+        assert_eq!(sent[index].opcode, CMSG_INSTANCE_LOCK_RESPONSE);
+        assert_eq!(sent[index].body_hex, body);
+    }
     assert_eq!(sent[0].connection, Connection::Instance);
     assert_eq!(sent[0].opcode, CMSG_RESET_INSTANCES);
     assert_eq!(sent[0].body_hex, "");
@@ -643,18 +650,22 @@ async fn instance_eof_is_fatal_during_actions_even_with_a_previous_logout_marker
         )
         .await
         .unwrap();
-        assert!(controller
-            .evidence
-            .failure
-            .as_deref()
-            .unwrap()
-            .contains("cast lifecycle instance packet: connection closed"));
-        assert!(controller
-            .evidence
-            .trace
-            .iter()
-            .any(|entry| entry.action.as_deref() == Some("wait")
-                && entry.kind == TraceKind::ActionFailed));
+        assert!(
+            controller
+                .evidence
+                .failure
+                .as_deref()
+                .unwrap()
+                .contains("cast lifecycle instance packet: connection closed")
+        );
+        assert!(
+            controller
+                .evidence
+                .trace
+                .iter()
+                .any(|entry| entry.action.as_deref() == Some("wait")
+                    && entry.kind == TraceKind::ActionFailed)
+        );
         assert!(!controller.evidence.logout_confirmed);
     }
 }
@@ -908,12 +919,14 @@ async fn packet_wait_times_out_despite_historical_match_and_fails_on_early_logou
     .await
     .unwrap();
     assert!(timed_out.evidence.expected_rules[0].matched);
-    assert!(timed_out
-        .evidence
-        .failure
-        .as_deref()
-        .unwrap()
-        .contains("timed out waiting for Instance packet 0x276B"));
+    assert!(
+        timed_out
+            .evidence
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("timed out waiting for Instance packet 0x276B")
+    );
     assert!(timed_out.evidence.trace.iter().any(|entry| {
         entry.action.as_deref() == Some("wait_for_packet") && entry.kind == TraceKind::ActionFailed
     }));
@@ -958,12 +971,14 @@ async fn packet_wait_times_out_despite_historical_match_and_fails_on_early_logou
     .await
     .unwrap();
     send_logout.await.unwrap().unwrap();
-    assert!(logged_out
-        .evidence
-        .failure
-        .as_deref()
-        .unwrap()
-        .contains("LogoutComplete arrived before wait_for_packet"));
+    assert!(
+        logged_out
+            .evidence
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("LogoutComplete arrived before wait_for_packet")
+    );
     assert!(logged_out.evidence.trace.iter().any(|entry| {
         entry.action.as_deref() == Some("wait_for_packet") && entry.kind == TraceKind::ActionFailed
     }));

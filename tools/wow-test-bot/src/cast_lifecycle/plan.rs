@@ -167,10 +167,22 @@ pub(crate) enum Action {
     },
     LogoutCancel {},
     ResetInstances {},
-    SetDifficultyId { difficulty_id: u32 },
-    SetDungeonDifficulty { difficulty_id: u32 },
-    PartyInvite { name: String, target: Guid },
-    PartyInviteResponse { accept: bool },
+    InstanceLockResponse {
+        accept: bool,
+    },
+    SetDifficultyId {
+        difficulty_id: u32,
+    },
+    SetDungeonDifficulty {
+        difficulty_id: u32,
+    },
+    PartyInvite {
+        name: String,
+        target: Guid,
+    },
+    PartyInviteResponse {
+        accept: bool,
+    },
     LeaveGroup {},
     /// One finite client movement packet. The opcode comes from the closed
     /// `MovementKind` set; control flags remain owned by the live controller.
@@ -761,6 +773,7 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             | Action::LogoutRequest { .. }
             | Action::LogoutCancel {}
             | Action::ResetInstances {}
+            | Action::InstanceLockResponse { .. }
             | Action::SetDifficultyId { .. }
             | Action::SetDungeonDifficulty { .. }
             | Action::PartyInviteResponse { .. }
@@ -886,6 +899,10 @@ pub(super) fn supported_exact_packet_opcode(opcode: u16) -> bool {
             | SMSG_SPELL_START
             | RAW_SMSG_UPDATE_OBJECT
             | SMSG_INSTANCE_RESET
+            | SMSG_PENDING_RAID_LOCK
+            | SMSG_INSTANCE_SAVE_CREATED
+            | SMSG_CALENDAR_RAID_LOCKOUT_ADDED
+            | SMSG_LOGIN_VERIFY_WORLD
             | SMSG_INSTANCE_RESET_FAILED
             | SMSG_RESET_FAILED_NOTIFY
             | SMSG_SET_DUNGEON_DIFFICULTY
