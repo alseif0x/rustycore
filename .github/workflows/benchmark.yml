@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        implementation: [tests, production, policy]
+        implementation: [tests, production, compositor, policy]
     env:
       VALIDATION_V2_CARGO_JOBS: "2"
       IMPLEMENTATION: ${{ matrix.implementation }}
@@ -22,18 +22,20 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
       - name: Freeze the validator and check out the auction candidate
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/new"
+          git fetch --quiet --no-tags --depth=1 origin ece799de10174a2d6745f132fff2fa971e9225a7
           git archive ece799de10174a2d6745f132fff2fa971e9225a7 \
             tools/validate-full tools/ci/full_policy.py tools/ci/full_snapshot.py \
             tools/ci/check_doc_links.py tools/full-validation | tar -xf - -C "$RUNNER_TEMP/new"
           cp tools/validate-full "$RUNNER_TEMP/new/tools/"
           cp tools/ci/{full_policy.py,test_full_policy.py,test_validate_full.py} "$RUNNER_TEMP/new/tools/ci/"
+          git fetch --quiet --no-tags --depth=2 origin 316a7387cbaa77bf8a4e2160745f3b5a2020c304
           git switch --detach 316a7387cbaa77bf8a4e2160745f3b5a2020c304
           git rev-parse HEAD
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
@@ -50,10 +52,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if ! command -v rg >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y ripgrep
-          fi
           command -v rg
           curl -fsSL --retry 3 https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip -o "$RUNNER_TEMP/protoc.zip"
           echo "0ad949f04a6a174da83cdcbdb36dee0a4925272a5b6d83f79a6bf9852076d53f  $RUNNER_TEMP/protoc.zip" | sha256sum -c
@@ -118,15 +116,15 @@ jobs:
 
           run = get_json(api)
           jobs = get_json(api + "/jobs?per_page=100")["jobs"]
-          new_jobs = [job for job in jobs if job["name"] in {"tests", "production", "policy"}]
-          if len(new_jobs) != 3 or any(not job.get("completed_at") for job in new_jobs):
-              raise SystemExit("All three parts must finish before measuring wall time.")
+          new_jobs = [job for job in jobs if job["name"] in {"tests", "production", "compositor", "policy"}]
+          if len(new_jobs) != 4 or any(not job.get("completed_at") for job in new_jobs):
+              raise SystemExit("All four parts must finish before measuring wall time.")
           start = datetime.datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
           final_new = max(datetime.datetime.fromisoformat(job["completed_at"].replace("Z", "+00:00")) for job in new_jobs)
           seconds = int((final_new - start).total_seconds())
           print("Queued run to later replacement completion: {} s (from run created_at {} to {}).".format(seconds, run["created_at"], final_new.isoformat()))
           print("Comparison result: {}.".format(os.environ["COMPARISON_RESULT"]))
-          print("Tests, production configuration and policy used three parallel VMs.")
+          print("Tests, ordinary production configuration, SQL composition and policy used four parallel VMs.")
           PY
           if [[ "$COMPARISON_RESULT" != success ]]; then
             echo "Full validation failed: $COMPARISON_RESULT" >&2
