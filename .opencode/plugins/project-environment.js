@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const localWork = join(homedir(), ".local/share/rustycore-opencode-work");
-// 3.4.3 has no .protoc-version pin: use the operator's installed protoc.
+// Fall back to the operator's compiler when the pinned installation is unavailable.
 const defaultProtoc = join(homedir(), ".local/protoc/bin/protoc");
 // Full C++ 3.4.3 reference on this server.
 const cppReference = "/home/server/woltk-trinity-legacy";

@@ -1011,6 +1011,9 @@ def test_planner_contract(repo: Path) -> None:
                 ])
                 assert runner.validation_commands(repo, mode, 1, "base", overlapping, config_workspace)[0] == planned
 
+    assert runner.classify_path("crates/wow-world/_attic/README.md") == "documentation"
+    assert runner.classify_path("crates/wow-world/_attic/data.rs.txt") == "workspace-rust"
+    assert runner.classify_path("crates/wow-world/src/fixture.md") == "workspace-rust"
     assert runner.classify_path("docs/config.toml") == "documentation"
     assert runner.classify_path(".cargo/unrelated-note") == "other"
 

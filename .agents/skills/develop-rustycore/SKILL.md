@@ -161,7 +161,7 @@ The checklist below applies to the **#1241 distribution programme**. Other chang
 select architecture, census, move and live checks by the responsibility they change.
 
 For a distribution PR follow the single campaign in
-[wow-world-distribution-plan.md §10](../../../docs/architecture/wow-world-distribution-plan.md#10-aceptación-por-pr-sin-repetir-evidencia).
+[wow-world-distribution-plan.md §10](../../../docs/architecture/wow-world-distribution-plan.md#10-acceptance-for-follow-ups-that-inherit-the-distribution-contract).
 The parent schedules acceptance or assigns one exclusive executor. The implementer's coding
 feedback follows AGENTS.md; it does not start a second acceptance campaign.
 

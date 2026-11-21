@@ -8,7 +8,7 @@ guidance. The original is recoverable from
 Current state and acceptance: [STATE.md](migration/STATE.md),
 [PORT_PLAN.md](migration/PORT_PLAN.md) and the active issue/checkpoint.
 Existing bounded C++/capture findings are retained in the
-[world-load audit](migration/world-load-audit.md) and
+[world-load audit](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/world-load-audit.md) and
 [parity findings](audits/cpp-parity-findings.md); their original dates and limits
 still apply.
 

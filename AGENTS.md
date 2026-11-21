@@ -16,7 +16,7 @@ is correctness proof. This guide does not override explicit user scope or approv
 - Target `3.4.3` explicitly for work on this client version. GitHub's default branch is
   `forever`, which has its own development and CI configuration. One implementation macro-issue, one feature branch,
   one PR into 3.4.3. Main is only an optional stable release pointer; releases are tags.
-  Exception: see "#1241 wow-world split programme" below.
+  Follow-ups explicitly continuing the closed #1241 distribution programme inherit its phase rules below.
 - Toolchain is declared in rust-toolchain.toml / Cargo.toml (currently Rust 1.98, edition 2024).
 - Development host is aarch64; hosted runners are x86_64. Label machine-dependent evidence.
 - Local protoc: /home/ubuntu/.local/protoc/bin/protoc. Set PROTOC for protobuf-dependent builds.
@@ -49,8 +49,7 @@ Documentation entry point: [docs/README.md](docs/README.md). Current authorities
 - Runtime ADRs and [clock trace](docs/architecture/runtime-clock-phase-trace.md): relevant
   decisions and dated evidence; verify current spawn/call paths before changing runtime owners.
 
-Historical migration tables, percentage headlines, old checklists and the frozen
-current-session-handoff.md are not active instructions or current completion proof.
+The historical subsystem index and inventories preserve evidence from their recorded revisions.
 Read them for a specific historical question, not as a mandatory session preflight.
 Update the owning current document instead of creating another competing plan or status log.
 
@@ -206,7 +205,7 @@ It applies to follow-ups that explicitly inherit it. See
   instead of one long-lived branch.
 - A move-only step (R2: no semantic change, no rename, no new canonical path) keeps its
   C++ anchors unchanged and needs no new C++ re-audit or per-helper source comparison.
-  Behavior changes go to #1241 F6 with parity evidence.
+  Track behavior changes separately and attach parity evidence to the owning issue.
 - The level-1 deferral does not apply. Each #1241 PR must compile
   (`cargo check -p wow-world --all-targets` plus the moved domain's crate), pass the moved
   domain's tests (R3) and pass the R1 net-move check

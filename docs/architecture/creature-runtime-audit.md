@@ -1,13 +1,12 @@
 # Creature runtime audit — post-#953
 
-**Audit date:** 2026-09-15  
+**Audit date:** 2026-09-15
+
 **Rust integration head:** `507f3cfa` (PR #953; implementation candidate `e2ca3df9`)
 **Scope:** the remaining #584 C0–C4 boundary around `Map::Update`, Creature
 runtime ownership, effect consumption, persistence and publication.
 
-This is the current evidence record for the next macro selection. It is linked
-from `PORT_PLAN.md`, `STATE.md` and the #584 checkpoint; it does not replace
-the master plan or create an issue per helper.
+This is the September evidence record. Subsequent ownership changes are recorded in the [distribution closeout](wow-world-distribution-plan.md). Use the [branch checkpoint](../migration/STATE.md) and #584 for current scope.
 
 ## C++ contract
 

@@ -421,6 +421,8 @@ def classify_path(path: str) -> str:
         return "wow-test-bot"
     if path.startswith(".github/workflows/") and Path(path).suffix in {".yml", ".yaml"}:
         return "workflow"
+    if path.startswith("crates/wow-world/_attic/") and path.endswith(".md"):
+        return "documentation"
     if path.startswith("crates/"):
         return "workspace-rust"
     if (
@@ -923,7 +925,7 @@ def validation_commands(
         add_command(planned, ["python3", "tools/architecture/session_method_index.py", "check"])
     # #1241 F3-6b: a git-ignored source under crates/ can be mounted by committed
     # code and pass locally while a fresh clone lacks it. Final only, for any crates/ change.
-    if profile == "final" and any(path.startswith("crates/") for path in all_paths):
+    if profile == "final" and any(path.startswith("crates/") for path in groups.get("workspace-rust", [])):
         add_command(planned, ["python3", "tools/architecture/ignored_sources.py", "check"])
     if profile == "final" and any(path in {
         "tools/architecture/ignored_sources.py",
@@ -965,8 +967,9 @@ def validation_commands(
         "tools/architecture/wow-world-test-census.json",
         "tools/architecture/wow-world-test-ceiling.json",
     }
-    if profile == "final" and any(
-        path.startswith("crates/wow-world") or path in census_inputs for path in all_paths
+    if profile == "final" and (
+        any(path.startswith("crates/wow-world") for path in groups.get("workspace-rust", []))
+        or any(path in census_inputs for path in all_paths)
     ):
         add_command(planned, ["python3", "tools/architecture/wow_world_test_census.py", "check"])
     if profile == "final" and any(path in census_tool for path in all_paths):

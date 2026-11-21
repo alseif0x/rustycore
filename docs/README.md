@@ -10,7 +10,7 @@ checkbox or an old percentage is not proof that the current server implements th
 | What is implemented, integrated or still unproven? | [STATE.md](migration/STATE.md), its dated evidence boundaries and the active issue/checkpoint |
 | What do we execute next? | [PORT_PLAN.md](migration/PORT_PLAN.md) and [GitHub #49](https://github.com/alseif0x/rustycore/issues/49) |
 | How are implementation, review and integration assigned in my runtime? | [orchestrate-rustycore](../.agents/skills/orchestrate-rustycore/SKILL.md) |
-| What remains in the current architecture delivery? | [Architecture program state](architecture/modularity-and-ecs-plan.md#architecture-program-state--2026-09-14) |
+| What remains in the current architecture delivery? | [Core and module obligations](architecture/refactor-completion-plan.md) |
 | Which technical contracts govern the refactor? | [Refactor completion plan](architecture/refactor-completion-plan.md) |
 | What must a quest reward make durable, and when? | [Quest reward operation contract](architecture/quest-reward-operation-contract.md) |
 | What architecture and extension direction is approved? | [Modularity/ECS plan](architecture/modularity-and-ecs-plan.md) |
@@ -68,19 +68,7 @@ data and gameplay differences must be resolved for 3.4.3 before production adapt
 
 ## Historical references
 
-The per-subsystem files under migration/, numbered inventory campaigns, older audits and
-implementation reports preserve source mappings and past experiments. Their old next-step
-lists, commands and completion tables do not override the current sources above. Read them
-when the active operation needs that evidence; do not load the whole archive for each task.
-
-Older architecture checkpoints may still contain the pre-closure #133/#578 ordering. They
-are historical evidence and must not be used as current instructions; use STATE.md and the
-current architecture plan for status and sequence.
-
-[MIGRATION_ROADMAP.md](MIGRATION_ROADMAP.md), [migration/_INDEX.md](migration/_INDEX.md)
-and the root [MIGRATION_STATUS.md](../MIGRATION_STATUS.md) are not competing current plans.
-The frozen migration/current-session-handoff.md is historical evidence, not an append target
-or required session preflight. Only verified C++/capture evidence can approve protocol/gameplay behavior.
+The [subsystem index](migration/_INDEX.md) locates the original C++ file mappings and bounded reports at an immutable revision. [Migration inventories](migration/inventory/README.md) retain their recorded schemas and evidence. Consult these for specific historical questions. Current work uses the branch checkpoint and open owner issues.
 
 ## Keeping documentation useful
 
@@ -93,6 +81,3 @@ or required session preflight. Only verified C++/capture evidence can approve pr
   schemas and provenance; never rewrite implementation evidence to simulate completion.
 - The project skills cover development, architecture, refactoring and orchestration. Update
   the owning skill when the workflow changes.
-
-The September 2026 cleanup audits documentation coherence and instruction routing; it does
-not re-prove every gameplay claim or every row of the historical migration inventory.

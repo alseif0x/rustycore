@@ -11,15 +11,7 @@ and [modularity plan](architecture/modularity-and-ecs-plan.md). Examples below
 are contrast techniques, not a current code/ownership inventory or a required
 mechanical migration order. Internal slices need not become micro-issues or PRs.
 
-Primary C++ source of truth:
-
-- `/home/server/woltk-trinity-legacy`
-
-Secondary logic reference, only when legacy is incomplete or suspicious:
-
-- archived TrinityCore 3.3.5, for logic comparison only
-- do not copy code from it
-- record when it was used and why the legacy source was insufficient
+The target reference is the 3.4.3 checkout at `/home/server/woltk-trinity-legacy`. When that source is incomplete or suspect, compare the operation with AzerothCore WotLK. Record the exact revisions, functions and version differences, and check the 3.4.3 wire and data contracts before adapting behavior. The [reference table](README.md#versioned-behavioral-references) records both checkouts and their coverage.
 
 ## Non-negotiable Rules
 

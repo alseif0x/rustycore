@@ -1,200 +1,191 @@
-# Estándar de estructura y convenciones de RustyCore
+# RustyCore structure and conventions
 
-**Ámbito:** todo el workspace (crates existentes, refactors y desarrollo nuevo). Es el estándar
-estructural del proyecto: si un trabajo contradice este documento, o se cambia el documento con
-una razón, o se cambia el trabajo.
+**Scope:** the whole workspace, including existing crates, refactors, and new development. This
+is the structural standard. If work conflicts with it, either change the work or document a
+reasoned change to this standard.
 
-**Autoridad y separación de planos (regla central):**
+**Authority and separation of concerns:**
 
-- La **lógica y el comportamiento** tienen su autoridad en la referencia C++ versionada
-  (`/home/server/woltk-trinity-legacy`, 3.4.3) y, como fuente complementaria aprobada, en
-  AzerothCore. De ahí salen los bytes de paquete, el orden de fases, las fórmulas, la admisión, la
-  persistencia y los ciclos de vida. Cada regla cita su ruta y su línea.
-- La **estructura** (crates, capas, módulos, visibilidad, tests) **no** se copia de C++. Un
-  proyecto C++ organiza su `game/` en directorios porque es C++ y un solo binario; nosotros
-  decidimos la forma en Rust. Que en C++ exista `Maps/` o `Spells/` **no** obliga a un crate
-  `wow-spells` ni al revés: inspira nombres y alcance de dominio, y nada más.
-- Consecuencia práctica: **ninguna decisión estructural se justifica con "en C++ es así"**. Se
-  justifica con este estándar y con la evidencia del propio repositorio.
+- Behavior is grounded in the versioned 3.4.3 C++ reference
+  (`/home/server/woltk-trinity-legacy`) and, where approved as a complement, AzerothCore.
+  Packet bytes, phase order, formulas, admission, persistence, and lifecycle rules need source
+  anchors.
+- Rust structure—crates, layers, modules, visibility, and tests—is designed for this repository.
+  C++ directory names may inspire domain boundaries, but do not dictate Rust crates.
+- Never justify a structural choice only with “C++ does it this way.” Use this standard and
+  repository evidence.
 
-## 1. Principios
+## 1. Principles
 
-1. **Capas acíclicas, flechas hacia abajo.** El compilador es la cerca: un crate no puede depender
-   de quien depende de él.
-2. **La aplicación es delgada.** El conocimiento (reglas) vive abajo; arriba solo orquestación.
-3. **Un dueño por estado y por transición.** Sin espejos, sin contextos universales, sin un
-   segundo lock para poder mover código.
-4. **Las fronteras son estrechas:** el dominio recibe datos y devuelve una **intención**; la
-   aplicación la aplica. Nunca cruza un `&mut` del tipo de sesión.
-5. **Módulo antes que crate.** Un crate se gana con contrato propio, dirección forzada por el
-   compilador y (≥2 consumidores o aislamiento de compilación útil).
-6. **Tamaño acotado.** Los techos son una restricción de trabajo, no estética: un humano o un
-   agente que debe cargar 100 k líneas para tocar una regla se bloquea.
-7. **Movimiento y comportamiento, siempre separados.** Un arreglo de gameplay va en su commit, con
-   su ancla y su prueba; nunca escondido dentro de una mudanza.
-8. **Evidencia escalonada:** compila → suite del crate → composición → validación final única.
+1. **Acyclic layers, dependencies pointing down.** The compiler should prevent a crate from
+   depending on a layer that depends on it.
+2. **Keep the application thin.** Rules live below; the application orchestrates them.
+3. **One owner for each state and transition.** Do not add mirrors, universal contexts, or locks
+   just to move code.
+4. **Keep boundaries narrow.** A domain accepts data and returns an intent for the application to
+   apply. A session-type `&mut` never crosses into a domain crate.
+5. **Prefer a module before a crate.** A crate needs its own contract, compiler-enforced direction,
+   and at least two consumers or a useful build-isolation benefit.
+6. **Keep units manageable.** Size ceilings are work constraints: loading 100,000 lines to change
+   one rule blocks effective review.
+7. **Separate movement from behavior.** A gameplay fix has its own change, source anchor, and test;
+   never hide it in a code move.
+8. **Report evidence in levels:** compilation, crate suite, composition, then one final validation.
 
-## 2. Capas y dirección de dependencias
+## 2. Layers and dependency direction
 
-| capa | crates | puede depender de |
+| layer | crates | may depend on |
 |---|---|---|
-| 0 base | `wow-core`, `wow-constants`, `wow-config`, `wow-crypto`, `wow-logging`, `wow-math`, `wow-proto`, `wow-collections` (utilidad) | 0 |
-| 1 datos/durables | `wow-data` (solo catálogos), `wow-persistence`, `wow-database` | 0 |
-| 2 modelo/estado | `wow-entities`, `wow-map`, `wow-movement`, `wow-packet`, `wow-network` | 0-1 |
-| 3 reglas de dominio | `wow-<dominio>`: `combat`, `conditions`, `spell`, `spell-acquisition`, `loot`, `quest`, `items`, `pets`, `social`, `economy`, `instances`, `battlegrounds`, `dungeon-finding`, `progression`, `ai`, `account-collections`, `anticheat` | 0-2 (nunca la capa 4) |
-| 4 aplicación | `wow-world` | 0-3 |
-| 5 composición | `world-server`, `bnet-server`, `world-modules` | 0-4 |
+| 0 foundation | `wow-core`, `wow-constants`, `wow-config`, `wow-crypto`, `wow-logging`, `wow-math`, `wow-proto`, `wow-collections` (utility) | 0 |
+| 1 data and durability | `wow-data` (catalogs only), `wow-persistence`, `wow-database` | 0 |
+| 2 model and state | `wow-entities`, `wow-map`, `wow-movement`, `wow-packet`, `wow-network` | 0–1 |
+| 3 domain rules | `wow-<domain>`: `combat`, `conditions`, `spell`, `spell-acquisition`, `loot`, `quest`, `items`, `pets`, `social`, `economy`, `instances`, `battlegrounds`, `dungeon-finding`, `progression`, `ai`, `account-collections`, `anticheat` | 0–2, never layer 4 |
+| 4 application | `wow-world` | 0–3 |
+| 5 composition | `world-server`, `bnet-server`, `world-modules` | 0–4 |
 
-Prohibido: dependencias hacia arriba, ciclos, y que un crate de dominio conozca `WorldSession`,
-el transporte o la base de datos. Tipos compartidos: se van a su **dueño**; solo el vocabulario
-genuinamente universal va a `wow-core`.
+Upward dependencies and cycles are prohibited. Domain crates must not know `WorldSession`, the
+transport, or the database. Shared types belong to their semantic owner; only genuinely universal
+vocabulary belongs in `wow-core`.
 
-## 3. Nombres
+## 3. Names
 
-- Crates: `wow-<concepto>` (base/modelo) y `wow-<dominio>` (reglas). Binarios: `world-server`,
-  `bnet-server`. Solo-test: `wow-test-support`. E2E: `wow-e2e-tests`.
-- Módulos: **el nombre dice la responsabilidad**. Prohibido `misc`, `utils`, `common`, `helpers`,
-  `shared` como vertedero. Si un módulo no tiene dueño semántico, no debe existir.
-- Los nombres de dominio se inspiran en AzerothCore cuando encajan (`combat`, `spells`, `loot`,
-  `quests`, `groups`, `guilds`, `chat`, `auction`, `trade`, `mail`, `battlegrounds`,
-  `dungeon-finding`, `instances`, `movement`, `conditions`, `reputation`, `profession`, `trainer`,
-  `pets`), y se adaptan cuando el dominio real difiere. Inspiración, no obligación.
+- Crates use `wow-<concept>` for foundation/model and `wow-<domain>` for rules. Binaries are
+  `world-server` and `bnet-server`; test support is `wow-test-support`; E2E tests are
+  `wow-e2e-tests`.
+- A module name states its responsibility. Do not use `misc`, `utils`, `common`, `helpers`,
+  or `shared` as catch-all modules. A module without a semantic owner should not exist.
+- Domain names may follow AzerothCore where they fit (for example `combat`, `spells`, `loot`,
+  `quests`, `groups`, `guilds`, `chat`, `auction`, `trade`, `mail`,
+  `battlegrounds`, `dungeon-finding`, `instances`, `movement`, `conditions`,
+  `reputation`, `profession`, `trainer`, `pets`). This is guidance, not a requirement.
 
-### 3.1 Dentro de un crate de dominio
+### 3.1 Inside a domain crate
 
 ```
-wow-<dominio>/src/
-├─ model.rs     datos del dominio (no conoce Session)
-├─ rules/       funciones puras: entradas → decisión o intención
-├─ state.rs     solo si el dominio posee estado mutable (con su dueño explícito)
-├─ adapter.rs   puente de importación del consumidor (temporal; se retira al migrar)
-└─ tests/       escenarios focales, junto a la regla que prueban
+wow-<domain>/src/
+├─ model.rs     domain data; no Session dependency
+├─ rules/       pure functions: input → decision or intent
+├─ state.rs     only when the domain owns mutable state
+├─ adapter.rs   temporary consumer-import bridge, removed during migration
+└─ tests/       focused scenarios beside the rules they exercise
 ```
 
-### 3.2 Dentro de la aplicación (`wow-world`)
+### 3.2 Inside the application (`wow-world`)
 
 ```
 wow-world/src/
 ├─ session/
-│  ├─ state/         WorldSession + sub-estados dueños (transporte, acceso a Player,
-│  │                 loot, hechizos, fence de persistencia, catálogos)
+│  ├─ state/         WorldSession and owning substates (transport, Player access,
+│  │                 loot, spells, persistence fence, catalogs)
 │  ├─ construction.rs · admission · lifecycle/ · driver/ · persistence/ · publication/
-│  ├─ directory.rs · registry.rs   (registro único de opcodes)
-│  ├─ handlers/<dominio>/          (solo adaptadores: decode → dominio → aplicar → publicar)
-│  └─ tests/                       (escenarios de integración + fixtures)
-└─ runtime/                        (orquestación de ticks; el estado de mapa vive en wow-map)
+│  ├─ directory.rs · registry.rs   (single opcode registry)
+│  ├─ handlers/<domain>/          (decode → domain → apply → publish adapters)
+│  └─ tests/                       (integration scenarios and fixtures)
+└─ runtime/                        (tick orchestration; map state belongs in wow-map)
 ```
 
-### 3.3 Nomenclatura de paridad (decisión del usuario, 2026-09-24)
+### 3.3 Parity naming (user decision, 2026-09-24)
 
-El sufijo `_like_cpp` y los tipos `...LikeCpp` son **legado**: se usaron para marcar la procedencia
-mientras se portaba. No aportan valor y **no se usan en código nuevo ni en refactors**: el
-identificador nuevo lleva el nombre del dominio.
+Suffixes `_like_cpp` and type names such as `...LikeCpp` are legacy provenance markers. Do not
+use them in new code or refactors; new identifiers name the domain.
 
-- La procedencia C++ se conserva donde sí vale: comentario de la regla, ancla
-  `Fichero.cpp:línea`, mensaje de commit y ADR/checkpoint. **La paridad es de lógica; el nombre no
-  es la paridad.**
-- **No se renombra en masa el legado** dentro de este programa: son miles de identificadores, y
-  cambiarían todas las baselines, firmas registradas y llamadores. El coste y el riesgo no
-  compensan; si algún día se quiere, será una campaña propia con su aceptación.
-- **Renombrado oportunista sí**: cuando un dominio se extrae a su crate o un fichero se reescribe
-  de verdad, sus identificadores nuevos se ponen limpios. Si hace falta compatibilidad temporal, se
-  deja un `adapter.rs` o un alias `pub use` con el nombre viejo, marcado para retirarse.
-- El mismo criterio aplica a los tests: no se añade `_like_cpp` a tests nuevos, y los existentes no
-  se renombran por estética.
+- Keep C++ provenance where it is useful: in the rule comment and `File.cpp:line` anchor, commit
+  message, and ADR/checkpoint. **Parity is in the logic, not the name.**
+- Do not mass-rename existing identifiers in this programme. Thousands of names, baselines,
+  registered signatures, and callers would change; any mass rename needs its own campaign and
+  acceptance.
+- Opportunistic renaming is appropriate when a domain is extracted or a file is genuinely
+  rewritten. Keep a temporary `adapter.rs` or `pub use` alias if compatibility requires it, and
+  mark it for removal.
+- Apply the same rule to tests: do not add `_like_cpp` to new tests or rename old tests for style.
 
-## 4. Cómo se corta
+## 4. Choosing a cut
 
-1. **Clasificar la hoja**: *regla pura* (no menciona el tipo de sesión, no hace I/O) → se va al
-   crate de dominio con sus tests · *estado* → se queda detrás de contrato estrecho · *orquestación*
-   (vida, driver, persistencia, publicación) → se queda en la aplicación.
-2. **Una operación completa por corte**, con su ancla C++ ya documentada; no rangos de líneas.
-3. **Si el dominio necesita escribir**, devuelve un enum de intención y la aplicación lo aplica.
-4. **Nada de traits por helper, campos públicos, espejos de estado ni locks nuevos** para poder
-   mover código.
+1. Classify the leaf: a pure rule with no session type or I/O belongs in a domain crate; state
+   stays behind its owner's narrow contract; lifecycle, driver, persistence, and publication
+   orchestration stay in the application.
+2. Move one complete operation at a time and cite its C++ anchor; cite functions, not line ranges.
+3. When a domain needs to write, return an intent enum for the application to apply.
+4. Do not add helper traits, public fields, mirrored state, or locks merely to move code.
 
-## 5. Visibilidad
+## 5. Visibility
 
-Escalera, de más estrecha a más ancha: `private` → `pub(super)` → **`pub(in crate::<owner>)`** →
+From narrowest to broadest: `private` → `pub(super)` → `pub(in crate::<owner>)` →
 `pub(crate)` → `pub`.
 
-- El ancho por defecto al mover código es **`pub(in crate::<owner>)`**, que conserva el ámbito
-  efectivo anterior.
-- `pub(crate)` solo cuando otra rama hermana del crate lo necesita de verdad.
-- `pub` solo para la API real del crate (consumidores de otra capa o tests de integración).
-- **Ensanchar visibilidad para que compile un movimiento es señal de corte mal hecho**, no una
-  solución. Si hace falta, se replantea el corte.
+- For moved code, default to `pub(in crate::<owner>)`, preserving its previous effective scope.
+- Use `pub(crate)` only when a sibling module genuinely needs the item.
+- Use `pub` only for the crate's real API, with an external-layer consumer or integration test.
+- Widening visibility just to make a move compile signals a poor cut. Reconsider the boundary.
 
-## 6. Tests y fixtures
+## 6. Tests and fixtures
 
-| ¿qué prueba? | dónde va |
+| what is tested | location |
 |---|---|
-| regla interna, necesita privados | `#[cfg(test)]` dentro del crate de dominio |
-| contrato público de un dominio | `<crate>/tests/` |
-| composición: bytes de paquete, orden, admissión de fase, COMMIT/persistencia, login/logout | `wow-world/tests/` o `wow-e2e-tests` |
-| fixtures y builders compartidos por varios crates | `wow-test-support` (dev-dependency) |
+| internal rule requiring private access | `#[cfg(test)]` inside the domain crate |
+| public domain contract | `<crate>/tests/` |
+| composition: packet bytes, order, phase admission, COMMIT/persistence, login/logout | `wow-world/tests/` or `wow-e2e-tests` |
+| fixtures/builders shared by multiple crates | `wow-test-support` as a dev-dependency |
 
-Invariantes que **toda** mudanza de tests debe verificar (contadas antes y después):
-`#[test]`/`#[tokio::test]`, `inventory::submit!` (registros de opcode) y la lista de escenarios.
-Compilar no basta: un test movido puede compilar y no ejecutarse si se pierde del árbol.
+For every test move, count before and after: `#[test]`/`#[tokio::test]`, `inventory::submit!`
+(opcode registrations), and the scenario list. Compilation alone does not prove a moved test still
+runs.
 
-## 7. Presupuestos
+## 7. Size budgets
 
-| unidad | límite | objetivo |
+| unit | ceiling | target |
 |---|---:|---:|
-| fichero físico | 1 000 líneas | 400-600 |
-| owner lógico (ratchet de hotspots) | 20 000 | — |
-| crate de dominio | ~60 000 | — |
-| capa de aplicación (`wow-world`) | 200 000 | — |
-| módulo sin dueño (`misc`/`utils`/`common`) | 0 | 0 |
+| physical file | 1,000 lines | 400–600 |
+| logical owner (hotspot ratchet) | 20,000 | — |
+| domain crate | about 60,000 | — |
+| application layer (`wow-world`) | 200,000 | — |
+| ownerless catch-all module (`misc`/`utils`/`common`) | 0 | 0 |
 
-Los techos se actualizan solo con **delta revisado** tras una retirada validada; **nunca** se
-regeneran a ciegas ni se suben para que pase una fase.
+Change ceilings only with a reviewed delta after validated retirement. Never regenerate them
+blindly or raise them merely to pass a phase.
 
-## 8. Árbol de decisión para código nuevo
+## 8. Decision tree for new code
 
-1. ¿Regla determinista, sin sesión ni I/O? → crate de dominio, en `rules/`.
-2. ¿Estado canónico mutable? → al dueño existente, con API estrecha.
-3. ¿Bytes de red? → `wow-packet`/`wow-network`. ¿Durabilidad? → `wow-persistence`/`wow-database`.
-4. ¿Orquestación de la sesión? → aplicación.
-5. ¿Bootstrap/wiring? → composición.
-6. ¿Sin contrato y un solo consumidor? → módulo privado, no crate.
+1. Deterministic rule with no session or I/O? Put it in a domain crate's `rules/`.
+2. Canonical mutable state? Keep it with its existing owner and a narrow API.
+3. Network bytes? Use `wow-packet`/`wow-network`. Durability? Use
+   `wow-persistence`/`wow-database`.
+4. Session orchestration? Keep it in the application.
+5. Bootstrap and wiring? Keep them in composition.
+6. No contract and one consumer? Use a private module, not a crate.
 
-## 9. Checklist de un cambio (refactor o desarrollo nuevo)
+## 9. Change checklist
 
-- [ ] El corte es **una operación completa** con su ancla C++ citada (o la referencia aprobada).
-- [ ] La dirección de dependencias sigue bajando; no hay ciclo ni back-edge nuevo.
-- [ ] Un solo dueño y escritor por estado/transición; sin espejos ni locks nuevos.
-- [ ] Sin `&mut` del tipo de sesión cruzando a un dominio; entrada por DTO, salida por intención.
-- [ ] Visibilidad: ámbito mínimo suficiente; ningún ensanchamiento "para que compile".
-- [ ] Tests: colocados según §6; escenarios y assertions preservados; invariantes contados.
-- [ ] Presupuestos de §7 respetados (fichero, owner, crate).
-- [ ] Movimiento y comportamiento en commits separados.
-- [ ] Ledger y política físicas con delta revisado; sin regeneración a ciegas.
-- [ ] Evidencia reportada como tal: compilación ≠ suite ≠ composición ≠ validación final.
+- [ ] The cut is one complete operation with a cited C++ anchor or approved reference.
+- [ ] Dependencies point down; no cycle or new back-edge is introduced.
+- [ ] Each state and transition has one owner and writer; no mirrors or extra locks.
+- [ ] No session-type `&mut` crosses into a domain; inputs are DTOs and outputs are intents.
+- [ ] Visibility is as narrow as practical; nothing is widened only to compile.
+- [ ] Tests follow §6; scenarios, assertions, and counts are preserved.
+- [ ] File, owner, and crate budgets in §7 are respected.
+- [ ] Movement and behavior changes are separated.
+- [ ] Physical ledger/policy changes have a reviewed delta, never a blind regeneration.
+- [ ] Evidence is labeled accurately: compilation ≠ suite ≠ composition ≠ final validation.
 
-## 10. Aplicación mecánica (el estándar no se confía a la memoria)
+## 10. Mechanical enforcement
 
-- `[workspace.lints]` (+ política por crate) aplica clippy/rustc y la política de `unsafe` y de
-  documentación de API pública.
-- `cargo xtask check-layers` verifica las **aristas permitidas entre capas** (sin esto, una
-  inversión puede volver sin que nadie lo note).
-- `cargo xtask structure-audit` mide líneas, fichero mayor, stubs y crates sin consumidor.
-- `cargo-machete` y `cargo-deny` vigilan dependencias no usadas, duplicadas o con avisos.
-- **Features**: el mapa de subsistemas opcionales se decide una vez y se documenta aquí; el build
-  base no puede requerirlos.
-- Código vendido (por ejemplo el port de navmesh) se marca como exento de presupuestos y lints.
+- `[workspace.lints]` plus crate-level policy enforce rustc/Clippy, `unsafe`, and public API
+  documentation rules.
+- `cargo xtask check-layers` checks allowed layer edges; `cargo xtask structure-audit` checks
+  sizes, largest files, stubs, and crates without consumers.
+- `cargo-machete` and `cargo-deny` monitor unused dependencies, licenses, advisories, and
+  duplicate versions.
+- Decide optional subsystem features once and document them here. The base build must not require
+  optional features.
+- Mark vendored code (for example, `wow-recastdetour`) as exempt from size and naming budgets;
+  retain its dependency classification in `dependency-policy.json`.
 
-- Código **vendido** (por ejemplo `wow-recastdetour`): exento de presupuestos de tamaño y de
-  convenciones de nomenclatura; conserva su clasificación de dependencia y se marca como tal
-  en `dependency-policy.json`.
+Anything outside these checks is convention, not an enforced standard.
 
-Lo que no esté en esos comandos no es estándar, es costumbre.
+## 11. Changing this standard
 
-## 11. Cómo se cambia este estándar
-Con un commit de documentación que explique la razón y el impacto, actualizando también
-[wow-world-distribution-plan.md](wow-world-distribution-plan.md) si cambian fases o presupuestos y
-[workspace-structure-programme.md](workspace-structure-programme.md) si cambia el orden o el estado
-de las fases. No se crean documentos competidores: este es el estándar estructural, el plan de
-distribución es su programa para `wow-world` y el programa maestro es el índice y el orden de todo
-el workspace.
+Explain the reason and impact in a documentation change. Update
+[wow-world-distribution-plan.md](wow-world-distribution-plan.md) when phases or budgets change and
+[workspace-structure-programme.md](workspace-structure-programme.md) when phase order or status
+changes. Do not create competing documents: this is the structural standard, the distribution
+plan governs `wow-world`, and the workspace programme orders the full-workspace work.
