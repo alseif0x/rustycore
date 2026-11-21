@@ -328,7 +328,7 @@ only the entry prompt on each action. The reference schedules this event
 from the original expiry, including for an extended lock
 (`Map.cpp:2813,2930-2933,3021-3045`). The per-action results are in
 `target/qa/issue45-restart/icc-bind-epoch{2,3}-comparison.json`. The
-expiry notification sequence remains an open difference.
+expiry notification sequence differed on that Rust build.
 
 The preattached-Player regression at `85d977f24` acknowledges the realm
 and instance writer fences used by the production login sequence. Running
@@ -357,7 +357,7 @@ At `9e2c716fc` the bot sends the one-byte `00` body and the scenario
 checks it on the realm connection. All 62 cast-lifecycle bot tests and
 33 instance-scenario tests passed.
 
-The native R6 run with the corrected bot then passed all three epochs.
+The native run with the corrected bot then passed all three epochs.
 After the restart and both RaidInfo replies, the leader sent `00` on
 realm at observation 72. The server returned `PartyCommandResult`
 at 76 with operation 2 (leave), result 0 and the leader's name.
@@ -366,6 +366,66 @@ matched the pre-restart snapshot. The wrapper restored the fixture and
 original serving configuration. The 12m35s campaign report is
 `/tmp/rustycore45-icc-bind-cpp-9e2c716fc-r5/death-runtime-report.json`
 (SHA-256 `e4edb9f5f4fd7c9454ff83c43d74903936fc93051c29f2eb389f6cabe0fd0462`).
+
+At `0362df4e3`, Rust schedules occupied expiry from the attached lock's
+original deadline. The map checks the deadline after its session update,
+uses admitted occupants, and rearms for the next reset. After the map
+guard is released, the world coordinator queues one command per current
+occupant. The session checks its Player handle, map incarnation and
+residence, sends the expired message, then reads the current lock for the
+extension prompt. A last departure consults the current lock so a renewed save
+survives. The reference is `Map.cpp`, specifically the `InstanceMap`
+constructor, `Update`, `Reset` and `RemovePlayerFromMap` at
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`.
+
+The aarch64 debug server took 5m14s to build with
+`cargo build --locked -j1 -p world-server --bin world-server`. Its SHA-256
+is `79887a11fdb0d3ffc2118ddfbcb031fb3037503525ddbd0d74cf73bbf4920a66`.
+The two later commits only corrected test expectations. At `cbf831f0f`,
+`cargo test --locked -j1 --no-fail-fast -p wow-map -p wow-world-core
+-p wow-world-character -p wow-world-instances -p wow-world -p world-server
+--lib --test production_handler_registry_contract -- --test-threads=1`
+passed 5,933 tests with three ignored in 1m55s. Test compilation took
+15m09s on the first attempt (15m12s elapsed), exceeding the ten-minute
+local target. An intermediate parallel run also failed the combat
+regression `secondary_split_deaths_finish_before_each_log_and_primary_hit`,
+which passed on the first and final runs. Its intermittent failure remains
+unexplained. The distinct-prompt bot tests passed 63 cases and the offline
+instance-scenario suite passed 33.
+
+The Rust and native epoch-two server captures matched on all 11 selected
+packets, including their order, direction, connection and complete bodies.
+On each of the member's two entries, the initial prompt ended in `00`.
+The leader's initial prompt ended in `80`. All three received the expired
+notice (`05770200000400000000`) followed by the extending prompt
+(`60ea00000100000080`) on realm. The member declined once without saving a
+lock, then accepted and created a lock. The leader renewed automatically
+after 60 seconds. The raw comparison used the native PKT and the Rust
+packet files. The bot's ordered observations also associate each packet
+with the corresponding character and decision.
+
+All three Rust epochs passed with the debug executable above. After the
+last restart both characters received RaidInfo for ICC map 631, instance 1,
+difficulty 4, encounter mask 1 and active flag `80`. The occupied reset
+preserved both character locks and the shared save. The leader sent
+`CMSG_LEAVE_GROUP` with body `00`, received a successful
+`SMSG_PARTY_COMMAND_RESULT`, and the group rows disappeared. Both raw leave
+packets matched the native capture on direction, connection and bytes.
+`capture-diff diff --strict` also reported zero differences in the
+individual expiry, leave-request and leave-result windows.
+
+The Rust campaign took 21m27s from capture directory creation to its final
+report. The wrapper verified restoration of the original executable and
+configuration after each epoch, then restored the disposable database
+fixture. Its report is
+`/tmp/rustycore45-icc-bind-rust-0362df4e3-r6/death-runtime-report.json`
+(SHA-256 `21cc6fc76827ac0e3deea06eb6982dde33431e654241efb289931bd56fe594a8`).
+The paired action and restoration comparison passed for all three bind
+actions, both relogs and the group leave. Its local result is
+`target/qa/issue45-restart/icc-expiry-leave-r6.txt`
+(SHA-256 `44d288458c6c149a0fcc5146147ee36486b0213cc0069ecf3c8212ec8947e3fa`).
+The separate difficulty/restart comparison and issue-wide final,
+architecture and persistence checks remain open.
 
 The full issue remains open. Preserve passing scenario evidence at its actual
 code/binary hashes and assess invalidation before rerunning it. A complete raid
