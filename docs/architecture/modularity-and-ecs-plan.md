@@ -1,5 +1,12 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
+As of 2026-11-21, the legacy creature owner has been retired (#1355, #1356) and the first
+trusted module domain hooks and example are integrated (#1444). Use the [module tooling guide](modules.md)
+for the delivered native surface. [#584](https://github.com/alseif0x/rustycore/issues/584),
+[#583](https://github.com/alseif0x/rustycore/issues/583) and [#153](https://github.com/alseif0x/rustycore/issues/153)
+track the remaining core work, stateful native/Wasm product and final audit respectively.
+The dated phase descriptions below retain their original baselines.
+
 **Plan synchronization, 2026-09-15 (#955 / #954 / #953 / #950 / #948 / #936 / #935 / #933 / #931 / #929 / #927 / #925 / #924 / #923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution

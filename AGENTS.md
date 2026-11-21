@@ -162,7 +162,8 @@ Day-to-day structure guide for any code change: [develop-rustycore](.agents/skil
   STATE.md own the selected delivery and its evidence; do not infer current status
   from older dated checkpoints or wait for #133 to close again.
   The technical gate remains required core #584 → native/Wasm product #583 → independent
-  audit #153. #584 retains unfinished C0–C4 core work; #583 owns the preserved M0–M4
+  audit #153. #584 tracks outstanding core and acceptance work after the C0 retirement.
+  #583 owns the preserved M0–M4
   native/Wasm product and does not block an unrelated gameplay macro, while its
   production integration waits for the required core work. The Rust/Wasm/C mixed
   product remains mandatory even though its operator activation is optional.
@@ -359,9 +360,9 @@ session or character data; scope the target/accounts and obtain any required run
 Preserve useful QA improvements in the integrated tool, not only in /tmp; record structured
 scenario results. Bot code existing does not establish live acceptance.
 
-Use the current configuration loader and examples: worldserver.conf / bnetserver.conf are
-preferred, with legacy mixed-case compatibility filenames. The processes are world-server
-and bnet-server; the MariaDB schemas are auth, characters, world and hotfixes. Read the
+Use `worldserver.conf` and `bnetserver.conf`. The world service supports the legacy
+`WorldServer.conf` fallback. For Battle.net, pass `--config` to select a mixed-case filename.
+The services use the `auth`, `characters`, `world` and `hotfixes` MariaDB schemas. Read the
 operation guide/current config safely before acting; documentation is not runtime authorization.
 
 Never print, stage or commit credentials, local configs, certificates/keys, secret-bearing logs,

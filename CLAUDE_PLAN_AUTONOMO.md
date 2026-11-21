@@ -1,5 +1,9 @@
 # RustyCore — ejecución autónoma y plan completo para Claude
 
+**Archived session plan, September 2026.** Its commands and permissions describe the original
+session. For current work use [AGENTS.md](AGENTS.md), the [current checkpoint](docs/migration/STATE.md)
+and the scope authorized for this session.
+
 Sincronizado el 2026-09-15 con `3.4.3`, commit integrado
 `507f3cfa7c34bc96a5173b107929fa6ff21ac0d4` (PR #953; frontera estructural C3.1 de Creature).
 Índice general: https://github.com/alseif0x/rustycore/issues/49
@@ -24,9 +28,10 @@ identidad que aún no están representadas en la administración Rust. El siguie
 trabajo se selecciona con una auditoría actual de #584 y sus residuales C0–C4; las
 lanes de gameplay independientes pueden avanzar cuando tengan una operación preparada.
 
-## Goal breve para pegar en Claude
+## Historical session scope
 
-> Lee /home/server/rustycore/CLAUDE_PLAN_AUTONOMO.md y ejecuta el plan. Autorizo las decisiones y operaciones allí definidas, incluidos push y merge tras validar. Continúa macro a macro sin confirmaciones rutinarias.
+The September operator authorized publication and merge for that session. New sessions take
+publication and merge authority from their operator.
 
 ## Cómo usar este archivo
 

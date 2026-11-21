@@ -25,9 +25,10 @@ human operator**. This is the rule that keeps a round from stalling.
 - **Who executes.** The coordinator/parent owns review, validation, Git, integration and
   the durable record of the decision. It executes what the reviewer decided and reports
   the outcome; it does not return the decision to the human as a question.
-- **Reserved to the human.** Only two things: runtime/database/destructive operations
+- **Reserved to the human.** Runtime/database/destructive operations
   (a live server, a real client capture, schema or data mutation) and material changes to
-  the objective's scope or acceptance criteria. No other gate.
+  the objective's scope or acceptance criteria. Publication and merge follow the separate
+  authorization rules in `AGENTS.md`.
 - **When a decision needs a reserved gate.** Record it as a **bounded hold**: the decision
   taken, the exact capture or operation that would close it, and what is forbidden in the
   meantime (for example: behaviour retained, expansion forbidden, no parity claimed). Then

@@ -1,5 +1,9 @@
 # RustyCore — Master port and delivery plan
 
+For work selection use the [master issue](https://github.com/alseif0x/rustycore/issues/49)
+and the latest [integrated checkpoint](STATE.md). The inventories and open-issue counts below
+belong to the commits named in each reconciliation.
+
 **Reconciled 2026-09-19 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #1226, PR #1220 and the earlier PR #955, docs-only PR #954, #953, #950, #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926, #927, #929, #931, #933, #935, #936, #938, #940, #942, #944, #946, #947 and #948 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
 `a82f4b2f` (PR #1226, following PR #1225/#1224/#1223/#1222/#1221/#1220, PR #955, docs-only PR #954 and PR #953/#948/#935/#933/#931/#929/#927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,

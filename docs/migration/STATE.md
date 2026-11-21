@@ -1,5 +1,20 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## Integration status on 2026-11-21
+
+At `dd0844474` on `3.4.3`, the death lifecycle (#43) and logout admission/countdown (#54)
+are integrated through [#1484](https://github.com/alseif0x/rustycore/pull/1484) and
+[#1485](https://github.com/alseif0x/rustycore/pull/1485). The plan below records how #54 was accepted.
+Instance enter/leave and reconnect/logout integrity remains open in [#45](https://github.com/alseif0x/rustycore/issues/45).
+Use the [master index](https://github.com/alseif0x/rustycore/issues/49) for the remaining dependencies.
+
+Subsequent merges cover character enumeration customizations and initial equipment (#1488, #1489),
+quest-giver replies and the accept dialogue (#1491, #1493), inspect serialization (#1496) and
+auction packet layouts and house selection (#1494). The [inspect](../audits/inspect-result-54261.md)
+and [auction](../audits/auction-packets-54261.md) audits record the client build and limits of
+those results. Auction transactions, the full quest lifecycle and real-client creature acceptance
+have separate open issues (#39, #41, #1342).
+
 ## #54 closure execution plan — 2026-10-31
 
 Branch `54-c-character2-complete-logout-admission-countdown-and-cancellation`;
@@ -13572,7 +13587,7 @@ whose parent import is lost by the analyzer. Physical terminal acceptance also f
 31 files exceed 2,000 lines, while migration ceilings still pass. These results do not
 reopen the integrated, closed #587/#588/#589 scoped gameplay deliveries.
 Implementation and acceptance of #716 are tracked in the
-[architecture plan](../architecture/modularity-and-ecs-plan.md#architecture-program-state--2026-09-11).
+[architecture plan](../architecture/modularity-and-ecs-plan.md#architecture-program-state--2026-09-14).
 **#716 is locally accepted**, with implementation commit
 `6ae62d73a9f910ebd664d82e331520b836a73c77`: 363 analyzer library tests, syntax-only
 ownership, architecture check/self-test and validation-v2 quick pass. The 65 earlier

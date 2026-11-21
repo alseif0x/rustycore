@@ -9,14 +9,14 @@ checkbox or an old percentage is not proof that the current server implements th
 | --- | --- |
 | What is implemented, integrated or still unproven? | [STATE.md](migration/STATE.md), its dated evidence boundaries and the active issue/checkpoint |
 | What do we execute next? | [PORT_PLAN.md](migration/PORT_PLAN.md) and [GitHub #49](https://github.com/alseif0x/rustycore/issues/49) |
-| How do Opus and DeepSeek split the work? | [orchestrate-rustycore](../.agents/skills/orchestrate-rustycore/SKILL.md) |
-| What remains in the current architecture delivery? | [Architecture program state](architecture/modularity-and-ecs-plan.md#architecture-program-state--2026-09-11) |
-| How should Claude continue the complete refactor? | [Refactor completion plan](architecture/refactor-completion-plan.md) |
+| How are implementation, review and integration assigned in my runtime? | [orchestrate-rustycore](../.agents/skills/orchestrate-rustycore/SKILL.md) |
+| What remains in the current architecture delivery? | [Architecture program state](architecture/modularity-and-ecs-plan.md#architecture-program-state--2026-09-14) |
+| Which technical contracts govern the refactor? | [Refactor completion plan](architecture/refactor-completion-plan.md) |
 | What must a quest reward make durable, and when? | [Quest reward operation contract](architecture/quest-reward-operation-contract.md) |
 | What architecture and extension direction is approved? | [Modularity/ECS plan](architecture/modularity-and-ecs-plan.md) |
 | How should responsibilities and files be organized? | [Module design](architecture/module-design-guidelines.md) and [dependency/ownership boundaries](architecture/ownership-and-boundaries.md) |
 | Which oversized files still owe a #584:C4 split? | [C4 physical split plan](architecture/c4-physical-split-plan.md) |
-| Which `wow-world` unit tests could move to a domain crate? | [wow-world test census](architecture/wow-world-test-census.md) (#1442) |
+| Which `wow-world` unit tests could move to a domain crate? | [wow-world test census](architecture/wow-world-test-census.md) (published in #1469, moves tracked in #1441) |
 | What reported defects need current verification? | [EXISTING-CODE-DEFECTS.md](migration/EXISTING-CODE-DEFECTS.md) |
 
 Base-server behavior is established by versioned C++ references and appropriate target-build
@@ -92,8 +92,8 @@ or required session preflight. Only verified C++/capture evidence can approve pr
   short redirect when existing links or tools still need the old path.
 - Recheck inbound links before moving/removing a document. Generated inventories retain their
   schemas and provenance; never rewrite implementation evidence to simulate completion.
-- The two project skills route to these maintained rules. They describe how to reason/refactor,
-  not a fixed technology map, stale issue sequence or new approval process.
+- The project skills cover development, architecture, refactoring and orchestration. Update
+  the owning skill when the workflow changes.
 
 The September 2026 cleanup audits documentation coherence and instruction routing; it does
 not re-prove every gameplay claim or every row of the historical migration inventory.
