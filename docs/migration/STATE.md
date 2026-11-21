@@ -49,10 +49,33 @@ is `target/qa/issue45-restart/icc-expiry-leave-r6.txt` (SHA-256
 `44d288458c6c149a0fcc5146147ee36486b0213cc0069ecf3c8212ec8947e3fa`).
 The local component suites at `cbf831f0f` passed 5,933 tests with three
 ignored. The initial compile exceeded the ten-minute local target.
-The remaining acceptance covers difficulty across restart, its recovered
-party and disband, and the integrated candidate's final, architecture and
-exhaustive persistence checks. A separate open-world login
-`WorldServerInfo` difficulty-field difference is recorded at `7eb4fccca`.
+A separate open-world login `WorldServerInfo` difficulty-field difference
+is recorded at `7eb4fccca`.
+
+### Difficulty change and party recovery after restart
+
+On November 21 the same Rust and C++ binaries each passed two difficulty
+epochs on aarch64. Changing to difficulty 2 kept the occupant inside.
+The raw change request and both difficulty replies matched in order,
+body and connection. Each server restarted, loaded the group from MariaDB
+and admitted both characters to the same instance. Each character's
+first realm `PartyUpdate` matched the native 89-byte body, including the
+leader, both members, the recipient index, the online and offline slots,
+the update sequence and the difficulty settings. The native layout and
+roster are defined in `PartyPackets.cpp:446-530` and
+`Group.cpp:836-909`. Both servers accepted the subsequent one-byte
+leave request, removed the group rows and restored the fixture.
+
+The Rust and native reports are in
+`/tmp/rustycore45-difficulty-{rust,cpp}-0362df4e3/` (SHA-256
+`0c5a64abe32de80e1def1653d8a7336fcfc792ee9fb7e1714ba77831377b2726`
+and `543d4374ebc24e53441e88d907d49c834252e93ced0644418c2fcb1a4b800cfe`
+respectively). From fixture preparation to final report, Rust took
+12m52s and C++ took 6m58s. The paired result is
+`target/qa/issue45-restart/difficulty-comparison.json`. The strict
+change and leave windows had zero missing, extra, body or route
+differences. The integrated branch's final, architecture and exhaustive
+persistence checks remain outstanding.
 
 ## Earlier evidence
 
