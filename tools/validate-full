@@ -22,6 +22,8 @@ FULL_TOOLS = {"tools/validate-full", "tools/ci/full_policy.py", "tools/ci/full_s
               "tools/ci/test_validate_full.py", "tools/ci/test_full_policy.py"}
 WORKSPACE_SOURCES = ("crates/", "tools/xtask/")
 SQL_CHECKER = "tools/modules/check_sql_compositor.py"
+CAPTURE_FLOWS = Path("crates/capture-diff/flows")
+AUDITED_FLOWS = {"loot-single-item-claim", "creature-spell-casting"}
 
 
 def output(*argv):
@@ -39,6 +41,11 @@ def switches(packages):
 
 def global_build(files):
     return bool(files & GLOBAL_BUILD) or any(p.startswith((".cargo/", "proto/")) for p in files)
+
+
+def capture_contract(name):
+    return (f"Capture contract {name}", ["cargo", "run", "--locked", "-p", "capture-diff",
+                                         "--", "verify-required", name])
 
 
 def rust_commands(files):
@@ -112,6 +119,17 @@ def build_plan(files, base, head):
                                                                "--manifest-path", manifest]))
             commands.append((f"Production build of {directory.name}", ["cargo", "check", "--locked", "--manifest-path", manifest]))
     commands.extend(rust_commands(files))
+    flows = set()
+    for path in map(Path, files):
+        if path.is_relative_to(CAPTURE_FLOWS):
+            relative = path.relative_to(CAPTURE_FLOWS)
+            if len(relative.parts) < 2 or not (CAPTURE_FLOWS / relative.parts[0] / "requirement.json").is_file():
+                unsupported.add(str(path))
+            else:
+                flows.add(relative.parts[0])
+        elif path.is_relative_to(CAPTURE_FLOWS.parent) and path.suffix in {".rs", ".toml"}:
+            flows.update(AUDITED_FLOWS)
+    commands.extend(capture_contract(name) for name in sorted(flows))
     registry = "tools/architecture/world-handler-contract.tsv"
     if registry in files and not any(argv[:2] == ["cargo", "test"] and "world-server" in argv for _, argv in commands):
         commands.append(("Production handler registry", ["cargo", "test", "--locked", "-p", "world-server",
@@ -123,7 +141,9 @@ def build_plan(files, base, head):
         commands.append(("Composed SQL launcher", [sys.executable, SQL_CHECKER,
                                                    "--jobs", os.environ.get("CARGO_BUILD_JOBS", "1")]))
     for path in files:
-        if (path in GLOBAL_BUILD | MODULE_INPUTS or path.endswith(".md")
+        standalone_doc = (path.startswith(("docs/operations/", "docs/audits/"))
+                          or path == "docs/architecture/ownership-and-boundaries.md")
+        if (path in GLOBAL_BUILD | MODULE_INPUTS or (standalone_doc and path.endswith(".md") and path in existing)
                 or path in workflows
                 or path.startswith(WORKSPACE_SOURCES + (".cargo/", "proto/", "tools/architecture/", "tools/wow-test-bot/", "tools/modules/"))):
             continue
@@ -153,13 +173,12 @@ def workspace_plan(base, head, part):
             ("Bot formatting", ["cargo", "fmt", "--check", "--manifest-path", bot]),
             ("Workspace test targets", ["cargo", "test", "--locked", "--workspace", "--all-targets",
                                        "--exclude", "world-modules", "--no-fail-fast"]),
+            ("Fetch locked inputs for the offline SQL compositor", ["cargo", "fetch", "--locked"]),
             ("Composed SQL launcher", [sys.executable, SQL_CHECKER, "--jobs", jobs]),
             ("World modules launcher", ["cargo", "check", "--locked", "-p", "world-modules"]),
             ("Bot suite", ["cargo", "test", "--locked", "--manifest-path", bot, "--no-fail-fast"]),
         ])
-        for contract in ("loot-single-item-claim", "creature-spell-casting"):
-            checks.append((f"Capture contract {contract}", ["cargo", "run", "--locked", "-p", "capture-diff",
-                                                           "--", "verify-required", contract]))
+        checks.extend(capture_contract(name) for name in sorted(AUDITED_FLOWS))
     if part in ("policy", "all"):
         checks.extend([
             ("Native checker formatting", ["cargo", "fmt", "--check", "--manifest-path", checker]),
@@ -195,7 +214,7 @@ def hold_lock(path):
 def build_part(argv):
     if argv[:2] == ["cargo", "test"]:
         return "tests"
-    if argv[1:2] == [SQL_CHECKER]:
+    if argv[1:2] == [SQL_CHECKER] or argv[:2] == ["cargo", "fetch"]:
         return "compositor"
     return "production"
 
