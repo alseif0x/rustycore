@@ -133,10 +133,16 @@ class FullValidationTests(unittest.TestCase):
                         "verify-required creature-spell-casting", "--bin handler-contract-check",
                         "--bin session-ownership-check -- check"):
             self.assertIn(command, all_checks)
-        inventory = self.run_cmd(*args, "--workspace", "--part", "inventory")
+        parts = {part: self.run_cmd(*args, "--workspace", "--part", part)
+                 for part in ("tests", "production", "compositor", "policy", "inventory")}
+        self.assertCountEqual(
+            (step for output in parts.values() for step in output.splitlines()[1:]),
+            all_checks.splitlines()[1:],
+        )
+        inventory = parts["inventory"]
         self.assertIn("Full persistence inventory", inventory)
         self.assertNotIn("Workspace test targets", inventory)
-        compositor = self.run_cmd(*args, "--workspace", "--part", "compositor")
+        compositor = parts["compositor"]
         self.assertLess(compositor.index("cargo fetch --locked"), compositor.index("check_sql_compositor.py"))
         self.assertIn("requires --workspace", self.run_cmd(*args, "--part", "inventory", expected=2))
 

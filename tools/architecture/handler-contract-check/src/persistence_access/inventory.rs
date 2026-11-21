@@ -53,8 +53,6 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
     for _ in 0..=ordered.len() {
         let mut next = named_type_registries.clone();
-        let mut workspace_cache = workspace_named_type_info_cache(&next, dependencies);
-        let mut package_cache = package_named_type_info_cache(&next);
         let mut package_start = 0;
         while package_start < ordered.len() {
             let package = ordered[package_start].package;
@@ -62,6 +60,14 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 .iter()
                 .position(|source| source.package != package)
                 .map_or(ordered.len(), |offset| package_start + offset);
+            // Sources for a package are contiguous. Build the same views the
+            // former refreshed global caches exposed at this point in the
+            // package order, then share them across this package's sources.
+            // Later packages see earlier providers' updates; the current
+            // package still uses one stable local/workspace view throughout
+            // its block, including when the dependency graph contains cycles.
+            let (package_named_type_info, package_workspace_named_type_info) =
+                package_named_type_info_snapshot(&next, dependencies, package);
             for source in &ordered[package_start..package_end] {
                 let Ok(syntax) = syn::parse_file(source.source) else {
                     continue;
@@ -76,14 +82,14 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                     }
                     let key = (source.package.to_owned(), source_class);
                     let mut base = ModuleSymbols::for_package(source.package);
-                    base.named_type_info = package_cache
-                        .get(&key)
-                        .cloned()
-                        .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
-                    base.workspace_named_type_info = workspace_cache
-                        .get(&key)
-                        .cloned()
-                        .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+                    base.named_type_info = package_named_type_info
+                        .get(&source_class)
+                        .expect("package local named types were initialized")
+                        .clone();
+                    base.workspace_named_type_info = package_workspace_named_type_info
+                        .get(&source_class)
+                        .expect("package workspace named types were initialized")
+                        .clone();
                     base.dependency_crate_aliases = dependency_aliases
                         .get(&key)
                         .cloned()
@@ -102,13 +108,6 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 }
             }
             package_start = package_end;
-            refresh_named_type_caches(
-                &next,
-                dependencies,
-                package,
-                &mut workspace_cache,
-                &mut package_cache,
-            );
         }
         let converged = next == named_type_registries;
         named_type_registries = next;

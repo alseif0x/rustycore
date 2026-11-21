@@ -40,6 +40,64 @@ fn persistence_inventory_resolves_named_type_fields_across_packages() {
 }
 
 #[test]
+fn persistence_inventory_propagates_workspace_named_types_in_dependency_order() {
+    let provider = ClassifiedPersistenceSource {
+        classification: "database_adapter_core",
+        package: "provider-a",
+        module: "crate",
+        source_path: "src/lib.rs",
+        inherited_cfg: &[],
+        source: "pub struct Inner(pub wow_database::CharacterDatabase);",
+    };
+    let facade = ClassifiedPersistenceSource {
+        classification: "database_adapter_core",
+        package: "facade-b",
+        module: "crate",
+        source_path: "src/lib.rs",
+        inherited_cfg: &[],
+        source: "pub struct Holder(pub provider_alias::Inner);",
+    };
+    let consumer = ClassifiedPersistenceSource {
+        classification: "database_adapter_core",
+        package: "consumer-c",
+        module: "crate",
+        source_path: "src/lib.rs",
+        inherited_cfg: &[],
+        source: r#"
+            fn persistent(holder: facade_alias::Holder) {
+                consume(holder.0.0.pool());
+            }
+        "#,
+    };
+    let dependencies = WorkspaceDependencyAliases {
+        production: BTreeMap::from([
+            (
+                "facade-b".to_owned(),
+                BTreeMap::from([("provider_alias".to_owned(), "provider_a".to_owned())]),
+            ),
+            (
+                "consumer-c".to_owned(),
+                BTreeMap::from([("facade_alias".to_owned(), "facade_b".to_owned())]),
+            ),
+        ]),
+        test: BTreeMap::new(),
+    };
+
+    // Deliberately reverse dependency order: the inventory must analyze the
+    // provider before the facade and the facade before its consumer.
+    let baseline = inventory_persistence_accesses_with_dependencies(
+        &[consumer, facade, provider],
+        &dependencies,
+    )
+    .expect("workspace named-type flow reaches later dependency packages");
+    assert!(baseline.accesses.iter().any(|row| {
+        row.enclosing == "fn persistent"
+            && row.target == PersistenceTarget::CharacterDatabase
+            && row.operation == PersistenceOperation::PoolAccess
+    }));
+}
+
+#[test]
 fn persistence_inventory_does_not_resolve_unrelated_workspace_named_types() {
     let provider = ClassifiedPersistenceSource {
         classification: "database_adapter_core",

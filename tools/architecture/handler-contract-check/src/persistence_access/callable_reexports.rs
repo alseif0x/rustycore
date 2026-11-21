@@ -261,8 +261,8 @@ pub(super) fn resolve_public_callable_reexports(
     >,
 ) {
     let pass_limit = reexports.values().map(Vec::len).sum::<usize>() + 1;
+    let empty_named_types = BTreeMap::new();
     for _ in 0..pass_limit {
-        let before = function_registries.clone();
         let function_snapshot = function_registries.clone();
         let generic_snapshot = generic_registries.clone();
         let generic_input_snapshot = generic_input_registries.clone();
@@ -316,6 +316,9 @@ pub(super) fn resolve_public_callable_reexports(
                 let Some(provider_registry) = function_snapshot.get(&provider_key) else {
                     continue;
                 };
+                let provider_named_types = named_type_registries
+                    .get(&provider_key)
+                    .unwrap_or(&empty_named_types);
                 let entries = if glob {
                     let prefix = (!provider_entry.is_empty())
                         .then(|| format!("{provider_entry}::"))
@@ -358,11 +361,7 @@ pub(super) fn resolve_public_callable_reexports(
                 };
                 for (exported, source_entry, source_info) in entries {
                     let info = if let Some(provider_root) = provider_root {
-                        let named = named_type_registries
-                            .get(&provider_key)
-                            .cloned()
-                            .unwrap_or_default();
-                        qualify_dependency_info(provider_root, &named, &source_info)
+                        qualify_dependency_info(provider_root, provider_named_types, &source_info)
                     } else {
                         source_info
                     };
@@ -395,7 +394,7 @@ pub(super) fn resolve_public_callable_reexports(
                 }
             }
         }
-        if function_registries == &before {
+        if function_registries == &function_snapshot {
             break;
         }
     }

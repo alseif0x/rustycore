@@ -110,56 +110,52 @@ pub(super) fn package_named_type_info_cache(
         .collect()
 }
 
-/// Refresh only the cache entries a finished package can have changed.
+/// Snapshot only the named-type views read while analyzing one package block.
 ///
-/// Both caches are pure functions of the registry, and analyzing one package
-/// rewrites only that package's own entries. Rebuilding them from scratch once
-/// per package re-cloned and re-merged the entire registry O(packages) times
-/// per fixpoint iteration; the merged workspace view additionally has to be
-/// rebuilt only for consumers that can actually see the changed provider.
-pub(super) fn refresh_named_type_caches(
+/// The caller invokes this after earlier package blocks have updated the
+/// fixed-point registries, preserving package order without refreshing every
+/// consumer after each provider.
+pub(super) fn package_named_type_info_snapshot(
     registries: &BTreeMap<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>,
     dependencies: &WorkspaceDependencyAliases,
-    changed_package: &str,
-    workspace_cache: &mut BTreeMap<
-        (String, PersistenceSourceClass),
-        std::sync::Arc<BTreeMap<String, VariableInfo>>,
-    >,
-    package_cache: &mut BTreeMap<
-        (String, PersistenceSourceClass),
-        std::sync::Arc<BTreeMap<String, VariableInfo>>,
-    >,
+    package: &str,
+) -> (
+    BTreeMap<PersistenceSourceClass, std::sync::Arc<BTreeMap<String, VariableInfo>>>,
+    BTreeMap<PersistenceSourceClass, std::sync::Arc<BTreeMap<String, VariableInfo>>>,
 ) {
+    let mut package_named_type_info = BTreeMap::new();
+    let mut package_workspace_named_type_info = BTreeMap::new();
     for source_class in [
         PersistenceSourceClass::Production,
         PersistenceSourceClass::TestFixture,
     ] {
-        let key = (changed_package.to_owned(), source_class);
-        match registries.get(&key) {
-            Some(info) => {
-                package_cache.insert(key, std::sync::Arc::new(info.clone()));
-            }
-            None => {
-                package_cache.remove(&key);
-            }
-        }
+        let aliases = match source_class {
+            PersistenceSourceClass::Production => dependencies.production.get(package),
+            PersistenceSourceClass::TestFixture => dependencies.test.get(package),
+        };
+        let provider_roots = aliases
+            .into_iter()
+            .flat_map(|aliases| aliases.values().cloned())
+            .collect::<BTreeSet<_>>();
+        package_workspace_named_type_info.insert(
+            source_class,
+            std::sync::Arc::new(if provider_roots.is_empty() {
+                BTreeMap::new()
+            } else {
+                workspace_named_type_info(registries, source_class, &provider_roots)
+            }),
+        );
+        package_named_type_info.insert(
+            source_class,
+            std::sync::Arc::new(
+                registries
+                    .get(&(package.to_owned(), source_class))
+                    .cloned()
+                    .unwrap_or_default(),
+            ),
+        );
     }
-    let changed_crate = changed_package.replace('-', "_");
-    for (aliases_by_package, source_class) in [
-        (&dependencies.production, PersistenceSourceClass::Production),
-        (&dependencies.test, PersistenceSourceClass::TestFixture),
-    ] {
-        for (consumer, aliases) in aliases_by_package {
-            let roots = aliases.values().cloned().collect::<BTreeSet<_>>();
-            if !roots.contains(&changed_crate) {
-                continue;
-            }
-            workspace_cache.insert(
-                (consumer.clone(), source_class),
-                std::sync::Arc::new(workspace_named_type_info(registries, source_class, &roots)),
-            );
-        }
-    }
+    (package_named_type_info, package_workspace_named_type_info)
 }
 
 pub(super) fn dependency_alias_cache(
@@ -331,8 +327,8 @@ pub(super) fn resolve_public_named_type_reexports(
     public_paths: &mut BTreeMap<(String, PersistenceSourceClass), BTreeSet<String>>,
 ) {
     let pass_limit = reexports.values().map(Vec::len).sum::<usize>() + 1;
+    let empty_public_paths = BTreeSet::new();
     for _ in 0..pass_limit {
-        let before = registries.clone();
         let snapshot = registries.clone();
         let public_snapshot = public_paths.clone();
         for (consumer_key, aliases) in reexports {
@@ -383,8 +379,7 @@ pub(super) fn resolve_public_named_type_reexports(
                 };
                 let provider_public = public_snapshot
                     .get(&provider_key)
-                    .cloned()
-                    .unwrap_or_default();
+                    .unwrap_or(&empty_public_paths);
                 let entries = if glob {
                     let prefix = (!provider_entry.is_empty())
                         .then(|| format!("{provider_entry}::"))
@@ -447,7 +442,7 @@ pub(super) fn resolve_public_named_type_reexports(
                 }
             }
         }
-        if registries == &before {
+        if registries == &snapshot {
             break;
         }
     }
@@ -460,7 +455,6 @@ pub(super) fn resolve_public_macro_reexports(
 ) {
     let pass_limit = reexports.values().map(Vec::len).sum::<usize>() + 1;
     for _ in 0..pass_limit {
-        let before = registries.clone();
         let snapshot = registries.clone();
         for (consumer_key, aliases) in reexports {
             let (consumer, source_class) = (&consumer_key.0, consumer_key.1);
@@ -556,7 +550,7 @@ pub(super) fn resolve_public_macro_reexports(
                 }
             }
         }
-        if registries == &before {
+        if registries == &snapshot {
             break;
         }
     }
@@ -580,8 +574,8 @@ pub(super) fn resolve_public_trait_reexports(
     registries: &mut BTreeMap<(String, PersistenceSourceClass), TraitSignatureRegistry>,
 ) {
     let pass_limit = reexports.values().map(Vec::len).sum::<usize>() + 1;
+    let empty_named_types = BTreeMap::new();
     for _ in 0..pass_limit {
-        let before = registries.clone();
         let snapshot = registries.clone();
         for (consumer_key, aliases) in reexports {
             let (consumer, source_class) = (&consumer_key.0, consumer_key.1);
@@ -629,6 +623,9 @@ pub(super) fn resolve_public_trait_reexports(
                 let Some(provider) = snapshot.get(&provider_key) else {
                     continue;
                 };
+                let provider_named_types = named_type_registries
+                    .get(&provider_key)
+                    .unwrap_or(&empty_named_types);
                 let mut provider_traits = provider
                     .0
                     .keys()
@@ -675,11 +672,7 @@ pub(super) fn resolve_public_trait_reexports(
                                 continue;
                             }
                             let info = if let Some(provider_root) = provider_root {
-                                let named = named_type_registries
-                                    .get(&provider_key)
-                                    .cloned()
-                                    .unwrap_or_default();
-                                qualify_dependency_info(provider_root, &named, info)
+                                qualify_dependency_info(provider_root, provider_named_types, info)
                             } else {
                                 info.clone()
                             };
@@ -715,7 +708,7 @@ pub(super) fn resolve_public_trait_reexports(
                 }
             }
         }
-        if registries == &before {
+        if registries == &snapshot {
             break;
         }
     }
@@ -807,6 +800,7 @@ where
     QualifyKey: Fn(&str, &K) -> K,
     QualifyValue: Fn(&str, &BTreeMap<String, VariableInfo>, &V) -> V,
 {
+    let empty_named_types = BTreeMap::new();
     let mut consumers = registries.keys().cloned().collect::<BTreeSet<_>>();
     consumers.extend(
         dependencies
@@ -847,13 +841,12 @@ where
                 let provider_key = (provider.clone(), source_class);
                 let provider_named_types = named_type_registries
                     .get(&provider_key)
-                    .cloned()
-                    .unwrap_or_default();
+                    .unwrap_or(&empty_named_types);
                 if let Some(entries) = registries.get(&provider_key) {
                     for (entry_key, value) in entries {
                         scoped.insert(
                             qualify_key(provider_root, entry_key),
-                            qualify_value(provider_root, &provider_named_types, value),
+                            qualify_value(provider_root, provider_named_types, value),
                         );
                     }
                 }
