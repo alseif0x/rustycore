@@ -874,7 +874,7 @@ def instance_row(instance_id: int = 42) -> str:
 
 def calendar_event(instance_id: int = 42, sequence: int = 40) -> dict:
     # 2026-01-02, Friday, 12:34 in the packed WoW calendar timestamp.
-    packed_time = (26 << 24) | (1 << 14) | (5 << 11) | (12 << 6) | 34
+    packed_time = (3 << 29) | (26 << 24) | (1 << 14) | (5 << 11) | (12 << 6) | 34
     body = struct.pack("<QIiIi", instance_id, packed_time, scenario.LOCK_MAP,
                        scenario.LOCK_DIFFICULTY, 30 * 24 * 60 * 60)
     return group_event("realm", scenario.SMSG_CALENDAR_RAID_LOCKOUT_ADDED,
@@ -927,6 +927,8 @@ class LockPlanAndWireTests(unittest.TestCase):
         scenario.validate_lock_response_evidence(lock_bind_evidence(accept=False), accept=False)
 
         accepted = scenario.member_lock_plan(member, True)
+        self.assertEqual([rule["opcode"] for rule in accepted["expect"]],
+                         [scenario.SMSG_INSTANCE_SAVE_CREATED])
         self.assertEqual([action.get("opcode") for action in accepted["actions"][2:]],
                          [scenario.SMSG_INSTANCE_SAVE_CREATED,
                           scenario.SMSG_CALENDAR_RAID_LOCKOUT_ADDED])

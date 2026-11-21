@@ -1029,15 +1029,13 @@ def member_lock_plan(member: dict[str, Any], accept: bool) -> dict[str, Any]:
         death_scenario._wait("realm", SMSG_PENDING_RAID_LOCK, 30_000),
         {"action": "instance_lock_response", "accept": accept},
     ]
-    expectations = [
-        death_scenario._packet("realm", LOGOUT_COMPLETE),
-    ]
     if accept:
         actions.append(death_scenario._wait("realm", SMSG_INSTANCE_SAVE_CREATED, 10_000))
         actions.append(death_scenario._wait("realm", SMSG_CALENDAR_RAID_LOCKOUT_ADDED, 10_000))
-        expectations.append(death_scenario._packet("realm", SMSG_INSTANCE_SAVE_CREATED, b"\x00"))
+        expectations = [death_scenario._packet("realm", SMSG_INSTANCE_SAVE_CREATED, b"\x00")]
     else:
         actions.append({"action": "wait", "milliseconds": 1_000})
+        expectations = [death_scenario._packet("realm", LOGOUT_COMPLETE)]
     return {
         "character_guid": int(member["guid"]), "timeout_ms": 70_000,
         "actions": actions, "expect": expectations,
@@ -1119,8 +1117,9 @@ def validate_calendar_lockout_added(evidence: dict[str, Any], save_event: dict[s
     flags = (packed_time >> 29) & 0x03
     if (map_id != LOCK_MAP or difficulty_id != LOCK_DIFFICULTY or remaining <= 0
             or (expected_instance_id is not None and instance_id != expected_instance_id)
+            or packed_time & (1 << 31)
             or not (year < 31 and month < 12 and month_day < 31 and week_day < 7
-                    and hour < 24 and minute < 60 and flags < 3)):
+                    and hour < 24 and minute < 60)):
         raise ScenarioFailure("calendar raid-lockout identity, remaining time, or packed time is invalid")
     return {"connection": "realm", "sequence": _sequence(events[0]),
             "instance_id": instance_id, "map_id": map_id,
