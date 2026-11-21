@@ -219,7 +219,12 @@ composition inputs also exercise the generated SQL launcher. A change to
 the module list alone fetches the locked dependencies before the offline
 compositor starts on its own runner. The policy
 checks exercise the architecture fixtures, session ownership and reviewed
-persistence data. Supported local-binding fingerprint changes are checked
+persistence data. Rust source and module-graph changes also run the native
+handler contract. It examines registrations in the source, including
+configuration-dependent registrations that the debug tests can miss.
+On the auction checkout, gating the battle-pet journal opcode with
+`#[cfg(debug_assertions)]` made the source guard fail in 50.179 s.
+Supported local-binding fingerprint changes are checked
 against both Git revisions. Changes to the persistence scanner, semantic
 policy or an unsupported snapshot shape require the native full inventory.
 The independent global audit and any required live evidence have their own
@@ -289,6 +294,17 @@ missing offline SQL dependency on an isolated runner. Fetching the locked
 dependencies before SQL composition fixes fresh runners.
 [Previous integration audit](https://github.com/alseif0x/rustycore/actions/runs/44831037358)
 · [Independent global audit](https://github.com/alseif0x/rustycore/actions/runs/44848959133)
+
+With every independent production binary included, the global audit passed
+in **12 min 26 s** and used 30 min 38 s of aggregate runner time. All five
+reports contain the same auction commit. The production report records
+`cargo check --locked --workspace`, and the inventory report records the
+fresh native check. [Complete production coverage](https://github.com/alseif0x/rustycore/actions/runs/44851618587)
+
+An isolated aarch64 experiment cached parsed syntax trees inside one
+invocation of the native inventory checker. It passed the same inventory
+with 44,916 cache hits out of 52,947 parses and took 1,066.399 s. The
+baseline took 1,060.396 s. The published validator uses the normal parser.
 
 ## First delivery and measured changes
 

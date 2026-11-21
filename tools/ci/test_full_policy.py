@@ -43,6 +43,34 @@ class FullPolicyTests(unittest.TestCase):
                 self.assertIn("wow-world test census and ceiling", names)
                 self.assertIn("Architecture, physical policy, and fixtures", names)
 
+    def test_handler_contract_check_tracks_registry_policy_and_module_inputs(self):
+        relevant = (
+            "crates/wow-world-inventory/src/handlers/auction.rs",
+            "crates/wow-world-inventory/src/lib.rs",
+            "crates/wow-world-inventory/Cargo.toml",
+            "crates/world-server/src/handler_registry.rs",
+            "crates/wow-core/src/unexpected_handler.rs",
+            "tools/architecture/world-handler-contract.tsv",
+            "tools/architecture/handler-module-policy.json",
+            "tools/architecture/handler-contract-check/src/lib.rs",
+        )
+        for path in relevant:
+            with self.subTest(path=path):
+                checks, _ = full_policy.select_checks([path], "base-sha", Path.cwd())
+                handler = [command for name, command, _ in checks
+                           if name == "Handler registration and composition contract"]
+                self.assertEqual(handler, [full_policy.checker("check", binary="handler-contract-check")])
+                self.assertTrue(any(name == "Session ownership syntax and persistence inventory"
+                                    for name, _, _ in checks))
+
+        checks, _ = full_policy.select_checks(
+            ["tools/architecture/session-ownership-policy.json"], "base-sha", Path.cwd()
+        )
+        self.assertFalse(any(name == "Handler registration and composition contract"
+                             for name, _, _ in checks))
+        self.assertTrue(any(name == "Session ownership syntax and persistence inventory"
+                            for name, _, _ in checks))
+
     def test_owned_architecture_document_triggers_the_fixed_lane(self):
         checks, unsupported = full_policy.select_checks(
             [full_policy.ARCHITECTURE_DOC], "base-sha", Path.cwd()

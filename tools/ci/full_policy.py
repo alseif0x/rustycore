@@ -18,6 +18,8 @@ SESSION_POLICY = "tools/architecture/session-ownership-policy.json"
 POLICY_FILES = {SNAPSHOT, PERSISTENCE_POLICY, WORKFLOWS, SESSION_POLICY}
 CHECKER = "tools/architecture/handler-contract-check/Cargo.toml"
 CHECKER_SOURCE = "tools/architecture/handler-contract-check/"
+HANDLER_CONTRACT = "tools/architecture/world-handler-contract.tsv"
+HANDLER_MODULE_POLICY = "tools/architecture/handler-module-policy.json"
 ARCHITECTURE = "tools/architecture/"
 ARCHITECTURE_DOC = "docs/architecture/ownership-and-boundaries.md"
 WORLD = "crates/wow-world"
@@ -48,9 +50,9 @@ def py(*args: str | Path) -> list[str]:
     return [sys.executable, *(str(arg) for arg in args)]
 
 
-def checker(*args: str) -> list[str]:
+def checker(*args: str, binary: str = "session-ownership-check") -> list[str]:
     return ["cargo", "run", "--release", "--locked", "--manifest-path", CHECKER,
-            "--target-dir", "target/arch-tools", "--bin", "session-ownership-check", "--", *args]
+            "--target-dir", "target/arch-tools", "--bin", binary, "--", *args]
 
 
 def changed_paths(base: str) -> list[str]:
@@ -69,6 +71,16 @@ def policy_lane(paths: set[str]) -> bool:
         or path.startswith(CHECKER_SOURCE)
         or path == ARCHITECTURE_DOC
         or (path.startswith(ARCHITECTURE) and Path(path).suffix != ".md")
+        for path in paths
+    )
+
+
+def handler_contract_lane(paths: set[str]) -> bool:
+    # The native guard also rejects registrations outside the declared owners.
+    return bool(paths & {HANDLER_CONTRACT, HANDLER_MODULE_POLICY, "Cargo.toml", "Cargo.lock"}) or any(
+        path.startswith(CHECKER_SOURCE)
+        or (path.startswith(("crates/", "tools/xtask/"))
+            and (path.endswith(".rs") or Path(path).name in {"Cargo.toml", "Cargo.lock"}))
         for path in paths
     )
 
@@ -107,7 +119,8 @@ def select_checks(paths: set[str] | list[str], base: str, root: Path | None = No
     values = set(paths)
     root = root or Path.cwd()
     unsupported = sorted(path for path in values if path.startswith(UNSUPPORTED))
-    if not policy_lane(values):
+    handler_contract_changed = handler_contract_lane(values)
+    if not policy_lane(values) and not handler_contract_changed:
         return [], unsupported
 
     checks: list[tuple[str, list[str], str]] = [
@@ -124,6 +137,10 @@ def select_checks(paths: set[str] | list[str], base: str, root: Path | None = No
         path, owner_path = ARCHITECTURE + tool, ARCHITECTURE + owner
         if path in values:
             checks.append((f"Tool self-test: {path}", py(owner_path, "self-test"), "command"))
+
+    if handler_contract_changed:
+        checks.append(("Handler registration and composition contract",
+                       checker("check", binary="handler-contract-check"), "command"))
 
     checker_changed = any(path.startswith(CHECKER_SOURCE) for path in values)
     persistence_rules_changed = bool(values & {PERSISTENCE_POLICY, WORKFLOWS})
