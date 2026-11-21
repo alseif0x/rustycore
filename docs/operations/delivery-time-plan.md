@@ -247,6 +247,43 @@ two jobs. The build spent 258 s on test targets, 119 s on production and
 count after cache restoration allows the integration cache key to match.
 [Cold comparison](https://github.com/alseif0x/rustycore/actions/runs/44844996285)
 
+Subsequent runs checked the same auction tree with a hit on the same
+integration dependency cache. Times include the queue and setup. The
+reference time ends when its job completed. For the last two runs the
+independent time includes its aggregate verdict.
+
+| Hosted comparison on #1494 | Elapsed |
+| --- | ---: |
+| Existing full change validation | [9 min 08 s](https://github.com/alseif0x/rustycore/actions/runs/44845909587) |
+| Independent build and policy on two runners | [11 min 18 s](https://github.com/alseif0x/rustycore/actions/runs/44845909587) |
+| Tests parallel to production with SQL and policy | [5 min 44 s](https://github.com/alseif0x/rustycore/actions/runs/44846574051) |
+| Independent tests, production, SQL and policy | [4 min 14 s](https://github.com/alseif0x/rustycore/actions/runs/44847824091) |
+
+The four-runner result used 13 min 45 s of aggregate runner time including
+the verdict, compared with 9 min 04 s of active time for the reference job.
+Two preparatory runs failed on an unused tooling prerequisite and on missing
+repository history for policy provenance. The passing replay includes both
+fixes. These are individual measurements on hosted x86_64 machines.
+The four-minute result covers change acceptance. The repository-wide audit
+additionally rebuilds the entire persistence inventory.
+
+On the aarch64 development host, the independent serial workspace audit of
+the same tree passed in **34 min 40 s**. It used the existing target
+directory and three Cargo jobs. The broader workspace test configuration
+took 9 min 48 s, and the fresh persistence census alone took 17 min 40 s.
+This global measurement includes the native checker suite, bot, both pinned
+capture flows and the SQL launcher. Run it separately from editing feedback.
+
+On hosted x86_64 the previous integration audit of `316a7387c` took
+**22 min 13 s** from run creation to job completion. The independent global
+audit of the same tree passed in **11 min 58 s** through its aggregate
+verdict. Its five workers and verdict used 29 min 17 s of cumulative runner
+time. The exhaustive inventory finished last. An initial run exposed a
+missing offline SQL dependency on an isolated runner. Fetching the locked
+dependencies before SQL composition fixes fresh runners.
+[Previous integration audit](https://github.com/alseif0x/rustycore/actions/runs/44831037358)
+· [Independent global audit](https://github.com/alseif0x/rustycore/actions/runs/44848959133)
+
 ## First delivery and measured changes
 
 The first delivery changes the implementer's feedback loop, the order of compiler and architecture checks, and SQL composition routing. On aarch64, the focused test reproduced the original #1494 compiler error at `52ecf58d9` in 192.506 s (Cargo exit 101). The earlier full attempt ended after 412.460 s. These were different commands with different cache histories. In a separate negative check, removing the public `run_with_composition` export made Cargo reject the real generated SQL launcher. The checkout was restored after the experiment.

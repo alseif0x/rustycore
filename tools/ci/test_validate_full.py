@@ -53,6 +53,25 @@ class FullValidationTests(unittest.TestCase):
         self.run_cmd("git", "add", ".")
         self.run_cmd("git", "commit", "-qm", "candidate")
 
+    def scan_initializer(self, source, function="run_inner", name="session_resources"):
+        manifest = RUNNER.parent / "full-validation/Cargo.toml"
+        result = subprocess.run(
+            ["cargo", "run", "--quiet", "--locked", "--manifest-path", manifest,
+             "--", function, name],
+            cwd=self.root,
+            env=self.env,
+            input=source,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        fields = result.stdout.split("\0")
+        self.assertTrue(fields and fields[-1] == "", result.stdout)
+        fields.pop()
+        self.assertEqual(len(fields), 2, result.stdout)
+        return fields[0]
+
     def build(self, *args, expected=0):
         return self.run_cmd(RUNNER, "--base", self.base, "--part", "build", *args, expected=expected)
 
@@ -105,6 +124,8 @@ class FullValidationTests(unittest.TestCase):
         inventory = self.run_cmd(*args, "--workspace", "--part", "inventory")
         self.assertIn("Full persistence inventory", inventory)
         self.assertNotIn("Workspace test targets", inventory)
+        compositor = self.run_cmd(*args, "--workspace", "--part", "compositor")
+        self.assertLess(compositor.index("cargo fetch --locked"), compositor.index("check_sql_compositor.py"))
         self.assertIn("requires --workspace", self.run_cmd(*args, "--part", "inventory", expected=2))
 
     def test_hosted_partitions_cover_the_serial_commands_once(self):
@@ -147,6 +168,116 @@ class FullValidationTests(unittest.TestCase):
         write_rows("store=3", "store=3")
         self.commit()
         self.assertIn("fingerprint differs", self.run_cmd(sys.executable, checker, "--base", base, expected=1))
+
+    def test_config_bool_fields_project_out_but_preserve_sql_inputs(self):
+        checker = RUNNER.parent / "ci/full_snapshot.py"
+        path = "crates/world-server/src/app.rs"
+        self.write("crates/world-server/src/bootstrap/config.rs",
+                   "pub fn world_config_bool(_: &(), _: &str, default: bool) -> bool { default }\n")
+        snapshot = "tools/architecture/persistence-access-snapshot.json"
+        targets = ("LoginDatabase", "WorldDatabase", "CharacterDatabase", "HotfixDatabase")
+
+        def write_rows(fingerprint):
+            rows = [{"source": path, "enclosing": "fn run_inner", "symbol": "session_resources",
+                     "operation": "value_alias", "target": target, "fingerprint": fingerprint}
+                    for target in targets]
+            self.write(snapshot, json.dumps({"schema_version": 3, "accesses": rows}))
+
+        before = '''fn run_inner() {
+            let session_resources = SessionRuntimePolicyCapabilitiesLikeCpp {
+                persistence: world_db.execute("SELECT id FROM characters"),
+            };
+        }
+        '''
+        self.write(path, before)
+        write_rows(self.scan_initializer(before))
+        self.commit()
+        base = self.run_cmd("git", "rev-parse", "HEAD").strip()
+
+        after = '''fn run_inner() {
+            let session_resources = SessionRuntimePolicyCapabilitiesLikeCpp {
+                persistence: world_db.execute("SELECT id FROM characters"),
+                allow_two_side_interaction_auction: world_config_bool(
+                    &world_configs,
+                    "CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION",
+                    true,
+                ),
+                use_new_feature: world_config_bool(
+                    &world_configs,
+                    "CONFIG_UNRELATED_FEATURE",
+                    false,
+                ),
+            };
+        }
+        '''
+        self.write(path, after)
+        write_rows(self.scan_initializer(after))
+        self.commit()
+        self.assertIn("Verified 4", self.run_cmd(sys.executable, checker, "--base", base))
+
+    def test_matching_spelling_cannot_hide_a_stale_database_target(self):
+        checker = RUNNER.parent / "ci/full_snapshot.py"
+        path = "crates/world-server/src/app.rs"
+        snapshot = "tools/architecture/persistence-access-snapshot.json"
+
+        def write_row(fingerprint):
+            row = {"source": path, "enclosing": "fn run_inner", "symbol": "session_resources",
+                   "operation": "value_alias", "target": "WorldDatabase", "fingerprint": fingerprint}
+            self.write(snapshot, json.dumps({"schema_version": 3, "accesses": [row]}))
+
+        before = "fn run_inner() { let session_resources = SessionRuntimePolicyCapabilitiesLikeCpp { persistence: world_db, }; }\n"
+        self.write(path, before)
+        write_row(self.scan_initializer(before))
+        self.commit()
+        base = self.run_cmd("git", "rev-parse", "HEAD").strip()
+        after = "fn run_inner() { let session_resources = SessionRuntimePolicyCapabilitiesLikeCpp { persistence: hotfix_db, }; }\n"
+        self.write(path, after)
+        write_row(self.scan_initializer(after))
+        self.commit()
+        result = self.run_cmd(sys.executable, checker, "--base", base, expected=2)
+        self.assertIn("persistence producer or operand changed", result)
+
+    def test_sql_operand_change_requires_exhaustive_inventory(self):
+        checker = RUNNER.parent / "ci/full_snapshot.py"
+        path = "crates/world-server/src/app.rs"
+        snapshot = "tools/architecture/persistence-access-snapshot.json"
+
+        def write_row(fingerprint):
+            row = {"source": path, "enclosing": "fn run_inner", "symbol": "session_resources",
+                   "operation": "value_alias", "target": "WorldDatabase", "fingerprint": fingerprint}
+            self.write(snapshot, json.dumps({"schema_version": 3, "accesses": [row]}))
+
+        before = '''fn run_inner() {
+            let session_resources = SessionRuntimePolicyCapabilitiesLikeCpp {
+                persistence: world_db.execute("SELECT id FROM characters"),
+            };
+        }
+        '''
+        self.write(path, before)
+        write_row(self.scan_initializer(before))
+        self.commit()
+        base = self.run_cmd("git", "rev-parse", "HEAD").strip()
+        after = before.replace("SELECT id FROM characters", "DELETE FROM characters")
+        self.write(path, after)
+        write_row(self.scan_initializer(after))
+        self.commit()
+        result = self.run_cmd(sys.executable, checker, "--base", base, expected=2)
+        self.assertIn("persistence producer or operand changed", result)
+
+
+    def test_capture_artifacts_require_their_own_contract(self):
+        flow = "crates/capture-diff/flows/sample"
+        self.write(f"{flow}/sample.pkt", "fixture")
+        self.commit()
+        self.assertIn("Coverage required", self.build("--plan", expected=2))
+        self.write(f"{flow}/requirement.json", "{}")
+        self.commit()
+        self.assertIn("verify-required sample", self.build("--plan"))
+
+    def test_unclassified_markdown_cannot_get_a_links_only_verdict(self):
+        self.write("new-inputs/fixture.md", "build input\n")
+        self.commit()
+        self.assertIn("Coverage required", self.build("--plan", expected=2))
 
 
 if __name__ == "__main__":
