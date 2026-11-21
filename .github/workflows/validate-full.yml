@@ -34,7 +34,8 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: ${{ github.sha }}
-          fetch-depth: ${{ github.event_name == 'pull_request' && !inputs.base && 2 || 0 }}
+          # Architecture policies verify immutable commits in their provenance.
+          fetch-depth: 0
           persist-credentials: false
       - name: Resolve the candidate diff
         shell: bash
