@@ -192,6 +192,51 @@ census. The timings for the individual auction regression do not establish
 the five-minute target for accepting that whole PR. A cutover for shared
 changes needs that comparison including all four inputs.
 
+### Independent full validation
+
+Run `./tools/validate-full --base origin/3.4.3` on a committed candidate.
+Use `--report /tmp/full-result.json` to retain the commit pair, commands,
+exit codes and elapsed time. `--plan` prints the proposed work. An uncovered
+input exits with code 2. A build-only or policy-only report supplies partial
+evidence. The default command runs both in sequence on the development host.
+
+`./tools/validate-full --workspace --base HEAD` requests an independent
+audit of the entire workspace, including the full persistence inventory,
+native checker fixtures, both committed capture contracts, the SQL launcher
+and the standalone bot. It also works on a commit with no diff. The reusable
+Actions workflow runs the test targets, production configuration and policy
+on independent runners. With `whole_workspace: true` it also starts a
+dedicated inventory runner. One verdict requires every selected part to
+pass. Local execution uses one checkout and runs the checks in sequence.
+
+The build uses Cargo's resolved dependency graph to run the changed packages
+and their consumers together, including integration targets. A second check
+uses the production feature configuration. Changes to the launcher or its
+composition inputs also exercise the generated SQL launcher. The policy
+checks exercise the architecture fixtures, session ownership and reviewed
+persistence data. Supported local-binding fingerprint changes are checked
+against both Git revisions. Changes to the persistence scanner, semantic
+policy or an unsupported snapshot shape require the native full inventory.
+The independent global audit and any required live evidence have their own
+scope.
+
+On aarch64 the auction replay used tree `dec6207b8` from #1494, base
+`31841d891`, three Cargo jobs and the checkout's existing debug target.
+It passed 6,387 Rust tests across affected targets, with two ignored, plus
+the SQL compositor and policy checks. The first complete run following two
+deliberately broken candidates took **235.662 s**. Repeating the same tree
+with the built artifacts in place took **152.625 s**. The earlier local
+final took **239.985 s** under a different cache history. The full build
+detected the missing auction handler method in **13.550 s** and the
+four extra bytes in the inspect packet in **66.606 s**.
+
+On the same local checkout and commit `c5a74048e`, the existing final spent
+**735.734 s** checking the new standalone validator and its benchmark
+workflow. It routed the new standalone Rust parser to a workspace build.
+The independent validator ran its own regression suite and workflow checks
+on that candidate in **7.654 s**. The existing final exceeded the ten-minute
+warm publication budget on this change.
+
 ## First delivery and measured changes
 
 The first delivery changes the implementer's feedback loop, the order of compiler and architecture checks, and SQL composition routing. On aarch64, the focused test reproduced the original #1494 compiler error at `52ecf58d9` in 192.506 s (Cargo exit 101). The earlier full attempt ended after 412.460 s. These were different commands with different cache histories. In a separate negative check, removing the public `run_with_composition` export made Cargo reject the real generated SQL launcher. The checkout was restored after the experiment.

@@ -1,5 +1,6 @@
 """Exercise the full build checks using local Git and Cargo packages."""
 import json
+import fcntl
 import os
 from pathlib import Path
 import subprocess
@@ -80,10 +81,44 @@ class FullValidationTests(unittest.TestCase):
     def test_unknown_paths_are_not_accepted(self):
         self.write("new-format", "data\n")
         self.commit()
-        self.assertIn("new-format", self.build(expected=2))
+        report = self.root / "target/report.json"
+        self.assertIn("new-format", self.build("--report", report, expected=2))
+        self.assertEqual(json.loads(report.read_text())["uncovered"], ["new-format"])
         self.assertIn("Write the report outside", self.build("--report", "new-format", expected=1))
         self.write("new-format", "dirty\n")
-        self.assertIn("clean, committed checkout", self.build(expected=1))
+        self.assertIn("clean, committed checkout", self.build("--report", report, expected=1))
+        self.assertEqual(json.loads(report.read_text())["status"], "incomplete")
+
+    def test_concurrent_execution_refuses_the_same_checkout(self):
+        with (self.root / ".git/validate-full.lock").open("w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.assertIn("already running", self.build(expected=1))
+
+    def test_global_inventory_runs_even_on_an_unchanged_tree(self):
+        args = [RUNNER, "--base", "HEAD", "--plan"]
+        self.assertIn("Empty candidate diff", self.run_cmd(*args, expected=1))
+        all_checks = self.run_cmd(*args, "--workspace")
+        for command in ("--workspace --all-targets", "verify-required loot-single-item-claim",
+                        "verify-required creature-spell-casting", "--bin handler-contract-check",
+                        "--bin session-ownership-check -- check"):
+            self.assertIn(command, all_checks)
+        inventory = self.run_cmd(*args, "--workspace", "--part", "inventory")
+        self.assertIn("Full persistence inventory", inventory)
+        self.assertNotIn("Workspace test targets", inventory)
+        self.assertIn("requires --workspace", self.run_cmd(*args, "--part", "inventory", expected=2))
+
+    def test_hosted_partitions_cover_the_serial_commands_once(self):
+        path = self.root / "crates/domain/src/lib.rs"
+        path.write_text(path.read_text() + "// Test the same candidate on each worker.\n")
+        self.commit()
+        def planned(part):
+            result = self.run_cmd(RUNNER, "--base", self.base, "--part", part, "--plan")
+            return set(result.splitlines()[1:])
+        tests, production = planned("tests"), planned("production")
+        self.assertTrue(any("cargo test --locked" in step for step in tests))
+        self.assertTrue(any("cargo check --locked" in step for step in production))
+        self.assertTrue(tests.isdisjoint(production))
+        self.assertEqual(tests | production, planned("build"))
 
     def test_source_bound_snapshot_rejects_stale_and_forged_rows(self):
         checker = RUNNER.parent / "ci/full_snapshot.py"
