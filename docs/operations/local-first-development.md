@@ -1,33 +1,18 @@
 # Local-first development
 
-RustyCore uses a trusted-author split so first-party development is not serialized by hosted CI.
-The policy is intentionally narrow:
+On `forever`, run local publication acceptance on the committed candidate. The default
+comparison for feature work is `origin/forever`. Cargo needs the [pinned sibling extractor](../../README.md#required-checkout-layout).
 
-- the required validation and reviewer jobs for a pull request authored by exactly `alseif0x`
-  skip before allocating a runner;
-- every other author, including bots and collaborators, keeps the existing remote checks;
-- pushes to `3.4.3`, schedules and manual dispatches retain their configured hosted validation;
-- first-party validation is local and proportional to the changed paths.
+For feedback on uncommitted edits, run `./tools/validate-change --working --base origin/forever`. Use `--plan` to inspect the package and consumer selection. For a focused library test, supply `--package <crate> --focus <test-name>`. The editing command and the final publication check serve different stages.
 
-The runner is agent-agnostic. Kimi, Codex, Grok, Claude, any other AI agent, and a human
-maintainer all invoke the same non-interactive command and receive the same process exit status.
-Trust is derived only from the GitHub PR author's exact login; it is never derived from the tool
-that wrote the code.
+## Three local levels
 
-GitHub still creates the required check names for a trusted pull request, but their jobs are
-evaluated as `skipped` before a runner is assigned. This preserves the existing protection for
-external contributions without spending hosted compute or waiting for a remote review on normal
-maintainer work.
-
-## One entry point, three local levels
-
-There is exactly one validation entry point. `docs/operations/validation-v2.md` is its contract;
-this document is only the trust policy around it.
+`tools/validation-v2` supplies the local acceptance manifest. The [runner contract](validation-v2.md) describes its levels.
 
 ```bash
 ./tools/validation-v2                              # level 1 / none: NOT VALIDATED
-./tools/validation-v2 2 --base origin/3.4.3       # level 2 / quick hygiene
-./tools/validation-v2 3 --base origin/3.4.3 --require-changes --timings --logs
+./tools/validation-v2 2 --base origin/forever       # level 2 / quick hygiene
+./tools/validation-v2 3 --base origin/forever --require-changes --timings --logs
 ```
 
 Level 1 is the default working mode: no profile selects canonical `none` (numeric alias `1`),
@@ -91,9 +76,9 @@ approval within its stated scope, and do not infer it from a passing validator o
 
 Validation does not review code and does not start servers.
 
-- `./tools/local-review.sh review origin/3.4.3` runs the optional local Codex review of the clean
+- `./tools/local-review.sh review origin/forever` runs the optional local Codex review of the clean
   committed diff (`review-uncommitted` for work in progress). It is advice for the author; the
-  required remote gate for external authors is the `Codex Review Gate` workflow.
+  external pull requests trigger the `Codex Review Gate` workflow.
 - `tools/wow-test-bot/run_rustycore_login_smoke.sh` is the live login smoke. It needs the local
   runtime and MariaDB, and is never part of CI.
 - `tools/qa-runtime.sh` orchestrates QA that needs a *different* build than the one deployed. It
@@ -138,42 +123,19 @@ the original executable and bot logs/report for diagnosis. This is not a movemen
 packet-capture acceptance test. It still requires explicit permission to interrupt the service
 and valid local bot credentials; it never runs as part of ordinary validation.
 
+For a change confined to `wow-math`, two successful runs of `cargo fmt --all --check` took 19.768 and 19.684 seconds on the aarch64 development host on 2026-11-21. The corresponding `cargo fmt -p wow-math --check` runs took 0.099 and 0.101 seconds. This measures formatting only. Workspace-level inputs still require workspace-wide formatting.
+
 ## What runs remotely
 
-- a pull request whose author is not `alseif0x`;
-- **a push to `3.4.3`, which is every merge**;
-- the scheduled audit;
-- an explicit `workflow_dispatch` run.
-
-The merge-cadence case exists because skipping trusted PR jobs without push validation left
-first-party work with no routine hosted enforcement before the next scheduled audit.
-A skipped required check satisfies branch protection, so a first-party
-pull request merged with every check reporting *skipped* — which reads as green. Regressions
-reached `3.4.3` that way: #275 left both ownership ratchets red on HEAD, #277 hid roughly 985
-production persistence accesses from the inventory, and #329 recorded two more from audit-only
-ratchets that the local gate cannot see.
-
-This does not weaken the trust boundary. Review-time validation stays local and stays the author's
-job; what runs at merge is the enforcement nobody was performing. A failure there names a commit
-already on `3.4.3`, so it should produce a focused issue and a fix on top, not a retroactive review
-cycle over intermediate commits — the same rule the scheduled audit follows.
-
-## Branch protection
-
-`3.4.3` requires strict status checks, linear history, conversation resolution, and two contexts:
-`Validation V2` and `Codex reviewer verdict`. Both skip for the trusted author and run for
-everyone else, and a skipped required check satisfies protection — which is exactly why the
-merge-cadence audit above exists.
-
-The validation job carries a static name on purpose: GitHub publishes a skipped job's check under
-the raw, unexpanded name expression, so a templated name can never be satisfied as a required
-context.
+External PRs into `forever` trigger Rust CI final acceptance and Codex review. Pull requests authored by the exact login `alseif0x` use the local acceptance result. The default-branch weekly audit runs on `forever`. A manual dispatch can run an audit or validate a committed change against its explicit ancestor.
+GitHub reported `forever` as unprotected on 2026-11-21. Workflow results and branch-protection requirements
+are separate. The `3.4.3` protection settings apply only to that branch.
 
 ## Trust boundary
 
 Do not broaden the trusted condition to `COLLABORATOR`, `MEMBER`, or an author-association class.
 The exact login allowlist is deliberate. External code continues to run under the existing
-read-only pull-request workflows and required checks. Switching from one local AI agent to another
+read-only pull-request workflows. Switching from one local AI agent to another
 does not change either side of this boundary.
 
 If another first-party identity is added later, update every trusted-author condition and this

@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - "3.4.3"
+      - "forever"
   push:
     branches:
       - "3.4.3"
@@ -36,6 +37,9 @@ jobs:
     # unexpanded expression, so a templated name cannot be a required context.
     # The profile is reported inside the run instead.
     name: Validation V2
+    defaults:
+      run:
+        working-directory: rustycore
     # First-party pull requests use explicit local evidence and must not wait
     # for hosted validation. Push/audit enforcement still validates the merged
     # exact SHA on an independent host. External pull requests retain the
@@ -61,7 +65,16 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ env.VALIDATION_V2_HEAD }}
+          path: rustycore
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out pinned read-only extractor sibling
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: alseif0x/rustycore-extractors
+          ref: d8f4044f63f4d47fcb44d655d11cea90889ec8ea
+          path: rustycore-extractors
           persist-credentials: false
 
       - name: Validate manual final base
@@ -99,13 +112,14 @@ jobs:
         with:
           cache: false
           rustflags: ""
+          rust-src-dir: rustycore
 
       - name: Restore Validation V2 Cargo cache
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           shared-key: validation-v2
           workspaces: |
-            . -> target
+            rustycore -> rustycore/target
 
       - name: Install pinned orchestration dependencies
         shell: bash
@@ -203,6 +217,6 @@ jobs:
           path: |
             ${{ runner.temp }}/validation-v2-manifest.json
             ${{ runner.temp }}/validation-v2-manifest-logs/
-            target/cargo-timings/*.html
+            rustycore/target/cargo-timings/*.html
           if-no-files-found: error
           retention-days: 14

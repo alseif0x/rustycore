@@ -35,7 +35,7 @@ DEFAULT_TIMEOUT = 900
 # The exhaustive persistence inventory alone runs 870-900s on a four-core host,
 # so the ordinary per-command budget cannot be the audit's.
 AUDIT_TIMEOUT = 3600
-DEFAULT_BASE = "origin/3.4.3"
+DEFAULT_BASE = "origin/forever"
 LEVEL_PROFILES = {"1": "none", "2": "quick", "3": "final"}
 DEFAULT_HEAVY_LOCK = "/tmp/rustycore-validation-v2-heavy.lock"
 RUNNER_PATH = "tools/validation-v2"
@@ -365,6 +365,8 @@ def classify_path(path: str) -> str:
         return "wow-test-bot"
     if path.startswith(".github/workflows/") and Path(path).suffix in {".yml", ".yaml"}:
         return "workflow"
+    if path.startswith("crates/wow-world/_attic/") and path.endswith(".md"):
+        return "documentation"
     if path.startswith("crates/"):
         return "workspace-rust"
     if (
@@ -581,6 +583,29 @@ def add_command(planned: list[list[str]], command: list[str]) -> None:
         planned.append(command)
 
 
+def workspace_format(repo: Path, groups: dict[str, list[str]]) -> list[str]:
+    """Scope ordinary source formatting to one member; keep broad fallbacks."""
+    broad = ["cargo", "fmt", "--all", "--check"]
+    if "workspace-root" in groups:
+        return broad
+    roots: set[Path] = set()
+    for path in groups.get("workspace-rust", []):
+        source = Path(path)
+        if (
+            len(source.parts) < 4
+            or source.parts[2] != "src"
+            or source.suffix != ".rs"
+            or not (repo / source).is_file()
+        ):
+            return broad
+        roots.add(Path(*source.parts[:2]))
+    if len(roots) == 1:
+        manifest = roots.pop() / "Cargo.toml"
+        if (repo / manifest).is_file():
+            return ["cargo", "fmt", "--manifest-path", str(manifest), "--check"]
+    return broad
+
+
 def audit_steps(merge_base: str, jobs: int) -> list[dict[str, object]]:
     """Declare the global read-only audit without nesting legacy wrappers."""
     commands = [
@@ -795,7 +820,7 @@ def validation_commands(
         add_command(planned, ["python3", "tools/architecture/session_method_index.py", "check"])
     # #1241 F3-6b: a git-ignored source under crates/ can be mounted by committed
     # code and pass locally while a fresh clone lacks it. Final only, for any crates/ change.
-    if profile == "final" and any(path.startswith("crates/") for path in all_paths):
+    if profile == "final" and any(path.startswith("crates/") for path in groups.get("workspace-rust", [])):
         add_command(planned, ["python3", "tools/architecture/ignored_sources.py", "check"])
     if profile == "final" and any(path in {
         "tools/architecture/ignored_sources.py",
@@ -837,8 +862,9 @@ def validation_commands(
         "tools/architecture/wow-world-test-census.json",
         "tools/architecture/wow-world-test-ceiling.json",
     }
-    if profile == "final" and any(
-        path.startswith("crates/wow-world") or path in census_inputs for path in all_paths
+    if profile == "final" and (
+        any(path.startswith("crates/wow-world") for path in groups.get("workspace-rust", []))
+        or any(path in census_inputs for path in all_paths)
     ):
         add_command(planned, ["python3", "tools/architecture/wow_world_test_census.py", "check"])
     if profile == "final" and any(path in census_tool for path in all_paths):
@@ -927,11 +953,18 @@ def validation_commands(
     handler_graph = profile == "final" and handler_graph_changed(repo, merge_base, all_paths)
     checker_affected = "architecture-checker" in groups or cargo_config_changed or handler_graph
 
+    if {"rustfmt.toml", ".rustfmt.toml"}.intersection(all_paths):
+        # Rustfmt configuration applies to the workspace and standalone tool
+        # manifests, which are outside Cargo's default workspace selection.
+        add_command(planned, ["cargo", "fmt", "--all", "--check"])
+        for manifest in (CHECKER_MANIFEST, BOT_MANIFEST):
+            add_command(planned, ["cargo", "fmt", "--manifest-path", manifest, "--", "--check"])
+    elif "workspace-rust" in groups or "workspace-root" in groups:
+        add_command(planned, workspace_format(repo, groups))
+
     if profile == "quick":
         # Iteration feedback only: Cargo fmt may inspect manifests, but never
         # resolve/build the dependency graph or run project/checker test suites.
-        if "workspace-rust" in groups or "workspace-root" in groups:
-            add_command(planned, ["cargo", "fmt", "--all", "--check"])
         for affected, manifest in ((checker_affected, CHECKER_MANIFEST),
                                    ("wow-test-bot" in groups or cargo_config_changed, BOT_MANIFEST)):
             if affected:
@@ -940,7 +973,6 @@ def validation_commands(
 
     workspace_changed = workspace is not None
     if workspace_changed:
-        add_command(planned, ["cargo", "fmt", "--all", "--check"])
         if profile == "final":
             # The one architecture ceiling an ordinary Rust diff can move, and
             # the only one cheap enough to gate on. The exhaustive persistence

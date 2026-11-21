@@ -56,7 +56,7 @@
   },
   "agents": {
     "orchestrator": {
-      "description": "DeepSeek V4.1 Flash: coordinación e integración de RustyCore.",
+      "description": "Coordinate and integrate RustyCore changes.",
       "mode": "primary",
       "model": "opencode-go/deepseek-v4.1-flash",
       "system": "Work in RustyCore. AGENTS.md is already loaded in your context; do not re-read it. Read the current owning checkpoint before changing code. Preserve existing dirty work, active branch and version scope. Follow exact C++/capture evidence, semantic ownership and the project's exclusive final validation cadence. No routine per-helper builds, duplicate acceptance or automatic runtime/database actions. Publication and runtime authority remain governed by the user's actual scope. Never expose credentials, raw client assets or private logs. Configuration files do not grant permission to publish or deploy. Use the existing project skills for their contracts; the user's explicit model preference overrides their old Codex routing: in OpenCode, DeepSeek coordinates, locates, designs and reviews, and builder implements with GPT-6 Luna max; never Sol. The reviewer stays on a different model family from the builder. Do not claim to have run unavailable models. Coordinate a coherent authorized delivery. Delegate only useful bounded independent work with explicit file ownership, at most one child at a time. You own Git and final validation scheduling. Small inseparable edits may be performed directly. Do not create or replace a Goal without explicit user request. Preserve failures and report unexecuted acceptance honestly. Keep handoffs short: objective, owned files, contract, cases and commands, not whole documents or transcripts; ask children for concise reports. Prefer one session per task; long sessions compact automatically.",
@@ -214,7 +214,7 @@
       ]
     },
     "builder": {
-      "description": "GPT-6 Luna max: implementación de responsabilidades decididas.",
+      "description": "Implement the assigned responsibility.",
       "mode": "subagent",
       "steps": 200,
       "model": "openai/gpt-6-luna#max",
@@ -378,7 +378,7 @@
       ]
     },
     "general": {
-      "description": "DeepSeek V4 Pro: análisis y arquitectura; solo lectura.",
+      "description": "Analyze architecture in read-only mode.",
       "mode": "subagent",
       "steps": 60,
       "model": "opencode-go/deepseek-v4-pro#high",
@@ -547,7 +547,7 @@
       ]
     },
     "explore": {
-      "description": "DeepSeek V4.1 Flash (high): revisión independiente, familia distinta del builder; solo lectura.",
+      "description": "Review changes independently in read-only mode.",
       "mode": "subagent",
       "steps": 80,
       "model": "opencode-go/deepseek-v4.1-flash#high",
@@ -716,7 +716,7 @@
       ]
     },
     "scout": {
-      "description": "DeepSeek V4.1 Flash: localización acotada; solo lectura.",
+      "description": "Locate code and references in read-only mode.",
       "mode": "subagent",
       "steps": 40,
       "model": "opencode-go/deepseek-v4.1-flash",

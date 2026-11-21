@@ -2441,8 +2441,8 @@
     },
     {
       "number": 1233,
-      "state": "open",
-      "title": "[ARCH.CORE] Complete the wow-world modular refactor",
+      "state": "closed",
+      "title": "[ARCH.CORE] Modularize wow-world Session and isolate rule/test boundaries",
       "kind": "slice",
       "parents": [
         584
@@ -2454,7 +2454,7 @@
     },
     {
       "number": 1263,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.CORE] #1241 continuation: remaining work to complete the wow-world split (F4a P3 → F6)",
       "kind": "slice",
       "parents": [

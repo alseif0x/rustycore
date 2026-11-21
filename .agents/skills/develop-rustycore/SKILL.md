@@ -155,7 +155,7 @@ Use bounded diagnosis before paying full acceptance cost:
 ## Per-PR acceptance checklist
 
 Follow the single campaign in
-[wow-world-distribution-plan.md §10](../../../docs/architecture/wow-world-distribution-plan.md#10-aceptación-por-pr-sin-repetir-evidencia).
+[wow-world-distribution-plan.md §10](../../../docs/architecture/wow-world-distribution-plan.md#10-acceptance-for-follow-ups-that-inherit-the-distribution-contract).
 The parent schedules acceptance or assigns one exclusive executor. The worker's coding
 feedback follows AGENTS.md; it does not start a second acceptance campaign.
 

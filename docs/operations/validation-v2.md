@@ -9,9 +9,9 @@ Run it through its single entry point:
 
 ```bash
 ./tools/validation-v2                              # level 1 / none (default)
-./tools/validation-v2 2 --base origin/3.4.3       # level 2 / quick
-./tools/validation-v2 3 --base origin/3.4.3       # level 3 / final
-./tools/validation-v2 audit --base origin/3.4.3
+./tools/validation-v2 2 --base origin/forever       # level 2 / quick
+./tools/validation-v2 3 --base origin/forever       # level 3 / final
+./tools/validation-v2 audit --base origin/forever
 ./tools/validation-v2 self-test
 ```
 
@@ -26,7 +26,7 @@ acknowledgement. It is not validation evidence.
 For a completed nonempty delivery, retain diagnostics in the same campaign:
 
 ```bash
-./tools/validation-v2 final --base origin/3.4.3 --require-changes --timings --logs
+./tools/validation-v2 final --base origin/forever --require-changes --timings --logs
 ```
 
 `--require-changes` rejects an empty changed-path scope in level 2/3
@@ -96,7 +96,7 @@ When acceptance requires architecture policy checks, their fixtures and syntax o
 use one measured campaign:
 
 ```bash
-./tools/validation-v2 final --base origin/3.4.3 --architecture --timings
+./tools/validation-v2 final --base origin/forever --architecture --timings
 ```
 
 `--architecture` is exclusive to `final`. It replaces that plan's separate physical,
@@ -145,7 +145,7 @@ so staged, unstaged and untracked changes count:
   root and allowing no reviewed new code. It does not apply when S <= 0. Quick does not plan it.
 
 During development run it manually with
-`python3 tools/architecture/net_move.py check --base origin/3.4.3`; the reviewed policy is
+`python3 tools/architecture/net_move.py check --base origin/forever`; the reviewed policy is
 `tools/architecture/net-move-policy.json` (destination roots, the per-phase new-code budget and
 the duplicate exceptions).
 
@@ -244,8 +244,7 @@ the 600-second final budget, so `final` never runs it, even when its inputs chan
 records an `optional_skips` entry instead when the diff touches any of its inputs (Rust under
 `crates/`, anything under `tools/architecture/handler-contract-check/`, or the
 `persistence-{access-snapshot,boundary-policy,boundary-workflows}.json` and
-`session-ownership-policy.json` policies), and `audit` (every push to `3.4.3` and the weekly
-cron) runs it. Run `./tools/validation-v2 audit` before relying on such a change earlier.
+`session-ownership-policy.json` policies), and `audit` (the weekly default-branch run or a manual audit) runs it. Run `./tools/validation-v2 audit` before relying on such a change earlier.
 Both checker binaries print `<tool>: scan root <path> (...)` on stderr and refuse to scan when
 the tree they were compiled from is not the current directory's git top-level (`--root PATH`
 scans another tree on purpose; a git failure is reported as such). Cargo fingerprints a path
@@ -301,6 +300,8 @@ syntax-ownership continuation described above. It never starts
 services, connects to a database, records a fresh capture, regenerates a baseline, invokes Codex,
 or calls either legacy wrapper. Those mutating or live operations require their own explicit QA
 procedure.
+
+Markdown under `crates/wow-world/_attic/` records archived work and uses the documentation route. Other crate files, including fixtures, retain their normal workspace routing.
 
 ## Verdict rules
 
@@ -453,7 +454,7 @@ cargo fetch --locked --manifest-path tools/wow-test-bot/Cargo.toml
 ./tools/validation-v2 2 --base HEAD~1
 ```
 
-`--base HEAD~1` is deliberate: at `origin/3.4.3` a fresh clone has no changed paths, so the
+`--base HEAD~1` is deliberate: at `origin/forever` a fresh clone has no changed paths, so the
 level-2/3 profiles would plan nothing. This checks the latest commit's routed scope, not a clean
 full-server build; a documentation-only last commit may still run no Cargo commands. Use level 3,
 an explicit build, or the separately budgeted `audit` when that broader evidence is required.
@@ -490,7 +491,7 @@ performance target even if every correctness check passes; a timeout is not a sp
 Collect Cargo's stable timing reports in the campaign that is already required:
 
 ```bash
-./tools/validation-v2 final --base origin/3.4.3 --timings
+./tools/validation-v2 final --base origin/forever --timings
 ```
 
 `--timings` is useful for `final` and `audit`; level 2 accepts it for compatibility but
@@ -601,8 +602,8 @@ Do not stop unrelated processes or reuse a green manifest from a different candi
 The base must already exist locally. Validation never fetches it:
 
 ```bash
-git fetch origin 3.4.3
-./tools/validation-v2 final --base origin/3.4.3
+git fetch origin forever
+./tools/validation-v2 final --base origin/forever
 ```
 
 Workflow YAML uses `actionlint` when installed. Its absence is an explicit optional skip in the
@@ -613,7 +614,7 @@ Rust CI checks out the exact event SHA with full history, prepares the pinned Ru
 and locked Cargo inputs, then invokes this same executable once. External pull requests run the
 bounded `final` profile with the exact pull-request base SHA as its `--base` input.
 First-party pull requests are skipped and do not wait for hosted validation.
-Pushes to `3.4.3`, the weekly schedule, and explicit
+On `forever`, the weekly schedule and explicit
 `audit` dispatches run the exhaustive profile on an independent GitHub host. Every hosted run
 uploads the manifest and diagnostic artifacts even on failure; signals and timeouts
 therefore cannot become silent passes. Manually dispatched `final` requires an explicit
@@ -626,7 +627,7 @@ are cancelled.
 ## Publication evidence without redundant builds
 
 Validate the committed publication candidate, not the cosmetic cleanliness of the directory.
-Normally run `final --base origin/3.4.3` with no tracked modifications. Unrelated untracked
+Normally run `final --base origin/forever` with no tracked modifications. Unrelated untracked
 documents may remain when inspection establishes that no build script, test, generator or
 configuration consumes them. Record their paths and hashes, verify tracked files still match
 HEAD after the run, and retain the manifest's truthful `dirty: true` value. Do not delete,
