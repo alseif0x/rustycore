@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""Validate an immutable candidate against its integration base."""
+import argparse
+import ast
+import json
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+import time
+
+
+HERE = Path(__file__).resolve().parent
+GLOBAL_BUILD = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".protoc-version"}
+MODULE_INPUTS = {"modules.lock.toml", "crates/world-server/src/app.rs",
+                 "crates/world-server/src/entry.rs", "crates/world-server/src/lib.rs"}
+FULL_TOOLS = {"tools/validate-full", "tools/ci/full_policy.py", "tools/ci/full_snapshot.py",
+              "tools/ci/test_validate_full.py"}
+
+
+def output(*argv):
+    return subprocess.check_output(argv)
+
+
+def snapshot():
+    return (output("git", "rev-parse", "HEAD").decode().strip(),
+            output("git", "status", "--porcelain=v1", "-z", "--untracked-files=all"))
+
+
+def switches(packages):
+    return [value for name in sorted(packages) for value in ("-p", name)]
+
+
+def rust_commands(files):
+    wide = bool(files & GLOBAL_BUILD) or any(p.startswith((".cargo/", "proto/")) for p in files)
+    inputs = {p for p in files if p.startswith("crates/")}
+    if not inputs and not wide:
+        return []
+    metadata = json.loads(output("cargo", "metadata", "--format-version", "1", "--locked", "--all-features"))
+    root = Path.cwd()
+    members = set(metadata["workspace_members"])
+    packages = {p["id"]: p for p in metadata["packages"] if p["id"] in members}
+    owners = sorted(((Path(p["manifest_path"]).parent.relative_to(root), k)
+                     for k, p in packages.items()), key=lambda item: -len(item[0].parts))
+    selected = set()
+    for path in inputs:
+        owner = next((key for directory, key in owners if Path(path).is_relative_to(directory)), None)
+        if owner is None:
+            wide = True  # A removed or moved package has no manifest in HEAD.
+            break
+        selected.add(owner)
+    if wide:
+        selected = members.copy()
+
+    # Include target-specific, optional, build, and dev edges. Follow re-entry
+    # through external path/patch packages before projecting onto the workspace.
+    affected = selected.copy()
+    while True:
+        consumers = {n["id"] for n in metadata["resolve"]["nodes"] if affected.intersection(n["dependencies"])}
+        if consumers <= affected:
+            break
+        affected.update(consumers)
+    names = {packages[k]["name"] for k in affected & members}
+    tests = {name for name in names if name != "world-modules"}
+    direct = {packages[k]["name"] for k in selected}
+    commands = []
+    if tests:
+        # Build the test graph once. This executes integration targets and
+        # consumer tests instead of separately checking and then building them.
+        commands.append(("Affected test targets", ["cargo", "test", "--locked", "--all-targets", *switches(tests)]))
+    commands.append(("Production feature configuration", ["cargo", "check", "--locked", *switches(names)]))
+    if wide or any(Path(p).name == "Cargo.toml" for p in inputs):
+        for name in sorted(names):
+            commands.append((f"Isolated features of {name}", ["cargo", "check", "--locked", "--tests", "-p", name]))
+    commands.append(("Member formatting", ["cargo", "fmt", "--check", *switches(direct)]))
+    return commands
+
+
+def build_plan(files, base, head):
+    commands = [("Diff hygiene", ["git", "diff", "--check", base, head, "--"])]
+    unsupported = set()
+    existing = [p for p in sorted(files) if Path(p).is_file()]
+    docs = [p for p in existing if p.endswith(".md")]
+    if docs:
+        commands.append(("Document file links", [sys.executable, str(HERE / "ci/check_doc_links.py"), *docs]))
+    for path in existing:
+        if path.endswith(".json"):
+            json.loads(Path(path).read_text(encoding="utf-8"))
+        if path.endswith(".py") or path == "tools/validate-full":
+            ast.parse(Path(path).read_text(encoding="utf-8"), filename=path)
+        if path.endswith(".sh"):
+            commands.append((f"Shell syntax of {path}", ["bash", "-n", path]))
+    workflows = [p for p in existing if p.startswith(".github/workflows/")]
+    if workflows:
+        commands.append(("Workflow syntax", ["actionlint", *workflows]))
+        commands.append(("Workflow contracts", [sys.executable, "tools/test_validation_workflows.py"]))
+    for manifest in ("tools/wow-test-bot/Cargo.toml", "tools/architecture/handler-contract-check/Cargo.toml"):
+        directory = Path(manifest).parent
+        if files & GLOBAL_BUILD or any(Path(p).is_relative_to(directory) for p in files):
+            commands.append((f"Tests for {directory.name}", ["cargo", "test", "--locked", "--all-targets",
+                                                               "--manifest-path", manifest]))
+            commands.append((f"Production build of {directory.name}", ["cargo", "check", "--locked", "--manifest-path", manifest]))
+    commands.extend(rust_commands(files))
+    if (files & (MODULE_INPUTS | GLOBAL_BUILD)
+            or any(p.startswith(("tools/modules/", "crates/world-modules/", "crates/wow-module-api/")) for p in files)):
+        commands.append(("Composed SQL launcher", [sys.executable, "tools/modules/check_sql_compositor.py",
+                                                   "--jobs", os.environ.get("CARGO_BUILD_JOBS", "1")]))
+    for path in files:
+        if (path in GLOBAL_BUILD | MODULE_INPUTS or path.endswith(".md")
+                or path in workflows
+                or path.startswith(("crates/", ".cargo/", "proto/", "tools/architecture/", "tools/wow-test-bot/"))):
+            continue
+        if path.startswith("tools/full-validation/") or path in FULL_TOOLS:
+            continue
+        unsupported.add(path)
+    if files & FULL_TOOLS or any(p.startswith("tools/full-validation/") for p in files):
+        commands.append(("Full validator parser formatting", ["cargo", "fmt", "--check", "--manifest-path",
+                                                             str(HERE / "full-validation/Cargo.toml")]))
+        commands.append(("Full validator regression tests", [sys.executable, str(HERE / "ci/test_validate_full.py")]))
+    return commands, unsupported
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base", required=True, help="integration ancestor SHA")
+    parser.add_argument("--plan", action="store_true", help="show commands without executing them")
+    parser.add_argument("--report", type=Path, help="write timings and outcome JSON outside the source tree")
+    parser.add_argument("--part", choices=("all", "build", "policy"), default="all",
+                        help="an individual part supplies partial evidence only")
+    args = parser.parse_args()
+    report_path = args.report.resolve() if args.report else None
+    os.chdir(os.fsdecode(output("git", "rev-parse", "--show-toplevel")).rstrip("\n"))
+    if report_path and report_path.is_relative_to(Path.cwd()):
+        ignored = subprocess.run(["git", "check-ignore", "--quiet", "--", str(report_path)])
+        if ignored.returncode:
+            raise ValueError("Write the report outside the source tree or in an ignored output directory")
+    head, dirty = snapshot()
+    base = output("git", "rev-parse", "--verify", "--end-of-options", args.base + "^{commit}").decode().strip()
+    subprocess.run(["git", "merge-base", "--is-ancestor", base, head], check=True)
+    if dirty:
+        raise ValueError("Full validation requires a clean, committed checkout")
+    files = {os.fsdecode(p) for p in output("git", "diff", "--name-only", "--no-renames", "-z", base, head, "--").split(b"\0") if p}
+    if not files:
+        raise ValueError("Empty candidate diff")
+    os.environ.setdefault("CARGO_BUILD_JOBS", "1")
+    os.environ.setdefault("CARGO_TARGET_DIR", str(Path.cwd() / "target"))
+    start = time.monotonic()
+    commands, unsupported = build_plan(files, base, head) if args.part != "policy" else ([], set())
+    if args.part != "build":
+        commands.append(("Ownership and persistence contracts", [sys.executable, str(HERE / "ci/full_policy.py"), "--base", base]))
+    report = {"base": base, "head": head, "part": args.part, "uncovered": sorted(unsupported), "commands": []}
+    print(f"Full validation | {args.part} | {base}..{head}", flush=True)
+    for title, command in commands:
+        print(f"{title}: {shlex.join(command)}", flush=True)
+    if unsupported:
+        print("Coverage required:", *sorted(unsupported), sep="\n  ", flush=True)
+    if args.plan or unsupported:
+        return 2 if unsupported else 0
+    code = 0
+    for title, command in commands:
+        before = time.monotonic()
+        result = subprocess.run(command)
+        elapsed = round(time.monotonic() - before, 3)
+        report["commands"].append({"name": title, "argv": command, "exit": result.returncode, "seconds": elapsed})
+        print(f"{title}: exit {result.returncode} in {elapsed:.3f}s", flush=True)
+        if result.returncode:
+            code = result.returncode
+            break
+    if snapshot() != (head, b""):
+        print("Candidate changed during validation", file=sys.stderr)
+        code = 1
+    report.update(seconds=round(time.monotonic() - start, 3), exit=code)
+    if report_path:
+        report_path.write_text(json.dumps(report, indent=2) + "\n")
+    print(f"{args.part}: exit {code} in {report['seconds']:.3f}s", flush=True)
+    return code
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, subprocess.CalledProcessError, SyntaxError, ValueError) as exc:
+        sys.exit(f"validate-full: {exc}")
