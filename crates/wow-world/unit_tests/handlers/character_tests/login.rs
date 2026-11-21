@@ -8,7 +8,7 @@ use super::*;
 #[tokio::test]
 async fn login_add_player_to_map_prompts_an_unbound_member_with_a_preattached_controller_like_cpp()
 {
-    let (mut session, _instance_rx, realm_rx) = make_session_with_realm_send_capacity(256);
+    let (mut session, instance_rx, realm_rx) = make_session_with_realm_send_capacity(4_096);
     let player_guid = ObjectGuid::create_player(1, 9_001_703);
     let locks = crate::handlers::test_support::install_pending_bind_instance_context_like_cpp(
         &mut session,
@@ -18,6 +18,26 @@ async fn login_add_player_to_map_prompts_an_unbound_member_with_a_preattached_co
         4,
         10,
     );
+    let instance_fence = wow_network::SocketWriteFenceLikeCpp::default();
+    let realm_fence = wow_network::SocketWriteFenceLikeCpp::default();
+    session.set_send_write_fence_like_cpp(instance_fence.clone());
+    session.install_realm_send_write_fence_for_test(realm_fence.clone());
+    let instance_writer = tokio::spawn(async move {
+        while let Ok(packet) = instance_rx.recv_async().await {
+            instance_fence.acknowledge_marker_like_cpp(&packet);
+        }
+    });
+    let (realm_packets_tx, realm_packets_rx) = flume::unbounded();
+    let realm_writer = tokio::spawn(async move {
+        while let Ok(packet) = realm_rx.recv_async().await {
+            if realm_fence.acknowledge_marker_like_cpp(&packet) {
+                continue;
+            }
+            if realm_packets_tx.send(packet).is_err() {
+                break;
+            }
+        }
+    });
 
     assert_eq!(
         session.current_canonical_player_map_key_like_cpp(),
@@ -85,7 +105,13 @@ async fn login_add_player_to_map_prompts_an_unbound_member_with_a_preattached_co
     )
     .await;
 
-    let prompts: Vec<_> = std::iter::from_fn(|| realm_rx.try_recv().ok())
+    assert!(
+        session
+            .core
+            .wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+    );
+    let prompts: Vec<_> = std::iter::from_fn(|| realm_packets_rx.try_recv().ok())
         .filter(|packet| {
             packet.len() >= 2
                 && u16::from_le_bytes([packet[0], packet[1]])
@@ -119,6 +145,8 @@ async fn login_add_player_to_map_prompts_an_unbound_member_with_a_preattached_co
             .is_none(),
         "receiving a prompt leaves the member unbound until acceptance"
     );
+    instance_writer.abort();
+    realm_writer.abort();
 }
 
 #[test]
