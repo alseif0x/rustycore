@@ -181,6 +181,8 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     /// `UseRegenInterrupt` flag from it and `Player::RegeneratePower` reads the
     /// regen rates (`Unit.cpp:6581-6585`, `Player.cpp:1706`).
     pub(super) power_type_store: Arc<wow_data::character_progression::PowerTypeStore>,
+    pub(super) character_creation_catalogs:
+        Arc<wow_world::session::CharacterCreationCatalogsLikeCpp>,
 }
 
 /// Immutable SpellMgr-style catalogs and audited spell authority.
@@ -330,6 +332,8 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) reset_schedule: wow_instances::ResetSchedule,
     /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` / `OffhandCheckAtSpellUnlearn`.
     pub(super) offhand_check_at_spell_unlearn: bool,
+    /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION` auction-house policy.
+    pub(super) allow_two_side_interaction_auction: bool,
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` / `vmap.enableIndoorCheck`.
     pub(super) vmap_indoor_check: bool,
     /// C++ `CONFIG_CAST_UNSTUCK` / `CastUnstuck`.
@@ -413,6 +417,9 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
         session.set_chr_classes_store(Arc::clone(&self.chr_classes_store));
         session.set_shapeshift_display_links_absent(self.shapeshift_display_links_absent);
         session.set_power_type_store(Arc::clone(&self.power_type_store));
+        session.set_character_creation_catalogs_like_cpp(Arc::clone(
+            &self.character_creation_catalogs,
+        ));
     }
 }
 
@@ -567,6 +574,9 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session.set_stats_limits_like_cpp(self.stats_limits);
         session.set_reset_schedule_like_cpp(self.reset_schedule);
         session.set_offhand_check_at_spell_unlearn_like_cpp(self.offhand_check_at_spell_unlearn);
+        session.set_allow_two_side_interaction_auction_like_cpp(
+            self.allow_two_side_interaction_auction,
+        );
         session.set_vmap_indoor_check_like_cpp(self.vmap_indoor_check);
         session.set_cast_unstuck_enabled_like_cpp(self.cast_unstuck_enabled);
         session.set_enable_ae_loot_like_cpp(self.enable_ae_loot);

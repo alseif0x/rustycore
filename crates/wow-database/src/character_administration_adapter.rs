@@ -133,7 +133,8 @@ impl CharacterAdministrationPersistencePortLikeCpp
                 statement.set_u32(index, 0);
             }
             statement.set_string(65, "");
-            statement.set_string(66, "");
+            // equipmentCache (param 66): starting-gear visuals from create
+            statement.set_string(66, &request.equipment_cache);
             statement.set_string(67, "");
             statement.set_u8(68, 0);
             statement.set_u32(69, request.last_login_build);

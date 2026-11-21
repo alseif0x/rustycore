@@ -25,9 +25,10 @@ human operator**. This is the rule that keeps a round from stalling.
 - **Who executes.** The coordinator/parent owns review, validation, Git, integration and
   the durable record of the decision. It executes what the reviewer decided and reports
   the outcome; it does not return the decision to the human as a question.
-- **Reserved to the human.** Only two things: runtime/database/destructive operations
+- **Reserved to the human.** Runtime/database/destructive operations
   (a live server, a real client capture, schema or data mutation) and material changes to
-  the objective's scope or acceptance criteria. No other gate.
+  the objective's scope or acceptance criteria. Publication and merge follow the separate
+  authorization rules in `AGENTS.md`.
 - **When a decision needs a reserved gate.** Record it as a **bounded hold**: the decision
   taken, the exact capture or operation that would close it, and what is forbidden in the
   meantime (for example: behaviour retained, expansion forbidden, no parity claimed). Then
@@ -42,7 +43,8 @@ human operator**. This is the rule that keeps a round from stalling.
 The roles are the same in every runtime; only the models differ (see **Routing by runtime**).
 
 - **One parent integrator** owns architecture, decomposition, contracts, coordination,
-  review, Git, integration and final acceptance. It does not implement routine units.
+  review, Git, integration and final acceptance. For a bounded fix with known callers,
+  the parent can make the change and run its regression directly.
 - **One bounded worker** implements a settled unit, does read-only exploration, or runs
   the agreed final sequence as exclusive validation executor, as assigned.
 - **At most one child at a time** (route files state any exception). **No worker spawns
@@ -74,15 +76,14 @@ own defaults.
 
 ## Sizing the work
 
-The worker is productive on small units with compiler feedback and stalls on large,
-open-ended ones. The parent makes the decisions, the worker executes them.
+Keep the affected implementation, its callers and its regression together. Assign them
+to one owner, including when they span several crates.
 
-- One unit is one behavior or one module: a few files, a change that `cargo check` and
-  focused tests can confirm. Split anything larger before assigning it.
-- For a restructuring (for example splitting a large file), first assign a read-only
-  exploration that returns a map: phases with line ranges, the locals each phase reads
-  and writes, the locks it holds, early returns. The parent then fixes the cut points,
-  module names and signatures, and assigns one module per implementation task.
+- Split larger deliveries at independently testable behaviours. At triage identify the
+  actual Cargo target that compiles the changed regression and its required features.
+- For restructuring, map the affected phases, state, locks and exit paths. Reuse the
+  current operation's map. Delegate exploration when the boundary is unclear and the
+  result will change the implementation decision.
 - Give the worker a self-contained task: checkout/base, owned paths, objective, exact
   line ranges or symbols, the Rust/C++ anchors, the contract and non-goals, the crate
   and test filter to check with, and the acceptance criteria. Quote the rules that
@@ -95,13 +96,10 @@ no worker spawns children. Run it in the
 background and keep doing useful parent work (settling consumers, preparing the next
 unit's contract, reviewing the previous diff) without duplicating the worker's edits.
 
-- **Heartbeat:** check the worker's output every ~5 minutes. It should be editing
-  within ~15 tool calls or ~8 minutes of starting an implementation unit.
-- **Stall:** if two heartbeats pass with reads but no edit, stop it and reassign the
-  unit smaller or with the missing decision made. A stall is a sizing problem, not a
-  reason to change model or provider.
-- **Review every diff** against the contract and its consumers before assigning the
-  next unit, not just the summary. Assign corrections as a new small unit.
+- Respond when a worker returns a result or identifies a blocker. If investigation
+  repeats without resolving the boundary, supply the missing decision or narrow the unit.
+- Review the diff against the contract and its consumers. Keep a related correction
+  with the owner who already has the context and regression.
 
 Within a shared checkout, parent and worker must not edit overlapping files, perform
 Git mutations, or change shared generated/policy files concurrently. The parent owns
@@ -122,8 +120,7 @@ accepted candidate; required matrix, capture and terminal evidence still runs on
 on that candidate. Fixtures must use effective data and native action evidence rather
 than simplified rows that can hide a defect.
 
-Implementation checks stay crate-scoped and sequential (`cargo check -p`, focused
-`cargo test -p` with `CARGO_BUILD_JOBS=1`), as the worker definition says. Any explicit
+The implementer runs the owning target as described in AGENTS.md. Any explicit
 instruction deferring worker checks for a whole sweep (the parked #1233 sweep) does not
 apply to #1241 units: their workers run these checks (R3). Completed-delivery
 acceptance follows AGENTS.md: the parent plans it once and may assign the worker as the

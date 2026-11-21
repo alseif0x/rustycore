@@ -52,22 +52,23 @@ language for project documentation.
 
 ## Local validation
 
-Run checks that cover the files and behavior you changed. Typical code checks are:
+While developing, run the test that exercises your change. For a library regression, use
+the package and test filter that own it. Confirm that the intended test ran.
 
 ```bash
-cargo fmt --all -- --check
-git diff --check
-PROTOC=/path/to/protoc cargo check --locked -j 1 -p world-server
-PROTOC=/path/to/protoc cargo test --locked -j 1 -p <affected-crate> <focused-test> --lib
+PROTOC=/path/to/protoc cargo test --locked -j 1 -p <package> --lib <test-filter>
 ```
 
-Use `--lib` only for library tests; select the actual binary or integration target when needed.
-Use a `protoc` installation matching [`.protoc-version`](.protoc-version). For the project-level
-profiles, follow [Validation V2](docs/operations/validation-v2.md) and
-[local-first development](docs/operations/local-first-development.md):
+Use `--bin <name>` or `--test <name>` for a binary or integration target. For a type or interface
+question, a scoped `cargo check` can give the answer before linking. Keep the same checkout
+and target directory across edits. Use the pinned [protoc version](.protoc-version).
+
+On the completed candidate, run the path-scoped final once and add the checks the issue
+requires. It includes formatting and whitespace checks. The optional quick profile gives
+hygiene feedback while editing. [Validation V2](docs/operations/validation-v2.md) ·
+[Local-first development](docs/operations/local-first-development.md)
 
 ```bash
-VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-v2 quick --base origin/3.4.3
 VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-v2 final --base origin/3.4.3
 ```
 
@@ -80,7 +81,12 @@ appropriate authorized integration or live evidence; library tests alone are not
 
 ## Pull requests
 
-Open or update one PR into `3.4.3` for the issue-linked branch. A useful PR description includes:
+Select `3.4.3` explicitly as the base for this client version. GitHub defaults to `forever`.
+External PRs need `Full validation` and `Codex reviewer verdict`. For PRs authored by
+`alseif0x`, both jobs skip and the maintainer supplies local acceptance evidence.
+[Local and hosted checks](docs/operations/local-first-development.md)
+
+Open or update one PR for the issue-linked branch. A useful PR description includes:
 
 - the user-visible or maintainer-visible problem and resulting behavior;
 - the relevant C++ anchor, capture identity, or reason a source comparison is not applicable;

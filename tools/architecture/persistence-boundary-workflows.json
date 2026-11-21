@@ -5810,7 +5810,7 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter uses only the exact Character and/or World handles named by this workflow; the existing best-effort creation sequence is not promoted to a cross-database transaction.",
-      "current_order": "Insert the character row, attempt customizations and World action rows best effort, then upsert the identity cache.",
+      "current_order": "Insert the character row with the starting equipment cache bound at parameter 66, attempt customizations and World action rows best effort, then upsert the identity cache.",
       "failure_and_unknown_commit": "A failed character insert returns Failed before cache publication; secondary writes remain best effort, with no atomicity or unknown-COMMIT guarantee inferred."
     },
     {
@@ -5976,9 +5976,9 @@
       "boundary": "wow-database MariaDB adapter for SQLx-free character enumeration (#478)",
       "target_issues": [],
       "stable_boundary": true,
-      "connection_affinity": "Both operations use the adapter's single Characters database handle.",
-      "current_order": "Execute expired-ban cleanup first as best effort, then the account-bound enumeration query, then decode rows in result order.",
-      "failure_and_unknown_commit": "Cleanup failure is returned as non-fatal evidence; enumeration query failure is terminal for this request. Neither standalone operation claims an unknown COMMIT state."
+      "connection_affinity": "Cleanup, enumeration, and customization queries use the adapter's single Characters database handle.",
+      "current_order": "Execute expired-ban cleanup first as best effort, query the account-bound enumeration projection, and decode base rows in result order; then query SEL_ENUM_CUSTOMIZATIONS and append option/choice pairs to matching GUIDs in customization result order.",
+      "failure_and_unknown_commit": "Cleanup failure is returned as non-fatal evidence; enumeration query failure is terminal. Customization-query failure is ignored and leaves decoded rows' customization vectors empty. No operation claims an unknown COMMIT state."
     },
     {
       "package": "wow-database",

@@ -89,6 +89,12 @@ pub struct SessionCatalogs {
     /// Item template and item-data catalogs a session reads. Owned by one type (#670).
     pub items: crate::catalogs::item::ItemCatalogsLikeCpp,
 
+    /// C++ `ObjectMgr::LoadPlayerCreateInfo` new-character starting-gear
+    /// chain (CharacterLoadout Purpose == 9 + items). Set by production
+    /// composition; `None` creates without gear like the pre-loadout path.
+    pub character_creation:
+        Option<Arc<crate::session::catalog_capabilities::CharacterCreationCatalogsLikeCpp>>,
+
     // Trinity strings loaded from world DB `trinity_string`.
     pub trinity_string_store: Option<Arc<TrinityStringStoreLikeCpp>>,
 
@@ -303,6 +309,7 @@ impl Default for SessionCatalogs {
             #[cfg(any(test, feature = "test-fixtures"))]
             item_currency_cost_store: None,
             items: crate::catalogs::item::ItemCatalogsLikeCpp::default(),
+            character_creation: None,
             trinity_string_store: None,
             heirloom_store: None,
             toy_store: None,

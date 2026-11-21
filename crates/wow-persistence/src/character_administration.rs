@@ -28,6 +28,11 @@ pub struct CharacterCreatePersistenceRequestLikeCpp {
     pub power1: u32,
     pub last_login_build: u32,
     pub customizations: Vec<CharacterCustomizationPersistenceLikeCpp>,
+    /// 34-slot `characters.equipmentCache` payload for the select screen:
+    /// five space-separated ints per slot (invType, displayId, enchant,
+    /// subclass, secondaryModifiedAppearance). C++ `Player::Create` equips
+    /// the CharacterLoadout items and the enum reads the cache back.
+    pub equipment_cache: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

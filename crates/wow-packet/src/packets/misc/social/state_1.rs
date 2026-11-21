@@ -861,17 +861,23 @@ pub struct AuctionHelloResponse {
     pub purchased_item_delivery_delay: u32,
     /// Delay in ms before cancelled items are returned.
     pub cancelled_item_delivery_delay: u32,
+    /// AuctionHouse DB2 id. The 3.4.3.54261 client reads a third u32 here (verified in
+    /// IDA: hello reader `guid, u32, u32, u32, bit`; the handler passes the third value
+    /// into the auctioneer interaction). With TC's two u32s the client reads past the end
+    /// and drops the hello: no list refresh after sell/cancel and no deposit.
+    pub auction_house_id: u32,
     /// Whether the auction house is currently open for business.
     pub open_for_business: bool,
 }
 
 impl AuctionHelloResponse {
-    /// Convenience: open neutral auction house for a given NPC guid.
-    pub fn open(auctioneer_guid: wow_core::ObjectGuid) -> Self {
+    /// Convenience: open the selected auction house for a given NPC guid.
+    pub fn open(auctioneer_guid: wow_core::ObjectGuid, auction_house_id: u32) -> Self {
         Self {
             auctioneer_guid,
             purchased_item_delivery_delay: 0,
             cancelled_item_delivery_delay: 0,
+            auction_house_id,
             open_for_business: true,
         }
     }
@@ -884,6 +890,7 @@ impl ServerPacket for AuctionHelloResponse {
         pkt.write_packed_guid(&self.auctioneer_guid);
         pkt.write_uint32(self.purchased_item_delivery_delay);
         pkt.write_uint32(self.cancelled_item_delivery_delay);
+        pkt.write_uint32(self.auction_house_id);
         pkt.write_bit(self.open_for_business);
         pkt.flush_bits();
     }

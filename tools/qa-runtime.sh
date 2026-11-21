@@ -14,6 +14,18 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Match the Cargo output directory used for this checkout's development build.
+# Cargo commands in the RustyCore workflow run from the repository root, so a
+# relative CARGO_TARGET_DIR is interpreted from REPO_ROOT even when this script
+# is invoked elsewhere.
+resolve_cargo_target_dir() {
+  local target_dir="${CARGO_TARGET_DIR:-$REPO_ROOT/target}"
+  [[ "$target_dir" == /* ]] || target_dir="$REPO_ROOT/$target_dir"
+  realpath -m -- "$target_dir"
+}
+QA_CARGO_TARGET_DIR="$(resolve_cargo_target_dir)"
+QA_DEFAULT_RUST_WORLD_EXEC="$QA_CARGO_TARGET_DIR/debug/world-server"
+
 # Injection points. Production defaults address the real host; the self-test
 # points them at fakes so the restore path is exercised, not asserted.
 QA_SYSTEMCTL="${QA_SYSTEMCTL:-sudo -n systemctl}"
@@ -165,8 +177,12 @@ Options:
                                          GameObject fixture and two disposable characters.
   --ack-disposable-trade                 Required for trade: it mutates two disposable
                                          characters (money, position, one item).
-  --world-exec PATH                      Build to swap in (existing modes default to
-                                         target/release; capture defaults to target/debug).
+  --world-exec PATH                      Explicit build to swap in, including a release
+                                         or C++ reference build. Rust defaults to
+                                         CARGO_TARGET_DIR/debug/world-server.
+                                         C++ capture still requires this option.
+                                         Relative CARGO_TARGET_DIR paths resolve from
+                                         the repository root; unset defaults to target/.
   --report PATH                          Write a JSON result document.
   --backend rust|cpp                     Required by capture.
   --output-dir ABSOLUTE_PATH             Fresh private 0700 capture directory.
@@ -814,7 +830,7 @@ run_capture() {
   fi
 
   LIVE_PATH="$QA_LIVE_DIR/$QA_LIVE_NAME"
-  local candidate="${WORLD_EXEC:-$REPO_ROOT/target/debug/world-server}"
+  local candidate="${WORLD_EXEC:-$QA_DEFAULT_RUST_WORLD_EXEC}"
   [[ -x "$candidate" ]] || die "candidate build is not executable: $candidate"
   [[ ! -L "$candidate" && "$(realpath -e -- "$candidate")" == "$candidate" ]] \
     || die "candidate build path must be canonical and not a symlink"
@@ -1041,7 +1057,7 @@ run_login() {
   ((ALLOW_RUNTIME_QA == 1)) || die \
     "login stops and starts $QA_SERVICE; rerun with --allow-runtime-qa"
   LIVE_PATH="$QA_LIVE_DIR/$QA_LIVE_NAME"
-  local candidate="${WORLD_EXEC:-$REPO_ROOT/target/release/world-server}"
+  local candidate="${WORLD_EXEC:-$QA_DEFAULT_RUST_WORLD_EXEC}"
   [[ -x "$candidate" ]] || die "candidate build is not executable: $candidate"
   [[ -f "$LIVE_PATH" ]] || die "no live build at $LIVE_PATH"
   [[ -x "$QA_BOT" ]] || die "QA bot is not built: $QA_BOT"
@@ -1127,7 +1143,7 @@ run_loot_race() {
     "loot-race mutates a world GameObject fixture and two disposable characters; rerun with --ack-disposable-overworld-loot-race"
 
   LIVE_PATH="$QA_LIVE_DIR/$QA_LIVE_NAME"
-  local candidate="${WORLD_EXEC:-$REPO_ROOT/target/release/world-server}"
+  local candidate="${WORLD_EXEC:-$QA_DEFAULT_RUST_WORLD_EXEC}"
   [[ -x "$candidate" ]] || die "candidate build is not executable: $candidate"
   [[ -f "$LIVE_PATH" ]] || die "no live build at $LIVE_PATH"
   [[ -x "$QA_BOT" ]] || die "QA bot is not built: $QA_BOT"
@@ -1236,7 +1252,7 @@ run_loot_item() {
     "loot-item kills an exact overworld creature fixture and mutates two disposable characters; rerun with --ack-disposable-overworld-loot-race"
 
   LIVE_PATH="$QA_LIVE_DIR/$QA_LIVE_NAME"
-  local candidate="${WORLD_EXEC:-$REPO_ROOT/target/release/world-server}"
+  local candidate="${WORLD_EXEC:-$QA_DEFAULT_RUST_WORLD_EXEC}"
   [[ -x "$candidate" ]] || die "candidate build is not executable: $candidate"
   [[ -f "$LIVE_PATH" ]] || die "no live build at $LIVE_PATH"
   [[ -x "$QA_BOT" ]] || die "QA bot is not built: $QA_BOT"
@@ -1338,7 +1354,7 @@ run_trade() {
     "trade mutates two disposable characters (money, position, one item); rerun with --ack-disposable-trade"
 
   LIVE_PATH="$QA_LIVE_DIR/$QA_LIVE_NAME"
-  local candidate="${WORLD_EXEC:-$REPO_ROOT/target/release/world-server}"
+  local candidate="${WORLD_EXEC:-$QA_DEFAULT_RUST_WORLD_EXEC}"
   [[ -x "$candidate" ]] || die "candidate build is not executable: $candidate"
   [[ -f "$LIVE_PATH" ]] || die "no live build at $LIVE_PATH"
   [[ -x "$QA_BOT" ]] || die "QA bot is not built: $QA_BOT"

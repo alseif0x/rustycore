@@ -425,8 +425,77 @@ run_capture_fake() {
   run_qa "${args[@]}" "$@" capture
 }
 
+# The shared Rust executable resolver must select Cargo's local debug artifact
+# for every Rust QA mode, while allowing a deliberately selected release build.
+QA_TARGET_DIR="$WORK/qa-target"
+QA_RELEASE_EXEC="$WORK/explicit-release/release/world-server"
+mkdir -p "$QA_TARGET_DIR/debug" "$(dirname "$QA_RELEASE_EXEC")"
+printf 'DEBUG-CANDIDATE\n' >"$QA_TARGET_DIR/debug/world-server"
+printf 'RELEASE-CANDIDATE\n' >"$QA_RELEASE_EXEC"
+chmod +x "$QA_TARGET_DIR/debug/world-server" "$QA_RELEASE_EXEC"
+
+for mode in login loot-race loot-item trade; do
+  reset_state
+  EXTRA_ENV=(CARGO_TARGET_DIR="$QA_TARGET_DIR")
+  mode_args=(--dry-run --allow-runtime-qa)
+  case "$mode" in
+    loot-race|loot-item) mode_args+=(--ack-disposable-overworld-loot-race) ;;
+    trade) mode_args+=(--ack-disposable-trade) ;;
+  esac
+  output="$(run_qa "${mode_args[@]}" "$mode" 2>&1)"
+  check "$mode defaults to the configured debug executable" \
+    grep -Fq "would install   $QA_TARGET_DIR/debug/world-server" <<<"$output"
+  check "$mode default dry run leaves the fake service stopped" \
+    test ! -f "$WORK/state.log"
+done
+
+reset_state
+EXTRA_ENV=(CARGO_TARGET_DIR="$QA_TARGET_DIR")
+output="$(run_qa --dry-run --allow-runtime-qa --world-exec "$QA_RELEASE_EXEC" login 2>&1)"
+check "login dry run honors an explicit release executable" \
+  grep -Fq "would install   $QA_RELEASE_EXEC" <<<"$output"
+
+# Relative Cargo output paths are anchored to the checkout even if the operator
+# invokes QA from another directory.
+QA_RELATIVE_TARGET="$WORK/relative-target"
+mkdir -p "$QA_RELATIVE_TARGET/debug"
+printf 'RELATIVE-DEBUG-CANDIDATE\n' >"$QA_RELATIVE_TARGET/debug/world-server"
+chmod +x "$QA_RELATIVE_TARGET/debug/world-server"
+relative_target="$(realpath --relative-to="$REPO_ROOT" "$QA_RELATIVE_TARGET")"
+reset_state
+EXTRA_ENV=(CARGO_TARGET_DIR="$relative_target")
+output="$(cd "$WORK" && run_qa --dry-run --allow-runtime-qa login 2>&1)"
+check "relative CARGO_TARGET_DIR is checkout-root relative" \
+  grep -Fq "would install   $QA_RELATIVE_TARGET/debug/world-server" <<<"$output"
+check "relative target dry run leaves the fake service stopped" \
+  test ! -f "$WORK/state.log"
+
+# Rust capture uses the same default candidate as the non-capture modes. Its
+# dry-run validates the candidate and records the selected path without swapping
+# the fake service or creating the capture directory.
+reset_state
+EXTRA_ENV=(CARGO_TARGET_DIR="$QA_TARGET_DIR")
+QA_DEFAULT_CANDIDATE_SHA="$(sha256sum "$QA_TARGET_DIR/debug/world-server" | awk '{print $1}')"
+output="$(run_qa --dry-run --allow-runtime-qa --backend rust \
+  --output-dir "$WORK/capture-default" --candidate-sha256 "$QA_DEFAULT_CANDIDATE_SHA" \
+  --scenario-runner "$WORK/bin/capture-runner" capture 2>&1)"
+check "Rust capture defaults to the configured debug executable" \
+  grep -Fq "candidate      $QA_TARGET_DIR/debug/world-server" <<<"$output"
+check "Rust capture default dry run leaves the fake service stopped" \
+  test ! -f "$WORK/state.log"
+check "Rust capture default dry run creates no output directory" \
+  test ! -e "$WORK/capture-default"
+
 # Sourcing the runtime library returns before its CLI parser and touches no service.
 reset_state
+help_output="$("$QA" --help 2>&1)"
+check "help documents the Rust debug default" \
+  grep -Fq "CARGO_TARGET_DIR/debug/world-server" <<<"$help_output"
+check "help documents relative target-dir resolution" \
+  grep -Fq "Relative CARGO_TARGET_DIR paths resolve from" <<<"$help_output"
+check "help documents explicit C++ executable selection" \
+  grep -Fq "C++ capture still requires this option." <<<"$help_output"
+
 source_output="$(env \
   QA_SYSTEMCTL="$WORK/bin/systemctl" QA_SERVICE=fake-world \
   QA_LIVE_DIR="$WORK/live" QA_LIVE_NAME=world-server \
@@ -856,6 +925,21 @@ check "trade refuses missing evidence despite zero exit" test "$status" -eq 65
 check "missing trade evidence still restores" live_is_original
 
 # 16. Native capture guards run before the live service is stopped.
+reset_state
+status=0
+output="$(run_qa --allow-runtime-qa --backend cpp \
+  --output-dir "$WORK/capture-cpp-no-world-exec" \
+  --candidate-sha256 "$CAPTURE_CANDIDATE_SHA" \
+  --scenario-runner "$WORK/bin/capture-runner" \
+  --source-revision a5f8da2ebf5424bf0450ca4e08843ecbf72577bd \
+  --derivation 'derivedR6; not clean upstream' --source-path "$WORK/cpp-source" \
+  capture 2>&1)" || status=$?
+check "C++ capture requires an explicit world executable" \
+  grep -q "C++ capture requires an explicit --world-exec" <<<"$output"
+check "C++ executable refusal stops nothing" test ! -f "$WORK/state.log"
+check "C++ executable refusal creates no output directory" \
+  test ! -e "$WORK/capture-cpp-no-world-exec"
+
 reset_state
 output="$(run_qa --backend rust --world-exec "$WORK/candidate" \
   --output-dir "$WORK/capture-guard" --candidate-sha256 "$CAPTURE_CANDIDATE_SHA" \

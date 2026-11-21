@@ -1,206 +1,120 @@
-# Migration Index — TrinityCore wotlk_classic → RustyCore
+# Historical C++ subsystem reference
 
-> ⚠️ **HISTORICAL (2026-05-01 snapshot).** Status/Audit columns below are stale. The
-> authoritative current state is [STATE.md](STATE.md); the plan is [PORT_PLAN.md](PORT_PLAN.md).
-> This index is kept only as a module map.
+These source locators come from the archived WotLK migration reports. Follow the [current checkpoint](STATE.md) and [master plan](PORT_PLAN.md) for implementation status. Each report opens at the revision that records its findings.
 
-> Mapa histórico de referencias por módulo, no una lista obligatoria de documentos
-> que haya que completar antes de programar. La plantilla es opcional.
+For offline access use `git show d287f333d69d643ccfd7f84426e51a925836bded:docs/migration/<filename>.md`. The historical TSV inventories retain the report filenames from that revision.
 
-**Cómo usar:**
+| Subsystem report | C++ source locator in that report |
+| --- | --- |
+| [accounts](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/accounts.md) | `src/server/game/Accounts/` |
+| [achievements](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/achievements.md) | `/home/server/woltk-trinity-legacy/src/server/game/Achievements/`, `src/server/game/Handlers/AchievementHandler.cpp`, `src/server/game/Server/Packets/AchievementPackets.{h,cpp}` |
+| [ai base](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/ai-base.md) | `src/server/game/AI/`, `CoreAI/`, `ScriptedAI/ScriptedCreature.{h,cpp}` |
+| [ai smartscripts](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/ai-smartscripts.md) | `src/server/game/AI/SmartScripts/` |
+| [ai](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/ai.md) | `src/server/game/AI/`, `CoreAI/`, `ScriptedAI/`, `SmartScripts/` |
+| [anticheat](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/anticheat.md) | `src/server/game/Entities/Player/Player.cpp`, `src/server/game/Handlers/MovementHandler.cpp`, `src/server/game/Server/WorldSession.cpp` |
+| [auctionhouse](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/auctionhouse.md) | `/home/server/woltk-trinity-legacy/src/server/game/AuctionHouse/`, `src/server/game/Handlers/AuctionHouseHandler.cpp`, `src/server/game/Server/Packets/AuctionHousePackets.{h,cpp}` |
+| [auctionhousebot](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/auctionhousebot.md) | `/home/server/woltk-trinity-legacy/src/server/game/AuctionHouseBot/` |
+| [battlefield](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/battlefield.md) | `/home/server/woltk-trinity-legacy/src/server/game/Battlefield/`, `/home/server/woltk-trinity-legacy/src/server/scripts/Battlefield/` |
+| [battlegrounds](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/battlegrounds.md) | `/home/server/woltk-trinity-legacy/src/server/game/Battlegrounds/` |
+| [battlepets](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/battlepets.md) | `src/server/game/BattlePets/`, `src/server/game/Handlers/BattlePetHandler.cpp`, `src/server/game/Server/Packets/BattlePetPackets.{h,cpp}` |
+| [blackmarket](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/blackmarket.md) | `/home/server/woltk-trinity-legacy/src/server/game/BlackMarket/`, `src/server/game/Handlers/BlackMarketHandler.cpp`, `src/server/game/Server/Packets/BlackMarketPackets.{h,cpp}` |
+| [bnetserver](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/bnetserver.md) | `src/server/bnetserver/` |
+| [cache](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/cache.md) | `/home/server/woltk-trinity-legacy/src/server/game/Cache/` |
+| [calendar](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/calendar.md) | `/home/server/woltk-trinity-legacy/src/server/game/Calendar/`, `src/server/game/Handlers/CalendarHandler.cpp` |
+| [chat](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/chat.md) | `src/server/game/Chat/`, `src/server/game/Handlers/ChatHandler.cpp`, `src/server/game/Handlers/ChannelHandler.cpp` |
+| [client tools](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/client-tools.md) | `/home/server/woltk-trinity-legacy/src/tools/` |
+| [combat dealdamage](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/combat-dealdamage.md) | `src/server/game/Entities/Unit/Unit.cpp`, `src/server/game/Entities/Unit/Unit.h` |
+| [combat manager](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/combat-manager.md) | `src/server/game/Combat/CombatManager.{h,cpp}`, `src/server/game/Server/Packets/CombatPackets.cpp` |
+| [combat threat](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/combat-threat.md) | `src/server/game/Combat/ThreatManager.{h,cpp}`, `src/server/game/Combat/ThreatReference` |
+| [combat](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/combat.md) | `src/server/game/Combat/`, `src/server/game/Server/Packets/CombatPackets.{h,cpp}`, `Entities/Unit/Unit.cpp` |
+| [commands](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/commands.md) | `src/server/scripts/Commands/`, `src/server/game/Chat/ChatCommands/`, `src/server/worldserver/CommandLine/`, `src/server/worldserver/RemoteAccess/` |
+| [common collision](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/common-collision.md) | `src/common/Collision/` |
+| [common](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/common.md) | `/home/server/woltk-trinity-legacy/src/common/`, `Collision/` |
+| [conditions](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/conditions.md) | `src/server/game/Conditions/` |
+| [crypto](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/crypto.md) | `/home/server/woltk-trinity-legacy/src/common/Cryptography/` |
+| [database framework](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/database-framework.md) | `src/server/database/Database/`, `src/server/database/Updater/` |
+| [datastores](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/datastores.md) | `/home/server/woltk-trinity-legacy/src/server/game/DataStores/` |
+| [db schemas](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/db-schemas.md) | `/home/server/woltk-trinity-legacy/sql/` |
+| [dungeonfinding](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/dungeonfinding.md) | `src/server/game/DungeonFinding/`, `src/server/game/Handlers/LFGHandler.cpp` |
+| [entities areatrigger](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-areatrigger.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/AreaTrigger/` |
+| [entities conversation](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-conversation.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/Conversation/` |
+| [entities corpse](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-corpse.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/Corpse/` |
+| [entities creature](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-creature.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/` |
+| [entities dynamicobject](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-dynamicobject.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/DynamicObject/` |
+| [entities gameobject](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-gameobject.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/GameObject/` |
+| [entities object](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-object.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/` |
+| [entities player](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-player.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/` |
+| [entities sceneobject](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-sceneobject.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/SceneObject/` |
+| [entities totem](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-totem.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/Totem/` |
+| [entities transport](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-transport.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/Transport/`, `src/server/game/Maps/MapObject.h` |
+| [entities unit](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-unit.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/` |
+| [entities vehicle](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities-vehicle.md) | `/home/server/woltk-trinity-legacy/src/server/game/Entities/Vehicle/` |
+| [entities](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/entities.md) | `src/server/game/Entities/` |
+| [events](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/events.md) | `src/server/game/Events/`, `src/server/scripts/Events/` |
+| [globals](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/globals.md) | `src/server/game/Globals/` |
+| [grids](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/grids.md) | `src/server/game/Grids/` |
+| [groups](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/groups.md) | `src/server/game/Groups/`, `src/server/game/Handlers/GroupHandler.cpp` |
+| [guilds](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/guilds.md) | `src/server/game/Guilds/`, `src/server/game/Handlers/GuildHandler.cpp`, `src/server/game/GuildFinder/GuildFinderMgr.{h,cpp}` |
+| [handlers](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/handlers.md) | `/home/server/woltk-trinity-legacy/src/server/game/Handlers/` |
+| [instances](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/instances.md) | `/home/server/woltk-trinity-legacy/src/server/game/Instances/` |
+| [inventory](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/inventory.md) | `src/server/game/Entities/Item/`, `src/server/game/Entities/Player/PlayerStorage.cpp`, `Player.cpp`, `src/server/game/Handlers/ItemHandler.cpp` |
+| [localization](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/localization.md) | `src/common/Common.h`, `src/common/Utilities/Locales.{h,cpp}`, `src/server/game/Globals/ObjectMgr.{h,cpp}`, `src/server/game/Texts/CreatureTextMgr.{h,cpp}` |
+| [logging](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/logging.md) | `/home/server/woltk-trinity-legacy/src/common/Logging/`, `/home/server/woltk-trinity-legacy/src/server/database/Logging/AppenderDB.{h,cpp}` |
+| [loot](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/loot.md) | `src/server/game/Loot/`, `src/server/game/Handlers/LootHandler.cpp` |
+| [mails](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/mails.md) | `/home/server/woltk-trinity-legacy/src/server/game/Mails/`, `src/server/game/Handlers/MailHandler.cpp` |
+| [maps](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/maps.md) | `src/server/game/Maps/` |
+| [migration perf strategy](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/migration-perf-strategy.md) | `/home/server/rustycore/docs/migration/` |
+| [migration test strategy](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/migration-test-strategy.md) | `/home/server/rustycore/docs/migration/` |
+| [miscellaneous](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/miscellaneous.md) | `src/server/game/Miscellaneous/` |
+| [movement generators](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/movement-generators.md) | `src/server/game/Movement/MotionMaster.{h,cpp}`, `src/server/game/Movement/MovementGenerator.{h,cpp}`, `src/server/game/Movement/MovementGenerators/*.{h,cpp}`, `src/server/game/Movement/AbstractFollower.{h,cpp}` |
+| [movement pathgen](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/movement-pathgen.md) | `src/server/game/Movement/PathGenerator.{h,cpp}`, `src/common/Collision/Management/MMapManager.{h,cpp}`, `src/common/Collision/Maps/MMapDefines.h`, `dep/recastnavigation/Detour/` |
+| [movement spline](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/movement-spline.md) | `src/server/game/Movement/Spline/MoveSpline.{h,cpp}`, `SplineImpl.h`, `MoveSplineFlag.h`, `MoveSplineInitArgs.h` |
+| [movement](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/movement.md) | `src/server/game/Movement/`, `src/server/game/Server/Packets/MovementPackets.{h,cpp}` |
+| [opcodes inventory](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/opcodes-inventory.md) | `src/server/game/Server/Protocol/Opcodes.{h,cpp}` |
+| [outdoorpvp](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/outdoorpvp.md) | `src/server/game/OutdoorPvP/`, `src/server/scripts/OutdoorPvP/` |
+| [packets by domain](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/packets-by-domain.md) | `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/` |
+| [petitions](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/petitions.md) | `src/server/game/Petitions/`, `src/server/game/Handlers/PetitionsHandler.cpp` |
+| [pets](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/pets.md) | `src/server/game/Entities/Pet/`, `src/server/game/Handlers/PetHandler.cpp`, `src/server/game/Server/Packets/PetPackets.{h,cpp}`, `src/server/game/Handlers/NPCHandler.cpp` |
+| [phasing](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/phasing.md) | `src/server/game/Phasing/` |
+| [pools](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/pools.md) | `src/server/game/Pools/` |
+| [proto](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/proto.md) | `src/server/proto/` |
+| [quests](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/quests.md) | `src/server/game/Quests/`, `src/server/game/Pools/QuestPools.*`, `src/server/game/Handlers/QuestHandler.cpp` |
+| [reputation](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/reputation.md) | `/home/server/woltk-trinity-legacy/src/server/game/Reputation/`, `src/server/game/Server/Packets/ReputationPackets.cpp/.h` |
+| [scenarios](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/scenarios.md) | `src/server/game/Scenarios/` |
+| [scripting](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/scripting.md) | `src/server/game/Scripting/` |
+| [scripts icc](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/scripts-icc.md) | `/home/server/woltk-trinity-legacy/src/server/scripts/Northrend/IcecrownCitadel/` |
+| [scripts ulduar](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/scripts-ulduar.md) | `/home/server/woltk-trinity-legacy/src/server/scripts/Northrend/Ulduar/Ulduar/` |
+| [scripts](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/scripts.md) | `src/server/scripts/` |
+| [server](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/server.md) | `src/server/game/Server/` |
+| [services](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/services.md) | `src/server/game/Services/` |
+| [shared datastores](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/shared-datastores.md) | `/home/server/woltk-trinity-legacy/src/server/shared/DataStores/`, `/home/server/woltk-trinity-legacy/src/common/DataStores/` |
+| [shared dynamic](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/shared-dynamic.md) | `/home/server/woltk-trinity-legacy/src/server/shared/Dynamic/` |
+| [shared json](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/shared-json.md) | `/home/server/woltk-trinity-legacy/src/server/shared/JSON/` |
+| [shared networking](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/shared-networking.md) | `/home/server/woltk-trinity-legacy/src/server/shared/Networking/` |
+| [shared packets](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/shared-packets.md) | `/home/server/woltk-trinity-legacy/src/server/shared/Packets/` |
+| [shared realm](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/shared-realm.md) | `/home/server/woltk-trinity-legacy/src/server/shared/Realm/` |
+| [shared secrets](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/shared-secrets.md) | `/home/server/woltk-trinity-legacy/src/server/shared/Secrets/` |
+| [skills](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/skills.md) | `/home/server/woltk-trinity-legacy/src/server/game/Skills/`, `src/server/game/Handlers/SkillHandler.cpp` |
+| [social](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/social.md) | `src/server/game/Handlers/SocialHandler.cpp`, `src/server/game/Entities/Player/SocialMgr.{h,cpp}`, `src/server/game/Globals/ObjectMgr.cpp` |
+| [spells aura](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/spells-aura.md) | `src/server/game/Spells/Auras/` |
+| [spells cast](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/spells-cast.md) | `src/server/game/Spells/Spell.{h,cpp}`, `SpellCastRequest.h` |
+| [spells effects](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/spells-effects.md) | `src/server/game/Spells/SpellEffects.cpp` |
+| [spells info](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/spells-info.md) | `src/server/game/Spells/SpellInfo.{h,cpp}` |
+| [spells mgr](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/spells-mgr.md) | `src/server/game/Spells/SpellMgr.{h,cpp}` |
+| [spells](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/spells.md) | `src/server/game/Spells/`, `Auras/` |
+| [storages](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/storages.md) | `/home/server/woltk-trinity-legacy/src/server/game/Storages/` |
+| [support](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/support.md) | `/home/server/woltk-trinity-legacy/src/server/game/Support/` |
+| [texts](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/texts.md) | `/home/server/woltk-trinity-legacy/src/server/game/Texts/` |
+| [time](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/time.md) | `/home/server/woltk-trinity-legacy/src/server/game/Time/` |
+| [tools](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/tools.md) | `/home/server/woltk-trinity-legacy/src/server/game/Tools/` |
+| [warden](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/warden.md) | `src/server/game/Warden/`, `enuminfo_WardenCheckMgr.cpp`, `Modules/WardenModuleWin.h`, `Modules/WardenModuleMac.h` |
+| [weather](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/weather.md) | `/home/server/woltk-trinity-legacy/src/server/game/Weather/` |
+| [world](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/world.md) | `src/server/game/World/` |
+| [worldserver](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/worldserver.md) | `src/server/worldserver/` |
 
-- Empezar por [STATE.md](STATE.md), [PORT_PLAN.md](PORT_PLAN.md) y la issue/checkpoint vigente. [refinement-plan.md](refinement-plan.md) conserva un plan anterior; su Fase R no bloquea trabajo nuevo.
-- Inventarios base contra C++: [inventory/cpp-server-tree.md](inventory/cpp-server-tree.md), [inventory/cpp-files-by-module.md](inventory/cpp-files-by-module.md), [inventory/cpp-handlers-opcodes.md](inventory/cpp-handlers-opcodes.md), [inventory/cpp-sql-prepared.md](inventory/cpp-sql-prepared.md), [inventory/cpp-dbc-db2-stores.md](inventory/cpp-dbc-db2-stores.md), [inventory/cpp-config-keys.md](inventory/cpp-config-keys.md), [inventory/cpp-entity-types.md](inventory/cpp-entity-types.md) y [inventory/cpp-scripts-tree.md](inventory/cpp-scripts-tree.md).
-- Usar los docs de módulo para localizar C++, dependencias y auditorías fechadas. Sus secciones de estado, trabajo pendiente y porcentajes describen el momento documentado, no HEAD actual.
-- Leer únicamente las referencias relevantes para la tarea y contrastar sus afirmaciones con código/C++ actuales. Este índice no realiza una auditoría nueva ni impone releer todas las auditorías históricas.
+## Cross-system audits
 
-**Límites:**
-
-- Flujo, aprobaciones y validación se rigen por [AGENTS.md](../../AGENTS.md), no por los antiguos ADR numerados del roadmap.
-- Registrar hallazgos y dependencias reales en la issue/checkpoint o registro vigente. Resolver lo autorizado y mantener visibles los bloqueos; no ampliar alcance ni cerrar gaps por actualizar un inventario.
-- La auditoría 2026-05-01 fue un primer barrido hecho por agentes y sirve como triage, no como prueba final. Antes de implementar o cerrar un punto, contrastar de nuevo contra C++.
-
----
-
-## Tabla maestra
-
-Leyenda Status: ❌ not started / ⚠️ partial / ✅ done / 🔧 broken.
-Leyenda Audit: ❌ no auditado / ⚠️ auditado, divergencias documentadas / ✅ auditado y sin gaps abiertos (incl. n/a confirmados).
-Layer: L0–L8 según `MIGRATION_ROADMAP.md` § 2.
-
-### L0–L1 — Foundation & Infrastructure
-
-| Layer | Module | C++ path | Doc | Status | Audit |
-|---|---|---|---|---|---|
-| L0 | Globals | `src/server/game/Globals/` | [globals.md](globals.md) | ⚠️ ~8% | ⚠️ |
-| L0 | Time | `src/server/game/Time/` | [time.md](time.md) | 🔧 (`to_packed` broken) | ⚠️ |
-| L0 | Texts | `src/server/game/Texts/` | [texts.md](texts.md) | ❌ | ✅ |
-| L0 | Tools | `src/server/game/Tools/` | [tools.md](tools.md) | ❌ | ✅ |
-| L0 | Miscellaneous | `src/server/game/Miscellaneous/` | [miscellaneous.md](miscellaneous.md) | ⚠️ ~50% | ⚠️ |
-| L1 | shared/Networking | `src/server/shared/Networking/` | [shared-networking.md](shared-networking.md) | ⚠️ ~75% | ⚠️ |
-| L1 | shared/Packets | `src/server/shared/Packets/` | [shared-packets.md](shared-packets.md) | ⚠️ | ⚠️ |
-| L1 | Crypto (SRP6/AES-GCM/HMAC) | `src/server/shared/Cryptography/` + `src/common/Cryptography/` | [crypto.md](crypto.md) | ✅ ~95% | ⚠️ |
-| L1 | shared/Realm | `src/server/shared/Realm/` | [shared-realm.md](shared-realm.md) | ⚠️ (~81%; BNet RealmHandle packing/storage/cfg swap, typed flags/types, hostname resolution, subregion writer, JoinRealm prep, selected game-account ownership, normalized names, build-info parsing, build-version lookup, `JamJSONRealmEntry` and strong RealmHandle fixed; golden/e2e pending) | ⚠️ |
-| L1 | shared/Secrets | `src/server/shared/Secrets/` | [shared-secrets.md](shared-secrets.md) | ❌ (0%) | ⚠️ |
-| L1 | shared/DataStores | `src/server/shared/DataStores/` | [shared-datastores.md](shared-datastores.md) | ⚠️ ~1.5% | ⚠️ |
-| L1 | shared/Dynamic | `src/server/shared/Dynamic/` | [shared-dynamic.md](shared-dynamic.md) | n/a | ✅ |
-| L1 | shared/JSON | `src/server/shared/JSON/` | [shared-json.md](shared-json.md) | n/a | ✅ |
-| L1 | proto/ | `src/server/proto/` | [proto.md](proto.md) | ⚠️ (1% error codes) | ⚠️ |
-| L1 | game/DataStores | `src/server/game/DataStores/` | [datastores.md](datastores.md) | ⚠️ (7/325 game-side) | ⚠️ |
-| L1 | game/Storages | `src/server/game/Storages/` | [storages.md](storages.md) | ❌ (CMSG_WHO unregistered) | ✅ |
-| L1 | game/Cache | `src/server/game/Cache/` | [cache.md](cache.md) | ❌ | ✅ |
-| L1 | game/Accounts | `src/server/game/Accounts/` | [accounts.md](accounts.md) | ❌ (no AccountMgr/RBAC) | ⚠️ |
-| L1 | game/Services | `src/server/game/Services/` | [services.md](services.md) | ⚠️ (BNet RPC NotImplemented) | ⚠️ |
-| L1 | game/Support | `src/server/game/Support/` | [support.md](support.md) | ❌ | ✅ |
-
-### L2 — Packets & Dispatch
-
-| Layer | Module | C++ path | Doc | Status | Audit |
-|---|---|---|---|---|---|
-| L2 | game/Handlers | `src/server/game/Handlers/` | [handlers.md](handlers.md) | ⚠️ ~22% (2 bugs/5 spot-checks = 40%) | ⚠️ |
-| L2 | game/Server | `src/server/game/Server/` | [server.md](server.md) | ⚠️ ~23% | ⚠️ |
-
-### L3 — World & Maps
-
-| Layer | Module | C++ path | Doc | Status | Audit |
-|---|---|---|---|---|---|
-| L3 | Maps | `src/server/game/Maps/` | [maps.md](maps.md) | 🔧 (no Map::Update) | ⚠️ |
-| L3 | Grids | `src/server/game/Grids/` | [grids.md](grids.md) | 🔧 (coords/cell base ported; NGrid/GridState missing) | ⚠️ |
-| L3 | World | `src/server/game/World/` | [world.md](world.md) | ❌ (no `struct World`) | ⚠️ |
-| L3 | Phasing | `src/server/game/Phasing/` | [phasing.md](phasing.md) | ❌ (always Unphased=0x08) | ⚠️ |
-
-### L4 — Entities
-
-| Layer | Module | C++ path | Doc | Status | Audit |
-|---|---|---|---|---|---|
-| L4 | Entities | `src/server/game/Entities/` | [entities.md](entities.md) | 🔧 ~5% (no UpdateMask) | ⚠️ |
-| L4 | Entities/Pet | `src/server/game/Entities/Pet/` | [pets.md](pets.md) | ❌ (16 opcodes + 1 stub) | ✅ |
-| L4 | Entities/Item (Inventory) | `src/server/game/Entities/Item/` + Player inventory | [inventory.md](inventory.md) | ⚠️ ~26% (base Item+Bag + Player storage/ObjectAccessor lookup + visible item/modifier state; InventoryType bridge fixed; no ownership/runtime/DB) | ⚠️ |
-
-> Nota: Entities es un mega-módulo con ~16 sub-tipos (Object, WorldObject, Unit, Player, Creature, GameObject, Pet, DynamicObject, AreaTrigger, Conversation, Corpse, Vehicle, Transport, SceneObject, Totem, Item). Si su doc supera ~500 líneas, splitear en `entities-<subtipo>.md`.
-
-### L5 — Engines
-
-| Layer | Module | C++ path | Doc | Status | Audit |
-|---|---|---|---|---|---|
-| L5 | Movement | `src/server/game/Movement/` | [movement.md](movement.md) | ⚠️ (parser-only, 0 generators) | ⚠️ |
-| L5 | Combat | `src/server/game/Combat/` | [combat.md](combat.md) | ❌ (`wow-combat` 0 lines) | ✅ |
-| L5 | Spells | `src/server/game/Spells/` | [spells.md](spells.md) | ❌ (`wow-spell` 0 lines) | ✅ |
-| L5 | AI | `src/server/game/AI/` | [ai.md](ai.md) | ❌ (no SmartAI; 1 struct) | ✅ |
-
-### L6 — Game systems
-
-| Layer | Module | C++ path | Doc | Status | Audit |
-|---|---|---|---|---|---|
-| L6 | Quests | `src/server/game/Quests/` | [quests.md](quests.md) | ⚠️ ~5% (daily flag bug) | ⚠️ |
-| L6 | Loot | `src/server/game/Loot/` | [loot.md](loot.md) | ❌ (silent loot loss bug) | ⚠️ |
-| L6 | Chat | `src/server/game/Chat/` | [chat.md](chat.md) | ⚠️ ~25% (proximity routing bug) | ⚠️ |
-| L6 | Social (friends/ignore) | `src/server/game/Social/` | [social.md](social.md) | ⚠️ (`/ignore` no whisper filter) | ⚠️ |
-| L6 | Groups | `src/server/game/Groups/` | [groups.md](groups.md) | ⚠️ ~8% | ⚠️ |
-| L6 | Guilds | `src/server/game/Guilds/` | [guilds.md](guilds.md) | ❌ (89 opcodes, 2 stubs) | ✅ |
-| L6 | Mails | `src/server/game/Mails/` | [mails.md](mails.md) | ❌ <1% | ✅ |
-| L6 | AuctionHouse | `src/server/game/AuctionHouse/` | [auctionhouse.md](auctionhouse.md) | ⚠️ stub-only | ⚠️ |
-| L6 | AuctionHouseBot | `src/server/game/AuctionHouseBot/` | [auctionhousebot.md](auctionhousebot.md) | ❌ | ✅ |
-| L6 | Calendar | `src/server/game/Calendar/` | [calendar.md](calendar.md) | ⚠️ stub-only | ⚠️ |
-| L6 | Achievements | `src/server/game/Achievements/` | [achievements.md](achievements.md) | ❌ (`wow-achievement` 0 bytes) | ✅ |
-| L6 | Reputation | `src/server/game/Reputation/` | [reputation.md](reputation.md) | ⚠️ ~3% (1000 zero-pairs) | ⚠️ |
-| L6 | Skills | `src/server/game/Skills/` | [skills.md](skills.md) | ⚠️ ~10-15% | ⚠️ |
-| L6 | BlackMarket | `src/server/game/BlackMarket/` | [blackmarket.md](blackmarket.md) | n/a for WotLK; frozen/future-version only | ✅ |
-| L6 | BattlePets | `src/server/game/BattlePets/` | [battlepets.md](battlepets.md) | n/a for WotLK; frozen/future-version only | ✅ |
-| L6 | Petitions | `src/server/game/Petitions/` | [petitions.md](petitions.md) | ❌ (charter UI hang) | ⚠️ |
-| L6 | Pools | `src/server/game/Pools/` | [pools.md](pools.md) | ❌ | ✅ |
-| L6 | Conditions | `src/server/game/Conditions/` | [conditions.md](conditions.md) | ❌ (default-true keystone) | ⚠️ |
-
-### L7 — Instances, BG, Arenas, PvP
-
-| Layer | Module | C++ path | Doc | Status | Audit |
-|---|---|---|---|---|---|
-| L7 | Instances | `src/server/game/Instances/` | [instances.md](instances.md) | ❌ (raid panel hangs) | ⚠️ |
-| L7 | Battlegrounds | `src/server/game/Battlegrounds/` | [battlegrounds.md](battlegrounds.md) | ❌ (1/11 opcodes) | ⚠️ |
-| L7 | Battlefield | `src/server/game/Battlefield/` | [battlefield.md](battlefield.md) | ❌ (zone unreachable) | ✅ |
-| L7 | OutdoorPvP | `src/server/game/OutdoorPvP/` | [outdoorpvp.md](outdoorpvp.md) | ❌ (5 zones) | ✅ |
-| L7 | DungeonFinding | `src/server/game/DungeonFinding/` | [dungeonfinding.md](dungeonfinding.md) | 🔴❌ (CRIT: CMSG_DF_JOIN unregistered → infinite spinner) | ⚠️ |
-| L7 | Scenarios | `src/server/game/Scenarios/` | [scenarios.md](scenarios.md) | n/a (post-WoLK) | ✅ |
-
-### L8 — Content & service
-
-| Layer | Module | C++ path | Doc | Status | Audit |
-|---|---|---|---|---|---|
-| L8 | Scripting | `src/server/game/Scripting/` | [scripting.md](scripting.md) | ❌ (`wow-script` 0 bytes) | ✅ |
-| L8 | scripts/ (content) | `src/server/scripts/` | [scripts.md](scripts.md) | ❌ (`wow-scripts` 0 bytes; 294k LOC C++) | ✅ |
-| L8 | Warden | `src/server/game/Warden/` | [warden.md](warden.md) | ❌ (3 opcode constants) | ✅ |
-| L8 | Events | `src/server/game/Events/` | [events.md](events.md) | ❌ | ✅ |
-| L8 | Weather | `src/server/game/Weather/` | [weather.md](weather.md) | ❌ | ✅ |
-| L8 | Achievements scripts | (parte de Achievements) | (en achievements.md) | — | — |
-
-### Binarios
-
-| Module | C++ path | Doc | Status | Audit |
-|---|---|---|---|---|
-| bnetserver | `src/server/bnetserver/` | [bnetserver.md](bnetserver.md) | ⚠️ (base64 ticket bug) | ⚠️ |
-| worldserver | `src/server/worldserver/` | [worldserver.md](worldserver.md) | 🔧 (canonical map tick + gated legacy creature runtime bridge; full `World::Update` owner still open) | ⚠️ |
-
----
-
-## Conteo
-
-- **Total módulos enumerados:** 64.
-- **Docs creados:** 64/64.
-- **Docs auditados vs C++:** 64/64 — Fase A primer barrido completo (2026-05-01).
-- **Status real (post-audit):**
-  - 🔧 broken: 5 (worldserver, maps, grids, entities, time)
-  - ❌ not started: 28
-  - ⚠️ partial: 27
-  - ✅ done: 0 (todos los antiguos ✅ downgraded)
-  - n/a: 4 (shared-dynamic, shared-json, battlepets, scenarios)
-
-> **Verdict global Fase A:** la primera ronda de auditoría revela que el server está al ~5-15% funcional vs C++ TrinityCore. Los 9 módulos que estaban marcados ✅ antes de auditar todos requerían downgrade. Los crates `wow-combat`, `wow-spell`, `wow-script`, `wow-scripts`, `wow-loot` están a 0 líneas. La capa de wire/handler es lo único vivo; debajo, la simulación es prácticamente no-op. Tres bugs reales de wire confirmados: `read_quest_choose_reward` corrompe selección, `quest.is_repeatable` flag wrong, BG/loot/social handlers silenciosos.
-
----
-
-## Bugs reales detectados durante auditoría (priorizados)
-
-| Pri | Módulo | Bug | Impacto | Ref |
-|---|---|---|---|---|
-| 🔴 P0 | dungeonfinding | `CMSG_DF_JOIN` no registrado → spinner infinito en "Find Group" | UX bloqueante | `dungeonfinding.md` §13 |
-| 🔴 P0 | worldserver | No existe `MapManager::update()` global — mundo congelado con 0 sesiones | Simulación rota | `worldserver.md` §13 |
-| 🔴 P0 | grids | `GRID_SIZE=64` en Rust vs `533.33` en C++ — creature.position hashea a grid wrong | Spawns mal ubicados | `grids.md` §13 |
-| 🔴 P0 | entities | Sin `UpdateMask` — cada broadcast es full re-create | Banda + CPU | `entities.md` §13 |
-| 🟠 P1 | handlers | `handle_quest_giver_choose_reward` decodifica wrong (Choice = u32,u32 vs LootItemType+ItemInstance+Quantity) | Selección de reward corrompida | `handlers.md` §13 |
-| 🟠 P1 | conditions | `evaluate_conditions` ausente; vendor/loot/gossip/trainer default-true | Items condicionales se muestran a todos | `conditions.md` §13 |
-| 🟠 P1 | quests | `is_repeatable` chequea `0x4000 (DEPRECATED)` en vez de `0x1000 (DAILY)` | Daily quests no resetean | `quests.md` §13 |
-| 🟠 P1 | loot | `CMSG_LOOT_ITEM` marca slot taken pero NO añade item al inventario | Pérdida silenciosa de loot | `loot.md` §13 |
-| 🟠 P1 | chat | Party/raid/guild routing por proximidad en vez de membership | Privacy leak + dropped msgs | `chat.md` §13 |
-| 🟠 P1 | social | `/ignore` no filtra whispers; `INSERT IGNORE` en vez de `REPLACE` | Acoso no bloqueable | `social.md` §13 |
-| 🟠 P1 | reputation | Login envía 1000 pares (flags=0, standing=0) hardcoded | Rep pane all-neutral | `reputation.md` §13 |
-| 🟠 P1 | phasing | Stub envía siempre `PhaseShiftFlags::Unphased=0x08` | Wire mismatch latente | `phasing.md` §13 |
-| 🟡 P2 | crypto | Ed25519 priv key hardcoded vs C++ que carga PEM por build_info | Login-blocker si pubkey mismatch | `crypto.md` §13 |
-| 🟢 fixed | crypto/common | Grunt SRP6 string normalisation now uses `wow_core::utf8_to_upper_only_latin_like_cpp`; prior Latin-1-supplement finding corrected after C++ contrast | Cerrado 2026-06-13; C++ helper is Basic-Latin-only, not Latin-1 uppercase | `crypto.md` §13 / `common.md` §13 |
-| 🟢 fixed | shared-realm | `wow_realm_address = r.id` (raw) vs C++ packed `(Region<<24)\|(Site<<16)\|Realm`, y `cfg_timezones_id`/`cfg_categories_id` invertidos | Corregido 2026-06-13 con tests de realm-list JSON, subregion, packed address y JoinRealm lookup | `shared-realm.md` §13 |
-| 🟡 P2 | bnetserver | `extract_auth_ticket` usa base64 verbatim (TC base64-decoda + truncate `:`) | Falla con tokens spec-compliant | `bnetserver.md` §13 |
-| 🟡 P2 | shared-packets | `read_float` acepta NaN/Inf (C++ throws) | Hostile client poison | `shared-packets.md` §13 |
-| 🟢 fixed | inventory | Item.db2 `inventory_type i8→u8` cast colisionaba con `INVENTORY_SLOT_BAG_0=255`; `INVTYPE_BAG=18` también iba a slot 3 | Cerrado en `#NEXT.R8.ENTITIES.046` | `inventory.md` §13 |
-| 🟡 P2 | time | `to_packed` usa 30-day months + wrong year anchor | `SMSG_LOGIN_SET_TIME_SPEED` wrong | `time.md` §13 |
-| 🟡 P2 | groups | race-5 Undead = Alliance; HP/power=1000/500 placeholder | Grupo party display roto | `groups.md` §13 |
-| 🟡 P2 | server | 11 silent log-only no-ops (`Emote`, `SendTextEmote`, `WorldPortResponse`, `TrainerBuySpell`, 7 quest opcodes) | Cliente no obtiene response | `server.md` §13 |
-| 🟡 P2 | server | 6 SessionStatus mismatches (CMSG_QUERY_* en Authed cuando C++ exige LoggedIn) | Pre-login DB lookups | `server.md` §13 |
-| 🟡 P2 | server | 54 PacketProcessing mismatches (DB-touching en Inplace bloquea I/O) | Latencia bajo carga | `server.md` §13 |
-
----
-
-## Histórico
-
-| Fecha | Cambio |
-|---|---|
-| 2026-05-01 | Índice creado, 45 módulos enumerados, 0 docs todavía |
-| 2026-05-01 | Primera ronda completa: 64/64 docs con plantilla de 12 secciones, plan de migración por módulo, gotchas y mapping C++→Rust. Audit aún 0/64. |
-| 2026-05-01 | Fase A (audit) — primer batch: crypto / shared-packets / shared-networking auditados vs C++ wotlk_classic. Status downgrade: shared-networking ✅→⚠️ (~75%), shared-packets ✅→⚠️, crypto ✅→⚠️ pero validado byte-exact en SRP6/AES-GCM/nonce. Audit: 3/64. |
-| 2026-05-01 | Fase A — segundo batch: server / proto / bnetserver / worldserver auditados. Hallazgos: server con 23% opcode coverage (145/621), worldserver con divergencia arquitectónica BREAKING (no existe MapManager::update; ticks viven en sesiones individuales — 0 sesiones = mundo congelado), bnetserver con bug de base64 ticket extraction, proto con 6/601 error codes mapeados. Audit: 7/64. |
-| 2026-05-01 | Fase A — tercer batch: shared-secrets / shared-datastores auditados. shared-secrets ✅→❌ (SecretMgr ausente; doc anterior decía AES-CBC+HMAC pero TC usa AES-GCM 12-byte tag). shared-datastores ✅→⚠️ (1.5% tablas DB2 parseadas; HotfixBlobCache misnamed). Audit: 9/64. |
-| 2026-05-01 | Fase A Wave A — game core: maps/grids/world/entities/pets/inventory/handlers + L5 motors. Hallazgos: GRID_SIZE 8.33× equivocado, sin UpdateMask, wow-combat/spell/movement crates 0 líneas, 2/5 spot-checks de handlers son bugs reales (40% defect). Audit: 19/64. |
-| 2026-05-01 | Fase A Wave B — L6 game systems (16 módulos): quests/loot/chat/social/groups/guilds/skills/reputation/mails/auctions/calendar/achievements/petitions/pools/conditions/phasing + scripting/scripts/warden/events/weather. Bugs P0/P1 confirmados: silent loot loss, /ignore-no-filter, daily-flag wrong, condition default-true, phasing always-Unphased. Audit: 35/64. |
-| 2026-05-01 | Fase A Wave C — L0/L1 foundation + L7 PvP + n/a markers (21 módulos). 🔴 CRIT: CMSG_DF_JOIN unregistered → "Find Group" infinite spinner. Bugs: time::to_packed broken, RealmHandle packing missing, services BNet RPC NotImplemented para todo. n/a confirmados: shared-dynamic/json/battlepets/scenarios. Audit: 64/64 — PRIMER BARRIDO COMPLETO. |
-
----
-
-*Mantener actualizada esta tabla cada vez que se cree o modifique un doc de migración.*
+- [Creature runtime scope and original C++ source matrix](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/creature-port-no-gaps-plan.md)
+- [R8 evidence categories and historical coverage counts](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/honest-progress-audit.md)
+- [Original login packet ordering and AddPlayerToMap plan](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/login-world-load-cpp-parity-plan.md)
+- [Login-to-world packet comparisons and action-specific findings](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/world-load-audit.md)

@@ -9,6 +9,14 @@ impl WorldSession {
     pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {
         self.catalogs.trainer_store_like_cpp = Some(store);
     }
+    /// C++ `ObjectMgr::LoadPlayerCreateInfo` starting-gear chain for
+    /// `Player::Create`; see `CharacterCreationCatalogsLikeCpp`.
+    pub fn set_character_creation_catalogs_like_cpp(
+        &mut self,
+        catalogs: Arc<crate::session::CharacterCreationCatalogsLikeCpp>,
+    ) {
+        self.catalogs.character_creation = Some(catalogs);
+    }
     pub fn set_trinity_string_store(&mut self, store: Arc<TrinityStringStoreLikeCpp>) {
         self.catalogs.trinity_string_store = Some(store);
     }
@@ -248,6 +256,9 @@ impl WorldSession {
     }
     pub fn set_group_visibility_mode(&mut self, mode: i32) {
         self.config.group_visibility_mode = mode;
+    }
+    pub fn set_allow_two_side_interaction_auction_like_cpp(&mut self, allow: bool) {
+        self.config.allow_two_side_interaction_auction_like_cpp = allow;
     }
     #[cfg(test)]
     pub(crate) fn set_rested_xp_config_like_cpp(

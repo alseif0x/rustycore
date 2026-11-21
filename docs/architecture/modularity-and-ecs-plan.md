@@ -1,5 +1,12 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
+As of 2026-11-21, the legacy creature owner has been retired (#1355, #1356) and the first
+trusted module domain hooks and example are integrated (#1444). Use the [module tooling guide](modules.md)
+for the delivered native surface. [#584](https://github.com/alseif0x/rustycore/issues/584),
+[#583](https://github.com/alseif0x/rustycore/issues/583) and [#153](https://github.com/alseif0x/rustycore/issues/153)
+track the remaining core work, stateful native/Wasm product and final audit respectively.
+The dated phase descriptions below retain their original baselines.
+
 **Plan synchronization, 2026-09-15 (#955 / #954 / #953 / #950 / #948 / #936 / #935 / #933 / #931 / #929 / #927 / #925 / #924 / #923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
@@ -436,15 +443,7 @@ and knockback ACK admission/publication is integrated by PR #866
 vehicle/transport seat-offset admission, runtime branches whose mover or consumer is
 not represented, exact packet-order captures and live client/server/DB QA.
 
-La auditoría C0/C3 de 2026-09-14 seleccionó el macro **Transport CREATE/DESTROY y
-visibilidad por fase**, integrado por PR #901 en `3.4.3` (`bf460aa7`). La implementación
-marca los Players de la misma fase desde `Map::AddToMap`/`RemoveFromMap`, toma
-snapshots typed de Transport como datos propios y envía CREATE/OUT-OF-RANGE fuera del
-guard de mapa; `Player::m_visibleTransports` se actualiza en la misma transición de
-Session. Las regresiones focales de mapa y del puente de entidades, el check de
-`wow-world` y fmt/diff pasan. La macro no incluye el traslado de mapa de
-`Transport::TeleportPassengersAndHideTransport`, seats/offsets, pasajeros, AI/scripts,
-taxi ni captura/DB en vivo.
+The September 14 C0/C3 audit led to phase-scoped Transport creation and destruction in PR #901 on `3.4.3` (`bf460aa7`). Map insertion and removal mark players in the same phase. The implementation snapshots transport data, sends CREATE or OUT-OF-RANGE after releasing the map guard, and updates `Player::m_visibleTransports` in the same session transition. Focused map and entity-bridge regressions, the `wow-world` check and formatting passed at that revision. Cross-map transfer, seats and offsets, passengers, AI, scripts, taxis and live capture/database evidence were outside that delivery.
 
 PR #895 closes the next bounded P2 owner surface selected by that audit: production rest-flag, deferred-publication and rest-clock writes now use named `Player` transitions over the Player-owned `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and the generic rest-state adapter is fixture-only under `cfg(test)`. No second authority, lock or clock is introduced. The owner regression, rest-owner scenarios, affected world scenarios, package checks and architecture ratchet pass; quest objective progress, durable persistence, captures and live QA remain outside this structural closure.
 
@@ -765,7 +764,7 @@ and validation-v2 quick (six commands, verified green manifest). Runs used the
 working candidate at parent `aff42a51`; the manifest truthfully records `dirty: true`.
 The tested code/policies were committed unchanged in `6ae62d73`; subsequent handoff
 edits only record documentation. Exact commands and evidence limits are in the
-[historical handoff record](refactor-completion-plan.md#7-registro-historico-conservado).
+[historical handoff record](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/architecture/refactor-completion-plan.md#7-registro-historico-conservado).
 This is local acceptance of #716, not publication, gameplay/runtime acceptance,
 terminal physical acceptance or closure of #584.
 

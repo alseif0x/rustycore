@@ -8,7 +8,7 @@ impl ClientPacket for AuctionPlaceBid {
     const OPCODE: ClientOpcodes = ClientOpcodes::AuctionPlaceBid;
 
     fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
-        let auctioneer = pkt.read_guid()?;
+        let auctioneer = pkt.read_packed_guid()?;
         let auction_id = pkt.read_int32()?;
         let bid_amount = pkt.read_uint64()?;
         let tainted_by = if pkt.read_bit()? {

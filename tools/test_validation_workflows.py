@@ -11,6 +11,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RUST_CI = ROOT / ".github" / "workflows" / "rust-ci.yml"
+FULL_VALIDATION = ROOT / ".github" / "workflows" / "validate-full.yml"
 DETERMINISM = ROOT / ".github" / "workflows" / "validation-determinism.yml"
 
 
@@ -162,10 +163,19 @@ def test_manual_base_validation() -> None:
 
 def test_rust_ci_contract() -> None:
     workflow = RUST_CI.read_text(encoding="utf-8")
-    assert "login != 'alseif0x'" in workflow
+    triggers = workflow.split("permissions:", 1)[0]
+    assert "pull_request:" not in triggers
+    assert "pull_request_target:" not in triggers
+    assert "github.event.pull_request" not in workflow
+    assert "  push:\n    branches:\n      - \"3.4.3\"" in triggers
+    assert '  schedule:\n    - cron: "0 6 * * 1"' in triggers
+    assert "  workflow_dispatch:\n" in triggers
     assert "uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5" in workflow
     assert "uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659" in workflow
     assert "uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in workflow
+    assert "Restore Validation V2 Cargo cache" in workflow
+    assert "uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4" in workflow
+    assert "shared-key: validation-v2" in workflow
     assert "base:\n        description: Explicit ancestor base required for a manual final run" in workflow
     assert "required: false\n        type: string" in workflow
 
@@ -178,11 +188,16 @@ def test_rust_ci_contract() -> None:
     validation_step = step_block(workflow, "Run canonical Validation V2 profile")
     validation_run = next(iter(run_blocks(validation_step)))
     assert "${{" not in validation_run
-    assert "BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}" in workflow
-    assert "BASE_SHA=\"${VALIDATED_MANUAL_BASE_SHA:?manual final base was not validated}\"" in validation_run
-    assert "args=(\"$PROFILE\" --base \"$BASE_SHA\" --timings --logs)" in validation_run
-    assert 'if [ "$PROFILE" = "final" ]; then' in validation_step
-    assert "args+=(--require-changes)" in validation_run
+    audit_job = workflow.split("  audit:\n", 1)[1].split("  validation:\n", 1)[0]
+    assert "uses: ./.github/workflows/validate-full.yml" in audit_job
+    assert "whole_workspace: true" in audit_job
+    assert "base: ${{ github.event.before || github.sha }}" in audit_job
+    assert "if: github.event_name != 'workflow_dispatch' || inputs.profile == 'audit'" in audit_job
+    assert "if: github.event_name == 'workflow_dispatch' && inputs.profile == 'final'" in workflow
+    assert "EXPECTED_HEAD: ${{ github.sha }}" in validation_step
+    assert "ref: ${{ github.sha }}" in workflow
+    assert './tools/validation-v2 final --base "$VALIDATED_MANUAL_BASE_SHA" --require-changes' in validation_run
+    assert "concurrency:" not in audit_job
 
     manual_step = step_block(workflow, "Validate manual final base")
     manual_run = next(iter(run_blocks(manual_step)))
@@ -199,6 +214,44 @@ def test_rust_ci_contract() -> None:
     assert "target/cargo-timings/*.html" in upload
     assert "target/**" not in upload
     assert "if-no-files-found: error" in upload
+
+    for block in run_blocks(workflow):
+        assert "${{" not in block
+
+
+def test_full_validation_contract() -> None:
+    workflow = FULL_VALIDATION.read_text(encoding="utf-8")
+    triggers = workflow.split("permissions:", 1)[0]
+    assert "  workflow_call:\n" in triggers
+    assert "  pull_request:\n    branches: [\"3.4.3\"]" in triggers
+    pull_request = triggers.split("  pull_request:\n", 1)[1].split("\n\nconcurrency:", 1)[0]
+    assert "paths:" not in pull_request
+    assert "pull_request_target:" not in workflow
+
+    assert "permissions:\n  contents: read" in workflow
+    assert "persist-credentials: false" in workflow
+    assert "secrets." not in workflow
+    first_party = "github.event.pull_request.user.login != 'alseif0x'"
+    assert workflow.count(first_party) == 2
+
+    concurrency = triggers.split("\nconcurrency:\n", 1)[1]
+    direct_pr = "github.event_name == 'pull_request' &&" in concurrency
+    workflow_file_guard = "contains(github.workflow_ref, '/.github/workflows/validate-full.yml@')" in concurrency
+    assert direct_pr and workflow_file_guard
+    assert "format('full-validation-pr-{0}', github.event.pull_request.number)" in concurrency
+    assert "format('full-validation-run-{0}', github.run_id)" in concurrency
+    cancel = concurrency.split("cancel-in-progress:", 1)[1]
+    assert direct_pr and workflow_file_guard and "github.run_id" not in cancel
+
+    assert "  verdict:\n    name: Full validation\n" in workflow
+    assert "    needs: validate\n" in workflow
+    assert "if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x') }}" in workflow
+    assert "OUTCOME: ${{ needs.validate.result }}" in workflow
+    assert 'run: test "$OUTCOME" = success' in workflow
+    assert '["tests","production","compositor","policy","inventory"]' in workflow
+    assert 'if [[ "$WHOLE_WORKSPACE" == true ]]; then scope+=(--workspace); fi' in workflow
+    assert "if: inputs.whole_workspace" in workflow
+    assert "if-no-files-found: error" in workflow
 
     for block in run_blocks(workflow):
         assert "${{" not in block
@@ -223,6 +276,7 @@ def test_determinism_contract() -> None:
 def main() -> None:
     test_manual_base_validation()
     test_rust_ci_contract()
+    test_full_validation_contract()
     test_determinism_contract()
     print("validation workflow tests passed")
 

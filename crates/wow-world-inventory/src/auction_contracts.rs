@@ -28,7 +28,6 @@ pub struct RepresentedAuctionPlaceBidLikeCpp {
 pub struct RepresentedAuctionRemoveItemLikeCpp {
     pub auctioneer: ObjectGuid,
     pub auction_id: i32,
-    pub item_id: i32,
     pub tainted_by_present: bool,
 }
 

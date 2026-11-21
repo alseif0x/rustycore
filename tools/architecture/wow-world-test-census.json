@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4191,
+  "tests": 4194,
   "ignored": 1,
-  "session": 3887,
-  "shims": 3707,
+  "session": 3890,
+  "shims": 3710,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3712
+   "W": 3715
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3506
+   "W-world-logic": 3509
   },
   "by_owner": {
    "wow-world": {
@@ -58,7 +58,7 @@
    "wow-world-character": {
     "P": 36,
     "H": 21,
-    "W": 386
+    "W": 387
    },
    "wow-world-core": {
     "P": 14,
@@ -88,7 +88,7 @@
    "wow-world-inventory": {
     "P": 26,
     "H": 19,
-    "W": 412
+    "W": 413
    },
    "wow-world-lifecycle": {
     "P": 38,
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 45,
     "H": 5,
-    "W": 961
+    "W": 962
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3712
+    "W": 3715
    },
    "wow-world-application": {
     "P": 27,
@@ -224,7 +224,7 @@
   "wow-world-inventory": 76,
   "wow-world-lifecycle": 18,
   "wow-world-loot-ops": 107,
-  "wow-world-quest": 53,
+  "wow-world-quest": 54,
   "wow-world-social": 32,
   "wow-world-spell": 113
  },
@@ -763,6 +763,7 @@
   ["unit_tests/handlers/character_tests/misc_2.rs::valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "initial_player_fixture_like_cpp", "player_interaction_source_guid_like_cpp"], []],
   ["unit_tests/handlers/character_tests/misc_2.rs::gossip_hello_mixed_direct_service_keeps_service_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["player_interaction_source_guid_like_cpp", "player_interaction_trainer_id_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/character_tests/misc_2.rs::gossip_hello_canonical_only_direct_fallback_uses_resolved_flags_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["player_interaction_source_guid_like_cpp", "player_interaction_trainer_id_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/character_tests/misc_2.rs::gossip_auctioneer_hello_and_select_resolve_house_ids_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "set_player_trainer_interaction_like_cpp"], []],
   ["unit_tests/handlers/character_tests/misc_2.rs::gossip_hello_trainer_fallback_uses_canonical_access_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["player_interaction_source_guid_like_cpp", "player_interaction_trainer_id_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/character_tests/misc_2.rs::gossip_hello_trainer_fallback_rejects_canonical_player_out_of_world_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/character_tests/misc_2.rs::gossip_select_trainer_only_source_opens_resolved_trainer_without_close_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "initial_player_fixture_like_cpp", "player_interaction_source_guid_like_cpp"], []],
@@ -844,6 +845,7 @@
   ["unit_tests/handlers/character_tests/quest.rs::gossip_hello_questgiver_without_quest_relation_keeps_empty_gossip_fallback", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::gossip_hello_hostile_questgiver_fallback_is_rejected_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::quest_giver_hello_trainer_questgiver_sends_mixed_gossip_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["player_interaction_source_guid_like_cpp", "player_interaction_trainer_id_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/character_tests/quest.rs::quest_giver_hello_without_available_quest_sends_prepared_gossip_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::quest_giver_hello_plain_questgiver_keeps_direct_quest_open_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::gossip_quest_text_filters_race_class_and_level_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["represented_creature_gossip_text_like_cpp", "set_player_guid", "set_quest_store"], []],
   ["unit_tests/handlers/character_tests/quest.rs::gossip_quest_text_offers_sallina_followup_after_hunter_training_rewarded_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["represented_creature_gossip_text_like_cpp", "set_player_guid", "set_quest_store"], []],
@@ -1023,6 +1025,7 @@
   ["unit_tests/handlers/economy/tests/auction.rs::commerce_token_get_log_echoes_request_and_empty_success_like_cpp_todo_handler", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["handle_commerce_token_get_log"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auctionable_token_sell_is_silent_wotlk_stub_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["handle_auctionable_token_sell"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auction_list_items_is_silent_legacy_stub_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["handle_auction_list_items"], []],
+  ["unit_tests/handlers/economy/tests/auction.rs::auction_hello_request_uses_auctioneer_faction_and_rejects_invalid_requests_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "build_auction_handler_cx_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auction_place_bid_records_request_after_auctioneer_gate_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_auction_place_bid", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auction_place_bid_rejects_missing_auctioneer_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_auction_place_bid", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auction_remove_item_records_request_after_auctioneer_gate_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_auction_remove_item", "set_canonical_map_manager"], []],

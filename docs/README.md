@@ -9,14 +9,14 @@ checkbox or an old percentage is not proof that the current server implements th
 | --- | --- |
 | What is implemented, integrated or still unproven? | [STATE.md](migration/STATE.md), its dated evidence boundaries and the active issue/checkpoint |
 | What do we execute next? | [PORT_PLAN.md](migration/PORT_PLAN.md) and [GitHub #49](https://github.com/alseif0x/rustycore/issues/49) |
-| How do Opus and DeepSeek split the work? | [orchestrate-rustycore](../.agents/skills/orchestrate-rustycore/SKILL.md) |
-| What remains in the current architecture delivery? | [Architecture program state](architecture/modularity-and-ecs-plan.md#architecture-program-state--2026-09-11) |
-| How should Claude continue the complete refactor? | [Refactor completion plan](architecture/refactor-completion-plan.md) |
+| How are implementation, review and integration assigned in my runtime? | [orchestrate-rustycore](../.agents/skills/orchestrate-rustycore/SKILL.md) |
+| What remains in the current architecture delivery? | [Core and module obligations](architecture/refactor-completion-plan.md) |
+| Which technical contracts govern the refactor? | [Refactor completion plan](architecture/refactor-completion-plan.md) |
 | What must a quest reward make durable, and when? | [Quest reward operation contract](architecture/quest-reward-operation-contract.md) |
 | What architecture and extension direction is approved? | [Modularity/ECS plan](architecture/modularity-and-ecs-plan.md) |
 | How should responsibilities and files be organized? | [Module design](architecture/module-design-guidelines.md) and [dependency/ownership boundaries](architecture/ownership-and-boundaries.md) |
 | Which oversized files still owe a #584:C4 split? | [C4 physical split plan](architecture/c4-physical-split-plan.md) |
-| Which `wow-world` unit tests could move to a domain crate? | [wow-world test census](architecture/wow-world-test-census.md) (#1442) |
+| Which `wow-world` unit tests could move to a domain crate? | [wow-world test census](architecture/wow-world-test-census.md) (published in #1469, moves tracked in #1441) |
 | What reported defects need current verification? | [EXISTING-CODE-DEFECTS.md](migration/EXISTING-CODE-DEFECTS.md) |
 
 Base-server behavior is established by versioned C++ references and appropriate target-build
@@ -54,7 +54,6 @@ data and gameplay differences must be resolved for 3.4.3 before production adapt
 - [Documentation site](wiki/README.md): VitePress authoring and local build instructions.
   Published guides link to the maintained sources here; they are not a second status ledger.
 - [AGENTS.md](../AGENTS.md): shared scope, approval, fidelity, validation and Git rules.
-  [CLAUDE.md](../CLAUDE.md) imports it; it is not a second operating guide.
 - [Validation V2](operations/validation-v2.md) and
   [local-first development](operations/local-first-development.md): actual validation profiles.
 - [DB bootstrap](operations/db-bootstrap.md), [live client debugging](operations/live-client-debug.md)
@@ -69,19 +68,7 @@ data and gameplay differences must be resolved for 3.4.3 before production adapt
 
 ## Historical references
 
-The per-subsystem files under migration/, numbered inventory campaigns, older audits and
-implementation reports preserve source mappings and past experiments. Their old next-step
-lists, commands and completion tables do not override the current sources above. Read them
-when the active operation needs that evidence; do not load the whole archive for each task.
-
-Older architecture checkpoints may still contain the pre-closure #133/#578 ordering. They
-are historical evidence and must not be used as current instructions; use STATE.md and the
-current architecture plan for status and sequence.
-
-[MIGRATION_ROADMAP.md](MIGRATION_ROADMAP.md), [migration/_INDEX.md](migration/_INDEX.md)
-and the root [MIGRATION_STATUS.md](../MIGRATION_STATUS.md) are not competing current plans.
-The frozen migration/current-session-handoff.md is historical evidence, not an append target
-or required session preflight. Only verified C++/capture evidence can approve protocol/gameplay behavior.
+The [subsystem index](migration/_INDEX.md) locates the original C++ file mappings and bounded reports at an immutable revision. [Migration inventories](migration/inventory/README.md) retain their recorded schemas and evidence. Consult these for specific historical questions. Current work uses the branch checkpoint and open owner issues.
 
 ## Keeping documentation useful
 
@@ -92,8 +79,5 @@ or required session preflight. Only verified C++/capture evidence can approve pr
   short redirect when existing links or tools still need the old path.
 - Recheck inbound links before moving/removing a document. Generated inventories retain their
   schemas and provenance; never rewrite implementation evidence to simulate completion.
-- The two project skills route to these maintained rules. They describe how to reason/refactor,
-  not a fixed technology map, stale issue sequence or new approval process.
-
-The September 2026 cleanup audits documentation coherence and instruction routing; it does
-not re-prove every gameplay claim or every row of the historical migration inventory.
+- The project skills cover development, architecture, refactoring and orchestration. Update
+  the owning skill when the workflow changes.

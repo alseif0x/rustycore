@@ -48,7 +48,8 @@ pub use gossip_session::{
     GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP, GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
 };
 pub use gossip_session::{
-    build_gossip_menu, handle_binder_activate_with_generator_like_cpp, handle_gossip_hello,
+    build_gossip_menu, build_prepared_questgiver_gossip_menu_like_cpp,
+    handle_binder_activate_with_generator_like_cpp, handle_gossip_hello,
     handle_gossip_select_option, send_represented_creature_trainer_gossip_menu_like_cpp,
 };
 pub use login_session::{

@@ -88,6 +88,8 @@ async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
     );
     let _ = publish_quest_log_map_values_like_cpp(&mut session);
     let _ = send_rx.try_iter().count();
+    let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(8);
+    session.install_realm_send_channel_for_test(realm_tx);
 
     session
         .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
@@ -101,12 +103,16 @@ async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
     assert_eq!(status.slot, 0);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
 
-    let complete = send_rx
-        .try_recv()
-        .expect("legacy represented accept confirmation should still be sent");
+    // C++ HandleQuestgiverAcceptQuestOpcode -> PlayerMenu::SendCloseGossip:
+    // SMSG_GOSSIP_COMPLETE on the realm connection, and no
+    // SMSG_QUEST_GIVER_QUEST_COMPLETE (that is Player::RewardQuest's packet).
     assert_eq!(
-        wow_packet::WorldPacket::from_bytes(&complete).server_opcode(),
-        Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete)
+        realm_rx
+            .try_iter()
+            .map(|bytes| wow_packet::WorldPacket::from_bytes(&bytes).server_opcode())
+            .collect::<Vec<_>>(),
+        vec![Some(wow_constants::ServerOpcodes::GossipComplete)],
+        "a successful accept closes the gossip on realm"
     );
     let update = send_rx
         .try_recv()
@@ -995,7 +1001,7 @@ fn quest_giver_session(
 
 /// `player.quest_accepted` (#1444 H1): AzerothCore `OnPlayerQuestAccept`
 /// (`PlayerQuest.cpp:426`). Once, after the status save applied, with no map
-/// guard held, before the legacy accept confirmation packet.
+/// guard held, before the gossip is closed (C++ SendCloseGossip).
 #[tokio::test]
 async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
     let quest_id = 7202;
@@ -1006,6 +1012,8 @@ async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
     );
     let _ = publish_quest_log_map_values_like_cpp(&mut session);
     let _ = send_rx.try_iter().count();
+    let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(8);
+    session.install_realm_send_channel_for_test(realm_tx);
 
     session
         .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
@@ -1021,10 +1029,17 @@ async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
         opcodes,
         vec![
             Some(wow_constants::ServerOpcodes::Chat),
-            Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
             Some(wow_constants::ServerOpcodes::UpdateObject),
         ],
-        "Map publishes the slot after the module message and legacy confirmation"
+        "Map publishes the slot after the module message; no QUEST_GIVER_QUEST_COMPLETE on accept"
+    );
+    assert_eq!(
+        realm_rx
+            .try_iter()
+            .map(|bytes| wow_packet::WorldPacket::from_bytes(&bytes).server_opcode())
+            .collect::<Vec<_>>(),
+        vec![Some(wow_constants::ServerOpcodes::GossipComplete)],
+        "C++ SendCloseGossip closes the gossip on realm"
     );
 }
 

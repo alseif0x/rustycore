@@ -15308,6 +15308,20 @@
           "module": "crate::handlers::quest::quest_handler_host",
           "trait_path": "QuestHandlerSessionHostLikeCpp",
           "kind": "method",
+          "name": "close_gossip_like_cpp",
+          "visibility": "private",
+          "signature": "fn close_gossip_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
           "name": "drain_represented_quest_objective_progress_with_generator_like_cpp",
           "visibility": "private",
           "signature": "fn drain_represented_quest_objective_progress_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",
@@ -31229,6 +31243,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_allow_two_side_interaction_auction_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_allow_two_side_interaction_auction_like_cpp (& mut self , allow : bool)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_appearance_is_favorite_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_appearance_is_favorite_like_cpp (& mut self , item_modified_appearance_id : u32 , apply : bool ,) -> bool",
@@ -31562,6 +31590,20 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_character_creation_catalogs_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_character_creation_catalogs_like_cpp (& mut self , catalogs : Arc < crate :: session :: CharacterCreationCatalogsLikeCpp > ,)",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "setter",
             "visible"

@@ -1,6 +1,9 @@
 # Validation V2 canonical runner
 
-Validation V2 is the clean-room validation path shared by local development and GitHub Actions.
+Use Validation V2 for local publication acceptance. GitHub runs the whole-workspace audit after every merge into `3.4.3`.
+External PRs targeting this branch run the independent [Full validation workflow](../../.github/workflows/validate-full.yml).
+The [delivery time improvement plan](delivery-time-plan.md) records the measured delays,
+proposed changes and criteria for adopting them on `3.4.3`.
 The old `pr-preflight.sh` and `local-harness.sh` wrappers were retired in #331 (PR #335). Do not use
 their former `full` or `capture` subcommands; code review and live QA have separate tools in
 [local-first-development.md](local-first-development.md).
@@ -45,6 +48,12 @@ shell/JSON/Python syntax, optional `actionlint`, and `cargo fmt` for routed work
 or standalone tools. Cargo fmt may inspect manifests. Level 2 never runs `cargo
 check`, `cargo test`, `cargo build`, `cargo run`, locked dependency metadata, a
 protobuf probe, or self-test/architecture/contract suites.
+
+For edits confined to Rust sources under one member's `crates/<member>/src/`,
+both `quick` and `final` check formatting through that member's Cargo manifest.
+Changes spanning members, removed files, manifests, or other workspace inputs
+keep the whole-workspace format check. A root rustfmt configuration change also
+checks both standalone tools. The integration audit checks formatting everywhere.
 
 Level 3 (`final`) collects the same path scope and preserves the current final
 acceptance: it compiles the workspace reverse-dependent closure and runs library
@@ -110,6 +119,9 @@ The flag also honors an explicit request when there are no changed paths. It doe
 exhaustive persistence inventory, terminal physical closeout, production integration or live
 QA when the issue requires those; include their actual additional time in campaign evidence.
 
+A workspace compile in `final` checks downstream test targets before the hotspot scan.
+With `--architecture` the combined policy and syntax checks follow that compile too.
+This puts a compiler diagnostic for a broken consumer or test ahead of both full scans.
 A `final` run whose diff touches workspace Rust also enforces the curated hotspot LOC ceilings
 (`check_architecture.py hotspot-ratchet`; timing depends on cached scanner/build state).
 Every nonempty `final` diff also runs the cheap `check_architecture.py physical-files` scan,
@@ -235,13 +247,11 @@ even a README under `crates/`, `tools/wow-test-bot/` or
 `tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone
 checker and QA bot use their own manifests. A final architecture-checker run executes all its
 library tests, including the now syntax-only `repository_surface_can_be_collected`; it does not
-recompute the exhaustive persistence inventory. That inventory alone costs 870-900 seconds, over
-the 600-second final budget, so `final` never runs it, even when its inputs change (#1468): it
+recompute the exhaustive persistence inventory. The local `final` profile defers that work to the separate audit, including when an input changes (#1468). It
 records an `optional_skips` entry instead when the diff touches any of its inputs (Rust under
 `crates/`, anything under `tools/architecture/handler-contract-check/`, or the
 `persistence-{access-snapshot,boundary-policy,boundary-workflows}.json` and
-`session-ownership-policy.json` policies), and `audit` (every push to `3.4.3` and the weekly
-cron) runs it. Run `./tools/validation-v2 audit` before relying on such a change earlier.
+`session-ownership-policy.json` policies). The hosted audit on `3.4.3` runs the inventory on the exact integration commit. To run the exhaustive checker locally use `./tools/validate-full --workspace --part inventory --base HEAD`.
 Both checker binaries print `<tool>: scan root <path> (...)` on stderr and refuse to scan when
 the tree they were compiled from is not the current directory's git top-level (`--root PATH`
 scans another tree on purpose; a git failure is reported as such). Cargo fingerprints a path
@@ -264,11 +274,18 @@ manifest-only diff. The self-test has, for each of those five tables and the pac
 a fixture in which only that part differs, plus fixtures for the spellings above; it covers
 those cases, not every possible manifest edit. The checker's own lib test pins the package list. Committed capture contracts belong to `audit`,
 and live database/runtime/capture operations to explicit QA procedures.
+Changes to `tools/qa-runtime.sh` or its self-test run the simulated service checks in
+`final`. These exercise candidate selection and restoration with temporary fixtures.
+
 A `final` diff under `tools/modules/` also runs `tools/modules/test_rustycore_module.py`, and one
-under `tools/modules/`, `crates/world-modules/`, `crates/wow-module-api/` or touching
-`crates/world-server/src/{entry,app,lib}.rs` (where `run_with_composition` is defined and
-re-exported) runs `tools/modules/check_sql_compositor.py` (#1468): no
-checked-in tree composes a module with SQL, so the SQL-mode compositor
+under `tools/modules/`, `crates/world-modules/` or `crates/wow-module-api/` runs
+`tools/modules/check_sql_compositor.py` (#1468). Changes to the public entry, its
+re-exports, the module lock or shared build inputs also select the build.
+For `world-server/src/app.rs` the planner compares
+the runtime policy initializer with its base. A change confined to literal
+`world_config_bool` fields there keeps the ordinary consumer compilation and library
+tests. An unrecognised edit takes the full SQL route. Moves route both the old path
+and its destination. The checked-in launcher has zero modules, so the SQL-mode compositor
 (`run_with_composition` plus the embedded lock) compiles only there. It installs the example
 module under the ignored `modules/`, syncs, adds the workspace member, runs
 `cargo test -p example-milestones` and `cargo check -p world-modules` (offline, not `--locked`:
@@ -297,6 +314,8 @@ syntax-ownership continuation described above. It never starts
 services, connects to a database, records a fresh capture, regenerates a baseline, invokes Codex,
 or calls either legacy wrapper. Those mutating or live operations require their own explicit QA
 procedure.
+
+Markdown under `crates/wow-world/_attic/` records archived work and uses the documentation route. Other crate files, including fixtures, retain their normal workspace routing.
 
 ## Verdict rules
 
@@ -424,10 +443,7 @@ time. `quick` and `final` never acquire this heavyweight lock. For hermetic test
 can be overridden with `VALIDATION_V2_HEAVY_LOCK`.
 
 The conservative defaults are one Cargo job and a 900-second per-command timeout, except that
-`audit` defaults to 3600 seconds: its exhaustive persistence inventory alone runs 870-900 seconds
-on a four-core host, so the ordinary budget would kill it - correctly reported as
-`failure_kind: timeout`, but for no useful reason. Controlled
-overrides are validated before execution:
+`audit` allows 3600 seconds per command for exhaustive scans and cold builds. The manifest records a timeout as `failure_kind: timeout`. The runner validates these overrides:
 
 ```bash
 VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1200 \
@@ -544,7 +560,7 @@ failure cannot yield a green run (`failure_kind: output-log`). Logs survive test
 failure and interruption; absence/truncation of a manifest remains a failed run.
 
 Logs are opt-in because command output can contain sensitive data: keep private
-logs local, inspect before sharing, and never stage them. Hosted Rust CI enables
+logs local, inspect before sharing, and never stage them. Manual hosted Validation V2 enables
 logs/timings for its non-live checks and uploads only the explicit manifest/log
 directory and Cargo timing HTMLs, never the whole target or local configuration.
 Do not run a suite again solely because the interactive output was truncated.
@@ -565,22 +581,13 @@ git fetch origin 3.4.3
 ./tools/validation-v2 final --base origin/3.4.3
 ```
 
-Workflow YAML uses `actionlint` when installed. Its absence is an explicit optional skip in the
-manifest locally. GitHub Actions installs the pinned, checksum-verified actionlint release before
-running Validation V2, so changed workflow syntax is always checked remotely.
+The local final profile checks changed workflows with `actionlint` and records an optional
+skip if the executable is unavailable. A manual hosted final installs the pinned,
+checksum-verified release before running this check.
 
-Rust CI checks out the exact event SHA with full history, prepares the pinned Rust/protoc/actionlint
-and locked Cargo inputs, then invokes this same executable once. External pull requests run the
-bounded `final` profile against the exact pull-request base SHA. First-party pull requests are
-skipped and do not wait for hosted validation. Pushes to `3.4.3`, the weekly schedule, and explicit
-`audit` dispatches run the exhaustive profile on an independent GitHub host. Every hosted run
-uploads the manifest and diagnostic artifacts even on failure; signals and timeouts
-therefore cannot become silent passes. Manually dispatched `final` requires an explicit
-base resolving to a strict ancestor of the checked-out SHA, checked before expensive
-toolchain/dependency setup. It also uses `--require-changes`; a same-tree or empty
-diff cannot masquerade as completed acceptance. PRs retain their exact event base.
-Repository-level Actions concurrency serializes audits, while superseded external-PR final runs
-are cancelled.
+On `3.4.3`, each push invokes the [whole-workspace audit](../../.github/workflows/rust-ci.yml). Five independent jobs check out the same event SHA and run the workspace tests, production checks, SQL compositor, architecture policy and fresh persistence inventory. Each job uploads its own report. The final verdict requires all five to pass. GitHub may queue jobs when runners are busy.
+
+A manual `audit` on this branch runs the same complete scope even when the comparison produces an empty diff. A manual `final` requires an explicit ancestor and a nonempty diff and uses the canonical Validation V2 manifest. Scheduled workflows use the repository default branch, currently `forever`, and follow that branch's workflow. External PRs targeting `3.4.3` retain their separate required change validation.
 
 ## Publication evidence without redundant builds
 

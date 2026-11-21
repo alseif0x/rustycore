@@ -22,7 +22,7 @@
 ## Verification
 
 <!-- Only PRs authored by exactly alseif0x use the trusted local path; every other author
-retains remote validation/reviewer checks. Final publication evidence names the clean committed
+needs Full validation and Codex reviewer verdict. Final publication evidence names the committed
 HEAD. Add focused evidence for changed behavior AND explicit issue acceptance; internal macro
 checkpoints are not separate PRs. A skipped hosted job is not a test result. -->
 

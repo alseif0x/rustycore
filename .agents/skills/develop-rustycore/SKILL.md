@@ -1,6 +1,6 @@
 ---
 name: develop-rustycore
-description: "Day-to-day placement and conventions for any RustyCore code change (feature, fix or refactor) in wow-world, world-server, world-modules or a domain crate: where new state, logic and tests go in the split WorldSession, the thunk rule, visibility, drop order, locks, and the per-PR acceptance checklist. Use before editing those crates."
+description: "Day-to-day placement and conventions for any RustyCore code change (feature, fix or refactor) in wow-world, world-server, world-modules or a domain crate: where new state, logic and tests go in the split WorldSession, the thunk rule, visibility, drop order, locks, and selection of the affected acceptance checks. Use before editing those crates."
 ---
 
 # Develop in RustyCore's structure
@@ -114,7 +114,9 @@ a `<Domain>State`. Hook call points move unchanged (same point, order and contex
 
 ## Programme workflow for structural moves
 
-Read [refactor-rustycore-safely](../refactor-rustycore-safely/SKILL.md) first. For #1241/#1263:
+Read [refactor-rustycore-safely](../refactor-rustycore-safely/SKILL.md) first. The closed
+#1241/#1263 programme used the following rules. Apply them when a follow-up explicitly
+inherits the distribution contract.
 
 - Open one PR per phase or domain and merge it continuously into `3.4.3`. Don't keep a
   long-lived WIP branch.
@@ -152,11 +154,15 @@ Use bounded diagnosis before paying full acceptance cost:
   crate, current binaries, required captures, manifests and native references. Never
   delete sources, active services or required proxy/database configuration for space.
 
-## Per-PR acceptance checklist
+## PR acceptance
 
-Follow the single campaign in
-[wow-world-distribution-plan.md §10](../../../docs/architecture/wow-world-distribution-plan.md#10-aceptación-por-pr-sin-repetir-evidencia).
-The parent schedules acceptance or assigns one exclusive executor. The worker's coding
+For general changes, use the affected targets and issue-specific acceptance in AGENTS.md.
+The checklist below applies to the **#1241 distribution programme**. Other changes
+select architecture, census, move and live checks by the responsibility they change.
+
+For a distribution PR follow the single campaign in
+[wow-world-distribution-plan.md §10](../../../docs/architecture/wow-world-distribution-plan.md#10-acceptance-for-follow-ups-that-inherit-the-distribution-contract).
+The parent schedules acceptance or assigns one exclusive executor. The implementer's coding
 feedback follows AGENTS.md; it does not start a second acceptance campaign.
 
 Use this environment on the committed candidate:

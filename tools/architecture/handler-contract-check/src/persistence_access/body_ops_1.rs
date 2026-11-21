@@ -511,7 +511,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     pub(super) fn method_return_info(&self, method: &ExprMethodCall) -> VariableInfo {
         let method_name = normalized_ident(&method.method);
         let mut result = VariableInfo::default();
-        let receiver_types = self.nominal_types_of_expr(&method.receiver);
+        let (receiver_types, receiver_trait_bounds) = match method.receiver.as_ref() {
+            Expr::MethodCall(receiver_method) => {
+                let receiver_info = self.method_return_info(receiver_method);
+                (receiver_info.nominal_types, receiver_info.trait_bounds)
+            }
+            receiver => (
+                self.nominal_types_of_expr(receiver),
+                self.shallow_trait_bounds_of_expr(receiver),
+            ),
+        };
         let mut trait_bounds = BTreeSet::new();
         for receiver_type in &receiver_types {
             if let Some(bounds) = self.generic_trait_bounds.get(receiver_type) {
@@ -521,10 +530,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         // The receiver binding itself may carry trait bounds (e.g. `self` in
         // a default trait body is bound to its own trait), not only generic
         // parameters of the enclosing function.
-        trait_bounds.extend(self.shallow_trait_bounds_of_expr(&method.receiver));
-        if receiver_types.is_empty() {
-            trait_bounds.extend(self.shallow_trait_bounds_of_expr(&method.receiver));
-        }
+        trait_bounds.extend(receiver_trait_bounds);
         for receiver_type in &receiver_types {
             if let Some(info) =
                 self.symbols

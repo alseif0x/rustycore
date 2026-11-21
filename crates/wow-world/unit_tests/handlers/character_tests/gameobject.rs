@@ -256,6 +256,13 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
             option_npc: 6, // Banker is invalid for every C++ GameObject menu.
             action_menu_id: 0,
         },
+        crate::session::GossipOptionInfo {
+            gossip_option_id: 92,
+            menu_id: GOSSIP_ID,
+            order_index: 1,
+            option_npc: 10, // Auctioneer is also invalid for every C++ GameObject menu.
+            action_menu_id: 0,
+        },
     ]));
 
     session
@@ -283,6 +290,19 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
             .contains_key(&FEIGN_SLOT)
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
+
+    session
+        .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
+            gossip_unit: goober,
+            gossip_id: GOSSIP_ID as i32,
+            gossip_option_id: 92,
+            promotion_code: String::new(),
+        })
+        .await;
+    assert!(
+        send_rx.try_recv().is_err(),
+        "a GameObject auctioneer option must not open an auction house"
+    );
 }
 #[tokio::test]
 async fn quest_giver_status_tracked_supplied_gameobject_uses_uint64_status_like_cpp() {

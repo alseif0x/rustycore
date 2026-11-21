@@ -722,7 +722,21 @@ def test_planner_contract(repo: Path) -> None:
     }
     quick, _ = runner.validation_commands(repo, "quick", 2, "base", one_crate_groups, workspace)
     final, _ = runner.validation_commands(repo, "final", 2, "base", one_crate_groups, workspace)
-    assert ["cargo", "fmt", "--all", "--check"] in quick
+    member_fmt = ["cargo", "fmt", "--manifest-path", "crates/a/Cargo.toml", "--check"]
+    all_fmt = ["cargo", "fmt", "--all", "--check"]
+    for extra in ("crates/b/src/lib.rs", "crates/a/src/removed.rs", "crates/a/build.rs",
+                  "crates/a/tests/case.rs", "crates/missing/src/lib.rs", "crates/a/Cargo.toml",
+                  "Cargo.lock"):
+        groups = runner.grouped_paths([*one_crate_paths, extra])
+        assert runner.workspace_format(repo, groups) == all_fmt, extra
+    for mode, planned in (("quick", quick), ("final", final)):
+        assert member_fmt in planned and all_fmt not in planned
+        for config in (".rustfmt.toml", "rustfmt.toml"):
+            groups = runner.grouped_paths([*one_crate_paths, config])
+            commands, _ = runner.validation_commands(repo, mode, 2, "base", groups, workspace)
+            assert all_fmt in commands and member_fmt not in commands
+            for manifest in (runner.BOT_MANIFEST, runner.CHECKER_MANIFEST):
+                assert ["cargo", "fmt", "--manifest-path", manifest, "--", "--check"] in commands
     assert all(command[0] != "cargo" or command[1] == "fmt" for command in quick)
     final_check = next(command for command in final if command[:2] == ["cargo", "check"])
     assert all(package in final_check for package in ("a", "b", "c"))
@@ -730,7 +744,15 @@ def test_planner_contract(repo: Path) -> None:
     assert "a" in final_test and "b" not in final_test and "c" not in final_test
     assert "--no-fail-fast" in final_test  # Same package/feature batch after a test failure.
     ratchet = ["python3", "tools/architecture/check_architecture.py", "hotspot-ratchet"]
-    assert ratchet in final and ratchet not in quick
+    assert final.index(final_check) < final.index(ratchet) < final.index(final_test)
+    assert ratchet not in quick
+    qa_self_test = ["bash", "tools/qa-runtime.sh", "self-test"]
+    for changed in ("tools/qa-runtime.sh", "tools/qa_runtime_self_test.sh"):
+        groups = runner.grouped_paths([changed])
+        for profile in ("quick", "final"):
+            planned, _ = runner.validation_commands(repo, profile, 1, "base", groups, None)
+            assert (qa_self_test in planned) == (profile == "final")
+    assert qa_self_test not in final
     physical = ["python3", "tools/architecture/check_architecture.py", "physical-files"]
     assert physical in final and physical not in quick
     # Not conditional on a workspace crate: source deletions, integrated tools
@@ -989,6 +1011,9 @@ def test_planner_contract(repo: Path) -> None:
                 ])
                 assert runner.validation_commands(repo, mode, 1, "base", overlapping, config_workspace)[0] == planned
 
+    assert runner.classify_path("crates/wow-world/_attic/README.md") == "documentation"
+    assert runner.classify_path("crates/wow-world/_attic/data.rs.txt") == "workspace-rust"
+    assert runner.classify_path("crates/wow-world/src/fixture.md") == "workspace-rust"
     assert runner.classify_path("docs/config.toml") == "documentation"
     assert runner.classify_path(".cargo/unrelated-note") == "other"
 
@@ -1286,20 +1311,22 @@ def test_architecture_plan_contract() -> None:
         assert plan["planned_steps"] == first
         actual = plan["planned_commands"]
         assert actual == [step["argv"] for step in first]
+        offset = 2 if original else 0
+        assert actual[:offset] == retained[:offset]
         # The policy step names the ownership step, so a ratchet breach cannot
         # hide the ownership verdict.
-        assert first[0]["continue_to_section_on_failure"] == "session-syntax-acceptance"
-        assert all("continue_to_section_on_failure" not in step for step in first[1:])
+        assert first[offset]["continue_to_section_on_failure"] == "session-syntax-acceptance"
+        assert sum("continue_to_section_on_failure" in step for step in first) == 1
         # #1468 B1: the ownership scan must show it read this checkout.
-        assert first[1][runner.SCAN_ROOT_BANNER_KEY] == "session-ownership-check"
-        assert actual[0] == [*checker, "check", "--self-test"]
-        assert actual[1] == [
+        assert first[offset + 1][runner.SCAN_ROOT_BANNER_KEY] == "session-ownership-check"
+        assert actual[offset] == [*checker, "check", "--self-test"]
+        assert actual[offset + 1] == [
             "cargo", "run", "--release", "--locked", *runner.CHECKER_CARGO,
             "--bin", "session-ownership-check", "--jobs", "2", "--", "check", "--syntax-only",
         ]
-        assert actual[2:] == (retained if original else [])
+        assert actual[offset + 2:] == (retained[offset:] if original else [])
         runner.enable_cargo_timings(plan)
-        assert "--timings" in plan["planned_commands"][1]
+        assert "--timings" in plan["planned_commands"][offset + 1]
 
 
 def test_timing_plan_contract() -> None:
@@ -1502,11 +1529,113 @@ def test_scan_root_banner_contract() -> None:
         assert plain["status"] == "passed"
 
 
+def test_sql_compositor_config_initializer_routing_contract() -> None:
+    """Only literal bool-config field changes in the runtime initializer are normalized."""
+    app_path = runner.SQL_COMPOSITOR_RUNTIME_PATH
+    compositor = ["python3", runner.SQL_COMPOSITOR_CHECK, "--jobs", "2"]
+    base_source = (
+        "fn build() {\n"
+        "    value: WorldThing {\n"
+        "        runtime: SessionRuntimePolicyCapabilitiesLikeCpp {\n"
+        '            existing_setting: world_config_bool(&world_configs, "CONFIG_EXISTING_SETTING", true),\n'
+        "            vmap_indoor_check: false,\n"
+        "        },\n"
+        "    }\n"
+        "}\n"
+    )
+
+    with tempfile.TemporaryDirectory(prefix="validation-v2-sql-config-") as scratch:
+        repo = Path(scratch).resolve()
+        (repo / app_path).parent.mkdir(parents=True)
+        (repo / app_path).write_text(base_source, encoding="utf-8")
+        (repo / runner.SQL_COMPOSITOR_CHECK).parent.mkdir(parents=True)
+        (repo / runner.SQL_COMPOSITOR_CHECK).write_text("# test placeholder\n", encoding="utf-8")
+        (repo / "crates/wow-module-api/src").mkdir(parents=True)
+        (repo / "crates/wow-module-api/src/lib.rs").write_text("// base\n", encoding="utf-8")
+        (repo / "modules.lock.toml").write_text("# base\n", encoding="utf-8")
+        (repo / "Cargo.toml").write_text("[workspace]\nmembers = []\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        for key, value in (
+            ("user.email", "validation-v2@example.invalid"),
+            ("user.name", "Validation V2"),
+        ):
+            subprocess.run(["git", "config", key, value], cwd=repo, check=True)
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "base"], cwd=repo, check=True)
+        base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+
+        def route(paths: list[str], base_commit: str = base) -> list[list[str]]:
+            planned, _ = runner.validation_commands(
+                repo, "final", 2, base_commit, runner.grouped_paths(paths), None
+            )
+            return planned
+
+        candidate = base_source.replace(
+            'existing_setting: world_config_bool(&world_configs, "CONFIG_EXISTING_SETTING", true),',
+            'existing_setting: world_config_bool(&world_configs, "CONFIG_EXISTING_SETTING", false),\n'
+            '            auction_policy: world_config_bool(\n'
+            '                &world_configs,\n'
+            '                "CONFIG_SAMPLE_AUCTION_POLICY",\n'
+            '                true,\n'
+            '            ),\n'
+            '            another_option: world_config_bool(&world_configs, "CONFIG_ANOTHER_OPTION", false),',
+        )
+        (repo / app_path).write_text(candidate, encoding="utf-8")
+        assert compositor not in route([app_path]), "different literal config fields use scoped Rust checks"
+
+        unrelated = candidate.replace(
+            "            vmap_indoor_check: false,\n",
+            "            vmap_indoor_check: false,\n            unrelated: false,\n",
+        )
+        (repo / app_path).write_text(unrelated, encoding="utf-8")
+        assert compositor in route([app_path]), "unmatched initializer edits fail closed"
+
+        (repo / app_path).write_text(candidate.replace("vmap_indoor_check: false", "vmap_indoor_check: true"), encoding="utf-8")
+        assert compositor in route([app_path]), "mixed field and non-config edits fail closed"
+        assert compositor in route([app_path, "crates/wow-module-api/src/lib.rs"]), (
+            "module API changes retain the SQL compositor check"
+        )
+
+        for path in (
+            "Cargo.toml",
+            "Cargo.lock",
+            ".cargo/config.toml",
+            "rust-toolchain.toml",
+            ".protoc-version",
+            "crates/world-server/Cargo.toml",
+            "crates/world-server/build.rs",
+            "modules.lock.toml",
+        ):
+            assert compositor in route([path]), f"composition root input remains routed: {path}"
+
+        (repo / app_path).write_text(candidate, encoding="utf-8")
+        for path in ("crates/wow-world-core/Cargo.toml", "crates/wow-world-core/build.rs"):
+            assert compositor not in route([path])
+            assert compositor in route([app_path, path])
+
+        subprocess.run(["git", "add", app_path], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "config fields added"], cwd=repo, check=True)
+        added_base = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+        ).strip()
+        (repo / app_path).write_text(base_source, encoding="utf-8")
+        assert compositor in route([app_path], added_base), "field removals retain the full route"
+
+        (repo / runner.SQL_COMPOSITOR_CHECK).unlink()
+        try:
+            route(["modules.lock.toml"])
+        except ValueError as error:
+            assert "required check is missing" in str(error)
+        else:
+            raise AssertionError("missing SQL compositor check was silently accepted")
+
+
 def main() -> None:
     test_no_validation_level()
     test_architecture_plan_contract()
     test_timing_plan_contract()
     test_module_and_persistence_plan_contract()
+    test_sql_compositor_config_initializer_routing_contract()
     test_scan_root_banner_contract()
     with tempfile.TemporaryDirectory(prefix="validation-v2-self-test-") as raw_directory:
         directory = Path(raw_directory)
@@ -1516,6 +1645,9 @@ def main() -> None:
         tools.mkdir(parents=True)
         fake_bin.mkdir()
         shutil.copy2(RUNNER_PATH, tools / "validation-v2")
+        compositor = repo / runner.SQL_COMPOSITOR_CHECK
+        compositor.parent.mkdir(parents=True)
+        compositor.write_text("# synthetic SQL check for the runner's root-input tests\n")
         (repo / "rust-toolchain.toml").write_text('[toolchain]\nchannel = "1.98.0"\n')
         (repo / ".protoc-version").write_text("28.3\n")
         (repo / "Cargo.toml").write_text('[workspace]\nresolver = "2"\n')
@@ -1541,6 +1673,13 @@ def main() -> None:
         test_runner_contract(repo, tools, environment, directory)
         test_interrupt_and_verdict_contract(repo, tools, environment, directory, fake_bin)
         test_planner_contract(repo)
+        # Moving a routed input out of its directory must still select its old owner.
+        old, new = ".protoc-version", "moved-protoc-version"
+        base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+        subprocess.run(["git", "mv", old, new], cwd=repo, check=True)
+        assert {old, new} <= set(runner.changed_paths(repo, base))
+        subprocess.run(["git", "commit", "--only", "-qm", "move fixture", "--", old, new], cwd=repo, check=True)
+        assert {old, new} <= set(runner.changed_paths(repo, base))
     print("validation-v2 self-test passed")
 
 

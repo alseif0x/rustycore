@@ -494,6 +494,18 @@ pub(crate) fn add_canonical_auctioneer_for_misc_test(
     position: Position,
     npc_flags: u32,
 ) {
+    add_canonical_auctioneer_with_faction_template_for_misc_test(
+        canonical, guid, position, npc_flags, 35,
+    );
+}
+
+pub(crate) fn add_canonical_auctioneer_with_faction_template_for_misc_test(
+    canonical: &crate::session::SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    position: Position,
+    npc_flags: u32,
+    faction_template_id: u32,
+) {
     let mut creature = wow_entities::Creature::new(false);
     creature.unit_mut().world_mut().object_mut().create(guid);
     creature
@@ -508,7 +520,7 @@ pub(crate) fn add_canonical_auctioneer_for_misc_test(
     creature.unit_mut().set_max_health(100);
     creature.unit_mut().set_health(100);
     creature.unit_mut().world_mut().object_mut().add_to_world();
-    creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
+    creature.set_ai_identity_runtime(1, faction_template_id, npc_flags, 0);
 
     canonical
         .lock()

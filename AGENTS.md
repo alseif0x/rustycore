@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Shared operating guide for agents working in RustyCore. CLAUDE.md imports this file.
+Shared operating guide for agents working in RustyCore. Start here for repository instructions.
 Use current code to establish implementation state and versioned C++/capture evidence
 to establish required base-server behavior. Neither old documentation nor existing Rust
 is correctness proof. This guide does not override explicit user scope or approval gates.
@@ -13,9 +13,10 @@ is correctness proof. This guide does not override explicit user scope or approv
   The pinned source checkout and its coverage are recorded in docs/README.md.
 - Target: full functional parity with the TrinityCore-derived WoW 3.4.3 server, not a
   smaller compatible subset. A bounded milestone never silently reduces the full port.
-- Integration/default branch: 3.4.3. One implementation macro-issue, one feature branch,
+- Target `3.4.3` explicitly for work on this client version. GitHub's default branch is
+  `forever`, which has its own development and CI configuration. One implementation macro-issue, one feature branch,
   one PR into 3.4.3. Main is only an optional stable release pointer; releases are tags.
-  Exception: see "#1241 wow-world split programme" below.
+  Follow-ups explicitly continuing the closed #1241 distribution programme inherit its phase rules below.
 - Toolchain is declared in rust-toolchain.toml / Cargo.toml (currently Rust 1.98, edition 2024).
 - Development host is aarch64; hosted runners are x86_64. Label machine-dependent evidence.
 - Local protoc: /home/ubuntu/.local/protoc/bin/protoc. Set PROTOC for protobuf-dependent builds.
@@ -48,8 +49,7 @@ Documentation entry point: [docs/README.md](docs/README.md). Current authorities
 - Runtime ADRs and [clock trace](docs/architecture/runtime-clock-phase-trace.md): relevant
   decisions and dated evidence; verify current spawn/call paths before changing runtime owners.
 
-Historical migration tables, percentage headlines, old checklists and the frozen
-current-session-handoff.md are not active instructions or current completion proof.
+The historical subsystem index and inventories preserve evidence from their recorded revisions.
 Read them for a specific historical question, not as a mandatory session preflight.
 Update the owning current document instead of creating another competing plan or status log.
 
@@ -114,8 +114,9 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination: one parent integrator decides, reviews and integrates but does not implement
-routine units; one bounded worker at a time implements. The skill owns the exact routes:
+coordination. The integrator can carry a bounded correction through its callers and tests
+directly. Delegate a coherent operation when the integrator can advance independent work.
+The skill owns the exact routes:
 
 | Runtime | Route file | Client defaults |
 |---|---|---|
@@ -161,7 +162,8 @@ Day-to-day structure guide for any code change: [develop-rustycore](.agents/skil
   STATE.md own the selected delivery and its evidence; do not infer current status
   from older dated checkpoints or wait for #133 to close again.
   The technical gate remains required core #584 → native/Wasm product #583 → independent
-  audit #153. #584 retains unfinished C0–C4 core work; #583 owns the preserved M0–M4
+  audit #153. #584 tracks outstanding core and acceptance work after the C0 retirement.
+  #583 owns the preserved M0–M4
   native/Wasm product and does not block an unrelated gameplay macro, while its
   production integration waits for the required core work. The Rust/Wasm/C mixed
   product remains mandatory even though its operator activation is optional.
@@ -180,9 +182,14 @@ then run affected acceptance tests, applicable QA and publication validation whe
 explicit acceptance campaign begins. During implementation use the default level-1
 working mode: continue writing tests and coherent local checkpoints, but do not run
 automatic validation at internal boundaries or at the end of local implementation.
-The one exception is the implementing worker's own feedback loop: crate-scoped
-`cargo check -p <crate>` and focused `cargo test -p <crate> <filter>` on the unit it
-owns, sequentially with `CARGO_BUILD_JOBS=1`. That is coding, not acceptance evidence.
+During implementation, whoever owns the edit runs the first meaningful check against
+the target that compiles the changed behaviour or test, including a consuming crate.
+For a Rust regression use the correct package, target (`--lib`, `--bin` or `--test`),
+features and filter. Confirm the case ran. Use a scoped compile when that answers the
+question. A focused Cargo test already compiles its target. Skip the preliminary check of
+that same target unless you need a separate compile-only result. Keep one incremental cache
+for the development branch across edits and checkpoints. Keep these commands sequential
+with `CARGO_BUILD_JOBS=1`. This is coding feedback.
 Report implementation/unvalidated work separately from accepted evidence. At final
 acceptance, fix findings and rerun affected evidence as needed. An explicit user
 request for an earlier diagnostic run remains authoritative. Do not claim unexecuted
@@ -190,14 +197,15 @@ evidence as passing.
 
 ### #1241 wow-world split programme
 
-This programme exception is owned by #1241, continued by #1263, and
+The closed #1241 and #1263 programmes used the following phase-specific acceptance.
+It applies to follow-ups that explicitly inherit it. See
 [wow-world-distribution-plan.md](docs/architecture/wow-world-distribution-plan.md):
 
 - It uses one PR per phase (F0, F1, ...) or per domain, merged continuously into 3.4.3,
   instead of one long-lived branch.
 - A move-only step (R2: no semantic change, no rename, no new canonical path) keeps its
   C++ anchors unchanged and needs no new C++ re-audit or per-helper source comparison.
-  Behavior changes go to #1241 F6 with parity evidence.
+  Track behavior changes separately and attach parity evidence to the owning issue.
 - The level-1 deferral does not apply. Each #1241 PR must compile
   (`cargo check -p wow-world --all-targets` plus the moved domain's crate), pass the moved
   domain's tests (R3) and pass the R1 net-move check
@@ -266,11 +274,8 @@ and available RAM/disk before launching. On this shared host start Cargo with on
 Do not kill unrelated processes to obtain resources. Agent-count limits are not resource locks.
 Live runtime QA (`tools/qa-runtime.sh`) uses a debug `world-server` candidate built from the committed
 head; release builds are reserved for deployment or a documented need for release speed.
-When several worktrees share one `CARGO_TARGET_DIR`, cargo can reuse another worktree's artifacts
-(path crates share artifact names and freshness is mtime-based): serialize builds behind one host
-lock and, before each build, touch in your worktree every file any active worktree changed, so the
-affected crates rebuild from your own sources. Architecture checkers build in the checkout-local
-`target/arch-tools` and must print a scan-root banner naming the checkout.
+Architecture checkers build in the checkout-local `target/arch-tools` and print a
+scan-root banner naming the checkout.
 
 Keep direct Cargo and runner commands on the same per-worktree target directory; the
 runner defaults to `<checkout>/target` and respects explicit `CARGO_TARGET_DIR`. For
@@ -279,6 +284,9 @@ target across active worktrees. Follow the disk and long-running-command procedu
 `docs/operations/validation-v2.md`: preserve the active incremental cache, clean inspected
 inactive build artifacts first, retain real exit codes, and track an existing background
 task instead of launching a duplicate after its foreground wait expires.
+For ordinary debug builds on the native aarch64 GNU development host, use the
+[per-worktree LLD setup](docs/operations/local-first-development.md#native-aarch64-debug-linking)
+with the stock compiler. Keep explicit linker choices.
 
 Use [validation-v2](docs/operations/validation-v2.md) and
 [local-first development](docs/operations/local-first-development.md) for the actual profiles.
@@ -336,9 +344,9 @@ delta; never relabel an earlier run as having tested a later SHA.
 
 For exactly alseif0x-authored PRs, local final plus focused evidence is the required gate;
 configured hosted validation/reviewer jobs intentionally skip. External authors retain
-configured remote checks/review. Never broaden trust to an author-association role.
-The audit profile is exhaustive, not the routine pre-push profile; integration-branch
-pushes run it remotely. Preserve explicit issue acceptance even when a profile is green.
+`Full validation` on the proposed merge and `Codex reviewer verdict` on the PR head.
+Never broaden trust to an author-association role.
+Every push to `3.4.3` runs the whole-workspace audit in GitHub Actions. Local publication uses the final profile. Preserve explicit issue acceptance even when a profile is green.
 
 Capture-diff applies to changed bytes, metadata, connection or observable order. Fresh
 action-specific captures are distinct from regression goldens. Live lifecycle/runtime changes
@@ -353,9 +361,9 @@ session or character data; scope the target/accounts and obtain any required run
 Preserve useful QA improvements in the integrated tool, not only in /tmp; record structured
 scenario results. Bot code existing does not establish live acceptance.
 
-Use the current configuration loader and examples: worldserver.conf / bnetserver.conf are
-preferred, with legacy mixed-case compatibility filenames. The processes are world-server
-and bnet-server; the MariaDB schemas are auth, characters, world and hotfixes. Read the
+Use `worldserver.conf` and `bnetserver.conf`. The world service supports the legacy
+`WorldServer.conf` fallback. For Battle.net, pass `--config` to select a mixed-case filename.
+The services use the `auth`, `characters`, `world` and `hotfixes` MariaDB schemas. Read the
 operation guide/current config safely before acting; documentation is not runtime authorization.
 
 Never print, stage or commit credentials, local configs, certificates/keys, secret-bearing logs,
@@ -370,7 +378,9 @@ Reuse the active issue branch. At first implementation branch creation use:
 gh issue develop <N> --repo alseif0x/rustycore --base 3.4.3 --checkout
 ~~~
 
-PRs target 3.4.3 with Closes #<N> in the body. After an authorized push, create the PR if it
+Target `3.4.3` explicitly. Use `Closes #<N>` only when all acceptance criteria are met.
+For a partial delivery, use `Refs #<N>` and record the remaining work on the issue.
+After an authorized push, create the PR if it
 does not already exist; update the existing PR rather than duplicating it. Resolve or explicitly
 defer actionable review findings and resolve conversations before an authorized merge.
 Do not infer merge authority from a commit, push or PR request.
@@ -379,7 +389,7 @@ Use rg for search and apply_patch for manual edits. Preserve unrelated dirty wor
 agents' changes; inspect overlaps before relying on them. Stage exact validated paths only.
 Do not revert, delete or overwrite unrelated work to obtain a clean tree.
 
-AGENTS.md, CLAUDE.md and the selected .agents/skills resources are tracked shared instructions.
+AGENTS.md and the selected .agents/skills resources are tracked shared instructions.
 Other local agent/workflow paths may be ignored; consult git ls-files and .gitignore rather than
 assuming. Do not force-add private local context unless explicitly requested. Keep one source
 for each rule; retire or redirect superseded guidance without discarding useful evidence.

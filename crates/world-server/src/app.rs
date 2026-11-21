@@ -1757,6 +1757,24 @@ async fn run_inner(
         "Loaded {} items with stat modifiers from ItemSparse.db2",
         item_stats_store.len()
     );
+    let character_loadout_store = Arc::new(
+        wow_data::character_progression::CharacterLoadoutStore::load(&data_dir, &locale)
+            .context("Failed to load CharacterLoadout.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} character loadouts from CharacterLoadout.db2",
+        character_loadout_store.len()
+    );
+    let character_loadout_item_store = Arc::new(
+        wow_data::character_progression::CharacterLoadoutItemStore::load(&data_dir, &locale)
+            .context(
+                "Failed to load CharacterLoadoutItem.db2 — check DataDir and DBC.Locale config",
+            )?,
+    );
+    info!(
+        "Loaded {} character loadout items from CharacterLoadoutItem.db2",
+        character_loadout_item_store.len()
+    );
     let creature_equipment_store = Arc::new(
         crate::world::object_catalog::load_creature_equipment_like_cpp(
             &world_object_catalog_persistence,
@@ -4998,6 +5016,16 @@ async fn run_inner(
             chr_classes_store: Arc::clone(&chr_classes_store),
             shapeshift_display_links_absent,
             power_type_store: Arc::clone(&power_type_store),
+            character_creation_catalogs: Arc::new(
+                wow_world::session::CharacterCreationCatalogsLikeCpp {
+                    loadouts: character_loadout_store,
+                    loadout_items: character_loadout_item_store,
+                    items: Arc::clone(&item_store),
+                    item_stats: Arc::clone(&item_stats_store),
+                    modified_appearances: Arc::clone(&item_modified_appearance_store),
+                    appearances: Arc::clone(&item_appearance_store),
+                },
+            ),
         },
         spells: SessionSpellCatalogCapabilitiesLikeCpp {
             spell_chain_store: Arc::clone(&spell_chain_store),
@@ -5142,6 +5170,11 @@ async fn run_inner(
             offhand_check_at_spell_unlearn: world_config_bool(
                 &world_configs,
                 "CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN",
+                true,
+            ),
+            allow_two_side_interaction_auction: world_config_bool(
+                &world_configs,
+                "CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION",
                 true,
             ),
             vmap_indoor_check: world_config_bool(&world_configs, "CONFIG_VMAP_INDOOR_CHECK", false),

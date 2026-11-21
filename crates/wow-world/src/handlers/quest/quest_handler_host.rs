@@ -34,7 +34,9 @@ impl QuestHandlerSessionHostLikeCpp for WorldSession {
         npc_flags: u32,
         npc_guid: ObjectGuid,
     ) -> impl Future<Output = Option<GossipMessage>> + Send {
-        wow_world_character::build_gossip_menu(self, entry, npc_flags, npc_guid)
+        wow_world_character::build_prepared_questgiver_gossip_menu_like_cpp(
+            self, entry, npc_flags, npc_guid,
+        )
     }
     fn send_represented_creature_trainer_gossip_menu_like_cpp(
         &mut self,
@@ -51,6 +53,10 @@ impl QuestHandlerSessionHostLikeCpp for WorldSession {
         request: RepresentedAdventureMapStartQuestLikeCpp,
     ) {
         WorldSession::record_represented_adventure_map_start_quest_like_cpp(self, request)
+    }
+    fn close_gossip_like_cpp(&mut self) {
+        let (interaction, hub) = crate::session::split_interaction(self);
+        interaction.send_close_gossip_like_cpp(hub);
     }
     fn reward_represented_quest_with_generator_like_cpp(
         &mut self,
