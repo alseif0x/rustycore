@@ -188,6 +188,9 @@ def test_rust_ci_contract() -> None:
     assert "persist-credentials: false" in extractor_step
     assert "path: rustycore\n" in step_block(workflow, "Check out exact validation SHA")
     assert "rust-src-dir: rustycore" in step_block(workflow, "Install pinned Rust")
+    assert "            rustycore -> target\n" in step_block(
+        workflow, "Restore Validation V2 Cargo cache"
+    )
 
     profile_expression = "${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}"
     head_expression = "${{ github.event.pull_request.head.sha || github.sha }}"
