@@ -923,8 +923,7 @@ class LockPlanAndWireTests(unittest.TestCase):
             "action": "instance_lock_response", "accept": False,
         })
         self.assertEqual(rejected["actions"][2], {"action": "wait", "milliseconds": 1_000})
-        self.assertEqual(rejected["expect"][0]["body_hex"],
-                         scenario.pending_lock_body(extending=False).hex())
+        self.assertEqual(rejected["expect"][0]["opcode"], scenario.LOGOUT_COMPLETE)
         scenario.validate_lock_response_evidence(lock_bind_evidence(accept=False), accept=False)
 
         accepted = scenario.member_lock_plan(member, True)
@@ -936,6 +935,19 @@ class LockPlanAndWireTests(unittest.TestCase):
         self.assertEqual(facts["calendar_lockout"]["instance_id"], 42)
         self.assertEqual(facts["save_created_sequence"], 30)
         self.assertEqual(facts["calendar_lockout"]["sequence"], 40)
+
+    def test_expired_map_can_reprompt_only_after_its_expiry_announcement(self) -> None:
+        evidence = lock_bind_evidence(accept=False)
+        expiry_event = group_event("realm", scenario.SMSG_RAID_INSTANCE_MESSAGE,
+                                   "05770200000400000000", 12)
+        extension_prompt = group_event("realm", scenario.SMSG_PENDING_RAID_LOCK,
+                                       scenario.pending_lock_body(extending=True).hex(), 13)
+        evidence["events"].extend([expiry_event, extension_prompt])
+        facts = scenario.validate_lock_response_evidence(evidence, accept=False)
+        self.assertEqual(facts["prompt_sequences"], [10, 13])
+        expiry_event["connection"] = "instance"
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_response_evidence(evidence, accept=False)
 
     def test_member_bind_evidence_rejects_wrong_route_payload_and_order(self) -> None:
         bad = lock_bind_evidence(accept=True)
@@ -968,8 +980,7 @@ class LockPlanAndWireTests(unittest.TestCase):
             {"action": "wait_for_packet", "connection": "realm",
              "opcode": scenario.SMSG_CALENDAR_RAID_LOCKOUT_ADDED, "timeout_ms": 90_000},
         ])
-        self.assertEqual(plan["expect"][0]["body_hex"],
-                         scenario.pending_lock_body(extending=True).hex())
+        self.assertEqual(plan["expect"][0]["opcode"], scenario.SMSG_INSTANCE_SAVE_CREATED)
         auto_evidence = lock_bind_evidence(accept=True, extending=True)
         auto_evidence["sent_packets"].clear()
         facts = scenario.validate_leader_auto_lock_evidence(

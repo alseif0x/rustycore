@@ -42,6 +42,7 @@ SMSG_INSTANCE_RESET = 0x2686
 SMSG_INSTANCE_RESET_FAILED = 0x2687
 SMSG_RESET_FAILED_NOTIFY = 0x26B7
 SMSG_PENDING_RAID_LOCK = 0x26F8
+SMSG_RAID_INSTANCE_MESSAGE = 0x2BB4
 SMSG_INSTANCE_SAVE_CREATED = 0x2780
 SMSG_CALENDAR_RAID_LOCKOUT_ADDED = 0x2699
 CMSG_INSTANCE_LOCK_RESPONSE = 0x350B
@@ -1024,13 +1025,12 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
 
 
 def member_lock_plan(member: dict[str, Any], accept: bool) -> dict[str, Any]:
-    prompt_body = pending_lock_body(extending=False)
     actions: list[dict[str, Any]] = [
         death_scenario._wait("realm", SMSG_PENDING_RAID_LOCK, 30_000),
         {"action": "instance_lock_response", "accept": accept},
     ]
     expectations = [
-        death_scenario._packet("realm", SMSG_PENDING_RAID_LOCK, prompt_body),
+        death_scenario._packet("realm", LOGOUT_COMPLETE),
     ]
     if accept:
         actions.append(death_scenario._wait("realm", SMSG_INSTANCE_SAVE_CREATED, 10_000))
@@ -1046,7 +1046,6 @@ def member_lock_plan(member: dict[str, Any], accept: bool) -> dict[str, Any]:
 
 
 def leader_auto_lock_plan(leader: dict[str, Any]) -> dict[str, Any]:
-    prompt_body = pending_lock_body(extending=True)
     return {
         "character_guid": int(leader["guid"]), "timeout_ms": 130_000,
         "actions": [
@@ -1054,7 +1053,6 @@ def leader_auto_lock_plan(leader: dict[str, Any]) -> dict[str, Any]:
             death_scenario._wait("realm", SMSG_CALENDAR_RAID_LOCKOUT_ADDED, 90_000),
         ],
         "expect": [
-            death_scenario._packet("realm", SMSG_PENDING_RAID_LOCK, prompt_body),
             death_scenario._packet("realm", SMSG_INSTANCE_SAVE_CREATED, b"\x00"),
         ],
         "finish_policy": "logout",
@@ -1132,18 +1130,33 @@ def validate_calendar_lockout_added(evidence: dict[str, Any], save_event: dict[s
                             "hour": hour, "minute": minute, "flags": flags}}
 
 
+def entry_lock_prompts(evidence: dict[str, Any], extending: bool) -> list[int]:
+    prompts = [event for event in evidence.get("events", [])
+               if isinstance(event, dict) and event.get("opcode") == SMSG_PENDING_RAID_LOCK]
+    if (not prompts or prompts[0].get("connection") != "realm"
+            or prompts[0].get("body_hex") != pending_lock_body(extending=extending).hex()
+            or _sequence(prompts[0]) < 0):
+        raise ScenarioFailure("ICC entry did not publish the expected 60-second raid lock prompt")
+    # InstanceMap::Reset(Expire) announces the expiry, then prompts current occupants.
+    expiry_body = struct.pack("<BIIB", 5, LOCK_MAP, LOCK_DIFFICULTY, 0).hex()
+    expirations = _opcode_events(evidence, "realm", SMSG_RAID_INSTANCE_MESSAGE, expiry_body)
+    if len(prompts) == 1 and not expirations:
+        return [_sequence(prompts[0])]
+    if (len(prompts) != 2 or len(expirations) != 1
+            or prompts[1].get("connection") != "realm"
+            or prompts[1].get("body_hex") != pending_lock_body(extending=True).hex()
+            or not _sequence(prompts[0]) < _sequence(expirations[0]) < _sequence(prompts[1])):
+        raise ScenarioFailure("additional ICC prompt requires its ordered raid expiry announcement")
+    return [_sequence(prompt) for prompt in prompts]
+
+
 def validate_lock_response_evidence(evidence: dict[str, Any], *, accept: bool,
                                     extending: bool = False,
                                     expected_instance_id: int | None = None) -> dict[str, Any]:
-    prompt_body = pending_lock_body(extending=extending)
-    prompts = _opcode_events(evidence, "realm", SMSG_PENDING_RAID_LOCK, prompt_body.hex())
-    all_prompts = [event for event in evidence.get("events", [])
-                   if isinstance(event, dict) and event.get("opcode") == SMSG_PENDING_RAID_LOCK]
-    if len(prompts) != 1 or len(all_prompts) != 1:
-        raise ScenarioFailure("ICC bind requires exactly one 60-second pending raid lock prompt")
+    prompts = entry_lock_prompts(evidence, extending)
     response = _typed_packets(evidence, "instance_lock_response", "realm",
                               CMSG_INSTANCE_LOCK_RESPONSE, "80" if accept else "00")
-    if len(response) != 1 or _sequence(response[0]) <= _sequence(prompts[0]):
+    if len(response) != 1 or _sequence(response[0]) <= prompts[0]:
         raise ScenarioFailure("ICC lock response was not sent once on realm after its prompt")
     saves = _opcode_events(evidence, "realm", SMSG_INSTANCE_SAVE_CREATED, "00")
     all_saves = [event for event in evidence.get("events", [])
@@ -1160,7 +1173,7 @@ def validate_lock_response_evidence(evidence: dict[str, Any], *, accept: bool,
                      and event.get("opcode") == SMSG_CALENDAR_RAID_LOCKOUT_ADDED]
         if all_saves or calendars:
             raise ScenarioFailure("rejected ICC bind unexpectedly published lockout state")
-    return {"prompt_sequence": _sequence(prompts[0]),
+    return {"prompt_sequence": prompts[0], "prompt_sequences": prompts,
             "response_sequence": _sequence(response[0]), "accepted": accept,
             "save_created_sequence": _sequence(saves[0]) if saves else None,
             "calendar_lockout": calendar_facts if accept else None}
@@ -1168,22 +1181,18 @@ def validate_lock_response_evidence(evidence: dict[str, Any], *, accept: bool,
 
 def validate_leader_auto_lock_evidence(evidence: dict[str, Any],
                                        expected_instance_id: int | None = None) -> dict[str, Any]:
-    prompts = _opcode_events(evidence, "realm", SMSG_PENDING_RAID_LOCK,
-                             pending_lock_body(extending=True).hex())
+    prompts = entry_lock_prompts(evidence, True)
     saves = _opcode_events(evidence, "realm", SMSG_INSTANCE_SAVE_CREATED, "00")
-    all_prompts = [event for event in evidence.get("events", [])
-                   if isinstance(event, dict) and event.get("opcode") == SMSG_PENDING_RAID_LOCK]
     all_saves = [event for event in evidence.get("events", [])
                  if isinstance(event, dict) and event.get("opcode") == SMSG_INSTANCE_SAVE_CREATED]
-    if len(prompts) != 1 or len(all_prompts) != 1 or len(saves) != 1 or len(all_saves) != 1 \
-            or _sequence(saves[0]) <= _sequence(prompts[0]):
+    if len(saves) != 1 or len(all_saves) != 1 or _sequence(saves[0]) <= prompts[-1]:
         raise ScenarioFailure("expired extended leader lock did not auto-confirm after its prompt")
     if any(packet.get("action") == "instance_lock_response"
            for packet in evidence.get("sent_packets", []) if isinstance(packet, dict)):
         raise ScenarioFailure("leader automatic confirmation unexpectedly used a client response")
     calendar_facts = validate_calendar_lockout_added(
         evidence, saves[0], expected_instance_id=expected_instance_id)
-    return {"prompt_sequence": _sequence(prompts[0]),
+    return {"prompt_sequence": prompts[0], "prompt_sequences": prompts,
             "save_created_sequence": _sequence(saves[0]),
             "client_response_sent": False, "automatic_confirmation": True,
             "calendar_lockout": calendar_facts}
