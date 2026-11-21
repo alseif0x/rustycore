@@ -50,20 +50,81 @@ def link_targets(line: str):
 
 
 def document_lines(text: str):
-    """Yield source lines outside fenced code blocks."""
+    """Yield source lines outside fenced and inline code blocks."""
     fence: tuple[str, int] | None = None
-    for number, line in enumerate(text.splitlines(), start=1):
+    visible_lines = []
+    for line in text.splitlines():
         if fence:
             closing = CLOSE_FENCE.match(line)
             if closing and closing.group(1)[0] == fence[0] and len(closing.group(1)) >= fence[1]:
                 fence = None
+            visible_lines.append("")
             continue
         opening = OPEN_FENCE.match(line)
         if opening:
             marker = opening.group(1)
             fence = (marker[0], len(marker))
+            visible_lines.append("")
             continue
-        yield number, line
+        visible_lines.append(line)
+
+    masked = mask_inline_code("\n".join(visible_lines))
+    yield from enumerate(masked.splitlines(), start=1)
+
+
+def mask_inline_code(text: str) -> str:
+    """Replace balanced Markdown code spans with spaces, preserving newlines."""
+    characters = list(text)
+    cursor = 0
+    while cursor < len(text):
+        if text[cursor] != "`":
+            cursor += 1
+            continue
+
+        opening_end = cursor + 1
+        while opening_end < len(text) and text[opening_end] == "`":
+            opening_end += 1
+        slash_cursor = cursor - 1
+        while slash_cursor >= 0 and text[slash_cursor] == "\\":
+            slash_cursor -= 1
+        if (cursor - slash_cursor - 1) % 2:
+            cursor = opening_end
+            continue
+
+        width = opening_end - cursor
+        closing = opening_end
+        closing_end = None
+        while closing < len(text):
+            if text[closing] != "`":
+                closing += 1
+                continue
+            run_end = closing + 1
+            while run_end < len(text) and text[run_end] == "`":
+                run_end += 1
+            if run_end - closing == width:
+                closing_end = run_end
+                break
+            closing = run_end
+
+        if closing_end is None:
+            cursor = opening_end
+            continue
+        for index in range(cursor, closing_end):
+            if characters[index] not in "\r\n":
+                characters[index] = " "
+        cursor = closing_end
+    return "".join(characters)
+
+
+def target_exists(document: Path, path: str) -> bool:
+    """Resolve ordinary files and extensionless VitePress Markdown routes."""
+    target = (document.parent / unquote(path)).resolve() if path else document
+    if target.exists():
+        return True
+    if path and not target.suffix:
+        return (target.with_suffix(".md").is_file()
+                or (target / "index.md").is_file())
+    return False
 
 
 def broken_links(path: Path) -> list[str]:
@@ -82,8 +143,7 @@ def broken_links(path: Path) -> list[str]:
                 continue
             if url.scheme or destination.startswith("//") or url.path.startswith("/"):
                 continue
-            target = (document.parent / unquote(url.path)).resolve() if url.path else document
-            if not target.exists():
+            if not target_exists(document, url.path):
                 errors.append(f"{path}:{number}: broken Markdown link {destination!r}")
     return errors
 

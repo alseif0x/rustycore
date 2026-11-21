@@ -2,6 +2,14 @@
 
 Maintainer plan, 2026-11-20, integration base `3ae34a264`. The [validation guide](validation-v2.md) describes the workflow in this checkout.
 
+## Current use on 3.4.3
+
+`tools/validate-change` provides editing feedback. External PRs require one `Full validation`
+verdict from `tools/validate-full` and an independent `Codex reviewer verdict`. Local publication
+uses `tools/validation-v2 final`. The Rust CI audit runs after integration. The measurements
+and pilot decisions below retain their original comparison bases.
+[Branch protection and trust policy](local-first-development.md#branch-protection)
+
 ## Where the hour went
 
 PR #1494 took **63 min 52 s** from the replayed contributor commit at 15:07:55 UTC to the last required check at 16:11:47. This window excludes investigation before the replay and time awaiting merge. About 34 minutes elapsed before local acceptance started. That included implementation, evidence, tests and policy maintenance. The artifacts do not split that interval further. Acceptance, repair and rerun took 19 min 16 s. Publication and hosted checks occupied the remaining 10 min 35 s. The reviewer and Rust CI ran concurrently. The exhaustive scan also overlapped local work. [PR](https://github.com/alseif0x/rustycore/pull/1494) · [Rust CI](https://github.com/alseif0x/rustycore/actions/runs/44769285374) · [Review](https://github.com/alseif0x/rustycore/actions/runs/44769285412)

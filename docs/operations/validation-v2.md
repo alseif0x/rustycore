@@ -1,6 +1,7 @@
 # Validation V2 canonical runner
 
-Validation V2 is the clean-room validation path shared by local development and GitHub Actions.
+Use Validation V2 for local publication acceptance and the hosted integration audit on `3.4.3`.
+External PRs targeting this branch run the independent [Full validation workflow](../../.github/workflows/validate-full.yml).
 The [delivery time improvement plan](delivery-time-plan.md) records the measured delays,
 proposed changes and criteria for adopting them on `3.4.3`.
 The old `pr-preflight.sh` and `local-harness.sh` wrappers were retired in #331 (PR #335). Do not use
@@ -588,17 +589,15 @@ manifest locally. GitHub Actions installs the pinned, checksum-verified actionli
 running Validation V2, so changed workflow syntax is always checked remotely.
 
 Rust CI checks out the exact event SHA with full history, prepares the pinned Rust/protoc/actionlint
-and locked Cargo inputs, then invokes this same executable once. External pull requests run the
-bounded `final` profile against the exact pull-request base SHA. First-party pull requests are
-skipped and do not wait for hosted validation. Pushes to `3.4.3`, the weekly schedule, and explicit
-`audit` dispatches run the exhaustive profile on an independent GitHub host. Every hosted run
+and locked Cargo inputs, then invokes this executable once. Pushes to `3.4.3` run the exhaustive
+profile on an independent GitHub host. Manual `audit` runs use the selected ref. GitHub runs
+scheduled workflows from the repository default branch, currently `forever`. Each Rust CI run
 uploads the manifest and diagnostic artifacts even on failure; signals and timeouts
 therefore cannot become silent passes. Manually dispatched `final` requires an explicit
 base resolving to a strict ancestor of the checked-out SHA, checked before expensive
 toolchain/dependency setup. It also uses `--require-changes`; a same-tree or empty
-diff cannot masquerade as completed acceptance. PRs retain their exact event base.
-Repository-level Actions concurrency serializes audits, while superseded external-PR final runs
-are cancelled.
+diff cannot masquerade as completed acceptance. Actions concurrency serializes Rust CI audits.
+The separate PR workflow cancels superseded candidates and produces one `Full validation` verdict.
 
 ## Publication evidence without redundant builds
 

@@ -21,8 +21,9 @@ maintainer work.
 
 ## One entry point, three local levels
 
-There is exactly one validation entry point. `docs/operations/validation-v2.md` is its contract;
-this document is only the trust policy around it.
+Use `tools/validation-v2` for local publication evidence. Its three levels are described
+in the [runner contract](validation-v2.md). `tools/validate-change` gives optional editing
+feedback. GitHub runs `tools/validate-full` for external PRs into `3.4.3`.
 
 ```bash
 ./tools/validation-v2                              # level 1 / none: NOT VALIDATED
@@ -167,7 +168,7 @@ and valid local bot credentials; it never runs as part of ordinary validation.
 
 - a pull request whose author is not `alseif0x`;
 - **a push to `3.4.3`, which is every merge**;
-- the scheduled audit;
+- the scheduled audit configured on the repository's default branch;
 - an explicit `workflow_dispatch` run.
 
 The merge-cadence case exists because skipping trusted PR jobs without push validation left
@@ -186,7 +187,8 @@ cycle over intermediate commits — the same rule the scheduled audit follows.
 ## Branch protection
 
 `3.4.3` requires strict status checks, linear history, conversation resolution, and two contexts:
-`Validation V2` and `Codex reviewer verdict`. Both skip for the trusted author and run for
+`Full validation` and `Codex reviewer verdict`. The former validates the proposed merge
+against the PR base. The latter verifies the review of the PR head. Both skip for the trusted author and run for
 everyone else, and a skipped required check satisfies protection — which is exactly why the
 merge-cadence audit above exists.
 
