@@ -235,14 +235,46 @@ pub fn create_map_active_instance_lock_context_like_cpp<H: InstanceSessionHostLi
     map_id: u32,
     difficulty_id: wow_map::Difficulty,
 ) -> Option<wow_map::CreateMapInstanceLockContext> {
-    with_active_map_lock_like_cpp(host, map_id, difficulty_id, |context, _| context)
+    with_active_map_lock_like_cpp(host, map_id, difficulty_id, |context, _, _, _| context)
+}
+
+pub fn create_map_active_instance_lock_context_with_expiry_like_cpp<
+    H: InstanceSessionHostLikeCpp,
+>(
+    host: &H,
+    map_id: u32,
+    difficulty_id: wow_map::Difficulty,
+) -> Option<(
+    wow_map::CreateMapInstanceLockContext,
+    wow_map::InstanceMapExpiryContextLikeCpp,
+)> {
+    with_active_map_lock_like_cpp(
+        host,
+        map_id,
+        difficulty_id,
+        |context, lock, entries, schedule| {
+            (
+                context,
+                wow_map::InstanceMapExpiryContextLikeCpp {
+                    current_expiry_time: lock.expiry_time,
+                    entries: *entries,
+                    reset_schedule: schedule,
+                },
+            )
+        },
+    )
 }
 
 pub(super) fn with_active_map_lock_like_cpp<H: InstanceSessionHostLikeCpp, T>(
     host: &H,
     map_id: u32,
     difficulty_id: wow_map::Difficulty,
-    visit: impl FnOnce(wow_map::CreateMapInstanceLockContext, &wow_instances::InstanceLock) -> T,
+    visit: impl FnOnce(
+        wow_map::CreateMapInstanceLockContext,
+        &wow_instances::InstanceLock,
+        &wow_instances::MapDb2Entries,
+        wow_instances::ResetSchedule,
+    ) -> T,
 ) -> Option<T> {
     let entries = {
         let (state, hub) = host.split_instances_ref();
@@ -260,7 +292,12 @@ pub(super) fn with_active_map_lock_like_cpp<H: InstanceSessionHostLikeCpp, T>(
         token: create_map_instance_lock_token_like_cpp(owner_guid, &entries, lock),
         owner_guid_counter: owner_guid.counter() as u64,
     };
-    Some(visit(context, lock))
+    Some(visit(
+        context,
+        lock,
+        &entries,
+        host.hub_ref().config.reset_schedule_like_cpp,
+    ))
 }
 pub fn create_map_instance_owner_guid_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &H,

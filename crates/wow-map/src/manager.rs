@@ -28,8 +28,13 @@ use crate::spawn::{Difficulty, SpawnId, SpawnObjectType, SpawnStore};
 use wow_core::{GameTime, ObjectGuid};
 use wow_entities::CreatureRuntimeUpdateContext;
 
+mod instance_expiry;
 mod map_lifetime;
 mod player_owner;
+pub use instance_expiry::{
+    InstanceMapExpiryContextLikeCpp, InstanceMapLastLeaveSnapshotLikeCpp,
+    ManagedMapInstanceExpiryUpdateLikeCpp, MapTickInstanceExpiryUpdateLikeCpp,
+};
 pub use map_lifetime::MapUnloadBlockedLikeCpp;
 pub use player_owner::{
     PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp, PlayerVisibilityRefreshIntentLikeCpp,

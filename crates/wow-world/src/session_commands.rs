@@ -168,6 +168,12 @@ impl WorldSession {
                     self.core.send_raw_packet_realm(&command.packet_bytes);
                 }
             }
+            SessionCommand::ExpireInstanceMapOccupantLikeCpp(command) => {
+                let mut hub = crate::session::hub_mut(self);
+                wow_world_instances::apply_instance_map_expiry_to_occupant_like_cpp(
+                    &mut hub, command,
+                );
+            }
             SessionCommand::SendPartyUpdateLikeCpp(command) => {
                 wow_world_instances::handle_send_party_update_command_like_cpp(self, command);
             }

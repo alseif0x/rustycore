@@ -171,6 +171,120 @@ fn install_live_reset_fixture_like_cpp(
     }
 }
 
+fn add_second_expiry_occupant_like_cpp(
+    canonical: &crate::session::SharedCanonicalMapManager,
+    locks: &Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
+    player_guid: ObjectGuid,
+    instance_id: u32,
+) -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
+    let (mut session, _, realm_rx) = make_session_with_realm_send();
+    session.core.set_realm_id(player_guid.realm_id());
+    session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+        player_guid,
+        "SecondExpiryOccupant".to_string(),
+        Position::ZERO,
+        631,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_player_map_position_like_cpp(631, Position::ZERO);
+    session.set_map_store(Arc::new(MapStore::from_entries([MapEntry {
+        id: 631,
+        instance_type: 2,
+        expansion_id: 0,
+        parent_map_id: -1,
+        cosmetic_parent_map_id: -1,
+        flags1: 0,
+        flags2: 0,
+    }])));
+    session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+        4,
+        2,
+        DifficultyFlags::empty(),
+    )])));
+    session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+        MapDifficultyEntry {
+            id: 1,
+            message: String::new(),
+            map_id: 631,
+            difficulty_id: 4,
+            lock_id: 10,
+            reset_interval: 2,
+            max_players: 0,
+            flags: 0,
+        },
+    ])));
+    session.set_canonical_map_manager(Arc::clone(canonical));
+    session.set_instance_lock_mgr(Arc::clone(locks));
+    assert!(
+        wow_world_instances::ensure_canonical_player_owner_for_map_like_cpp(
+            &mut session,
+            wow_map::MapKey::new(631, instance_id),
+            Position::ZERO,
+        )
+    );
+    (session, realm_rx)
+}
+
+fn expiry_occupant_command_like_cpp(
+    update: &wow_map::MapTickInstanceExpiryUpdateLikeCpp,
+    occupant: wow_map::MapSessionPassParticipantLikeCpp,
+) -> wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand {
+    wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand {
+        recipient: occupant.guid,
+        handle: occupant.handle,
+        residence_revision: occupant.residence_revision,
+        map_key: update.key,
+        map_incarnation: update.incarnation,
+        event_time: update.update.event_time,
+        instance_lock_context: update.update.instance_lock_context,
+        has_instance_script: update.update.has_instance_script,
+    }
+}
+
+fn assert_expired_notice_like_cpp(packet_bytes: &[u8]) {
+    let mut packet = WorldPacket::from_bytes(packet_bytes);
+    assert_eq!(
+        packet.read_uint16().unwrap(),
+        ServerOpcodes::RaidInstanceMessage as u16
+    );
+    assert_eq!(packet.read_uint8().unwrap(), 5);
+    assert_eq!(packet.read_uint32().unwrap(), 631);
+    assert_eq!(packet.read_uint32().unwrap(), 4);
+    assert!(!packet.read_bit().unwrap(), "Expired is not locked");
+    assert!(!packet.read_bit().unwrap(), "Expired is not extended");
+}
+
+fn apply_expiry_command_like_cpp(
+    session: &mut crate::session::WorldSession,
+    command: wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand,
+) {
+    use wow_world_core::session::SessionHubHostLikeCpp;
+    wow_world_instances::apply_instance_map_expiry_to_occupant_like_cpp(
+        &mut session.hub_mut(),
+        command,
+    );
+}
+
+fn attach_expiry_context_like_cpp(
+    canonical: &crate::session::SharedCanonicalMapManager,
+    key: wow_map::MapKey,
+    entries: wow_instances::MapDb2Entries,
+    expiry_time: u64,
+) {
+    let mut manager = canonical.lock().unwrap();
+    manager
+        .find_map_mut(key.map_id, key.instance_id)
+        .unwrap()
+        .set_instance_expiry_context_like_cpp(Some(wow_map::InstanceMapExpiryContextLikeCpp {
+            current_expiry_time: expiry_time,
+            entries,
+            reset_schedule: wow_instances::ResetSchedule::default(),
+        }));
+}
+
 struct GroupPersistenceFixtureLikeCpp {
     outcome: RepresentedGroupPersistenceOutcomeLikeCpp,
     requests: Mutex<Vec<RepresentedGroupPersistenceRequestLikeCpp>>,
@@ -621,6 +735,233 @@ async fn reset_instances_group_occupied_manual_retains_recent_and_sends_failures
             .recent_instance_id_like_cpp(631),
         100
     );
+}
+
+#[tokio::test]
+async fn occupied_expiry_orders_flags_and_current_lock_mask_for_each_occupant_like_cpp() {
+    let (mut first, _, first_realm_rx) = make_session_with_realm_send();
+    let first_guid = ObjectGuid::create_player(1, 42);
+    let locks =
+        install_pending_bind_instance_context_like_cpp(&mut first, first_guid, 631, 9001, 4, 10);
+    let canonical = first.core.canonical_map_manager.as_ref().unwrap().clone();
+    let second_guid = ObjectGuid::create_player(1, 77);
+    let (mut second, second_realm_rx) =
+        add_second_expiry_occupant_like_cpp(&canonical, &locks, second_guid, 9001);
+    let entries = first.create_map_db2_entries_like_cpp(631, 4).unwrap();
+    let key = wow_map::MapKey::new(631, 9001);
+    attach_expiry_context_like_cpp(&canonical, key, entries, 1);
+
+    let update = {
+        let mut manager = canonical.lock().unwrap();
+        assert_eq!(manager.update(1), Some(1));
+        let mut updates = manager.take_last_instance_expiry_updates_like_cpp();
+        assert_eq!(updates.len(), 1);
+        updates.pop().unwrap()
+    };
+    assert_eq!(update.occupants.len(), 2);
+    assert!(matches!(
+        &update.update.reset_result,
+        wow_map::InstanceResetResultLikeCpp::NotEmpty { occupant_guids }
+            if occupant_guids.len() == 2
+    ));
+
+    for occupant in update.occupants.iter().copied() {
+        let command = expiry_occupant_command_like_cpp(&update, occupant);
+        match occupant.guid {
+            guid if guid == first_guid => apply_expiry_command_like_cpp(&mut first, command),
+            guid if guid == second_guid => apply_expiry_command_like_cpp(&mut second, command),
+            other => panic!("unexpected map expiry occupant {other:?}"),
+        }
+    }
+
+    for realm_rx in [&first_realm_rx, &second_realm_rx] {
+        let expired = realm_rx.try_recv().expect("expired message first");
+        assert_expired_notice_like_cpp(&expired);
+        let pending = realm_rx.try_recv().expect("extending lock prompt second");
+        assert_eq!(
+            WorldPacket::from_bytes(&pending).server_opcode(),
+            Some(ServerOpcodes::PendingRaidLock)
+        );
+        // The shared initialization row has mask 1; C++ GetData() uses the
+        // attached lock's own mask (0xA5). Extending=true, WarningOnly=false.
+        assert_eq!(&pending[2..], &[0x60, 0xea, 0, 0, 0xa5, 0, 0, 0, 1]);
+        assert!(realm_rx.try_recv().is_err());
+    }
+    assert_eq!(
+        canonical_player_pending_bind_for_test_like_cpp(&first)
+            .unwrap()
+            .completed_mask,
+        0xa5
+    );
+    assert_eq!(
+        canonical_player_pending_bind_for_test_like_cpp(&second)
+            .unwrap()
+            .completed_mask,
+        0xa5
+    );
+    assert!(
+        canonical.try_lock().is_ok(),
+        "MapManager is released after sends"
+    );
+    assert!(
+        locks.try_write().is_ok(),
+        "InstanceLockMgr is released after sends"
+    );
+}
+
+#[tokio::test]
+async fn expired_map_entry_waits_for_live_login_registration_before_consuming_event_like_cpp() {
+    let (mut session, _, _) = make_session_with_realm_send();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let _locks =
+        install_pending_bind_instance_context_like_cpp(&mut session, player_guid, 631, 9001, 4, 10);
+    let canonical = session.core.canonical_map_manager.as_ref().unwrap().clone();
+    let entries = session.create_map_db2_entries_like_cpp(631, 4).unwrap();
+    let key = wow_map::MapKey::new(631, 9001);
+    attach_expiry_context_like_cpp(&canonical, key, entries, 1);
+    canonical
+        .lock()
+        .unwrap()
+        .mark_instance_player_entry_pending_like_cpp(key, player_guid);
+
+    use wow_world_core::session::SessionHubHostLikeCpp;
+    wow_world_instances::complete_instance_map_player_entry_if_registered_like_cpp(
+        &mut session.hub_mut(),
+    );
+    {
+        let mut manager = canonical.lock().unwrap();
+        assert_eq!(manager.update(1), Some(1));
+        assert!(
+            manager
+                .take_last_instance_expiry_updates_like_cpp()
+                .is_empty()
+        );
+    }
+
+    let registry = Arc::new(PlayerRegistry::new());
+    session.set_player_registry(registry);
+    session.register_in_player_registry();
+    wow_world_instances::complete_instance_map_player_entry_if_registered_like_cpp(
+        &mut session.hub_mut(),
+    );
+    let mut manager = canonical.lock().unwrap();
+    assert_eq!(manager.update(1), Some(1));
+    assert_eq!(
+        manager.take_last_instance_expiry_updates_like_cpp().len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn stale_expiry_map_or_player_incarnation_publishes_nothing_like_cpp() {
+    let (mut session, _, realm_rx) = make_session_with_realm_send();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let _locks =
+        install_pending_bind_instance_context_like_cpp(&mut session, player_guid, 631, 9001, 4, 10);
+    let canonical = session.core.canonical_map_manager.as_ref().unwrap().clone();
+    let key = wow_map::MapKey::new(631, 9001);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let (map_incarnation, lock_context, residence_revision) = {
+        let manager = canonical.lock().unwrap();
+        (
+            manager.map_incarnation_like_cpp(key).unwrap(),
+            manager
+                .find_map(key.map_id, key.instance_id)
+                .unwrap()
+                .instance_lock_context()
+                .unwrap(),
+            manager
+                .current_player_admission_like_cpp(player_guid)
+                .unwrap()
+                .1,
+        )
+    };
+    let command = wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand {
+        recipient: player_guid,
+        handle,
+        residence_revision,
+        map_key: key,
+        map_incarnation: map_incarnation + 1,
+        event_time: 1,
+        instance_lock_context: lock_context,
+        has_instance_script: true,
+    };
+    apply_expiry_command_like_cpp(&mut session, command);
+    assert!(
+        realm_rx.try_recv().is_err(),
+        "a replaced map cannot publish expiry"
+    );
+    assert!(canonical_player_pending_bind_for_test_like_cpp(&session).is_none());
+
+    let stale_player_command = wow_world_core::session::ExpireInstanceMapOccupantLikeCppCommand {
+        map_incarnation,
+        ..command
+    };
+    let relogged_handle = {
+        let mut manager = canonical.lock().unwrap();
+        assert!(manager.retire_player_like_cpp(handle).is_some());
+        let mut replacement = wow_entities::Player::new(Some(1), false);
+        replacement
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(player_guid);
+        let new_handle = manager
+            .install_detached_player_like_cpp(Box::new(replacement))
+            .unwrap();
+        manager
+            .attach_player_like_cpp(new_handle, key, Position::ZERO)
+            .unwrap();
+        new_handle
+    };
+    session.core.player_handle_like_cpp = Some(relogged_handle);
+    apply_expiry_command_like_cpp(&mut session, stale_player_command);
+    assert!(
+        realm_rx.try_recv().is_err(),
+        "a relogged Player cannot receive old expiry"
+    );
+}
+
+#[tokio::test]
+async fn flex_raid_expiry_prompt_is_warning_only_and_does_not_bind_like_cpp() {
+    let (mut session, _, realm_rx) = make_session_with_realm_send();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let _locks =
+        install_pending_bind_instance_context_like_cpp(&mut session, player_guid, 631, 9001, 4, 10);
+    session.set_map_store(Arc::new(MapStore::from_entries([MapEntry {
+        id: 631,
+        instance_type: 2,
+        expansion_id: 0,
+        parent_map_id: -1,
+        cosmetic_parent_map_id: -1,
+        flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+        flags2: 0,
+    }])));
+    let canonical = session.core.canonical_map_manager.as_ref().unwrap().clone();
+    let entries = session.create_map_db2_entries_like_cpp(631, 4).unwrap();
+    let key = wow_map::MapKey::new(631, 9001);
+    attach_expiry_context_like_cpp(&canonical, key, entries, 1);
+    let update = {
+        let mut manager = canonical.lock().unwrap();
+        assert_eq!(manager.update(1), Some(1));
+        manager
+            .take_last_instance_expiry_updates_like_cpp()
+            .pop()
+            .unwrap()
+    };
+    assert_eq!(update.occupants.len(), 1);
+    let command = expiry_occupant_command_like_cpp(&update, update.occupants[0]);
+    apply_expiry_command_like_cpp(&mut session, command);
+
+    assert_expired_notice_like_cpp(&realm_rx.try_recv().expect("expired notice"));
+    let pending = realm_rx.try_recv().expect("warning-only prompt");
+    assert_eq!(
+        WorldPacket::from_bytes(&pending).server_opcode(),
+        Some(ServerOpcodes::PendingRaidLock)
+    );
+    assert_eq!(&pending[2..], &[0x60, 0xea, 0, 0, 0xa5, 0, 0, 0, 3]);
+    assert!(canonical_player_pending_bind_for_test_like_cpp(&session).is_none());
+    assert!(realm_rx.try_recv().is_err());
 }
 
 #[tokio::test]

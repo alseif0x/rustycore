@@ -2,6 +2,8 @@
 //!
 //! Separated from the manager.rs root under #644. Behaviour is preserved.
 
+use std::collections::BTreeSet;
+
 use super::*;
 use wow_entities::AccessorObjectKind;
 
@@ -216,6 +218,14 @@ pub struct ManagedMap {
     pub(super) instance_encounter_in_progress: bool,
     pub(super) instance_lock_token: Option<u64>,
     pub(super) instance_lock_context: Option<CreateMapInstanceLockContext>,
+    pub(super) instance_expiry_context: Option<InstanceMapExpiryContextLikeCpp>,
+    /// The `InstanceMap` constructor's one-shot raw-expiry event. Repeated
+    /// player admissions update the attached lock snapshot but never re-arm it.
+    pub(super) instance_expire_event_time: Option<u64>,
+    /// Players selected for a map before `InstanceMap::AddPlayerToMap`; expiry
+    /// waits until their entry phase publishes the prompt and completes it.
+    pub(super) pending_instance_map_entries: std::collections::BTreeSet<ObjectGuid>,
+    pub(super) last_instance_expiry_update: Option<ManagedMapInstanceExpiryUpdateLikeCpp>,
     pub(super) owning_group_guid: Option<u64>,
     pub(super) update_calls: Vec<u32>,
     pub(super) delayed_update_calls: Vec<u32>,
@@ -272,6 +282,10 @@ impl ManagedMap {
             instance_encounter_in_progress: false,
             instance_lock_token: None,
             instance_lock_context: None,
+            instance_expiry_context: None,
+            instance_expire_event_time: None,
+            pending_instance_map_entries: BTreeSet::new(),
+            last_instance_expiry_update: None,
             owning_group_guid: None,
             update_calls: Vec::new(),
             delayed_update_calls: Vec::new(),
@@ -408,12 +422,17 @@ impl ManagedMap {
     pub fn set_instance_lock_token(&mut self, token: Option<u64>) {
         self.instance_lock_token = token;
         if token.is_none() {
-            self.instance_lock_context = None;
+            self.set_instance_lock_context(None);
         }
     }
 
     pub fn set_instance_lock_context(&mut self, context: Option<CreateMapInstanceLockContext>) {
         self.instance_lock_token = context.map(|context| context.token);
+        if context.is_none() {
+            self.instance_expire_event_time = None;
+            self.instance_expiry_context = None;
+            self.pending_instance_map_entries.clear();
+        }
         self.instance_lock_context = context;
     }
 
@@ -994,6 +1013,13 @@ impl ManagedMap {
             },
             metrics: self.runtime.map.map_update_metrics_like_cpp(),
         };
+
+        // C++ `InstanceMap::Update` runs after `Map::Update` returns
+        // (`Map.cpp:2930-2934`). Keep the raw-expiry check in this same map
+        // update owner; packet fanout is returned as owned work for delivery
+        // after MapManager releases its guard.
+        self.last_instance_expiry_update =
+            self.expire_instance_after_map_update_at_like_cpp(GameTime::now().as_secs());
     }
 
     pub(super) fn delayed_update(&mut self, diff_ms: u32) {
@@ -1160,6 +1186,13 @@ pub struct MapManager {
     pub(super) next_map_incarnation_like_cpp: u64,
     pub(super) tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp,
     pub(super) next_tick_epoch_like_cpp: u64,
+    /// Owned expiry resets from the most recently resumed `Map::Update` pass.
+    /// The world coordinator consumes them after releasing this manager's guard.
+    pub(super) last_instance_expiry_updates_like_cpp: Vec<MapTickInstanceExpiryUpdateLikeCpp>,
+    /// Last-player leave identities awaiting canonical lock-expiry resolution
+    /// by the world coordinator outside this manager's guard.
+    pub(super) pending_instance_map_last_leave_checks_like_cpp:
+        Vec<InstanceMapLastLeaveSnapshotLikeCpp>,
     /// #1263 F6-8D3b-2 (R7b-1): creature registrations deferred because no
     /// map instance existed for their key yet. They join that map's own
     /// respawn queue (C++ `Map::_respawnTimes`) the moment the instance is

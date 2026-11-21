@@ -37,6 +37,8 @@ impl MapManager {
             next_map_incarnation_like_cpp: 1,
             tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp::Idle,
             next_tick_epoch_like_cpp: 1,
+            last_instance_expiry_updates_like_cpp: Vec::new(),
+            pending_instance_map_last_leave_checks_like_cpp: Vec::new(),
             deferred_creature_respawns_like_cpp: BTreeMap::new(),
         };
         manager.set_grid_cleanup_delay(grid_cleanup_delay_ms);
@@ -689,6 +691,8 @@ impl MapManager {
             MapTickCoordinationStateLikeCpp::Idle => {}
         }
 
+        self.clear_instance_expiry_updates_like_cpp();
+
         self.timer.update(diff_ms);
         if !self.timer.passed() {
             return MapTickBeginLikeCpp::TimerNotPassed;
@@ -968,6 +972,10 @@ impl MapManager {
                         object_update_selection,
                     ),
                 }
+            }
+
+            if let Some(update) = map.take_last_instance_expiry_update_like_cpp() {
+                self.append_instance_expiry_update_like_cpp(key, participant.incarnation, update);
             }
         }
 

@@ -16,7 +16,7 @@ use std::time::Instant;
 
 use wow_core::ObjectGuid;
 use wow_loot::{LootClaimLease, OwnedLootAuthority};
-use wow_map::{MapKey, PlayerHandle};
+use wow_map::{CreateMapInstanceLockContext, MapKey, PlayerHandle};
 use wow_packet::packets::loot::LootEntry;
 use wow_packet::packets::party::PartyUpdate;
 pub use wow_social::group::GroupDifficultyKindLikeCpp;
@@ -215,6 +215,7 @@ pub enum SessionCommand {
     /// `CONNECTION_TYPE_REALM`. Callers that hold only the target session's
     /// command channel use this command to request session-local routing.
     SendRealmPacketLikeCpp(SendRealmPacketLikeCppCommand),
+    ExpireInstanceMapOccupantLikeCpp(ExpireInstanceMapOccupantLikeCppCommand),
     /// Apply C++ `Group::Disband`/`Group::RemoveMember` session-local cleanup
     /// for a connected remote member.
     ApplyGroupRemovalLikeCpp(ApplyGroupRemovalLikeCppCommand),
@@ -325,6 +326,19 @@ pub struct SendRealmPacketLikeCppCommand {
     /// Character that owned the registry entry when the packet was queued.
     pub recipient: ObjectGuid,
     pub packet_bytes: Vec<u8>,
+}
+
+/// One occupant's fenced delivery of C++ `InstanceMap::Reset(Expire)` output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExpireInstanceMapOccupantLikeCppCommand {
+    pub recipient: ObjectGuid,
+    pub handle: PlayerHandle,
+    pub residence_revision: u64,
+    pub map_key: MapKey,
+    pub map_incarnation: u64,
+    pub event_time: u64,
+    pub instance_lock_context: CreateMapInstanceLockContext,
+    pub has_instance_script: bool,
 }
 
 /// Payload for [`SessionCommand::ApplyGroupRemovalLikeCpp`].
