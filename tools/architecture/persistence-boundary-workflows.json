@@ -16690,6 +16690,21 @@
       "package": "wow-database",
       "module": "crate::world::reference_catalog_adapter",
       "source": "crates/wow-database/src/world/reference_catalog_adapter.rs",
+      "enclosing": "fn load_instance_script_templates",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "Read the world instance-template script mapping into the existing map bootstrap catalog (#45).",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Use the startup WorldDatabase handle for the single instance_template query.",
+      "current_order": "Read and decode the complete map/script batch before installing the filtered templates in the canonical MapManager.",
+      "failure_and_unknown_commit": "A query or decode failure returns to startup before publication. The read has no transaction commit."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world::reference_catalog_adapter",
+      "source": "crates/wow-database/src/world/reference_catalog_adapter.rs",
       "enclosing": "fn read_world_id_like_cpp",
       "logical_databases": [
         "world"

@@ -32876,6 +32876,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::world::reference_catalog_adapter:crates/wow-database/src/world/reference_catalog_adapter.rs::fn load_instance_script_templates",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world/reference_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world::reference_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_instance_script_templates"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "Read the world instance-template script mapping into the existing map bootstrap catalog (#45). currently owns the complete wow-database workflow fn load_instance_script_templates in crates/wow-database/src/world/reference_catalog_adapter.rs.",
+      "connection_affinity": "Use the startup WorldDatabase handle for the single instance_template query.",
+      "current_order": "Read and decode the complete map/script batch before installing the filtered templates in the canonical MapManager.",
+      "failure_and_unknown_commit": "A query or decode failure returns to startup before publication. The read has no transaction commit.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::world::reference_catalog_adapter:crates/wow-database/src/world/reference_catalog_adapter.rs::fn read_world_id_like_cpp",
       "source_class": "production",
       "packages": [

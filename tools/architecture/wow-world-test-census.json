@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4194,
+  "tests": 4206,
   "ignored": 1,
-  "session": 3890,
-  "shims": 3710,
+  "session": 3902,
+  "shims": 3721,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3715
+   "W": 3727
   },
   "by_reason": {
    "H-host": 175,
@@ -37,12 +37,12 @@
    "P-library": 32,
    "P-lowest-covering": 40,
    "P-world-items": 37,
-   "W-core-only": 88,
+   "W-core-only": 89,
    "W-fields": 73,
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3509
+   "W-world-logic": 3520
   },
   "by_owner": {
    "wow-world": {
@@ -58,7 +58,7 @@
    "wow-world-character": {
     "P": 36,
     "H": 21,
-    "W": 387
+    "W": 390
    },
    "wow-world-core": {
     "P": 14,
@@ -78,7 +78,7 @@
    "wow-world-instances": {
     "P": 0,
     "H": 17,
-    "W": 128
+    "W": 136
    },
    "wow-world-interaction": {
     "P": 0,
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 45,
     "H": 5,
-    "W": 962
+    "W": 963
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3715
+    "W": 3727
    },
    "wow-world-application": {
     "P": 27,
@@ -216,10 +216,10 @@
  },
  "host_trait_methods": {
   "wow-world-application": 85,
-  "wow-world-character": 83,
+  "wow-world-character": 85,
   "wow-world-core": 4,
   "wow-world-entities": 127,
-  "wow-world-instances": 30,
+  "wow-world-instances": 31,
   "wow-world-interaction": 2,
   "wow-world-inventory": 76,
   "wow-world-lifecycle": 18,
@@ -693,6 +693,7 @@
   ["unit_tests/handlers/character_tests/item_4.rs::extended_cost_item_turnin_plan_matches_cpp_destroy_order", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["has_item_count_direct_inventory", "insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object"], []],
   ["unit_tests/handlers/character_tests/item_4.rs::vendor_item_current_count_updates_like_cpp", "W", "wow-world", "wow-world-interaction", "W-world-items", true, true, false, ["compose_packet_handlers_like_cpp"], []],
   ["unit_tests/handlers/character_tests/item_4.rs::parse_equipment_cache_real_data", "P", "wow-world-character", "wow-world-character", "P-domain", false, false, false, [], []],
+  ["unit_tests/handlers/character_tests/login.rs::login_add_player_to_map_prompts_an_unbound_member_with_a_preattached_controller_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/character_tests/login.rs::continue_login_no_longer_names_the_core_character_statement", "P", "wow-world-application", "wow-world-application", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/character_tests/login.rs::persisted_transport_restore_stays_between_identity_and_reputation_loading_like_cpp", "P", "wow-world-application", "wow-world-character", "P-lowest-covering", false, false, false, ["wow-world-application"], []],
   ["unit_tests/handlers/character_tests/login.rs::reputation_login_phase_returns_completion_for_first_login_reputation", "P", "wow-world-application", "wow-world-character", "P-lowest-covering", false, false, false, ["wow-world-application"], []],
@@ -1105,7 +1106,7 @@
   ["unit_tests/handlers/entities/tests/corpse.rs::client_port_graveyard_alive_or_not_ghost_returns_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "try_handle_client_port_graveyard_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::reclaim_corpse_without_corpse_returns_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::reclaim_corpse_alive_or_not_ghost_returns_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
-  ["unit_tests/handlers/entities/tests/corpse.rs::instance_lock_response_decline_repops_and_clears_pending_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["handle_instance_lock_response"], []],
+  ["unit_tests/handlers/entities/tests/corpse.rs::instance_lock_response_decline_repops_and_clears_pending_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "handle_instance_lock_response", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::water_walking_publication_is_idempotent_and_uses_the_unit_counter", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::repop_request_creates_saved_corpse_and_releases_to_graveyard_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["canonical_player_health_snapshot_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::spawn_corpse_bones_deletes_rows_and_leaves_bones_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
@@ -1328,6 +1329,7 @@
   ["unit_tests/handlers/group_tests/group_1.rs::represented_group_persistence_seam_accepts_typed_prefix_failure_without_db_types", "H", "wow-world-lifecycle", "wow-world-lifecycle", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/group_tests/group_1.rs::group_leave_selects_first_connected_new_leader_like_cpp", "P", "wow-world-social", "wow-world-social", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/group_tests/group_1.rs::leave_group_disband_queues_remote_group_removal_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_leave_group", "set_group_registry", "set_player_guid", "set_player_registry"], []],
+  ["unit_tests/handlers/group_tests/group_1.rs::malformed_leave_group_presence_or_index_is_rejected_before_group_mutation", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_leave_group", "set_group_registry", "set_player_guid", "set_player_registry"], []],
   ["unit_tests/handlers/group_tests/group_1.rs::party_invite_party_index_instance_does_not_use_full_home_group_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_party_invite", "set_group_registry", "set_player_guid", "set_player_registry"], []],
   ["unit_tests/handlers/group_tests/group_1.rs::party_invite_server_uses_cpp_inviter_values_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_party_invite", "set_group_registry", "set_loaded_player_name_like_cpp", "set_player_guid"], []],
   ["unit_tests/handlers/group_tests/group_1.rs::party_invite_and_result_route_through_realm_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_party_invite", "set_group_registry", "set_loaded_player_name_like_cpp", "set_player_guid"], []],
@@ -1484,6 +1486,10 @@
   ["unit_tests/handlers/instances/tests/instance.rs::set_difficulty_id_solo_occupied_forgets_recent_without_reset_failures_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["handle_set_difficulty_id", "represented_dungeon_difficulty_id_like_cpp", "represented_player_recent_instance_id_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/instances/tests/instance.rs::set_difficulty_id_group_occupied_forgets_recent_without_reset_failures_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["handle_set_difficulty_id", "represented_dungeon_difficulty_id_like_cpp", "set_canonical_map_manager", "set_difficulty_store"], []],
   ["unit_tests/handlers/instances/tests/instance.rs::reset_instances_group_occupied_manual_retains_recent_and_sends_failures_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["handle_reset_instances", "set_canonical_map_manager", "set_group_registry", "set_map_store"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::occupied_expiry_orders_flags_and_current_lock_mask_for_each_occupant_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "set_canonical_map_manager", "set_difficulty_store"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::expired_map_entry_waits_for_live_login_registration_before_consuming_event_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "register_in_player_registry", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::stale_expiry_map_or_player_incarnation_publishes_nothing_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "set_canonical_map_manager", "set_difficulty_store"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::flex_raid_expiry_prompt_is_warning_only_and_does_not_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "set_canonical_map_manager", "set_difficulty_store"], []],
   ["unit_tests/handlers/instances/tests/instance.rs::reset_instances_group_non_new_manual_forgets_recent_without_packets_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["handle_reset_instances", "set_canonical_map_manager", "set_group_registry", "set_map_store"], []],
   ["unit_tests/handlers/instances/tests/instance.rs::set_difficulty_id_group_non_new_forgets_recent_and_applies_difficulty_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["handle_set_difficulty_id", "represented_dungeon_difficulty_id_like_cpp", "set_canonical_map_manager", "set_difficulty_store"], []],
   ["unit_tests/handlers/instances/tests/instance.rs::set_difficulty_id_missing_and_non_instance_maps_preserve_solo_recent_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["handle_set_difficulty_id", "represented_dungeon_difficulty_id_like_cpp", "represented_player_recent_instance_id_like_cpp", "set_canonical_map_manager"], []],
@@ -1494,11 +1500,12 @@
   ["unit_tests/handlers/instances/tests/instance.rs::reset_instances_expired_attached_non_new_lock_is_cannot_reset_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["handle_reset_instances", "represented_player_recent_instance_id_like_cpp", "set_canonical_map_manager", "set_map_store"], []],
   ["unit_tests/handlers/instances/tests/instance.rs::set_saved_instance_extend_updates_lock_and_sends_calendar_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_set_saved_instance_extend", "set_difficulty_store", "set_map_store", "set_player_guid"], []],
   ["unit_tests/handlers/instances/tests/instance.rs::set_saved_instance_extend_current_map_is_silent_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_set_saved_instance_extend", "set_player_guid"], []],
-  ["unit_tests/handlers/instances/tests/instance.rs::send_pending_raid_lock_sets_pending_bind_like_cpp_for_stop_prompt", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["send_pending_raid_lock_like_cpp"], []],
-  ["unit_tests/handlers/instances/tests/instance.rs::send_pending_raid_lock_warning_only_does_not_set_pending_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["send_pending_raid_lock_like_cpp"], []],
-  ["unit_tests/handlers/instances/tests/instance.rs::instance_lock_response_accept_confirms_and_clears_pending_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["create_map_db2_entries_like_cpp", "handle_instance_lock_response", "set_canonical_map_manager", "set_difficulty_store"], []],
-  ["unit_tests/handlers/instances/tests/instance.rs::pending_bind_commit_failure_keeps_mutation_but_publishes_nothing_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["create_map_db2_entries_like_cpp", "handle_instance_lock_response", "set_canonical_map_manager", "set_difficulty_store"], []],
-  ["unit_tests/handlers/instances/tests/instance.rs::instance_lock_response_accept_mismatched_instance_only_clears_pending_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["create_map_db2_entries_like_cpp", "handle_instance_lock_response", "set_canonical_map_manager", "set_difficulty_store"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::send_pending_raid_lock_sets_pending_bind_like_cpp_for_stop_prompt", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "send_pending_raid_lock_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::send_pending_raid_lock_warning_only_does_not_set_pending_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "send_pending_raid_lock_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::send_pending_raid_lock_without_resolvable_player_is_silent_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "send_pending_raid_lock_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::instance_lock_response_accept_confirms_and_clears_pending_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "handle_instance_lock_response", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::pending_bind_commit_failure_leaves_member_unbound_and_publishes_nothing", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "handle_instance_lock_response", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/instances/tests/instance.rs::instance_lock_response_accept_mismatched_instance_only_clears_pending_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "create_map_db2_entries_like_cpp", "handle_instance_lock_response", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/loot_tests.rs::transport_values_command_uses_visible_transport_membership_like_cpp", "W", "wow-world", "wow-world-visibility", "W-world-logic", true, true, false, ["handle_send_visible_object_values_update_command_like_cpp", "set_canonical_map_manager", "set_state"], []],
   ["unit_tests/handlers/loot_tests/creature_1.rs::creature_spell_cast_command_sends_start_then_basic_go_after_one_gate_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "set_canonical_map_manager", "set_state"], []],
   ["unit_tests/handlers/loot_tests/creature_1.rs::advanced_combat_logging_receives_the_committed_full_creature_spell_go_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "set_canonical_map_manager", "set_state"], []],
@@ -2397,6 +2404,9 @@
   ["unit_tests/session/module_hooks.rs::the_chat_port_maps_module_decisions_to_verdicts", "W", "wow-world", "wow-world-social", "W-world-logic", true, false, false, ["install_module_hooks_like_cpp"], []],
   ["unit_tests/session/social/group_tests.rs::tap_members_follow_the_group_authority_not_the_owned_snapshot_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["resolved_group_guid_like_cpp"], []],
   ["unit_tests/session/social/group_tests.rs::instance_owner_follows_the_group_authority_like_cpp", "W", "wow-world", "wow-world-instances", "W-fields", true, false, false, [], []],
+  ["unit_tests/session/social/group_tests.rs::login_group_publishes_exact_party_roster_to_current_and_online_members_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["next_group_update_sequence_number_like_cpp"], []],
+  ["unit_tests/session/social/group_tests.rs::login_group_publication_requires_canonical_player_membership_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["set_owned_player_group_like_cpp"], []],
+  ["unit_tests/session/social/group_tests.rs::login_group_queued_update_is_silent_after_receiver_leaves_group_like_cpp", "W", "wow-world", "wow-world-instances", "W-core-only", true, true, false, [], []],
   ["unit_tests/session/tests/active_cast_owner.rs::active_cast_and_timestamps_mutate_once_under_active_and_detached_unit_owner", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["active_spell_cast_snapshot_like_cpp", "adopt_registered_canonical_player_fixture_like_cpp", "last_spell_cast_time_like_cpp", "mutate_cast_execution_like_cpp"], []],
   ["unit_tests/session/tests/active_cast_owner.rs::ready_canonical_cast_is_taken_once_before_execution_and_failure_publication", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["active_spell_cast_snapshot_like_cpp", "adopt_registered_canonical_player_fixture_like_cpp", "last_spell_cast_time_like_cpp", "set_active_spell_cast_like_cpp"], []],
   ["unit_tests/session/tests/active_cast_owner.rs::stale_or_missing_unit_owner_cannot_complete_cancel_or_replace_a_cast", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "last_spell_cast_time_like_cpp", "mutate_cast_execution_like_cpp", "set_active_spell_cast_like_cpp"], []],
@@ -2786,7 +2796,7 @@
   ["unit_tests/session/tests/scenarios_instances_1.rs::create_map_active_instance_lock_context_rejects_missing_lock_inputs_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["create_map_db2_entries_like_cpp", "set_difficulty_store", "set_map_store"], []],
   ["unit_tests/session/tests/scenarios_instances_1.rs::create_map_side_effects_set_player_recent_instance_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["represented_player_recent_instance_id_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_instances_1.rs::create_map_side_effects_set_group_recent_instance_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["set_group_registry"], []],
-  ["unit_tests/session/tests/scenarios_instances_1.rs::create_map_side_effects_create_instance_lock_for_new_instance_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["set_difficulty_store", "set_map_store"], []],
+  ["unit_tests/session/tests/scenarios_instances_1.rs::create_map_side_effects_create_instance_lock_for_new_instance_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["create_map_db2_entries_like_cpp", "set_difficulty_store", "set_map_store"], []],
   ["unit_tests/session/tests/scenarios_instances_1.rs::create_map_side_effects_set_instance_lock_instance_id_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["create_map_db2_entries_like_cpp", "set_difficulty_store", "set_map_store"], []],
   ["unit_tests/session/tests/scenarios_instances_1.rs::create_map_side_effects_report_pending_unwired_effects_like_cpp", "H", "wow-world-instances", "wow-world-instances", "H-host", true, true, false, [], []],
   ["unit_tests/session/tests/scenarios_instances_1.rs::represented_player_reset_success_forgets_recent_instance_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["apply_represented_player_instance_reset_result_like_cpp", "represented_player_recent_instance_id_like_cpp", "set_represented_player_recent_instance_like_cpp"], []],
@@ -2809,6 +2819,8 @@
   ["unit_tests/session/tests/scenarios_instances_2.rs::canonical_player_difficulty_and_loot_preferences_follow_detached_and_stale_ownership_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "player_difficulty_preferences_snapshot_like_cpp", "replace_player_difficulty_preferences_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_instances_2.rs::canonical_access_requirement_map_difficulty_message_sends_difficulty_abort_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "set_canonical_map_manager", "set_difficulty_store"], []],
   ["unit_tests/session/tests/scenarios_instances_2.rs::canonical_access_requirement_map_difficulty_condition_sends_condition_abort_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "set_canonical_map_manager", "set_difficulty_store"], []],
+  ["unit_tests/session/tests/scenarios_instances_2.rs::login_map_selection_skips_transfer_access_condition_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, false, false, ["attach_player_controller_like_cpp", "set_canonical_map_manager", "set_difficulty_store", "set_map_store"], []],
+  ["unit_tests/session/tests/scenarios_instances_2.rs::login_map_selection_skips_transfer_raid_group_preflight_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "set_canonical_map_manager", "set_difficulty_store"], []],
   ["unit_tests/session/tests/scenarios_instances_2.rs::instance_count_allows_under_limit_and_existing_instance_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["add_instance_enter_time_like_cpp", "check_instance_count_at_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_instances_2.rs::instance_count_prunes_expired_entries_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["check_instance_count_at_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_instances_3.rs::instance_time_restriction_load_rows_match_cpp_insert_semantics", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["load_instance_time_restriction_rows_like_cpp"], []],

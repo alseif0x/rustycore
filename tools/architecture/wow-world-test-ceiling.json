@@ -387,13 +387,13 @@
    "src_tests": 22
   },
   {
-   "id": "raise-45-32",
+   "id": "raise-45-36",
    "kind": "raise",
    "issue": 45,
-   "reviewed_at": "2026-11-06",
-   "reason": "Replace two incorrect force-expiry reset assertions with live-map semantics; add 18 net World-composition tests for manual/difficulty reset outcomes, group map ownership and lock lifetime. Reviewed delta: +953 physical lines/+18 tests; no ignored tests or test relocation.",
-   "unit_tests_lines": 279989,
-   "unit_tests_tests": 4172,
+   "reviewed_at": "2026-11-21",
+   "reason": "#45 adds 2,198 physical World test lines and 30 net tests over integrated 3.4.3. They exercise manual and difficulty resets, loaded or stale lock ownership, login and worldport bind admission, persistence failure, expiry delivery, recovered party publication and malformed group leave. Existing ignored state is preserved.",
+   "unit_tests_lines": 281234,
+   "unit_tests_tests": 4184,
    "src_tests": 22
   }
  ]
