@@ -167,6 +167,7 @@ pub(crate) enum Action {
     },
     LogoutCancel {},
     ResetInstances {},
+    RequestRaidInfo {},
     InstanceLockResponse {
         accept: bool,
     },
@@ -774,6 +775,7 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             | Action::LogoutCancel {}
             | Action::ResetInstances {}
             | Action::InstanceLockResponse { .. }
+            | Action::RequestRaidInfo {}
             | Action::SetDifficultyId { .. }
             | Action::SetDungeonDifficulty { .. }
             | Action::PartyInviteResponse { .. }
@@ -902,6 +904,7 @@ pub(super) fn supported_exact_packet_opcode(opcode: u16) -> bool {
             | SMSG_PENDING_RAID_LOCK
             | SMSG_INSTANCE_SAVE_CREATED
             | SMSG_CALENDAR_RAID_LOCKOUT_ADDED
+            | SMSG_INSTANCE_INFO
             | SMSG_LOGIN_VERIFY_WORLD
             | SMSG_INSTANCE_RESET_FAILED
             | SMSG_RESET_FAILED_NOTIFY

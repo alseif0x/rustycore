@@ -232,6 +232,7 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
         Action::LeaveGroup {},
         Action::InstanceLockResponse { accept: true },
         Action::InstanceLockResponse { accept: false },
+        Action::RequestRaidInfo {},
     ];
     let mut controller = packet_controller(plan);
     let (mut stream, _instance_peer) = tcp_pair().await;
@@ -256,7 +257,15 @@ async fn instance_and_party_actions_route_exact_packets_on_their_native_connecti
     .unwrap();
 
     let sent = &controller.evidence.sent_packets;
-    assert_eq!(sent.len(), 8);
+    assert_eq!(sent.len(), 9);
+    assert_eq!(
+        (
+            sent[8].connection,
+            sent[8].opcode,
+            sent[8].body_hex.as_str()
+        ),
+        (Connection::Realm, CMSG_REQUEST_RAID_INFO, "")
+    );
     for (index, body) in [(6, "80"), (7, "00")] {
         assert_eq!(sent[index].connection, Connection::Realm);
         assert_eq!(sent[index].opcode, CMSG_INSTANCE_LOCK_RESPONSE);

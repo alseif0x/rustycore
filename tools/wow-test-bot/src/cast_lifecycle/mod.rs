@@ -34,6 +34,8 @@ const CMSG_ATTACK_STOP: u16 = 0x3256;
 const CMSG_LOGOUT_CANCEL: u16 = 0x34D8;
 const CMSG_RESET_INSTANCES: u16 = 0x366A;
 const CMSG_INSTANCE_LOCK_RESPONSE: u16 = 0x350B;
+const CMSG_REQUEST_RAID_INFO: u16 = 0x36D2;
+const SMSG_INSTANCE_INFO: u16 = 0x2634;
 const SMSG_PENDING_RAID_LOCK: u16 = 0x26F8;
 const SMSG_INSTANCE_SAVE_CREATED: u16 = 0x2780;
 const SMSG_CALENDAR_RAID_LOCKOUT_ADDED: u16 = 0x2699;
@@ -183,11 +185,12 @@ pub(super) async fn execute(
                 )
                 .await
             }
-            Action::InstanceLockResponse { .. }
+            Action::RequestRaidInfo {}
+            | Action::InstanceLockResponse { .. }
             | Action::PartyInvite { .. }
             | Action::PartyInviteResponse { .. }
-            | Action::LeaveGroup {} => match party_realm_connection(realm, action_name) {
-                Ok(realm) => match build_party_action_packet(action) {
+            | Action::LeaveGroup {} => match action_realm_connection(realm, action_name) {
+                Ok(realm) => match build_realm_action_packet(action) {
                     Ok((opcode, body)) => {
                         send_traced_packet(
                             &mut realm.stream,
@@ -552,7 +555,7 @@ pub(super) async fn finish(
     }
 }
 
-fn party_realm_connection<'a>(
+fn action_realm_connection<'a>(
     realm: &'a mut Option<EncryptedWorldConnection>,
     action: &str,
 ) -> Result<&'a mut EncryptedWorldConnection> {
@@ -583,6 +586,7 @@ fn action_name(action: &Action) -> &'static str {
         Action::LogoutCancel {} => "logout_cancel",
         Action::ResetInstances {} => "reset_instances",
         Action::InstanceLockResponse { .. } => "instance_lock_response",
+        Action::RequestRaidInfo {} => "request_raid_info",
         Action::SetDifficultyId { .. } => "set_difficulty_id",
         Action::SetDungeonDifficulty { .. } => "set_dungeon_difficulty",
         Action::PartyInvite { .. } => "party_invite",

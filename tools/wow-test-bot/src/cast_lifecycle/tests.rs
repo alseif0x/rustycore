@@ -1457,18 +1457,18 @@ fn instance_and_party_action_builders_match_native_shapes_and_strict_fields() {
     assert_eq!(CMSG_RESET_INSTANCES, 0x366A);
     assert_eq!(CMSG_SET_DIFFICULTY_ID, 0x3222);
     assert_eq!(
-        build_party_action_packet(&plan.actions[2]).unwrap(),
+        build_realm_action_packet(&plan.actions[2]).unwrap(),
         (
             CMSG_PARTY_INVITE,
             crate::loot_race::build_party_invite("Peer", target.low, target.high).unwrap(),
         )
     );
     assert_eq!(
-        build_party_action_packet(&plan.actions[3]).unwrap(),
+        build_realm_action_packet(&plan.actions[3]).unwrap(),
         (CMSG_PARTY_INVITE_RESPONSE, vec![0x40])
     );
     assert_eq!(
-        build_party_action_packet(&plan.actions[4]).unwrap(),
+        build_realm_action_packet(&plan.actions[4]).unwrap(),
         (CMSG_PARTY_INVITE_RESPONSE, vec![0x00])
     );
     assert_eq!(CMSG_PARTY_INVITE, 0x3604);
@@ -1476,7 +1476,7 @@ fn instance_and_party_action_builders_match_native_shapes_and_strict_fields() {
     let leave = Action::LeaveGroup {};
     assert_eq!(action_name(&leave), "leave_group");
     assert_eq!(
-        build_party_action_packet(&leave).unwrap(),
+        build_realm_action_packet(&leave).unwrap(),
         (CMSG_LEAVE_GROUP, Vec::new())
     );
     assert_eq!(CMSG_LEAVE_GROUP, 0x364C);

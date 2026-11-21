@@ -45,8 +45,9 @@ pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
     }
 }
 
-pub(super) fn build_party_action_packet(action: &Action) -> Result<(u16, Vec<u8>)> {
+pub(super) fn build_realm_action_packet(action: &Action) -> Result<(u16, Vec<u8>)> {
     match action {
+        Action::RequestRaidInfo {} => Ok((CMSG_REQUEST_RAID_INFO, Vec::new())),
         Action::InstanceLockResponse { accept } => Ok((
             CMSG_INSTANCE_LOCK_RESPONSE,
             vec![if *accept { 0x80 } else { 0 }],
@@ -60,7 +61,7 @@ pub(super) fn build_party_action_packet(action: &Action) -> Result<(u16, Vec<u8>
             vec![if *accept { 0x40 } else { 0x00 }],
         )),
         Action::LeaveGroup {} => Ok((CMSG_LEAVE_GROUP, Vec::new())),
-        _ => unreachable!("only party actions use this builder"),
+        _ => unreachable!("only typed realm actions use this builder"),
     }
 }
 
