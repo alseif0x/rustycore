@@ -887,7 +887,12 @@ def lock_bind_evidence(*, accept: bool, extending: bool = False,
                          scenario.pending_lock_body(extending=extending).hex(), 10)
     response = typed("instance_lock_response", "realm", scenario.CMSG_INSTANCE_LOCK_RESPONSE,
                      "80" if accept else "00", 20)
-    events = [prompt]
+    events = [
+        prompt,
+        group_event("realm", scenario.SMSG_RAID_INSTANCE_MESSAGE, "05770200000400000000", 12),
+        group_event("realm", scenario.SMSG_PENDING_RAID_LOCK,
+                    scenario.pending_lock_body(extending=True).hex(), 13),
+    ]
     if accept:
         events.extend([
             group_event("realm", scenario.SMSG_INSTANCE_SAVE_CREATED, "00", 30),
@@ -938,18 +943,21 @@ class LockPlanAndWireTests(unittest.TestCase):
         self.assertEqual(facts["save_created_sequence"], 30)
         self.assertEqual(facts["calendar_lockout"]["sequence"], 40)
 
-    def test_expired_map_can_reprompt_only_after_its_expiry_announcement(self) -> None:
+    def test_expired_map_requires_its_two_prompts_and_expiry_announcement(self) -> None:
         evidence = lock_bind_evidence(accept=False)
-        expiry_event = group_event("realm", scenario.SMSG_RAID_INSTANCE_MESSAGE,
-                                   "05770200000400000000", 12)
-        extension_prompt = group_event("realm", scenario.SMSG_PENDING_RAID_LOCK,
-                                       scenario.pending_lock_body(extending=True).hex(), 13)
-        evidence["events"].extend([expiry_event, extension_prompt])
         facts = scenario.validate_lock_response_evidence(evidence, accept=False)
         self.assertEqual(facts["prompt_sequences"], [10, 13])
-        expiry_event["connection"] = "instance"
+        evidence["events"][1]["connection"] = "instance"
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_lock_response_evidence(evidence, accept=False)
+        evidence["events"] = evidence["events"][:1]
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_response_evidence(evidence, accept=False)
+
+        early = lock_bind_evidence(accept=False)
+        early["sent_packets"][0]["observation_sequence"] = 11
+        with self.assertRaises(scenario.ScenarioFailure):
+            scenario.validate_lock_response_evidence(early, accept=False)
 
     def test_member_bind_evidence_rejects_wrong_route_payload_and_order(self) -> None:
         bad = lock_bind_evidence(accept=True)
@@ -958,7 +966,7 @@ class LockPlanAndWireTests(unittest.TestCase):
             scenario.validate_lock_response_evidence(bad, accept=True)
 
         bad = lock_bind_evidence(accept=True)
-        bad["events"][1]["observation_sequence"] = 15
+        bad["events"][3]["observation_sequence"] = 15
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_lock_response_evidence(bad, accept=True)
 

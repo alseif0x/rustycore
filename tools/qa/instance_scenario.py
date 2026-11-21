@@ -1136,16 +1136,18 @@ def entry_lock_prompts(evidence: dict[str, Any], extending: bool) -> list[int]:
             or prompts[0].get("body_hex") != pending_lock_body(extending=extending).hex()
             or _sequence(prompts[0]) < 0):
         raise ScenarioFailure("ICC entry did not publish the expected 60-second raid lock prompt")
-    # InstanceMap::Reset(Expire) announces the expiry, then prompts current occupants.
+    # This fixture starts with the attached lock already expired and extended.
     expiry_body = struct.pack("<BIIB", 5, LOCK_MAP, LOCK_DIFFICULTY, 0).hex()
-    expirations = _opcode_events(evidence, "realm", SMSG_RAID_INSTANCE_MESSAGE, expiry_body)
-    if len(prompts) == 1 and not expirations:
-        return [_sequence(prompts[0])]
+    expirations = [event for event in evidence.get("events", [])
+                   if isinstance(event, dict) and event.get("opcode") == SMSG_RAID_INSTANCE_MESSAGE
+                   and (event.get("body_hex") or "").startswith("05")]
     if (len(prompts) != 2 or len(expirations) != 1
+            or expirations[0].get("connection") != "realm"
+            or expirations[0].get("body_hex") != expiry_body
             or prompts[1].get("connection") != "realm"
             or prompts[1].get("body_hex") != pending_lock_body(extending=True).hex()
             or not _sequence(prompts[0]) < _sequence(expirations[0]) < _sequence(prompts[1])):
-        raise ScenarioFailure("additional ICC prompt requires its ordered raid expiry announcement")
+        raise ScenarioFailure("expired ICC lock requires an expiry announcement then an extending prompt")
     return [_sequence(prompt) for prompt in prompts]
 
 
@@ -1155,8 +1157,8 @@ def validate_lock_response_evidence(evidence: dict[str, Any], *, accept: bool,
     prompts = entry_lock_prompts(evidence, extending)
     response = _typed_packets(evidence, "instance_lock_response", "realm",
                               CMSG_INSTANCE_LOCK_RESPONSE, "80" if accept else "00")
-    if len(response) != 1 or _sequence(response[0]) <= prompts[0]:
-        raise ScenarioFailure("ICC lock response was not sent once on realm after its prompt")
+    if len(response) != 1 or _sequence(response[0]) <= prompts[-1]:
+        raise ScenarioFailure("ICC lock response must follow the extending prompt on realm")
     saves = _opcode_events(evidence, "realm", SMSG_INSTANCE_SAVE_CREATED, "00")
     all_saves = [event for event in evidence.get("events", [])
                  if isinstance(event, dict) and event.get("opcode") == SMSG_INSTANCE_SAVE_CREATED]
