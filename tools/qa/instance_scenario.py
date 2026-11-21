@@ -15,6 +15,7 @@ from typing import Any
 
 import death_fixture
 import death_scenario
+import instance_party_update
 import logout_scenario
 
 
@@ -801,7 +802,9 @@ def validate_no_reset_events(*evidences: dict[str, Any]) -> None:
             raise ScenarioFailure("occupied difficulty change emitted a reset packet")
 
 
-def validate_login_difficulty(evidence: dict[str, Any]) -> None:
+def validate_login_difficulty(evidence: dict[str, Any], receiver: dict[str, Any],
+                              leader: dict[str, Any], peer: dict[str, Any],
+                              realm_id: int) -> dict[str, Any]:
     body = (2).to_bytes(4, "little", signed=True).hex()
     responses = [event for event in evidence.get("events", [])
                  if isinstance(event, dict) and event.get("opcode") == SMSG_SET_DUNGEON_DIFFICULTY
@@ -809,6 +812,8 @@ def validate_login_difficulty(evidence: dict[str, Any]) -> None:
                  and event.get("body_hex") == body]
     if not responses:
         raise ScenarioFailure("fresh login requires a persisted body-2 dungeon difficulty")
+    return instance_party_update.validate_login_party_update(
+        evidence, receiver, leader, peer, realm_id)
 
 
 def require_group_difficulty(db: death_fixture.MariaDB,
@@ -847,9 +852,10 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
     preflight = preflight_group(db, journal, actors) if epoch == 1 else {"cleanup_allowed": True}
     relocated = False
     observations = []
+    group_state = None
     try:
         if epoch == 2:
-            require_group_difficulty(db, actors)
+            group_state = require_group_difficulty(db, actors)
             for actor in actors:
                 _require_offline(db, journal, actor)
         if epoch == 1:
@@ -949,26 +955,31 @@ def _run_difficulty_case(identity: dict[str, Any], journal: dict[str, Any], real
         member_login = death_scenario.BotPass(
             member, observer_plan(member), "instance-difficulty-member-restart-001")
         member_login_evidence = logout_scenario._run_single(member_login, identity, observer=True)
-        validate_login_difficulty(member_login_evidence)
+        member_login_facts = validate_login_difficulty(
+            member_login_evidence, member, leader, leader, realm_id)
         _, member_login_state, member_login_path = _difficulty_snapshot(
             db, journal, member, identity["capture"], member_login.label, True, epoch)
         current_instance = validate_inside_state(member_login_state)
         observations.append(logout_scenario._observation(
             member_login, member_login_evidence, member_login_state, member_login_path,
-            {"restart_login": True, "instance_id": current_instance}))
+            {"restart_login": True, "instance_id": current_instance,
+             **member_login_facts}))
 
         relocate_inside(db, journal, leader)
         leader_login = death_scenario.BotPass(
             leader, observer_plan(leader), "instance-difficulty-leader-restart-001")
         leader_login_evidence = logout_scenario._run_single(leader_login, identity, observer=True)
-        validate_login_difficulty(leader_login_evidence)
+        leader_login_facts = validate_login_difficulty(
+            leader_login_evidence, leader, leader, member, realm_id)
+        instance_party_update.validate_same_relogin_group(
+            member_login_facts, leader_login_facts)
         _, leader_login_state, leader_login_path = _difficulty_snapshot(
             db, journal, leader, identity["capture"], leader_login.label, True, epoch)
         validate_inside_state(leader_login_state, current_instance)
         observations.append(logout_scenario._observation(
             leader_login, leader_login_evidence, leader_login_state, leader_login_path,
             {"restart_login": True, "current_shared_instance": True,
-             "instance_id": current_instance}))
+             "instance_id": current_instance, **leader_login_facts}))
 
         for actor in actors:
             restore_outside(db, journal, actor)
@@ -1803,6 +1814,10 @@ def run() -> int:
             "bot_config_unchanged": True,
             "candidate_server_sha256": os.environ["RUSTYCORE_CAPTURE_CANDIDATE_SHA256"].lower(),
             "scenario_runner_sha256": death_scenario._sha256(Path(__file__).resolve()),
+            "scenario_dependency_sha256": {
+                "tools/qa/instance_party_update.py": death_scenario._sha256(
+                    Path(__file__).with_name("instance_party_update.py").resolve()),
+            },
             "target_database": journal["target_database"],
             "native_collection": "recorded by outer capture wrapper",
             "parity_assessed": False,

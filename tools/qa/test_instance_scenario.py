@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import death_fixture
 import death_scenario
+import instance_party_update
 import instance_scenario as scenario
 
 
@@ -395,6 +396,53 @@ def group_event(connection: str, opcode: int, body: str = "", sequence: int = 11
             "connection": connection, "opcode": opcode, "body_hex": body}
 
 
+def party_update_body(receiver: dict, leader: dict, member: dict, realm_id: int = 1, *,
+                      party_flags: int = 0, party_index: int = 0, party_type: int = 1,
+                      my_index: int | None = None, party_guid: tuple[int, int] = (501, 0),
+                      members: list[dict] | None = None,
+                      connected_guids: set[int] | None = None,
+                      optional_bits: int = 0x60, dungeon_difficulty: int = 2,
+                      sequence_num: int = 1,
+                      bad_member_padding: bool = False) -> bytes:
+    roster = members if members is not None else [member, leader]
+    receiver_guid = death_scenario.player_guid(receiver, realm_id)
+    leader_guid = death_scenario.player_guid(leader, realm_id)
+    if my_index is None:
+        my_index = next((index for index, item in enumerate(roster)
+                         if int(item["guid"]) == int(receiver["guid"])), -1)
+    body = bytearray(struct.pack("<HBBi", party_flags, party_index, party_type, my_index))
+    body.extend(death_scenario.packed_guid(*party_guid))
+    body.extend(struct.pack("<I", sequence_num))
+    body.extend(death_scenario.packed_guid(leader_guid["low"], leader_guid["high"]))
+    body.extend(b"\x00")  # LeaderFactionGroup
+    body.extend(struct.pack("<I", len(roster)))
+    body.append(optional_bits)
+    connected = connected_guids if connected_guids is not None else {int(receiver["guid"])}
+    for index, item in enumerate(roster):
+        name = str(item["name"]).encode("utf-8")
+        guid = death_scenario.player_guid(item, realm_id)
+        # PartyPackets.cpp writes 6 name bits, 6 voice-length bits, and three flags.
+        bits = (len(name) << 10) | (1 << 4) | (int(item["guid"]) in connected) << 3
+        if bad_member_padding and index == 0:
+            bits |= 1
+        body.extend(bits.to_bytes(2, "big"))
+        body.extend(death_scenario.packed_guid(guid["low"], guid["high"]))
+        body.extend(b"\x00\x00\x00\x01\x00")  # subgroup, flags, roles, class, faction
+        body.extend(name)
+    body.extend(b"\x05")  # PERSONAL_LOOT
+    body.extend(death_scenario.packed_guid(0, 0))
+    body.extend(b"\x02")  # ITEM_QUALITY_UNCOMMON
+    body.extend(struct.pack("<III", dungeon_difficulty, 0, 0))
+    return bytes(body)
+
+
+def party_update_event(receiver: dict, leader: dict, member: dict, sequence: int = 24,
+                       **overrides) -> dict:
+    return group_event(
+        "realm", scenario.SMSG_PARTY_UPDATE,
+        party_update_body(receiver, leader, member, **overrides).hex(), sequence)
+
+
 def party_command_result(name: str, command: int = 2, result: int = 0,
                          sequence: int = 11, connection: str = "realm") -> dict:
     encoded_name = name.encode("utf-8")
@@ -645,6 +693,7 @@ class GroupFailureRestorationTests(unittest.TestCase):
 class DifficultyPlanTests(unittest.TestCase):
     def test_difficulty_plan_body_and_reset_packet_exclusion(self) -> None:
         leader = actor()
+        member = member_actor()
         plan = scenario.difficulty_plan(leader)
         self.assertEqual(plan["actions"][0],
                          {"action": "set_dungeon_difficulty", "difficulty_id": 2})
@@ -658,26 +707,146 @@ class DifficultyPlanTests(unittest.TestCase):
                          [scenario.LOGOUT_COMPLETE])
         self.assertEqual(member_plan["finish_policy"], "logout")
 
-        response = group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")
+        response = group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000", 26)
         evidence = {
             "sent_packets": [typed("set_dungeon_difficulty", "instance", 0x3684, "02000000")],
-            "events": [response, copy.deepcopy(response)],
+            "events": [party_update_event(leader, leader, member, sequence=25), response,
+                       copy.deepcopy(party_update_event(leader, leader, member, sequence=171))],
+            "trace": [{"kind": "action_started", "action": "finish_logout", "sequence": 105}],
         }
         self.assertEqual(scenario.validate_difficulty_evidence(evidence)["difficulty_id"], 2)
         scenario.validate_no_reset_events(evidence)
-        scenario.validate_login_difficulty(evidence)
+        self.assertEqual(
+            scenario.validate_login_difficulty(evidence, leader, leader, member, 1)
+            ["party_update_sequence"], 25)
         for bad_events in ([], [group_event(
-                "realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "01000000")]):
+                "realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "01000000", 25)]):
             bad = copy.deepcopy(evidence)
-            bad["events"] = bad_events
+            bad["events"] = [party_update_event(leader, leader, member)] + bad_events
             with self.assertRaises(scenario.ScenarioFailure):
                 scenario.validate_difficulty_evidence(bad)
             with self.assertRaises(scenario.ScenarioFailure):
-                scenario.validate_login_difficulty(bad)
+                scenario.validate_login_difficulty(bad, leader, leader, member, 1)
         bad = copy.deepcopy(evidence)
         bad["events"].append(group_event("realm", scenario.SMSG_INSTANCE_RESET, "21000000", 12))
         with self.assertRaises(scenario.ScenarioFailure):
             scenario.validate_no_reset_events(bad)
+
+
+class RestartedPartyUpdateTests(unittest.TestCase):
+    def test_both_restart_recipients_match_the_first_pre_logout_cpp_update(self) -> None:
+        leader = actor()
+        member = member_actor()
+        leader_evidence = {
+            "events": [party_update_event(leader, leader, member, sequence=25),
+                       party_update_event(leader, leader, member, sequence=145)],
+            "trace": [{"kind": "action_started", "action": "finish_logout", "sequence": 83}],
+        }
+        member_evidence = {
+            "events": [party_update_event(member, leader, member),
+                       party_update_event(member, leader, member, sequence=171)],
+            "trace": [{"kind": "action_started", "action": "finish_logout", "sequence": 105}],
+        }
+        leader_facts = instance_party_update.validate_login_party_update(
+            leader_evidence, leader, leader, member, 1)
+        member_facts = instance_party_update.validate_login_party_update(
+            member_evidence, member, leader, leader, 1)
+        self.assertEqual(leader_facts["party_update_sequence"], 25)
+        self.assertEqual(leader_facts["recipient_index"], 1)
+        self.assertEqual(member_facts["party_update_sequence"], 24)
+        self.assertEqual(member_facts["recipient_index"], 0)
+        for facts in (leader_facts, member_facts):
+            self.assertEqual(facts["member_count"], 2)
+            self.assertEqual(facts["dungeon_difficulty"], 2)
+            self.assertEqual(facts["party_sequence_num"], 1)
+            self.assertTrue(facts["offline_peer_present"])
+            self.assertTrue(facts["group_guid_nonzero"])
+            self.assertEqual(facts["group_guid"], [501, 0])
+        self.assertEqual(leader_facts["group_guid"], member_facts["group_guid"])
+
+    def test_later_valid_update_cannot_replace_a_bad_initial_update(self) -> None:
+        leader = actor()
+        member = member_actor()
+        evidence = {
+            "events": [
+                party_update_event(member, leader, member, sequence=24,
+                                   dungeon_difficulty=1),
+                party_update_event(member, leader, member, sequence=171),
+            ],
+            "trace": [{"kind": "action_started", "action": "finish_logout", "sequence": 105}],
+        }
+        with self.assertRaisesRegex(scenario.ScenarioFailure, "difficulty"):
+            instance_party_update.validate_login_party_update(evidence, member, leader, leader, 1)
+
+    def test_group_guid_must_stay_the_same_across_both_relogs(self) -> None:
+        leader = actor()
+        member = member_actor()
+        member_facts = instance_party_update.validate_login_party_update(
+            {"events": [party_update_event(member, leader, member)],
+             "trace": [{"kind": "action_started", "action": "finish_logout",
+                        "sequence": 105}]},
+            member, leader, leader, 1)
+        leader_facts = instance_party_update.validate_login_party_update(
+            {"events": [party_update_event(leader, leader, member, sequence=25,
+                                             party_guid=(502, 0))],
+             "trace": [{"kind": "action_started", "action": "finish_logout",
+                        "sequence": 83}]},
+            leader, leader, member, 1)
+        with self.assertRaisesRegex(scenario.ScenarioFailure, "changed its group GUID"):
+            instance_party_update.validate_same_relogin_group(member_facts, leader_facts)
+
+    def test_replayed_cpp_party_update_rejects_malformed_or_wrong_group_layouts(self) -> None:
+        leader = actor()
+        member = member_actor()
+        valid = party_update_body(member, leader, member)
+        cases = {
+            "truncated": valid[:-1],
+            "trailing": valid + b"\x00",
+            "empty group GUID": party_update_body(
+                member, leader, member, party_guid=(0, 0)),
+            "wrong leader": party_update_body(
+                member, member, leader),
+            "wrong recipient index": party_update_body(
+                member, leader, member, my_index=1),
+            "wrong C++ update sequence": party_update_body(
+                member, leader, member, sequence_num=2),
+            "wrong members": party_update_body(
+                member, leader, member,
+                members=[leader, {**member, "guid": 75, "name": "Other"}]),
+            "peer marked connected": party_update_body(
+                member, leader, member, connected_guids={leader["guid"], member["guid"]}),
+            "wrong difficulty": party_update_body(
+                member, leader, member, dungeon_difficulty=1),
+            "LFG optional bit": party_update_body(
+                member, leader, member, optional_bits=0xE0),
+            "bit padding": party_update_body(
+                member, leader, member, bad_member_padding=True),
+        }
+        for label, body in cases.items():
+            evidence = {
+                "events": [group_event("realm", scenario.SMSG_PARTY_UPDATE,
+                                        body.hex(), sequence=24)],
+                "trace": [{"kind": "action_started", "action": "finish_logout",
+                           "sequence": 105}],
+            }
+            with self.subTest(layout=label), self.assertRaises(scenario.ScenarioFailure):
+                instance_party_update.validate_login_party_update(
+                    evidence, member, leader, leader, 1)
+
+    def test_initial_update_requires_realm_route_and_a_pre_logout_boundary(self) -> None:
+        leader = actor()
+        member = member_actor()
+        body = party_update_body(member, leader, member).hex()
+        evidence = {"events": [group_event("instance", scenario.SMSG_PARTY_UPDATE, body, 24)],
+                    "trace": [{"kind": "action_started", "action": "finish_logout",
+                               "sequence": 105}]}
+        with self.assertRaisesRegex(scenario.ScenarioFailure, "realm connection"):
+                instance_party_update.validate_login_party_update(
+                    evidence, member, leader, leader, 1)
+        evidence["events"] = [group_event("realm", scenario.SMSG_PARTY_UPDATE, body, 171)]
+        with self.assertRaisesRegex(scenario.ScenarioFailure, "after the bot began logout"):
+            instance_party_update.validate_login_party_update(
+                evidence, member, leader, leader, 1)
 
 
 class DifficultyPersistenceTests(unittest.TestCase):
@@ -714,9 +883,17 @@ class DifficultyRestartTests(unittest.TestCase):
         leader = actor()
         member = member_actor()
         journal = {"actors": [leader, member]}
-        login = {
-            "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
-        }
+        def login(receiver):
+            return {
+                "events": [
+                    party_update_event(receiver, leader, member,
+                                       sequence=24 if receiver["guid"] == member["guid"] else 25),
+                    group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY,
+                                "02000000", 25),
+                ],
+                "trace": [{"kind": "action_started", "action": "finish_logout",
+                           "sequence": 105}],
+            }
         leave = {
             "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "00")],
             "events": [party_command_result(leader["name"])],
@@ -725,7 +902,10 @@ class DifficultyRestartTests(unittest.TestCase):
 
         def run_single(bot_pass, _identity, observer=False):
             order.append(bot_pass.label)
-            return leave if bot_pass.label == "instance-difficulty-leave-001" else login
+            if bot_pass.label == "instance-difficulty-leave-001":
+                return leave
+            receiver = member if bot_pass.label == "instance-difficulty-member-restart-001" else leader
+            return login(receiver)
 
         def relocate(_db, _journal, selected):
             order.append(f"relocate:{selected['name']}")
@@ -772,9 +952,17 @@ class DifficultyRestartTests(unittest.TestCase):
         leader = actor()
         member = member_actor()
         journal = {"actors": [leader, member]}
-        login = {
-            "events": [group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY, "02000000")]
-        }
+        def login(receiver):
+            return {
+                "events": [
+                    party_update_event(receiver, leader, member,
+                                       sequence=24 if receiver["guid"] == member["guid"] else 25),
+                    group_event("realm", scenario.SMSG_SET_DUNGEON_DIFFICULTY,
+                                "02000000", 25),
+                ],
+                "trace": [{"kind": "action_started", "action": "finish_logout",
+                           "sequence": 105}],
+            }
         leave = {
             "sent_packets": [typed("leave_group", "realm", scenario.CMSG_LEAVE_GROUP, "00")],
             "events": [party_command_result(leader["name"])],
@@ -783,7 +971,10 @@ class DifficultyRestartTests(unittest.TestCase):
 
         def run_single(bot_pass, _identity, observer=False):
             order.append(bot_pass.label)
-            return leave if bot_pass.label == "instance-difficulty-leave-001" else login
+            if bot_pass.label == "instance-difficulty-leave-001":
+                return leave
+            receiver = member if bot_pass.label == "instance-difficulty-member-restart-001" else leader
+            return login(receiver)
 
         def rows_remain(_db, _actors):
             order.append("group_rows_present")
