@@ -553,16 +553,16 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_command.variants"
       },
       "audited_summary": {
-        "variant_count": 42,
+        "variant_count": 43,
         "count_kind": "baseline observation; AST is authoritative"
       },
-      "expected_variant_count": 42,
+      "expected_variant_count": 43,
       "coverage_rule": {
         "mode": "exact_variant_membership",
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_variant_count": 42,
+        "expected_variant_count": 43,
         "validation": "Compare sorted AST variant names with the sorted concatenation of every entry.variants; reject gaps, duplicates, stale variants, entry count drift, or total count drift."
       },
       "entries": [
@@ -582,7 +582,7 @@
         },
         {
           "id": "map_runtime_and_visibility_delivery",
-          "expected_variant_count": 19,
+          "expected_variant_count": 20,
           "variants": [
             "ApplyCreatureMeleeDamageLikeCpp",
             "ApplyPlayerMeleeResultLikeCpp",
@@ -602,9 +602,10 @@
             "SendCreatureSpellCastIfVisibleLikeCpp",
             "SendPlayerSpellIfVisibleLikeCpp",
             "SendPlayerAuraUpdate",
-            "SendRealmIfVisibleLikeCpp"
+            "SendRealmIfVisibleLikeCpp",
+            "ExpireInstanceMapOccupantLikeCpp"
           ],
-          "owner": "wow_world::session::mailbox::protocol defines the payloads; canonical Map owners commit transitions and Session applies receiver-local delivery/presentation.",
+          "owner": "wow_world::session::mailbox::protocol defines the payloads; canonical Map owners commit transitions and Session applies receiver-local delivery/presentation. The occupied-instance expiry command carries the map incarnation, recipient handle and residence revision. The owning Session rechecks them before sending the expiry notice and extension prompt.",
           "open_retirement_issues": [
             584
           ],
