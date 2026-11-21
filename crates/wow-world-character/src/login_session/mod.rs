@@ -145,7 +145,9 @@ pub use world_entry::{
 pub use world_entry::{motd_lines_like_cpp, send_handle_player_login_packets_like_cpp};
 
 pub trait CharacterLoginHostLikeCpp:
-    VendorSessionHostLikeCpp + CorpseHostLikeCpp + WorldEntitiesHostLikeCpp
+    VendorSessionHostLikeCpp
+    + CorpseHostLikeCpp
+    + WorldEntitiesHostLikeCpp
 {
     fn lifecycle_mut(&mut self) -> &mut SessionLifecycleState;
     fn split_lifecycle_ref(&self) -> (&SessionLifecycleState, HubRef<'_>);
@@ -186,6 +188,8 @@ pub trait CharacterLoginHostLikeCpp:
         level: u8,
         gender: u8,
     ) -> bool;
+    /// Select the saved login map with C++ `Player::LoadFromDB` admission.
+    fn ensure_canonical_login_map_for_current_player_like_cpp(&mut self) -> bool;
     #[allow(clippy::too_many_arguments)]
     fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
         &mut self,

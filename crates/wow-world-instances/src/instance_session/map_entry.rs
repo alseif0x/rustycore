@@ -32,6 +32,12 @@ fn create_map_decision_difficulty_id_like_cpp(
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MapEntryPhaseLikeCpp {
+    Login,
+    Transfer,
+}
+
 /// Resolve the one canonical Player identity and move that exact value to
 /// the selected map. Existing map records predate Player handles, so the
 /// transition must adopt them before considering a new initial value.
@@ -104,7 +110,12 @@ pub fn try_attach_worldport_destination_with_publication_like_cpp<H: InstanceSes
     let Some(
         wow_map::CreateMapDecision::Existing { key, .. }
         | wow_map::CreateMapDecision::Create { key, .. },
-    ) = prepare_canonical_map_entry_with_publication_like_cpp(host, map_id, publish)
+    ) = prepare_canonical_map_entry_with_publication_like_cpp(
+        host,
+        map_id,
+        publish,
+        MapEntryPhaseLikeCpp::Transfer,
+    )
     else {
         return false;
     };
@@ -128,9 +139,27 @@ pub fn try_attach_worldport_destination_with_publication_like_cpp<H: InstanceSes
 pub fn ensure_canonical_world_map_for_current_player_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &mut H,
 ) -> Option<wow_map::CreateMapDecision> {
+    ensure_canonical_map_for_current_player_in_phase_like_cpp(host, MapEntryPhaseLikeCpp::Transfer)
+}
+
+/// Select and attach the saved login map using `Player::LoadFromDB` admission.
+/// Login creates the map and calls `Map::CannotEnter`; it does not run the
+/// separate `Map::PlayerCannotEnter` access and raid-group preflight.
+pub fn ensure_canonical_login_map_for_current_player_like_cpp<
+    H: InstanceSessionHostLikeCpp,
+>(
+    host: &mut H,
+) -> Option<wow_map::CreateMapDecision> {
+    ensure_canonical_map_for_current_player_in_phase_like_cpp(host, MapEntryPhaseLikeCpp::Login)
+}
+
+fn ensure_canonical_map_for_current_player_in_phase_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &mut H,
+    phase: MapEntryPhaseLikeCpp,
+) -> Option<wow_map::CreateMapDecision> {
     let map_id = u32::from(host.core().player_map_id_like_cpp());
     let position = host.hub_ref().player_position_like_cpp()?;
-    let decision = prepare_canonical_map_entry_like_cpp(host, map_id)?;
+    let decision = prepare_canonical_map_entry_for_phase_like_cpp(host, map_id, phase)?;
     if let wow_map::CreateMapDecision::Existing { key, .. }
     | wow_map::CreateMapDecision::Create { key, .. } = &decision
         && !ensure_canonical_player_owner_for_map_like_cpp(host, *key, position)
@@ -147,13 +176,27 @@ pub fn prepare_canonical_map_entry_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &mut H,
     map_id: u32,
 ) -> Option<wow_map::CreateMapDecision> {
-    prepare_canonical_map_entry_with_publication_like_cpp(host, map_id, true)
+    prepare_canonical_map_entry_with_publication_like_cpp(
+        host,
+        map_id,
+        true,
+        MapEntryPhaseLikeCpp::Transfer,
+    )
+}
+
+fn prepare_canonical_map_entry_for_phase_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &mut H,
+    map_id: u32,
+    phase: MapEntryPhaseLikeCpp,
+) -> Option<wow_map::CreateMapDecision> {
+    prepare_canonical_map_entry_with_publication_like_cpp(host, map_id, true, phase)
 }
 
 fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &mut H,
     map_id: u32,
     publish: bool,
+    phase: MapEntryPhaseLikeCpp,
 ) -> Option<wow_map::CreateMapDecision> {
     let map_entry = host
         .hub_ref()
@@ -204,10 +247,13 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
             side_effects: Vec::new(),
         });
     }
-    let bypass_player_cannot_enter_like_cpp =
+    let is_game_master =
         is_dungeon && host.hub_ref().player_is_game_master_like_cpp() == Some(true);
+    let run_player_cannot_enter_preflight =
+        phase == MapEntryPhaseLikeCpp::Transfer && !is_game_master;
+    let run_instance_map_cannot_enter = !is_game_master;
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_player_cannot_enter_preflight
         && let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
             host.access_requirement_abort_like_cpp(map_id, requested_difficulty as u8)
     {
@@ -224,7 +270,7 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
         });
     }
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_player_cannot_enter_preflight
         && map_entry.instance_type == wow_data::map::MAP_RAID
         && map_entry.expansion_like_cpp() >= host.core().realm_policy.server_expansion_like_cpp
         && !host.core().realm_policy.instance_ignore_raid_like_cpp
@@ -385,7 +431,7 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
     }
 
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_instance_map_cannot_enter
         && let wow_map::CreateMapDecision::Existing {
             key, difficulty_id, ..
         } = &decision
@@ -406,8 +452,9 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
     }
 
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_instance_map_cannot_enter
         && map_entry.instance_type == wow_data::map::MAP_RAID
+        && phase != MapEntryPhaseLikeCpp::Login
         && host.player_loading() != Some(player_guid)
         && let wow_map::CreateMapDecision::Existing { key, .. } = &decision
         && existing_instance_encounter_in_progress == Some(true)
@@ -422,7 +469,7 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
     }
 
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_instance_map_cannot_enter
         && let wow_map::CreateMapDecision::Existing {
             key, difficulty_id, ..
         } = &decision
@@ -450,7 +497,7 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
     }
 
     if is_dungeon
-        && !bypass_player_cannot_enter_like_cpp
+        && run_player_cannot_enter_preflight
         && !map_entry.ignores_instance_farm_limit_like_cpp()
         && let Some(key) = key
         && !{

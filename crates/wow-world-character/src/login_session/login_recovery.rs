@@ -199,7 +199,7 @@ pub fn retry_login_at_homebind_like_cpp<H: CharacterLoginHostLikeCpp>(
     seed_login_location_zone_area_like_cpp(host, zone_id, homebind);
     host.hub_mut()
         .set_player_map_position_like_cpp(homebind_map_id, homebind.position);
-    let _ = host.ensure_canonical_world_map_for_current_player_like_cpp();
+    let _ = host.ensure_canonical_login_map_for_current_player_like_cpp();
     host.core()
         .current_canonical_player_map_key_like_cpp()
         .is_some()

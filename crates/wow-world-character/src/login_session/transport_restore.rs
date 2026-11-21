@@ -50,7 +50,7 @@ pub async fn restore_persisted_transport_for_login_like_cpp<H: CharacterLoginHos
             host.set_player_transport_guid_like_cpp(Some(transport.guid));
             set_player_transport_position_like_cpp(host, Some(transport.offset));
             if attached_controller {
-                let _ = host.ensure_canonical_world_map_for_current_player_like_cpp();
+                let _ = host.ensure_canonical_login_map_for_current_player_like_cpp();
             }
             Some(transport)
         } else {
@@ -73,7 +73,7 @@ pub async fn restore_persisted_transport_for_login_like_cpp<H: CharacterLoginHos
             host.set_player_transport_guid_like_cpp(None);
             set_player_transport_position_like_cpp(host, None);
             if attached_controller {
-                let _ = host.ensure_canonical_world_map_for_current_player_like_cpp();
+                let _ = host.ensure_canonical_login_map_for_current_player_like_cpp();
             }
             None
         }

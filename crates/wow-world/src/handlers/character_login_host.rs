@@ -120,6 +120,11 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             self, guid, name, position, map_id, race, class, level, gender,
         )
     }
+    fn ensure_canonical_login_map_for_current_player_like_cpp(&mut self) -> bool {
+        wow_world_instances::ensure_canonical_login_map_for_current_player_like_cpp(self)
+            .and_then(|decision| decision.map_key())
+            .is_some()
+    }
     #[allow(clippy::too_many_arguments)]
     fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
         &mut self,
