@@ -264,6 +264,39 @@ at `169e0d95e` and replayed against both recorded decisions. The original
 campaign still ended before the restart and was restored. Local evidence
 is in `/tmp/rustycore45-icc-bind-cpp-e3da53697-r2/`.
 
+At `28d8ba5e7` the saved login map uses the native instance admission
+phase (`Player.cpp:17572-17614`, `Map.cpp:2836-2869`). The transfer
+preflight in `Map::PlayerCannotEnter` still applies at a portal. Both
+login-versus-transfer regression tests passed on aarch64. The debug
+candidate at `c05eaca39` also encodes the captured calendar flags. Its
+epoch-two `LoginVerifyWorld` reports map 631 at the same coordinates as
+C++, and the grid-load trace records instance 1. It still emitted no
+pending prompt on the normal login path. The reference emitted that
+prompt with the same starting rows. The Rust report records restoration
+in `/tmp/rustycore45-icc-bind-rust-c05eaca39-r3/`.
+Separately, `login_session/initial_packets.rs` sends
+`WorldServerInfo::default_open_world()` on ICC login. The captured Rust
+difficulty field is 0, while the native field is 4. This packet remains
+outside the bind and RaidInfo comparisons.
+
+The native reference subsequently completed the bind and **post-bind
+world-server restart**. The three candidate process IDs were 1117638,
+1118830 and 1120791. In the second process the member declined, then
+accepted; both client sessions logged out successfully. The leader's
+automatic confirmation renewed its expired lock. In the third process
+both characters logged in and requested RaidInfo on the realm connection.
+Both responses identified instance 1, map 631, difficulty 4, encounter
+mask 1 and active lock flags `80`. Both retained their saved position.
+The subsequent reset preserved the recorded state through the point
+the runner reached group leave. The bot rejected the leave plan locally
+because `SMSG_PARTY_COMMAND_RESULT` (`0x2796`) was missing from its
+accepted gameplay opcodes. The wrapper restored the original runtime,
+configuration and fixture. Its full epoch-three report remains failed.
+The scoped restart evidence with links and hashes for both independent
+client reports is `target/qa/issue45-restart/native-restart-evidence.json`;
+the native packet capture is in
+`/tmp/rustycore45-icc-bind-cpp-c05eaca39-r3/epochs/epoch-003/`.
+
 The full issue remains open. Preserve passing scenario evidence at its actual
 code/binary hashes and assess invalidation before rerunning it. A complete raid
 gameplay/script port is not implied by this bounded entry/bind responsibility.

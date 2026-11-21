@@ -911,6 +911,7 @@ pub(super) fn supported_exact_packet_opcode(opcode: u16) -> bool {
             | SMSG_SET_DUNGEON_DIFFICULTY
             | SMSG_PARTY_INVITE
             | SMSG_PARTY_UPDATE
+            | crate::loot_race::SMSG_PARTY_COMMAND_RESULT
     )
 }
 

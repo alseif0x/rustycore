@@ -33,6 +33,21 @@ fn raw_packet_expectation(connection: Connection, opcode: u16, body: &[u8]) -> E
     }
 }
 
+#[test]
+fn group_leave_plan_can_wait_for_the_server_acknowledgement() {
+    let plan: Plan = serde_json::from_value(serde_json::json!({
+        "character_guid": 24,
+        "timeout_ms": 10000,
+        "actions": [
+            {"action": "leave_group"},
+            {"action": "wait_for_packet", "connection": "realm", "opcode": 0x2796, "timeout_ms": 5000}
+        ],
+        "expect": [{"event": "packet", "connection": "realm", "opcode": 0x2684, "body_hex": ""}],
+        "finish_policy": "logout"
+    })).unwrap();
+    plan::validate_plan(&plan).unwrap();
+}
+
 async fn tcp_pair() -> (TcpStream, TcpStream) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
