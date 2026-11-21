@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        implementation: [reference, replacement-build, replacement-policy]
+        implementation: [tests, production, policy]
     env:
       VALIDATION_V2_CARGO_JOBS: "2"
       IMPLEMENTATION: ${{ matrix.implementation }}
@@ -32,6 +32,8 @@ jobs:
           git archive ece799de10174a2d6745f132fff2fa971e9225a7 \
             tools/validate-full tools/ci/full_policy.py tools/ci/full_snapshot.py \
             tools/ci/check_doc_links.py tools/full-validation | tar -xf - -C "$RUNNER_TEMP/new"
+          cp tools/validate-full "$RUNNER_TEMP/new/tools/"
+          cp tools/ci/{full_policy.py,test_full_policy.py,test_validate_full.py} "$RUNNER_TEMP/new/tools/ci/"
           git switch --detach 316a7387cbaa77bf8a4e2160745f3b5a2020c304
           git rev-parse HEAD
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
@@ -68,29 +70,12 @@ jobs:
           done
           echo '1bc7a3647d8cf5646ad9e0a7ed2a6d9e88f6a6de21bd3b329cc52725b40c89f9  CharacterDatabase.cpp' | sha256sum -c
           echo '7c224e902a3a11743d60432f0975e86994eabe521dd1d49708db5ad17cb52097  HotfixDatabase.cpp' | sha256sum -c
-      - name: Validate the reference implementation
-        if: matrix.implementation == 'reference'
-        shell: bash
-        run: |
-          set -euo pipefail
-          base=31841d89165fb71eac6b106b63d3f3317bafbdf7
-          cargo fetch --locked
-          cargo fetch --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml
-          ./tools/validation-v2 final --base "$base" --require-changes --architecture --timings --logs
-      - name: Validate replacement build checks
-        if: matrix.implementation == 'replacement-build'
+      - name: Validate the assigned part on the auction candidate
         shell: bash
         run: |
           set -euo pipefail
           export CARGO_BUILD_JOBS="$(nproc)"
-          "$RUNNER_TEMP/new/tools/validate-full" --base 31841d89165fb71eac6b106b63d3f3317bafbdf7 --part build --report "$RUNNER_TEMP/replacement-build-result.json"
-      - name: Validate replacement policy checks
-        if: matrix.implementation == 'replacement-policy'
-        shell: bash
-        run: |
-          set -euo pipefail
-          export CARGO_BUILD_JOBS="$(nproc)"
-          "$RUNNER_TEMP/new/tools/validate-full" --base 31841d89165fb71eac6b106b63d3f3317bafbdf7 --part policy --report "$RUNNER_TEMP/replacement-policy-result.json"
+          "$RUNNER_TEMP/new/tools/validate-full" --base 31841d89165fb71eac6b106b63d3f3317bafbdf7 --part "$IMPLEMENTATION" --report "$RUNNER_TEMP/$IMPLEMENTATION-result.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -133,17 +118,17 @@ jobs:
 
           run = get_json(api)
           jobs = get_json(api + "/jobs?per_page=100")["jobs"]
-          new_jobs = [job for job in jobs if job["name"] in {"replacement-build", "replacement-policy"}]
-          if len(new_jobs) != 2 or any(not job.get("completed_at") for job in new_jobs):
-              raise SystemExit("Both replacement jobs must finish before wall time can be measured.")
+          new_jobs = [job for job in jobs if job["name"] in {"tests", "production", "policy"}]
+          if len(new_jobs) != 3 or any(not job.get("completed_at") for job in new_jobs):
+              raise SystemExit("All three parts must finish before measuring wall time.")
           start = datetime.datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
           final_new = max(datetime.datetime.fromisoformat(job["completed_at"].replace("Z", "+00:00")) for job in new_jobs)
           seconds = int((final_new - start).total_seconds())
           print("Queued run to later replacement completion: {} s (from run created_at {} to {}).".format(seconds, run["created_at"], final_new.isoformat()))
           print("Comparison result: {}.".format(os.environ["COMPARISON_RESULT"]))
-          print("Runner-minute tradeoff: three parallel VMs (reference, replacement build, replacement policy) versus two before; splitting the replacement adds one runner's elapsed minutes while the new checks overlap.")
+          print("Tests, production configuration and policy used three parallel VMs.")
           PY
           if [[ "$COMPARISON_RESULT" != success ]]; then
-            echo "At least one of reference, replacement-build, or replacement-policy failed: $COMPARISON_RESULT" >&2
+            echo "Full validation failed: $COMPARISON_RESULT" >&2
             exit 1
           fi
