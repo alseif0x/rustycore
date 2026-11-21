@@ -166,10 +166,9 @@ Complete the following units in order, with one implementation worker:
    roster slots, current-recipient sequence, realm routing and connected recipients.
 2. Implemented locally: correct loaded-lock Player identity using the configured realm, updating all
    consumers and proving that another realm cannot resolve the loaded lock.
-3. Complete pending bind at actual successful instance entry and the existing
-   admitted Player update phase, between save and death timers. Preserve one pending
-   owner, character/map lifetime checks, explicit acceptance/rejection and automatic
-   confirmation at 60 seconds. No new clock, task or parallel mutable lock authority.
+3. Implemented locally at `ab2c017fe`: start the pending bind at successful entry,
+   process the client's decision and confirm at 60 seconds in the admitted Player
+   update. The ICC implementation and its evidence are described below.
 4. Correct the shared ICC fixture with a durable ownership reservation and guarded
    stopped-world cleanup. Require actual bind publication, committed character lock
    contents and relogin; a seeded leader lock alone is not bind acceptance.
@@ -183,23 +182,47 @@ Complete the following units in order, with one implementation worker:
 7. Commit the evidence and prepare the publication candidate. Push, merge and issue
    closure retain their authority and full acceptance gates.
 
-Unit 3 has a bounded implementation hold on enabling the entry producer: native
-`InstanceMap::AddPlayerToMap` (`Map.cpp:2880-2897`) requires a live instance script,
-and confirmation saves that script's actual data (`Map.cpp:3165-3188`). The Rust
-`InstanceScriptBase` currently has no production map owner; the existing confirmation
-helper supplies an empty data string. Resolve the minimum real script/save-data
-integration and persistence failure semantics before enabling this path. Do not
-replace script existence with a seeded lock, fabricate save data, claim durable
-success without a persistence port, or count helper tests as live acceptance.
-This hold does not block the group publication or lock-identity corrections.
+### ICC entry and confirmation implementation — 2026-11-21
 
-The pending-state ownership decision is to use the canonical Player, following
-`Player.cpp:327,1087-1095,19006-19020`. Migrate the existing pending value and every
-handler/loot reader together, removing the Session-owned production field. This
-gives retirement and character replacement their natural lifetime without another
-identity mirror or cleanup protocol. Keep that ownership change separate from
-enabling entry publication, timer consumption and script-data persistence. The
-existing admitted Player recovery pass remains the only timer executor.
+At `ab2c017fe` the canonical Player owns the pending bind and its timer. A
+successful login or worldport runs the instance entry hook after the initial
+before-map packets and before the self create. The admitted Player update
+advances the timer between save and death processing. The handler and timer
+confirm against the Player's current map and instance. Declining the prompt
+calls the existing graveyard operation. Silent worldport completion updates
+the Player without writing a disconnected client. Source anchors are
+`Map.cpp:2875-2904,3166-3188`, `Player.cpp:1087-1100,19006-19020` and
+`MiscHandler.cpp:1061-1075` at the pinned TrinityCore revision.
+
+Startup reads script registrations from the world database. For the registered
+ICC map, the map manager creates its script or loads the shared instance data
+once, including the entrance and the thirteen boss states. ICC prerequisites
+are applied on load. Confirmation writes the map's resulting save and the
+attached character lock's current encounter mask. The character transaction
+must commit before the manager publishes that bind or sends the two realm
+packets. A missing persistence port or reported failure leaves the member
+eligible to confirm on re-entry. See `Map.cpp:2954-2992`,
+`instance_icecrown_citadel.cpp:1074-1205,1229` and
+`InstanceScript.cpp:483-528`. The remaining ICC gameplay scripts are tracked
+in #48 / PORT_PLAN L17.
+
+The client fixture at `4c034169b` supports an explicit accept or decline on
+the realm connection. The 61 cast-lifecycle tests passed on aarch64. Four
+ICC save reconstruction tests and two map registration tests passed on the
+implementation worktree. These results cover code paths and wire encoding.
+The live campaign below separately checks the server restart and relogin.
+
+The bind campaign must restart **after** creating its locks, not merely after
+seeding a leader row. The bounded plan uses the same two disposable actors and
+three capture epochs: form the party and prepare an owned shared lock; exercise
+member rejection/explicit acceptance and the leader's 60-second automatic
+confirmation; restart and prove both newly committed locks through relogin, then
+check reset preservation and normal group cleanup. An expired, extended leader
+lock selects the native automatic-confirmation branch without adding a third
+actor (`Map.cpp:2884-2897`; `InstanceLockMgr.cpp:224-225,368-376`). Compare reset
+against the post-bind snapshot, since confirmation legitimately renews expiry and
+clears extension. The wrapper's current two-epoch limit needs a bounded extension
+and recovery tests; none of these planned observations has run yet.
 
 The full issue remains open. Preserve passing scenario evidence at its actual
 code/binary hashes and assess invalidation before rerunning it. A complete raid
