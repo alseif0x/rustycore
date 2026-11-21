@@ -98,6 +98,7 @@ mod composite_state;
 mod group_membership;
 mod load_hydration;
 mod recent_instances;
+pub use recent_instances::RepresentedPendingBind;
 mod resurrection;
 mod save_ack;
 mod scalar_transitions;

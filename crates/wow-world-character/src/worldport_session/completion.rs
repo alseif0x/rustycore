@@ -278,6 +278,7 @@ fn finish_pending_far_entry_before_disconnect_like_cpp<H: WorldportHostLikeCpp>(
         return false;
     }
     host.hub_mut().reset_movement_counter_like_cpp();
+    wow_world_instances::start_raid_lock_on_map_entry(&mut host.hub_mut(), false);
     host.hub_ref().update_registry_position();
     begin_worldport_post_add_like_cpp(host, destination.0, destination.1)
 }

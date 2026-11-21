@@ -132,6 +132,15 @@ pub enum CreateMapDecision {
     },
 }
 
+impl CreateMapDecision {
+    pub fn map_key(&self) -> Option<MapKey> {
+        match self {
+            Self::Existing { key, .. } | Self::Create { key, .. } => Some(*key),
+            Self::Reject { .. } => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExistingInstanceMapContext {
     pub instance_lock_token: Option<u64>,
@@ -202,6 +211,7 @@ pub type ManagedMapInnerLikeCpp = Map<NoopTerrainGridLoader, NoopGridLifecycle>;
 pub struct ManagedMap {
     pub(super) runtime: MapRuntime,
     pub(super) kind: ManagedMapKind,
+    pub(super) instance_script: Option<wow_instances::IccInstanceScriptLikeCpp>,
     pub(super) can_unload: bool,
     pub(super) instance_encounter_in_progress: bool,
     pub(super) instance_lock_token: Option<u64>,
@@ -257,6 +267,7 @@ impl ManagedMap {
         Self {
             runtime: MapRuntime::new(Map::new(map_id, instance_id, difficulty, grid_expiry_ms)),
             kind,
+            instance_script: None,
             can_unload: false,
             instance_encounter_in_progress: false,
             instance_lock_token: None,
@@ -306,6 +317,56 @@ impl ManagedMap {
 
     pub const fn kind(&self) -> ManagedMapKind {
         self.kind
+    }
+
+    /// Whether C++ `InstanceMap::CreateInstanceData` has selected a map-owned
+    /// instance script for this map.
+    pub const fn has_instance_script(&self) -> bool {
+        self.instance_script.is_some()
+    }
+
+    /// Current instance-script save bytes used when persisting an instance bind.
+    pub fn instance_script_save_data(&self) -> Option<String> {
+        self.instance_script
+            .as_ref()
+            .map(wow_instances::IccInstanceScriptLikeCpp::get_save_data_like_cpp)
+    }
+
+    /// Initialize the registered ICC instance script for this canonical map.
+    ///
+    /// The manager supplies the effective world `InstanceTemplate` script name.
+    /// `Some(lock_data)` denotes an existing attached lock, including one with
+    /// an empty payload; `None` denotes no attached lock or a newly created lock.
+    pub fn initialize_instance_script_like_cpp(
+        &mut self,
+        effective_script_name: &str,
+        lock_data: Option<&wow_instances::InstanceLockData>,
+    ) -> bool {
+        if self.instance_script.is_some() {
+            return true;
+        }
+
+        if effective_script_name != wow_instances::ICC_INSTANCE_SCRIPT_NAME_LIKE_CPP
+            || self.map_id() != wow_instances::ICC_MAP_ID_LIKE_CPP
+            || self.instance_id() == 0
+            || !matches!(
+                self.kind,
+                ManagedMapKind::Dungeon {
+                    has_reset_schedule: true
+                }
+            )
+            || !wow_instances::ICC_DIFFICULTY_IDS_LIKE_CPP.contains(&self.difficulty())
+        {
+            return false;
+        }
+
+        self.instance_script = Some(
+            wow_instances::IccInstanceScriptLikeCpp::initialize_for_binding_like_cpp(
+                self.difficulty(),
+                lock_data,
+            ),
+        );
+        true
     }
 
     pub fn map(&self) -> &Map<NoopTerrainGridLoader, NoopGridLifecycle> {
@@ -1084,6 +1145,9 @@ impl IntervalTimer {
 pub struct MapManager {
     pub(super) grid_cleanup_delay_ms: u32,
     pub(super) maps: BTreeMap<MapKey, ManagedMap>,
+    /// Effective `InstanceTemplate` script name indexed by map id, installed
+    /// during startup before instance maps are initialized.
+    pub(super) instance_script_templates: HashMap<u32, String>,
     pub(super) timer: IntervalTimer,
     pub(super) instance_ids: InstanceIdAllocator,
     pub(super) updater: MapUpdater,
@@ -1125,6 +1189,7 @@ impl fmt::Debug for MapManager {
         f.debug_struct("MapManager")
             .field("grid_cleanup_delay_ms", &self.grid_cleanup_delay_ms)
             .field("maps", &self.maps)
+            .field("instance_script_templates", &self.instance_script_templates)
             .field("timer", &self.timer)
             .field("instance_ids", &self.instance_ids)
             .field("updater", &self.updater)

@@ -24,6 +24,27 @@ pub fn create_map_instance_lock_token_like_cpp(
     hash
 }
 
+pub(crate) fn resolve_attached_raid_lock(
+    locks: &wow_world_core::session::InstanceLockManagerAccessLikeCpp<'_>,
+    context: wow_map::CreateMapInstanceLockContext,
+    key: wow_map::MapKey,
+    difficulty: wow_map::Difficulty,
+    maps: Option<&wow_data::MapStore>,
+    difficulties: Option<&wow_data::MapDifficultyStore>,
+) -> Option<(wow_instances::InstanceLock, wow_instances::MapDb2Entries)> {
+    let (lock, entries) = locks.active_lock_for_map_reset_like_cpp(
+        context,
+        key.map_id,
+        key.instance_id,
+        difficulty,
+        maps,
+        difficulties,
+    )?;
+    let owner = locks.player_guid_for_instance_lock_owner_like_cpp(context.owner_guid_counter)?;
+    (create_map_instance_lock_token_like_cpp(owner, &entries, &lock) == context.token)
+        .then_some((lock, entries))
+}
+
 pub(crate) fn player_instance_reset_forgets_recent_like_cpp(
     result: GroupInstanceResetResultLikeCpp,
     method: GroupInstanceResetMethodLikeCpp,

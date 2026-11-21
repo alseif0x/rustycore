@@ -71,6 +71,12 @@ pub(super) async fn run_current_player_ticks(
         {
             return;
         }
+        advance_pending_bind(session, diff_ms, catalogs).await;
+        if session.core.state != SessionState::LoggedIn
+            || !binding_still_current(session, binding.as_ref())
+        {
+            return;
+        }
         advance_player_death_timer(session, diff_ms, catalogs).await;
         if session.core.state != SessionState::LoggedIn
             || !binding_still_current(session, binding.as_ref())
@@ -249,6 +255,10 @@ async fn run_admitted_player_recovery(
         return PlayerRecoveryStatus::PlayerLeft;
     }
 
+    advance_pending_bind(session, admission.diff_ms, catalogs).await;
+    if let Some(status) = recovery_status(session, admission) {
+        return status;
+    }
     advance_player_death_timer(session, admission.diff_ms, catalogs).await;
     if let Some(status) = recovery_status(session, admission) {
         return status;
@@ -595,6 +605,22 @@ async fn process_pending_player_save(
         catalogs.id_generators.item.as_ref(),
     )
     .await;
+}
+
+async fn advance_pending_bind(
+    session: &mut WorldSession,
+    diff_ms: u32,
+    catalogs: &SessionHandlerCatalogsLikeCpp,
+) {
+    use wow_world_instances::InstancesHandlerHostLikeCpp;
+    if let Some(pending) = session
+        .core
+        .with_owned_player_mut_like_cpp(|player| player.advance_pending_bind_like_cpp(diff_ms))
+        .flatten()
+    {
+        let mut cx = session.instance_lock_operations_handler_cx_like_cpp(catalogs);
+        wow_world_instances::confirm_pending_bind_like_cpp(&mut cx, pending).await;
+    }
 }
 
 async fn advance_player_death_timer(

@@ -1,10 +1,4 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RepresentedPendingBind {
-    pub map_id: u32,
-    pub instance_id: u32,
-    pub completed_mask: u32,
-    pub time_until_lock_ms: u32,
-}
+pub use wow_entities::RepresentedPendingBind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepresentedAdventureMapStartQuestLikeCpp {

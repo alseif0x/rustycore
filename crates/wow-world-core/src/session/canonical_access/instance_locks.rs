@@ -123,43 +123,50 @@ impl InstanceLockManagerAccessLikeCpp<'_> {
         Some((lock.clone(), entries))
     }
 
-    pub fn update_lock_for_player_with_persistence_like_cpp(
+    pub async fn persist_player_bind_like_cpp(
         &self,
         player_guid: ObjectGuid,
         entries: &MapDb2Entries,
-        instance_id: u32,
-        completed_mask: u32,
-    ) -> Option<(bool, InstanceLock, InstanceLockPersistencePlanLikeCpp, u64)> {
-        let instance_lock_mgr = self.core.instance_lock_mgr.as_ref()?.clone();
+        event: InstanceLockUpdateEvent,
+        port: std::sync::Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>,
+    ) -> Option<(bool, InstanceLock, u64)> {
+        let manager = self.core.instance_lock_mgr.as_ref()?;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| duration.as_secs())
-            .unwrap_or(0);
-        let mut persistence_plan = InstanceLockPersistencePlanLikeCpp::default();
-        let (is_new_lock, new_lock) = {
-            let mut manager = instance_lock_mgr.write().ok()?;
-            let is_new_lock = manager
+            .ok()?
+            .as_secs();
+        let (is_new, updated) = {
+            let manager = manager.read().ok()?;
+            let is_new = manager
                 .find_active_instance_lock_at(player_guid, entries, now)
                 .is_none_or(|lock| lock.is_new || lock.is_expired_at(now));
-            let update_event = InstanceLockUpdateEvent {
-                instance_id,
-                new_data: String::new(),
-                instance_completed_encounters_mask: completed_mask,
-                completed_encounter_bit: None,
-                entrance_world_safe_loc_id: None,
-            };
-            let schedule = *self.reset_schedule;
-            let new_lock = manager.update_instance_lock_for_player_with_persistence_at(
-                &mut persistence_plan,
+            let updated = manager.prepare_player_lock_update(
                 player_guid,
                 entries,
-                update_event,
-                schedule,
+                event,
+                *self.reset_schedule,
                 now,
             )?;
-            (is_new_lock, new_lock)
+            (is_new, updated)
         };
-        Some((is_new_lock, new_lock, persistence_plan, now))
+        let plan = wow_instances::InstanceLockMgr::player_lock_persistence_plan(
+            player_guid,
+            entries,
+            &updated,
+        );
+        if let wow_persistence::InstanceLockPersistenceOutcomeLikeCpp::Failed { reason } =
+            port.commit_plan_like_cpp(plan).await
+        {
+            tracing::warn!(?player_guid, instance_id = updated.instance_id, error = %reason, "instance bind transaction failed");
+            return None;
+        }
+        manager.write().ok()?.install_player_lock_update(
+            player_guid,
+            entries,
+            updated.clone(),
+            now,
+        );
+        Some((is_new, updated, now))
     }
 
     pub fn update_lock_extension_with_persistence_like_cpp(

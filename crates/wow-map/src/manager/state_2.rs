@@ -24,6 +24,7 @@ impl MapManager {
         let mut manager = Self {
             grid_cleanup_delay_ms: MIN_GRID_DELAY_MS,
             maps: BTreeMap::new(),
+            instance_script_templates: HashMap::new(),
             timer: IntervalTimer::new(MIN_MAP_UPDATE_DELAY_MS),
             instance_ids: InstanceIdAllocator::new(),
             updater: MapUpdater::default(),
@@ -54,6 +55,28 @@ impl MapManager {
     pub fn set_map_update_interval(&mut self, interval_ms: u32) {
         self.timer.set_interval(interval_ms);
         self.timer.reset();
+    }
+
+    /// Install effective `InstanceTemplate` script names before map creation.
+    pub fn set_instance_script_templates(&mut self, templates: HashMap<u32, String>) {
+        self.instance_script_templates = templates;
+    }
+
+    /// Initialize the single map-owned script selected by this map's effective
+    /// `InstanceTemplate` registration. Missing maps or registrations are no-ops.
+    pub fn initialize_instance_script_for_map(
+        &mut self,
+        map_id: u32,
+        instance_id: u32,
+        lock_data: Option<&wow_instances::InstanceLockData>,
+    ) -> bool {
+        let Some(effective_script_name) = self.instance_script_templates.get(&map_id) else {
+            return false;
+        };
+        let Some(map) = self.maps.get_mut(&MapKey::new(map_id, instance_id)) else {
+            return false;
+        };
+        map.initialize_instance_script_like_cpp(effective_script_name, lock_data)
     }
 
     pub fn set_spawn_group_initializer_like_cpp(

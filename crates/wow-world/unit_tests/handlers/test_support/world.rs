@@ -159,8 +159,16 @@ pub(crate) fn install_pending_bind_instance_context_like_cpp(
     difficulty_id: u8,
     lock_id: u8,
 ) -> Arc<RwLock<wow_instances::InstanceLockMgr>> {
-    session.set_player_guid(Some(player_guid));
-    session.set_loaded_player_identity_like_cpp(map_id as u16, 1, 1, 10, 0);
+    session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+        player_guid,
+        "PendingBindFixture".to_string(),
+        wow_core::Position::ZERO,
+        u16::try_from(map_id).expect("test map id fits u16"),
+        1,
+        1,
+        10,
+        0,
+    ));
     session.set_map_store(Arc::new(MapStore::from_entries([MapEntry {
         id: map_id,
         instance_type: 2,
@@ -198,10 +206,96 @@ pub(crate) fn install_pending_bind_instance_context_like_cpp(
         },
     );
     session.set_canonical_map_manager(canonical);
+    assert!(
+        wow_world_instances::ensure_canonical_player_owner_for_map_like_cpp(
+            session,
+            wow_map::MapKey::new(map_id, instance_id),
+            wow_core::Position::ZERO,
+        )
+    );
 
     let mgr = Arc::new(RwLock::new(wow_instances::InstanceLockMgr::default()));
+    let realm = player_guid.realm_id();
+    session.core.set_realm_id(realm);
+    let entries = session
+        .create_map_db2_entries_like_cpp(map_id, difficulty_id)
+        .unwrap();
+    let leader = ObjectGuid::create_player(realm, 91000);
+    let shared = wow_instances::SharedInstanceLockRow {
+        instance_id,
+        data: r#"{"Header":"ICCv1","BossStates":[3,0,0,0,0,0,0,0,0,0,0,0,0]}"#.into(),
+        completed_encounters_mask: 1,
+        entrance_world_safe_loc_id: 0,
+    };
+    let leader_row = wow_instances::CharacterInstanceLockRow {
+        player_guid_counter: leader.counter() as u64,
+        map_id,
+        lock_id: u32::from(lock_id),
+        instance_id,
+        difficulty_id,
+        data: String::new(),
+        completed_encounters_mask: 0xA5,
+        entrance_world_safe_loc_id: 0,
+        expiry_time: u64::MAX,
+        extended: false,
+    };
+    let mut locks = mgr.write().unwrap();
+    assert!(
+        locks
+            .load_from_rows_like_cpp(realm, [shared], [leader_row], |_, _| Some(entries))
+            .is_empty()
+    );
+    let lock = locks
+        .find_instance_lock_exact_like_cpp(leader, map_id, difficulty_id, instance_id)
+        .unwrap();
+    let data = lock.instance_initialization_data();
+    let context = wow_map::CreateMapInstanceLockContext {
+        instance_id,
+        difficulty_id,
+        token: wow_world_instances::create_map_instance_lock_token_like_cpp(leader, &entries, lock),
+        owner_guid_counter: leader.counter() as u64,
+    };
+    drop(locks);
+    let mut maps = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap();
+    maps.set_instance_script_templates(
+        [(
+            map_id,
+            wow_instances::ICC_INSTANCE_SCRIPT_NAME_LIKE_CPP.to_owned(),
+        )]
+        .into(),
+    );
+    maps.find_map_mut(map_id, instance_id)
+        .unwrap()
+        .set_instance_lock_context(Some(context));
+    maps.initialize_instance_script_for_map(map_id, instance_id, Some(&data));
+    drop(maps);
     session.set_instance_lock_mgr(Arc::clone(&mgr));
     mgr
+}
+
+pub(crate) fn set_canonical_player_pending_bind_for_test_like_cpp(
+    session: &crate::session::WorldSession,
+    pending_bind: wow_entities::RepresentedPendingBind,
+) -> bool {
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| player.set_pending_bind_like_cpp(pending_bind))
+        .is_some()
+}
+
+pub(crate) fn canonical_player_pending_bind_for_test_like_cpp(
+    session: &crate::session::WorldSession,
+) -> Option<wow_entities::RepresentedPendingBind> {
+    session
+        .core
+        .with_owned_player_like_cpp(|player| player.pending_bind_like_cpp())
+        .flatten()
 }
 
 pub(crate) fn install_represented_guild_bank_like_cpp(

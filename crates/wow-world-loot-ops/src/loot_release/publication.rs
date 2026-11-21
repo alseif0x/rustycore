@@ -5,26 +5,19 @@ use wow_core::ObjectGuid;
 use wow_loot::OwnedLootAuthority;
 use wow_packet::packets::update::UpdateObject;
 use wow_world_core::session::{LootReleaseAccessLikeCpp, PacketPublicationAccessLikeCpp};
-use wow_world_instances::InstanceState;
 
 /// Read-only publication inputs; each query remains at its release phase.
 pub struct LootReleasePublicationCxLikeCpp<'a> {
     owner: LootReleaseAccessLikeCpp<'a>,
     publication: PacketPublicationAccessLikeCpp<'a>,
-    instances: &'a InstanceState,
 }
 
 impl<'a> LootReleasePublicationCxLikeCpp<'a> {
     pub fn new(
         owner: LootReleaseAccessLikeCpp<'a>,
         publication: PacketPublicationAccessLikeCpp<'a>,
-        instances: &'a InstanceState,
     ) -> Self {
-        Self {
-            owner,
-            publication,
-            instances,
-        }
+        Self { owner, publication }
     }
 
     pub fn send_creature_loot_release_dynamic_flags_update_like_cpp(
@@ -51,7 +44,7 @@ impl<'a> LootReleasePublicationCxLikeCpp<'a> {
             let source_update = self.owner.creature_loot_release_values_for_viewer_like_cpp(
                 creature_guid,
                 player_guid,
-                self.instances.has_pending_bind_like_cpp(),
+                self.owner.viewer_has_pending_bind_like_cpp(),
                 authority,
                 packet_update.clone(),
             );

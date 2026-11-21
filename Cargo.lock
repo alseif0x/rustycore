@@ -3298,6 +3298,7 @@ dependencies = [
  "wow-constants",
  "wow-core",
  "wow-entities",
+ "wow-instances",
  "wow-loot",
 ]
 

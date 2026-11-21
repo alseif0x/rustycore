@@ -59,8 +59,6 @@ pub struct InstanceLockOperationsHandlerCxLikeCpp<'a> {
     pub(super) consumer_test: bool,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(super) game_master_fixture: &'a bool,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(super) rejected_response_counter: &'a mut u32,
 }
 
 impl<'a> InstanceLockOperationsHandlerCxLikeCpp<'a> {
@@ -81,7 +79,6 @@ impl<'a> InstanceLockOperationsHandlerCxLikeCpp<'a> {
         player_registry: Option<&'a Arc<PlayerRegistry>>,
         consumer_test: bool,
         #[cfg(any(test, feature = "test-fixtures"))] game_master_fixture: &'a bool,
-        #[cfg(any(test, feature = "test-fixtures"))] rejected_response_counter: &'a mut u32,
     ) -> Self {
         Self {
             instances,
@@ -100,8 +97,6 @@ impl<'a> InstanceLockOperationsHandlerCxLikeCpp<'a> {
             consumer_test,
             #[cfg(any(test, feature = "test-fixtures"))]
             game_master_fixture,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            rejected_response_counter,
         }
     }
 
@@ -175,6 +170,10 @@ impl<'a> InstanceDifficultyHandlerCxLikeCpp<'a> {
 /// Supplies only the three selected operation contexts to the generic handler
 /// registrar. No WorldSession or universal Hub crosses this boundary.
 pub trait InstancesHandlerHostLikeCpp<C> {
+    fn repop_after_declining_bind<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+    ) -> wow_handler::HandlerFuture<'a, ()>;
     fn instance_raid_info_handler_cx_like_cpp<'a>(
         &'a mut self,
         catalogs: &'a C,

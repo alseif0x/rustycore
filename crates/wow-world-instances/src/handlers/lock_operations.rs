@@ -5,7 +5,8 @@
 use std::sync::Arc;
 
 use crate::binding::player_instance_reset_forgets_recent_like_cpp;
-use crate::{InstanceState, RepresentedPendingBind, create_map_instance_lock_token_like_cpp};
+use crate::binding::resolve_attached_raid_lock;
+use crate::{InstanceState, RepresentedPendingBind};
 use tracing::{info, warn};
 use wow_core::ObjectGuid;
 use wow_data::{MapDifficultyStore, MapStore};
@@ -38,6 +39,7 @@ pub enum InstanceResetMethodLikeCpp {
 pub enum InstanceLockResponseOutcomeLikeCpp {
     Malformed,
     NoPendingBind,
+    Declined,
     Rejected,
     Confirmed(u32),
 }
@@ -224,25 +226,16 @@ fn reset_live_map_instance_like_cpp(
     let lock_is_new = match snapshot.instance_lock_context {
         None => None,
         Some(context) => {
-            let Some((lock, entries)) = locks.active_lock_for_map_reset_like_cpp(
+            let Some((lock, _)) = resolve_attached_raid_lock(
+                locks,
                 context,
-                map_id,
-                instance_id,
+                wow_map::MapKey::new(map_id, instance_id),
                 snapshot.difficulty_id,
                 map_store,
                 map_difficulty_store,
             ) else {
                 return InstanceResetResultLikeCpp::Other;
             };
-            let Some(owner_guid) =
-                locks.player_guid_for_instance_lock_owner_like_cpp(context.owner_guid_counter)
-            else {
-                return InstanceResetResultLikeCpp::Other;
-            };
-            if create_map_instance_lock_token_like_cpp(owner_guid, &entries, &lock) != context.token
-            {
-                return InstanceResetResultLikeCpp::Other;
-            }
             Some(lock.is_new)
         }
     };
@@ -312,7 +305,7 @@ pub async fn handle_instance_lock_response_like_cpp(
         return InstanceLockResponseOutcomeLikeCpp::Malformed;
     };
 
-    let Some(pending_bind) = cx.instances.take_pending_bind_like_cpp() else {
+    let Some(pending_bind) = cx.player.take_pending_bind_like_cpp() else {
         info!(
             account = cx.player.account_id_like_cpp(),
             player_guid = ?cx.player.player_guid_like_cpp(),
@@ -322,13 +315,7 @@ pub async fn handle_instance_lock_response_like_cpp(
     };
 
     if !response.accept_lock {
-        if cx.consumer_test {
-            #[cfg(any(test, feature = "test-fixtures"))]
-            {
-                *cx.rejected_response_counter = (*cx.rejected_response_counter).saturating_add(1);
-            }
-        }
-        return InstanceLockResponseOutcomeLikeCpp::Rejected;
+        return InstanceLockResponseOutcomeLikeCpp::Declined;
     }
 
     if confirm_pending_bind_like_cpp(cx, pending_bind).await {
@@ -345,11 +332,16 @@ pub async fn handle_instance_lock_response_like_cpp(
     }
 }
 
-async fn confirm_pending_bind_like_cpp(
+pub async fn confirm_pending_bind_like_cpp(
     cx: &mut InstanceLockOperationsHandlerCxLikeCpp<'_>,
     pending_bind: RepresentedPendingBind,
 ) -> bool {
-    if u32::from(cx.player.player_map_id_like_cpp()) != pending_bind.map_id {
+    if cx.player.current_map_key_like_cpp()
+        != Some(wow_map::MapKey::new(
+            pending_bind.map_id,
+            pending_bind.instance_id,
+        ))
+    {
         return false;
     }
 
@@ -380,35 +372,47 @@ async fn confirm_pending_bind_like_cpp(
     ) else {
         return false;
     };
-    let Some((is_new_lock, new_lock, persistence_plan, now)) =
-        cx.locks.update_lock_for_player_with_persistence_like_cpp(
-            player_guid,
-            &entries,
-            pending_bind.instance_id,
-            pending_bind.completed_mask,
-        )
+    let Some((context, save)) = cx.canonical_map_manager.and_then(|manager| {
+        let manager = manager.lock().ok()?;
+        let map = manager.find_map(pending_bind.map_id, pending_bind.instance_id)?;
+        Some((
+            map.instance_lock_context()?,
+            map.instance_script_save_data()?,
+        ))
+    }) else {
+        return false;
+    };
+    let Some((attached, _)) = resolve_attached_raid_lock(
+        &cx.locks,
+        context,
+        wow_map::MapKey::new(pending_bind.map_id, pending_bind.instance_id),
+        difficulty_id,
+        cx.map_store,
+        cx.map_difficulty_store,
+    ) else {
+        return false;
+    };
+    let Some(port) = cx.lifecycle.instance_lock_persistence_port_like_cpp() else {
+        return false;
+    };
+    let event = wow_instances::InstanceLockUpdateEvent {
+        instance_id: pending_bind.instance_id,
+        new_data: save,
+        instance_completed_encounters_mask: attached.data.completed_encounters_mask,
+        completed_encounter_bit: None,
+        entrance_world_safe_loc_id: None,
+    };
+    let Some((is_new_lock, new_lock, now)) = cx
+        .locks
+        .persist_player_bind_like_cpp(player_guid, &entries, event, port)
+        .await
     else {
         return false;
     };
 
-    if !persistence_plan.is_empty()
-        && let Some(port) = cx.lifecycle.instance_lock_persistence_port_like_cpp()
-        && let InstanceLockPersistenceOutcomeLikeCpp::Failed { reason } =
-            port.commit_plan_like_cpp(persistence_plan).await
-    {
-        warn!(
-            account = cx.player.account_id_like_cpp(),
-            player_guid = ?player_guid,
-            instance_id = pending_bind.instance_id,
-            error = %reason,
-            "failed to commit represented pending instance bind transaction"
-        );
-        return false;
-    }
-
     if is_new_lock {
         cx.packets
-            .send_packet(&InstanceSaveCreated { gm: is_game_master });
+            .send_packet_realm(&InstanceSaveCreated { gm: is_game_master });
         let reset_schedule = cx.locks.reset_schedule_like_cpp();
         send_calendar_raid_lockout_added_like_cpp(
             &cx.packets,
@@ -432,7 +436,7 @@ fn send_calendar_raid_lockout_added_like_cpp(
     let effective_expiry = lock.effective_expiry_time_at(entries, reset_schedule, now);
     let remaining = (effective_expiry as i128 - now as i128)
         .clamp(i128::from(i32::MIN), i128::from(i32::MAX)) as i32;
-    packets.send_packet(&CalendarRaidLockoutAdded::new_at_unix(
+    packets.send_packet_realm(&CalendarRaidLockoutAdded::new_at_unix(
         u64::from(lock.instance_id),
         now.min(i64::MAX as u64) as i64,
         i32::try_from(lock.map_id).unwrap_or(i32::MAX),

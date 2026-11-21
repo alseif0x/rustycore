@@ -22,7 +22,6 @@ impl WorldSession {
             &mut self.inventory,
             &mut self.lifecycle,
             cfg!(test),
-            &self.instances,
             wow_world_core::session::LootReleaseStatsInputsLikeCpp::new_like_cpp(
                 &self.catalogs,
                 &self.config,

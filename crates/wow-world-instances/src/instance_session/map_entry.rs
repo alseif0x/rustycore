@@ -254,11 +254,22 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
         split_by_faction: map_entry.is_split_by_faction(),
         flex_locking: map_entry.is_flex_locking(),
     };
-    let active_instance_lock = is_dungeon
-        .then(|| {
-            create_map_active_instance_lock_context_like_cpp(host, map_id, requested_difficulty)
-        })
-        .flatten();
+    let (active_instance_lock, initialization_data) = if is_dungeon {
+        super::admission::with_active_map_lock_like_cpp(
+            host,
+            map_id,
+            requested_difficulty,
+            |context, lock| {
+                (
+                    Some(context),
+                    (!lock.is_new).then(|| lock.instance_initialization_data()),
+                )
+            },
+        )
+        .unwrap_or_default()
+    } else {
+        (None, None)
+    };
     let owning_group_guid = is_dungeon
         .then(|| host.authoritative_group_membership_like_cpp())
         .flatten();
@@ -286,14 +297,15 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
         let map = manager.create_map_entry(key.map_id, key.instance_id, *difficulty_id, *kind);
         if is_dungeon {
             map.set_instance_lock_context(active_instance_lock);
+            manager.initialize_instance_script_for_map(
+                key.map_id,
+                key.instance_id,
+                initialization_data.as_ref(),
+            );
         }
     }
 
-    let key = match &decision {
-        wow_map::CreateMapDecision::Existing { key, .. }
-        | wow_map::CreateMapDecision::Create { key, .. } => Some(*key),
-        wow_map::CreateMapDecision::Reject { .. } => None,
-    };
+    let key = decision.map_key();
     if let (Some(key), Some(group_guid)) = (key, owning_group_guid)
         && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
     {

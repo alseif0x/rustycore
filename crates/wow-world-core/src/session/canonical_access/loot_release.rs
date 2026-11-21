@@ -293,6 +293,12 @@ impl SessionCore {
 }
 
 impl LootReleaseAccessLikeCpp<'_> {
+    pub fn viewer_has_pending_bind_like_cpp(&self) -> bool {
+        self.core
+            .with_owned_player_like_cpp(|player| player.has_pending_bind_like_cpp())
+            .unwrap_or(false)
+    }
+
     pub fn canonical_gameobject_is_fully_looted_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
         let map_key = self
             .core

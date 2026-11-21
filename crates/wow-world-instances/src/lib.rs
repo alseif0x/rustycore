@@ -20,6 +20,7 @@ mod map_key;
 mod map_resolution;
 mod operations;
 mod pending_raid_lock;
+pub use pending_raid_lock::start_raid_lock_on_map_entry;
 mod state;
 
 pub use battleground_handlers::{
@@ -59,7 +60,7 @@ pub use group_session::{
 pub use handlers::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,
     InstanceLockResponseOutcomeLikeCpp, InstanceRaidInfoHandlerCxLikeCpp,
-    InstanceResetMethodLikeCpp, InstancesHandlerHostLikeCpp,
+    InstanceResetMethodLikeCpp, InstancesHandlerHostLikeCpp, confirm_pending_bind_like_cpp,
     handle_instance_lock_response_like_cpp, handle_request_raid_info_like_cpp,
     handle_reset_instances_like_cpp, handle_set_difficulty_id_like_cpp,
     handle_set_dungeon_difficulty_like_cpp, handle_set_raid_difficulty_like_cpp,

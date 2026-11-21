@@ -149,6 +149,7 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
     host.hub_mut().reset_movement_counter_like_cpp();
     host.send_packet(&wow_packet::packets::misc::MoveSetActiveMover { mover_guid: guid });
     host.core_mut().send_time_sync();
+    wow_world_instances::start_raid_lock_on_map_entry(&mut host.hub_mut(), true);
 
     // C++ Map::AddPlayerToMap(initPlayer=true) -> SendInitSelf (Map.cpp:446): re-send the
     // player's OWN object (ActivePlayer create block) for the destination map. Without it

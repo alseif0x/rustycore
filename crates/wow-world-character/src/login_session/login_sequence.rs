@@ -480,8 +480,13 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         level,
         sex,
     );
-    if attached_controller {
-        let _ = host.ensure_canonical_world_map_for_current_player_like_cpp();
+    if attached_controller
+        && host
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .and_then(|decision| decision.map_key())
+            .is_some()
+    {
+        wow_world_instances::start_raid_lock_on_map_entry(&mut host.hub_mut(), true);
     }
     // #1263 C2: the login attach result, reported at the C++
     // `Map::AddPlayerToMap` equivalent point. Every guard taken by the two

@@ -4,7 +4,7 @@
 //! - `game/Maps/MapManager.h`
 //! - `game/Maps/MapManager.cpp`
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
