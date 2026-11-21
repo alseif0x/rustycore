@@ -22,20 +22,18 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
       - name: Freeze the validator and check out the auction candidate
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/new"
-          git fetch --quiet --no-tags --depth=1 origin ece799de10174a2d6745f132fff2fa971e9225a7
           git archive ece799de10174a2d6745f132fff2fa971e9225a7 \
             tools/validate-full tools/ci/full_policy.py tools/ci/full_snapshot.py \
             tools/ci/check_doc_links.py tools/full-validation | tar -xf - -C "$RUNNER_TEMP/new"
           cp tools/validate-full "$RUNNER_TEMP/new/tools/"
           cp tools/ci/{full_policy.py,test_full_policy.py,test_validate_full.py} "$RUNNER_TEMP/new/tools/ci/"
-          git fetch --quiet --no-tags --depth=2 origin 316a7387cbaa77bf8a4e2160745f3b5a2020c304
           git switch --detach 316a7387cbaa77bf8a4e2160745f3b5a2020c304
           git rev-parse HEAD
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
