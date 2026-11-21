@@ -54,10 +54,9 @@ The private run used `cargo build --locked -j 1 -p wow-instances -p wow-database
 and `python3 target/qa/issue45-restart/run_storage_probe.py`. Its local
 report is `target/qa/issue45-restart/result.json` (SHA-256
 `6425e7c07e5251a0f6484ec6a151dfa4bda3c5577ad549211dfa5b5f3f2dcfb3`).
-The storage probe supplied its own event payload. The gameplay prompt, client
-reply, world-server restart and subsequent character login still need live
-evidence. The existing two-epoch reset runner seeds the leader's lock and
-cannot establish acquisition by the member.
+The storage probe supplied its own event payload. It covered the MariaDB
+restart. The ICC campaign below tracks the gameplay prompt, client reply,
+world-server restart and subsequent character login.
 
 ### Resumption audit — 2026-11-06
 
@@ -169,9 +168,9 @@ Complete the following units in order, with one implementation worker:
 3. Implemented locally at `ab2c017fe`: start the pending bind at successful entry,
    process the client's decision and confirm at 60 seconds in the admitted Player
    update. The ICC implementation and its evidence are described below.
-4. Correct the shared ICC fixture with a durable ownership reservation and guarded
-   stopped-world cleanup. Require actual bind publication, committed character lock
-   contents and relogin; a seeded leader lock alone is not bind acceptance.
+4. Implemented locally at `428656401`: reserve the shared ICC row and leader lock
+   while the world is stopped and restore only rows attributable to the fixture.
+   The member starts without a character lock.
 5. Build the committed debug candidate and run difficulty/restart and persistent
    lock/reset/bind on Rust and the pinned native backend, with action captures and
    restoration. Reuse prior reset evidence only after reviewing changed consumers.
@@ -212,17 +211,58 @@ ICC save reconstruction tests and two map registration tests passed on the
 implementation worktree. These results cover code paths and wire encoding.
 The live campaign below separately checks the server restart and relogin.
 
-The bind campaign must restart **after** creating its locks, not merely after
-seeding a leader row. The bounded plan uses the same two disposable actors and
-three capture epochs: form the party and prepare an owned shared lock; exercise
-member rejection/explicit acceptance and the leader's 60-second automatic
-confirmation; restart and prove both newly committed locks through relogin, then
-check reset preservation and normal group cleanup. An expired, extended leader
-lock selects the native automatic-confirmation branch without adding a third
-actor (`Map.cpp:2884-2897`; `InstanceLockMgr.cpp:224-225,368-376`). Compare reset
-against the post-bind snapshot, since confirmation legitimately renews expiry and
-clears extension. The wrapper's current two-epoch limit needs a bounded extension
-and recovery tests; none of these planned observations has run yet.
+The ICC runner at `c047f4ae7` uses two disposable characters and three
+world-server processes. The first forms the group. The second observes the
+member decline and explicitly accept the bind, and waits for the leader's
+60-second automatic confirmation. The third requests both characters' raid
+information after relogin and checks the saved instance, reset and group cleanup.
+An expired, extended leader lock selects the automatic-confirmation branch
+(`Map.cpp:2884-2897`, `InstanceLockMgr.cpp:224-225,368-376`).
+The reset comparison uses the post-bind snapshot because confirmation renews
+expiry and clears extension. The wrapper at `ad791837f` checks three distinct
+process IDs and restoration. Its 245 host-free checks passed.
+
+On aarch64, the Rust debug candidate from `c047f4ae7` has SHA-256
+`49e2d95856acad94878644962b7795e22c52a23269e745cbc375744a6a4e86d4`.
+The first attempt reached the default 60-second startup deadline before either
+client connected. Guarded recovery restored the fixture, stable executable,
+listeners and configuration. The local record is
+`/tmp/rustycore45-icc-bind-rust-c047f4ae7-r1/recovery-report.json`.
+The retry uses `QA_READY_TIMEOUT_SECONDS=360`, resumes as soon as both ports
+are ready, and uses the runner from `d0ddca137` (32 host-free tests passed).
+Its epoch-one report confirms that both clients formed a group. Offline
+fixture setup then placed both characters in instance 1, map 631,
+difficulty 4, with the initial lock held by the leader alone.
+In epoch two the actual Rust client received `TransferAborted` for map 631,
+difficulty 4, reason 8, MapDifficultyXCondition 2208. Its subsequent
+`LoginVerifyWorld` reported its homebind on map 0. No member bind was observed.
+The wrapper restored the fixture, original configuration and serving binary.
+The private run report is
+`/tmp/rustycore45-icc-bind-rust-c047f4ae7-r2/death-runtime-report.json`.
+
+For the same fixture the R6 C++ reference reported map 631 at login. The
+member received the entry prompt (60,000 ms, mask 1, flags 0), then a
+`RaidInstanceMessage` of type 5 and a second prompt with the extending
+bit set. This second pair is the occupied `InstanceMap::Reset(Expire)`
+branch in `Map.cpp:3021-3045`. The client declined and received
+`NewWorld` for map 571. The harness rejected the second prompt before
+finishing logout. The wrapper restored the runtime and fixture
+(`/tmp/rustycore45-icc-bind-cpp-d0ddca137-r1/death-runtime-report.json`).
+At `e3da53697` the verifier accepts a second prompt only with its exact
+ordered expiry announcement. All 33 scenario tests passed, and replaying
+the captured member events through the verifier preserved the entry,
+expiry and response sequence numbers (20, 23–24, 80).
+
+The next C++ capture shows a completed decline and logout, then a fresh
+acceptance. On the realm connection the member sent `80` at observation
+77, received `InstanceSaveCreated` at 81 and `CalendarRaidLockoutAdded` at 84.
+The database contained the new, unextended member lock for map 631,
+difficulty 4 and encounter mask 1. The calendar packet used the default
+`WowTime` flags (-1 encoded as 3); the harness had incorrectly excluded
+that value and expected logout before save. These checks were corrected
+at `169e0d95e` and replayed against both recorded decisions. The original
+campaign still ended before the restart and was restored. Local evidence
+is in `/tmp/rustycore45-icc-bind-cpp-e3da53697-r2/`.
 
 The full issue remains open. Preserve passing scenario evidence at its actual
 code/binary hashes and assess invalidation before rerunning it. A complete raid
