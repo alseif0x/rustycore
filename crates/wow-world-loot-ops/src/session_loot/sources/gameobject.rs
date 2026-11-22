@@ -305,6 +305,11 @@ pub async fn open_represented_gameobject_chest_with_template_money_like_cpp<
         return;
     }
 
+    if template_money.1 != 0
+        && !super::chest_money::reattach(host, gameobject_guid, player_guid).await
+    {
+        return;
+    }
     let Some(loot) = host.loot().cached_loot_for_owner_like_cpp(gameobject_guid) else {
         return;
     };

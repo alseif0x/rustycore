@@ -512,7 +512,8 @@ pub use group::{
     RepresentedGroupPersistenceRequestLikeCpp, RepresentedGroupStartupCharacterLikeCpp,
     RepresentedGroupStartupGroupRowLikeCpp, RepresentedGroupStartupLoadOutcomeLikeCpp,
     RepresentedGroupStartupLoadPortLikeCpp, RepresentedGroupStartupLoadStageLikeCpp,
-    RepresentedGroupStartupMemberRowLikeCpp, classify_group_loot_money_reconciliation_like_cpp,
+    RepresentedGroupStartupMemberRowLikeCpp, WorldLootMoneyBinding, WorldLootMoneySource,
+    classify_group_loot_money_reconciliation_like_cpp,
 };
 
 #[cfg(test)]

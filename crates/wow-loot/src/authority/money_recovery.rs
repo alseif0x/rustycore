@@ -4,6 +4,51 @@
 use super::*;
 use std::sync::Weak;
 
+impl OwnedLootAuthority {
+    pub fn world_money_is_bound(&self, scope: OwnedLootScope, generation: u64) -> bool {
+        let state = self.lock_state();
+        !state.retired
+            && state
+                .scope_epochs
+                .get(&scope)
+                .is_some_and(|pool| pool.generation == generation && pool.world_money_bound)
+    }
+
+    /// Reattach the stored grant before admitting a view of this exact pool.
+    pub fn bind_world_money(
+        &self,
+        scope: OwnedLootScope,
+        generation: u64,
+        id: [u8; 16],
+        spent: bool,
+    ) -> bool {
+        let mut state = self.lock_state();
+        if state.retired || scope_epoch(&state, scope) != Some(generation) {
+            return false;
+        }
+        let epoch = &state.scope_epochs[&scope];
+        if epoch.world_money_bound {
+            return epoch.money_claim_id == id;
+        }
+        if state
+            .reservations
+            .contains_key(&ReservationKey::Money(scope))
+        {
+            return false;
+        }
+        if spent {
+            let Some(loot) = loot_for_scope_mut(&mut state, scope) else {
+                return false;
+            };
+            loot.coins = 0;
+        }
+        let epoch = state.scope_epochs.get_mut(&scope).unwrap();
+        epoch.money_claim_id = id;
+        epoch.world_money_bound = true;
+        true
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MoneyReceiptDecision {
     Committed,

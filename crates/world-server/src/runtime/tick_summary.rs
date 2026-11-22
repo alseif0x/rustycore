@@ -90,4 +90,5 @@ pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     pub(crate) respawn_db_save_skipped_instanceable_map: usize,
     pub(crate) respawn_db_save_skipped_invalid_map_id: usize,
     pub(crate) respawn_db_saves: Vec<RespawnDbSaveLikeCpp>,
+    pub(crate) chest_money_restocks: Vec<wow_persistence::RespawnPersistenceMutationLikeCpp>,
 }

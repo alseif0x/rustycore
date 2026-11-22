@@ -32,12 +32,18 @@ pub enum RespawnPersistenceMutationLikeCpp {
     Delete {
         key: RespawnPersistenceKeyLikeCpp,
     },
+    ArmChestMoney {
+        key: RespawnPersistenceKeyLikeCpp,
+        realm_id: u16,
+        generation: u64,
+        deadline: i64,
+    },
 }
 
 impl RespawnPersistenceMutationLikeCpp {
     pub const fn key(self) -> RespawnPersistenceKeyLikeCpp {
         match self {
-            Self::Save { key, .. } | Self::Delete { key } => key,
+            Self::Save { key, .. } | Self::Delete { key } | Self::ArmChestMoney { key, .. } => key,
         }
     }
 }

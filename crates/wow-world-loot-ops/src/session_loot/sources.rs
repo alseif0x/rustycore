@@ -12,6 +12,7 @@
 // ratchet (see #277).
 use super::*;
 
+mod chest_money;
 mod creature;
 mod creature_conditions;
 mod gameobject;

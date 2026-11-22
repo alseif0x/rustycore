@@ -11,6 +11,7 @@
 //! constructors and the helpers the phases build on.
 
 mod cell_relocation;
+mod chest_money;
 mod entity_world;
 mod game_object;
 mod lent_creature;
@@ -2089,6 +2090,7 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     /// caches must not drain or reconstruct this queue.
     objects_to_remove: HashSet<ObjectGuid>,
     relocation_combat: lent_creature::RelocationCombat,
+    pending_chest_money_restocks: Vec<chest_money::ChestMoneyRestock>,
     /// Destroy recipients captured before an in-world object is detached.
     /// Delivery is drained by the canonical world tick after every map guard
     /// is released; no session or packet state is stored here.
@@ -2238,6 +2240,7 @@ where
             dynamic_tree_unbalanced_times_like_cpp: 0,
             objects_to_remove: HashSet::new(),
             relocation_combat: Default::default(),
+            pending_chest_money_restocks: Vec::new(),
             pending_object_visibility_destroy_recipients_like_cpp: Vec::new(),
             objects_to_switch: HashMap::new(),
             far_spell_callbacks_like_cpp: VecDeque::new(),

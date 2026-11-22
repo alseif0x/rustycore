@@ -75,7 +75,7 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
     );
     assert_eq!(queue.pending_len(), 2);
     assert_rep_respawn_params_like_cpp(
-        &queue.pending[&respawn_persistence_key_fixture_like_cpp(15)].mutation,
+        &queue.pending[&(respawn_persistence_key_fixture_like_cpp(15), None)].mutation,
         0,
         15,
         300,
@@ -83,7 +83,7 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
         0,
     );
     assert_rep_respawn_params_like_cpp(
-        &queue.pending[&respawn_persistence_key_fixture_like_cpp(16)].mutation,
+        &queue.pending[&(respawn_persistence_key_fixture_like_cpp(16), None)].mutation,
         0,
         16,
         400,
@@ -91,6 +91,33 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
         0,
     );
 }
+#[test]
+fn chest_restock_survives_a_later_respawn_delete_and_generation() {
+    let now = Instant::now();
+    let key = respawn_persistence_key_fixture_like_cpp(15);
+    let mut queue = RespawnDbRetryQueueLikeCpp::default();
+    let arm = |generation| RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+        key,
+        realm_id: 1,
+        generation,
+        deadline: 100,
+    };
+    for mutation in [
+        arm(0),
+        respawn_db_delete_mutation_fixture_like_cpp(15),
+        arm(1),
+    ] {
+        queue.enqueue_latest(mutation, now);
+    }
+    assert_eq!(queue.pending_len(), 3);
+    assert_eq!(queue.pending[&(key, Some((1, 0)))].mutation, arm(0));
+    assert_eq!(queue.pending[&(key, Some((1, 1)))].mutation, arm(1));
+    assert!(matches!(
+        queue.pending[&(key, None)].mutation,
+        RespawnPersistenceMutationLikeCpp::Delete { .. }
+    ));
+}
+
 #[test]
 fn respawn_db_retry_queue_shutdown_makes_existing_backoff_immediately_due() {
     let start = std::time::Instant::now();
@@ -289,6 +316,14 @@ fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_
             .map_mut()
             .get_typed_game_object_mut(guid)
             .expect("test GameObject");
+        gameobject.set_go_type(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
+        gameobject.set_represented_chest_loot_source_like_cpp(Some(
+            wow_entities::GameObjectLootSource {
+                chest_consumable: true,
+                ..Default::default()
+            },
+        ));
+        assert!(gameobject.bind_chest_money_generation(1, 12, |_| true));
         gameobject.set_represented_gameobject_data_present_like_cpp(true);
         gameobject.set_respawn_compatibility_mode(false);
         gameobject.set_respawn_delay_time(30);
@@ -350,6 +385,15 @@ fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_
     assert!(save.respawn_time > 0);
     assert_ne!(save.respawn_time, i64::MAX);
     assert_rep_respawn_params_like_cpp(&save.mutation, 1, spawn_id, save.respawn_time, 571, 0);
+    assert_eq!(
+        summary.chest_money_restocks.as_slice(),
+        &[RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+            key: save.mutation.key(),
+            realm_id: 1,
+            generation: 12,
+            deadline: save.respawn_time,
+        }]
+    );
     assert_eq!(
         manager
             .find_map(571, 0)

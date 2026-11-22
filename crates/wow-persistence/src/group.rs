@@ -245,7 +245,32 @@ pub fn classify_group_loot_money_reconciliation_like_cpp(
 }
 
 /// SQLx-free Characters-database capability for one group loot-money payout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct WorldLootMoneySource {
+    pub realm_id: u16,
+    pub map_id: u32,
+    pub instance_id: u32,
+    pub spawn_id: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorldLootMoneyBinding {
+    pub generation: u64,
+    pub claim_id: [u8; 16],
+    pub spent: bool,
+}
+
 pub trait GroupLootMoneyPersistencePortLikeCpp: Send + Sync {
+    /// None means this source has not reached its persisted restock deadline.
+    fn bind_world_chest_money(
+        &self,
+        _source: WorldLootMoneySource,
+        _personal_owner: u64,
+    ) -> PersistenceFutureLikeCpp<'_, Result<Option<WorldLootMoneyBinding>, String>> {
+        Box::pin(std::future::ready(Err(
+            "world chest money persistence unavailable".into(),
+        )))
+    }
     fn attempt_group_loot_money_like_cpp(
         &self,
         request: GroupLootMoneyPersistenceRequestLikeCpp,

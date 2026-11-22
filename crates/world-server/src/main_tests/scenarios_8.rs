@@ -750,7 +750,7 @@ fn respawn_db_mailbox_coalesces_before_writer_poll_like_cpp() {
         .expect("respawn DB mailbox lock");
     assert_eq!(state.queue.pending_len(), 1);
     assert_rep_respawn_params_like_cpp(
-        &state.queue.pending[&respawn_persistence_key_fixture_like_cpp(18)].mutation,
+        &state.queue.pending[&(respawn_persistence_key_fixture_like_cpp(18), None)].mutation,
         0,
         18,
         99_999,
@@ -776,7 +776,7 @@ fn respawn_db_mailbox_keeps_latest_rep_del_order_and_rejects_after_close_like_cp
             .expect("respawn DB mailbox lock");
         assert_eq!(state.queue.pending_len(), 1);
         assert!(matches!(
-            state.queue.pending[&respawn_persistence_key_fixture_like_cpp(19)].mutation,
+            state.queue.pending[&(respawn_persistence_key_fixture_like_cpp(19), None)].mutation,
             RespawnPersistenceMutationLikeCpp::Delete { .. }
         ));
     }

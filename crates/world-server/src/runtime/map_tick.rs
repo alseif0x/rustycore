@@ -595,6 +595,27 @@ fn canonical_map_tick_tail_like_cpp(
         );
         append_map_object_values_updates_like_cpp(&mut summary, managed_map);
         collect_relocation_combat(&mut summary, managed_map);
+        if let Ok(map_id) = u16::try_from(map_id) {
+            summary.chest_money_restocks.extend(
+                managed_map
+                    .map_mut()
+                    .take_chest_money_restocks()
+                    .into_iter()
+                    .map(
+                        |r| wow_persistence::RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+                            key: wow_persistence::RespawnPersistenceKeyLikeCpp {
+                                object_type_raw: wow_map::SpawnObjectType::GameObject as u16,
+                                spawn_id: r.spawn_id,
+                                map_id,
+                                instance_id,
+                            },
+                            realm_id: r.realm_id,
+                            generation: r.generation,
+                            deadline: r.deadline,
+                        },
+                    ),
+            );
+        }
         summary.expired_pvp_combat_refs.extend(
             managed_map
                 .last_expired_pvp_combat_refs_like_cpp()
@@ -644,6 +665,7 @@ fn canonical_map_tick_tail_like_cpp(
     let has_work = !summary.respawn_db_saves.is_empty()
         || !summary.relocation_combat.events.is_empty()
         || !summary.relocation_exits.is_empty()
+        || !summary.chest_money_restocks.is_empty()
         || !summary.expired_pvp_combat_refs.is_empty()
         || !summary.player_visibility_refresh_intents.is_empty()
         || !summary.object_values_updates.is_empty()

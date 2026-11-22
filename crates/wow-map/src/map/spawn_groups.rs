@@ -1337,11 +1337,7 @@ where
                 if spawned_by_default {
                     let scheduled_respawn_time =
                         game_time_secs.saturating_add(i64::from(respawn_delay_time));
-                    if let Some(game_object) = self
-                        .entity_world
-                        .get_mut(&game_object_guid)
-                        .and_then(MapObjectRecord::game_object_mut)
-                    {
+                    if let Some(game_object) = self.get_typed_game_object_mut(game_object_guid) {
                         game_object.set_respawn_time(scheduled_respawn_time);
                     }
                     generic_respawn_scheduled_time = Some(scheduled_respawn_time);
@@ -1378,11 +1374,7 @@ where
                         generic_visibility_on_destroy_represented = true;
                     }
                 } else {
-                    if let Some(game_object) = self
-                        .entity_world
-                        .get_mut(&game_object_guid)
-                        .and_then(MapObjectRecord::game_object_mut)
-                    {
+                    if let Some(game_object) = self.get_typed_game_object_mut(game_object_guid) {
                         game_object.set_respawn_time(0);
                     }
                     generic_temporary_respawn_zeroed = true;
@@ -1391,6 +1383,12 @@ where
             }
         }
 
+        self.record_chest_money_restock(
+            game_object_guid,
+            non_consumed_restock_armed,
+            generic_respawn_scheduled_time
+                .or_else(|| non_consumed_set_ready.then_some(game_time_secs)),
+        );
         if summoned_expired_delete
             || (generic_not_ready
                 && !generic_zero_respawn_delay_return

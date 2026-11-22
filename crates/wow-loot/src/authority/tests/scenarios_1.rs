@@ -450,6 +450,43 @@ async fn money_receipt_follows_the_pool_through_retry_but_not_replacement() {
 }
 
 #[tokio::test]
+async fn recovered_world_money_fences_each_personal_pool_and_its_replacement() {
+    let authority = OwnedLootAuthority::new();
+    let a = player(1);
+    let b = player(2);
+    for looter in [a, b] {
+        authority.upsert_personal_like_cpp(looter, money_loot(owner(1), 10, vec![looter]), false);
+    }
+    let first = authority.personal_snapshot_like_cpp(a).unwrap();
+    let peer = authority.personal_snapshot_like_cpp(b).unwrap();
+    assert!(authority.bind_world_money(first.scope, first.generation, [1; 16], true));
+    assert!(authority.world_money_is_bound(first.scope, first.generation));
+    assert_eq!(
+        authority.personal_snapshot_like_cpp(a).unwrap().loot.coins,
+        0
+    );
+    assert_eq!(
+        authority.personal_snapshot_like_cpp(b).unwrap().loot.coins,
+        10
+    );
+    assert!(authority.bind_world_money(peer.scope, peer.generation, [2; 16], false));
+    let lease = authority.reserve_money_like_cpp(b).await.unwrap();
+    let guard = lease.begin_persistence_guard_like_cpp().unwrap();
+    assert_eq!(guard.money_claim_id(), Ok(Some([2; 16])));
+    drop(guard);
+    authority.replace_like_cpp(Some(money_loot(owner(1), 15, vec![a])), HashMap::new());
+    assert!(!authority.bind_world_money(first.scope, first.generation, [1; 16], true));
+    assert_eq!(
+        authority
+            .snapshot_for_player_like_cpp(a)
+            .unwrap()
+            .loot
+            .coins,
+        15
+    );
+}
+
+#[tokio::test]
 async fn money_claim_rolls_back_and_later_cpp_request_observes_zero() {
     let authority = OwnedLootAuthority::new();
     let first = player(1);

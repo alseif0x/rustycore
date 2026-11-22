@@ -15,6 +15,151 @@ use wow_persistence::{
 const TEST: &str = "money_claims_survive_process_restart";
 const SOCKET: &str = "RUSTYCORE_LOOT_TEST_SOCKET";
 
+async fn chest_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<()> {
+    use wow_database::group_loot_money_adapter::MariaDbGroupLootMoneyPersistenceAdapterLikeCpp;
+    use wow_database::respawn_persistence_adapter::MariaDbRespawnPersistenceAdapterLikeCpp;
+    use wow_persistence::{
+        GroupLootMoneyPayoutLikeCpp, GroupLootMoneyPersistenceAttemptLikeCpp as Attempt,
+        GroupLootMoneyPersistencePortLikeCpp, GroupLootMoneyPersistenceRequestLikeCpp,
+        RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp,
+        RespawnPersistenceMutationOutcomeLikeCpp, RespawnPersistencePortLikeCpp,
+        WorldLootMoneySource,
+    };
+    let adapter = MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::new(Arc::clone(&db));
+    let source = WorldLootMoneySource {
+        realm_id: 1,
+        map_id: 0,
+        instance_id: 0,
+        spawn_id: 9106001,
+    };
+    let bind = async |source, owner| {
+        adapter
+            .bind_world_chest_money(source, owner)
+            .await
+            .map_err(anyhow::Error::msg)
+    };
+    let payout = |claim_id| GroupLootMoneyPersistenceRequestLikeCpp {
+        claim_id: Some(claim_id),
+        payouts: vec![GroupLootMoneyPayoutLikeCpp {
+            recipient_guid: 201,
+            requested_delta: 10,
+        }],
+        max_money: 1000,
+    };
+    let current = bind(source, 0)
+        .await?
+        .context("chest should be available")?;
+    if epoch == "claim" {
+        assert!(!current.spent);
+        sqlx::query("INSERT INTO characters VALUES (201,100)")
+            .execute(db.pool())
+            .await?;
+        assert!(matches!(
+            adapter
+                .attempt_group_loot_money_like_cpp(payout(current.claim_id))
+                .await,
+            Attempt::Applied(_)
+        ));
+        sqlx::query("UPDATE characters SET money=90 WHERE guid=201")
+            .execute(db.pool())
+            .await?;
+        return Ok(());
+    }
+
+    // This child knows only the persistent spawn and scope, even after unrelated spending.
+    assert!(current.spent);
+    assert_eq!(
+        adapter
+            .attempt_group_loot_money_like_cpp(payout(current.claim_id))
+            .await,
+        Attempt::AlreadySettled
+    );
+    let personal = bind(source, 201).await?.unwrap();
+    for independent in [
+        personal,
+        bind(
+            WorldLootMoneySource {
+                realm_id: 2,
+                ..source
+            },
+            0,
+        )
+        .await?
+        .unwrap(),
+        bind(
+            WorldLootMoneySource {
+                instance_id: 3,
+                ..source
+            },
+            0,
+        )
+        .await?
+        .unwrap(),
+        bind(
+            WorldLootMoneySource {
+                map_id: 1,
+                ..source
+            },
+            0,
+        )
+        .await?
+        .unwrap(),
+    ] {
+        assert!(!independent.spent);
+        assert_ne!(independent.claim_id, current.claim_id);
+    }
+    let writer = MariaDbRespawnPersistenceAdapterLikeCpp::new(Arc::clone(&db));
+    let arm = |deadline| RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+        key: RespawnPersistenceKeyLikeCpp {
+            object_type_raw: 1,
+            spawn_id: source.spawn_id,
+            map_id: source.map_id as u16,
+            instance_id: source.instance_id,
+        },
+        realm_id: source.realm_id,
+        generation: current.generation,
+        deadline,
+    };
+    let now: i64 = sqlx::query_scalar("SELECT CAST(UNIX_TIMESTAMP() AS SIGNED)")
+        .fetch_one(db.pool())
+        .await?;
+    assert_eq!(
+        writer.execute_mutation_like_cpp(arm(now + 3)).await,
+        RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows: 1 }
+    );
+    assert!(bind(source, 0).await?.is_none());
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    let next = bind(source, 0).await?.context("restock deadline elapsed")?;
+    assert_eq!(next.generation, current.generation + 1);
+    assert!(!next.spent);
+    assert_ne!(next.claim_id, current.claim_id);
+    assert!(matches!(
+        adapter
+            .attempt_group_loot_money_like_cpp(payout(personal.claim_id))
+            .await,
+        Attempt::DefinitelyRolledBack { .. } | Attempt::AlreadySettled
+    ));
+    assert_eq!(
+        writer.execute_mutation_like_cpp(arm(now)).await,
+        RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows: 0 }
+    );
+    assert_eq!(bind(source, 0).await?, Some(next));
+    assert!(matches!(
+        adapter
+            .attempt_group_loot_money_like_cpp(payout(next.claim_id))
+            .await,
+        Attempt::Applied(_)
+    ));
+    assert!(bind(source, 0).await?.unwrap().spent);
+    assert_eq!(
+        sqlx::query_scalar::<_, u64>("SELECT money FROM characters WHERE guid=201")
+            .fetch_one(db.pool())
+            .await?,
+        100
+    );
+    Ok(())
+}
+
 #[tokio::test]
 #[ignore = "requires a disposable MariaDB Unix socket in RUSTYCORE_LOOT_TEST_SOCKET"]
 async fn money_claims_survive_process_restart() -> Result<()> {
@@ -32,7 +177,8 @@ async fn money_claims_survive_process_restart() -> Result<()> {
         );
         let db = Arc::new(CharacterDatabase::open(&url).await?);
         stored_money_epoch(&epoch, Arc::clone(&db)).await?;
-        return shared_money_epoch(&epoch, db).await;
+        shared_money_epoch(&epoch, Arc::clone(&db)).await?;
+        return chest_money_epoch(&epoch, db).await;
     }
     let server =
         MySqlPool::connect_with(MySqlConnectOptions::new().username(&user).socket(&socket)).await?;
@@ -185,7 +331,7 @@ async fn shared_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<(
     rolled_back.claim_id = Some([8; 16]);
     rolled_back.payouts[1].recipient_guid = 103;
     if epoch == "claim" {
-        sqlx::query(include_str!(
+        sqlx::raw_sql(include_str!(
             "../../../sql/updates/characters/wotlk_classic/2026_11_22_00_characters.sql"
         ))
         .execute(db.pool())

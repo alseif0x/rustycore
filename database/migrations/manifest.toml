@@ -89,14 +89,31 @@ SELECT IF(
 component = "core"
 database = "characters"
 version = "2026.11.22.00"
-description = "atomic shared loot money receipts"
+description = "atomic loot money receipts and durable world source lifetimes"
 file = "../../sql/updates/characters/wotlk_classic/2026_11_22_00_characters.sql"
-sha256 = "8d61d217b93afda6730aba59dfa02d3fd583bb6ad96c8774299446e12b7a88fa"
+sha256 = "e350dd01a8fd62671cfafde972129e92630572af15122d7b2f9ec06423a20bc2"
 state = "active"
 adopt_query = '''
 SELECT IF(
   EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'loot_money_claim_receipt' AND engine = 'InnoDB')
   AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_claim_receipt' AND column_name = 'claim_id' AND column_type = 'binary(16)' AND is_nullable = 'NO')
   AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_claim_receipt' AND column_name = 'payouts' AND data_type IN ('json','longtext') AND is_nullable = 'NO')
-  AND (SELECT GROUP_CONCAT(column_name ORDER BY seq_in_index) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'loot_money_claim_receipt' AND index_name = 'PRIMARY') = 'claim_id', 1, 0)
+  AND (SELECT GROUP_CONCAT(column_name ORDER BY seq_in_index) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'loot_money_claim_receipt' AND index_name = 'PRIMARY') = 'claim_id'
+  AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_head' AND engine = 'InnoDB')
+  AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_head' AND column_name IN ('realm_id','map_id','instance_id','spawn_id','generation','restock_deadline')) = 6
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_head' AND column_name = 'realm_id' AND data_type = 'smallint' AND column_type LIKE '%unsigned' AND is_nullable = 'NO')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_head' AND column_name = 'map_id' AND data_type = 'int' AND column_type LIKE '%unsigned' AND is_nullable = 'NO')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_head' AND column_name = 'instance_id' AND data_type = 'int' AND column_type LIKE '%unsigned' AND is_nullable = 'NO')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_head' AND column_name = 'spawn_id' AND data_type = 'bigint' AND column_type LIKE '%unsigned' AND is_nullable = 'NO')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_head' AND column_name = 'generation' AND data_type = 'bigint' AND column_type LIKE '%unsigned' AND is_nullable = 'NO')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_head' AND column_name = 'restock_deadline' AND data_type = 'bigint' AND is_nullable = 'YES')
+  AND (SELECT GROUP_CONCAT(column_name ORDER BY seq_in_index) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_head' AND index_name = 'PRIMARY') = 'realm_id,map_id,instance_id,spawn_id'
+  AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_binding' AND engine = 'InnoDB')
+  AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_binding' AND column_name IN ('realm_id','map_id','instance_id','spawn_id','generation','scope_type','scope_owner','claim_id','spent')) = 9
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_binding' AND column_name = 'claim_id' AND column_type = 'binary(16)' AND is_nullable = 'NO')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_binding' AND column_name = 'scope_type' AND data_type = 'tinyint' AND column_type LIKE '%unsigned' AND is_nullable = 'NO')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_binding' AND column_name = 'scope_owner' AND data_type = 'bigint' AND column_type LIKE '%unsigned' AND is_nullable = 'NO')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_binding' AND column_name = 'spent' AND data_type = 'tinyint' AND column_type LIKE '%unsigned' AND is_nullable = 'NO')
+  AND (SELECT GROUP_CONCAT(column_name ORDER BY seq_in_index) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_binding' AND index_name = 'PRIMARY') = 'realm_id,map_id,instance_id,spawn_id,generation,scope_type,scope_owner'
+  AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'loot_money_source_binding' AND index_name = 'uq_loot_money_source_claim_id' AND column_name = 'claim_id' AND non_unique = 0) = 1, 1, 0)
 '''

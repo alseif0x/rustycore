@@ -4,6 +4,12 @@
 
 use super::*;
 
+#[derive(Debug, Clone, Copy)]
+pub(super) enum ChestMoneyGeneration {
+    Open(u16, u64),
+    Restocking(u16, u64),
+}
+
 impl GameObjectTemplateData {
     pub const fn new(go_type: u32, data: [u32; MAX_GAMEOBJECT_DATA]) -> Self {
         Self { go_type, data }
@@ -536,6 +542,8 @@ pub struct GameObject {
     /// captured for the previous use cannot install into the next use of the
     /// same spawn GUID.
     pub(super) loot_lifecycle_revision: u64,
+    /// Realm and durable loot generation observed when this chest was opened.
+    pub(super) money_source_generation: Option<ChestMoneyGeneration>,
     pub(super) loot_authority: OwnedLootAuthority,
     pub(super) shared_loot: Option<GameObjectOwnedLoot>,
     pub(super) personal_loot: HashMap<ObjectGuid, GameObjectOwnedLoot>,

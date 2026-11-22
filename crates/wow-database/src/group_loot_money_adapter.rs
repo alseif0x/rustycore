@@ -3,12 +3,14 @@
 use std::sync::Arc;
 
 mod receipt;
+mod source;
 
 use wow_persistence::{
     GroupLootMoneyPersistenceAttemptLikeCpp, GroupLootMoneyPersistenceOutcomeLikeCpp,
     GroupLootMoneyPersistencePortLikeCpp, GroupLootMoneyPersistenceRequestLikeCpp,
     GroupLootMoneyReconciliationLikeCpp, GroupLootMoneyRollbackKindLikeCpp,
-    PersistenceFutureLikeCpp, classify_group_loot_money_reconciliation_like_cpp,
+    PersistenceFutureLikeCpp, WorldLootMoneyBinding, WorldLootMoneySource,
+    classify_group_loot_money_reconciliation_like_cpp,
 };
 
 use crate::{
@@ -19,6 +21,88 @@ use crate::{
     },
     retry_deadlocked_operation_like_cpp,
 };
+
+/// Persist a canonical chest restock deadline after the map lock has been
+/// released. The caller must pass the generation captured with that event;
+/// an older or ambiguous event returns `Ok(false)` without changing the head.
+pub(crate) async fn arm_world_chest_money(
+    character_db: &CharacterDatabase,
+    source: WorldLootMoneySource,
+    generation: u64,
+    restock_deadline: i64,
+) -> Result<bool, DatabaseError> {
+    let mut transaction = character_db.pool().begin().await?;
+    let trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+    match source::arm_restock_deadline(
+        &mut transaction,
+        &trace,
+        source,
+        generation,
+        restock_deadline,
+    )
+    .await
+    {
+        Ok(true) => {
+            trace.committing();
+            match transaction.commit().await {
+                Ok(()) => {
+                    trace.committed(CommitOutcome::Committed);
+                    Ok(true)
+                }
+                Err(error) => {
+                    trace.committed(CommitOutcome::Unknown);
+                    Err(error.into())
+                }
+            }
+        }
+        Ok(false) => {
+            transaction.rollback().await?;
+            trace.rolled_back();
+            Ok(false)
+        }
+        Err(error) => {
+            let rollback = transaction.rollback().await;
+            trace.rolled_back();
+            rollback?;
+            Err(error)
+        }
+    }
+}
+
+async fn bind_world_chest_money(
+    character_db: &CharacterDatabase,
+    source: WorldLootMoneySource,
+    personal_owner: u64,
+) -> Result<Option<WorldLootMoneyBinding>, DatabaseError> {
+    let mut transaction = character_db.pool().begin().await?;
+    let trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+    match source::resolve_binding(&mut transaction, &trace, source, personal_owner).await {
+        Ok(Some(binding)) => {
+            trace.committing();
+            match transaction.commit().await {
+                Ok(()) => {
+                    trace.committed(CommitOutcome::Committed);
+                    Ok(Some(binding))
+                }
+                Err(error) => {
+                    trace.committed(CommitOutcome::Unknown);
+                    Err(error.into())
+                }
+            }
+        }
+        Ok(None) => {
+            transaction.rollback().await?;
+            trace.rolled_back();
+            Ok(None)
+        }
+        Err(error) => {
+            let rollback = transaction.rollback().await;
+            trace.rolled_back();
+            rollback?;
+            Err(error)
+        }
+    }
+}
 
 const GROUP_LOOT_MONEY_ATTEMPT_ORDER_LIKE_CPP: [CharStatements; 2] = [
     CharStatements::SEL_CHAR_MONEY_FOR_UPDATE,
@@ -95,6 +179,13 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyAttemptAdapte
             let mut trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
             let mut outcomes = Vec::with_capacity(payouts.len());
             if let Some(id) = request.claim_id {
+                match source::begin_payout(&mut transaction, &trace, &id).await {
+                    Ok(None) | Ok(Some(true)) => {}
+                    Ok(Some(false)) => {
+                        return GroupLootMoneyPersistenceAttemptLikeCpp::AlreadySettled;
+                    }
+                    Err(error) => return rolled_back_database_like_cpp(error),
+                }
                 match receipt::reserve(&mut transaction, &trace, &id).await {
                     Ok(true) => {}
                     Ok(false) => return GroupLootMoneyPersistenceAttemptLikeCpp::AlreadySettled,
@@ -258,6 +349,19 @@ impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp {
 }
 
 impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp {
+    fn bind_world_chest_money(
+        &self,
+        source: WorldLootMoneySource,
+        personal_owner: u64,
+    ) -> PersistenceFutureLikeCpp<'_, Result<Option<WorldLootMoneyBinding>, String>> {
+        let character_db = Arc::clone(&self.inner.character_db);
+        Box::pin(async move {
+            bind_world_chest_money(&character_db, source, personal_owner)
+                .await
+                .map_err(|error| error.to_string())
+        })
+    }
+
     fn attempt_group_loot_money_like_cpp(
         &self,
         request: GroupLootMoneyPersistenceRequestLikeCpp,
