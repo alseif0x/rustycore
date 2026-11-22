@@ -99,8 +99,10 @@ loot enabled). The 3.4.3 C++ anchors are `GameObjectData.h:99–112,127`,
 The [2026-11-22 live QA record](../architecture/captures/46-qa-54261-2026-11-22.md)
 shows the real chest paying once across a world-server restart. Two official
 3.4.3.54261 clients reached the online realm and disconnected during world
-encryption negotiation before character selection. The C++ reference
-reproduced the same disconnect. All four creature scenarios (#1342) remain open.
+encryption negotiation before character selection. The same disconnect
+occurred with both Battle.net and world served by the C++ reference. The
+captured client proof and persisted session key matched for a single join.
+All four creature scenarios (#1342) remain open.
 
 On the native aarch64 host, clean commit `6d2b7dbae` passed
 `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
