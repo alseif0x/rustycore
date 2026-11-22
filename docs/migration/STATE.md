@@ -17,8 +17,9 @@ have separate open issues (#39, #41, #1342).
 
 ## Instance enter/leave and reconnect (#45)
 
-The issue branch implements manual reset, group difficulty changes and
-occupied-instance expiry against the 3.4.3 C++ reference
+[PR #1511](https://github.com/alseif0x/rustycore/pull/1511) integrated manual
+reset, group difficulty changes and occupied-instance expiry on `3.4.3`
+at `98f1f7ded`. The implementation follows the 3.4.3 C++ reference
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. In `Map.cpp`,
 `InstanceMap::Reset` reports the occupied map, retains its players,
 and schedules unload only on a successful empty reset. A normal reset
@@ -28,6 +29,36 @@ the canonical Player's pending bind for a non-warning lock. See the
 dated issue-branch record at `7eb4fccca:docs/migration/STATE.md` for the
 source paths, positive and negative tests, packet bytes, timings and
 limits of each comparison.
+
+The [post-merge review](https://github.com/alseif0x/rustycore/pull/1511#discussion_r4655374017)
+found that two groups selecting the same loaded raid could both list it among
+their owned instances. In the C++ reference, `InstanceMap::TrySetOwningGroup`
+(`Map.cpp:2993`) links only the first owner. That link calls
+`GroupInstanceReference::targetObjectBuildLink` (`GroupInstanceReference.cpp:21`).
+`Group::ResetInstances` (`Group.cpp:1354`) walks the resulting references.
+The follow-up checks the map's owning group and writes the group's reset
+reference under the same map-manager guard. A second group can still select
+the instance through its leader's lock. Only the owner lists the instance
+for reset.
+
+On November 22 the two-session regression reproduced the second group's
+unexpected `[(631, 1)]` on the integrated code. At `5d87fc3ee`, both groups
+selected the same ID-bound map twice. The owner's reset list contained
+exactly `[(631, 1)]` and the second group's list stayed empty.
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+passed all 10 steps on aarch64, including 4,206 library tests with one
+ignored. The verified final took 3m09s. Including the earlier run and its
+test-line budget correction, acceptance took 10m52s. The local manifest is
+`target/qa/issue45-group-owner/final-5d87fc3ee.json`.
+
+The separate live `instance-group-reset` scenario used the debug server from
+the same commit. The owner received the occupied reset failure, the member
+remained inside, and the empty reset succeeded after the member left. The
+guarded run took 8m30s and restored the service, configuration and fixture.
+An initial attempt timed out during server startup and the fixture was
+restored before retrying. The live report is
+`/tmp/rustycore45-group-owner-5d87fc3ee-r2/death-runtime-report.json`
+(SHA-256 `fadd3f19c97cafb7ab82a1caf5eee45a83b62190d4fbba349b81f664ad80ee67`).
 
 Solo and group reset had paired action captures on the earlier issue
 candidate. On November 21 the production MariaDB adapter at `af6919ee0`

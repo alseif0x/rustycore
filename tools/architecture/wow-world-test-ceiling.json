@@ -395,6 +395,16 @@
    "unit_tests_lines": 281234,
    "unit_tests_tests": 4184,
    "src_tests": 22
+  },
+  {
+   "id": "raise-45-37",
+   "kind": "raise",
+   "issue": 45,
+   "reviewed_at": "2026-11-22",
+   "reason": "Extend the existing map-entry regression to two group leaders with active locks for the same instance. Check each group’s reset list after repeated selections. The test count and ignored set stay the same.",
+   "unit_tests_lines": 281304,
+   "unit_tests_tests": 4184,
+   "src_tests": 22
   }
  ]
 }

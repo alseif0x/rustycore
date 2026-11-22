@@ -372,11 +372,32 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
     }
 
     let key = decision.map_key();
-    if let (Some(key), Some(group_guid)) = (key, owning_group_guid)
+    // Publish the Group backlink under the same manager guard as the map's
+    // single-owner check, so a destroy/recreate of this key cannot reorder it.
+    let group_link_failure = if let (Some(key), Some(group_guid)) = (key, owning_group_guid)
         && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
+        && (map.try_set_owning_group_like_cpp(group_guid)
+            || map.owning_group_guid_like_cpp() == Some(group_guid))
     {
-        let _ = map.try_set_owning_group_like_cpp(group_guid);
-    }
+        let linked = host
+            .core()
+            .directory
+            .group_registry
+            .as_ref()
+            .and_then(|registry| {
+                registry
+                    .link_owned_instance_transition_like_cpp(
+                        group_guid,
+                        key.map_id,
+                        key.instance_id,
+                    )
+                    .ok()
+            })
+            .is_some();
+        (!linked).then_some((key, group_guid))
+    } else {
+        None
+    };
     let existing_instance_lock_context = match &decision {
         wow_map::CreateMapDecision::Existing { key, .. } if is_dungeon => manager
             .find_map(key.map_id, key.instance_id)
@@ -416,31 +437,14 @@ fn prepare_canonical_map_entry_with_publication_like_cpp<H: InstanceSessionHostL
         );
     }
 
-    if let (Some(key), Some(group_guid)) = (key, owning_group_guid) {
-        let linked = host
-            .core()
-            .directory
-            .group_registry
-            .as_ref()
-            .and_then(|registry| {
-                registry
-                    .link_owned_instance_transition_like_cpp(
-                        group_guid,
-                        key.map_id,
-                        key.instance_id,
-                    )
-                    .ok()
-            })
-            .is_some();
-        if !linked {
-            warn!(
-                account = host.core().account_id,
-                group_guid,
-                map_id = key.map_id,
-                instance_id = key.instance_id,
-                "failed to link canonical instance map to its owning group"
-            );
-        }
+    if let Some((key, group_guid)) = group_link_failure {
+        warn!(
+            account = host.core().account_id,
+            group_guid,
+            map_id = key.map_id,
+            instance_id = key.instance_id,
+            "failed to link canonical instance map to its owning group"
+        );
     }
 
     // C++ `MapManager::CreateMap` receives the live `Player*` before it

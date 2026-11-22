@@ -710,25 +710,81 @@ fn canonical_player_group_create_and_adopt_link_owned_instance_once_like_cpp() {
 }
 #[test]
 fn canonical_player_group_adopts_existing_unowned_instance_map_like_cpp() {
-    let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
-    let leader = ObjectGuid::create_player(1, 71);
+    let group_registry = Arc::new(GroupRegistry::default());
+    let configure_group_session = |session: &mut WorldSession, leader, name: &str| {
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            leader,
+            name.to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session
+            .instances
+            .set_fixture_raid_difficulty_for_test_like_cpp(3);
+        install_create_map_active_lock_stores_like_cpp(session, 631, 3, 77, 2);
 
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.attach_player_controller_like_cpp(SessionPlayerController::new(
-        leader,
-        "DungeonAdopt".to_string(),
-        Position::new(3700.0, 1500.0, 120.0, 0.0),
-        631,
-        1,
-        1,
-        80,
-        0,
-    ));
-    session
-        .instances
-        .set_fixture_raid_difficulty_for_test_like_cpp(3);
-    install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let group = GroupInfo::new(leader);
+        let group_guid = group.group_guid;
+        group_registry.register_group_like_cpp(group_guid, group);
+        session
+            .social
+            .set_group_guid_for_test_like_cpp(Some(group_guid));
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+        group_guid
+    };
+    let assert_selects_same_map =
+        |session: &mut WorldSession,
+         map_owner_group_guid,
+         selected_group_guid,
+         expected_group_instances: &[(u32, u32)]| {
+            for _ in 0..2 {
+                assert!(matches!(
+                    session.ensure_canonical_world_map_for_current_player_like_cpp(),
+                    Some(wow_map::CreateMapDecision::Existing { key, .. })
+                        if key == wow_map::MapKey::new(631, 1)
+                ));
+                let manager = canonical.lock().unwrap();
+                assert_eq!(
+                    manager
+                        .find_map(631, 1)
+                        .unwrap()
+                        .owning_group_guid_like_cpp(),
+                    Some(map_owner_group_guid)
+                );
+                drop(manager);
+
+                let owner_instances = group_registry
+                    .get(&map_owner_group_guid)
+                    .unwrap()
+                    .owned_instances_like_cpp()
+                    .map(|owned| (owned.map_id, owned.instance_id))
+                    .collect::<Vec<_>>();
+                assert_eq!(owner_instances, vec![(631, 1)]);
+                let selected_group_instances = group_registry
+                    .get(&selected_group_guid)
+                    .unwrap()
+                    .owned_instances_like_cpp()
+                    .map(|owned| (owned.map_id, owned.instance_id))
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    selected_group_instances.as_slice(),
+                    expected_group_instances
+                );
+            }
+        };
+
+    let leader = ObjectGuid::create_player(1, 71);
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let group_guid = configure_group_session(&mut session, leader, "DungeonAdopt");
     let token = install_active_instance_lock_mgr_like_cpp(&mut session, leader, 631, 3, 1);
     canonical
         .lock()
@@ -747,42 +803,56 @@ fn canonical_player_group_adopts_existing_unowned_instance_map_like_cpp() {
             token,
             owner_guid_counter: leader.counter() as u64,
         }));
-    let group_registry = Arc::new(GroupRegistry::default());
-    let group = GroupInfo::new(leader);
-    let group_guid = group.group_guid;
-    group_registry.register_group_like_cpp(group_guid, group);
-    session
-        .social
-        .set_group_guid_for_test_like_cpp(Some(group_guid));
-    session.set_group_registry(
-        Arc::clone(&group_registry),
-        Arc::new(PendingInvites::default()),
-    );
+    assert_selects_same_map(&mut session, group_guid, group_guid, &[(631, 1)]);
 
-    for _ in 0..2 {
-        assert!(matches!(
-            session.ensure_canonical_world_map_for_current_player_like_cpp(),
-            Some(wow_map::CreateMapDecision::Existing { key, .. })
-                if key == wow_map::MapKey::new(631, 1)
-        ));
-        assert_eq!(
-            canonical
-                .lock()
-                .unwrap()
-                .find_map(631, 1)
-                .unwrap()
-                .owning_group_guid_like_cpp(),
-            Some(group_guid)
-        );
-        assert_eq!(
-            group_registry
-                .get(&group_guid)
-                .unwrap()
-                .owned_instances_like_cpp()
-                .count(),
-            1
-        );
-    }
+    let second_leader = ObjectGuid::create_player(1, 72);
+    let (mut second_session, _second_pkt_tx, _second_send_rx) = make_session();
+    let second_group_guid =
+        configure_group_session(&mut second_session, second_leader, "DungeonSecondGroup");
+    let second_entries = second_session
+        .create_map_db2_entries_like_cpp(631, 3)
+        .unwrap();
+    assert!(second_entries.is_instance_id_bound());
+    let shared_instance_lock_mgr = Arc::clone(
+        session
+            .core
+            .instance_lock_mgr
+            .as_ref()
+            .expect("first group's instance lock manager"),
+    );
+    second_session.set_instance_lock_mgr(Arc::clone(&shared_instance_lock_mgr));
+    assert!(Arc::ptr_eq(
+        session.core.instance_lock_mgr.as_ref().unwrap(),
+        second_session.core.instance_lock_mgr.as_ref().unwrap(),
+    ));
+    let now = u64::try_from(unix_now()).unwrap_or(0);
+    shared_instance_lock_mgr
+        .write()
+        .unwrap()
+        .update_instance_lock_for_player_at(
+            second_leader,
+            &second_entries,
+            wow_instances::InstanceLockUpdateEvent {
+                instance_id: 1,
+                new_data: String::new(),
+                instance_completed_encounters_mask: 0,
+                completed_encounter_bit: None,
+                entrance_world_safe_loc_id: None,
+            },
+            wow_instances::ResetSchedule::default(),
+            now,
+        )
+        .expect("second group leader's shared instance lock");
+    assert_eq!(
+        shared_instance_lock_mgr
+            .read()
+            .unwrap()
+            .find_active_instance_lock_at(second_leader, &second_entries, now)
+            .map(|lock| lock.instance_id),
+        Some(1)
+    );
+    assert_ne!(group_guid, second_group_guid);
+    assert_selects_same_map(&mut second_session, group_guid, second_group_guid, &[]);
 }
 #[test]
 fn canonical_player_existing_instance_map_rejects_incompatible_player_lock_like_cpp() {
