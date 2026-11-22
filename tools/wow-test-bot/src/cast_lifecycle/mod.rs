@@ -4,6 +4,7 @@ use super::*;
 
 mod movement;
 mod plan;
+mod recovery_chest;
 mod report;
 mod targets;
 mod wire;
@@ -17,8 +18,14 @@ use movement::{
     SMSG_NEW_WORLD, SMSG_RESUME_TOKEN, SMSG_SUSPEND_TOKEN, SMSG_TRANSFER_PENDING,
 };
 pub(super) use plan::*;
+use recovery_chest::{claim_recovery_chest_money, release_recovery_chest};
+#[cfg(test)]
+use recovery_chest::{
+    recovery_chest_money_claim_packet, validate_recovery_chest_loot_response,
+    validate_recovery_chest_money_outcome,
+};
 use report::*;
-use targets::resolve_action_targets;
+use targets::{recovery_chest_guid, resolve_action_targets};
 use wire::*;
 
 const CMSG_CAST_SPELL: u16 = 0x329C;
@@ -81,6 +88,11 @@ const SMSG_RESET_FAILED_NOTIFY: u16 = 0x26B7;
 const SMSG_SET_DUNGEON_DIFFICULTY: u16 = 0x26A4;
 const SMSG_PARTY_INVITE: u16 = 0x25BD;
 const SMSG_PARTY_UPDATE: u16 = 0x25F4;
+const CMSG_LOOT_RELEASE: u16 = 0x3213;
+const SMSG_LOOT_RELEASE: u16 = 0x261B;
+// 3.4.3 LootResponse defaults FailureReason to LOOT_ERROR_NO_LOOT (17), and
+// Player::SendLoot leaves that default in place even when Acquired is true.
+const CXX_DEFAULT_LOOT_RESPONSE_FAILURE_REASON: u8 = 17;
 
 const MAX_ACTIONS: usize = 128;
 const MAX_EXPECTATIONS: usize = 256;
@@ -240,6 +252,67 @@ pub(super) async fn execute(
                     Err(error) => Err(error),
                 }
             }
+            Action::OpenLootRecoveryChest {} => {
+                match resolve_action_targets(&mut controller.evidence, action_index, action) {
+                    Ok(_) => match recovery_chest_guid(&controller.evidence) {
+                        Ok(guid) => {
+                            let body = guid.packed();
+                            send_traced_packet(
+                                stream,
+                                crypt,
+                                &mut controller.evidence,
+                                Connection::Instance,
+                                Some(action_index),
+                                action_name,
+                                crate::loot_race::CMSG_GAME_OBJ_USE,
+                                &body,
+                            )
+                            .await
+                        }
+                        Err(error) => Err(error),
+                    },
+                    Err(error) => Err(error),
+                }
+            }
+            Action::ClaimLootRecoveryMoney { expected_coins } => {
+                claim_recovery_chest_money(
+                    action_index,
+                    *expected_coins,
+                    deadline,
+                    stream,
+                    crypt,
+                    inflater,
+                    realm,
+                    controller,
+                )
+                .await
+            }
+            Action::ReleaseLootRecoveryChest {} => {
+                release_recovery_chest(
+                    action_index,
+                    deadline,
+                    stream,
+                    crypt,
+                    inflater,
+                    realm,
+                    controller,
+                )
+                .await
+            }
+            Action::WaitForServerDisconnect { timeout_ms } => {
+                let wait_deadline = (tokio::time::Instant::now()
+                    + Duration::from_millis(*timeout_ms))
+                .min(deadline);
+                wait_for_server_disconnect(
+                    wait_deadline,
+                    stream,
+                    crypt,
+                    inflater,
+                    realm,
+                    controller,
+                )
+                .await
+            }
             Action::Movement { .. } => match controller.movement_action(action) {
                 Ok((opcode, body)) => {
                     send_traced_packet(
@@ -303,7 +376,10 @@ pub(super) async fn execute(
         );
     }
 
-    if controller.evidence.failure.is_none() && !controller.evidence.logout_confirmed {
+    if controller.evidence.failure.is_none()
+        && !controller.evidence.logout_confirmed
+        && controller.evidence.server_disconnect_connection.is_none()
+    {
         if let Err(error) =
             collect_until(deadline, stream, crypt, inflater, realm, controller).await
         {
@@ -592,6 +668,10 @@ fn action_name(action: &Action) -> &'static str {
         Action::PartyInvite { .. } => "party_invite",
         Action::PartyInviteResponse { .. } => "party_invite_response",
         Action::LeaveGroup {} => "leave_group",
+        Action::OpenLootRecoveryChest {} => "open_loot_recovery_chest",
+        Action::ClaimLootRecoveryMoney { .. } => "claim_loot_recovery_money",
+        Action::ReleaseLootRecoveryChest {} => "release_loot_recovery_chest",
+        Action::WaitForServerDisconnect { .. } => "wait_for_server_disconnect",
         Action::Movement { kind, .. } => match kind {
             MovementKind::Heartbeat => "movement_heartbeat",
             MovementKind::StartForward => "movement_start_forward",

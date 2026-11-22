@@ -2,6 +2,7 @@ use super::*;
 
 mod movement_controls;
 mod packet_waits;
+mod recovery_chest;
 
 fn expected(rule: ExpectedRule) -> ExpectedFact {
     ExpectedFact {

@@ -40,8 +40,151 @@ pub(super) fn resolve_action_targets(
                 target: CreatureTarget::Guid(selected.guid),
             })
         }
+        Action::OpenLootRecoveryChest {} => {
+            let selected = select_recovery_chest(&evidence.events)?;
+            evidence
+                .game_object_selections
+                .push(GameObjectSelectionFact {
+                    action_index,
+                    spawn_guid: crate::loot_race::DEFAULT_CREATURE_SPAWN_GUID,
+                    entry: crate::loot_race::DEFAULT_CREATURE_ENTRY,
+                    map_id: crate::loot_race::RACE_GAMEOBJECT_MAP_ID,
+                    guid: selected.guid,
+                    source_event_sequence: selected.source_event_sequence,
+                    source_connection: selected.source_connection,
+                    source_connection_sequence: selected.source_connection_sequence,
+                    source_event_opcode: selected.source_event_opcode,
+                    source_event_sha256: selected.source_event_sha256.clone(),
+                });
+            record_game_object_selection(evidence, action_index, &selected);
+            Ok(action.clone())
+        }
         _ => Ok(action.clone()),
     }
+}
+
+#[derive(Debug)]
+struct SelectedGameObject {
+    guid: Guid,
+    source_event_sequence: usize,
+    source_connection: Connection,
+    source_connection_sequence: usize,
+    source_event_opcode: u16,
+    source_event_sha256: String,
+}
+
+fn record_game_object_selection(
+    evidence: &mut Evidence,
+    action_index: usize,
+    selected: &SelectedGameObject,
+) {
+    evidence.trace.push(TraceEntry {
+        sequence: evidence.trace.len(),
+        kind: TraceKind::TargetSelected,
+        action_index: Some(action_index),
+        action: Some("open_loot_recovery_chest".to_string()),
+        connection: Some(selected.source_connection),
+        connection_sequence: Some(selected.source_connection_sequence),
+        opcode: Some(selected.source_event_opcode),
+        sent_packet_sequence: None,
+        event_sequence: Some(selected.source_event_sequence),
+        body_bytes: None,
+        body_redacted: false,
+        detail: Some(format!(
+            "selected guarded chest spawn {} entry {} live GUID low={} high={} from event {} sha256={}",
+            crate::loot_race::DEFAULT_CREATURE_SPAWN_GUID,
+            crate::loot_race::DEFAULT_CREATURE_ENTRY,
+            selected.guid.low,
+            selected.guid.high,
+            selected.source_event_sequence,
+            selected.source_event_sha256,
+        )),
+    });
+}
+
+fn select_recovery_chest(events: &[ObservedEvent]) -> Result<SelectedGameObject> {
+    let map_id = crate::loot_race::RACE_GAMEOBJECT_MAP_ID;
+    let barrier = events
+        .iter()
+        .filter(|event| {
+            (event.connection == Connection::Instance && event.opcode == SMSG_LOGIN_VERIFY_WORLD)
+                || (event.connection == Connection::Realm && event.opcode == SMSG_NEW_WORLD)
+        })
+        .max_by_key(|event| event.sequence)
+        .context("recovery chest discovery requires a login or worldport map barrier")?;
+    if let Some(error) = &barrier.error {
+        bail!(
+            "latest map barrier {} is malformed: {error}",
+            barrier.sequence
+        );
+    }
+    let barrier_payload = hex::decode(&barrier.body_hex).context("decode latest map barrier")?;
+    let map_bytes: [u8; 4] = barrier_payload
+        .get(..4)
+        .context("latest map barrier is shorter than its map ID")?
+        .try_into()
+        .expect("four-byte map ID slice");
+    let barrier_map = i32::from_le_bytes(map_bytes);
+    if barrier_map != i32::from(map_id) {
+        bail!("recovery chest is on map {map_id}, current map is {barrier_map}");
+    }
+
+    let target = crate::loot_race::LootRaceTarget {
+        kind: crate::loot_race::LootRaceTargetKind::GameObject,
+        entry: crate::loot_race::DEFAULT_CREATURE_ENTRY,
+        spawn_guid: crate::loot_race::DEFAULT_CREATURE_SPAWN_GUID,
+        runtime_counter_override: 0,
+        map_id,
+        x: crate::loot_race::RACE_GAMEOBJECT_X,
+        y: crate::loot_race::RACE_GAMEOBJECT_Y,
+        z: crate::loot_race::RACE_GAMEOBJECT_Z,
+        item_entry: crate::loot_race::DEFAULT_ITEM_ENTRY,
+    };
+    let mut candidates = std::collections::BTreeMap::new();
+    for event in events.iter().filter(|event| {
+        event.sequence > barrier.sequence
+            && event.connection == Connection::Instance
+            && event.opcode == RAW_SMSG_UPDATE_OBJECT
+    }) {
+        let payload = hex::decode(&event.body_hex)
+            .with_context(|| format!("decode object update event {}", event.sequence))?;
+        if let Some((low, high)) =
+            crate::loot_race::find_loot_target_guid_in_update_object(&payload, &target)?
+        {
+            candidates.insert(
+                (low, high),
+                SelectedGameObject {
+                    guid: Guid { low, high },
+                    source_event_sequence: event.sequence,
+                    source_connection: event.connection,
+                    source_connection_sequence: event.connection_sequence,
+                    source_event_opcode: event.opcode,
+                    source_event_sha256: event.body_sha256.clone(),
+                },
+            );
+        }
+    }
+    match candidates.len() {
+        0 => bail!(
+            "guarded chest spawn {} entry {} was not observed after the current map barrier",
+            target.spawn_guid,
+            target.entry
+        ),
+        1 => Ok(candidates.into_values().next().expect("one candidate")),
+        count => bail!(
+            "expected one current live GUID for guarded chest spawn {}, observed {count}: {:?}",
+            target.spawn_guid,
+            candidates.keys().collect::<Vec<_>>()
+        ),
+    }
+}
+
+pub(super) fn recovery_chest_guid(evidence: &Evidence) -> Result<Guid> {
+    evidence
+        .game_object_selections
+        .last()
+        .map(|selection| selection.guid)
+        .context("recovery chest action requires a prior live chest selection")
 }
 
 fn record_selection(
@@ -247,6 +390,19 @@ mod tests {
         )
     }
 
+    fn recovery_chest(counter: u64) -> Vec<u8> {
+        let high = (crate::loot_race::HIGH_GUID_GAMEOBJECT << 58)
+            | (u64::from(crate::loot_race::RACE_GAMEOBJECT_MAP_ID) << 29)
+            | (u64::from(crate::loot_race::DEFAULT_CREATURE_ENTRY) << 6);
+        let mut payload = vec![1]; // UpdateObject CreateObject1 marker.
+        payload.extend(build_packed_guid(counter, high));
+        payload
+    }
+
+    fn chest_login_event(sequence: usize) -> ObservedEvent {
+        login_event(sequence, crate::loot_race::RACE_GAMEOBJECT_MAP_ID)
+    }
+
     fn creature(map_id: u16, counter: u64, xyz: [f32; 3]) -> Vec<u8> {
         crate::tests::rested_xp_create_object_fixture(
             map_id,
@@ -435,6 +591,75 @@ mod tests {
                 }
             ));
         }
+    }
+
+    #[test]
+    fn recovery_chest_selection_is_fresh_map_scoped_unique_and_auditable() {
+        let before_barrier = recovery_chest(39);
+        let live_chest = recovery_chest(40);
+        let mut evidence = Evidence {
+            events: vec![
+                object_update_event(0, &before_barrier),
+                chest_login_event(1),
+                object_update_event(2, &live_chest),
+            ],
+            ..Evidence::default()
+        };
+
+        resolve_action_targets(&mut evidence, 0, &Action::OpenLootRecoveryChest {}).unwrap();
+
+        let selection = evidence
+            .game_object_selections
+            .first()
+            .expect("the currently visible guarded chest is selected");
+        assert_eq!(
+            selection.spawn_guid,
+            crate::loot_race::DEFAULT_CREATURE_SPAWN_GUID
+        );
+        assert_eq!(selection.entry, crate::loot_race::DEFAULT_CREATURE_ENTRY);
+        assert_eq!(selection.map_id, crate::loot_race::RACE_GAMEOBJECT_MAP_ID);
+        assert_eq!(
+            selection.guid.low, 40,
+            "SQL spawn ID is not the runtime GUID"
+        );
+        assert_eq!(selection.source_event_sequence, 2);
+        assert_eq!(selection.source_connection, Connection::Instance);
+        assert_eq!(selection.source_event_opcode, RAW_SMSG_UPDATE_OBJECT);
+        assert_eq!(
+            selection.source_event_sha256,
+            evidence.events[2].body_sha256
+        );
+        assert!(evidence.trace.iter().any(|entry| {
+            entry.kind == TraceKind::TargetSelected
+                && entry
+                    .detail
+                    .as_deref()
+                    .is_some_and(|detail| detail.contains("9106001"))
+        }));
+    }
+
+    #[test]
+    fn recovery_chest_selection_rejects_stale_wrong_socket_and_ambiguous_targets() {
+        let chest = recovery_chest(40);
+        let mut wrong_socket = object_update_event(1, &chest);
+        wrong_socket.connection = Connection::Realm;
+        assert!(select_recovery_chest(&[chest_login_event(0), wrong_socket]).is_err());
+
+        let stale_map = [login_event(0, 1), object_update_event(1, &chest)];
+        assert!(select_recovery_chest(&stale_map)
+            .unwrap_err()
+            .to_string()
+            .contains("current map is 1"));
+
+        let two_chests = [
+            chest_login_event(0),
+            object_update_event(1, &recovery_chest(40)),
+            object_update_event(2, &recovery_chest(41)),
+        ];
+        assert!(select_recovery_chest(&two_chests)
+            .unwrap_err()
+            .to_string()
+            .contains("expected one current live GUID"));
     }
 
     async fn socket_pair() -> (tokio::net::TcpStream, tokio::net::TcpStream) {

@@ -96,8 +96,11 @@ test took 3.18s after compilation. The shared QA database was untouched.
 QA spawn 9106001 uses consumable chest template 2846 (loot 2278, group
 loot enabled). The 3.4.3 C++ anchors are `GameObjectData.h:99–112,127`,
 `GameObject.cpp:1609–1651,3711–3721` and `LootHandler.cpp:142–213`.
-The four real-client creature scenarios (#1342) and a world-server
-restart with the actual QA chest are still pending.
+The [2026-11-22 live QA record](../architecture/captures/46-qa-54261-2026-11-22.md)
+shows the real chest paying once across a world-server restart. Two official
+3.4.3.54261 clients reached the online realm and disconnected during world
+encryption negotiation before character selection. The C++ reference
+reproduced the same disconnect. All four creature scenarios (#1342) remain open.
 
 On the native aarch64 host, clean commit `6d2b7dbae` passed
 `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
