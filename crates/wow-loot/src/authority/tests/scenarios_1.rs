@@ -10,8 +10,9 @@ fn equal_authority_state_does_not_imply_shared_storage_like_cpp() {
     let second = OwnedLootAuthority::new();
     let shared_loot = loot(owner(1), 17, Vec::new());
 
-    first.replace_like_cpp(Some(shared_loot.clone()), HashMap::new());
-    second.replace_like_cpp(Some(shared_loot), HashMap::new());
+    first.replace_like_cpp(Some(shared_loot), HashMap::new());
+    // Reproduce the same receipt identity in independent storage.
+    *second.lock_state() = first.lock_state().clone();
 
     assert_eq!(first, second, "the independent authority states match");
     assert!(

@@ -3,6 +3,7 @@
 //! Moved out of the authority.rs root under #642; every test is unchanged.
 
 use super::*;
+use crate::MoneyReceiptDecision;
 
 #[tokio::test]
 async fn persistence_commit_snapshot_excludes_viewers_opened_after_money_transition_like_cpp() {
