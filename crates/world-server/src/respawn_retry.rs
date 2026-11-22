@@ -1,5 +1,8 @@
 use super::*;
 
+pub(super) type ChestRestockAck = Arc<std::sync::OnceLock<bool>>;
+type QueueKey = (RespawnDbMutationKeyLikeCpp, Option<(u16, u64, i64, bool)>);
+
 /// Keeps the latest respawn DB operation per spawn for the shared DB writer.
 ///
 /// C++ submits each respawn statement once from `Map::SaveRespawnInfoDB` /
@@ -10,16 +13,14 @@ use super::*;
 #[derive(Debug)]
 pub(super) struct PendingRespawnDbMutationLikeCpp {
     pub(super) mutation: RespawnPersistenceMutationLikeCpp,
+    pub(super) acknowledgements: Vec<ChestRestockAck>,
     consecutive_failures: u32,
     retry_not_before: Instant,
 }
 
 #[derive(Debug, Default)]
 pub(super) struct RespawnDbRetryQueueLikeCpp {
-    pub(super) pending: BTreeMap<
-        (RespawnDbMutationKeyLikeCpp, Option<(u16, u64)>),
-        PendingRespawnDbMutationLikeCpp,
-    >,
+    pub(super) pending: BTreeMap<QueueKey, PendingRespawnDbMutationLikeCpp>,
 }
 
 #[derive(Debug)]
@@ -29,15 +30,15 @@ pub(super) struct RespawnDbAttemptLikeCpp {
 }
 
 impl RespawnDbRetryQueueLikeCpp {
-    fn mailbox_key(
-        mutation: RespawnPersistenceMutationLikeCpp,
-    ) -> (RespawnDbMutationKeyLikeCpp, Option<(u16, u64)>) {
+    fn mailbox_key(mutation: RespawnPersistenceMutationLikeCpp) -> QueueKey {
         let generation = match mutation {
             RespawnPersistenceMutationLikeCpp::ArmChestMoney {
                 realm_id,
                 generation,
+                deadline,
+                persist_respawn,
                 ..
-            } => Some((realm_id, generation)),
+            } => Some((realm_id, generation, deadline, persist_respawn)),
             _ => None,
         };
         (mutation.key(), generation)
@@ -52,11 +53,31 @@ impl RespawnDbRetryQueueLikeCpp {
             Self::mailbox_key(mutation),
             PendingRespawnDbMutationLikeCpp {
                 mutation,
+                acknowledgements: Vec::new(),
                 consecutive_failures: 0,
                 retry_not_before: now,
             },
         );
         key
+    }
+
+    pub(super) fn enqueue_with_ack(
+        &mut self,
+        mutation: RespawnPersistenceMutationLikeCpp,
+        now: Instant,
+        ack: ChestRestockAck,
+    ) {
+        let key = Self::mailbox_key(mutation);
+        if let Some(existing) = self.pending.get_mut(&key) {
+            existing.acknowledgements.push(ack);
+        } else {
+            self.enqueue_latest(mutation, now);
+            self.pending
+                .get_mut(&key)
+                .unwrap()
+                .acknowledgements
+                .push(ack);
+        }
     }
 
     pub(super) fn next_deadline(&self) -> Option<Instant> {
@@ -93,9 +114,20 @@ impl RespawnDbRetryQueueLikeCpp {
         let failed_count = attempt.pending.consecutive_failures;
         // Keep the failed operation only until the writer receives a newer
         // operation for the same key; `enqueue_latest` then replaces it.
-        self.pending
+        match self
+            .pending
             .entry(Self::mailbox_key(attempt.pending.mutation))
-            .or_insert(attempt.pending);
+        {
+            std::collections::btree_map::Entry::Occupied(mut newer) => {
+                newer
+                    .get_mut()
+                    .acknowledgements
+                    .append(&mut attempt.pending.acknowledgements);
+            }
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(attempt.pending);
+            }
+        }
         (delay, failed_count)
     }
 

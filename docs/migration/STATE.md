@@ -88,8 +88,11 @@ verified stored-Item money, shared payouts with a capped recipient, a
 rolled-back transaction and unrelated spending. A fresh process recovered
 the spent chest using realm, map, instance, persistent spawn and loot scope.
 It refused a stale personal grant and a stale deadline, and credited the
-next generation once after the stored deadline elapsed. The parent test
-took 3.13s after compilation. The shared QA database was untouched.
+next generation once after the stored deadline elapsed. The expanded case
+at `c7c9d94ce` forced the respawn-row write to fail, verified that the
+source deadline rolled back too, and recovered both records in a third
+process after a successful commit with no map acknowledgement. The parent
+test took 3.18s after compilation. The shared QA database was untouched.
 QA spawn 9106001 uses consumable chest template 2846 (loot 2278, group
 loot enabled). The 3.4.3 C++ anchors are `GameObjectData.h:99–112,127`,
 `GameObject.cpp:1609–1651,3711–3721` and `LootHandler.cpp:142–213`.

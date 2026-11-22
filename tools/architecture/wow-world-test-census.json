@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4207,
+  "tests": 4208,
   "ignored": 1,
-  "session": 3903,
-  "shims": 3722,
+  "session": 3904,
+  "shims": 3723,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3728
+   "W": 3729
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3521
+   "W-world-logic": 3522
   },
   "by_owner": {
    "wow-world": {
@@ -103,7 +103,7 @@
    "wow-world-loot-ops": {
     "P": 11,
     "H": 8,
-    "W": 215
+    "W": 216
    },
    "wow-world-player-conditions": {
     "P": 1,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3728
+    "W": 3729
    },
    "wow-world-application": {
     "P": 27,
@@ -1590,6 +1590,7 @@
   ["unit_tests/handlers/loot_tests/gameobject_3.rs::gameobject_owned_loot_release_fully_consumed_chest_uses_canonical_is_fully_looted_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_release", "record_represented_gameobject_runtime_state_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/loot_tests/gameobject_3.rs::gameobject_loot_release_without_canonical_manager_keeps_represented_restock_fallback_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["record_represented_gameobject_runtime_state_like_cpp"], []],
   ["unit_tests/handlers/loot_tests/gameobject_3.rs::gameobject_owned_loot_release_personal_chest_syncs_current_player_and_despawns_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_release", "record_represented_gameobject_runtime_state_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/loot_tests/gameobject_4.rs::chest_open_publishes_recovered_money_and_allows_the_interrupted_release", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["id_generators_for_test_like_cpp", "record_represented_gameobject_runtime_state_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/loot_tests/gameobject_4.rs::authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydrates_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["is_active_loot_guid", "open_represented_gameobject_chest_like_cpp", "record_represented_gameobject_runtime_state_like_cpp", "represented_on_loot_opened_like_cpp"], []],
   ["unit_tests/handlers/loot_tests/gameobject_4.rs::personal_gameobject_release_deactivates_only_after_every_pool_is_looted_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["record_represented_gameobject_runtime_state_like_cpp", "represented_on_loot_opened_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/loot_tests/gameobject_4.rs::personal_gameobject_upsert_before_release_invalidates_global_deactivation_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["set_canonical_gameobject_loot_state_if_fully_looted_observation_like_cpp", "set_canonical_map_manager", "set_player_guid", "upsert_represented_personal_gameobject_loot_authority_like_cpp"], []],

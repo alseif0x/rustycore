@@ -527,61 +527,6 @@ fn gameobject_update_just_deactivated_goober_without_spell_clears_loot_like_cpp(
     assert_eq!(canonical.use_times(), 0);
 }
 #[test]
-fn gameobject_update_non_consumed_chest_restock_returns_after_clearloot_like_cpp() {
-    let mut map = test_map();
-    let mut gameobject = game_object_with_counter(4610101, 571, 7, false);
-    gameobject.set_spawn_id(4610101);
-    assert!(gameobject.bind_chest_money_generation(2, 0, |_| true));
-    let gameobject_guid = gameobject.world().guid();
-    gameobject.set_go_type(GAMEOBJECT_TYPE_CHEST as u8);
-    gameobject.set_represented_chest_loot_source_like_cpp(Some(GameObjectLootSource {
-        chest_restock_time_secs: 45,
-        chest_consumable: false,
-        ..GameObjectLootSource::default()
-    }));
-    gameobject.set_loot_state(LootState::JustDeactivated, None);
-    gameobject.set_shared_loot_like_cpp(GameObjectOwnedLoot::new(41, 2));
-
-    map.add_map_object_record_to_map_like_cpp(
-        MapObjectRecord::new_game_object(gameobject).unwrap(),
-    )
-    .unwrap();
-
-    let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
-    let canonical = map
-        .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
-        .unwrap();
-
-    assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
-    assert!(outcome.loot_cleared);
-    assert!(outcome.non_consumed_chest_or_goober_return);
-    assert!(outcome.non_consumed_restock_armed);
-    assert!(!outcome.non_consumed_set_ready);
-    assert!(outcome.non_consumed_update_visibility_represented);
-    assert!(outcome.non_consumed_update_dynamic_flags_represented);
-    assert!(!outcome.non_consumed_source_missing);
-    assert_eq!(canonical.restock_time(), 1_045);
-    assert_eq!(canonical.loot_state(), LootState::NotReady);
-    assert!(canonical.shared_loot_like_cpp().is_none());
-    assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
-    let restocks = map.take_chest_money_restocks();
-    assert_eq!(restocks.len(), 1);
-    let restock = &restocks[0];
-    assert_eq!(
-        (
-            restock.realm_id,
-            restock.spawn_id,
-            restock.generation,
-            restock.deadline
-        ),
-        (2, 4610101, 0, 1045)
-    );
-    let chest = map.get_typed_game_object_mut(gameobject_guid).unwrap();
-    assert!(!chest.bind_chest_money_generation(2, 0, |_| true));
-    assert!(chest.bind_chest_money_generation(2, 1, |_| true));
-}
-#[test]
 fn gameobject_update_non_consumed_chest_without_restock_sets_ready_like_cpp() {
     let mut map = test_map();
     let mut gameobject = game_object_with_counter(4610201, 571, 7, false);

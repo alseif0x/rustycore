@@ -1210,8 +1210,8 @@ fn submit_respawn_db_mutations(
     summary: &mut super::super::tick_summary::CanonicalSpawnGroupConditionTickSummaryLikeCpp,
     writer: &RespawnDbWriterSenderLikeCpp,
 ) {
-    for restock in summary.chest_money_restocks.drain(..) {
-        if writer.send(restock).is_err() {
+    for (restock, ack) in summary.chest_money_restocks.drain(..) {
+        if writer.submit(restock, Some(ack)).is_err() {
             tracing::error!("Shared database writer stopped before chest restock submission");
         }
     }

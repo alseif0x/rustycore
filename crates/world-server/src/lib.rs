@@ -254,6 +254,14 @@ impl RespawnDbWriterSenderLikeCpp {
         &self,
         mutation: RespawnPersistenceMutationLikeCpp,
     ) -> std::result::Result<(), RespawnDbSubmitErrorLikeCpp> {
+        self.submit(mutation, None)
+    }
+
+    fn submit(
+        &self,
+        mutation: RespawnPersistenceMutationLikeCpp,
+        ack: Option<respawn_retry::ChestRestockAck>,
+    ) -> std::result::Result<(), RespawnDbSubmitErrorLikeCpp> {
         let mut state = self
             .mailbox
             .state
@@ -262,7 +270,12 @@ impl RespawnDbWriterSenderLikeCpp {
         if state.closed {
             return Err(RespawnDbSubmitErrorLikeCpp::Closed);
         }
-        state.queue.enqueue_latest(mutation, Instant::now());
+        match ack {
+            Some(ack) => state.queue.enqueue_with_ack(mutation, Instant::now(), ack),
+            None => {
+                state.queue.enqueue_latest(mutation, Instant::now());
+            }
+        }
         drop(state);
         self.mailbox.notify.notify_one();
         Ok(())
@@ -326,6 +339,10 @@ async fn execute_respawn_db_attempt_like_cpp(
             failed_attempts,
             "Failed to persist respawn operation like C++; shared DB-writer retry deferred"
         );
+    } else {
+        for ack in attempt.pending.acknowledgements {
+            let _ = ack.set(true);
+        }
     }
 }
 

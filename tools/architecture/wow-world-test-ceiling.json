@@ -425,6 +425,16 @@
    "unit_tests_lines": 281404,
    "unit_tests_tests": 4185,
    "src_tests": 22
+  },
+  {
+   "id": "raise-46-40",
+   "kind": "raise",
+   "issue": 46,
+   "reviewed_at": "2026-11-22",
+   "reason": "Exercise recovered personal and shared chest windows through LootResponse and resume the interrupted last-viewer release. The typed port verifies source identity and the creature lifecycle fixture rejects chest writes.",
+   "unit_tests_lines": 281518,
+   "unit_tests_tests": 4186,
+   "src_tests": 22
   }
  ]
 }

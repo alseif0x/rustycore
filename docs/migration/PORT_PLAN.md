@@ -27,6 +27,14 @@ scope. A map-generated loot GUID and an in-memory generation can both repeat.
 An actual respawn or restock can produce a new grant. Disconnect, map reload
 and process restart alone cannot mint another grant from a surviving pool.
 Stored Item money already has a durable source row keyed by container ID.
+For a persistent chest the key is realm, map, instance, spawn, generation
+and shared or personal scope. The Characters writer stores its actual
+retirement deadline before the map clears the pool. When the ordinary
+respawn row is required, that row and the deadline commit together. The
+writer releases the waiting map only on confirmation. A fresh process can
+resume an interrupted release of an already-paid empty chest without a
+second payout. Only the database clock reaching the recorded deadline
+permits a successor generation.
 The C++ anchors at `a5f8da2eb` are `WorldSession::HandleLootMoneyOpcode`
 in `Handlers/LootHandler.cpp:142–213` and `GameObject::ClearLoot` in
 `Entities/GameObject/GameObject.cpp:3711–3721`. The receipt is a Rust

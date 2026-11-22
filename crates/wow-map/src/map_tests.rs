@@ -860,6 +860,8 @@ fn test_scene_object_for_update(
 
 #[path = "map_tests/aura_update_visibility.rs"]
 mod aura_update_visibility;
+#[path = "map_tests/chest_money.rs"]
+mod chest_money;
 #[path = "map_tests/combat.rs"]
 mod combat;
 #[path = "map_tests/creature_1.rs"]

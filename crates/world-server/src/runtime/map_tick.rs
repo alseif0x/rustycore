@@ -601,19 +601,23 @@ fn canonical_map_tick_tail_like_cpp(
                     .map_mut()
                     .take_chest_money_restocks()
                     .into_iter()
-                    .map(
-                        |r| wow_persistence::RespawnPersistenceMutationLikeCpp::ArmChestMoney {
-                            key: wow_persistence::RespawnPersistenceKeyLikeCpp {
-                                object_type_raw: wow_map::SpawnObjectType::GameObject as u16,
-                                spawn_id: r.spawn_id,
-                                map_id,
-                                instance_id,
+                    .map(|r| {
+                        (
+                            wow_persistence::RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+                                key: wow_persistence::RespawnPersistenceKeyLikeCpp {
+                                    object_type_raw: wow_map::SpawnObjectType::GameObject as u16,
+                                    spawn_id: r.spawn_id,
+                                    map_id,
+                                    instance_id,
+                                },
+                                realm_id: r.realm_id,
+                                generation: r.generation,
+                                deadline: r.deadline,
+                                persist_respawn: r.persist_respawn,
                             },
-                            realm_id: r.realm_id,
-                            generation: r.generation,
-                            deadline: r.deadline,
-                        },
-                    ),
+                            r.acknowledged,
+                        )
+                    }),
             );
         }
         summary.expired_pvp_combat_refs.extend(

@@ -549,7 +549,7 @@ impl ManagedMap {
     }
 
     pub(super) fn can_unload(&self, _diff_ms: u32) -> bool {
-        self.can_unload
+        self.can_unload && !self.runtime.map.has_pending_chest_money_resets_like_cpp()
     }
 
     pub(super) fn have_players(&self) -> bool {
@@ -769,7 +769,8 @@ impl ManagedMap {
         // missing family and leaves AI/go-type/per-player/packet/DB gaps open.
         self.last_game_objects_update_summary = {
             let selected_game_objects = nearby_object_plan.as_ref().map(|plan| {
-                plan.update_guids
+                let mut selected = plan
+                    .update_guids
                     .iter()
                     .copied()
                     .filter(|guid| {
@@ -781,7 +782,13 @@ impl ManagedMap {
                                     && record.game_object().is_some()
                             })
                     })
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>();
+                for guid in self.runtime.map.acknowledged_chest_money_guids_like_cpp() {
+                    if !selected.contains(&guid) {
+                        selected.push(guid);
+                    }
+                }
+                selected
             });
             match (selected_game_objects, pool_update, load_record) {
                 (Some(guids), Some((spawn_store, pool_mgr)), Some(load_record)) => self

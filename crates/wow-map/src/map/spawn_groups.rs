@@ -5,8 +5,8 @@
 
 //! Spawn groups and spawned pools.
 
+use super::chest_money::*;
 use super::*;
-
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,
@@ -1007,12 +1007,23 @@ where
             game_object.update_like_cpp(diff_ms)
         };
 
+        let chest_money_gate = self.begin_chest_money_update_like_cpp(
+            game_object_guid,
+            game_time_secs,
+            entity_update.status != EntityGameObjectUpdateStatusLikeCpp::DespawnRequested,
+        );
+        let completed_chest_money_restock = chest_money_gate.completed;
+        let chest_money_reset_deferred = chest_money_gate.deferred;
+        let partial_chest_money_expiry = chest_money_gate.partial_expired;
         let (
             linked_trap_guid,
             linked_trap_removed,
             linked_trap_remove_queued,
             linked_trap_missing_or_self,
-        ) = if entity_update.status == EntityGameObjectUpdateStatusLikeCpp::DespawnRequested {
+        ) = if entity_update.status == EntityGameObjectUpdateStatusLikeCpp::DespawnRequested
+            || chest_money_reset_deferred
+            || partial_chest_money_expiry
+        {
             (None, false, false, false)
         } else {
             self.map_object_record(game_object_guid)
@@ -1090,11 +1101,12 @@ where
         let mut generic_respawn_compatibility_db_only_represented = false;
         let mut generic_visibility_on_destroy_represented = false;
 
-        if entity_update.status != EntityGameObjectUpdateStatusLikeCpp::DespawnRequested {
+        if entity_update.status != EntityGameObjectUpdateStatusLikeCpp::DespawnRequested
+            && !chest_money_reset_deferred
+            && !partial_chest_money_expiry
+        {
             if let Some(game_object) = self
-                .entity_world
-                .get_mut(&game_object_guid)
-                .and_then(MapObjectRecord::game_object_mut)
+                .get_typed_game_object_mut(game_object_guid)
                 .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
                 .filter(|game_object| game_object.data().type_id == GAMEOBJECT_TYPE_GOOBER as i8)
             {
@@ -1117,29 +1129,20 @@ where
             }
         }
 
-        let loot_cleared = if entity_update.status
-            == EntityGameObjectUpdateStatusLikeCpp::DespawnRequested
-            || goober_nodespawn_return
-        {
-            false
-        } else if let Some(game_object) = self
-            .entity_world
-            .get_mut(&game_object_guid)
-            .and_then(MapObjectRecord::game_object_mut)
-            .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
-        {
-            game_object.clear_loot_like_cpp();
-            true
-        } else {
-            false
-        };
+        let loot_cleared = self.clear_loot_for_chest_money_transition_like_cpp(
+            game_object_guid,
+            partial_chest_money_expiry && !chest_money_reset_deferred,
+            !chest_money_reset_deferred
+                && entity_update.status != EntityGameObjectUpdateStatusLikeCpp::DespawnRequested
+                && !goober_nodespawn_return,
+        );
 
-        if loot_cleared {
-            if let Some(game_object) = self
-                .entity_world
-                .get_mut(&game_object_guid)
-                .and_then(MapObjectRecord::game_object_mut)
-            {
+        non_consumed_chest_or_goober_return = partial_chest_money_expiry && loot_cleared;
+        non_consumed_set_ready = partial_chest_money_expiry && loot_cleared;
+        non_consumed_update_dynamic_flags_represented = partial_chest_money_expiry && loot_cleared;
+
+        if loot_cleared && !partial_chest_money_expiry && !chest_money_reset_deferred {
+            if let Some(game_object) = self.get_typed_game_object_mut(game_object_guid) {
                 let go_type = game_object.data().type_id as u32;
                 let despawn_at_action = match go_type {
                     GAMEOBJECT_TYPE_CHEST => game_object
@@ -1170,8 +1173,12 @@ where
                                     game_object.represented_chest_loot_source_like_cpp()
                                 {
                                     if source.chest_restock_time_secs > 0 {
-                                        let restock_time = game_time_secs.saturating_add(
-                                            i64::from(source.chest_restock_time_secs),
+                                        let restock_time = chest_money_transition_deadline_like_cpp(
+                                            completed_chest_money_restock.as_ref(),
+                                            ChestMoneyRestockTransition::FullyLootedNonConsumable,
+                                            game_time_secs.saturating_add(i64::from(
+                                                source.chest_restock_time_secs,
+                                            )),
                                         );
                                         game_object.set_restock_time_like_cpp(restock_time);
                                         game_object.set_loot_state(LootState::NotReady, None);
@@ -1198,8 +1205,7 @@ where
 
         if loot_cleared && !non_consumed_chest_or_goober_return {
             let summoned_snapshot = self
-                .map_object_record(game_object_guid)
-                .and_then(MapObjectRecord::game_object)
+                .get_typed_game_object(game_object_guid)
                 .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
                 .map(|game_object| {
                     (
@@ -1214,11 +1220,7 @@ where
                 let is_summoned_and_expired =
                     (owner_guid != ObjectGuid::EMPTY || spell_id != 0) && respawn_time == 0;
                 if is_summoned_and_expired {
-                    if let Some(game_object) = self
-                        .entity_world
-                        .get_mut(&game_object_guid)
-                        .and_then(MapObjectRecord::game_object_mut)
-                    {
+                    if let Some(game_object) = self.get_typed_game_object_mut(game_object_guid) {
                         game_object.set_respawn_time(0);
                         game_object.set_loot_state(LootState::NotReady, None);
                         summoned_expired_respawn_time_zeroed = true;
@@ -1274,9 +1276,7 @@ where
 
         if loot_cleared && !non_consumed_chest_or_goober_return && !summoned_expired_delete {
             if let Some(game_object) = self
-                .entity_world
-                .get_mut(&game_object_guid)
-                .and_then(MapObjectRecord::game_object_mut)
+                .get_typed_game_object_mut(game_object_guid)
                 .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
             {
                 // C++ anchor: GameObject.cpp:1639-1651. This represented seam
@@ -1309,20 +1309,19 @@ where
         }
 
         if generic_not_ready && !generic_zero_respawn_delay_return {
-            let generic_respawn_snapshot = self
-                .map_object_record(game_object_guid)
-                .and_then(MapObjectRecord::game_object)
-                .map(|game_object| {
-                    (
-                        game_object.spawned_by_default(),
-                        game_object.respawn_compatibility_mode(),
-                        game_object.respawn_delay_time(),
-                        game_object.spawn_id(),
-                        game_object.has_represented_gameobject_data_like_cpp(),
-                        game_object.world().object().entry(),
-                        game_object.world().position(),
-                    )
-                });
+            let generic_respawn_snapshot =
+                self.get_typed_game_object(game_object_guid)
+                    .map(|game_object| {
+                        (
+                            game_object.spawned_by_default(),
+                            game_object.respawn_compatibility_mode(),
+                            game_object.respawn_delay_time(),
+                            game_object.spawn_id(),
+                            game_object.has_represented_gameobject_data_like_cpp(),
+                            game_object.world().object().entry(),
+                            game_object.world().position(),
+                        )
+                    });
 
             if let Some((
                 spawned_by_default,
@@ -1335,8 +1334,11 @@ where
             )) = generic_respawn_snapshot
             {
                 if spawned_by_default {
-                    let scheduled_respawn_time =
-                        game_time_secs.saturating_add(i64::from(respawn_delay_time));
+                    let scheduled_respawn_time = chest_money_transition_deadline_like_cpp(
+                        completed_chest_money_restock.as_ref(),
+                        ChestMoneyRestockTransition::GenericRespawn,
+                        game_time_secs.saturating_add(i64::from(respawn_delay_time)),
+                    );
                     if let Some(game_object) = self.get_typed_game_object_mut(game_object_guid) {
                         game_object.set_respawn_time(scheduled_respawn_time);
                     }
@@ -1350,7 +1352,11 @@ where
                         generic_respawn_save_missing_gameobject_data = true;
                     } else if spawn_id == 0 {
                         generic_respawn_save_missing_spawn_id = true;
-                    } else if scheduled_respawn_time > game_time_secs {
+                    } else if chest_money_transition_persist_respawn_like_cpp(
+                        completed_chest_money_restock.as_ref(),
+                        scheduled_respawn_time,
+                        game_time_secs,
+                    ) {
                         if respawn_compatibility_mode {
                             // C++ `SaveRespawnTime` compatibility mode calls
                             // `SaveRespawnInfoDB` only. `wow-map` owns no async DB
@@ -1383,12 +1389,6 @@ where
             }
         }
 
-        self.record_chest_money_restock(
-            game_object_guid,
-            non_consumed_restock_armed,
-            generic_respawn_scheduled_time
-                .or_else(|| non_consumed_set_ready.then_some(game_time_secs)),
-        );
         if summoned_expired_delete
             || (generic_not_ready
                 && !generic_zero_respawn_delay_return
@@ -1469,7 +1469,9 @@ where
                 generic_respawn_compatibility_db_only_represented,
                 generic_visibility_on_destroy_represented,
             }
-        } else if entity_update.status == EntityGameObjectUpdateStatusLikeCpp::DespawnRequested {
+        } else if entity_update.status == EntityGameObjectUpdateStatusLikeCpp::DespawnRequested
+            && !chest_money_reset_deferred
+        {
             let delete = self.gameobject_delete_from_update_with_optional_loader_like_cpp(
                 game_object_guid,
                 pool_update,
