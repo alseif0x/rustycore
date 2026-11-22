@@ -362,27 +362,38 @@ pub(super) async fn begin_payout(
 }
 
 /// Arm a restock deadline only for the source generation observed by the
-/// caller. A repeated identical event is idempotent; stale generations,
-/// replacement deadlines and ambiguous updates return false.
+/// caller. A repeated deadline is idempotent. An older generation has already
+/// retired. Reject contradictory evidence before publishing the map transition.
 pub(super) async fn arm_restock_deadline(
     tx: &mut Transaction<'_, MySql>,
     trace: &ExplicitTransactionTrace,
     source: WorldLootMoneySource,
     observed_generation: u64,
     restock_deadline: i64,
+    persist_respawn: bool,
 ) -> Result<bool, DatabaseError> {
     if !valid_source(source) || restock_deadline <= 0 {
-        return Ok(false);
+        return Err(source_error("invalid chest restock identity or deadline"));
     }
     let Some((generation, current_deadline, _)) = read_head_for_update(tx, trace, source).await?
     else {
-        return Ok(false);
+        return Err(source_error("missing source head for chest restock"));
     };
-    if generation != observed_generation {
+    if generation > observed_generation {
         return Ok(false);
     }
+    if generation < observed_generation {
+        return Err(source_error(
+            "chest restock ahead of durable source generation",
+        ));
+    }
     match current_deadline {
-        Some(current) => return Ok(current == restock_deadline),
+        Some(current) if current == restock_deadline => return Ok(true),
+        Some(_) => {
+            return Err(source_error(
+                "conflicting deadline for this chest generation",
+            ));
+        }
         None => {}
     }
 
@@ -402,5 +413,36 @@ pub(super) async fn arm_restock_deadline(
         .bind(observed_generation)
         .execute(&mut **tx)
         .await?;
-    Ok(updated.rows_affected() == 1)
+    if updated.rows_affected() != 1 {
+        return Err(source_error(
+            "chest generation changed before recording restock",
+        ));
+    }
+    if persist_respawn {
+        use crate::{CharStatements, StatementDef};
+        let map_id = u16::try_from(source.map_id)
+            .map_err(|_| source_error("chest map exceeds the respawn table map id"))?;
+        let save = CharStatements::REP_RESPAWN;
+        trace.statement(|| {
+            (
+                save.trace_identity(),
+                vec![
+                    TracedParam::from_param(&SqlParam::U16(1)),
+                    TracedParam::from_param(&SqlParam::U64(source.spawn_id)),
+                    TracedParam::from_param(&SqlParam::I64(restock_deadline)),
+                    TracedParam::from_param(&SqlParam::U16(map_id)),
+                    TracedParam::from_param(&SqlParam::U32(source.instance_id)),
+                ],
+            )
+        });
+        sqlx::query(save.sql())
+            .bind(1u16)
+            .bind(source.spawn_id)
+            .bind(restock_deadline)
+            .bind(map_id)
+            .bind(source.instance_id)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(true)
 }

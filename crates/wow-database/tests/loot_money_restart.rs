@@ -49,6 +49,16 @@ async fn chest_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<()
     let current = bind(source, 0)
         .await?
         .context("chest should be available")?;
+    if epoch == "after_restock_commit" {
+        let (deadline, generation): (i64, u64) = sqlx::query_as(
+            "SELECT r.respawnTime, h.generation FROM respawn r JOIN loot_money_source_head h ON h.spawn_id=r.spawnId AND h.map_id=r.mapId AND h.instance_id=r.instanceId WHERE r.spawnId=9106001 AND h.realm_id=1"
+        ).fetch_one(db.pool()).await?;
+        assert!(deadline > 0);
+        assert_eq!(generation, 2);
+        assert_eq!(current.generation, generation);
+        assert!(!current.spent);
+        return Ok(());
+    }
     if epoch == "claim" {
         assert!(!current.spent);
         sqlx::query("INSERT INTO characters VALUES (201,100)")
@@ -109,7 +119,7 @@ async fn chest_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<()
         assert_ne!(independent.claim_id, current.claim_id);
     }
     let writer = MariaDbRespawnPersistenceAdapterLikeCpp::new(Arc::clone(&db));
-    let arm = |deadline| RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+    let arm = |generation, deadline| RespawnPersistenceMutationLikeCpp::ArmChestMoney {
         key: RespawnPersistenceKeyLikeCpp {
             object_type_raw: 1,
             spawn_id: source.spawn_id,
@@ -117,14 +127,28 @@ async fn chest_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<()
             instance_id: source.instance_id,
         },
         realm_id: source.realm_id,
-        generation: current.generation,
+        generation,
         deadline,
+        persist_respawn: true,
     };
     let now: i64 = sqlx::query_scalar("SELECT CAST(UNIX_TIMESTAMP() AS SIGNED)")
         .fetch_one(db.pool())
         .await?;
+    // The respawn write fails in this schema until its table is installed.
+    // Its failure must also roll back the source deadline.
+    assert!(matches!(
+        writer
+            .execute_mutation_like_cpp(arm(current.generation, now + 3))
+            .await,
+        RespawnPersistenceMutationOutcomeLikeCpp::Failed { .. }
+    ));
+    assert_eq!(bind(source, 0).await?, Some(current));
+    sqlx::query("CREATE TABLE respawn (type SMALLINT UNSIGNED, spawnId BIGINT UNSIGNED, respawnTime BIGINT NOT NULL, mapId SMALLINT UNSIGNED, instanceId INT UNSIGNED, PRIMARY KEY (type, spawnId, mapId, instanceId)) ENGINE=InnoDB")
+        .execute(db.pool()).await?;
     assert_eq!(
-        writer.execute_mutation_like_cpp(arm(now + 3)).await,
+        writer
+            .execute_mutation_like_cpp(arm(current.generation, now + 3))
+            .await,
         RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows: 1 }
     );
     assert!(bind(source, 0).await?.is_none());
@@ -140,7 +164,9 @@ async fn chest_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<()
         Attempt::DefinitelyRolledBack { .. } | Attempt::AlreadySettled
     ));
     assert_eq!(
-        writer.execute_mutation_like_cpp(arm(now)).await,
+        writer
+            .execute_mutation_like_cpp(arm(current.generation, now))
+            .await,
         RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows: 0 }
     );
     assert_eq!(bind(source, 0).await?, Some(next));
@@ -156,6 +182,13 @@ async fn chest_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<()
             .fetch_one(db.pool())
             .await?,
         100
+    );
+    // Exit with the retirement transaction committed and no map acknowledgement.
+    assert_eq!(
+        writer
+            .execute_mutation_like_cpp(arm(next.generation, now))
+            .await,
+        RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows: 1 }
     );
     Ok(())
 }
@@ -176,8 +209,10 @@ async fn money_claims_survive_process_restart() -> Result<()> {
             false,
         );
         let db = Arc::new(CharacterDatabase::open(&url).await?);
-        stored_money_epoch(&epoch, Arc::clone(&db)).await?;
-        shared_money_epoch(&epoch, Arc::clone(&db)).await?;
+        if epoch != "after_restock_commit" {
+            stored_money_epoch(&epoch, Arc::clone(&db)).await?;
+            shared_money_epoch(&epoch, Arc::clone(&db)).await?;
+        }
         return chest_money_epoch(&epoch, db).await;
     }
     let server =
@@ -187,7 +222,7 @@ async fn money_claims_survive_process_restart() -> Result<()> {
         .execute(&server)
         .await?;
     let result = (|| -> Result<()> {
-        for epoch in ["claim", "recover"] {
+        for epoch in ["claim", "recover", "after_restock_commit"] {
             let status = Command::new(env::current_exe()?)
                 .args(["--ignored", "--exact", TEST, "--nocapture"])
                 .env("RUSTYCORE_LOOT_TEST_EPOCH", epoch)

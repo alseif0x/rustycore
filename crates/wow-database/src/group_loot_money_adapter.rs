@@ -23,13 +23,14 @@ use crate::{
 };
 
 /// Persist a canonical chest restock deadline after the map lock has been
-/// released. The caller must pass the generation captured with that event;
-/// an older or ambiguous event returns `Ok(false)` without changing the head.
+/// released. A newer head proves the captured generation already retired.
+/// Missing or contradictory evidence keeps the map waiting for confirmation.
 pub(crate) async fn arm_world_chest_money(
     character_db: &CharacterDatabase,
     source: WorldLootMoneySource,
     generation: u64,
     restock_deadline: i64,
+    persist_respawn: bool,
 ) -> Result<bool, DatabaseError> {
     let mut transaction = character_db.pool().begin().await?;
     let mut trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
@@ -39,6 +40,7 @@ pub(crate) async fn arm_world_chest_money(
         source,
         generation,
         restock_deadline,
+        persist_respawn,
     )
     .await
     {

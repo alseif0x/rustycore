@@ -159,6 +159,7 @@ impl RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp {
                     realm_id,
                     generation,
                     deadline,
+                    persist_respawn,
                 } => {
                     let source = wow_persistence::WorldLootMoneySource {
                         realm_id,
@@ -171,6 +172,7 @@ impl RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp {
                         source,
                         generation,
                         deadline,
+                        persist_respawn,
                     )
                     .await
                     .map(u64::from)

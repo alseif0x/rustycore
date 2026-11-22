@@ -37,6 +37,7 @@ pub enum RespawnPersistenceMutationLikeCpp {
         realm_id: u16,
         generation: u64,
         deadline: i64,
+        persist_respawn: bool,
     },
 }
 

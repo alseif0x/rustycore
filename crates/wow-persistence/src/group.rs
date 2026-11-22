@@ -244,7 +244,7 @@ pub fn classify_group_loot_money_reconciliation_like_cpp(
     }
 }
 
-/// SQLx-free Characters-database capability for one group loot-money payout.
+/// Persistent GameObject spawn identity across world-server processes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WorldLootMoneySource {
     pub realm_id: u16,
@@ -260,6 +260,7 @@ pub struct WorldLootMoneyBinding {
     pub spent: bool,
 }
 
+/// Characters-database capability for group money payouts and their receipts.
 pub trait GroupLootMoneyPersistencePortLikeCpp: Send + Sync {
     /// None means this source has not reached its persisted restock deadline.
     fn bind_world_chest_money(
