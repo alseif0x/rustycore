@@ -36,6 +36,49 @@ impl Creature {
         self.ai_home_position()
     }
 
+    /// Map.cpp:1515–1528 clears active motion before attempting the respawn cell.
+    /// The map still owns the old cell until relocation succeeds.
+    pub fn clear_motion_for_respawn_relocation(&mut self) {
+        self.runtime_like_cpp_mut().runtime_motion_master.clear();
+        self.unit_mut().subsystems_mut().motion.clear_active();
+        self.unit_mut().subsystems_mut().motion.finalize_spline();
+        self.disable_spline_movement_like_cpp();
+        self.unit_mut().clear_unit_state(
+            (UnitState::CHASE_MOVE | UnitState::ROAMING_MOVE | UnitState::FOLLOW_MOVE).bits(),
+        );
+        if self.is_alive() {
+            self.set_ai_state(CreatureAiState::Idle);
+        }
+        let ai = self.ai_ownership_mut();
+        ai.combat_target = None;
+        ai.move_target = None;
+        ai.move_duration_ms = 0;
+        let runtime = self.runtime_like_cpp_mut();
+        runtime.assistance_called_like_cpp = false;
+        runtime.active_move_spline = None;
+        runtime.active_home_generator = None;
+        runtime.active_chase_generator = None;
+        runtime.active_chase_path_poly_refs.clear();
+        runtime.runtime_chase_target = None;
+        runtime.runtime_represented_active = None;
+        self.reset_creature_spell_schedule_like_cpp();
+    }
+
+    /// MotionMaster::Initialize reselects the creature's own default generator.
+    pub fn initialize_motion_after_respawn_relocation(&mut self) {
+        self.unit_mut()
+            .subsystems_mut()
+            .motion
+            .direct_initialize_like_cpp();
+        let master = new_runtime_motion_master_like_cpp(self);
+        let runtime = self.runtime_like_cpp_mut();
+        runtime.runtime_motion_master = master;
+        runtime.active_random_generator = None;
+        runtime.active_random_path_poly_refs.clear();
+        runtime.active_waypoint_generator = None;
+        runtime.active_waypoint_random_at_path_end = None;
+    }
+
     /// C++ interaction handlers call `PauseMovement(timer)` and then
     /// `SetHomePosition(GetPosition())` for gossip/vendor/quest interactions.
     pub fn pause_interaction_movement_like_cpp(&mut self) -> bool {

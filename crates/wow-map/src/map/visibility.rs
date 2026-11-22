@@ -219,7 +219,7 @@ where
         recipients
     }
 
-    fn nearby_player_guids_for_visibility_like_cpp(
+    pub(super) fn nearby_player_guids_for_visibility_like_cpp(
         &self,
         source_guid: ObjectGuid,
     ) -> Vec<ObjectGuid> {
@@ -260,7 +260,10 @@ where
         players
     }
 
-    fn mark_player_visibility_guids_like_cpp(&mut self, players: &[ObjectGuid]) -> usize {
+    pub(super) fn mark_player_visibility_guids_like_cpp(
+        &mut self,
+        players: &[ObjectGuid],
+    ) -> usize {
         let mut marked = 0;
         for player_guid in players {
             if let Some(player) = self.get_typed_player_mut(*player_guid) {

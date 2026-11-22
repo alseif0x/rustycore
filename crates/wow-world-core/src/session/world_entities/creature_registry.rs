@@ -159,8 +159,8 @@ impl SessionCore {
     /// `mutation` is caught, the incarnation is put back into its record and
     /// cell, the canonical guard is released (so the mutex the map loop needs
     /// is not poisoned), and the panic resumes; a guard also returns it if
-    /// anything else unwinds. A mutation that rebinds the creature's map is
-    /// refused loudly and the binding it was lent with restored. A position the
+    /// anything else unwinds. If the mutation rebinds the map, the root restores
+    /// the original binding and discards the result. Other changes persist. A position the
     /// mutation changed is applied as C++ `Unit::UpdatePosition` →
     /// `Map::CreatureRelocation`, so the grid cell follows (vehicle, possess and
     /// mind-control movers write it through `set_ai_position`). No I/O,
@@ -262,8 +262,7 @@ impl SessionCore {
 enum LentIncarnationReturnLikeCpp {
     /// Back in its record, relocated to where the mutation left it.
     Clean,
-    /// Back in its record, but only after the binding it was lent with was put
-    /// back: the mutation rebound or unbound its map, which is refused.
+    /// The root restored the original map binding and discards the mutation result.
     BindingRestored,
     /// The record could not be rebuilt and the incarnation is gone.
     Lost,
@@ -299,25 +298,15 @@ impl LentIncarnationLikeCpp<'_> {
                 binding_restored,
                 relocation,
             } => {
-                match relocation {
-                    Some(Ok(outcome)) if !outcome.relocated => tracing::debug!(
-                        ?guid,
-                        ?outcome,
-                        "creature mutation moved the creature into an unloaded grid; it stays at its origin like C++ Map::CreatureRelocation"
-                    ),
-                    Some(Err(error)) => tracing::warn!(
-                        ?guid,
-                        ?error,
-                        "creature mutation left the creature at a position the map refused; it stays at its origin"
-                    ),
-                    _ => {}
+                if let Some(Err(error)) = relocation {
+                    tracing::warn!(?guid, ?error, "rejected the creature's requested position");
                 }
                 if binding_restored {
                     tracing::error!(
                         ?guid,
                         map_id = self.origin.map_id,
                         instance_id = self.origin.instance_id,
-                        "creature mutation rebound the creature's map; the binding it was lent with was restored and the mutation is refused"
+                        "restored the creature's original map binding and discarded the mutation result"
                     );
                     LentIncarnationReturnLikeCpp::BindingRestored
                 } else {

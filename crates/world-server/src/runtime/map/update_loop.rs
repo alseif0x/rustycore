@@ -839,6 +839,14 @@ pub(crate) fn spawn_canonical_map_update_loop(
             }
 
             if let Some(summary) = tick_summary.as_ref() {
+                super::super::delivery::deliver_runtime_plan_like_cpp(
+                    &summary.relocation_combat,
+                    &player_registry,
+                );
+                super::super::delivery::deliver_creature_attack_stop_commands_like_cpp(
+                    &summary.relocation_exits,
+                    &player_registry,
+                );
                 deferred_visibility::deliver_directed_object_destroy_like_cpp(
                     &summary.object_visibility_destroys,
                     &player_registry,

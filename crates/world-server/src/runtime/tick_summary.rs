@@ -30,6 +30,8 @@ pub(crate) struct CanonicalObjectVisibilityDestroyLikeCpp {
 
 #[derive(Debug, Default)]
 pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
+    pub(crate) relocation_combat: wow_world::runtime_plan::RuntimePlan,
+    pub(crate) relocation_exits: Vec<wow_world::session::mailbox::CreatureAttackStopLikeCppCommand>,
     pub(crate) player_visibility_refresh_intents:
         Vec<wow_map::PlayerVisibilityRefreshIntentLikeCpp>,
     pub(crate) object_values_updates: Vec<CanonicalMapObjectValuesUpdateLikeCpp>,

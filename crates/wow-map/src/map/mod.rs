@@ -2086,6 +2086,7 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     /// set into `remove_from_map_like_cpp(..., true)`. Session/ObjectAccessor/DB
     /// caches must not drain or reconstruct this queue.
     objects_to_remove: HashSet<ObjectGuid>,
+    relocation_combat: lent_creature::RelocationCombat,
     /// Destroy recipients captured before an in-world object is detached.
     /// Delivery is drained by the canonical world tick after every map guard
     /// is released; no session or packet state is stored here.
@@ -2234,6 +2235,7 @@ where
                 DYNAMIC_MAP_TREE_CHECK_PERIOD_MS_LIKE_CPP,
             dynamic_tree_unbalanced_times_like_cpp: 0,
             objects_to_remove: HashSet::new(),
+            relocation_combat: Default::default(),
             pending_object_visibility_destroy_recipients_like_cpp: Vec::new(),
             objects_to_switch: HashMap::new(),
             far_spell_callbacks_like_cpp: VecDeque::new(),
@@ -4488,7 +4490,7 @@ pub enum RemoveObjectFromMoveListOutcomeLikeCpp {
 
 /// Drain summary for C++ `Map::MoveAll*InMoveList` (`Map.cpp:1239-1416`).
 /// This is a map-owned seam only: it does not claim UpdatePositionData,
-/// visibility fanout, AfterRelocation, respawn relocation, Pet::Remove,
+/// visibility fanout, AfterRelocation, Pet::Remove,
 /// dynamic tree, scripts/AI, ObjectAccessor, or session packet runtime.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MoveListDrainSummaryLikeCpp {
@@ -4502,6 +4504,7 @@ pub struct MoveListDrainSummaryLikeCpp {
     pub blocked_by_unloaded_grid: usize,
     pub remove_list_queued: usize,
     pub pet_remove_requested: usize,
+    pub respawn_relocated: usize,
     pub respawn_relocation_unsupported: usize,
     pub failed_invalid_position: usize,
     pub failed_store: usize,

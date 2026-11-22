@@ -594,6 +594,7 @@ fn canonical_map_tick_tail_like_cpp(
                 }),
         );
         append_map_object_values_updates_like_cpp(&mut summary, managed_map);
+        collect_relocation_combat(&mut summary, managed_map);
         summary.expired_pvp_combat_refs.extend(
             managed_map
                 .last_expired_pvp_combat_refs_like_cpp()
@@ -641,6 +642,8 @@ fn canonical_map_tick_tail_like_cpp(
         }
     });
     let has_work = !summary.respawn_db_saves.is_empty()
+        || !summary.relocation_combat.events.is_empty()
+        || !summary.relocation_exits.is_empty()
         || !summary.expired_pvp_combat_refs.is_empty()
         || !summary.player_visibility_refresh_intents.is_empty()
         || !summary.object_values_updates.is_empty()
@@ -648,6 +651,56 @@ fn canonical_map_tick_tail_like_cpp(
         || !summary.respawn_db_deletes.is_empty()
         || summary.maps_evaluated > 0;
     has_work.then_some(summary)
+}
+
+fn collect_relocation_combat(
+    summary: &mut CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+    map: &mut wow_map::ManagedMap,
+) {
+    use wow_packet::{ServerPacket, packets::combat::SAttackStop};
+    use wow_world::runtime_plan::{RecipientRule, RuntimeEvent};
+    let Ok(map_id) = u16::try_from(map.map_id()) else {
+        return;
+    };
+    let instance_id = map.instance_id();
+    let combat = map.map_mut().take_relocation_combat();
+    summary
+        .relocation_combat
+        .events
+        .extend(combat.stops.into_iter().map(|stop| {
+            RuntimeEvent {
+                source_guid: stop.attacker,
+                recipients: RecipientRule::NearbyVisibleDurable {
+                    source_guid: stop.attacker,
+                    map_id,
+                    instance_id,
+                    source_position: stop.position,
+                    range: stop.range,
+                    required_3d: false,
+                },
+                packet_bytes: SAttackStop {
+                    attacker: stop.attacker,
+                    victim: stop.victim,
+                    now_dead: stop.victim_dead,
+                }
+                .to_bytes(),
+            }
+        }));
+    summary
+        .relocation_exits
+        .extend(
+            combat
+                .player_exits
+                .into_iter()
+                .map(|(attacker_guid, victim_guid)| {
+                    wow_world::session::mailbox::CreatureAttackStopLikeCppCommand {
+                        attacker_guid,
+                        victim_guid,
+                        map_id,
+                        instance_id,
+                    }
+                }),
+        );
 }
 
 /// Convert the typed snapshots captured by `Map::SendObjectUpdates` while the

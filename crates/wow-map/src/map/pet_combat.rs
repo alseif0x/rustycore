@@ -71,57 +71,69 @@ where
         &mut self,
         pet_guid: ObjectGuid,
     ) -> Result<MapPetCombatStopOutcomeLikeCpp, &'static str> {
-        let pet = self
-            .get_typed_pet(pet_guid)
+        self.get_typed_pet(pet_guid)
             .ok_or("pet is not a canonical typed Pet")?;
-        let pet_snapshot = UnitCombatSnapshot::from_unit(pet.creature().unit());
+        self.stop_map_unit_combat(pet_guid, true)
+    }
 
-        let mut combat_guids = HashSet::from([pet_guid]);
-        combat_guids.extend(pet_snapshot.pve_refs.iter().copied());
-        combat_guids.extend(pet_snapshot.pvp_refs.iter().copied());
-        combat_guids.extend(pet_snapshot.threat_refs.iter().copied());
-        combat_guids.extend(pet_snapshot.threatened_by_me.iter().copied());
+    pub(super) fn stop_map_unit_combat(
+        &mut self,
+        owner_guid: ObjectGuid,
+        require_all_neighbors: bool,
+    ) -> Result<MapPetCombatStopOutcomeLikeCpp, &'static str> {
+        let owner_snapshot = snapshot_map_unit(self, owner_guid).ok_or("missing combat owner")?;
+
+        let mut combat_guids = HashSet::from([owner_guid]);
+        combat_guids.extend(owner_snapshot.pve_refs.iter().copied());
+        combat_guids.extend(owner_snapshot.pvp_refs.iter().copied());
+        combat_guids.extend(owner_snapshot.threat_refs.iter().copied());
+        combat_guids.extend(owner_snapshot.threatened_by_me.iter().copied());
 
         let mut referenced_guids = combat_guids.clone();
-        referenced_guids.extend(pet_snapshot.attackers.iter().copied());
-        if let Some(victim_guid) = pet_snapshot.attacking {
+        referenced_guids.extend(owner_snapshot.attackers.iter().copied());
+        if let Some(victim_guid) = owner_snapshot.attacking {
             referenced_guids.insert(victim_guid);
         }
-        referenced_guids.remove(&pet_guid);
+        referenced_guids.remove(&owner_guid);
 
-        // Snapshot only the neighbors named by the pet's own state. Every
+        // Snapshot only the neighbors named by the owner's own state. Every
         // explicit participant is validated before the first destructive edit.
         let mut neighbors = HashMap::new();
         let mut neighbor_guids: Vec<_> = referenced_guids.into_iter().collect();
         sort_guids(&mut neighbor_guids);
         for guid in neighbor_guids {
-            let snapshot = snapshot_map_unit(self, guid)
-                .ok_or("pet combat state references a missing or non-unit participant")?;
-            neighbors.insert(guid, snapshot);
+            if let Some(snapshot) = snapshot_map_unit(self, guid) {
+                neighbors.insert(guid, snapshot);
+            } else if require_all_neighbors {
+                return Err("pet combat state references a missing or non-unit participant");
+            }
         }
 
-        let mut attacker_guids: Vec<_> = pet_snapshot.attackers.iter().copied().collect();
+        let mut attacker_guids: Vec<_> = owner_snapshot.attackers.iter().copied().collect();
         sort_guids(&mut attacker_guids);
-        for attacker_guid in &attacker_guids {
-            if neighbors
-                .get(attacker_guid)
-                .is_none_or(|attacker| attacker.attacking != Some(pet_guid))
-            {
-                return Err("pet attacker index contains a unit targeting another victim");
-            }
+        let count = attacker_guids.len();
+        attacker_guids.retain(|guid| {
+            neighbors
+                .get(guid)
+                .is_some_and(|unit| unit.attacking == Some(owner_guid))
+        });
+        if require_all_neighbors && count != attacker_guids.len() {
+            return Err("pet attacker index contains a unit targeting another victim");
         }
 
         let mut outcome = MapPetCombatStopOutcomeLikeCpp::default();
 
-        // C++ CombatStop calls AttackStop on the pet before RemoveAllAttackers.
+        // C++ CombatStop calls AttackStop on the unit before RemoveAllAttackers.
         if let UnitAttackStopOutcome::Stopped { victim } =
-            map_unit_mut_prevalidated(self, pet_guid).attack_stop_like_cpp()
+            map_unit_mut_prevalidated(self, owner_guid).attack_stop_like_cpp()
         {
-            outcome.attacks_stopped.push((pet_guid, victim));
-            map_unit_mut_prevalidated(self, victim)
-                .subsystems_mut()
-                .combat
-                .remove_attacker(pet_guid);
+            outcome.attacks_stopped.push((owner_guid, victim));
+            if neighbors.contains_key(&victim) {
+                map_unit_mut_prevalidated(self, victim)
+                    .subsystems_mut()
+                    .combat
+                    .remove_attacker(owner_guid);
+            }
         }
 
         for attacker_guid in attacker_guids {
@@ -134,34 +146,37 @@ where
                     .combat
                     .remove_attacker(attacker_guid);
             }
-            map_unit_mut_prevalidated(self, pet_guid)
+            map_unit_mut_prevalidated(self, owner_guid)
                 .subsystems_mut()
                 .combat
                 .remove_attacker(attacker_guid);
         }
-        map_unit_mut_prevalidated(self, pet_guid)
+        map_unit_mut_prevalidated(self, owner_guid)
             .subsystems_mut()
             .combat
             .clear_attackers();
 
-        let mut combat_guids: Vec<_> = combat_guids.into_iter().collect();
+        let mut combat_guids: Vec<_> = combat_guids
+            .into_iter()
+            .filter(|guid| *guid == owner_guid || neighbors.contains_key(guid))
+            .collect();
         sort_guids(&mut combat_guids);
-        if let Some(pet_index) = combat_guids.iter().position(|guid| *guid == pet_guid) {
-            combat_guids.swap(0, pet_index);
+        if let Some(owner_index) = combat_guids.iter().position(|guid| *guid == owner_guid) {
+            combat_guids.swap(0, owner_index);
         }
         for guid in combat_guids {
             let unit = map_unit_mut_prevalidated(self, guid);
             let combat = &mut unit.subsystems_mut().combat;
-            if guid == pet_guid {
-                // C++ ClearInCombat() ends PvE before PvP and clears the pet's
+            if guid == owner_guid {
+                // C++ ClearInCombat() ends PvE before PvP and clears the unit's
                 // complete threat-manager state.
                 combat.end_all_pve_combat();
                 combat.end_all_pvp_combat();
             } else {
-                combat.pve_refs.remove(&pet_guid);
-                combat.pvp_refs.remove(&pet_guid);
-                combat.remove_threat(pet_guid);
-                combat.purge_threatened_by_me_ref(pet_guid);
+                combat.pve_refs.remove(&owner_guid);
+                combat.pvp_refs.remove(&owner_guid);
+                combat.remove_threat(owner_guid);
+                combat.purge_threatened_by_me_ref(owner_guid);
             }
 
             let remains_in_combat = combat.has_combat();
@@ -169,8 +184,8 @@ where
             flags.set(UnitFlags::IN_COMBAT, remains_in_combat);
             unit.set_unit_flags_like_cpp(flags);
 
-            let was_in_combat = if guid == pet_guid {
-                pet_snapshot.in_combat_flag
+            let was_in_combat = if guid == owner_guid {
+                owner_snapshot.in_combat_flag
             } else {
                 neighbors[&guid].in_combat_flag
             };
