@@ -20,6 +20,43 @@ and an ignored password file by default. Use only authorized test identities and
 approved runtime/DB targets; disabling bootstrap does not make gameplay read-only.
 Runtime swaps and destructive fixture modes retain their separate explicit guards.
 
+## Two-hour instance stability workload (#46)
+
+Run this campaign in an authorized service window on the Linux QA host. It
+installs the debug candidate and prepares the normal disposable death fixture.
+Only Qadeathcast and Qadeathfall log in. On one server process, the solo case
+uses Hearthstone to leave map 33, disconnects and reconnects to the same save.
+The group case then repeats for at least two hours. Each cycle makes two clients
+form a group, checks the leader's occupied reset failure against the member's
+notification, disconnects the member, verifies the empty reset, and leaves the
+group. The clients reconnect between operations. Each completed cycle has its
+own bot reports and database snapshots. The startup, solo case and outer
+restoration take additional time.
+
+Build the server and integrated bot from the committed candidate. Use the
+guarded capture wrapper with one runner and a fresh output path outside the tree:
+
+```bash
+QA_READY_TIMEOUT_SECONDS=180 RUSTYCORE_DEATH_SCENARIO=instance-stability-soak \
+  ./tools/qa-death-runtime.sh --allow-runtime-qa --ack-disposable-death-fixture \
+  --backend rust --world-exec "$PWD/target/debug/world-server" \
+  --candidate-sha256 "$(sha256sum target/debug/world-server | cut -d' ' -f1)" \
+  --output-dir /tmp/rustycore46-soak-RUN_ID \
+  --scenario-runner "$PWD/tools/qa/instance_scenario.py"
+```
+
+The host needs readable systemd journal entries for the service and procfs for
+the candidate PID. In `epochs/epoch-001/`, `memory.jsonl` records RSS and its
+process-lifetime high-water mark in KiB every 15 seconds. Review the series at
+comparable stages of successive cycles. `queue-before.json` and
+`queue-after.json` bracket the workload. The report distinguishes rejected
+ordinary command sends, stale registrations, disconnected receivers and
+full queues on the reliable retry path. These counts cover the two
+instrumented PlayerRegistry command methods. A pass records the instance
+workload and its observations. Review growth, queue deltas, native captures
+and the outer restoration report independently. Creature relocation, loot
+recovery and the other Part 1 paths retain their own acceptance.
+
 ## Death lifecycle acceptance (#43, preparation)
 
 As of 2026-10-28, the login smoke does **not** exercise death/release/reclaim or

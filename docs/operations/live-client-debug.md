@@ -81,7 +81,9 @@ hash. These settings feed
 
 The scenario runner receives `RUSTYCORE_CAPTURE_DIR`,
 `RUSTYCORE_CAPTURE_BACKEND`, `RUSTYCORE_CAPTURE_CANDIDATE_SHA256`, and the
-stable `RUSTYCORE_CAPTURE_REPORT` path (`scenario-report.json`). The harness
+stable `RUSTYCORE_CAPTURE_REPORT` path (`scenario-report.json`). It also receives
+the verified listener PID and Linux process start time in `RUSTYCORE_CAPTURE_PID`
+and `RUSTYCORE_CAPTURE_STARTTIME`. The harness
 stores its own `capture-report.json` in the same private directory with source
 HEAD/dirty state and host architecture, original and candidate executable
 paths/hashes, runner and bot paths/hashes, before/after listener PID starttime

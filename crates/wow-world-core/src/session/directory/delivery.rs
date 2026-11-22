@@ -4,7 +4,33 @@
 use super::*;
 use crate::session::mailbox::SendPlayerAuraUpdateCommand;
 
+#[derive(Default)]
+pub(super) struct CommandQueueCounts {
+    command_full: AtomicU64,
+    command_disconnected: AtomicU64,
+    command_stale: AtomicU64,
+    retry_full: AtomicU64,
+}
+
+/// Cumulative ordinary command rejections and reliable retries in this registry.
+pub struct CommandQueueTotals {
+    pub command_full: u64,
+    pub command_disconnected: u64,
+    pub command_stale: u64,
+    pub retry_full: u64,
+}
+
 impl PlayerRegistry {
+    pub fn command_queue_totals(&self) -> CommandQueueTotals {
+        let counts = &self.command_queue_counts;
+        CommandQueueTotals {
+            command_full: counts.command_full.load(Ordering::Relaxed),
+            command_disconnected: counts.command_disconnected.load(Ordering::Relaxed),
+            command_stale: counts.command_stale.load(Ordering::Relaxed),
+            retry_full: counts.retry_full.load(Ordering::Relaxed),
+        }
+    }
+
     /// Resolve the current session incarnation for a map-owned occupant GUID.
     #[must_use]
     pub fn current_registration_like_cpp(&self, guid: ObjectGuid) -> Option<PlayerRegistration> {
@@ -39,12 +65,27 @@ impl PlayerRegistry {
             .entries
             .get(&registration.guid)
             .filter(|entry| entry.generation == registration.generation)
-            .ok_or(PlayerDirectorySendError::StaleRegistration)?;
+            .ok_or_else(|| {
+                self.command_queue_counts
+                    .command_stale
+                    .fetch_add(1, Ordering::Relaxed);
+                PlayerDirectorySendError::StaleRegistration
+            })?;
         let tx = entry.command_tx.clone();
         drop(entry);
         tx.try_send(command).map_err(|error| match error {
-            flume::TrySendError::Full(_) => PlayerDirectorySendError::Full,
-            flume::TrySendError::Disconnected(_) => PlayerDirectorySendError::Disconnected,
+            flume::TrySendError::Full(_) => {
+                self.command_queue_counts
+                    .command_full
+                    .fetch_add(1, Ordering::Relaxed);
+                PlayerDirectorySendError::Full
+            }
+            flume::TrySendError::Disconnected(_) => {
+                self.command_queue_counts
+                    .command_disconnected
+                    .fetch_add(1, Ordering::Relaxed);
+                PlayerDirectorySendError::Disconnected
+            }
         })
     }
 
@@ -173,6 +214,9 @@ impl PlayerRegistry {
                 PlayerDirectoryReliableSendOutcome::StaleOrDisconnected
             }
             Err(flume::TrySendError::Full(command)) => {
+                self.command_queue_counts
+                    .retry_full
+                    .fetch_add(1, Ordering::Relaxed);
                 tokio::spawn(async move {
                     let _ = tx.send_async(command).await;
                 });

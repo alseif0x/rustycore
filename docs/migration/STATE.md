@@ -1,11 +1,16 @@
 # RustyCore — Honest Current State (single source of truth)
 
-## Integration status on 2026-11-21
+## Integration status on 2026-11-22
 
 At `dd0844474` on `3.4.3`, the death lifecycle (#43) and logout admission/countdown (#54)
 are integrated through [#1484](https://github.com/alseif0x/rustycore/pull/1484) and
 [#1485](https://github.com/alseif0x/rustycore/pull/1485).
-Instance enter/leave and reconnect/logout integrity remains open in [#45](https://github.com/alseif0x/rustycore/issues/45).
+Instance enter/leave and reconnect/logout integrity [#45](https://github.com/alseif0x/rustycore/issues/45)
+closed after [#1512](https://github.com/alseif0x/rustycore/pull/1512) merged at
+`ad58236ad` and the [branch audit](https://github.com/alseif0x/rustycore/actions/runs/45020876206) passed.
+The next stability work exercises those instance scenarios with multiple clients over time
+under [#46](https://github.com/alseif0x/rustycore/issues/46). Save and recovery under load
+remain with [#47](https://github.com/alseif0x/rustycore/issues/47).
 Use the [master index](https://github.com/alseif0x/rustycore/issues/49) for the remaining dependencies.
 
 Subsequent merges cover character enumeration customizations and initial equipment (#1488, #1489),
@@ -14,6 +19,49 @@ auction packet layouts and house selection (#1494). The [inspect](../audits/insp
 and [auction](../audits/auction-packets-54261.md) audits record the client build and limits of
 those results. Auction transactions, the full quest lifecycle and real-client creature acceptance
 have separate open issues (#39, #41, #1342).
+
+## Two-client instance stability (#46), 2026-11-22
+
+On aarch64 the debug server from clean candidate `a7cf2210b` passed the
+[instance workload](../../tools/wow-test-bot/RUSTYCORE_SMOKE.md#two-hour-instance-stability-workload-46).
+The solo actor used Hearthstone, disconnected and re-entered the same save.
+Qadeathcast and Qadeathfall then completed 31 group cycles in 7,247.159 seconds
+on the same server process, with zero restarts. Both clients observed the
+occupied reset. The leader reset the empty instance after the member left,
+and MariaDB showed the group rows absent after the server processed the leave.
+All 32 case reports matched their recorded hashes.
+
+The four registry command counters each had a delta of zero across the
+workload: ordinary sends rejected because the queue was full, the receiver
+was disconnected or the registration was stale, and reliable sends retained
+for retry on a full queue. These are attempt counts on the two instrumented
+command paths. Across 498 process-memory samples, RSS rose from 909.2 MiB at
+the first group sample to 951.6 MiB at the last. The last 30 minutes spanned
+120 samples and a rise of 552 KiB. Longer-term memory growth and other queues
+remain outside this measurement.
+
+The run used `RUSTYCORE_DEATH_SCENARIO=instance-stability-soak` with
+`tools/qa-death-runtime.sh` and `tools/qa/instance_scenario.py`. The outer
+report verified the original binary, configuration and disposable fixture
+were restored. The local report is
+`/tmp/rustycore46-soak-a7cf2210b/death-runtime-report.json`
+(SHA-256 `6b942b05f4baa8a73386422c230ecfe8831acf836d5e29cfc1dc9d83ef18a122`).
+The candidate binary SHA-256 is
+`4bba8849e993361d835f967244d1c30a99c68af2b6757d2d1de36fbaa86b5af1`.
+The two-hour run repeats the #45 contracts against C++ `a5f8da2eb`,
+including `WorldSession::HandleMoveWorldportAck`, `Group::ResetInstances`
+and `InstanceMap::Reset`. The #45 section records the paired packet comparisons.
+
+The local final at `c3fb81e04` ran 936 Rust tests (one additional test
+ignored) and 266 runtime guard checks. It took 8m43s; the campaign including
+the first attempt and its 13-line map-loop budget correction took 20m58s.
+The first live attempt restored the fixture after journalctl returned an
+INFO message as bytes before any bot logged in. The runner correction at
+`a7cf2210b` passed 45 Python instance tests, a replay of that actual journal
+entry and the final profile against `c3fb81e04`. The instance lane now has
+multi-hour evidence. Creature visibility and relocation (#1342/#1354), loot
+recovery (#1339/#1341) and the #47 save-under-load campaign retain their
+separate acceptance.
 
 ## Instance enter/leave and reconnect (#45)
 
