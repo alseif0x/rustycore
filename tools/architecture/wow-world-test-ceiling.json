@@ -415,6 +415,16 @@
    "unit_tests_lines": 281395,
    "unit_tests_tests": 4185,
    "src_tests": 22
+  },
+  {
+   "id": "raise-46-39",
+   "kind": "raise",
+   "issue": 46,
+   "reviewed_at": "2026-11-22",
+   "reason": "Eight lines drain both owner-range fixtures at the production move-list phase and one accepts the claim receipt in the loot port fixture. Existing test identities are unchanged.",
+   "unit_tests_lines": 281404,
+   "unit_tests_tests": 4185,
+   "src_tests": 22
   }
  ]
 }

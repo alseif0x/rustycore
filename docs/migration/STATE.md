@@ -63,6 +63,39 @@ multi-hour evidence. Creature visibility and relocation (#1342/#1354), loot
 recovery (#1339/#1341) and the #47 save-under-load campaign retain their
 separate acceptance.
 
+### Creature relocation and money recovery on the #46 branch
+
+On 2026-11-22 the local candidate based on `d17febe40` restored the
+3.4.3 move-list phase for creature cell changes. Same-cell movement updates
+immediately. A blocked relocation tries the spawn grid, clears combat and
+motion, and queues removal when that grid is unavailable. Stationary players
+at the origin and destination receive visibility updates from the physical
+move. The source anchors at `a5f8da2eb` are `Unit::UpdatePosition`,
+`Map::CreatureRelocation`, `MoveAllCreaturesInMoveList`,
+`CreatureRespawnRelocation` and `ChaseMovementGenerator::Update`.
+At `52933ae7d` the stationary-observer, blocked-respawn and player-owned
+grid tests passed. A Session aggro fixture still sampled its owner before
+the queued move. At `fbe495202` both owner-range cases passed with
+`cargo test --locked -p wow-world --lib creature_aggro_creature_owned_creature`.
+The resulting test binary passed all 4,206 active cases (one ignored).
+The earlier six-library campaign spent 11m16s in its library step and
+failed the old aggro fixture. It exceeded the ten-minute warm budget.
+
+The Characters adapter at `32ea0410e` passed
+`cargo test --locked -p wow-database --test loot_money_restart -- --exact money_claims_survive_process_restart --ignored --nocapture`
+using a disposable MariaDB socket. Separate claim and recovery processes
+verified stored-Item money, shared payouts with a capped recipient, a
+rolled-back transaction and unrelated spending. A fresh process recovered
+the spent chest using realm, map, instance, persistent spawn and loot scope.
+It refused a stale personal grant and a stale deadline, and credited the
+next generation once after the stored deadline elapsed. The parent test
+took 3.13s after compilation. The shared QA database was untouched.
+QA spawn 9106001 uses consumable chest template 2846 (loot 2278, group
+loot enabled). The 3.4.3 C++ anchors are `GameObjectData.h:99–112,127`,
+`GameObject.cpp:1609–1651,3711–3721` and `LootHandler.cpp:142–213`.
+The four real-client creature scenarios (#1342) and a world-server
+restart with the actual QA chest are still pending.
+
 ## Instance enter/leave and reconnect (#45)
 
 [PR #1511](https://github.com/alseif0x/rustycore/pull/1511) integrated manual
