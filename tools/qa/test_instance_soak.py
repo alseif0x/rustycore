@@ -47,16 +47,17 @@ class SoakTests(unittest.TestCase):
         self.assertEqual([19] * len(rows), [row["rss_kib"] for row in rows])
 
     def test_queue_sample_ignores_old_journal_entries_and_preserves_distinct_outcomes(self):
-        def entry(stamp):
+        def entry(stamp, as_bytes=False):
             message = ("Instance soak command queue totals \x1b[32mcommand_full\x1b[0m=2 "
                        "command_disconnected=1 command_stale=4 retry_full=0")
             return SimpleNamespace(returncode=0, stdout=json.dumps({
-                "__MONOTONIC_TIMESTAMP": str(stamp), "MESSAGE": message}))
+                "__MONOTONIC_TIMESTAMP": str(stamp),
+                "MESSAGE": list(message.encode()) if as_bytes else message}))
 
         with (patch.object(instance_soak, "read_memory"),
               patch.object(instance_soak.time, "monotonic_ns", return_value=500_000),
               patch.object(instance_soak.time, "sleep"),
-              patch.object(instance_soak.subprocess, "run", side_effect=[entry(400), entry(510)]) as query):
+              patch.object(instance_soak.subprocess, "run", side_effect=[entry(400), entry(510, True)]) as query):
             sample = instance_soak.queue_sample(42, 2001)
         self.assertEqual(sample, {"command_full": 2, "command_disconnected": 1, "command_stale": 4,
                                   "retry_full": 0, "monotonic_us": 510})

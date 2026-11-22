@@ -62,7 +62,11 @@ def queue_sample(pid, starttime):
             entry = json.loads(result.stdout)
             stamp = int(entry["__MONOTONIC_TIMESTAMP"])
             if stamp >= since:
-                message = re.sub(r"\x1b\[[0-9;]*m", "", entry["MESSAGE"])
+                # journalctl JSON encodes nonprintable MESSAGE bytes (including ANSI) as integers.
+                message = entry["MESSAGE"]
+                if isinstance(message, list):
+                    message = bytes(message).decode("utf-8")
+                message = re.sub(r"\x1b\[[0-9;]*m", "", message)
                 fields = dict(re.findall(r"\b([a-z_]+)=([0-9]+)\b", message))
                 sample = {name: int(fields[name]) for name in QUEUE_FIELDS}
                 return {**sample, "monotonic_us": stamp}
