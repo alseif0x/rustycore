@@ -180,6 +180,7 @@ async fn group_loot_money_worker_requires_and_uses_the_typed_persistence_port_li
     first.set_group_loot_money_persistence_port_like_cpp(Arc::new(
         GroupLootMoneyPortFixtureLikeCpp {
             calls: Arc::clone(&calls),
+            chest: None,
         },
     ));
     first.handle_loot_money(loot_money_packet()).await;

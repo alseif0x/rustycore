@@ -347,7 +347,7 @@ pub(super) enum ReservationKey {
 pub(super) struct LootScopeEpoch {
     pub(super) generation: u64,
     pub(super) money_claim_id: [u8; 16],
-    pub(super) world_money_bound: bool,
+    pub(super) recovered_world_money: Option<bool>,
 }
 
 impl LootScopeEpoch {
@@ -355,7 +355,7 @@ impl LootScopeEpoch {
         Self {
             generation,
             money_claim_id: rand::random(),
-            world_money_bound: false,
+            recovered_world_money: None,
         }
     }
 }

@@ -215,6 +215,15 @@ pub async fn open_represented_gameobject_chest_with_template_money_like_cpp<
     if !represented_gameobject_exists_for_loot_like_cpp(host, gameobject_guid) {
         return;
     }
+    if template_money.1 != 0
+        && host.mutate_canonical_gameobject_by_guid_like_cpp(gameobject_guid, |chest| {
+            chest.chest_money_restock_waiting()
+                || (chest.chest_money_generation().is_some()
+                    && chest.loot_state() == LootState::JustDeactivated)
+        }) == Some(true)
+    {
+        return;
+    }
 
     record_represented_gameobject_chest_release_metadata_like_cpp(host, gameobject_guid, source);
 
@@ -305,11 +314,15 @@ pub async fn open_represented_gameobject_chest_with_template_money_like_cpp<
         return;
     }
 
-    if template_money.1 != 0
-        && !super::chest_money::reattach(host, gameobject_guid, player_guid).await
-    {
-        return;
-    }
+    let recovered_spent = if template_money.1 != 0 {
+        let Some(spent) = super::chest_money::reattach(host, gameobject_guid, player_guid).await
+        else {
+            return;
+        };
+        spent
+    } else {
+        false
+    };
     let Some(loot) = host.loot().cached_loot_for_owner_like_cpp(gameobject_guid) else {
         return;
     };
@@ -320,7 +333,13 @@ pub async fn open_represented_gameobject_chest_with_template_money_like_cpp<
     let empty_non_encounter_personal_pool = source.uses_personal_loot_like_cpp()
         && !source.is_personal_encounter_loot_like_cpp()
         && loot.allowed_looters.contains(&player_guid);
+    // A restart can interrupt the original viewer before LootRelease. Restore
+    // its empty window so the ordinary last-viewer release can retire the chest.
+    let recovered_empty = recovered_spent
+        && loot.allowed_looters.contains(&player_guid)
+        && wow_loot::loot_is_looted_like_cpp(loot);
     if !empty_non_encounter_personal_pool
+        && !recovered_empty
         && !host
             .loot()
             .represented_loot_can_be_opened_by_player_like_cpp(gameobject_guid, loot, player_guid)

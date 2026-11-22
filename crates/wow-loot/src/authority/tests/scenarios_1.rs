@@ -460,7 +460,10 @@ async fn recovered_world_money_fences_each_personal_pool_and_its_replacement() {
     let first = authority.personal_snapshot_like_cpp(a).unwrap();
     let peer = authority.personal_snapshot_like_cpp(b).unwrap();
     assert!(authority.bind_world_money(first.scope, first.generation, [1; 16], true));
-    assert!(authority.world_money_is_bound(first.scope, first.generation));
+    assert_eq!(
+        authority.recovered_world_money(first.scope, first.generation),
+        Some(true)
+    );
     assert_eq!(
         authority.personal_snapshot_like_cpp(a).unwrap().loot.coins,
         0

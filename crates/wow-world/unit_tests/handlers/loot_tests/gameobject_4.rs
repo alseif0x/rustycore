@@ -6,6 +6,100 @@
 use super::*;
 
 #[tokio::test]
+async fn chest_open_publishes_recovered_money_and_allows_the_interrupted_release() {
+    let player = ObjectGuid::create_player(1, 451);
+    let guid = test_gameobject_guid(19_451);
+    for (personal, spent, expected_money) in [(true, true, 0), (true, false, 11), (false, true, 0)]
+    {
+        let (mut session, rx) = make_session_with_send_capacity(12);
+        session.set_player_guid(Some(player));
+        session.set_player_position_like_cpp(Position::ZERO);
+        let mut chest =
+            make_canonical_gameobject_for_session(&session, guid, GAMEOBJECT_TYPE_CHEST as u8);
+        chest.set_spawn_id(9_106_001);
+        chest.set_loot_state(LootState::Activated, Some(player));
+        let mut pool = authoritative_test_loot_like_cpp(11, personal);
+        pool.loot_guid = represented_loot_object_guid_like_cpp(guid);
+        pool.loot_type = LOOT_TYPE_CHEST_LIKE_CPP;
+        pool.allowed_looters = vec![player];
+        for item in &mut pool.items {
+            item.allowed_looters = vec![player];
+        }
+        let loot_guid = pool.loot_guid;
+        let (shared, pools) = if personal {
+            (None, HashMap::from([(player, pool)]))
+        } else {
+            (Some(pool), HashMap::new())
+        };
+        assert!(
+            chest
+                .initialize_loot_authority_like_cpp(shared, pools)
+                .installed()
+        );
+        let source = wow_persistence::WorldLootMoneySource {
+            realm_id: session.core.realm_id,
+            map_id: chest.world().map_id(),
+            instance_id: chest.world().instance_id(),
+            spawn_id: chest.spawn_id(),
+        };
+        attach_canonical_gameobject(&mut session, chest);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            0,
+            guid,
+            guid.entry(),
+            Position::ZERO,
+            GAMEOBJECT_TYPE_CHEST as u8,
+        );
+        session.set_group_loot_money_persistence_port_like_cpp(Arc::new(
+            GroupLootMoneyPortFixtureLikeCpp {
+                calls: Arc::default(),
+                chest: Some((
+                    source,
+                    if personal { 451 } else { 0 },
+                    wow_persistence::WorldLootMoneyBinding {
+                        generation: 2,
+                        claim_id: [3; 16],
+                        spent,
+                    },
+                )),
+            },
+        ));
+        let generators = session.id_generators_for_test_like_cpp();
+        let valuation = session.item_valuation_catalogs_for_test_like_cpp();
+        wow_world_loot_ops::open_represented_gameobject_chest_with_template_money_like_cpp(
+            &mut session,
+            &generators.item,
+            &valuation,
+            guid,
+            GameObjectLootSource {
+                personal_loot_id: if personal { 55 } else { 0 },
+                loot_id: if personal { 0 } else { 55 },
+                chest_consumable: true,
+                ..Default::default()
+            },
+            (11, 11),
+        )
+        .await;
+        let mut response = recv_packet_with_opcode(&rx, wow_constants::ServerOpcodes::LootResponse);
+        assert_eq!(response.read_packed_guid().unwrap(), guid);
+        assert_eq!(response.read_packed_guid().unwrap(), loot_guid);
+        for _ in 0..4 {
+            response.read_uint8().unwrap();
+        }
+        assert_eq!(response.read_uint32().unwrap(), expected_money);
+        if !personal {
+            assert!(session.do_loot_release_owner_like_cpp(guid, player).await);
+            assert_eq!(
+                canonical_gameobject_snapshot(&session, guid)
+                    .unwrap()
+                    .loot_state(),
+                LootState::JustDeactivated
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydrates_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(8);
     let player_guid = ObjectGuid::create_player(1, 451);

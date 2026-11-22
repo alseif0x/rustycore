@@ -511,6 +511,7 @@ impl GameObject {
         let current = match self.money_source_generation {
             None => true,
             Some(Open(r, g)) => (realm, generation) == (r, g),
+            Some(Waiting(..)) => false,
             Some(Restocking(r, g)) => realm == r && generation > g,
         };
         if current && install(&self.loot_authority) {
@@ -525,8 +526,33 @@ impl GameObject {
         let Some(Open(realm, generation)) = self.money_source_generation else {
             return None;
         };
-        self.money_source_generation = Some(Restocking(realm, generation));
+        self.money_source_generation = Some(Waiting(realm, generation));
         Some((realm, generation))
+    }
+
+    pub fn chest_money_restock_waiting(&self) -> bool {
+        matches!(
+            self.money_source_generation,
+            Some(super::state_2::ChestMoneyGeneration::Waiting(..))
+        )
+    }
+
+    pub fn finish_chest_money_restock(&mut self, realm: u16, generation: u64) -> bool {
+        use super::state_2::ChestMoneyGeneration::*;
+        if self.money_source_generation != Some(Waiting(realm, generation)) {
+            return false;
+        }
+        self.money_source_generation = Some(Restocking(realm, generation));
+        true
+    }
+
+    pub fn chest_money_generation(&self) -> Option<(u16, u64)> {
+        match self.money_source_generation {
+            Some(super::state_2::ChestMoneyGeneration::Open(realm, generation)) => {
+                Some((realm, generation))
+            }
+            _ => None,
+        }
     }
     pub fn rebind_loot_authority_like_cpp(&mut self, authority: OwnedLootAuthority) -> bool {
         if self.loot_authority.shares_storage_like_cpp(&authority) {

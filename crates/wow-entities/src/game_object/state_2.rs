@@ -4,9 +4,10 @@
 
 use super::*;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ChestMoneyGeneration {
     Open(u16, u64),
+    Waiting(u16, u64),
     Restocking(u16, u64),
 }
 

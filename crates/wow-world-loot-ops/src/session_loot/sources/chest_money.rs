@@ -1,20 +1,32 @@
 use super::*;
 use wow_persistence::WorldLootMoneySource;
 
+enum ChestReceipt<T> {
+    Ready { spent: bool },
+    Read(T),
+    Unavailable,
+}
+
+/// Returns the recovered spent flag. A missing result defers this loot window.
 pub(super) async fn reattach<H: LootSessionHostLikeCpp>(
     host: &mut H,
     guid: ObjectGuid,
     player: ObjectGuid,
-) -> bool {
+) -> Option<bool> {
     let realm_id = host.hub_ref().core.realm_id;
     let observed = host.mutate_canonical_gameobject_by_guid_like_cpp(guid, |chest| {
+        if chest.chest_money_restock_waiting() {
+            return ChestReceipt::Unavailable;
+        }
         if chest.spawn_id() == 0 {
-            return Ok(None);
+            return ChestReceipt::Ready { spent: false };
         }
         let owner = chest.loot_authority_like_cpp();
-        let pool = owner.snapshot_for_player_like_cpp(player).ok_or(())?;
-        if owner.world_money_is_bound(pool.scope, pool.generation) {
-            return Ok(None);
+        let Some(pool) = owner.snapshot_for_player_like_cpp(player) else {
+            return ChestReceipt::Unavailable;
+        };
+        if let Some(spent) = owner.recovered_world_money(pool.scope, pool.generation) {
+            return ChestReceipt::Ready { spent };
         }
         let source = WorldLootMoneySource {
             realm_id,
@@ -22,26 +34,32 @@ pub(super) async fn reattach<H: LootSessionHostLikeCpp>(
             instance_id: chest.world().instance_id(),
             spawn_id: chest.spawn_id(),
         };
-        Ok(Some((
+        ChestReceipt::Read((
             source,
             owner.clone(),
             pool.scope,
             pool.generation,
             chest.loot_lifecycle_revision_like_cpp(),
-        )))
+        ))
     });
     let (source, owner, scope, generation, revision) = match observed {
-        Some(Ok(Some(state))) => state,
-        Some(Ok(None)) => return true,
-        Some(Err(())) => return false,
-        None => return host.represented_local_loot_fixture_allowed_like_cpp(),
+        Some(ChestReceipt::Read(state)) => state,
+        Some(ChestReceipt::Ready { spent }) => return Some(spent),
+        Some(ChestReceipt::Unavailable) => return None,
+        None => {
+            return host
+                .represented_local_loot_fixture_allowed_like_cpp()
+                .then_some(false);
+        }
     };
     let Some(port) = host
         .lifecycle()
         .group_loot_money_persistence_port_like_cpp()
         .cloned()
     else {
-        return host.represented_local_loot_fixture_allowed_like_cpp();
+        return host
+            .represented_local_loot_fixture_allowed_like_cpp()
+            .then_some(false);
     };
     let personal_owner = match scope {
         OwnedLootScope::Shared => 0,
@@ -49,10 +67,10 @@ pub(super) async fn reattach<H: LootSessionHostLikeCpp>(
     };
     let binding = match port.bind_world_chest_money(source, personal_owner).await {
         Ok(Some(binding)) => binding,
-        Ok(None) => return false,
+        Ok(None) => return None,
         Err(error) => {
             tracing::warn!(?source, %error, "Unable to read chest money generation");
-            return false;
+            return None;
         }
     };
     let installed = host.mutate_canonical_gameobject_by_guid_like_cpp(guid, |chest| {
@@ -67,5 +85,6 @@ pub(super) async fn reattach<H: LootSessionHostLikeCpp>(
         chest.sync_loot_summaries_from_authority_like_cpp();
         true
     });
-    installed == Some(true) && reconcile_represented_loot_cache_like_cpp(host, guid, player)
+    (installed == Some(true) && reconcile_represented_loot_cache_like_cpp(host, guid, player))
+        .then_some(binding.spent)
 }
