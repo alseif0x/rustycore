@@ -1,11 +1,16 @@
 # RustyCore — Honest Current State (single source of truth)
 
-## Integration status on 2026-11-21
+## Integration status on 2026-11-22
 
 At `dd0844474` on `3.4.3`, the death lifecycle (#43) and logout admission/countdown (#54)
 are integrated through [#1484](https://github.com/alseif0x/rustycore/pull/1484) and
 [#1485](https://github.com/alseif0x/rustycore/pull/1485).
-Instance enter/leave and reconnect/logout integrity remains open in [#45](https://github.com/alseif0x/rustycore/issues/45).
+Instance enter/leave and reconnect/logout integrity [#45](https://github.com/alseif0x/rustycore/issues/45)
+closed after [#1512](https://github.com/alseif0x/rustycore/pull/1512) merged at
+`ad58236ad` and the [branch audit](https://github.com/alseif0x/rustycore/actions/runs/45020876206) passed.
+The next stability work exercises those instance scenarios with multiple clients over time
+under [#46](https://github.com/alseif0x/rustycore/issues/46). Save and recovery under load
+remain with [#47](https://github.com/alseif0x/rustycore/issues/47).
 Use the [master index](https://github.com/alseif0x/rustycore/issues/49) for the remaining dependencies.
 
 Subsequent merges cover character enumeration customizations and initial equipment (#1488, #1489),

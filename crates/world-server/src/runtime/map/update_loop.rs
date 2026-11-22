@@ -243,6 +243,8 @@ pub(crate) fn spawn_canonical_map_update_loop(
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
         let mut last_tick = Instant::now();
+        let mut next_queue_sample =
+            std::env::var_os("RUSTYCORE_PACKET_DUMP_DIR").map(|_| last_tick);
         // Identifies one split tick, so a completion that arrives after its
         // tick resumed cannot be counted as this tick's (#787). The coordinator
         // id distinguishes this loop from any other that could admit a pass, so
@@ -264,6 +266,17 @@ pub(crate) fn spawn_canonical_map_update_loop(
             CanonicalRespawnConditionSchedulerLikeCpp::new(respawn_condition_interval_ms);
         loop {
             interval.tick().await;
+            if next_queue_sample.is_some_and(|due| Instant::now() >= due) {
+                let totals = player_registry.command_queue_totals();
+                info!(
+                    command_full = totals.command_full,
+                    command_disconnected = totals.command_disconnected,
+                    command_stale = totals.command_stale,
+                    retry_full = totals.retry_full,
+                    "Instance soak command queue totals"
+                );
+                next_queue_sample = Some(Instant::now() + Duration::from_secs(30));
+            }
             let stop_after_tick = respawn_db_producer_stop.load(Ordering::Acquire);
 
             // Shutdown has handed session control to their task owners. Do not

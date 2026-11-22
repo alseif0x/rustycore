@@ -498,6 +498,7 @@ struct PlayerRegistryEntry {
 
 #[path = "directory/delivery.rs"]
 mod delivery;
+pub use delivery::CommandQueueTotals;
 #[path = "directory/group_state.rs"]
 mod group_state;
 #[path = "directory/identity.rs"]
@@ -531,6 +532,7 @@ pub use name_query::PlayerNameQuerySnapshotLikeCpp;
 pub struct PlayerRegistry {
     entries: DashMap<ObjectGuid, PlayerRegistryEntry>,
     next_generation: AtomicU64,
+    command_queue_counts: delivery::CommandQueueCounts,
     canonical_map_manager: OnceLock<SharedCanonicalMapManager>,
     /// Group state changes that could not be handed to their target; see
     /// [`group_state`] for the contract (#743).
@@ -544,6 +546,7 @@ impl Default for PlayerRegistry {
         Self {
             entries: DashMap::new(),
             next_generation: AtomicU64::new(1),
+            command_queue_counts: delivery::CommandQueueCounts::default(),
             canonical_map_manager: OnceLock::new(),
             pending_group_state_reconciliation_like_cpp: DashMap::new(),
             #[cfg(any(test, feature = "test-fixtures"))]

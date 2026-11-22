@@ -103,6 +103,11 @@ DEATH_PREPARE_OPTIONS=()
 if [[ "${RUSTYCORE_DEATH_SCENARIO:-}" == instance-lock-reset ]]; then
   ((${#DEATH_RUNNERS[@]} == 3)) || die "instance-lock-reset requires three --scenario-runner paths"
   DEATH_PREPARE_OPTIONS+=(--icc-lock-fixture)
+elif [[ "${RUSTYCORE_DEATH_SCENARIO:-}" == instance-stability-soak ]]; then
+  ((${#DEATH_RUNNERS[@]} == 1)) && [[ "$DEATH_BACKEND" == rust ]] \
+    || die "instance-stability-soak requires one Rust epoch"
+  # Two hours of group cycles, plus setup, one whole final cycle and teardown.
+  QA_BOT_TIMEOUT_SECONDS=9000
 elif ((${#DEATH_RUNNERS[@]} < 1 || ${#DEATH_RUNNERS[@]} > 2)); then
   die "supply one or two --scenario-runner paths"
 fi

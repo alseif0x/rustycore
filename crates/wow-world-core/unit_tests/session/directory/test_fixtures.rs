@@ -287,3 +287,83 @@ fn in_world_registrations_list_only_players_in_the_world_like_cpp() {
         vec![in_world]
     );
 }
+
+#[test]
+fn command_queue_totals_distinguish_accepted_full_disconnected_and_stale_sends() {
+    use SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp as Refresh;
+    let registry = PlayerRegistry::new();
+    let guid = ObjectGuid::create_player(1, 7_103);
+    let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+    let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
+    let registration = registry.register_or_replace(
+        guid,
+        registration_for_test(0, 0, send_tx, command_tx),
+        Default::default(),
+    );
+
+    assert_eq!(
+        registry.try_send_current_command(registration, Refresh),
+        Ok(())
+    );
+    assert_eq!(
+        registry.try_send_current_command(registration, Refresh),
+        Err(PlayerDirectorySendError::Full)
+    );
+    assert!(matches!(command_rx.try_recv(), Ok(Refresh)));
+    drop(command_rx);
+    assert_eq!(
+        registry.try_send_current_command(registration, Refresh),
+        Err(PlayerDirectorySendError::Disconnected)
+    );
+    assert!(registry.unregister(registration));
+    assert_eq!(
+        registry.try_send_current_command(registration, Refresh),
+        Err(PlayerDirectorySendError::StaleRegistration)
+    );
+
+    let totals = registry.command_queue_totals();
+    assert_eq!(totals.command_full, 1);
+    assert_eq!(totals.command_disconnected, 1);
+    assert_eq!(totals.command_stale, 1);
+    assert_eq!(totals.retry_full, 0);
+}
+
+#[tokio::test]
+async fn command_queue_totals_count_a_reliable_full_once_as_a_retained_retry() {
+    use SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp as Refresh;
+    let registry = PlayerRegistry::new();
+    let guid = ObjectGuid::create_player(1, 7_104);
+    let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+    let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
+    let registration = registry.register_or_replace(
+        guid,
+        registration_for_test(0, 0, send_tx, command_tx),
+        Default::default(),
+    );
+
+    registry
+        .try_send_current_command(registration, Refresh)
+        .expect("seed the bounded command queue");
+    assert_eq!(
+        registry.queue_current_command_reliably(registration, Refresh),
+        PlayerDirectoryReliableSendOutcome::Retrying
+    );
+
+    assert!(matches!(command_rx.try_recv(), Ok(Refresh)));
+    let retry = tokio::time::timeout(std::time::Duration::from_secs(1), command_rx.recv_async())
+        .await
+        .expect("retained retry must make progress after capacity is released");
+    assert!(matches!(retry, Ok(Refresh)));
+    assert!(
+        command_rx.try_recv().is_err(),
+        "the retained command is queued once"
+    );
+    let totals = registry.command_queue_totals();
+    assert_eq!(totals.command_full, 0);
+    assert_eq!(totals.command_disconnected, 0);
+    assert_eq!(totals.command_stale, 0);
+    assert_eq!(
+        totals.retry_full, 1,
+        "the asynchronous retry must not increment the initial-full total again"
+    );
+}

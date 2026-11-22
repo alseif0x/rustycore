@@ -16,6 +16,7 @@ from typing import Any
 import death_fixture
 import death_scenario
 import instance_party_update
+import instance_soak
 import logout_scenario
 
 
@@ -30,6 +31,7 @@ SCENARIOS = {
     GROUP_SCENARIO: ACTOR_NAME,
     DIFFICULTY_SCENARIO: ACTOR_NAME,
     LOCK_SCENARIO: ACTOR_NAME,
+    instance_soak.SCENARIO: ACTOR_NAME,
 }
 INSTANCE_MAP = 33
 INSTANCE_POSITION = (-228.191, 2111.41, 76.8904)
@@ -323,6 +325,8 @@ def validate_solo_reset_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
 
 def _run_case(identity: dict[str, Any], journal: dict[str, Any], realm_id: int,
               db: death_fixture.MariaDB) -> dict[str, Any]:
+    if identity.get("scenario") == instance_soak.SCENARIO:
+        return instance_soak.run_workload(identity, journal, realm_id, db, _run_case)
     if identity.get("scenario", SCENARIO) == GROUP_SCENARIO:
         return _run_group_case(identity, journal, realm_id, db)
     if identity.get("scenario") == DIFFICULTY_SCENARIO:
@@ -726,7 +730,7 @@ def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id:
         observations.append(logout_scenario._observation(
             leave_pass, leave_evidence, leave_state, leave_path,
             {**leave_facts, "leave_group_accepted": True}))
-        cleanup_group(db, actors, preflight)
+        _wait_group_rows_absent(db, actors)
         _, final_member_state, final_member_path = _group_snapshot(
             db, journal, member, identity["capture"], "instance-group-member-outside-001", True)
         validate_outside_state(member, final_member_state)
@@ -736,6 +740,7 @@ def _run_group_case(identity: dict[str, Any], journal: dict[str, Any], realm_id:
             "final_state": {"leader": leave_state, "member": final_member_state},
             "group_cleanup": {
                 "preflight_absence_proven": True,
+                "server_leave_rows_absent": True,
                 "scenario_group_rows_removed": True,
                 "other_groups_untouched": True,
                 "lock_rows_mutated": False,
@@ -1822,6 +1827,9 @@ def run() -> int:
             "native_collection": "recorded by outer capture wrapper",
             "parity_assessed": False,
         })
+        if identity["scenario"] == instance_soak.SCENARIO:
+            report["scenario_dependency_sha256"]["tools/qa/instance_soak.py"] = (
+                death_scenario._sha256(Path(instance_soak.__file__)))
         death_scenario._write_private(identity["report_path"], report)
         return 0
     except BaseException as exc:

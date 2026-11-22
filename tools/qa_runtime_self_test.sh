@@ -179,6 +179,7 @@ chmod +x "$WORK/bin/starttime"
 cat >"$WORK/bin/capture-runner" <<'FAKE'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ "${RUSTYCORE_CAPTURE_PID:?}" =~ ^[1-9][0-9]*$ && "${RUSTYCORE_CAPTURE_STARTTIME:?}" == 4242 ]]
 printf '%s\n' "${RUSTYCORE_CAPTURE_BACKEND:?} ${RUSTYCORE_CAPTURE_CANDIDATE_SHA256:?}" \
   >"${QA_FAKE_STATE:?}.capture-runner"
 case "$RUSTYCORE_CAPTURE_BACKEND" in
@@ -525,6 +526,14 @@ check "the ICC wrapper runs three distinct candidate processes and restores the 
   jq -e '.cleanup.status == "restored" and .scenario_observation.status == "observed"
     and ([.scenario_observation.epochs[].candidate_pid] | unique | length) == 3' \
     "$WORK/icc-three-epochs/death-runtime-report.json" >/dev/null
+
+# The soak measures one process across cycles. A second epoch would restart it.
+reset_state
+EXTRA_ENV=(RUSTYCORE_DEATH_SCENARIO=instance-stability-soak)
+status=0
+run_death_qa "$WORK/soak-two-epochs" 2 >"$WORK/soak-two-epochs.log" 2>&1 || status=$?
+check "soak refuses a second epoch before touching the service" \
+  test "$status" -ne 0 -a ! -e "$WORK/soak-two-epochs" -a ! -e "$WORK/state.death-fixture"
 
 # A runner may fail before writing its scenario report. A complete capture
 # restore report still permits the owned fixture restore and normal restart.
