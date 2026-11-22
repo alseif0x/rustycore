@@ -41,6 +41,25 @@ reference under the same map-manager guard. A second group can still select
 the instance through its leader's lock. Only the owner lists the instance
 for reset.
 
+On November 22 the two-session regression reproduced the second group's
+unexpected `[(631, 1)]` on the integrated code. At `5d87fc3ee`, both groups
+selected the same ID-bound map twice. The owner's reset list contained
+exactly `[(631, 1)]` and the second group's list stayed empty.
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+passed all 10 steps on aarch64, including 4,206 library tests with one
+ignored. The verified final took 3m09s. Including the earlier run and its
+test-line budget correction, acceptance took 10m52s. The local manifest is
+`target/qa/issue45-group-owner/final-5d87fc3ee.json`.
+
+The separate live `instance-group-reset` scenario used the debug server from
+the same commit. The owner received the occupied reset failure, the member
+remained inside, and the empty reset succeeded after the member left. The
+guarded run took 8m30s and restored the service, configuration and fixture.
+An initial attempt timed out during server startup and the fixture was
+restored before retrying. The live report is
+`/tmp/rustycore45-group-owner-5d87fc3ee-r2/death-runtime-report.json`
+(SHA-256 `fadd3f19c97cafb7ab82a1caf5eee45a83b62190d4fbba349b81f664ad80ee67`).
+
 Solo and group reset had paired action captures on the earlier issue
 candidate. On November 21 the production MariaDB adapter at `af6919ee0`
 also demonstrated a new member lock surviving a real database restart.
