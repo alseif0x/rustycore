@@ -10,6 +10,7 @@
 //! and bridge are unchanged; this module keeps the shared types, the
 //! constructors and the helpers the phases build on.
 
+mod cell_relocation;
 mod entity_world;
 mod game_object;
 mod lent_creature;
@@ -33,6 +34,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
+pub use self::cell_relocation::MoveListDrainSummaryLikeCpp;
 use self::entity_world::EntityWorld;
 pub use self::lent_creature::{LentCreatureOriginLikeCpp, LentCreatureReturnLikeCpp};
 pub use self::pet_combat::MapPetCombatStopOutcomeLikeCpp;
@@ -4486,29 +4488,6 @@ pub enum RemoveObjectFromMoveListOutcomeLikeCpp {
     LockedIgnored,
     MissingOrStale,
     WrongKind { actual: AccessorObjectKind },
-}
-
-/// Drain summary for C++ `Map::MoveAll*InMoveList` (`Map.cpp:1239-1416`).
-/// This is a map-owned seam only: it does not claim UpdatePositionData,
-/// visibility fanout, AfterRelocation, Pet::Remove,
-/// dynamic tree, scripts/AI, ObjectAccessor, or session packet runtime.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct MoveListDrainSummaryLikeCpp {
-    pub family: Option<MapObjectMoveListFamilyLikeCpp>,
-    pub processed: usize,
-    pub relocated: usize,
-    pub inactive_reset: usize,
-    pub not_in_world: usize,
-    pub missing_or_stale: usize,
-    pub wrong_kind: usize,
-    pub blocked_by_unloaded_grid: usize,
-    pub remove_list_queued: usize,
-    pub pet_remove_requested: usize,
-    pub respawn_relocated: usize,
-    pub respawn_relocation_unsupported: usize,
-    pub failed_invalid_position: usize,
-    pub failed_store: usize,
-    pub locked_ignored: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]

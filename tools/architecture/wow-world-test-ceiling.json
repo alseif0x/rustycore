@@ -405,6 +405,16 @@
    "unit_tests_lines": 281304,
    "unit_tests_tests": 4184,
    "src_tests": 22
+  },
+  {
+   "id": "raise-46-38",
+   "kind": "raise",
+   "issue": 46,
+   "reviewed_at": "2026-11-22",
+   "reason": "The Session owns the observed GUID ledger and decodes the actual CREATE and out-of-range packets for a stationary player. The rebind case is renamed to describe discarded results.",
+   "unit_tests_lines": 281395,
+   "unit_tests_tests": 4185,
+   "src_tests": 22
   }
  ]
 }

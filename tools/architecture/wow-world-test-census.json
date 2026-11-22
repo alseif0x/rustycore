@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4206,
+  "tests": 4207,
   "ignored": 1,
-  "session": 3902,
-  "shims": 3721,
+  "session": 3903,
+  "shims": 3722,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3727
+   "W": 3728
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3520
+   "W-world-logic": 3521
   },
   "by_owner": {
    "wow-world": {
@@ -73,7 +73,7 @@
    "wow-world-entities": {
     "P": 28,
     "H": 4,
-    "W": 510
+    "W": 511
    },
    "wow-world-instances": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3727
+    "W": 3728
    },
    "wow-world-application": {
     "P": 27,
@@ -2353,6 +2353,7 @@
   ["unit_tests/handlers/void_storage_tests/scenarios_2.rs::deposit_definite_rollback_retains_active_item_loot_view_atomically", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["get_inventory_item_by_guid_like_cpp", "handle_void_storage_transfer", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
   ["unit_tests/handlers/void_storage_tests/scenarios_2.rs::committed_void_deposit_retires_only_its_destroyed_item_loot_like_cpp", "W", "wow-world", "wow-world-loot", "W-world-logic", true, true, false, ["retire_committed_destroyed_item_loot_like_cpp"], []],
   ["unit_tests/handlers/void_storage_tests/scenarios_2.rs::mixed_transfer_validation_failure_publishes_no_partial_deposit", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["get_inventory_item_by_guid_like_cpp", "handle_void_storage_transfer", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/session/deferred_visibility/creature_relocation.rs::moving_creature_updates_stationary_observer_on_leaving_and_returning", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "set_state", "update"], []],
   ["unit_tests/session/deferred_visibility/tests.rs::stationary_ack_map_directory_pump_publishes_creature_only_after_readiness", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["force_update_visibility_like_cpp", "process_represented_session_commands_like_cpp", "set_state", "update"], []],
   ["unit_tests/session/deferred_visibility/tests.rs::directed_creature_and_corpse_destroy_remove_visible_ledger_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "set_state", "update"], []],
   ["unit_tests/session/deferred_visibility/tests.rs::directed_creature_destroy_rejects_stale_incarnation_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "set_state", "update"], []],
@@ -4223,7 +4224,7 @@
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3b2_canonical_first.rs::canonical_first_root_applies_a_session_mutation_after_an_executor_health_change_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3b2_canonical_first.rs::r7b1_deferred_registration_waits_on_the_canonical_side_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3b3_root_hardening.rs::a_panicking_mutation_leaves_the_incarnation_in_its_map_and_cell_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
-  ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3b3_root_hardening.rs::a_mutation_that_rebinds_the_map_is_refused_and_the_incarnation_restored_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
+  ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3b3_root_hardening.rs::a_map_rebind_discards_the_result_and_restores_the_original_binding_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3b3_root_hardening.rs::a_position_change_through_the_root_relocates_the_creature_cell_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3b3_root_hardening.rs::a_creature_moved_in_place_follows_into_its_new_cell_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/gameobject_use.rs::gameobject_goober_just_deactivated_consumable_stays_not_ready_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["set_player_guid", "set_player_registry"], []],
