@@ -17,8 +17,9 @@ have separate open issues (#39, #41, #1342).
 
 ## Instance enter/leave and reconnect (#45)
 
-The issue branch implements manual reset, group difficulty changes and
-occupied-instance expiry against the 3.4.3 C++ reference
+[PR #1511](https://github.com/alseif0x/rustycore/pull/1511) integrated manual
+reset, group difficulty changes and occupied-instance expiry on `3.4.3`
+at `98f1f7ded`. The implementation follows the 3.4.3 C++ reference
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. In `Map.cpp`,
 `InstanceMap::Reset` reports the occupied map, retains its players,
 and schedules unload only on a successful empty reset. A normal reset
@@ -28,6 +29,17 @@ the canonical Player's pending bind for a non-warning lock. See the
 dated issue-branch record at `7eb4fccca:docs/migration/STATE.md` for the
 source paths, positive and negative tests, packet bytes, timings and
 limits of each comparison.
+
+The [post-merge review](https://github.com/alseif0x/rustycore/pull/1511#discussion_r4655374017)
+found that two groups selecting the same loaded raid could both list it among
+their owned instances. In the C++ reference, `InstanceMap::TrySetOwningGroup`
+(`Map.cpp:2993`) links only the first owner. That link calls
+`GroupInstanceReference::targetObjectBuildLink` (`GroupInstanceReference.cpp:21`).
+`Group::ResetInstances` (`Group.cpp:1354`) walks the resulting references.
+The follow-up checks the map's owning group and writes the group's reset
+reference under the same map-manager guard. A second group can still select
+the instance through its leader's lock. Only the owner lists the instance
+for reset.
 
 Solo and group reset had paired action captures on the earlier issue
 candidate. On November 21 the production MariaDB adapter at `af6919ee0`
