@@ -5,7 +5,8 @@ use sqlx::{MySql, Transaction};
 
 const INSERT: &str = "INSERT INTO loot_money_claim_receipt (claim_id, payouts) VALUES (?, '[]')";
 const WRITE: &str = "UPDATE loot_money_claim_receipt SET payouts = ? WHERE claim_id = ?";
-const READ: &str = "SELECT payouts FROM loot_money_claim_receipt WHERE claim_id = ? FOR UPDATE";
+const READ: &str =
+    "SELECT CAST(payouts AS BINARY) FROM loot_money_claim_receipt WHERE claim_id = ? FOR UPDATE";
 
 #[derive(Serialize, Deserialize)]
 struct Share {
@@ -94,13 +95,13 @@ pub(super) async fn read(
     id: &[u8; 16],
 ) -> Result<Option<Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>>, DatabaseError> {
     trace.statement(|| (READ.into(), vec![trace_id(id)]));
-    let json: Option<String> = sqlx::query_scalar(READ)
+    let json: Option<Vec<u8>> = sqlx::query_scalar(READ)
         .bind(id.as_slice())
         .fetch_optional(&mut **tx)
         .await?;
     let Some(json) = json else { return Ok(None) };
     let shares: Vec<Share> =
-        serde_json::from_str(&json).map_err(|e| DatabaseError::Transaction(e.to_string()))?;
+        serde_json::from_slice(&json).map_err(|e| DatabaseError::Transaction(e.to_string()))?;
     let mut outcomes = Vec::with_capacity(shares.len());
     for share in shares {
         let applied_delta = share.after.checked_sub(share.before).ok_or_else(|| {

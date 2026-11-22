@@ -32,7 +32,7 @@ pub(crate) async fn arm_world_chest_money(
     restock_deadline: i64,
 ) -> Result<bool, DatabaseError> {
     let mut transaction = character_db.pool().begin().await?;
-    let trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+    let mut trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
     match source::arm_restock_deadline(
         &mut transaction,
         &trace,
@@ -75,7 +75,7 @@ async fn bind_world_chest_money(
     personal_owner: u64,
 ) -> Result<Option<WorldLootMoneyBinding>, DatabaseError> {
     let mut transaction = character_db.pool().begin().await?;
-    let trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+    let mut trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
     match source::resolve_binding(&mut transaction, &trace, source, personal_owner).await {
         Ok(Some(binding)) => {
             trace.committing();
