@@ -82,6 +82,7 @@ impl OwnedLootAuthority {
             state.retired = true;
             state.detached = true;
             state.quarantined = false;
+            state.money_recovery.clear();
             retain_only_persisting_reservations(&mut state);
             finalize_closed_state_if_drained(&mut state);
             state.generation
@@ -117,6 +118,7 @@ impl OwnedLootAuthority {
             state.retired = true;
             state.detached = true;
             state.quarantined = false;
+            state.money_recovery.clear();
             retain_only_persisting_reservations(&mut state);
             finalize_closed_state_if_drained(&mut state);
             true
@@ -130,7 +132,8 @@ impl OwnedLootAuthority {
     #[must_use]
     pub fn is_fully_looted_like_cpp(&self) -> bool {
         let state = self.lock_state();
-        state.retired || active_loot_pools_fully_looted_like_cpp(&state)
+        state.money_recovery.is_empty()
+            && (state.retired || active_loot_pools_fully_looted_like_cpp(&state))
     }
     /// Waits until every claim that crossed its durable boundary has resolved.
     /// The authority mutex is never held across the await. Disconnect/logout
@@ -346,7 +349,9 @@ impl OwnedLootAuthority {
                 }
                 let epoch = next_scope_epoch(&mut state);
                 state.shared = Some(loot);
-                state.scope_epochs.insert(OwnedLootScope::Shared, epoch);
+                state
+                    .scope_epochs
+                    .insert(OwnedLootScope::Shared, LootScopeEpoch::new(epoch));
                 bump_lifecycle_revision(&mut state);
                 (LootInstallOutcome::Installed { generation: epoch }, true)
             }
@@ -423,7 +428,7 @@ impl OwnedLootAuthority {
                 state.personal.insert(player, loot);
                 state
                     .scope_epochs
-                    .insert(OwnedLootScope::Personal(player), epoch);
+                    .insert(OwnedLootScope::Personal(player), LootScopeEpoch::new(epoch));
                 bump_lifecycle_revision(&mut state);
                 (LootInstallOutcome::Installed { generation: epoch }, true)
             }
@@ -439,9 +444,13 @@ impl OwnedLootAuthority {
     pub fn retire_like_cpp(&self) -> u64 {
         let (generation, changed) = {
             let mut state = self.lock_state();
-            if state.retired && state.generation != 0 {
+            if state.retired && state.generation != 0 && state.money_recovery.is_empty() {
                 (state.generation, false)
             } else {
+                if !state.money_recovery.is_empty() {
+                    state.money_recovery.clear();
+                    state.quarantined = false;
+                }
                 state.generation = state.generation.wrapping_add(1).max(1);
                 state.retired = true;
                 retain_only_persisting_reservations(&mut state);

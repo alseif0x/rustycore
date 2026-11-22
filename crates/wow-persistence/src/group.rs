@@ -189,6 +189,8 @@ pub struct GroupLootMoneyPayoutLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupLootMoneyPersistenceRequestLikeCpp {
+    /// Absent only for a zero-coin observation of an already empty pool.
+    pub claim_id: Option<[u8; 16]>,
     pub payouts: Vec<GroupLootMoneyPayoutLikeCpp>,
     pub max_money: u64,
 }
@@ -210,6 +212,7 @@ pub enum GroupLootMoneyRollbackKindLikeCpp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupLootMoneyPersistenceAttemptLikeCpp {
     Applied(Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>),
+    AlreadySettled,
     DefinitelyRolledBack {
         kind: GroupLootMoneyRollbackKindLikeCpp,
         reason: String,
@@ -230,35 +233,14 @@ pub enum GroupLootMoneyReconciliationLikeCpp {
 
 pub fn classify_group_loot_money_reconciliation_like_cpp(
     outcomes: &[GroupLootMoneyPersistenceOutcomeLikeCpp],
-    observed: &[(u64, Option<u64>)],
+    receipt: Option<&[GroupLootMoneyPersistenceOutcomeLikeCpp]>,
 ) -> GroupLootMoneyReconciliationLikeCpp {
-    let changed = outcomes
-        .iter()
-        .filter(|outcome| outcome.before != outcome.after)
-        .collect::<Vec<_>>();
-    if changed.is_empty() {
-        return GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop;
-    }
-    if changed.len() != observed.len() {
-        return GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None };
-    }
-
-    let mut all_before = true;
-    let mut all_after = true;
-    for outcome in changed {
-        let Some((_, Some(current))) = observed
-            .iter()
-            .find(|(recipient_guid, _)| *recipient_guid == outcome.recipient_guid)
-        else {
-            return GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None };
-        };
-        all_before &= *current == outcome.before;
-        all_after &= *current == outcome.after;
-    }
-    match (all_before, all_after) {
-        (true, false) => GroupLootMoneyReconciliationLikeCpp::RolledBack,
-        (false, true) => GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop,
-        _ => GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None },
+    match receipt {
+        None => GroupLootMoneyReconciliationLikeCpp::RolledBack,
+        Some(recorded) if !recorded.is_empty() && recorded == outcomes => {
+            GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop
+        }
+        Some(_) => GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None },
     }
 }
 
@@ -271,6 +253,7 @@ pub trait GroupLootMoneyPersistencePortLikeCpp: Send + Sync {
 
     fn reconcile_group_loot_money_like_cpp(
         &self,
+        claim_id: Option<[u8; 16]>,
         outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
     ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyReconciliationLikeCpp>;
 }

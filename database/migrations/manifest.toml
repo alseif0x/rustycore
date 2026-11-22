@@ -84,3 +84,19 @@ SELECT IF(
   AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'character_battle_pet_purchase' AND index_name = 'idx_guid_status' AND column_name IN ('guid','status')) = 2,
   1, 0)
 '''
+
+[[migrations]]
+component = "core"
+database = "characters"
+version = "2026.11.22.00"
+description = "atomic shared loot money receipts"
+file = "../../sql/updates/characters/wotlk_classic/2026_11_22_00_characters.sql"
+sha256 = "8d61d217b93afda6730aba59dfa02d3fd583bb6ad96c8774299446e12b7a88fa"
+state = "active"
+adopt_query = '''
+SELECT IF(
+  EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'loot_money_claim_receipt' AND engine = 'InnoDB')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_claim_receipt' AND column_name = 'claim_id' AND column_type = 'binary(16)' AND is_nullable = 'NO')
+  AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'loot_money_claim_receipt' AND column_name = 'payouts' AND data_type IN ('json','longtext') AND is_nullable = 'NO')
+  AND (SELECT GROUP_CONCAT(column_name ORDER BY seq_in_index) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'loot_money_claim_receipt' AND index_name = 'PRIMARY') = 'claim_id', 1, 0)
+'''

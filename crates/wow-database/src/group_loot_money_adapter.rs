@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+mod receipt;
+
 use wow_persistence::{
     GroupLootMoneyPersistenceAttemptLikeCpp, GroupLootMoneyPersistenceOutcomeLikeCpp,
     GroupLootMoneyPersistencePortLikeCpp, GroupLootMoneyPersistenceRequestLikeCpp,
@@ -10,8 +12,7 @@ use wow_persistence::{
 };
 
 use crate::{
-    CharStatements, CharacterDatabase, DatabaseError, PreparedStatement, StatementDef,
-    is_database_deadlock_like_cpp,
+    CharStatements, CharacterDatabase, DatabaseError, StatementDef, is_database_deadlock_like_cpp,
     persistence_trace::{
         CommitOutcome, ExplicitTransactionTrace, LogicalDatabase, TracedParam,
         record_batch_not_started,
@@ -77,6 +78,13 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyAttemptAdapte
     ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyPersistenceAttemptLikeCpp> {
         Box::pin(async move {
             let payouts = payouts_in_stable_lock_order_like_cpp(request.payouts);
+            if payouts.is_empty()
+                || (request.claim_id.is_none() && payouts.iter().any(|p| p.requested_delta != 0))
+            {
+                return rolled_back_database_like_cpp(DatabaseError::Transaction(
+                    "invalid shared money claim".into(),
+                ));
+            }
             let mut transaction = match self.character_db.pool().begin().await {
                 Ok(transaction) => transaction,
                 Err(error) => {
@@ -86,6 +94,13 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyAttemptAdapte
             };
             let mut trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
             let mut outcomes = Vec::with_capacity(payouts.len());
+            if let Some(id) = request.claim_id {
+                match receipt::reserve(&mut transaction, &trace, &id).await {
+                    Ok(true) => {}
+                    Ok(false) => return GroupLootMoneyPersistenceAttemptLikeCpp::AlreadySettled,
+                    Err(error) => return rolled_back_database_like_cpp(error),
+                }
+            }
 
             for payout in payouts {
                 trace.statement(|| {
@@ -162,6 +177,11 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyAttemptAdapte
                 outcomes.push(outcome);
             }
 
+            if let Some(id) = request.claim_id
+                && let Err(error) = receipt::record(&mut transaction, &trace, &id, &outcomes).await
+            {
+                return rolled_back_database_like_cpp(error);
+            }
             trace.committing();
             match transaction.commit().await {
                 Ok(()) => {
@@ -187,32 +207,38 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyAttemptAdapte
 
     fn reconcile_group_loot_money_like_cpp(
         &self,
+        claim_id: Option<[u8; 16]>,
         outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
     ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyReconciliationLikeCpp> {
         Box::pin(async move {
-            let mut observed = Vec::new();
-            for outcome in outcomes
-                .iter()
-                .filter(|outcome| outcome.before != outcome.after)
-            {
-                let mut statement =
-                    PreparedStatement::for_statement(CharStatements::SEL_CHAR_MONEY);
-                statement.set_u64(0, outcome.recipient_guid);
-                match self.character_db.query(&statement).await {
-                    Ok(result) if result.is_empty() => {
-                        observed.push((outcome.recipient_guid, None));
-                    }
-                    Ok(result) => {
-                        observed.push((outcome.recipient_guid, result.try_read::<u64>(0)));
-                    }
-                    Err(error) => {
-                        return GroupLootMoneyReconciliationLikeCpp::Indeterminate {
-                            reason: Some(error.to_string()),
-                        };
-                    }
-                }
+            let Some(id) = claim_id else {
+                return if !outcomes.is_empty()
+                    && outcomes
+                        .iter()
+                        .all(|row| row.before == row.after && row.applied_delta == 0)
+                {
+                    GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop
+                } else {
+                    GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None }
+                };
+            };
+            let result: Result<_, DatabaseError> = async {
+                let mut tx = self.character_db.pool().begin().await?;
+                let trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+                let receipt = receipt::read(&mut tx, &trace, &id).await?;
+                tx.rollback().await?;
+                trace.rolled_back();
+                Ok(receipt)
             }
-            classify_group_loot_money_reconciliation_like_cpp(&outcomes, &observed)
+            .await;
+            match result {
+                Ok(receipt) => {
+                    classify_group_loot_money_reconciliation_like_cpp(&outcomes, receipt.as_deref())
+                }
+                Err(error) => GroupLootMoneyReconciliationLikeCpp::Indeterminate {
+                    reason: Some(error.to_string()),
+                },
+            }
         })
     }
 }
@@ -268,9 +294,11 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAd
 
     fn reconcile_group_loot_money_like_cpp(
         &self,
+        claim_id: Option<[u8; 16]>,
         outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
     ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyReconciliationLikeCpp> {
-        self.inner.reconcile_group_loot_money_like_cpp(outcomes)
+        self.inner
+            .reconcile_group_loot_money_like_cpp(claim_id, outcomes)
     }
 }
 

@@ -14,6 +14,7 @@ use super::SessionLifecycleState;
 
 #[derive(Debug)]
 pub enum LootMoneyPersistenceErrorLikeCpp {
+    AlreadySettled,
     MissingPlayer,
     MissingCharacterDatabase,
     WorkerTerminated,
@@ -25,6 +26,7 @@ pub enum LootMoneyPersistenceErrorLikeCpp {
 impl std::fmt::Display for LootMoneyPersistenceErrorLikeCpp {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::AlreadySettled => formatter.write_str("loot money was already settled"),
             Self::MissingPlayer => formatter.write_str("loot-money player is missing"),
             Self::MissingCharacterDatabase => {
                 formatter.write_str("loot-money character database is missing")
@@ -44,7 +46,8 @@ impl std::fmt::Display for LootMoneyPersistenceErrorLikeCpp {
 impl std::error::Error for LootMoneyPersistenceErrorLikeCpp {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::MissingPlayer
+            Self::AlreadySettled
+            | Self::MissingPlayer
             | Self::MissingCharacterDatabase
             | Self::WorkerTerminated
             | Self::Claim(_)

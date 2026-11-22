@@ -290,12 +290,17 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
                 );
                 Err(LootMoneyPersistenceErrorLikeCpp::WorkerTerminated)
             }) {
+                if matches!(error, LootMoneyPersistenceErrorLikeCpp::AlreadySettled) {
+                    let _ =
+                        reconcile_represented_loot_cache_like_cpp(host, *loot_guid, player_guid);
+                    continue;
+                }
                 warn!(
                     owner = ?loot_guid,
                     recipients = recipients.len(),
                     amount = money_per_player,
                     %error,
-                    "atomic loot-money fanout persistence failed; pool remains available"
+                    "atomic loot-money fanout persistence did not complete"
                 );
                 let _ = reconcile_represented_loot_cache_like_cpp(host, *loot_guid, player_guid);
                 continue;

@@ -343,6 +343,21 @@ pub(super) enum ReservationKey {
     Money(OwnedLootScope),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct LootScopeEpoch {
+    generation: u64,
+    money_claim_id: [u8; 16],
+}
+
+impl LootScopeEpoch {
+    pub(super) fn new(generation: u64) -> Self {
+        Self {
+            generation,
+            money_claim_id: rand::random(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct AuthorityState {
     /// Whole-object lifecycle counter retained for first-install/retire
@@ -351,11 +366,13 @@ pub(super) struct AuthorityState {
     pub(super) retired: bool,
     pub(super) detached: bool,
     pub(super) quarantined: bool,
+    pub(super) money_recovery: HashMap<OwnedLootScope, u64>,
+    pub(super) last_quarantine_token: u64,
     pub(super) shared: Option<CreatureLoot>,
     pub(super) personal: HashMap<ObjectGuid, CreatureLoot>,
     /// Unique identity of each concrete C++ `Loot` pool. Replacing one
     /// personal pool advances only that scope and leaves peer claims valid.
-    pub(super) scope_epochs: HashMap<OwnedLootScope, u64>,
+    pub(super) scope_epochs: HashMap<OwnedLootScope, LootScopeEpoch>,
     pub(super) next_scope_epoch: u64,
     pub(super) lifecycle_revision: u64,
     pub(super) reservations: HashMap<ReservationKey, u64>,
@@ -373,6 +390,8 @@ impl Default for AuthorityState {
             retired: true,
             detached: false,
             quarantined: false,
+            money_recovery: HashMap::new(),
+            last_quarantine_token: 0,
             shared: None,
             personal: HashMap::new(),
             scope_epochs: HashMap::new(),
@@ -393,7 +412,7 @@ pub(super) fn retain_only_persisting_reservations(state: &mut AuthorityState) {
 }
 
 pub(super) fn finalize_closed_state_if_drained(state: &mut AuthorityState) {
-    if !state.retired || !state.persisting.is_empty() {
+    if !state.retired || !state.persisting.is_empty() || !state.money_recovery.is_empty() {
         return;
     }
     state.shared = None;
@@ -577,22 +596,28 @@ pub(super) fn bump_lifecycle_revision(state: &mut AuthorityState) {
 pub(super) fn install_all_scope_epochs(state: &mut AuthorityState, epoch: u64) {
     state.scope_epochs.clear();
     if state.shared.is_some() {
-        state.scope_epochs.insert(OwnedLootScope::Shared, epoch);
+        state
+            .scope_epochs
+            .insert(OwnedLootScope::Shared, LootScopeEpoch::new(epoch));
     }
     let players = state.personal.keys().copied().collect::<Vec<_>>();
     for player in players {
         state
             .scope_epochs
-            .insert(OwnedLootScope::Personal(player), epoch);
+            .insert(OwnedLootScope::Personal(player), LootScopeEpoch::new(epoch));
     }
 }
 
 pub(super) fn any_scope_epoch(state: &AuthorityState) -> Option<u64> {
-    state.scope_epochs.values().copied().min()
+    state
+        .scope_epochs
+        .values()
+        .map(|scope| scope.generation)
+        .min()
 }
 
 pub(super) fn scope_epoch(state: &AuthorityState, scope: OwnedLootScope) -> Option<u64> {
-    state.scope_epochs.get(&scope).copied()
+    state.scope_epochs.get(&scope).map(|scope| scope.generation)
 }
 
 pub(super) const fn reservation_scope(key: ReservationKey) -> OwnedLootScope {
@@ -742,6 +767,7 @@ pub struct LootClaimLease {
 pub struct LootClaimPersistenceGuard {
     pub(super) claim: LootClaimLease,
     pub(super) resolved: bool,
+    money_write_in_flight: bool,
 }
 
 impl fmt::Debug for LootClaimPersistenceGuard {
@@ -755,6 +781,30 @@ impl fmt::Debug for LootClaimPersistenceGuard {
 }
 
 impl LootClaimPersistenceGuard {
+    /// While SQL may have committed, cancelling its worker cannot reopen this pool.
+    pub fn set_money_write_in_flight(&mut self, in_flight: bool) {
+        self.money_write_in_flight = in_flight;
+    }
+    /// Identifies the original money pool across reservations and deadlock retries.
+    /// An observation of an already empty pool has no durable grant.
+    pub fn money_claim_id(&self) -> Result<Option<[u8; 16]>, LootClaimCommitError> {
+        let lease = &self.claim.inner;
+        let ReservationKey::Money(scope) = lease.key else {
+            return Err(LootClaimCommitError::StateChanged);
+        };
+        let state = lease.authority.lock_state();
+        let epoch = state
+            .scope_epochs
+            .get(&scope)
+            .ok_or(LootClaimCommitError::StaleGeneration)?;
+        if epoch.generation != lease.generation
+            || state.persisting.get(&lease.key) != Some(&lease.token)
+        {
+            return Err(LootClaimCommitError::StaleGeneration);
+        }
+        Ok((lease.payload != LootClaimPayload::Money(0)).then_some(epoch.money_claim_id))
+    }
+
     pub fn commit_like_cpp(&mut self) -> Result<bool, LootClaimCommitError> {
         self.commit_with_snapshot_like_cpp()
             .map(|(first_commit, _)| first_commit)
@@ -798,7 +848,9 @@ impl LootClaimPersistenceGuard {
 
 impl Drop for LootClaimPersistenceGuard {
     fn drop(&mut self) {
-        if !self.resolved {
+        if !self.resolved && self.money_write_in_flight {
+            let _ = self.quarantine_commit_unknown_like_cpp();
+        } else if !self.resolved {
             self.claim
                 .inner
                 .authority
@@ -876,6 +928,7 @@ impl LootClaimLease {
         Ok(LootClaimPersistenceGuard {
             claim: self.clone(),
             resolved: false,
+            money_write_in_flight: false,
         })
     }
 

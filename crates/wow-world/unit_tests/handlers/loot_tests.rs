@@ -311,6 +311,7 @@ impl GroupLootMoneyPersistencePortLikeCpp for GroupLootMoneyPortFixtureLikeCpp {
 
     fn reconcile_group_loot_money_like_cpp(
         &self,
+        _claim_id: Option<[u8; 16]>,
         _outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
     ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyReconciliationLikeCpp> {
         Box::pin(std::future::ready(

@@ -278,6 +278,106 @@ async fn wait_for_persisting_claims_observes_commit_and_failure_boundaries_like_
 }
 
 #[tokio::test]
+async fn money_quarantine_settles_one_receipt_and_rejects_old_waiters() {
+    for (decision, remaining) in [
+        (MoneyReceiptDecision::Committed, 0),
+        (MoneyReceiptDecision::RolledBack, 25),
+    ] {
+        let authority = OwnedLootAuthority::new();
+        let looter = player(1);
+        authority.replace_like_cpp(Some(money_loot(owner(1), 25, vec![looter])), HashMap::new());
+        let claim = authority.reserve_money_like_cpp(looter).await.unwrap();
+        let mut guard = claim.begin_persistence_guard_like_cpp().unwrap();
+        let mut waiting = Box::pin(authority.reserve_money_like_cpp(looter));
+        tokio::select! { biased; _ = &mut waiting => panic!("reservation was held"), _ = tokio::task::yield_now() => {} }
+        let fence = guard.quarantine_money_for_receipt().unwrap();
+        assert!(!authority.is_fully_looted_like_cpp());
+        authority.wait_for_persisting_claims_like_cpp().await;
+        assert!(authority.shared_snapshot_like_cpp().is_none());
+        assert!(matches!(
+            authority.reserve_money_like_cpp(looter).await,
+            Err(LootClaimError::Retired)
+        ));
+        assert!(fence.settle(decision));
+        assert!(!fence.settle(MoneyReceiptDecision::RolledBack));
+        assert!(matches!(waiting.await, Err(LootClaimError::Retired)));
+        assert_eq!(
+            authority.shared_snapshot_like_cpp().unwrap().loot.coins,
+            remaining
+        );
+    }
+}
+
+#[tokio::test]
+async fn money_quarantine_waits_for_all_uncertain_personal_pools() {
+    let authority = OwnedLootAuthority::new();
+    let first = player(1);
+    let second = player(2);
+    authority.replace_like_cpp(
+        None,
+        HashMap::from([
+            (first, money_loot(owner(1), 12, vec![first])),
+            (second, money_loot(owner(1), 18, vec![second])),
+        ]),
+    );
+    let claim1 = authority.reserve_money_like_cpp(first).await.unwrap();
+    let claim2 = authority.reserve_money_like_cpp(second).await.unwrap();
+    let mut guard1 = claim1.begin_persistence_guard_like_cpp().unwrap();
+    let mut guard2 = claim2.begin_persistence_guard_like_cpp().unwrap();
+    let receipt1 = guard1.quarantine_money_for_receipt().unwrap();
+    let receipt2 = guard2.quarantine_money_for_receipt().unwrap();
+    assert!(receipt2.settle(MoneyReceiptDecision::RolledBack));
+    assert_eq!(
+        authority.lifecycle_like_cpp(),
+        OwnedLootAuthorityLifecycle::Quarantined
+    );
+    assert!(receipt1.settle(MoneyReceiptDecision::Committed));
+    assert_eq!(
+        authority
+            .snapshot_for_player_like_cpp(first)
+            .unwrap()
+            .loot
+            .coins,
+        0
+    );
+    assert_eq!(
+        authority
+            .snapshot_for_player_like_cpp(second)
+            .unwrap()
+            .loot
+            .coins,
+        18
+    );
+}
+
+#[tokio::test]
+async fn restock_invalidates_late_receipt_and_submitted_worker_drop_fails_closed() {
+    let authority = OwnedLootAuthority::new();
+    let looter = player(1);
+    let pool = |coins| Some(money_loot(owner(1), coins, vec![looter]));
+    authority.replace_like_cpp(pool(25), HashMap::new());
+    let claim = authority.reserve_money_like_cpp(looter).await.unwrap();
+    let mut guard = claim.begin_persistence_guard_like_cpp().unwrap();
+    let receipt = guard.quarantine_money_for_receipt().unwrap();
+    authority.retire_like_cpp();
+    authority.replace_like_cpp(pool(99), HashMap::new());
+    assert!(!receipt.settle(MoneyReceiptDecision::Committed));
+    assert_eq!(authority.shared_snapshot_like_cpp().unwrap().loot.coins, 99);
+    let next = authority.reserve_money_like_cpp(looter).await.unwrap();
+    let mut submitted = next.begin_persistence_guard_like_cpp().unwrap();
+    submitted.set_money_write_in_flight(true);
+    drop(submitted);
+    assert_eq!(
+        authority.lifecycle_like_cpp(),
+        OwnedLootAuthorityLifecycle::Quarantined
+    );
+    assert!(matches!(
+        authority.reserve_money_like_cpp(looter).await,
+        Err(LootClaimError::Retired)
+    ));
+}
+
+#[tokio::test]
 async fn commit_unknown_quarantine_is_terminal_fail_closed_and_drains_waiters_like_cpp() {
     let authority = OwnedLootAuthority::new();
     let looter = player(1);

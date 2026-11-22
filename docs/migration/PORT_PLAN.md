@@ -4,6 +4,43 @@ Use [#49](https://github.com/alseif0x/rustycore/issues/49) for current milestone
 
 The [detailed lane prerequisites and remaining operation contracts](https://github.com/alseif0x/rustycore/blob/d287f333d69d643ccfd7f84426e51a925836bded/docs/migration/PORT_PLAN.md#4-execution-lanes-and-dependencies) supply the technical detail for the milestones below. Check current issue status when selecting a dependency.
 
+## M6.1 money-claim recovery (#46, #1339, #1341)
+
+The integration decision on 2026-11-22 at `d17febe40` is to resolve a shared
+money claim against a receipt written in the **same Characters transaction**
+as all of its recipient credits. A later balance can equal either expected
+amount after an unrelated operation. A recipient at the money cap can have
+the same balance for both outcomes.
+
+The database adapter locks the claim identity before crediting any player,
+then locks the recipients in GUID order. A retry with the same identity can
+observe one immutable outcome. A locking read on the writer after submission
+must establish whether that transaction committed. An unreadable receipt
+keeps the source closed. A proven rollback releases the reservation once.
+A proven commit consumes only the original pool and never pays again.
+Character login loads the committed balances. Recovery must never replay
+old session notifications or hold a map guard during SQL or delivery.
+
+For a pool that can survive a restart, the saved receipt must identify its
+realm, map, instance, persistent spawn, loot lifetime and shared or personal
+scope. A map-generated loot GUID and an in-memory generation can both repeat.
+An actual respawn or restock can produce a new grant. Disconnect, map reload
+and process restart alone cannot mint another grant from a surviving pool.
+Stored Item money already has a durable source row keyed by container ID.
+The C++ anchors at `a5f8da2eb` are `WorldSession::HandleLootMoneyOpcode`
+in `Handlers/LootHandler.cpp:142–213` and `GameObject::ClearLoot` in
+`Entities/GameObject/GameObject.cpp:3711–3721`. The receipt is a Rust
+durability requirement for its detached persistence worker.
+
+The #1341 contract was reviewed and signed on 2026-11-22 before implementing
+reopening. The receipt reviewer required the complete persistent world-source
+identity and a fresh-process spent-source and restock control for acceptance.
+The existing terminal quarantine remains in effect until the recovery owner
+can fence that exact lifetime and token, drain existing waiters once, and
+prove committed, rolled-back, unreadable and later-generation cases. Release
+acceptance also requires a fresh process and real database, including a
+second claim on the spent source and a legitimate new source.
+
 ## 7. Part 1 acceptance — a complete playable circuit
 
 The M0–M6 names remain milestone identifiers. Their broad exits cannot be inferred

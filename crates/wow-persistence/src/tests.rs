@@ -559,30 +559,21 @@ fn group_loot_money_reconciliation_requires_one_coherent_side_like_cpp() {
         },
     ];
     assert_eq!(
-        classify_group_loot_money_reconciliation_like_cpp(
-            &outcomes,
-            &[(1, Some(10)), (2, Some(20))]
-        ),
+        classify_group_loot_money_reconciliation_like_cpp(&outcomes, None),
         GroupLootMoneyReconciliationLikeCpp::RolledBack
     );
     assert_eq!(
-        classify_group_loot_money_reconciliation_like_cpp(
-            &outcomes,
-            &[(1, Some(15)), (2, Some(27))]
-        ),
+        classify_group_loot_money_reconciliation_like_cpp(&outcomes, Some(&outcomes)),
         GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop
     );
     assert_eq!(
-        classify_group_loot_money_reconciliation_like_cpp(
-            &outcomes,
-            &[(1, Some(10)), (2, Some(27))]
-        ),
+        classify_group_loot_money_reconciliation_like_cpp(&outcomes, Some(&outcomes[..1])),
         GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None }
     );
 }
 
 #[test]
-fn group_loot_money_cap_only_noop_needs_no_commit_evidence_like_cpp() {
+fn group_loot_money_cap_only_still_requires_receipt_for_source_consumption() {
     let outcomes = [GroupLootMoneyPersistenceOutcomeLikeCpp {
         recipient_guid: 1,
         before: 100,
@@ -590,7 +581,11 @@ fn group_loot_money_cap_only_noop_needs_no_commit_evidence_like_cpp() {
         applied_delta: 0,
     }];
     assert_eq!(
-        classify_group_loot_money_reconciliation_like_cpp(&outcomes, &[]),
+        classify_group_loot_money_reconciliation_like_cpp(&outcomes, None),
+        GroupLootMoneyReconciliationLikeCpp::RolledBack
+    );
+    assert_eq!(
+        classify_group_loot_money_reconciliation_like_cpp(&outcomes, Some(&outcomes)),
         GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop
     );
 }

@@ -424,6 +424,31 @@ async fn stale_player_cannot_claim_replacement_generation_money_like_cpp() {
 }
 
 #[tokio::test]
+async fn money_receipt_follows_the_pool_through_retry_but_not_replacement() {
+    let authority = OwnedLootAuthority::new();
+    let looter = player(1);
+    let pool = || Some(money_loot(owner(1), 25, vec![looter]));
+    authority.replace_like_cpp(pool(), HashMap::new());
+    let original = {
+        let claim = authority.reserve_money_like_cpp(looter).await.unwrap();
+        let guard = claim.begin_persistence_guard_like_cpp().unwrap();
+        guard.money_claim_id().unwrap().unwrap()
+    };
+    let claim = authority.reserve_money_like_cpp(looter).await.unwrap();
+    let mut retry = claim.begin_persistence_guard_like_cpp().unwrap();
+    assert_eq!(retry.money_claim_id(), Ok(Some(original)));
+    retry.commit_like_cpp().unwrap();
+    let empty = authority.reserve_money_like_cpp(looter).await.unwrap();
+    let mut empty = empty.begin_persistence_guard_like_cpp().unwrap();
+    assert_eq!(empty.money_claim_id(), Ok(None));
+    empty.commit_like_cpp().unwrap();
+    authority.replace_like_cpp(pool(), HashMap::new());
+    let next = authority.reserve_money_like_cpp(looter).await.unwrap();
+    let next = next.begin_persistence_guard_like_cpp().unwrap();
+    assert_ne!(next.money_claim_id().unwrap().unwrap(), original);
+}
+
+#[tokio::test]
 async fn money_claim_rolls_back_and_later_cpp_request_observes_zero() {
     let authority = OwnedLootAuthority::new();
     let first = player(1);
