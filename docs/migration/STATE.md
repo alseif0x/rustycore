@@ -99,6 +99,24 @@ loot enabled). The 3.4.3 C++ anchors are `GameObjectData.h:99–112,127`,
 The four real-client creature scenarios (#1342) and a world-server
 restart with the actual QA chest are still pending.
 
+On the native aarch64 host, clean commit `6d2b7dbae` passed
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+against `d17febe40`. The verified final manifest is
+`20261122T193904.796478Z-1600866-final.json`. The 11 affected libraries
+passed 7,709 active tests (12 ignored), including stationary-observer
+visibility, interrupted chest release, replacement of a chest during a
+pending save, and the map waiting for durable respawn confirmation.
+The architecture checker passed 465 tests and the SQL compositor passed
+its 11 fixture tests. The three-process MariaDB test above also passed
+on that commit in 3.18s (13.98s including compilation, startup and shutdown).
+
+The final profile took 34m18s. Its main costs were checking 40 packages
+(12m57s), compiling and testing the 11 libraries (11m49s), and the SQL
+compositor (5m03s). From the start of this green profile through the
+database test, wall time was 34m50s. Including the preceding failed
+profile at `697edffb0` and its runtime-dependency correction, the interval
+was 37m41s (19:36:14–20:13:55 UTC). This exceeded the ten-minute budget.
+
 ## Instance enter/leave and reconnect (#45)
 
 [PR #1511](https://github.com/alseif0x/rustycore/pull/1511) integrated manual
