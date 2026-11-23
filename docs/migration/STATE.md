@@ -102,7 +102,11 @@ shows the real chest paying once across a world-server restart. Two official
 encryption negotiation before character selection. The same disconnect
 occurred with both Battle.net and world served by the C++ reference. The
 captured client proof and persisted session key matched for a single join.
-All four creature scenarios (#1342) remain open.
+After the public address and Battle.net certificate were corrected, the
+client authenticated on the shared world endpoint and still disconnected
+before character enumeration. Rebuilt June 26 Rust services reproduced
+reason 24 in the isolated comparison. All four creature scenarios (#1342)
+remain open.
 
 On the native aarch64 host, clean commit `6d2b7dbae` passed
 `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
