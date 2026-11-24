@@ -389,7 +389,6 @@ async fn execute_finalization_step_with_catalogs<H: SessionLifecycleHostLikeCpp>
                     let (state, mut hub) = host.split_lifecycle_mut();
                     state.restore_realm_channels(&mut hub)
                 };
-                host.lifecycle_mut().set_player_logout_like_cpp(false);
                 PlayerTeleportHostLikeCpp::sync_current_player_session_visibility_detection_like_cpp(
                     host,
                 );
@@ -402,6 +401,7 @@ async fn execute_finalization_step_with_catalogs<H: SessionLifecycleHostLikeCpp>
                     state.clear_inventory_items_and_objects_like_cpp(&mut hub)
                 };
             }
+            host.lifecycle_mut().set_player_logout_like_cpp(false);
             FinalizationOutcome::Applied
         }
     }

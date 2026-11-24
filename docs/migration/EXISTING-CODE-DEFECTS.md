@@ -44,6 +44,22 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
 
 ## Later verified open findings
 
+- **2026-11-24, #1342 near-transfer/`ObjectUpdateFailed` client acceptance — open.**
+  Real 54261 clients repeatedly sent `CMSG_OBJECT_UPDATE_FAILED` for their own
+  player during login against the isolated Rust candidate. The paired C++
+  `a5f8da2eb` control accepted the same clients without that error. In C++
+  `MiscHandler.cpp:1083–1095`, a self failure calls `LogoutPlayer(true)`; Rust
+  `wow-world-lifecycle/src/support.rs:243–265` only sets `player_logout=true`
+  without that finalization. A subsequent Hearthstone reaches the near-teleport
+  gate but emits no `MoveTeleport` or ACK. Freshly created characters and the
+  older fixtures both reproduce the failure. Removing trait configs, skill rows,
+  quest logs or combat fields did not isolate a cause, so this is a reproduced
+  client/server divergence, not a proven field diagnosis. The separate common
+  finalization reset is repaired on this branch with a production-linked test;
+  it does not close this defect or the phase/transfer acceptance. Selected
+  evidence: `/tmp/rc46-creature-qa/packets` and
+  [the dated #1342 record](../architecture/captures/1342-real-client-2026-11-24.md).
+
 - **2026-10-28, #43 fixture admission — ItemSparse class-mask field,
   locally repaired; final acceptance pending.** At `8eb73d12a`,
   `crates/wow-data/src/item/stats/store.rs` captures `allowable_class_offset`

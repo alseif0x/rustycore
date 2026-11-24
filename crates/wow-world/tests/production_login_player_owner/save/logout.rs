@@ -315,3 +315,30 @@ async fn production_explicit_logout_rejects_unavailable_source_save_without_reti
                 != wow_constants::ServerOpcodes::LogoutComplete as u16)
     );
 }
+
+#[tokio::test]
+async fn production_disconnect_resets_player_logout_for_next_login() {
+    let (mut session, port, _output, _receiver) = hydrate(true, true, true).await;
+    session.set_state(SessionState::LoggedIn);
+    let probe = Arc::new(SaveProbe {
+        requests: Mutex::new(vec![]),
+        released: AtomicBool::new(true),
+        outcome: PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    });
+    *port.save_probe.lock().unwrap() = Some(probe);
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    let report = session
+        .finalize_session_with_generator_like_cpp(
+            wow_world::FinalizationMode::Disconnect,
+            &generator,
+        )
+        .await;
+    assert_eq!(
+        report.disposition,
+        wow_world::FinalizationDisposition::Complete
+    );
+    assert!(
+        !wow_world_entities::PlayerTeleportHostLikeCpp::player_logout_like_cpp(&session),
+        "C++ LogoutPlayer clears m_playerLogout after every disconnect, allowing the next login to emit MoveTeleport"
+    );
+}

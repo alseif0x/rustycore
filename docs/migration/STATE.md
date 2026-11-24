@@ -111,8 +111,21 @@ client still answered reason 24; its pinned Ed25519 public key differs from the
 TrinityCore identity, and the captured signature verified only under the latter.
 The experiment was reverted and its runtime/database fixtures removed. A
 backend-only direct launch cannot satisfy the stock client's signature check
-without the corresponding private key. All four creature scenarios (#1342)
-remain open.
+without the corresponding private key. A disposable client with the matching
+public keys then entered the world. The [November 24 #1342 campaign](../architecture/captures/1342-real-client-2026-11-24.md)
+matched creature chase/home return and range-driven visibility. It found observer
+spell-publication and near-transfer mismatches, and did not accept the phase
+scenario. The common finalization now clears `player_logout` after disconnect,
+with a production-linked regression. The self `ObjectUpdateFailed` that suppresses
+near teleport remains an open defect with no proven field diagnosis.
+
+At `d33ce0635`, the final profile passed all 15 steps in 7m07s with 8,216
+active tests and 13 ignored. The verified manifest is
+`20261124T160457.303898Z-2026186-final.json`. The separate production-linked
+logout regression also passed with one test and 42 filtered out. The first
+acceptance attempt reached its executor limit; the second failed with `ENOSPC`.
+The successful run followed inspection and removal of 380 older incremental
+sessions (about 22 GiB), not a reduction of the required checks.
 
 On the native aarch64 host, clean commit `6d2b7dbae` passed
 `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
