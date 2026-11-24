@@ -105,7 +105,13 @@ captured client proof and persisted session key matched for a single join.
 After the public address and Battle.net certificate were corrected, the
 client authenticated on the shared world endpoint and still disconnected
 before character enumeration. Rebuilt June 26 Rust services reproduced
-reason 24 in the isolated comparison. All four creature scenarios (#1342)
+reason 24 in the isolated comparison. On November 24 a temporary isolated
+backend sent a correctly signed `EnterEncryptedMode(enabled=false)`. The stock
+client still answered reason 24; its pinned Ed25519 public key differs from the
+TrinityCore identity, and the captured signature verified only under the latter.
+The experiment was reverted and its runtime/database fixtures removed. A
+backend-only direct launch cannot satisfy the stock client's signature check
+without the corresponding private key. All four creature scenarios (#1342)
 remain open.
 
 On the native aarch64 host, clean commit `6d2b7dbae` passed
