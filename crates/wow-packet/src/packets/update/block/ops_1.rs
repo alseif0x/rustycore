@@ -689,6 +689,7 @@ impl UpdateObject {
             next_level_xp: 400,
             max_level: 80,
             scaling_player_level_delta: 0,
+            explored_zones: None,
             rest_info: [
                 RestInfoValuesUpdate {
                     rest_info_mask: 0x07,

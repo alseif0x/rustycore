@@ -8,6 +8,20 @@ use super::super::*;
 use super::*;
 
 impl UpdateObject {
+    pub fn set_player_explored_zones(&mut self, zones: [u64; 240]) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                is_self: true,
+                create_data,
+                ..
+            } = block
+            {
+                create_data.explored_zones = Some(Box::new(zones));
+                return;
+            }
+        }
+    }
+
     /// Populate C++ `Unit::m_movementInfo.transport` on a player CREATE.
     ///
     /// `Map::SendInitSelf` creates the player's current transport before the

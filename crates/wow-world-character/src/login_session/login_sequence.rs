@@ -609,11 +609,12 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         let Some(player_money) = host.resolved_player_money_like_cpp() else {
             return false;
         };
-        let Some((self_res_spells, no_reagent_cost_mask, summon)) =
+        let Some((self_res_spells, no_reagent_cost_mask, explored_zones, summon)) =
             host.core().with_owned_player_like_cpp(|player| {
                 (
                     player.self_res_spells().to_vec(),
                     player.no_reagent_cost_mask_like_cpp(),
+                    *player.explored_zones_blocks_like_cpp(),
                     player
                         .unit()
                         .minion_guid_like_cpp()
@@ -713,6 +714,7 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         );
         player_pkt.set_player_self_res_spells(self_res_spells);
         player_pkt.set_player_no_reagent_cost_mask_like_cpp(no_reagent_cost_mask);
+        player_pkt.set_player_explored_zones(explored_zones);
         player_pkt.set_player_summon_guid_like_cpp(summon);
         let Some(action_buttons) = host
             .hub_ref()

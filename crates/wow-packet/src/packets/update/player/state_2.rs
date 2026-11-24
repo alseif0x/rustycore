@@ -608,9 +608,8 @@ impl PlayerCreateData {
         buf.write_float(0.0);
         buf.write_float(0.0);
 
-        // ExploredZones[240] (all zero u64s)
-        for _ in 0..240 {
-            buf.write_uint64(0);
+        for zone in self.explored_zones.as_deref().unwrap_or(&[0; 240]) {
+            buf.write_uint64(*zone);
         }
         trace(buf, "explored_zones");
 
