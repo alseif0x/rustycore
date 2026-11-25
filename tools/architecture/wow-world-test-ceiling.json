@@ -435,6 +435,16 @@
    "unit_tests_lines": 281518,
    "unit_tests_tests": 4186,
    "src_tests": 22
+  },
+  {
+   "id": "raise-46-41",
+   "kind": "raise",
+   "issue": 46,
+   "reviewed_at": "2026-11-25",
+   "reason": "Two Session integration cases exercise both recipient combat-log formats and visibility across map instances. The 94 additional fixture lines bind the real player registry, attach the observers and decode the delivered damage packets.",
+   "unit_tests_lines": 281612,
+   "unit_tests_tests": 4188,
+   "src_tests": 22
   }
  ]
 }
