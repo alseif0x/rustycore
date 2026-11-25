@@ -183,6 +183,283 @@ async fn chest_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<()
             .await?,
         100
     );
+
+    // Numeric instance ids can appear under unrelated maps. Retirement is
+    // scoped to the complete realm/map/instance identity.
+    let old_instance_source = WorldLootMoneySource {
+        realm_id: 1,
+        map_id: 33,
+        instance_id: 77,
+        spawn_id: 9106002,
+    };
+    let other_map_source = WorldLootMoneySource {
+        map_id: 34,
+        spawn_id: 9106003,
+        ..old_instance_source
+    };
+    let other_realm_source = WorldLootMoneySource {
+        realm_id: 2,
+        ..old_instance_source
+    };
+    let old_instance_binding = bind(old_instance_source, 0).await?.unwrap();
+    let other_map_binding = bind(other_map_source, 0).await?.unwrap();
+    let other_realm_binding = bind(other_realm_source, 0).await?.unwrap();
+    sqlx::query("INSERT INTO characters VALUES (202,100)")
+        .execute(db.pool())
+        .await?;
+    let instance_payout = |recipient_guid, claim_id| GroupLootMoneyPersistenceRequestLikeCpp {
+        claim_id: Some(claim_id),
+        payouts: vec![GroupLootMoneyPayoutLikeCpp {
+            recipient_guid,
+            requested_delta: 10,
+        }],
+        max_money: 1000,
+    };
+    assert_eq!(
+        writer
+            .execute_mutation_like_cpp(
+                RespawnPersistenceMutationLikeCpp::RetireInstanceChestMoney {
+                    realm_id: 1,
+                    map_id: 33,
+                    instance_id: 77,
+                }
+            )
+            .await,
+        RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows: 1 }
+    );
+    assert_eq!(
+        writer
+            .execute_mutation_like_cpp(
+                RespawnPersistenceMutationLikeCpp::RetireInstanceChestMoney {
+                    realm_id: 1,
+                    map_id: 33,
+                    instance_id: 77,
+                }
+            )
+            .await,
+        RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows: 0 },
+        "retrying a committed retirement is idempotent"
+    );
+    let generation_while_retired: u64 = sqlx::query_scalar(
+        "SELECT generation FROM loot_money_source_head WHERE realm_id=1 AND map_id=33 AND instance_id=77 AND spawn_id=9106002",
+    )
+    .fetch_one(db.pool())
+    .await?;
+    assert_eq!(
+        generation_while_retired, old_instance_binding.generation,
+        "retirement waits to advance the generation until the id is bound again"
+    );
+    assert_eq!(
+        adapter
+            .attempt_group_loot_money_like_cpp(instance_payout(202, old_instance_binding.claim_id,))
+            .await,
+        Attempt::AlreadySettled,
+        "retirement rejects the old claim before a replacement binding exists"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, u64>("SELECT money FROM characters WHERE guid=202")
+            .fetch_one(db.pool())
+            .await?,
+        100
+    );
+    assert_eq!(
+        bind(other_map_source, 0).await?,
+        Some(other_map_binding),
+        "retiring map 33 leaves the same numeric instance on map 34 bound"
+    );
+    assert_eq!(
+        bind(other_realm_source, 0).await?,
+        Some(other_realm_binding),
+        "retiring realm 1 leaves the same map-instance identity in realm 2 bound"
+    );
+    assert!(matches!(
+        adapter
+            .attempt_group_loot_money_like_cpp(instance_payout(202, other_map_binding.claim_id,))
+            .await,
+        Attempt::Applied(_)
+    ));
+    let reused_instance_binding = bind(old_instance_source, 0).await?.unwrap();
+    assert_eq!(
+        reused_instance_binding.generation,
+        old_instance_binding.generation + 1
+    );
+    assert!(!reused_instance_binding.spent);
+    assert_ne!(
+        reused_instance_binding.claim_id,
+        old_instance_binding.claim_id
+    );
+    assert!(matches!(
+        adapter
+            .attempt_group_loot_money_like_cpp(instance_payout(
+                202,
+                reused_instance_binding.claim_id,
+            ))
+            .await,
+        Attempt::Applied(_)
+    ));
+    assert_eq!(
+        adapter
+            .attempt_group_loot_money_like_cpp(instance_payout(
+                202,
+                reused_instance_binding.claim_id,
+            ))
+            .await,
+        Attempt::AlreadySettled,
+        "the replacement lifetime pays once"
+    );
+
+    // Map 609 is a split-by-faction world map. Its team id is nonzero but is
+    // not an allocator-owned dungeon, so map-scoped retirement and startup
+    // cleanup must leave it intact beside a dungeon using the same number.
+    let split_world_source = WorldLootMoneySource {
+        realm_id: 1,
+        map_id: 609,
+        instance_id: 1,
+        spawn_id: 9106006,
+    };
+    let same_number_instance_source = WorldLootMoneySource {
+        realm_id: 1,
+        map_id: 33,
+        instance_id: 1,
+        spawn_id: 9106007,
+    };
+    let split_world_binding = bind(split_world_source, 0).await?.unwrap();
+    let same_number_instance_binding = bind(same_number_instance_source, 0).await?.unwrap();
+    sqlx::query("INSERT INTO characters VALUES (203,100)")
+        .execute(db.pool())
+        .await?;
+    assert_eq!(
+        writer
+            .execute_mutation_like_cpp(
+                RespawnPersistenceMutationLikeCpp::RetireInstanceChestMoney {
+                    realm_id: 1,
+                    map_id: 33,
+                    instance_id: 1,
+                }
+            )
+            .await,
+        RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows: 1 }
+    );
+    assert_eq!(
+        bind(split_world_source, 0).await?,
+        Some(split_world_binding),
+        "runtime retirement for map 33 does not change map 609's team-1 source"
+    );
+    assert_eq!(
+        adapter
+            .attempt_group_loot_money_like_cpp(instance_payout(
+                203,
+                same_number_instance_binding.claim_id,
+            ))
+            .await,
+        Attempt::AlreadySettled,
+        "the old dungeon claim is rejected before a new binding is made"
+    );
+    let same_number_reused_binding = bind(same_number_instance_source, 0).await?.unwrap();
+    assert_eq!(
+        same_number_reused_binding.generation,
+        same_number_instance_binding.generation + 1
+    );
+    assert!(matches!(
+        adapter
+            .attempt_group_loot_money_like_cpp(instance_payout(
+                203,
+                same_number_reused_binding.claim_id,
+            ))
+            .await,
+        Attempt::Applied(_)
+    ));
+    assert_eq!(
+        adapter
+            .attempt_group_loot_money_like_cpp(instance_payout(
+                203,
+                same_number_reused_binding.claim_id,
+            ))
+            .await,
+        Attempt::AlreadySettled
+    );
+
+    let active_instance_source = WorldLootMoneySource {
+        realm_id: 1,
+        map_id: 40,
+        instance_id: 99,
+        spawn_id: 9106004,
+    };
+    let orphaned_instance_source = WorldLootMoneySource {
+        map_id: 41,
+        instance_id: 100,
+        spawn_id: 9106005,
+        ..active_instance_source
+    };
+    let active_before_restart = bind(active_instance_source, 0).await?.unwrap();
+    let orphaned_before_restart = bind(orphaned_instance_source, 0).await?.unwrap();
+    let chest_adapter = MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::new(Arc::clone(&db));
+    let should_retire_startup_pair = |map_id, instance_id| {
+        matches!(map_id, 33 | 34 | 40 | 41) && !matches!((map_id, instance_id), (34, 77) | (40, 99))
+    };
+    chest_adapter
+        .retire_unregistered_instance_chest_money_like_cpp(1, should_retire_startup_pair)
+        .await?;
+    assert_eq!(
+        chest_adapter
+            .retire_unregistered_instance_chest_money_like_cpp(1, should_retire_startup_pair)
+            .await?,
+        0,
+        "startup retry does not rewrite an already retired generation"
+    );
+    let orphan_generation_while_retired: u64 = sqlx::query_scalar(
+        "SELECT generation FROM loot_money_source_head WHERE realm_id=1 AND map_id=41 AND instance_id=100 AND spawn_id=9106005",
+    )
+    .fetch_one(db.pool())
+    .await?;
+    assert_eq!(
+        orphan_generation_while_retired, orphaned_before_restart.generation,
+        "startup retirement leaves generation advancement to the next bind"
+    );
+    assert_eq!(
+        bind(active_instance_source, 0).await?,
+        Some(active_before_restart)
+    );
+    assert_eq!(
+        bind(other_map_source, 0).await?,
+        Some(other_map_binding),
+        "startup cleanup preserves the registered exact pair (34, 77)"
+    );
+    let old_pair_after_restart = bind(old_instance_source, 0).await?.unwrap();
+    assert_eq!(
+        old_pair_after_restart.generation,
+        reused_instance_binding.generation + 1,
+        "registered (34, 77) does not protect unregistered (33, 77)"
+    );
+    assert_eq!(
+        bind(split_world_source, 0).await?,
+        Some(split_world_binding),
+        "startup cleanup skips map 609 even though team id 1 is not registered"
+    );
+    assert!(matches!(
+        adapter
+            .attempt_group_loot_money_like_cpp(instance_payout(203, split_world_binding.claim_id,))
+            .await,
+        Attempt::Applied(_)
+    ));
+    assert_eq!(
+        adapter
+            .attempt_group_loot_money_like_cpp(instance_payout(203, split_world_binding.claim_id,))
+            .await,
+        Attempt::AlreadySettled,
+        "the preserved split-world source pays once"
+    );
+    let orphaned_after_restart = bind(orphaned_instance_source, 0).await?.unwrap();
+    assert_eq!(
+        orphaned_after_restart.generation,
+        orphaned_before_restart.generation + 1
+    );
+    assert!(!orphaned_after_restart.spent);
+    assert_ne!(
+        orphaned_after_restart.claim_id,
+        orphaned_before_restart.claim_id
+    );
+
     // Exit with the retirement transaction committed and no map acknowledgement.
     assert_eq!(
         writer

@@ -32,6 +32,9 @@ pub(crate) struct CanonicalMapSessionPassPlanLikeCpp {
     pub(crate) plan: wow_map::MapTickPlanLikeCpp,
     /// Per admitted map, its in-world players in `m_mapRefManager` order.
     pub(crate) participants: Vec<CanonicalMapSessionPassMapLikeCpp>,
+    /// Reusable ids retired by this tick. Their chest-source generations must
+    /// commit before the map manager releases them to a new map.
+    pub(crate) instance_ids_to_retire: Vec<wow_map::MapTickParticipantLikeCpp>,
 }
 
 /// One admitted map and the sessions its tick drives, with the identities
@@ -132,6 +135,7 @@ pub(crate) fn canonical_map_tick_begin_like_cpp(
     diff_ms: u32,
 ) -> Option<CanonicalMapSessionPassPlanLikeCpp> {
     let plan = manager.begin_tick_like_cpp(diff_ms).into_started()?;
+    let instance_ids_to_retire = manager.take_pending_instance_id_retirements_like_cpp();
     let participants = plan
         .updated_maps_like_cpp()
         .iter()
@@ -141,7 +145,11 @@ pub(crate) fn canonical_map_tick_begin_like_cpp(
             participants: manager.map_session_pass_participants_like_cpp(participant.key),
         })
         .collect();
-    Some(CanonicalMapSessionPassPlanLikeCpp { plan, participants })
+    Some(CanonicalMapSessionPassPlanLikeCpp {
+        plan,
+        participants,
+        instance_ids_to_retire,
+    })
 }
 
 /// The rest of the same canonical tick, resumed with the diff saved at the

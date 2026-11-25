@@ -331,8 +331,9 @@ pub use world::{
     MapCorpseCustomizationLoadRowLikeCpp, MapCorpseLoadOutcomeLikeCpp, MapCorpseLoadRequestLikeCpp,
     MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp, MapCorpsePhaseLoadRowLikeCpp,
     RespawnPersistenceKeyLikeCpp, RespawnPersistenceLoadOutcomeLikeCpp,
-    RespawnPersistenceMutationLikeCpp, RespawnPersistenceMutationOutcomeLikeCpp,
-    RespawnPersistencePortLikeCpp, RespawnPersistenceRowLikeCpp,
+    RespawnPersistenceMutationKeyLikeCpp, RespawnPersistenceMutationLikeCpp,
+    RespawnPersistenceMutationOutcomeLikeCpp, RespawnPersistencePortLikeCpp,
+    RespawnPersistenceRowLikeCpp,
 };
 
 mod battle_pet;

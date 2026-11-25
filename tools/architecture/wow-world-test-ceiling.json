@@ -425,6 +425,16 @@
    "unit_tests_lines": 281945,
    "unit_tests_tests": 4191,
    "src_tests": 22
+  },
+  {
+   "id": "raise-46-40",
+   "kind": "raise",
+   "issue": 46,
+   "reviewed_at": "2026-11-25",
+   "reason": "The creature lifecycle fixture explicitly rejects an instance chest retirement emitted from a creature update. The exhaustive match gains three lines and preserves the test identities and ignored set.",
+   "unit_tests_lines": 281948,
+   "unit_tests_tests": 4191,
+   "src_tests": 22
   }
  ]
 }

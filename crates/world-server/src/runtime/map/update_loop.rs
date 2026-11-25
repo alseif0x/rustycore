@@ -17,8 +17,8 @@ use super::super::map_tick::{
 use super::super::{deferred_visibility, map_session_pass, world_session_pass};
 use super::{
     CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
-    LoadedGridCreatureRespawnCachesLikeCpp, PlayerRegistry, RespawnDbWriterSenderLikeCpp,
-    SharedCanonicalMapManager, SharedCanonicalSpawnMetadataLikeCpp,
+    LoadedGridCreatureRespawnCachesLikeCpp, PlayerRegistry, RespawnDbMutationAckLikeCpp,
+    RespawnDbWriterSenderLikeCpp, SharedCanonicalMapManager, SharedCanonicalSpawnMetadataLikeCpp,
     SharedRespawnDbMutationOrderLikeCpp, SharedRespawnDbProducerStopLikeCpp,
     SharedWorldStateMgrLikeCpp, canonical_map_coordinator_id_like_cpp,
     canonical_map_tick_begin_like_cpp, consume_game_event_live_update_side_effects_like_cpp,
@@ -262,6 +262,11 @@ pub(crate) fn spawn_canonical_map_update_loop(
         // Retain the obligation, not a mutable copy of its phase. Only the
         // canonical Player operation can release this fail-stop boundary.
         let mut unresolved_native_death: Option<wow_map::PlayerHandle> = None;
+        // Retirement completion is an event emitted only after the DB writer
+        // commits. Failed SQL stays in its retry queue; there is no per-id
+        // acknowledgement object to poll while the allocator fence remains.
+        let (retirement_completion_tx, mut retirement_completion_rx) =
+            tokio::sync::mpsc::unbounded_channel();
         let mut respawn_condition_scheduler =
             CanonicalRespawnConditionSchedulerLikeCpp::new(respawn_condition_interval_ms);
         loop {
@@ -344,6 +349,27 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     continue;
                 }
                 unresolved_native_death = None;
+            }
+
+            let mut completed_retirements = Vec::new();
+            while let Ok(retired) = retirement_completion_rx.try_recv() {
+                completed_retirements.push(retired);
+            }
+            if !completed_retirements.is_empty() {
+                let Ok(mut manager) = map_manager.lock() else {
+                    tracing::error!(
+                        "Canonical MapManager mutex poisoned while releasing retired instance ids"
+                    );
+                    break;
+                };
+                for retired in completed_retirements {
+                    if !manager.complete_instance_id_retirement_like_cpp(retired) {
+                        tracing::error!(
+                            ?retired,
+                            "retired instance id acknowledgement had no pending owner"
+                        );
+                    }
+                }
             }
 
             tick_epoch = tick_epoch.wrapping_add(1);
@@ -431,6 +457,37 @@ pub(crate) fn spawn_canonical_map_update_loop(
             };
 
             if let Some(plan) = session_plan.as_ref() {
+                for &retired in &plan.instance_ids_to_retire {
+                    let mutation =
+                        wow_persistence::RespawnPersistenceMutationLikeCpp::RetireInstanceChestMoney {
+                            realm_id: lifecycle_owners.realm_id,
+                            map_id: retired.key.map_id,
+                            instance_id: retired.key.instance_id,
+                        };
+                    if respawn_db_writer_tx
+                        .submit(
+                            mutation,
+                            Some(RespawnDbMutationAckLikeCpp::RetireInstanceChestMoney {
+                                retired,
+                                completion_tx: retirement_completion_tx.clone(),
+                            }),
+                        )
+                        .is_err()
+                    {
+                        tracing::error!(
+                            ?retired,
+                            "shared database writer stopped before instance chest retirement"
+                        );
+                        if let Ok(mut manager) = map_manager.lock() {
+                            manager.retry_instance_id_retirement_submission_like_cpp(retired);
+                        } else {
+                            tracing::error!(
+                                ?retired,
+                                "MapManager mutex poisoned while requeuing chest retirement"
+                            );
+                        }
+                    }
+                }
                 let _ = consume_destroyed_map_cleanup_like_cpp(
                     plan.plan.destroyed_maps_like_cpp(),
                     &lifecycle_owners,
@@ -1218,7 +1275,13 @@ fn submit_respawn_db_mutations(
     writer: &RespawnDbWriterSenderLikeCpp,
 ) {
     for (restock, ack) in summary.chest_money_restocks.drain(..) {
-        if writer.submit(restock, Some(ack)).is_err() {
+        if writer
+            .submit(
+                restock,
+                Some(RespawnDbMutationAckLikeCpp::ChestRestock(ack)),
+            )
+            .is_err()
+        {
             tracing::error!("Shared database writer stopped before chest restock submission");
         }
     }

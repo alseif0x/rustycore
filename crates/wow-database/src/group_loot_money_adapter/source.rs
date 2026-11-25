@@ -1,5 +1,6 @@
 //! Durable binding between one persistent world-loot source lifetime and its
-//! opaque money-claim receipt id.
+//! opaque money-claim receipt id. Per-source generation advances on a due
+//! restock or when a retired reusable instance id is bound again.
 //!
 //! The key is the source's durable world identity (realm, map, instance and
 //! database spawn id). Runtime object GUIDs and local loot generations never
@@ -17,6 +18,8 @@ const READ_BINDING_FOR_UPDATE: &str = "SELECT claim_id, spent FROM loot_money_so
 const DISCOVER_BINDING_BY_CLAIM: &str = "SELECT realm_id, map_id, instance_id, spawn_id, generation, scope_type, scope_owner FROM loot_money_source_binding WHERE claim_id = ?";
 const MARK_BINDING_SPENT: &str = "UPDATE loot_money_source_binding SET spent = 1 WHERE realm_id = ? AND map_id = ? AND instance_id = ? AND spawn_id = ? AND generation = ? AND scope_type = ? AND scope_owner = ? AND claim_id = ? AND spent = 0";
 const SET_RESTOCK_DEADLINE: &str = "UPDATE loot_money_source_head SET restock_deadline = ? WHERE realm_id = ? AND map_id = ? AND instance_id = ? AND spawn_id = ? AND generation = ? AND restock_deadline IS NULL";
+const LIST_INSTANCE_HEADS: &str = "SELECT DISTINCT map_id, instance_id FROM loot_money_source_head WHERE realm_id = ? AND instance_id <> 0 ORDER BY map_id, instance_id";
+const RETIRE_INSTANCE_HEADS: &str = "UPDATE loot_money_source_head SET restock_deadline = 0 WHERE realm_id = ? AND map_id = ? AND instance_id = ? AND (restock_deadline IS NULL OR restock_deadline <> 0)";
 
 fn valid_source(source: WorldLootMoneySource) -> bool {
     source.realm_id != 0 && source.spawn_id != 0
@@ -172,6 +175,87 @@ async fn resolve_due_generation(
         ));
     }
     Ok(Some(next_generation))
+}
+
+/// Mark every chest source owned by one retiring map-instance identity. The
+/// zero deadline is an idempotent retirement marker: old claims fail closed,
+/// retries do not advance generations repeatedly, and the first later bind
+/// advances each source once. Binding rows remain recognizable as stale.
+pub(super) async fn retire_instance_sources(
+    tx: &mut Transaction<'_, MySql>,
+    trace: &ExplicitTransactionTrace,
+    realm_id: u16,
+    map_id: u32,
+    instance_id: u32,
+) -> Result<u64, DatabaseError> {
+    if realm_id == 0 || instance_id == 0 {
+        return Err(source_error(
+            "invalid chest source instance retirement identity",
+        ));
+    }
+    record_sql_trace(
+        trace,
+        RETIRE_INSTANCE_HEADS,
+        vec![
+            TracedParam::Uint {
+                value: u64::from(realm_id),
+                width_bits: 16,
+            },
+            TracedParam::Uint {
+                value: u64::from(map_id),
+                width_bits: 32,
+            },
+            TracedParam::Uint {
+                value: u64::from(instance_id),
+                width_bits: 32,
+            },
+        ],
+    );
+    let updated = sqlx::query(RETIRE_INSTANCE_HEADS)
+        .bind(realm_id)
+        .bind(map_id)
+        .bind(instance_id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(updated.rows_affected())
+}
+
+/// At startup, let the caller classify each persisted map-instance pair using
+/// map type and the exact registered active-pair set. Mark eligible stale
+/// source heads before admission so an old ephemeral map cannot inherit a
+/// prior binding. Repeated cleanup is safe after an ambiguous commit.
+pub(super) async fn retire_unregistered_instance_sources(
+    tx: &mut Transaction<'_, MySql>,
+    trace: &ExplicitTransactionTrace,
+    realm_id: u16,
+    should_retire: impl Fn(u32, u32) -> bool + Send + Sync,
+) -> Result<u64, DatabaseError> {
+    if realm_id == 0 {
+        return Err(source_error(
+            "invalid chest source realm for startup retirement",
+        ));
+    }
+    let params = vec![TracedParam::Uint {
+        value: u64::from(realm_id),
+        width_bits: 16,
+    }];
+    record_sql_trace(trace, LIST_INSTANCE_HEADS, params);
+    let rows = sqlx::query(LIST_INSTANCE_HEADS)
+        .bind(realm_id)
+        .fetch_all(&mut **tx)
+        .await?;
+    let mut retired_heads = 0_u64;
+    for row in rows {
+        let map_id: u32 = row.try_get("map_id")?;
+        let instance_id: u32 = row.try_get("instance_id")?;
+        if !should_retire(map_id, instance_id) {
+            continue;
+        }
+        retired_heads = retired_heads
+            .checked_add(retire_instance_sources(tx, trace, realm_id, map_id, instance_id).await?)
+            .ok_or_else(|| source_error("retired chest source row count overflow"))?;
+    }
+    Ok(retired_heads)
 }
 
 /// Resolve the durable source generation, advance a due restock exactly once,
@@ -389,6 +473,7 @@ pub(super) async fn arm_restock_deadline(
     }
     match current_deadline {
         Some(current) if current == restock_deadline => return Ok(true),
+        Some(0) => return Ok(false),
         Some(_) => {
             return Err(source_error(
                 "conflicting deadline for this chest generation",

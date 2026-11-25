@@ -1193,6 +1193,10 @@ pub struct MapManager {
     pub(super) next_map_incarnation_like_cpp: u64,
     pub(super) tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp,
     pub(super) next_tick_epoch_like_cpp: u64,
+    /// Freed ids remain allocated until the world coordinator confirms that
+    /// durable chest sources for their previous lifetime were retired.
+    pub(super) instance_ids_pending_retirement_like_cpp: BTreeMap<u32, MapTickParticipantLikeCpp>,
+    pub(super) instance_ids_pending_retirement_submit_like_cpp: BTreeSet<u32>,
     /// Owned expiry resets from the most recently resumed `Map::Update` pass.
     /// The world coordinator consumes them after releasing this manager's guard.
     pub(super) last_instance_expiry_updates_like_cpp: Vec<MapTickInstanceExpiryUpdateLikeCpp>,

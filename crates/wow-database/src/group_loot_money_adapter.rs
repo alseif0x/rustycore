@@ -71,6 +71,43 @@ pub(crate) async fn arm_world_chest_money(
     }
 }
 
+/// Retire every world-chest source for one map-instance identity before
+/// returning that id to the map allocator. The retirement marker leaves old
+/// bindings available to reject late payouts and is safe to retry after an
+/// ambiguous commit acknowledgement.
+pub(crate) async fn retire_world_instance_chest_money(
+    character_db: &CharacterDatabase,
+    realm_id: u16,
+    map_id: u32,
+    instance_id: u32,
+) -> Result<u64, DatabaseError> {
+    let mut transaction = character_db.pool().begin().await?;
+    let mut trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+    match source::retire_instance_sources(&mut transaction, &trace, realm_id, map_id, instance_id)
+        .await
+    {
+        Ok(affected_rows) => {
+            trace.committing();
+            match transaction.commit().await {
+                Ok(()) => {
+                    trace.committed(CommitOutcome::Committed);
+                    Ok(affected_rows)
+                }
+                Err(error) => {
+                    trace.committed(CommitOutcome::Unknown);
+                    Err(error.into())
+                }
+            }
+        }
+        Err(error) => {
+            let rollback = transaction.rollback().await;
+            trace.rolled_back();
+            rollback?;
+            Err(error)
+        }
+    }
+}
+
 async fn bind_world_chest_money(
     character_db: &CharacterDatabase,
     source: WorldLootMoneySource,
@@ -346,6 +383,46 @@ impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp {
     pub fn new(character_db: Arc<CharacterDatabase>) -> Self {
         Self {
             inner: MariaDbGroupLootMoneyAttemptAdapterLikeCpp::new(character_db),
+        }
+    }
+
+    /// Invalidate stale instance chest bindings once during startup. The
+    /// caller classifies each exact map-instance pair using map type and the
+    /// registered active-pair set.
+    pub async fn retire_unregistered_instance_chest_money_like_cpp(
+        &self,
+        realm_id: u16,
+        should_retire: impl Fn(u32, u32) -> bool + Send + Sync,
+    ) -> Result<u64, DatabaseError> {
+        let mut transaction = self.inner.character_db.pool().begin().await?;
+        let mut trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+        match source::retire_unregistered_instance_sources(
+            &mut transaction,
+            &trace,
+            realm_id,
+            should_retire,
+        )
+        .await
+        {
+            Ok(affected_rows) => {
+                trace.committing();
+                match transaction.commit().await {
+                    Ok(()) => {
+                        trace.committed(CommitOutcome::Committed);
+                        Ok(affected_rows)
+                    }
+                    Err(error) => {
+                        trace.committed(CommitOutcome::Unknown);
+                        Err(error.into())
+                    }
+                }
+            }
+            Err(error) => {
+                let rollback = transaction.rollback().await;
+                trace.rolled_back();
+                rollback?;
+                Err(error)
+            }
         }
     }
 }

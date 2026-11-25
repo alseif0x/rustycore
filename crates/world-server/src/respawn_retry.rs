@@ -1,6 +1,14 @@
 use super::*;
 
 pub(super) type ChestRestockAck = Arc<std::sync::OnceLock<bool>>;
+#[derive(Debug, Clone)]
+pub(super) enum RespawnDbMutationAckLikeCpp {
+    ChestRestock(ChestRestockAck),
+    RetireInstanceChestMoney {
+        retired: wow_map::MapTickParticipantLikeCpp,
+        completion_tx: tokio::sync::mpsc::UnboundedSender<wow_map::MapTickParticipantLikeCpp>,
+    },
+}
 type QueueKey = (RespawnDbMutationKeyLikeCpp, Option<(u16, u64, i64, bool)>);
 
 /// Keeps the latest respawn DB operation per spawn for the shared DB writer.
@@ -13,7 +21,7 @@ type QueueKey = (RespawnDbMutationKeyLikeCpp, Option<(u16, u64, i64, bool)>);
 #[derive(Debug)]
 pub(super) struct PendingRespawnDbMutationLikeCpp {
     pub(super) mutation: RespawnPersistenceMutationLikeCpp,
-    pub(super) acknowledgements: Vec<ChestRestockAck>,
+    pub(super) acknowledgements: Vec<RespawnDbMutationAckLikeCpp>,
     consecutive_failures: u32,
     retry_not_before: Instant,
 }
@@ -65,7 +73,7 @@ impl RespawnDbRetryQueueLikeCpp {
         &mut self,
         mutation: RespawnPersistenceMutationLikeCpp,
         now: Instant,
-        ack: ChestRestockAck,
+        ack: RespawnDbMutationAckLikeCpp,
     ) {
         let key = Self::mailbox_key(mutation);
         if let Some(existing) = self.pending.get_mut(&key) {

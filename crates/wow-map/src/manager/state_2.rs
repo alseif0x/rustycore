@@ -2,6 +2,8 @@
 //!
 //! Separated from the manager.rs root under #644. Behaviour is preserved.
 
+use std::collections::BTreeSet;
+
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +39,8 @@ impl MapManager {
             next_map_incarnation_like_cpp: 1,
             tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp::Idle,
             next_tick_epoch_like_cpp: 1,
+            instance_ids_pending_retirement_like_cpp: BTreeMap::new(),
+            instance_ids_pending_retirement_submit_like_cpp: BTreeSet::new(),
             last_instance_expiry_updates_like_cpp: Vec::new(),
             pending_instance_map_last_leave_checks_like_cpp: Vec::new(),
             deferred_creature_respawns_like_cpp: BTreeMap::new(),
@@ -197,6 +201,15 @@ impl MapManager {
                     };
                 }
 
+                if self
+                    .instance_ids_pending_retirement_like_cpp
+                    .contains_key(&instance_id)
+                {
+                    return CreateMapDecision::Reject {
+                        side_effects: Vec::new(),
+                    };
+                }
+
                 let key = MapKey::new(entry.map_id, instance_id);
                 if self.find_map(entry.map_id, instance_id).is_some() {
                     return CreateMapDecision::Existing {
@@ -211,7 +224,6 @@ impl MapManager {
                         side_effects: vec![CreateMapSideEffect::TeleportToBattlegroundEntryPoint],
                     };
                 }
-
                 CreateMapDecision::Create {
                     key,
                     difficulty_id: 0,
@@ -264,6 +276,21 @@ impl MapManager {
                             instance_id,
                         });
                     }
+                }
+
+                // Unschedule-reset dungeons reuse a group's recent instance
+                // id directly, without asking the allocator. Keep that path
+                // fenced until durable chest-source retirement commits.
+                // C++ `MapManager::CreateMap` has the same direct recent-id
+                // selection (`MapManager.cpp:190-208`), while this DB fence is
+                // RustyCore's additional chest-source lifetime boundary.
+                if self
+                    .instance_ids_pending_retirement_like_cpp
+                    .contains_key(&instance_id)
+                {
+                    return CreateMapDecision::Reject {
+                        side_effects: Vec::new(),
+                    };
                 }
 
                 let existing = self.find_map(entry.map_id, instance_id).map(|map| {
@@ -360,7 +387,16 @@ impl MapManager {
         };
 
         match entry.kind {
-            CreateMapEntryKind::BattlegroundOrArena => player.battleground_id,
+            CreateMapEntryKind::BattlegroundOrArena => {
+                if self
+                    .instance_ids_pending_retirement_like_cpp
+                    .contains_key(&player.battleground_id)
+                {
+                    0
+                } else {
+                    player.battleground_id
+                }
+            }
             CreateMapEntryKind::Dungeon => {
                 let group = player.group;
                 let difficulty = group
@@ -380,6 +416,12 @@ impl MapManager {
                 }
 
                 if instance_id == 0 {
+                    return 0;
+                }
+                if self
+                    .instance_ids_pending_retirement_like_cpp
+                    .contains_key(&instance_id)
+                {
                     return 0;
                 }
 
@@ -710,7 +752,13 @@ impl MapManager {
             };
 
             if map.can_unload(diff_ms) {
-                if Self::destroy_map_inner(map, &mut self.instance_ids) {
+                if Self::destroy_map_inner(map) {
+                    if map.kind().frees_instance_id_on_destroy() {
+                        self.instance_ids_pending_retirement_like_cpp.insert(
+                            key.instance_id,
+                            MapTickParticipantLikeCpp { key, incarnation },
+                        );
+                    }
                     destroyed.push(MapTickDestroyedMapLikeCpp {
                         key,
                         incarnation,
@@ -993,6 +1041,17 @@ impl MapManager {
             }
             self.maps.remove(&participant.key);
             self.map_incarnations_like_cpp.remove(&participant.key);
+            if self
+                .instance_ids_pending_retirement_like_cpp
+                .get(&participant.key.instance_id)
+                == Some(&MapTickParticipantLikeCpp {
+                    key: participant.key,
+                    incarnation: participant.incarnation,
+                })
+            {
+                self.instance_ids_pending_retirement_submit_like_cpp
+                    .insert(participant.key.instance_id);
+            }
         }
 
         for map in self.maps.values_mut() {
@@ -1033,7 +1092,12 @@ impl MapManager {
     }
 
     pub fn free_instance_id(&mut self, instance_id: u32) {
-        self.instance_ids.free_instance_id(instance_id);
+        if !self
+            .instance_ids_pending_retirement_like_cpp
+            .contains_key(&instance_id)
+        {
+            self.instance_ids.free_instance_id(instance_id);
+        }
     }
 
     pub fn next_instance_id(&self) -> u32 {

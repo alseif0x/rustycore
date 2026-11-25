@@ -75,7 +75,13 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
     );
     assert_eq!(queue.pending_len(), 2);
     assert_rep_respawn_params_like_cpp(
-        &queue.pending[&(respawn_persistence_key_fixture_like_cpp(15), None)].mutation,
+        &queue.pending[&(
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(
+                respawn_persistence_key_fixture_like_cpp(15),
+            ),
+            None,
+        )]
+            .mutation,
         0,
         15,
         300,
@@ -83,7 +89,13 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
         0,
     );
     assert_rep_respawn_params_like_cpp(
-        &queue.pending[&(respawn_persistence_key_fixture_like_cpp(16), None)].mutation,
+        &queue.pending[&(
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(
+                respawn_persistence_key_fixture_like_cpp(16),
+            ),
+            None,
+        )]
+            .mutation,
         0,
         16,
         400,
@@ -112,17 +124,99 @@ fn chest_restock_survives_a_later_respawn_delete_and_generation() {
     }
     assert_eq!(queue.pending_len(), 3);
     assert_eq!(
-        queue.pending[&(key, Some((1, 0, 100, false)))].mutation,
+        queue.pending[&(
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(key),
+            Some((1, 0, 100, false)),
+        )]
+            .mutation,
         arm(0)
     );
     assert_eq!(
-        queue.pending[&(key, Some((1, 1, 100, false)))].mutation,
+        queue.pending[&(
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(key),
+            Some((1, 1, 100, false)),
+        )]
+            .mutation,
         arm(1)
     );
     assert!(matches!(
-        queue.pending[&(key, None)].mutation,
+        queue.pending[&(RespawnPersistenceMutationKeyLikeCpp::Respawn(key), None,)].mutation,
         RespawnPersistenceMutationLikeCpp::Delete { .. }
     ));
+}
+
+#[tokio::test]
+async fn respawn_db_writer_releases_instance_retirement_only_after_commit_like_cpp() {
+    let port = FakeRespawnPersistencePortLikeCpp::default();
+    port.fail_mutations
+        .store(true, std::sync::atomic::Ordering::Release);
+    let mailbox = RespawnDbMailboxLikeCpp::default();
+    let (completion_tx, mut completion_rx) = tokio::sync::mpsc::unbounded_channel();
+    let retired = wow_map::MapTickParticipantLikeCpp {
+        key: wow_map::MapKey::new(33, 77),
+        incarnation: 4,
+    };
+    let mutation = RespawnPersistenceMutationLikeCpp::RetireInstanceChestMoney {
+        realm_id: 2,
+        map_id: 33,
+        instance_id: 77,
+    };
+    {
+        let mut state = mailbox.state.lock().unwrap();
+        state.queue.enqueue_with_ack(
+            mutation,
+            Instant::now(),
+            RespawnDbMutationAckLikeCpp::RetireInstanceChestMoney {
+                retired,
+                completion_tx,
+            },
+        );
+    }
+    assert_eq!(
+        mailbox.state.lock().unwrap().queue.pending_len(),
+        1,
+        "instance retirement has its own realm and map mailbox key"
+    );
+
+    let first = mailbox
+        .state
+        .lock()
+        .unwrap()
+        .queue
+        .take_due(Instant::now())
+        .expect("retirement is due");
+    assert_eq!(
+        first.key,
+        RespawnPersistenceMutationKeyLikeCpp::RetireInstanceChestMoney {
+            realm_id: 2,
+            map_id: 33,
+            instance_id: 77,
+        }
+    );
+    execute_respawn_db_attempt_like_cpp(first, &mailbox, &port).await;
+    assert_eq!(
+        completion_rx.try_recv(),
+        Err(tokio::sync::mpsc::error::TryRecvError::Empty),
+        "failed SQL emits no release event and keeps the id fenced"
+    );
+
+    port.fail_mutations
+        .store(false, std::sync::atomic::Ordering::Release);
+    let second = {
+        let mut state = mailbox.state.lock().unwrap();
+        state.queue.make_all_due(Instant::now());
+        state
+            .queue
+            .take_due(Instant::now())
+            .expect("failed retirement remains retryable")
+    };
+    execute_respawn_db_attempt_like_cpp(second, &mailbox, &port).await;
+    assert_eq!(
+        completion_rx.try_recv(),
+        Ok(retired),
+        "only successful commit emits the id release event"
+    );
+    assert_eq!(mailbox.state.lock().unwrap().queue.pending_len(), 0);
 }
 
 #[test]
@@ -140,9 +234,8 @@ fn respawn_db_retry_queue_shutdown_makes_existing_backoff_immediately_due() {
         queue
             .take_due(shutdown_at)
             .expect("shutdown drain must bypass stale retry deadline")
-            .key
-            .spawn_id,
-        17
+            .key,
+        RespawnPersistenceMutationKeyLikeCpp::Respawn(respawn_persistence_key_fixture_like_cpp(17))
     );
 }
 #[tokio::test]
@@ -161,9 +254,11 @@ async fn respawn_db_writer_retries_failed_typed_mutation_then_applies_once_like_
     };
     {
         let mut state = mailbox.state.lock().unwrap();
-        state
-            .queue
-            .enqueue_with_ack(mutation, Instant::now(), ack.clone());
+        state.queue.enqueue_with_ack(
+            mutation,
+            Instant::now(),
+            RespawnDbMutationAckLikeCpp::ChestRestock(ack.clone()),
+        );
     }
 
     let first = mailbox

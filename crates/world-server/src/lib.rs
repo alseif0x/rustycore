@@ -53,8 +53,9 @@ use wow_packet::{
 };
 use wow_persistence::{
     RespawnPersistenceKeyLikeCpp, RespawnPersistenceLoadOutcomeLikeCpp,
-    RespawnPersistenceMutationLikeCpp, RespawnPersistenceMutationOutcomeLikeCpp,
-    RespawnPersistencePortLikeCpp, RespawnPersistenceRowLikeCpp,
+    RespawnPersistenceMutationKeyLikeCpp, RespawnPersistenceMutationLikeCpp,
+    RespawnPersistenceMutationOutcomeLikeCpp, RespawnPersistencePortLikeCpp,
+    RespawnPersistenceRowLikeCpp,
 };
 use wow_social::group::{
     GroupDbRowLikeCpp, GroupLoadSummaryLikeCpp, GroupMemberCharacterLikeCpp,
@@ -195,12 +196,14 @@ const CREATURE_TYPE_FLAG_BOSS_MOB_LIKE_CPP: u32 = 0x0001_0000;
 const HARDCODED_DEVELOPMENT_REALM_CATEGORY_ID_LIKE_CPP: u32 = 1;
 const CFG_CATEGORIES_CHARSET_RUSSIAN_LIKE_CPP: u8 = 0x04;
 
-type RespawnDbMutationKeyLikeCpp = RespawnPersistenceKeyLikeCpp;
+type RespawnDbMutationKeyLikeCpp = RespawnPersistenceMutationKeyLikeCpp;
 type SharedRespawnDbMutationOrderLikeCpp = Arc<Mutex<()>>;
 type SharedRespawnDbProducerStopLikeCpp = Arc<AtomicBool>;
 
 mod respawn_retry;
-use respawn_retry::{RespawnDbAttemptLikeCpp, RespawnDbRetryQueueLikeCpp};
+use respawn_retry::{
+    RespawnDbAttemptLikeCpp, RespawnDbMutationAckLikeCpp, RespawnDbRetryQueueLikeCpp,
+};
 
 #[derive(Debug, Default)]
 struct RespawnDbMailboxStateLikeCpp {
@@ -260,7 +263,7 @@ impl RespawnDbWriterSenderLikeCpp {
     fn submit(
         &self,
         mutation: RespawnPersistenceMutationLikeCpp,
-        ack: Option<respawn_retry::ChestRestockAck>,
+        ack: Option<RespawnDbMutationAckLikeCpp>,
     ) -> std::result::Result<(), RespawnDbSubmitErrorLikeCpp> {
         let mut state = self
             .mailbox
@@ -323,6 +326,20 @@ async fn execute_respawn_db_attempt_like_cpp(
         .await
     {
         let key = attempt.key;
+        let (object_type, spawn_id, map_id, instance_id, realm_id) = match key {
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(key) => (
+                Some(key.object_type_raw),
+                Some(key.spawn_id),
+                Some(u32::from(key.map_id)),
+                key.instance_id,
+                None,
+            ),
+            RespawnPersistenceMutationKeyLikeCpp::RetireInstanceChestMoney {
+                realm_id,
+                map_id,
+                instance_id,
+            } => (None, None, Some(map_id), instance_id, Some(realm_id)),
+        };
         let (retry_delay, failed_attempts) = mailbox
             .state
             .lock()
@@ -331,17 +348,31 @@ async fn execute_respawn_db_attempt_like_cpp(
             .retry_failed(attempt, Instant::now());
         warn!(
             error = %reason,
-            object_type = key.object_type_raw,
-            spawn_id = key.spawn_id,
-            map_id = key.map_id,
-            instance_id = key.instance_id,
+            object_type,
+            spawn_id,
+            map_id,
+            instance_id,
+            realm_id,
             retry_in_ms = retry_delay.as_millis(),
             failed_attempts,
             "Failed to persist respawn operation like C++; shared DB-writer retry deferred"
         );
     } else {
         for ack in attempt.pending.acknowledgements {
-            let _ = ack.set(true);
+            match ack {
+                RespawnDbMutationAckLikeCpp::ChestRestock(ack) => {
+                    let _ = ack.set(true);
+                }
+                RespawnDbMutationAckLikeCpp::RetireInstanceChestMoney {
+                    retired,
+                    completion_tx,
+                } => {
+                    // Only a committed SQL result emits a release event. A
+                    // failed attempt stays inside the retry queue and leaves
+                    // the allocator's id fence intact.
+                    let _ = completion_tx.send(retired);
+                }
+            }
         }
     }
 }

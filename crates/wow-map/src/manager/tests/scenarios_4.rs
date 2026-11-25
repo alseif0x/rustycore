@@ -159,6 +159,75 @@ fn create_map_decision_normal_dungeon_reuses_recent_instance_like_cpp() {
 }
 
 #[test]
+fn recent_instance_id_waits_for_chest_retirement_before_reentry() {
+    let mut manager = MapManager::default();
+    manager.init_instance_ids(8);
+    for instance_id in 1..=7 {
+        manager.register_instance_id(instance_id);
+    }
+    let mut player = player();
+    player.player_recent_instance_id = 7;
+    let key = MapKey::new(33, 7);
+    manager.create_map_entry(
+        33,
+        7,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: false,
+        },
+    );
+    let retired = MapTickParticipantLikeCpp {
+        key,
+        incarnation: manager.map_incarnation_like_cpp(key).unwrap(),
+    };
+    assert!(manager.destroy_map(33, 7));
+    assert_eq!(
+        manager.take_pending_instance_id_retirements_like_cpp(),
+        [retired]
+    );
+
+    assert_eq!(
+        manager.create_map_decision_like_cpp(
+            Some(dungeon_entry(33, false)),
+            Some(player),
+            |_, requested| Some(difficulty(requested, false, true)),
+            None,
+            |_, _| None,
+        ),
+        CreateMapDecision::Reject {
+            side_effects: Vec::new(),
+        },
+        "the recent-id path must not bypass a pending retirement"
+    );
+    assert_eq!(
+        manager.find_instance_id_for_player_like_cpp(
+            Some(dungeon_entry(33, false)),
+            Some(player),
+            |_, requested| Some(difficulty(requested, false, true)),
+            None,
+            |_, _| None,
+        ),
+        0
+    );
+    assert_eq!(manager.generate_instance_id(), Some(8));
+
+    assert!(manager.complete_instance_id_retirement_like_cpp(retired));
+    assert!(matches!(
+        manager.create_map_decision_like_cpp(
+            Some(dungeon_entry(33, false)),
+            Some(player),
+            |_, requested| Some(difficulty(requested, false, true)),
+            None,
+            |_, _| None,
+        ),
+        CreateMapDecision::Create {
+            key: MapKey { instance_id: 7, .. },
+            ..
+        }
+    ));
+}
+
+#[test]
 fn create_map_decision_dungeon_generates_instance_and_lock_side_effect_like_cpp() {
     let mut manager = MapManager::default();
     manager.init_instance_ids(3);

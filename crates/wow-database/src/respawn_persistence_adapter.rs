@@ -177,6 +177,19 @@ impl RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp {
                     .await
                     .map(u64::from)
                 }
+                RespawnPersistenceMutationLikeCpp::RetireInstanceChestMoney {
+                    realm_id,
+                    map_id,
+                    instance_id,
+                } => {
+                    crate::group_loot_money_adapter::retire_world_instance_chest_money(
+                        &self.character_db,
+                        realm_id,
+                        map_id,
+                        instance_id,
+                    )
+                    .await
+                }
             };
             match result {
                 Ok(affected_rows) => {

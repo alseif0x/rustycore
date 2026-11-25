@@ -4217,6 +4217,29 @@ async fn run_inner(
                 bail!("Failed to load instance locks from character database: {reason}")
             }
         };
+    let group_loot_money_adapter =
+        wow_database::group_loot_money_adapter::MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::new(
+            Arc::clone(&char_db),
+        );
+    {
+        let saved_instance_maps: std::collections::HashSet<_> = character_instance_lock_rows
+            .iter()
+            .map(|row| (row.map_id, row.instance_id))
+            .collect();
+        let retired_heads = group_loot_money_adapter
+            .retire_unregistered_instance_chest_money_like_cpp(realm_id, |map_id, instance_id| {
+                map_store
+                    .get(map_id)
+                    .is_some_and(|map| map.is_dungeon() || map.is_battleground_or_arena())
+                    && !saved_instance_maps.contains(&(map_id, instance_id))
+            })
+            .await
+            .context("Failed to retire chest money from unsaved instance maps")?;
+        info!(
+            retired_heads,
+            "Retired chest money from unsaved instance maps"
+        );
+    }
     let mut loaded_instance_lock_mgr = InstanceLockMgr::default();
     let instance_lock_load_issues = loaded_instance_lock_mgr.load_from_rows_like_cpp(
         realm_id,
@@ -4618,11 +4641,7 @@ async fn run_inner(
     );
     let group_loot_money_persistence_port: Arc<
         dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::group_loot_money_adapter::MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::new(
-            Arc::clone(&char_db),
-        ),
-    );
+    > = Arc::new(group_loot_money_adapter);
     let represented_group_persistence_port: Arc<
         dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp,
     > = represented_group_persistence_adapter;

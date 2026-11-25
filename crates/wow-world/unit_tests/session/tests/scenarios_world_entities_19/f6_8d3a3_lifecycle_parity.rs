@@ -242,6 +242,9 @@ fn d3a3_db_statement_like_cpp(
         wow_persistence::RespawnPersistenceMutationLikeCpp::ArmChestMoney { .. } => {
             panic!("creature lifecycle emitted a chest restock")
         }
+        wow_persistence::RespawnPersistenceMutationLikeCpp::RetireInstanceChestMoney { .. } => {
+            panic!("creature lifecycle emitted an instance chest retirement")
+        }
     }
 }
 
