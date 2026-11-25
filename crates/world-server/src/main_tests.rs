@@ -106,8 +106,9 @@ use wow_persistence::{
     GameEventConditionSaveLoadOutcomeLikeCpp, GameEventPersistenceMutationLikeCpp,
     GameEventPersistenceMutationOutcomeLikeCpp, GameEventPersistencePortLikeCpp,
     RespawnPersistenceKeyLikeCpp, RespawnPersistenceLoadOutcomeLikeCpp,
-    RespawnPersistenceMutationLikeCpp, RespawnPersistenceMutationOutcomeLikeCpp,
-    RespawnPersistencePortLikeCpp, RespawnPersistenceRowLikeCpp,
+    RespawnPersistenceMutationKeyLikeCpp, RespawnPersistenceMutationLikeCpp,
+    RespawnPersistenceMutationOutcomeLikeCpp, RespawnPersistencePortLikeCpp,
+    RespawnPersistenceRowLikeCpp,
 };
 
 #[derive(Default)]

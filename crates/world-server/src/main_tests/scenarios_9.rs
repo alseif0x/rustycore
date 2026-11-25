@@ -166,7 +166,7 @@ async fn respawn_db_writer_releases_instance_retirement_only_after_commit_like_c
         state.queue.enqueue_with_ack(
             mutation,
             Instant::now(),
-            RespawnDbMutationAckLikeCpp::RetireInstanceChestMoney {
+            crate::RespawnDbMutationAckLikeCpp::RetireInstanceChestMoney {
                 retired,
                 completion_tx,
             },
@@ -257,7 +257,7 @@ async fn respawn_db_writer_retries_failed_typed_mutation_then_applies_once_like_
         state.queue.enqueue_with_ack(
             mutation,
             Instant::now(),
-            RespawnDbMutationAckLikeCpp::ChestRestock(ack.clone()),
+            crate::RespawnDbMutationAckLikeCpp::ChestRestock(ack.clone()),
         );
     }
 
