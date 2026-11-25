@@ -58,6 +58,11 @@ impl WorldSession {
             self.apply_session_command_with_catalogs_like_cpp(catalogs, command)
                 .await;
         }
+        if self.core.state == SessionState::LoggedIn {
+            wow_world_instances::update_changed_player_phase_conditions_like_cpp(
+                crate::session::hub_ref(self),
+            );
+        }
         wow_world_entities::flush_pending_visibility_refresh_with_catalogs_like_cpp(
             self,
             catalogs.creature_spawns.as_ref(),

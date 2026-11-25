@@ -14,7 +14,7 @@ use wow_core::ObjectGuid;
 use wow_data::{
     AreaTableStore, PhaseAreaInfo, PhaseGroupStore, PhaseInfoStore, PhaseStore, TerrainSwapStore,
 };
-use wow_entities::{PhaseShift, Unit, WorldObject};
+use wow_entities::{PhaseRef, PhaseShift, Unit, WorldObject};
 use wow_packet::packets::misc::{PhaseShiftChange, PhaseShiftDataPhase};
 #[cfg(test)]
 use wow_packet::packets::party::PartyMemberPhase;
@@ -394,15 +394,21 @@ pub fn on_area_change_like_cpp(
                 let phase_id = phase_area.phase_id;
                 let phase_flags = phase_flags_for_id_like_cpp(phase_store, phase_id);
                 if phase_area_conditions_pass(phase_area, object) {
-                    object
-                        .phase_shift_mut()
-                        .add_phase_like_cpp(phase_id, phase_flags, 1);
-                } else {
-                    object.suppressed_phase_shift_mut().add_phase_like_cpp(
+                    object.phase_shift_mut().add_phase_with_area_id_like_cpp(
                         phase_id,
                         phase_flags,
                         1,
+                        Some(area_entry.id),
                     );
+                } else {
+                    object
+                        .suppressed_phase_shift_mut()
+                        .add_phase_with_area_id_like_cpp(
+                            phase_id,
+                            phase_flags,
+                            1,
+                            Some(area_entry.id),
+                        );
                 }
             }
         }
@@ -448,20 +454,19 @@ pub fn on_area_change_like_cpp(
 
 /// C++ `PhasingHandler::OnConditionChange` core mutation, excluding runtime unit side effects.
 ///
-/// `active_phase_condition_pass` represents the nullable `PhaseRef::AreaConditions` check:
-/// returning `None` means the active phase has no area condition pointer and must not be
-/// suppressed by this pass. `suppressed_phase_condition_pass` represents the C++ asserted
-/// non-null condition pointer on suppressed phases. Terrain-swap conditions use
-/// `CONDITION_SOURCE_TYPE_TERRAIN_SWAP`.
+/// `phase_condition_pass` receives both active and suppressed phase references so
+/// callers can resolve their concrete area-condition provenance. `None` leaves a
+/// phase in its current set. Terrain-swap conditions use
+/// `CONDITION_SOURCE_TYPE_TERRAIN_SWAP`; their `None` result likewise leaves the
+/// visible-map reference unchanged.
 pub fn on_condition_change_like_cpp(
     object: &mut WorldObject,
     phase_store: &PhaseStore,
     phase_group_store: &PhaseGroupStore,
     terrain_swap_store: &TerrainSwapStore,
     update_visibility: bool,
-    mut active_phase_condition_pass: impl FnMut(u32, &WorldObject) -> Option<bool>,
-    mut suppressed_phase_condition_pass: impl FnMut(u32, &WorldObject) -> bool,
-    mut terrain_swap_conditions_pass: impl FnMut(u32, &WorldObject) -> bool,
+    mut phase_condition_pass: impl FnMut(&PhaseRef, &WorldObject) -> Option<bool>,
+    mut terrain_swap_conditions_pass: impl FnMut(u32, &WorldObject) -> Option<bool>,
     aura_phase_ids: impl IntoIterator<Item = u32>,
     aura_phase_group_ids: impl IntoIterator<Item = u32>,
 ) -> PhaseVisibilityUpdate {
@@ -470,37 +475,39 @@ pub fn on_condition_change_like_cpp(
 
     let active_phases = object.phase_shift().phase_snapshot_like_cpp();
     for phase_ref in active_phases {
-        if active_phase_condition_pass(phase_ref.id(), object) == Some(false)
+        if phase_condition_pass(&phase_ref, object) == Some(false)
             && let Some(removed) = object
                 .phase_shift_mut()
                 .remove_phase_all_references_like_cpp(phase_ref.id())
         {
-            new_suppressions.add_phase_like_cpp(
+            new_suppressions.add_phase_with_area_id_like_cpp(
                 removed.id(),
                 removed.flags(),
                 removed.references(),
+                removed.area_id_like_cpp(),
             );
         }
     }
 
     let suppressed_phases = object.suppressed_phase_shift().phase_snapshot_like_cpp();
     for phase_ref in suppressed_phases {
-        if suppressed_phase_condition_pass(phase_ref.id(), object)
+        if phase_condition_pass(&phase_ref, object) == Some(true)
             && let Some(removed) = object
                 .suppressed_phase_shift_mut()
                 .remove_phase_all_references_like_cpp(phase_ref.id())
         {
-            changed = object.phase_shift_mut().add_phase_like_cpp(
+            changed = object.phase_shift_mut().add_phase_with_area_id_like_cpp(
                 removed.id(),
                 removed.flags(),
                 removed.references(),
+                removed.area_id_like_cpp(),
             ) || changed;
         }
     }
 
     let active_visible_maps = object.phase_shift().visible_map_id_snapshot_like_cpp();
     for (visible_map_id, _visible_map_ref) in active_visible_maps {
-        if !terrain_swap_conditions_pass(visible_map_id, object)
+        if terrain_swap_conditions_pass(visible_map_id, object) == Some(false)
             && let Some(removed) = object
                 .phase_shift_mut()
                 .remove_visible_map_id_all_references_like_cpp(visible_map_id)
@@ -522,7 +529,7 @@ pub fn on_condition_change_like_cpp(
         .suppressed_phase_shift()
         .visible_map_id_snapshot_like_cpp();
     for (visible_map_id, visible_map_ref) in suppressed_visible_maps {
-        if terrain_swap_conditions_pass(visible_map_id, object)
+        if terrain_swap_conditions_pass(visible_map_id, object) == Some(true)
             && object
                 .suppressed_phase_shift_mut()
                 .remove_visible_map_id_all_references_like_cpp(visible_map_id)
@@ -581,11 +588,14 @@ pub fn on_condition_change_like_cpp(
         || new_suppressions.visible_map_id_count_like_cpp() != 0;
 
     for phase_ref in new_suppressions.phase_snapshot_like_cpp() {
-        object.suppressed_phase_shift_mut().add_phase_like_cpp(
-            phase_ref.id(),
-            phase_ref.flags(),
-            phase_ref.references(),
-        );
+        object
+            .suppressed_phase_shift_mut()
+            .add_phase_with_area_id_like_cpp(
+                phase_ref.id(),
+                phase_ref.flags(),
+                phase_ref.references(),
+                phase_ref.area_id_like_cpp(),
+            );
     }
 
     for (visible_map_id, visible_map_ref) in new_suppressions.visible_map_id_snapshot_like_cpp() {

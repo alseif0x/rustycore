@@ -1,11 +1,14 @@
 use super::*;
 
-#[test]
-fn area_phase_uses_class_and_live_event_and_clears_on_exit() {
+#[tokio::test]
+async fn area_phase_uses_live_conditions_and_updates_after_quest_or_aura_changes() {
     const MAP: u32 = 571;
     const PHASE: u32 = 70;
+    const AURA_PHASE: u32 = 71;
     const AREA: u32 = 101;
     const EVENT: u32 = 86;
+    const QUEST: u32 = 1234;
+    const SPELL: u32 = 6000;
     let (mut session, _, receiver) = make_session();
     let manager = shared_canonical_map_manager();
     let guid = ObjectGuid::create_player(1, 49_620);
@@ -35,6 +38,7 @@ fn area_phase_uses_class_and_live_event_and_clears_on_exit() {
         handle
     };
     session.core.player_handle_like_cpp = Some(handle);
+    session.set_state(crate::session::SessionState::LoggedIn);
     wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 0);
 
     let areas = Arc::new(wow_data::AreaTableStore::from_entries(
@@ -48,25 +52,28 @@ fn area_phase_uses_class_and_live_event_and_clears_on_exit() {
             flags: 0,
         }),
     ));
-    let phases = Arc::new(wow_data::PhaseStore::from_entries([wow_data::PhaseEntry {
-        id: PHASE,
-        flags: 0,
-    }]));
+    let phases = Arc::new(wow_data::PhaseStore::from_entries(
+        [PHASE, AURA_PHASE].map(|id| wow_data::PhaseEntry { id, flags: 0 }),
+    ));
     let mut rules = wow_data::PhaseInfoStore::from_phase_store_like_cpp(&phases);
-    rules.load_area_phases_from_rows_like_cpp(&areas, &phases, [(AREA, PHASE)]);
+    rules.load_area_phases_from_rows_like_cpp(&areas, &phases, [(AREA, PHASE), (AREA, AURA_PHASE)]);
     let conditions = Arc::new(
         wow_data::ConditionEntriesByTypeStore::from_conditions_like_cpp(
             [
-                (wow_constants::ConditionType::Class, 128),
-                (wow_constants::ConditionType::ActiveEvent, EVENT),
+                (PHASE, wow_constants::ConditionType::Class, 128),
+                (PHASE, wow_constants::ConditionType::ActiveEvent, EVENT),
+                (PHASE, wow_constants::ConditionType::QuestTaken, QUEST),
+                (AURA_PHASE, wow_constants::ConditionType::Aura, SPELL),
             ]
-            .map(|(condition_type, condition_value1)| wow_data::Condition {
-                source_type: wow_constants::ConditionSourceType::Phase,
-                source_group: PHASE,
-                source_entry: AREA as i32,
-                condition_type,
-                condition_value1,
-                ..Default::default()
+            .map(|(source_group, condition_type, condition_value1)| {
+                wow_data::Condition {
+                    source_type: wow_constants::ConditionSourceType::Phase,
+                    source_group,
+                    source_entry: AREA as i32,
+                    condition_type,
+                    condition_value1,
+                    ..Default::default()
+                }
             }),
         ),
     );
@@ -92,7 +99,7 @@ fn area_phase_uses_class_and_live_event_and_clears_on_exit() {
     session.set_phase_store(phases);
     session.set_area_table_store(areas);
     let _ = drain_server_packet_bytes(&receiver);
-    let has_phase = |session: &crate::session::WorldSession| {
+    let has_phase = |session: &crate::session::WorldSession, phase| {
         session
             .core
             .with_owned_player_like_cpp(|player| {
@@ -100,7 +107,7 @@ fn area_phase_uses_class_and_live_event_and_clears_on_exit() {
                     .unit()
                     .world()
                     .phase_shift()
-                    .has_phase_like_cpp(PHASE)
+                    .has_phase_like_cpp(phase)
             })
             .unwrap()
     };
@@ -110,20 +117,88 @@ fn area_phase_uses_class_and_live_event_and_clears_on_exit() {
         AREA,
         false,
     );
-    assert!(!has_phase(&session));
+    assert!(!has_phase(&session, PHASE));
     active.store(true, std::sync::atomic::Ordering::Relaxed);
-    wow_world_instances::update_area_represented_with_rest_update_like_cpp(
-        &mut session,
-        AREA,
-        false,
-    );
-    assert!(has_phase(&session));
+    session
+        .process_represented_session_commands_like_cpp()
+        .await;
+    assert!(!has_phase(&session, PHASE));
+
+    let apply_test_quest = |session: &crate::session::WorldSession| {
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.gameplay_state_mut().quests.set_status_like_cpp(
+                    QUEST,
+                    wow_constants::quest::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                    true,
+                );
+            })
+            .unwrap();
+    };
+    apply_test_quest(&session);
+    session
+        .process_represented_session_commands_like_cpp()
+        .await;
+    assert!(has_phase(&session, PHASE));
+
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.insert_player_visible_aura_like_cpp(wow_entities::AuraApplicationLikeCpp {
+                spell_id: SPELL as i32,
+                difficulty_id: 0,
+                caster_guid: guid,
+                slot: 1,
+                duration_total: 60000,
+                duration_remaining: 60000,
+                stack_count: 1,
+                aura_flags: 0,
+                effect_mask: 1,
+                aura_interrupt_flags: 0,
+                aura_interrupt_flags2: 0,
+                represented_effect: None,
+                represented_amount: 0,
+                represented_effect_amounts: Vec::new(),
+                represented_misc_value: None,
+                represented_multiplier: 1.0,
+                applied_at: Instant::now(),
+            });
+        })
+        .unwrap();
+    session
+        .process_represented_session_commands_like_cpp()
+        .await;
+    assert!(has_phase(&session, PHASE));
+    assert!(has_phase(&session, AURA_PHASE));
+
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.remove_player_visible_aura_like_cpp(1);
+            player
+                .gameplay_state_mut()
+                .quests
+                .remove_status_like_cpp(QUEST);
+        })
+        .unwrap();
+    session
+        .process_represented_session_commands_like_cpp()
+        .await;
+    assert!(!has_phase(&session, PHASE));
+    assert!(!has_phase(&session, AURA_PHASE));
+
+    apply_test_quest(&session);
+    session
+        .process_represented_session_commands_like_cpp()
+        .await;
+    assert!(has_phase(&session, PHASE));
     wow_world_instances::update_area_represented_with_rest_update_like_cpp(
         &mut session,
         AREA + 1,
         false,
     );
-    assert!(!has_phase(&session));
+    assert!(!has_phase(&session, PHASE));
 }
 
 #[tokio::test]

@@ -78,6 +78,7 @@ pub use instance_session::{
     AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, set_represented_tavern_resting_like_cpp,
     update_area_represented_with_rest_update_like_cpp,
 };
+pub use instance_session::update_changed_player_phase_conditions_like_cpp;
 pub use instance_session::{
     AreaTriggerCatalogAccessLikeCpp, AreaTriggerHostLikeCpp,
     CreateMapSideEffectApplySummaryLikeCpp, InstanceSessionHostLikeCpp, REST_FLAG_IN_CITY_LIKE_CPP,

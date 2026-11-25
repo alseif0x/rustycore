@@ -1,6 +1,6 @@
 //! Player::UpdateArea evaluates ObjectMgr's area phases on the owned Player.
 
-use std::sync::atomic::Ordering;
+use std::{collections::BTreeMap, sync::atomic::Ordering};
 use wow_conditions::{
     ConditionAuraEffectSnapshot, ConditionMapStateSnapshot, ConditionPlayerProgressionSnapshot,
     ConditionPlayerQuestSnapshot, ConditionQuestObjectiveProgressSnapshot,
@@ -12,6 +12,29 @@ use wow_world_core::session::HubRef;
 
 /// Apply the area pass after UpdateArea has stored the destination on the Player.
 pub(super) fn update_player_area_phases_like_cpp(hub: HubRef<'_>) {
+    update_player_phases_like_cpp(hub, true);
+}
+
+/// Settle committed quest and aura mutations on the owning Session.
+pub fn update_changed_player_phase_conditions_like_cpp(hub: HubRef<'_>) {
+    if hub.catalogs.player_area_phases.is_some()
+        && hub.core.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .quests
+                .phase_conditions_dirty_like_cpp()
+                || player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .has_player_phase_changes_like_cpp()
+        }) == Some(true)
+    {
+        update_player_phases_like_cpp(hub, false);
+    }
+}
+
+fn update_player_phases_like_cpp(hub: HubRef<'_>, area_changed: bool) {
     let catalogs = hub.catalogs;
     let (Some(rules), Some(areas), Some(phases), Some(groups), Some(conditions)) = (
         catalogs.player_area_phases.as_deref(),
@@ -22,10 +45,6 @@ pub(super) fn update_player_area_phases_like_cpp(hub: HubRef<'_>) {
     ) else {
         return;
     };
-    if rules.areas.phase_area_count() == 0 {
-        return;
-    }
-
     // Read the event authority before borrowing the Player through MapManager.
     let active_events = rules.active_event_ids();
     let difficulty_id = hub
@@ -38,7 +57,8 @@ pub(super) fn update_player_area_phases_like_cpp(hub: HubRef<'_>) {
     let changed = hub
         .core
         .with_owned_player_mut_like_cpp(|player| {
-            let quests = &player.gameplay_state().quests;
+            let quests = &mut player.gameplay_state_mut().quests;
+            quests.take_phase_conditions_dirty_like_cpp();
             let statuses: Vec<_> = quests
                 .statuses_like_cpp()
                 .iter()
@@ -87,7 +107,13 @@ pub(super) fn update_player_area_phases_like_cpp(hub: HubRef<'_>) {
                     base_value: u32::from(skill.current_value),
                 })
                 .collect();
-            let auras = &player.unit().subsystems().auras;
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            let aura_changes = if area_changed {
+                auras.reset_player_phase_tracking_like_cpp();
+                BTreeMap::new()
+            } else {
+                auras.take_player_phase_changes_like_cpp()
+            };
             let aura_snapshot: Vec<_> = auras
                 .runtime_applications_like_cpp()
                 .values()
@@ -107,13 +133,8 @@ pub(super) fn update_player_area_phases_like_cpp(hub: HubRef<'_>) {
                 catalogs.difficulty_store.as_deref(),
             );
             let world = player.unit_mut().world_mut();
-            let update = wow_world_core::phasing::on_area_change_like_cpp(
-                world,
-                areas,
-                phases,
-                groups,
-                &rules.areas,
-                |area, object| {
+            let evaluate_area =
+                |area: &wow_data::PhaseAreaInfo, object: &wow_entities::WorldObject| {
                     let mut source = ConditionSourceInfo::from_targets(Some(object), None, None);
                     source.set_unit_target_snapshot(0, unit_snapshot);
                     source.set_player_target_snapshot(0, player_snapshot);
@@ -186,11 +207,48 @@ pub(super) fn update_player_area_phases_like_cpp(hub: HubRef<'_>) {
                                 .unwrap_or(false)
                         },
                     )
-                },
-                aura_phases,
-                aura_groups,
-            );
-            if update.changed && world.object().is_in_world() {
+                };
+            let changed = if area_changed {
+                wow_world_core::phasing::on_area_change_like_cpp(
+                    world,
+                    areas,
+                    phases,
+                    groups,
+                    &rules.areas,
+                    evaluate_area,
+                    aura_phases,
+                    aura_groups,
+                )
+                .changed
+            } else {
+                let direct_changed =
+                    apply_phase_aura_changes(world, aura_changes, catalogs, phases, groups);
+                let unavailable_terrain = wow_data::TerrainSwapStore::default();
+                let update = wow_world_core::phasing::on_condition_change_like_cpp(
+                    world,
+                    phases,
+                    groups,
+                    catalogs
+                        .terrain_swap_store
+                        .as_deref()
+                        .unwrap_or(&unavailable_terrain),
+                    true,
+                    |phase, object| {
+                        let area = phase.area_id_like_cpp()?;
+                        let rule = rules
+                            .areas
+                            .phases_for_area(area)?
+                            .iter()
+                            .find(|rule| rule.phase_id == phase.id())?;
+                        Some(evaluate_area(rule, object))
+                    },
+                    |_, _| None,
+                    aura_phases,
+                    aura_groups,
+                );
+                direct_changed || update.changed
+            };
+            if changed && world.object().is_in_world() {
                 world
                     .object_mut()
                     .add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);
@@ -208,4 +266,47 @@ pub(super) fn update_player_area_phases_like_cpp(hub: HubRef<'_>) {
             .visibility_refresh_pending_like_cpp
             .store(true, Ordering::Release);
     }
+}
+
+/// SpellAuraEffects.cpp::HandlePhase and ::HandlePhaseGroup add/remove one
+/// reference per real effect. Preserve area references on overlapping phases.
+fn apply_phase_aura_changes(
+    world: &mut wow_entities::WorldObject,
+    auras: BTreeMap<(i32, u8, u32), i32>,
+    catalogs: &wow_world_core::session::SessionCatalogs,
+    phases: &wow_data::PhaseStore,
+    groups: &wow_data::PhaseGroupStore,
+) -> bool {
+    let mut changes = BTreeMap::<u32, i32>::new();
+    for ((spell_id, difficulty, mask), change) in auras {
+        let (phase_ids, group_ids) = wow_world_spell::aura_phase_ids_like_cpp(
+            spell_id,
+            difficulty,
+            mask,
+            catalogs.spell_catalogs.spell_store.as_deref(),
+            catalogs.spell_catalogs.serverside_spell_store.as_deref(),
+            catalogs.difficulty_store.as_deref(),
+        );
+        let group_phases = group_ids
+            .into_iter()
+            .filter_map(|group| groups.phases_for_group(group))
+            .flatten()
+            .copied();
+        for phase_id in phase_ids.into_iter().chain(group_phases) {
+            *changes.entry(phase_id).or_default() += change;
+        }
+    }
+    let shift = world.phase_shift_mut();
+    let mut changed = false;
+    for (id, change) in changes {
+        if change > 0 {
+            let flags = wow_world_core::phasing::phase_flags_for_id_like_cpp(phases, id);
+            changed |= shift.add_phase_like_cpp(id, flags, change);
+        } else {
+            for _ in change..0 {
+                changed |= shift.remove_phase_like_cpp(id);
+            }
+        }
+    }
+    changed
 }
