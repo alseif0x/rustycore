@@ -372,7 +372,7 @@ fn the_world_update_dispatch_sits_after_the_tick_with_no_guard_in_scope() {
         .rfind("drop(manager);")
         .expect("the tick drops its guard");
     let game_events = source
-        .find("if !stop_after_tick && game_event_scheduler.update(diff_ms)")
+        .find("if !stop_after_tick && game_event_scheduler.is_due(event_now)")
         .expect("game events run in the tick");
     let stop = source
         .rfind("if stop_after_tick {")

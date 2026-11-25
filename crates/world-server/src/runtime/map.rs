@@ -532,8 +532,24 @@ pub(crate) async fn execute_game_event_world_event_state_db_bridge_like_cpp(
 }
 
 #[derive(Clone)]
+pub(crate) struct LoadedGridPhaseStores {
+    pub(crate) phases: Arc<wow_data::PhaseStore>,
+    pub(crate) groups: Arc<wow_data::PhaseGroupStore>,
+}
+
+#[cfg(test)]
+impl Default for LoadedGridPhaseStores {
+    fn default() -> Self {
+        let phases = Arc::new(wow_data::PhaseStore::from_entries([]));
+        let groups = Arc::new(wow_data::PhaseGroupStore::from_entries(&phases, []));
+        Self { phases, groups }
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct LoadedGridCreatureRespawnCachesLikeCpp {
     pub(crate) realm_id: u16,
+    pub(crate) phase_stores: LoadedGridPhaseStores,
     pub(crate) template_store: Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
     pub(crate) sparring_store: Arc<wow_data::CreatureTemplateSparringStoreLikeCpp>,
     pub(crate) difficulty_store: Arc<wow_data::CreatureDifficultyStoreLikeCpp>,
@@ -552,6 +568,30 @@ pub(crate) struct LoadedGridCreatureRespawnCachesLikeCpp {
     pub(crate) vehicle_accessory_store: Arc<wow_data::VehicleAccessoryStoreLikeCpp>,
     pub(crate) gameobject_template_store: Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>,
     pub(crate) gameobject_override_store: Arc<wow_data::GameObjectOverrideLifecycleStoreLikeCpp>,
+}
+
+fn initialize_loaded_grid_spawn_phase(
+    records: &mut wow_map::map::LoadedGridRespawnRecordsLikeCpp,
+    spawn: &wow_map::SpawnData,
+    caches: &LoadedGridCreatureRespawnCachesLikeCpp,
+) -> Option<()> {
+    let Ok(phase_id) = u16::try_from(spawn.phase_id) else {
+        warn!(
+            spawn_id = spawn.spawn_id,
+            phase_id = spawn.phase_id,
+            "Loaded-grid spawn phase exceeds the supported phase ID range"
+        );
+        return None;
+    };
+    wow_world_core::phasing::init_db_phase_shift_like_cpp(
+        records.primary_record.object_mut().phase_shift_mut(),
+        &caches.phase_stores.phases,
+        &caches.phase_stores.groups,
+        spawn.phase_use_flags,
+        phase_id,
+        spawn.phase_group,
+    );
+    Some(())
 }
 
 pub(crate) struct MapCreatureModelSelectionRandomLikeCpp<'a, Terrain, Lifecycle>
@@ -787,13 +827,15 @@ pub(crate) fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         [resolved_spawn],
         [(spawn.id, runtime_selection)],
     );
-    creature_addon_provenance::settle_resolved_loaded_grid_creature_like_cpp(
+    let mut records = creature_addon_provenance::settle_resolved_loaded_grid_creature_like_cpp(
         map,
         resolver.resolve_loaded_grid_creature_like_cpp(spawn_id, map_object_guid),
         spawn_id,
         spawn.id,
         map_object_guid,
-    )
+    )?;
+    initialize_loaded_grid_spawn_phase(&mut records, spawn, caches)?;
+    Some(records)
 }
 
 pub(crate) fn build_loaded_grid_gameobject_respawn_record_like_cpp(
@@ -943,11 +985,13 @@ pub(crate) fn build_loaded_grid_gameobject_respawn_record_like_cpp(
                     return match resolver
                         .resolve_loaded_grid_gameobject_like_cpp(spawn_id, map_object_guid)
                     {
-                        Ok(resolved) => resolved.map_object_record.map(|primary_record| {
-                            wow_map::map::LoadedGridRespawnRecordsLikeCpp {
+                        Ok(resolved) => resolved.map_object_record.and_then(|primary_record| {
+                            let mut records = wow_map::map::LoadedGridRespawnRecordsLikeCpp {
                                 pre_add_records: resolved.pre_add_records,
                                 primary_record,
-                            }
+                            };
+                            initialize_loaded_grid_spawn_phase(&mut records, spawn, caches)?;
+                            Some(records)
                         }),
                         Err(error) => {
                             debug!(
@@ -1001,11 +1045,13 @@ pub(crate) fn build_loaded_grid_gameobject_respawn_record_like_cpp(
         map_object_guid,
         linked_trap_guid,
     ) {
-        Ok(resolved) => resolved.map_object_record.map(|primary_record| {
-            wow_map::map::LoadedGridRespawnRecordsLikeCpp {
+        Ok(resolved) => resolved.map_object_record.and_then(|primary_record| {
+            let mut records = wow_map::map::LoadedGridRespawnRecordsLikeCpp {
                 pre_add_records: resolved.pre_add_records,
                 primary_record,
-            }
+            };
+            initialize_loaded_grid_spawn_phase(&mut records, spawn, caches)?;
+            Some(records)
         }),
         Err(error) => {
             debug!(
@@ -1027,6 +1073,7 @@ pub(crate) fn build_loaded_grid_area_trigger_record_like_cpp(
     spawn_id: wow_map::SpawnId,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
+    caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp> {
     if object_type != wow_map::SpawnObjectType::AreaTrigger {
         return None;
@@ -1073,7 +1120,12 @@ pub(crate) fn build_loaded_grid_area_trigger_record_like_cpp(
         template,
         0,
     ) {
-        Ok(records) => Some(records),
+        Ok(mut records) => {
+            if spawn.phase_use_flags != 0 || spawn.phase_id != 0 || spawn.phase_group != 0 {
+                initialize_loaded_grid_spawn_phase(&mut records, spawn, caches)?;
+            }
+            Some(records)
+        }
         Err(error) => {
             debug!(
                 ?error,
@@ -1131,6 +1183,7 @@ pub(crate) fn load_loaded_grid_area_triggers_like_cpp(
     manager: &mut wow_map::MapManager,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
+    caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> LoadedGridAreaTriggerLoadSummaryLikeCpp {
     let mut summary = LoadedGridAreaTriggerLoadSummaryLikeCpp::default();
     manager.do_for_all_maps_mut(|managed_map| {
@@ -1150,6 +1203,7 @@ pub(crate) fn load_loaded_grid_area_triggers_like_cpp(
                             spawn_id,
                             canonical_spawn_metadata,
                             area_trigger_template_store,
+                            caches,
                         )
                     },
                 );

@@ -417,30 +417,28 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
     let creature_entry = 42;
     let gameobject_entry = 9001;
     let mut store = SpawnStore::new();
-    store.add_object_spawn(
-        &game_event_spawn_test_spawn_data_like_cpp(
-            SpawnObjectType::Creature,
-            creature_spawn_id,
-            571,
-            creature_entry,
-            0.0,
-            0.0,
-            120,
-        ),
-        |_| false,
+    let mut creature_spawn = game_event_spawn_test_spawn_data_like_cpp(
+        SpawnObjectType::Creature,
+        creature_spawn_id,
+        571,
+        creature_entry,
+        0.0,
+        0.0,
+        120,
     );
-    store.add_object_spawn(
-        &game_event_spawn_test_spawn_data_like_cpp(
-            SpawnObjectType::GameObject,
-            gameobject_spawn_id,
-            571,
-            gameobject_entry,
-            0.0,
-            0.0,
-            30,
-        ),
-        |_| false,
+    creature_spawn.phase_id = 70;
+    store.add_object_spawn(&creature_spawn, |_| false);
+    let mut gameobject_spawn = game_event_spawn_test_spawn_data_like_cpp(
+        SpawnObjectType::GameObject,
+        gameobject_spawn_id,
+        571,
+        gameobject_entry,
+        0.0,
+        0.0,
+        30,
     );
+    gameobject_spawn.phase_id = 70;
+    store.add_object_spawn(&gameobject_spawn, |_| false);
     let mut guids =
         spawn_store_loader::GameEventSpawnGuidsLikeCpp::from_game_event_max_entry_like_cpp(Some(3));
     guids = push_game_event_guid_for_test_like_cpp(
@@ -539,6 +537,13 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
         .expect("GameEventSpawn should add spawned-by-default GameObject");
     assert_eq!(gameobject.respawn_time(), 0);
     assert!(gameobject.spawned_by_default());
+    for phase in [
+        creature.unit().world().phase_shift(),
+        gameobject.world().phase_shift(),
+    ] {
+        assert!(!wow_entities::PhaseShift::default().can_see(phase));
+        assert!(wow_entities::PhaseShift::from_phases([70]).can_see(phase));
+    }
 }
 #[test]
 fn game_event_spawn_for_event_missing_creature_bucket_skips_gameobjects_and_pool_like_cpp() {

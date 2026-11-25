@@ -4261,6 +4261,10 @@ async fn run_inner(
 
     let loaded_grid_creature_respawn_caches = LoadedGridCreatureRespawnCachesLikeCpp {
         realm_id,
+        phase_stores: LoadedGridPhaseStores {
+            phases: Arc::clone(&phase_store),
+            groups: Arc::clone(&phase_group_store),
+        },
         template_store: Arc::clone(&creature_template_lifecycle_store),
         sparring_store: Arc::clone(&creature_template_sparring_store),
         difficulty_store: Arc::clone(&creature_difficulty_store),
@@ -4281,6 +4285,7 @@ async fn run_inner(
         gameobject_override_store: Arc::clone(&gameobject_override_lifecycle_store),
     };
     let game_event_scheduler = {
+        let event_now = Instant::now();
         let current_time_secs = current_unix_time_secs_like_cpp();
         let (game_event_outcome, active_event_ids, mut db_bridge_summary) = {
             let mut canonical_spawn_metadata = canonical_spawn_metadata.lock().map_err(|_| {
@@ -4479,6 +4484,7 @@ async fn run_inner(
             "Represented C++ GameEventMgr::StartSystem: cleared active events, ran first Update with isSystemInit=false, installed WUPDATE_EVENTS delay, and consumed safe represented GameEventSpawn/GameEventUnspawn plus bounded ChangeEquipOrModel, UpdateEventQuests cache, represented UpdateWorldStates HolidayWorldState -> WorldStateMgr::SetValue evidence, UpdateEventNPCFlags, UpdateEventNPCVendor cache, RunSmartAIScripts evidence, ResetEventSeasonalQuests character DB delete bridge, and represented announcement evidence-only side effects; real SendWorldText/session fanout, full ConditionMgr world-event runtime, quest packets/session gossip refresh, full ObjectMgr quest runtime, real WorldStateMgr storage/session fanout/login/GM worldstate, SmartAI script dispatch, and Player/session seasonal quest reset remain pending"
         );
         CanonicalGameEventSchedulerLikeCpp::start_system(
+            event_now,
             game_event_outcome.next_update_delay_millis,
         )
     };

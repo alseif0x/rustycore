@@ -181,6 +181,7 @@ pub(crate) fn materialize_loaded_player_grid_records_like_cpp(
                     spawn_id,
                     canonical_spawn_metadata,
                     area_trigger_template_store,
+                    loaded_grid_creature_respawn_caches,
                 )
             }
         }) else {
