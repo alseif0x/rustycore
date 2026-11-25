@@ -422,7 +422,10 @@ async fn chest_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<()
     );
     assert_eq!(
         bind(other_map_source, 0).await?,
-        Some(other_map_binding),
+        Some(wow_persistence::WorldLootMoneyBinding {
+            spent: true,
+            ..other_map_binding
+        }),
         "startup cleanup preserves the registered exact pair (34, 77)"
     );
     let old_pair_after_restart = bind(old_instance_source, 0).await?.unwrap();
