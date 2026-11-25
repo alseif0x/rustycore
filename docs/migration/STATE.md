@@ -132,6 +132,12 @@ the mage a safe Hearthstone arrival and a subsequent jump and landing. The
 [paired positions and packet evidence](../architecture/captures/1342-real-client-2026-11-24.md#sentinel-hill-terrain-and-creature-spawns-november-25)
 bound the result to these outdoor positions. Phase and relog acceptance remain open.
 
+The November 25 [spawn placement review](../architecture/captures/1342-real-client-2026-11-24.md#wrath-spawn-placement-review-november-25)
+identified shared coordinates with later game versions in TDB 343.24081.
+The local world migration restores 18 independently checked Wrath heights
+and excludes 22 retail Stormwind event spawns from map 0. The original
+Wrath positions of the Stormwind rabbit and Sentinel Hill bandit remain open.
+
 At `d33ce0635`, the final profile passed all 15 steps in 7m07s with 8,216
 active tests and 13 ignored. The verified manifest is
 `20261124T160457.303898Z-2026186-final.json`. The separate production-linked

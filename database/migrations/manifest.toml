@@ -20,6 +20,15 @@ marker_table = "hotfix_blob"
 
 [[migrations]]
 component = "core"
+database = "world"
+version = "2026.11.25.00"
+description = "exclude retail Stormwind refugees and restore verified Wrath creature heights"
+file = "../../sql/updates/world/wotlk_classic/2026_11_25_00_world.sql"
+sha256 = "05ba03074f189017431cc61de0bf312ed573450c3357cb6efced8b36d9d24087"
+state = "active"
+
+[[migrations]]
+component = "core"
 database = "auth"
 version = "2026.08.02.00"
 description = "battle pet durable allocation and receipts"

@@ -59,8 +59,11 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
   below the client's measured outdoor surface. The client landed safely when
   only the disposable homebind height changed. The same client measured ground
   26.21 units above the published Riverpaw Bandit spawn 275256. The intended
-  3.4.3 placements, phase/relogin and the handling of an actual failed self
-  update remain open. Selected evidence: `/tmp/rc46-creature-qa/packets` and
+  Wrath positions of that bandit and Stormwind rabbit 9006772, phase/relogin
+  and the handling of an actual failed self update remain open. A local
+  [world data correction](../architecture/captures/1342-real-client-2026-11-24.md#wrath-spawn-placement-review-november-25)
+  covers 18 corroborated heights and 22 retail Stormwind event spawns.
+  Selected evidence: `/tmp/rc46-creature-qa/packets` and
   [the dated #1342 record](../architecture/captures/1342-real-client-2026-11-24.md).
 
 - **2026-10-28, #43 fixture admission — ItemSparse class-mask field,

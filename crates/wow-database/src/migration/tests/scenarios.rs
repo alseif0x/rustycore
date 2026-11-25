@@ -83,7 +83,8 @@ fn bundled_manifest_has_four_explicit_baselines_and_exact_sources() {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../database/migrations/manifest.toml");
     let manifest = MigrationManifest::load(&path).expect("bundled manifest must validate");
     assert_eq!(manifest.baselines.len(), 4);
-    assert_eq!(manifest.migrations.len(), 5);
+    assert_eq!(manifest.migrations.len(), 6);
+    assert_eq!(manifest.migrations_for(DatabaseKind::World).len(), 1);
     assert_eq!(
         manifest
             .baseline(DatabaseKind::World)
