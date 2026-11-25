@@ -44,7 +44,7 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
 
 ## Later verified open findings
 
-- **2026-11-24, #1342 near-transfer/`ObjectUpdateFailed` client acceptance — open.**
+- **2026-11-25, #1342 self update ordering repaired; failed self-update handling and Sentinel Hill spawn data open.**
   Real 54261 clients repeatedly sent `CMSG_OBJECT_UPDATE_FAILED` for their own
   player during login against the isolated Rust candidate. The paired C++
   `a5f8da2eb` control accepted the same clients without that error. In C++
@@ -52,12 +52,15 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
   `wow-world-lifecycle/src/support.rs:243–265` only sets `player_logout=true`
   without that finalization. A subsequent Hearthstone reaches the near-teleport
   gate but emits no `MoveTeleport` or ACK. Freshly created characters and the
-  older fixtures both reproduce the failure. Removing trait configs, skill rows,
-  quest logs or combat fields did not isolate a cause, so this is a reproduced
-  client/server divergence, not a proven field diagnosis. The separate common
-  finalization reset is repaired on this branch with a production-linked test;
-  it does not close this defect or the phase/transfer acceptance. Selected
-  evidence: `/tmp/rc46-creature-qa/packets` and
+  older fixtures both reproduced the failure before the repair. Sequence analysis
+  isolated the explored-zone VALUES before the ActivePlayer CREATE. At
+  `503f27eb1`, the graphical mage's first update was its CREATE, and its
+  Hearthstone ACK arrived. The saved Sentinel Hill homebind was 3.54 units
+  below the client's measured outdoor surface. The client landed safely when
+  only the disposable homebind height changed. The same client measured ground
+  26.21 units above the published Riverpaw Bandit spawn 275256. The intended
+  3.4.3 placements, phase/relogin and the handling of an actual failed self
+  update remain open. Selected evidence: `/tmp/rc46-creature-qa/packets` and
   [the dated #1342 record](../architecture/captures/1342-real-client-2026-11-24.md).
 
 - **2026-10-28, #43 fixture admission — ItemSparse class-mask field,

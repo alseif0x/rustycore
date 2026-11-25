@@ -116,8 +116,21 @@ public keys then entered the world. The [November 24 #1342 campaign](../architec
 matched creature chase/home return and range-driven visibility. It found observer
 spell-publication and near-transfer mismatches, and did not accept the phase
 scenario. The common finalization now clears `player_logout` after disconnect,
-with a production-linked regression. The self `ObjectUpdateFailed` that suppresses
-near teleport remains an open defect with no proven field diagnosis.
+with a production-linked regression. At `503f27eb1`, loading exploration into
+the self CREATE removed the premature VALUES seen on both original connections.
+A graphical 54261 mage completed the near-teleport ACK, and a protocol observer
+received Fireball Start/Go. The observer damage log was still missing in this
+run. Its local correction at `b948a6a36` passed the 24 cast lifecycle tests
+and the packet format test. Paired gameplay capture remains open.
+
+On November 25 the project accepted the identified QA client for gameplay
+development and deferred original-client world entry. At Sentinel Hill this
+client measured ground above the saved graveyard and two creature spawns.
+For Riverpaw Bandit 275256 the server sent Z 40.7784 and the client landed
+at 66.9881 at the same XY. Correcting the disposable homebind height gave
+the mage a safe Hearthstone arrival and a subsequent jump and landing. The
+[paired positions and packet evidence](../architecture/captures/1342-real-client-2026-11-24.md#sentinel-hill-terrain-and-creature-spawns-november-25)
+bound the result to these outdoor positions. Phase and relog acceptance remain open.
 
 At `d33ce0635`, the final profile passed all 15 steps in 7m07s with 8,216
 active tests and 13 ignored. The verified manifest is
