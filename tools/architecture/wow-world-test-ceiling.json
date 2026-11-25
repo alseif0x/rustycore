@@ -435,6 +435,16 @@
    "unit_tests_lines": 281948,
    "unit_tests_tests": 4191,
    "src_tests": 22
+  },
+  {
+   "id": "raise-46-41",
+   "kind": "raise",
+   "issue": 46,
+   "reviewed_at": "2026-11-25",
+   "reason": "Exercise an eligible second viewer reopening and releasing a shared chest after the first payout is confirmed late.",
+   "unit_tests_lines": 281967,
+   "unit_tests_tests": 4191,
+   "src_tests": 22
   }
  ]
 }

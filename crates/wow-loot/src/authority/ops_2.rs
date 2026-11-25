@@ -307,11 +307,9 @@ impl OwnedLootAuthority {
                                 lease.player,
                             )
                         }),
-                    ReservationKey::Money(scope) => loot_for_scope_mut(&mut state, scope)
-                        .is_some_and(|loot| {
-                            loot.coins = 0;
-                            true
-                        }),
+                    ReservationKey::Money(scope) => {
+                        super::money_recovery::consume_pool_money(&mut state, scope)
+                    }
                 };
 
                 // Capture the exact post-mutation pool while still holding

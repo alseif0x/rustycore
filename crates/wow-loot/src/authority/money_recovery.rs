@@ -4,6 +4,21 @@
 use super::*;
 use std::sync::Weak;
 
+pub(super) fn consume_pool_money(state: &mut AuthorityState, scope: OwnedLootScope) -> bool {
+    let Some(pool) = loot_for_scope_mut(state, scope) else {
+        return false;
+    };
+    if std::mem::take(&mut pool.coins) > 0
+        && let Some(spent) = state
+            .scope_epochs
+            .get_mut(&scope)
+            .and_then(|epoch| epoch.recovered_world_money.as_mut())
+    {
+        *spent = true;
+    }
+    true
+}
+
 impl OwnedLootAuthority {
     pub fn recovered_world_money(&self, scope: OwnedLootScope, generation: u64) -> Option<bool> {
         let state = self.lock_state();
@@ -121,11 +136,10 @@ impl QuarantinedMoneyClaim {
         if !self.matches(&state) {
             return false;
         }
-        if decision == MoneyReceiptDecision::Committed {
-            let Some(pool) = loot_for_scope_mut(&mut state, self.scope) else {
-                return false;
-            };
-            pool.coins = 0;
+        if decision == MoneyReceiptDecision::Committed
+            && !consume_pool_money(&mut state, self.scope)
+        {
+            return false;
         }
         state.money_recovery.remove(&self.scope);
         if state.money_recovery.is_empty() {

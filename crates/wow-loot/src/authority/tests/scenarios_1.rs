@@ -474,9 +474,14 @@ async fn recovered_world_money_fences_each_personal_pool_and_its_replacement() {
     );
     assert!(authority.bind_world_money(peer.scope, peer.generation, [2; 16], false));
     let lease = authority.reserve_money_like_cpp(b).await.unwrap();
-    let guard = lease.begin_persistence_guard_like_cpp().unwrap();
+    let mut guard = lease.begin_persistence_guard_like_cpp().unwrap();
     assert_eq!(guard.money_claim_id(), Ok(Some([2; 16])));
-    drop(guard);
+    assert!(guard.commit_like_cpp().unwrap());
+    assert!(authority.bind_world_money(peer.scope, peer.generation, [2; 16], false));
+    assert_eq!(
+        authority.recovered_world_money(peer.scope, peer.generation),
+        Some(true)
+    );
     authority.replace_like_cpp(Some(money_loot(owner(1), 15, vec![a])), HashMap::new());
     assert!(!authority.bind_world_money(first.scope, first.generation, [1; 16], true));
     assert_eq!(
@@ -505,9 +510,19 @@ async fn money_claim_rolls_back_and_later_cpp_request_observes_zero() {
     assert_eq!(winner.payload_like_cpp(), &LootClaimPayload::Money(25));
     assert!(winner.commit_like_cpp().unwrap());
     assert!(!winner.commit_like_cpp().unwrap());
+    let pool = authority.shared_snapshot_like_cpp().unwrap();
+    assert_eq!(
+        authority.recovered_world_money(pool.scope, pool.generation),
+        None
+    );
+    assert!(authority.bind_world_money(pool.scope, pool.generation, [1; 16], false));
     let zero = authority.reserve_money_like_cpp(first).await.unwrap();
     assert_eq!(zero.payload_like_cpp(), &LootClaimPayload::Money(0));
     assert!(zero.commit_like_cpp().unwrap());
+    assert_eq!(
+        authority.recovered_world_money(pool.scope, pool.generation),
+        Some(false)
+    );
 }
 
 #[tokio::test]

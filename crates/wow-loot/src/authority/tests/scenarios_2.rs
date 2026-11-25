@@ -287,6 +287,8 @@ async fn money_quarantine_settles_one_receipt_and_rejects_old_waiters() {
         let authority = OwnedLootAuthority::new();
         let looter = player(1);
         authority.replace_like_cpp(Some(money_loot(owner(1), 25, vec![looter])), HashMap::new());
+        let pool = authority.shared_snapshot_like_cpp().unwrap();
+        assert!(authority.bind_world_money(pool.scope, pool.generation, [1; 16], false));
         let claim = authority.reserve_money_like_cpp(looter).await.unwrap();
         let mut guard = claim.begin_persistence_guard_like_cpp().unwrap();
         let mut waiting = Box::pin(authority.reserve_money_like_cpp(looter));
@@ -301,6 +303,10 @@ async fn money_quarantine_settles_one_receipt_and_rejects_old_waiters() {
         ));
         assert!(fence.settle(decision));
         assert!(!fence.settle(MoneyReceiptDecision::RolledBack));
+        assert_eq!(
+            authority.recovered_world_money(pool.scope, pool.generation),
+            Some(decision == MoneyReceiptDecision::Committed)
+        );
         assert!(matches!(waiting.await, Err(LootClaimError::Retired)));
         assert_eq!(
             authority.shared_snapshot_like_cpp().unwrap().loot.coins,

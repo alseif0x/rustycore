@@ -9,8 +9,13 @@ use super::*;
 async fn chest_open_publishes_recovered_money_and_allows_the_interrupted_release() {
     let player = ObjectGuid::create_player(1, 451);
     let guid = test_gameobject_guid(19_451);
-    for (personal, spent, expected_money) in [(true, true, 0), (true, false, 11), (false, true, 0)]
-    {
+    let previous_looter = ObjectGuid::create_player(1, 452);
+    for (personal, spent, late_payer, expected_money) in [
+        (true, true, None, 0),
+        (true, false, None, 11),
+        (false, true, None, 0),
+        (false, false, Some(previous_looter), 0),
+    ] {
         let (mut session, rx) = make_session_with_send_capacity(12);
         session.set_player_guid(Some(player));
         session.set_player_position_like_cpp(Position::ZERO);
@@ -22,6 +27,7 @@ async fn chest_open_publishes_recovered_money_and_allows_the_interrupted_release
         pool.loot_guid = represented_loot_object_guid_like_cpp(guid);
         pool.loot_type = LOOT_TYPE_CHEST_LIKE_CPP;
         pool.allowed_looters = vec![player];
+        pool.allowed_looters.extend(late_payer);
         for item in &mut pool.items {
             item.allowed_looters = vec![player];
         }
@@ -42,6 +48,19 @@ async fn chest_open_publishes_recovered_money_and_allows_the_interrupted_release
             instance_id: chest.world().instance_id(),
             spawn_id: chest.spawn_id(),
         };
+        if let Some(payer) = late_payer {
+            assert!(
+                chest.bind_chest_money_generation(source.realm_id, 2, |authority| {
+                    let pool = authority.shared_snapshot_like_cpp().unwrap();
+                    authority.bind_world_money(pool.scope, pool.generation, [3; 16], false)
+                })
+            );
+            let authority = chest.loot_authority_like_cpp();
+            let claim = authority.reserve_money_like_cpp(payer).await.unwrap();
+            let mut guard = claim.begin_persistence_guard_like_cpp().unwrap();
+            let receipt = guard.quarantine_money_for_receipt().unwrap();
+            assert!(receipt.settle(wow_loot::MoneyReceiptDecision::Committed));
+        }
         attach_canonical_gameobject(&mut session, chest);
         session.record_represented_gameobject_runtime_state_like_cpp(
             0,

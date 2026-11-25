@@ -85,6 +85,8 @@ pub(super) async fn reattach<H: LootSessionHostLikeCpp>(
         chest.sync_loot_summaries_from_authority_like_cpp();
         true
     });
-    (installed == Some(true) && reconcile_represented_loot_cache_like_cpp(host, guid, player))
-        .then_some(binding.spent)
+    if installed == Some(true) && reconcile_represented_loot_cache_like_cpp(host, guid, player) {
+        return owner.recovered_world_money(scope, generation);
+    }
+    None
 }
