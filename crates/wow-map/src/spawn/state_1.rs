@@ -682,6 +682,16 @@ impl SpawnStore {
 
         self.insert_spawn_metadata_like_cpp(data);
 
+        self.index_object_spawn_in_grid(data, is_personal_phase);
+    }
+
+    /// Changes grid membership while keeping the canonical spawn metadata.
+    pub fn index_object_spawn_in_grid(
+        &mut self,
+        data: &SpawnData,
+        is_personal_phase: impl Fn(u32) -> bool,
+    ) {
+        debug_assert_ne!(data.object_type, SpawnObjectType::AreaTrigger);
         let cell_id = data.cell_id();
         if is_personal_phase(data.phase_id) {
             for difficulty in data.spawn_difficulties.iter().copied() {
@@ -740,6 +750,16 @@ impl SpawnStore {
         }
 
         self.spawns.remove(&(data.object_type, data.spawn_id));
+        self.unindex_object_spawn_from_grid(data, is_personal_phase);
+    }
+
+    /// Removes grid membership so a later activation can reuse the spawn row.
+    pub fn unindex_object_spawn_from_grid(
+        &mut self,
+        data: &SpawnData,
+        is_personal_phase: impl Fn(u32) -> bool,
+    ) {
+        debug_assert_ne!(data.object_type, SpawnObjectType::AreaTrigger);
         let cell_id = data.cell_id();
         if is_personal_phase(data.phase_id) {
             for difficulty in data.spawn_difficulties.iter().copied() {

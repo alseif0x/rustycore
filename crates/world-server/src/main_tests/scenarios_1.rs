@@ -811,7 +811,8 @@ fn game_event_unspawn_creature_gameobject_guids_queue_loaded_map_records_like_cp
         event_id,
         gameobject_spawn_id,
     );
-    let metadata = canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp(store, guids);
+    let mut metadata =
+        canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp(store, guids);
     for object_type in [SpawnObjectType::Creature, SpawnObjectType::GameObject] {
         manager
             .find_map_mut(1, 0)
@@ -847,7 +848,8 @@ fn game_event_unspawn_creature_gameobject_guids_queue_loaded_map_records_like_cp
 
     let summary = game_event_unspawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        &metadata,
+        &mut metadata,
+        &wow_data::PhaseStore::from_entries([]),
         &[],
         event_id,
     );

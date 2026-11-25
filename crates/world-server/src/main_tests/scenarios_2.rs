@@ -4,6 +4,7 @@
 //! unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use spawn_store_loader::CanonicalSpawnMetadataLikeCpp;
 
 #[test]
 fn game_event_unspawn_positive_event_skips_guid_active_in_other_event_like_cpp() {
@@ -28,7 +29,8 @@ fn game_event_unspawn_positive_event_skips_guid_active_in_other_event_like_cpp()
         other_event_id,
         spawn_id,
     );
-    let metadata = canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp(store, guids);
+    let mut metadata =
+        canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp(store, guids);
     manager
         .find_map_mut(1, 0)
         .expect("test map")
@@ -42,7 +44,8 @@ fn game_event_unspawn_positive_event_skips_guid_active_in_other_event_like_cpp()
 
     let summary = game_event_unspawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        &metadata,
+        &mut metadata,
+        &wow_data::PhaseStore::from_entries([]),
         &[other_event_id as u16],
         event_id,
     );
@@ -83,7 +86,8 @@ fn game_event_unspawn_negative_event_does_not_apply_active_event_protection_like
         positive_event_id,
         spawn_id,
     );
-    let metadata = canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp(store, guids);
+    let mut metadata =
+        canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp(store, guids);
     manager
         .find_map_mut(1, 0)
         .expect("test map")
@@ -97,7 +101,8 @@ fn game_event_unspawn_negative_event_does_not_apply_active_event_protection_like
 
     let summary = game_event_unspawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        &metadata,
+        &mut metadata,
+        &wow_data::PhaseStore::from_entries([]),
         &[positive_event_id as u16],
         event_id,
     );
@@ -128,7 +133,8 @@ fn game_event_unspawn_missing_creature_guid_list_returns_before_gameobjects_like
         1,
         gameobject_spawn_id,
     );
-    let metadata = canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp(store, guids);
+    let mut metadata =
+        canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp(store, guids);
     manager
         .find_map_mut(1, 0)
         .expect("test map")
@@ -141,7 +147,8 @@ fn game_event_unspawn_missing_creature_guid_list_returns_before_gameobjects_like
 
     let summary = game_event_unspawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        &metadata,
+        &mut metadata,
+        &wow_data::PhaseStore::from_entries([]),
         &[],
         event_id,
     );
@@ -196,7 +203,7 @@ fn game_event_unspawn_for_event_applies_non_pool_then_pool_like_cpp() {
     let game_event_pools =
         spawn_store_loader::GameEventPoolIdsLikeCpp::from_game_event_max_entry_like_cpp(Some(10))
             .with_pool_ids_for_event_like_cpp(event_id, [pool_id]);
-    let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+    let mut metadata = CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_pool_mgr_like_cpp(pool_mgr_with_creature_pool_like_cpp(
             pool_id,
             1,
@@ -225,7 +232,13 @@ fn game_event_unspawn_for_event_applies_non_pool_then_pool_like_cpp() {
         .add_spawn_like_cpp(SpawnObjectType::Creature, pool_spawn_id, pool_id)
         .expect("test spawned creature pool data");
 
-    let summary = game_event_unspawn_for_event_like_cpp(&mut manager, &metadata, &[], event_id);
+    let summary = game_event_unspawn_for_event_like_cpp(
+        &mut manager,
+        &mut metadata,
+        &wow_data::PhaseStore::from_entries([]),
+        &[],
+        event_id,
+    );
 
     assert_eq!(summary.event_id, event_id);
     assert!(!summary.pool_skipped_due_to_non_pool_bucket);
@@ -289,7 +302,7 @@ fn game_event_unspawn_for_event_missing_creature_bucket_skips_gameobjects_and_po
     let game_event_pools =
         spawn_store_loader::GameEventPoolIdsLikeCpp::from_game_event_max_entry_like_cpp(Some(100))
             .with_pool_ids_for_event_like_cpp(event_id, [pool_id]);
-    let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+    let mut metadata = CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_pool_mgr_like_cpp(pool_mgr_with_creature_pool_like_cpp(
             pool_id,
             1,
@@ -312,7 +325,13 @@ fn game_event_unspawn_for_event_missing_creature_bucket_skips_gameobjects_and_po
         .add_spawn_like_cpp(SpawnObjectType::Creature, pool_spawn_id, pool_id)
         .expect("test spawned creature pool data");
 
-    let summary = game_event_unspawn_for_event_like_cpp(&mut manager, &metadata, &[], event_id);
+    let summary = game_event_unspawn_for_event_like_cpp(
+        &mut manager,
+        &mut metadata,
+        &wow_data::PhaseStore::from_entries([]),
+        &[],
+        event_id,
+    );
 
     assert_eq!(summary.event_id, event_id);
     assert!(summary.non_pool.missing_event_creature_guids);
@@ -366,7 +385,7 @@ fn game_event_unspawn_for_event_missing_pool_bucket_keeps_non_pool_effects_like_
         event_id,
         gameobject_spawn_id,
     );
-    let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+    let mut metadata = CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_game_event_pools_like_cpp(
             spawn_store_loader::GameEventPoolIdsLikeCpp::from_game_event_max_entry_like_cpp(Some(
                 2,
@@ -387,7 +406,13 @@ fn game_event_unspawn_for_event_missing_pool_bucket_keeps_non_pool_effects_like_
     insert_live_creature_for_spawn_like_cpp(&mut manager, 1, creature_spawn_id, 5363011);
     insert_live_gameobject_for_spawn_like_cpp(&mut manager, 1, gameobject_spawn_id, 5363021);
 
-    let summary = game_event_unspawn_for_event_like_cpp(&mut manager, &metadata, &[], event_id);
+    let summary = game_event_unspawn_for_event_like_cpp(
+        &mut manager,
+        &mut metadata,
+        &wow_data::PhaseStore::from_entries([]),
+        &[],
+        event_id,
+    );
 
     assert!(!summary.pool_skipped_due_to_non_pool_bucket);
     assert_eq!(summary.non_pool.creature.respawn_timers_removed, 1);
@@ -427,7 +452,7 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
         120,
     );
     creature_spawn.phase_id = 70;
-    store.add_object_spawn(&creature_spawn, |_| false);
+    store.insert_spawn_metadata_like_cpp(&creature_spawn);
     let mut gameobject_spawn = game_event_spawn_test_spawn_data_like_cpp(
         SpawnObjectType::GameObject,
         gameobject_spawn_id,
@@ -438,7 +463,7 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
         30,
     );
     gameobject_spawn.phase_id = 70;
-    store.add_object_spawn(&gameobject_spawn, |_| false);
+    store.insert_spawn_metadata_like_cpp(&gameobject_spawn);
     let mut guids =
         spawn_store_loader::GameEventSpawnGuidsLikeCpp::from_game_event_max_entry_like_cpp(Some(3));
     guids = push_game_event_guid_for_test_like_cpp(
@@ -453,7 +478,7 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
         event_id,
         gameobject_spawn_id,
     );
-    let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+    let mut metadata = CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_game_event_spawn_guids_like_cpp(guids)
         .with_creature_runtime_rows_like_cpp(BTreeMap::from([(
             creature_spawn_id,
@@ -505,7 +530,8 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
         535000,
     ));
 
-    let summary = game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+    let summary =
+        game_event_spawn_for_event_like_cpp(&mut manager, &mut metadata, &caches, event_id);
 
     assert_eq!(summary.event_id, event_id);
     assert!(!summary.non_pool.missing_event_creature_guids);
@@ -544,6 +570,46 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
         assert!(!wow_entities::PhaseShift::default().can_see(phase));
         assert!(wow_entities::PhaseShift::from_phases([70]).can_see(phase));
     }
+
+    let phases = &caches.phase_stores.phases;
+    game_event_unspawn_for_event_like_cpp(&mut manager, &mut metadata, phases, &[], event_id);
+
+    let first_entry_map = Arc::new(Mutex::new(wow_map::MapManager::default()));
+    let late_entry_map = Arc::new(Mutex::new(wow_map::MapManager::default()));
+    let metadata = Arc::new(Mutex::new(metadata));
+    let area_triggers = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+    let map_store = loaded_grid_map_store_like_cpp(571, wow_data::map::MAP_COMMON);
+    let enter_world = |manager: &wow_world::SharedCanonicalMapManager| {
+        crate::ensure_login_player_grid_loaded_like_cpp(
+            manager,
+            &metadata,
+            &caches,
+            &area_triggers,
+            Some(&map_store),
+            571,
+            None,
+            Position::ZERO,
+        )
+    };
+    let inactive = enter_world(&first_entry_map);
+    assert!(inactive.map_created);
+    assert_eq!(inactive.creature_records_added, 0);
+    assert_eq!(inactive.gameobject_records_added, 0);
+
+    {
+        let startup = game_event_spawn_for_event_like_cpp(
+            &mut late_entry_map.lock().unwrap(),
+            &mut metadata.lock().unwrap(),
+            &caches,
+            event_id,
+        );
+        assert_eq!(startup.non_pool.creature.without_loaded_canonical_maps, 1);
+        assert_eq!(startup.non_pool.gameobject.without_loaded_canonical_maps, 1);
+    }
+    let active = enter_world(&late_entry_map);
+    assert!(active.map_created);
+    assert_eq!(active.creature_records_added, 1);
+    assert_eq!(active.gameobject_records_added, 1);
 }
 #[test]
 fn game_event_spawn_for_event_missing_creature_bucket_skips_gameobjects_and_pool_like_cpp() {
@@ -572,7 +638,7 @@ fn game_event_spawn_for_event_missing_creature_bucket_skips_gameobjects_and_pool
     let game_event_pools =
         spawn_store_loader::GameEventPoolIdsLikeCpp::from_game_event_max_entry_like_cpp(Some(100))
             .with_pool_ids_for_event_like_cpp(event_id, [pool_id]);
-    let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+    let mut metadata = CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_pool_mgr_like_cpp(pool_mgr_with_creature_pool_like_cpp(
             pool_id,
             1,
@@ -582,7 +648,8 @@ fn game_event_spawn_for_event_missing_creature_bucket_skips_gameobjects_and_pool
         .with_game_event_spawn_guids_like_cpp(guids);
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-    let summary = game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+    let summary =
+        game_event_spawn_for_event_like_cpp(&mut manager, &mut metadata, &caches, event_id);
 
     assert_eq!(summary.event_id, event_id);
     assert!(summary.non_pool.missing_event_creature_guids);
@@ -640,7 +707,7 @@ fn game_event_spawn_for_event_missing_gameobject_bucket_skips_pool_after_creatur
     let game_event_pools =
         spawn_store_loader::GameEventPoolIdsLikeCpp::from_game_event_max_entry_like_cpp(Some(10))
             .with_pool_ids_for_event_like_cpp(event_id, [pool_id]);
-    let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+    let mut metadata = CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_pool_mgr_like_cpp(pool_mgr_with_creature_pool_like_cpp(
             pool_id,
             1,
@@ -685,7 +752,8 @@ fn game_event_spawn_for_event_missing_gameobject_bucket_skips_pool_after_creatur
             535000,
         ));
 
-    let summary = game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+    let summary =
+        game_event_spawn_for_event_like_cpp(&mut manager, &mut metadata, &caches, event_id);
 
     assert_eq!(summary.event_id, event_id);
     assert!(!summary.non_pool.missing_event_creature_guids);
@@ -736,7 +804,7 @@ fn game_event_spawn_non_pool_unloaded_grid_removes_timer_without_fabricating_lik
         event_id,
         spawn_id,
     );
-    let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+    let mut metadata = CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_game_event_spawn_guids_like_cpp(guids)
         .with_creature_runtime_rows_like_cpp(BTreeMap::from([(
             spawn_id,
@@ -777,7 +845,7 @@ fn game_event_spawn_non_pool_unloaded_grid_removes_timer_without_fabricating_lik
 
     let summary = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        &metadata,
+        &mut metadata,
         &caches,
         event_id,
     );
@@ -822,7 +890,7 @@ fn game_event_spawn_missing_creature_bucket_returns_before_gameobjects_like_cpp(
         1,
         gameobject_spawn_id,
     );
-    let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+    let mut metadata = CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_game_event_spawn_guids_like_cpp(guids)
         .with_gameobject_runtime_rows_like_cpp(BTreeMap::from([(
             gameobject_spawn_id,
@@ -848,7 +916,7 @@ fn game_event_spawn_missing_creature_bucket_returns_before_gameobjects_like_cpp(
 
     let summary = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        &metadata,
+        &mut metadata,
         &caches,
         event_id,
     );
