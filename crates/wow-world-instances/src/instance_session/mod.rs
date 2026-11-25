@@ -31,6 +31,7 @@ use crate::InstanceState;
 mod access_requirement;
 mod activate_taxi;
 mod admission;
+mod area_phase;
 mod area_trigger_opcode;
 mod area_triggers;
 mod create_map;

@@ -11,7 +11,9 @@ use std::fmt::Write as _;
 
 use wow_constants::{PhaseFlags, TypeId};
 use wow_core::ObjectGuid;
-use wow_data::{AreaTableStore, PhaseGroupStore, PhaseInfoStore, PhaseStore, TerrainSwapStore};
+use wow_data::{
+    AreaTableStore, PhaseAreaInfo, PhaseGroupStore, PhaseInfoStore, PhaseStore, TerrainSwapStore,
+};
 use wow_entities::{PhaseShift, Unit, WorldObject};
 use wow_packet::packets::misc::{PhaseShiftChange, PhaseShiftDataPhase};
 #[cfg(test)]
@@ -361,6 +363,8 @@ pub fn on_map_change_like_cpp(
 ///
 /// `phase_area_conditions_pass` represents
 /// `sConditionMgr->IsObjectMeetToConditions(srcInfo, phaseArea.Conditions)`.
+/// The concrete area row is passed because one phase can carry different
+/// condition lists in different areas.
 /// `aura_phase_ids` and `aura_phase_group_ids` represent active
 /// `SPELL_AURA_PHASE` / `SPELL_AURA_PHASE_GROUP` effects already filtered by the caller.
 pub fn on_area_change_like_cpp(
@@ -369,7 +373,7 @@ pub fn on_area_change_like_cpp(
     phase_store: &PhaseStore,
     phase_group_store: &PhaseGroupStore,
     phase_info_store: &PhaseInfoStore,
-    mut phase_area_conditions_pass: impl FnMut(u32, &WorldObject) -> bool,
+    mut phase_area_conditions_pass: impl FnMut(&PhaseAreaInfo, &WorldObject) -> bool,
     aura_phase_ids: impl IntoIterator<Item = u32>,
     aura_phase_group_ids: impl IntoIterator<Item = u32>,
 ) -> PhaseVisibilityUpdate {
@@ -389,7 +393,7 @@ pub fn on_area_change_like_cpp(
 
                 let phase_id = phase_area.phase_id;
                 let phase_flags = phase_flags_for_id_like_cpp(phase_store, phase_id);
-                if phase_area_conditions_pass(phase_id, object) {
+                if phase_area_conditions_pass(phase_area, object) {
                     object
                         .phase_shift_mut()
                         .add_phase_like_cpp(phase_id, phase_flags, 1);

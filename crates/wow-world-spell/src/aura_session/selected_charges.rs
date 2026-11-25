@@ -319,6 +319,41 @@ fn select_spell_source<'a>(
     .transpose()
 }
 
+/// Area phasing reapplies the phase and phase-group effects of live applications.
+pub fn active_aura_phase_ids_like_cpp(
+    auras: &AuraSubsystem,
+    regular_spells: Option<&SpellStore>,
+    serverside_spells: Option<&ServersideSpellStoreLikeCpp>,
+    difficulties: Option<&DifficultyStore>,
+) -> (Vec<u32>, Vec<u32>) {
+    // SpellAuraDefines.h, SPELL_AURA_PHASE and SPELL_AURA_PHASE_GROUP.
+    const PHASE: i32 = 261;
+    const PHASE_GROUP: i32 = 326;
+    let mut phases = Vec::new();
+    let mut groups = Vec::new();
+    for aura in auras.runtime_applications_like_cpp().values() {
+        let Ok(effects) =
+            resolve_active_aura_effects(aura, regular_spells, serverside_spells, difficulties)
+        else {
+            continue;
+        };
+        for effect in effects {
+            if (aura.effect_mask & 1u32.checked_shl(effect.index).unwrap_or(0)) == 0 {
+                continue;
+            }
+            let Ok(id) = u32::try_from(effect.misc_value_2) else {
+                continue;
+            };
+            match effect.aura_type {
+                PHASE => phases.push(id),
+                PHASE_GROUP => groups.push(id),
+                _ => {}
+            }
+        }
+    }
+    (phases, groups)
+}
+
 fn resolve_active_aura_effects(
     aura: &AuraApplicationLikeCpp,
     regular_spells: Option<&SpellStore>,

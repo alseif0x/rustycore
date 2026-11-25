@@ -1,5 +1,131 @@
 use super::*;
 
+#[test]
+fn area_phase_uses_class_and_live_event_and_clears_on_exit() {
+    const MAP: u32 = 571;
+    const PHASE: u32 = 70;
+    const AREA: u32 = 101;
+    const EVENT: u32 = 86;
+    let (mut session, _, receiver) = make_session();
+    let manager = shared_canonical_map_manager();
+    let guid = ObjectGuid::create_player(1, 49_620);
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        guid,
+        "PhaseObserver".to_string(),
+        Position::ZERO,
+        MAP as u16,
+        1,
+        8,
+        80,
+        0,
+    ));
+    let handle = {
+        let mut manager = manager.lock().unwrap();
+        manager.create_world_map(MAP, 0);
+        let mut player = Box::new(wow_entities::Player::new(Some(1), false));
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().set_max_health(100);
+        player.unit_mut().set_health(100);
+        player.set_race_class_gender(1, 8, wow_constants::Gender::Male);
+        let handle = manager.install_detached_player_like_cpp(player).unwrap();
+        manager
+            .attach_player_like_cpp(handle, wow_map::MapKey::new(MAP, 0), Position::ZERO)
+            .unwrap();
+        handle
+    };
+    session.core.player_handle_like_cpp = Some(handle);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 0);
+
+    let areas = Arc::new(wow_data::AreaTableStore::from_entries(
+        [AREA, AREA + 1].map(|id| wow_data::AreaTableEntry {
+            id,
+            continent_id: MAP as u16,
+            parent_area_id: 0,
+            area_bit: 0,
+            exploration_level: 0,
+            mount_flags: 0,
+            flags: 0,
+        }),
+    ));
+    let phases = Arc::new(wow_data::PhaseStore::from_entries([wow_data::PhaseEntry {
+        id: PHASE,
+        flags: 0,
+    }]));
+    let mut rules = wow_data::PhaseInfoStore::from_phase_store_like_cpp(&phases);
+    rules.load_area_phases_from_rows_like_cpp(&areas, &phases, [(AREA, PHASE)]);
+    let conditions = Arc::new(
+        wow_data::ConditionEntriesByTypeStore::from_conditions_like_cpp(
+            [
+                (wow_constants::ConditionType::Class, 128),
+                (wow_constants::ConditionType::ActiveEvent, EVENT),
+            ]
+            .map(|(condition_type, condition_value1)| wow_data::Condition {
+                source_type: wow_constants::ConditionSourceType::Phase,
+                source_group: PHASE,
+                source_entry: AREA as i32,
+                condition_type,
+                condition_value1,
+                ..Default::default()
+            }),
+        ),
+    );
+    rules.attach_phase_conditions_like_cpp(&conditions);
+    let active = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let source = Arc::clone(&active);
+    session.set_player_area_phases_like_cpp(Arc::new(
+        wow_world_core::phasing::PlayerAreaPhaseCatalogLikeCpp::new(rules, move || {
+            Some(
+                source
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                    .then_some(EVENT)
+                    .into_iter()
+                    .collect(),
+            )
+        }),
+    ));
+    session.set_condition_store(conditions);
+    session.set_phase_group_store(Arc::new(wow_data::PhaseGroupStore::from_entries(
+        &phases,
+        [],
+    )));
+    session.set_phase_store(phases);
+    session.set_area_table_store(areas);
+    let _ = drain_server_packet_bytes(&receiver);
+    let has_phase = |session: &crate::session::WorldSession| {
+        session
+            .core
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .world()
+                    .phase_shift()
+                    .has_phase_like_cpp(PHASE)
+            })
+            .unwrap()
+    };
+
+    wow_world_instances::update_area_represented_with_rest_update_like_cpp(
+        &mut session,
+        AREA,
+        false,
+    );
+    assert!(!has_phase(&session));
+    active.store(true, std::sync::atomic::Ordering::Relaxed);
+    wow_world_instances::update_area_represented_with_rest_update_like_cpp(
+        &mut session,
+        AREA,
+        false,
+    );
+    assert!(has_phase(&session));
+    wow_world_instances::update_area_represented_with_rest_update_like_cpp(
+        &mut session,
+        AREA + 1,
+        false,
+    );
+    assert!(!has_phase(&session));
+}
+
 #[tokio::test]
 async fn area_trigger_visibility_tracks_phase_instance_and_expiry() {
     const MAP: u32 = 571;

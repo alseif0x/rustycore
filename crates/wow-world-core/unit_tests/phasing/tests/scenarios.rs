@@ -239,7 +239,7 @@ fn on_area_change_walks_parent_suppresses_and_reapplies_aura_phases_like_cpp() {
         &phase_store,
         &phase_group_store,
         &phase_info_store,
-        |phase_id, _| phase_id != 20,
+        |phase_area, _| phase_area.phase_id != 20,
         [30],
         [7],
     );
@@ -382,6 +382,103 @@ fn on_area_change_honors_parent_sub_area_exclusions_like_cpp() {
     assert!(object.phase_shift().has_phase_like_cpp(10));
     assert!(object.phase_shift().has_phase_like_cpp(20));
     assert!(!object.phase_shift().has_phase_like_cpp(30));
+}
+
+#[test]
+fn on_area_change_evaluates_the_concrete_phase_area_conditions_like_cpp() {
+    let area_store = area_store();
+    let phase_store = phase_store();
+    let phase_group_store = phase_group_store(&phase_store);
+    let mut phase_info_store = phase_info_store(&area_store, &phase_store);
+    phase_info_store.load_area_phases_from_rows_like_cpp(&area_store, &phase_store, [(102, 10)]);
+    let parent_phase = phase_info_store
+        .phases_for_area(100)
+        .unwrap()
+        .iter()
+        .find(|phase_area| phase_area.phase_id == 10)
+        .unwrap();
+    assert!(parent_phase.sub_area_exclusions.contains(&101));
+    assert!(parent_phase.sub_area_exclusions.contains(&102));
+
+    let mut child_condition = wow_data::Condition::default();
+    child_condition.condition_value1 = 101;
+    phase_info_store
+        .phases_for_area_mut(101)
+        .unwrap()
+        .iter_mut()
+        .find(|phase_area| phase_area.phase_id == 10)
+        .unwrap()
+        .conditions
+        .append_like_cpp(&[child_condition]);
+
+    let mut sibling_condition = wow_data::Condition::default();
+    sibling_condition.condition_value1 = 999;
+    phase_info_store
+        .phases_for_area_mut(102)
+        .unwrap()
+        .iter_mut()
+        .find(|phase_area| phase_area.phase_id == 10)
+        .unwrap()
+        .conditions
+        .append_like_cpp(&[sibling_condition]);
+
+    let mut object = world_object();
+    object.set_zone_and_area(100, 101);
+    let mut observed = Vec::new();
+
+    on_area_change_like_cpp(
+        &mut object,
+        &area_store,
+        &phase_store,
+        &phase_group_store,
+        &phase_info_store,
+        |phase_area, object| {
+            if phase_area.phase_id != 10 {
+                return true;
+            }
+            let condition_value = phase_area
+                .conditions
+                .conditions()
+                .first()
+                .map(|condition| condition.condition_value1);
+            observed.push((condition_value, object.area_id()));
+            condition_value == Some(object.area_id())
+        },
+        [],
+        [],
+    );
+
+    assert_eq!(observed.as_slice(), &[(Some(101), 101)]);
+    assert!(object.phase_shift().has_phase_like_cpp(10));
+    assert!(!object.suppressed_phase_shift().has_phase_like_cpp(10));
+
+    object.set_zone_and_area(100, 102);
+    observed.clear();
+    on_area_change_like_cpp(
+        &mut object,
+        &area_store,
+        &phase_store,
+        &phase_group_store,
+        &phase_info_store,
+        |phase_area, object| {
+            if phase_area.phase_id != 10 {
+                return true;
+            }
+            let condition_value = phase_area
+                .conditions
+                .conditions()
+                .first()
+                .map(|condition| condition.condition_value1);
+            observed.push((condition_value, object.area_id()));
+            condition_value == Some(object.area_id())
+        },
+        [],
+        [],
+    );
+
+    assert_eq!(observed.as_slice(), &[(Some(999), 102)]);
+    assert!(!object.phase_shift().has_phase_like_cpp(10));
+    assert!(object.suppressed_phase_shift().has_phase_like_cpp(10));
 }
 
 #[test]

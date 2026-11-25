@@ -5109,6 +5109,10 @@ async fn run_inner(
             terrain_swap_store: Arc::clone(&terrain_swap_store),
             phase_store: Arc::clone(&phase_store),
             phase_group_store: Arc::clone(&phase_group_store),
+            player_area_phases: session_resources::player_area_phases_like_cpp(
+                phase_info_store,
+                Arc::clone(&canonical_spawn_metadata),
+            ),
         },
         progression: SessionProgressionCapabilitiesLikeCpp {
             quest_xp_store: Arc::clone(&quest_xp_store),
