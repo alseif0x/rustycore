@@ -73,6 +73,7 @@ pub use handlers::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use instance_session::represented_taxi_usable_mount_displays_like_cpp;
+pub use instance_session::update_changed_player_phase_conditions_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use instance_session::{
     AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, set_represented_tavern_resting_like_cpp,

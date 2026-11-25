@@ -300,6 +300,7 @@ async fn generic_apply_aura_single_effect_row_applies_like_cpp() {
             }],
         },
     );
+    spell_store.insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
     session.set_spell_store(Arc::new(spell_store));
 
     session
@@ -326,7 +327,7 @@ async fn generic_apply_aura_single_effect_row_applies_like_cpp() {
     assert_eq!(aura.represented_effect, None);
     assert_eq!(aura.caster_guid, player_guid);
     assert_eq!(aura.duration_total, 30_000);
-    assert_eq!(aura.aura_flags, 0x0000_0001);
+    assert_eq!(aura.aura_flags, 0x0103);
     let opcodes = drain_server_opcodes(&send_rx);
     assert_eq!(
         opcodes,

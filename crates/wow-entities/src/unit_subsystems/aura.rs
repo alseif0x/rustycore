@@ -6,6 +6,7 @@
 //! Unit aura subsystem.
 
 use super::*;
+use std::collections::BTreeMap;
 
 mod application_order;
 mod duration;
@@ -44,6 +45,9 @@ pub struct AuraSubsystem {
     /// projection remains in the session adapter; lifetime and mutation live
     /// with the canonical Unit.
     runtime_applications_like_cpp: HashMap<u8, AuraApplicationLikeCpp>,
+    /// Net live effect changes since the last Player phase pass. Ordinary
+    /// Units leave this disabled, so their applications retain no work.
+    player_phase_changes: Option<BTreeMap<(i32, u8, u32), i32>>,
     /// Player persistence provenance not represented by `AuraApplication`.
     /// This is slot-scoped and expires with the canonical runtime application.
     aura_persistence_metadata_by_slot: HashMap<u8, AuraPersistenceMetadata>,
@@ -391,6 +395,34 @@ impl AuraSubsystem {
         self.runtime_applications_like_cpp.get(&slot)
     }
 
+    pub fn reset_player_phase_tracking_like_cpp(&mut self) {
+        self.player_phase_changes = Some(BTreeMap::new());
+    }
+
+    pub fn has_player_phase_changes_like_cpp(&self) -> bool {
+        self.player_phase_changes
+            .as_ref()
+            .is_some_and(|changes| !changes.is_empty())
+    }
+
+    pub fn take_player_phase_changes_like_cpp(&mut self) -> BTreeMap<(i32, u8, u32), i32> {
+        self.player_phase_changes
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    }
+
+    fn note_player_phase_change(&mut self, aura: &AuraApplicationLikeCpp, change: i32) {
+        if let Some(changes) = &mut self.player_phase_changes {
+            let key = (aura.spell_id, aura.difficulty_id, aura.effect_mask);
+            let total = changes.entry(key).or_default();
+            *total += change;
+            if *total == 0 {
+                changes.remove(&key);
+            }
+        }
+    }
+
     pub fn runtime_application_mut_like_cpp(
         &mut self,
         slot: u8,
@@ -407,7 +439,10 @@ impl AuraSubsystem {
         // Aura base's cast metadata.
         self.remove_aura_cast_provenance_like_cpp(aura.slot);
         self.aura_persistence_metadata_by_slot.remove(&aura.slot);
-        self.runtime_applications_like_cpp.insert(aura.slot, aura);
+        self.note_player_phase_change(&aura, 1);
+        if let Some(previous) = self.runtime_applications_like_cpp.insert(aura.slot, aura) {
+            self.note_player_phase_change(&previous, -1);
+        }
         self.invalidate_spell_hit_aura_authority_like_cpp();
     }
 
@@ -417,7 +452,8 @@ impl AuraSubsystem {
     ) -> Option<AuraApplicationLikeCpp> {
         let removed = self.runtime_applications_like_cpp.remove(&slot);
         self.aura_persistence_metadata_by_slot.remove(&slot);
-        if removed.is_some() {
+        if let Some(aura) = &removed {
+            self.note_player_phase_change(aura, -1);
             self.invalidate_spell_hit_aura_authority_like_cpp();
             self.remove_aura_cast_provenance_like_cpp(slot);
         }
@@ -431,7 +467,10 @@ impl AuraSubsystem {
             .copied()
             .collect::<Vec<_>>();
         if !self.runtime_applications_like_cpp.is_empty() {
-            self.runtime_applications_like_cpp.clear();
+            let applications = std::mem::take(&mut self.runtime_applications_like_cpp);
+            for application in applications.into_values() {
+                self.note_player_phase_change(&application, -1);
+            }
             self.invalidate_spell_hit_aura_authority_like_cpp();
         }
         self.aura_persistence_metadata_by_slot.clear();

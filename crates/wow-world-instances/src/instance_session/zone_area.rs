@@ -183,6 +183,8 @@ pub fn update_area_represented_with_rest_update_like_cpp<H: InstanceSessionHostL
         }
     });
 
+    super::area_phase::update_player_area_phases_like_cpp(host.hub_ref());
+
     let mut rest_changed = false;
     let area_resting = host
         .hub_ref()

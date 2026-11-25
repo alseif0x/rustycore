@@ -284,6 +284,24 @@ impl CanonicalSpawnMetadataLikeCpp {
         &self.spawn_store
     }
 
+    pub(crate) fn index_game_event_spawn_like_cpp(
+        &mut self,
+        data: &SpawnData,
+        phases: &wow_data::PhaseStore,
+    ) {
+        self.spawn_store
+            .index_object_spawn_in_grid(data, |phase| phases.is_personal_phase(phase));
+    }
+
+    pub(crate) fn unindex_game_event_spawn_like_cpp(
+        &mut self,
+        data: &SpawnData,
+        phases: &wow_data::PhaseStore,
+    ) {
+        self.spawn_store
+            .unindex_object_spawn_from_grid(data, |phase| phases.is_personal_phase(phase));
+    }
+
     pub fn spawn_group_templates(&self) -> &BTreeMap<u32, SpawnGroupTemplateData> {
         &self.spawn_group_templates
     }

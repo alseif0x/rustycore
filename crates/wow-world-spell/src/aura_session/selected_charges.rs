@@ -22,7 +22,7 @@ use wow_data::{
         resolve_spell_effect_rows,
     },
 };
-use wow_entities::{AuraApplicationLikeCpp, AuraSubsystem};
+use wow_entities::AuraSubsystem;
 
 use super::selected_catalog::{
     SelectedCatalogError, resolve_selected_value, selected_aura_options_entry,
@@ -212,8 +212,13 @@ pub(crate) fn validate_selected_aura_modifier_absence_from_player_auras(
     let target_labels = selected_native_labels(spell_id, actual_difficulty, labels, difficulties)?;
 
     for aura in player_auras.runtime_applications_like_cpp().values() {
-        let effects =
-            resolve_active_aura_effects(aura, regular_spells, serverside_spells, difficulties)?;
+        let effects = resolve_aura_effects(
+            aura.spell_id,
+            aura.difficulty_id,
+            regular_spells,
+            serverside_spells,
+            difficulties,
+        )?;
 
         if let Some(modifier_error) = selected_modifier_match(
             aura.effect_mask,
@@ -319,16 +324,79 @@ fn select_spell_source<'a>(
     .transpose()
 }
 
-fn resolve_active_aura_effects(
-    aura: &AuraApplicationLikeCpp,
+/// Area phasing reapplies the phase and phase-group effects of live applications.
+pub fn active_aura_phase_ids_like_cpp(
+    auras: &AuraSubsystem,
+    regular_spells: Option<&SpellStore>,
+    serverside_spells: Option<&ServersideSpellStoreLikeCpp>,
+    difficulties: Option<&DifficultyStore>,
+) -> (Vec<u32>, Vec<u32>) {
+    let mut phases = Vec::new();
+    let mut groups = Vec::new();
+    for aura in auras.runtime_applications_like_cpp().values() {
+        let (aura_phases, aura_groups) = aura_phase_ids_like_cpp(
+            aura.spell_id,
+            aura.difficulty_id,
+            aura.effect_mask,
+            regular_spells,
+            serverside_spells,
+            difficulties,
+        );
+        phases.extend(aura_phases);
+        groups.extend(aura_groups);
+    }
+    (phases, groups)
+}
+
+/// Resolve the direct phase effects of one admitted aura application.
+pub fn aura_phase_ids_like_cpp(
+    spell_id: i32,
+    difficulty: u8,
+    effect_mask: u32,
+    regular_spells: Option<&SpellStore>,
+    serverside_spells: Option<&ServersideSpellStoreLikeCpp>,
+    difficulties: Option<&DifficultyStore>,
+) -> (Vec<u32>, Vec<u32>) {
+    // SpellAuraDefines.h, SPELL_AURA_PHASE and SPELL_AURA_PHASE_GROUP.
+    const PHASE: i32 = 261;
+    const PHASE_GROUP: i32 = 326;
+    let mut phases = Vec::new();
+    let mut groups = Vec::new();
+    let Ok(effects) = resolve_aura_effects(
+        spell_id,
+        difficulty,
+        regular_spells,
+        serverside_spells,
+        difficulties,
+    ) else {
+        return (phases, groups);
+    };
+    for effect in effects {
+        if (effect_mask & 1u32.checked_shl(effect.index).unwrap_or(0)) == 0 {
+            continue;
+        }
+        let Ok(id) = u32::try_from(effect.misc_value_2) else {
+            continue;
+        };
+        match effect.aura_type {
+            PHASE => phases.push(id),
+            PHASE_GROUP => groups.push(id),
+            _ => {}
+        }
+    }
+    (phases, groups)
+}
+
+fn resolve_aura_effects(
+    spell_id: i32,
+    difficulty: u8,
     regular_spells: Option<&SpellStore>,
     serverside_spells: Option<&ServersideSpellStoreLikeCpp>,
     difficulties: Option<&DifficultyStore>,
 ) -> Result<Vec<SelectedAuraEffect>, &'static str> {
-    let spell_id = aura.spell_id as u32;
     let source = select_spell_source(
-        spell_id,
-        aura.difficulty_id,
+        spell_id as u32,
+        difficulty,
         regular_spells,
         serverside_spells,
         difficulties,
@@ -338,9 +406,8 @@ fn resolve_active_aura_effects(
     match source {
         SelectedSpellSource::Regular(actual_difficulty) => {
             let store = regular_spells.ok_or(MODIFIER_ABSENCE_UNPROVEN)?;
-            let rows =
-                resolve_spell_effect_rows(store, aura.spell_id, actual_difficulty, difficulties)
-                    .map_err(|_| MODIFIER_ABSENCE_UNPROVEN)?;
+            let rows = resolve_spell_effect_rows(store, spell_id, actual_difficulty, difficulties)
+                .map_err(|_| MODIFIER_ABSENCE_UNPROVEN)?;
             Ok(rows
                 .into_iter()
                 .map(|effect| SelectedAuraEffect {

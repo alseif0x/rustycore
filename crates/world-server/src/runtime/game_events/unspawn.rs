@@ -184,7 +184,8 @@ pub(crate) fn game_event_guid_is_active_in_other_event_like_cpp(
 
 pub(crate) fn game_event_unspawn_object_guid_list_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    canonical_spawn_metadata: &mut spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    phases: &wow_data::PhaseStore,
     active_event_ids: &[u16],
     event_id: i16,
     object_type: wow_map::SpawnObjectType,
@@ -208,14 +209,14 @@ pub(crate) fn game_event_unspawn_object_guid_list_for_event_like_cpp(
         let Some(spawn_data) = canonical_spawn_metadata
             .spawn_store()
             .spawn_data(object_type, spawn_id)
+            .cloned()
         else {
             summary.missing_spawn_metadata += 1;
             continue;
         };
 
-        // C++ anchor: GameEventMgr.cpp:1246-1327 removes ObjectMgr grid metadata
-        // before walking loaded maps. RustyCore has no safe ObjectMgr mutation here,
-        // so this is represented as a count only and SpawnStore remains immutable.
+        // GameEventMgr::GameEventUnspawn removes the index before visiting live maps.
+        canonical_spawn_metadata.unindex_game_event_spawn_like_cpp(&spawn_data, phases);
         summary.represented_object_mgr_grid_removals += 1;
 
         let mut maps_matched_for_spawn = 0usize;
@@ -248,12 +249,14 @@ pub(crate) fn game_event_unspawn_object_guid_list_for_event_like_cpp(
 
 pub(crate) fn game_event_unspawn_creatures_and_gameobjects_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    canonical_spawn_metadata: &mut spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    phases: &wow_data::PhaseStore,
     active_event_ids: &[u16],
     event_id: i16,
 ) -> GameEventCreatureGameObjectUnspawnSummaryLikeCpp {
-    let Some(creature_guids) =
-        canonical_spawn_metadata.game_event_creature_guids_like_cpp(event_id)
+    let Some(creature_guids) = canonical_spawn_metadata
+        .game_event_creature_guids_like_cpp(event_id)
+        .map(<[_]>::to_vec)
     else {
         return GameEventCreatureGameObjectUnspawnSummaryLikeCpp {
             event_id,
@@ -267,14 +270,16 @@ pub(crate) fn game_event_unspawn_creatures_and_gameobjects_for_event_like_cpp(
     let creature = game_event_unspawn_object_guid_list_for_event_like_cpp(
         manager,
         canonical_spawn_metadata,
+        phases,
         active_event_ids,
         event_id,
         wow_map::SpawnObjectType::Creature,
-        creature_guids,
+        &creature_guids,
     );
 
-    let Some(gameobject_guids) =
-        canonical_spawn_metadata.game_event_gameobject_guids_like_cpp(event_id)
+    let Some(gameobject_guids) = canonical_spawn_metadata
+        .game_event_gameobject_guids_like_cpp(event_id)
+        .map(<[_]>::to_vec)
     else {
         return GameEventCreatureGameObjectUnspawnSummaryLikeCpp {
             event_id,
@@ -288,10 +293,11 @@ pub(crate) fn game_event_unspawn_creatures_and_gameobjects_for_event_like_cpp(
     let gameobject = game_event_unspawn_object_guid_list_for_event_like_cpp(
         manager,
         canonical_spawn_metadata,
+        phases,
         active_event_ids,
         event_id,
         wow_map::SpawnObjectType::GameObject,
-        gameobject_guids,
+        &gameobject_guids,
     );
 
     GameEventCreatureGameObjectUnspawnSummaryLikeCpp {
@@ -305,13 +311,15 @@ pub(crate) fn game_event_unspawn_creatures_and_gameobjects_for_event_like_cpp(
 
 pub(crate) fn game_event_unspawn_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    canonical_spawn_metadata: &mut spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    phases: &wow_data::PhaseStore,
     active_event_ids: &[u16],
     event_id: i16,
 ) -> GameEventUnspawnForEventSummaryLikeCpp {
     let non_pool = game_event_unspawn_creatures_and_gameobjects_for_event_like_cpp(
         manager,
         canonical_spawn_metadata,
+        phases,
         active_event_ids,
         event_id,
     );

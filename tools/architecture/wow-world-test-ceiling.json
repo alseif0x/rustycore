@@ -405,6 +405,16 @@
    "unit_tests_lines": 281304,
    "unit_tests_tests": 4184,
    "src_tests": 22
+  },
+  {
+   "id": "raise-1342-38",
+   "kind": "raise",
+   "issue": 1342,
+   "reviewed_at": "2026-11-25",
+   "reason": "Account for three Session regressions covering quest and aura phase changes, area trigger lifetime, and canonical GameObject phase visibility.",
+   "unit_tests_lines": 281637,
+   "unit_tests_tests": 4187,
+   "src_tests": 22
   }
  ]
 }

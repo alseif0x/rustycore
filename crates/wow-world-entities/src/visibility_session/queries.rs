@@ -76,12 +76,13 @@ pub fn visible_gameobjects_from_canonical_map_like_cpp<H: VisibilitySessionHostL
         {
             continue;
         }
-        if let Some(phase_shift) = host
+        let phase_shift = host
             .world_entities()
             .represented_gameobject_phase_shift_like_cpp(guid)
-            && !viewer_phase_shift
-                .as_ref()
-                .is_some_and(|viewer| viewer.can_see(phase_shift))
+            .unwrap_or_else(|| object.phase_shift());
+        if !viewer_phase_shift
+            .as_ref()
+            .is_some_and(|viewer| viewer.can_see(phase_shift))
         {
             continue;
         }

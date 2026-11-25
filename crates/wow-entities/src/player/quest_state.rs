@@ -60,9 +60,18 @@ pub struct PlayerQuestGameplayState {
     pub(super) rewarded_quest_rows: BTreeSet<u32>,
     pub(super) pending_share: Option<(ObjectGuid, u32)>,
     pub(super) objective_counts_by_quest: Vec<(u32, Vec<i32>)>,
+    pub(super) phase_conditions_dirty: bool,
 }
 
 impl PlayerQuestGameplayState {
+    pub fn phase_conditions_dirty_like_cpp(&self) -> bool {
+        self.phase_conditions_dirty
+    }
+
+    pub fn take_phase_conditions_dirty_like_cpp(&mut self) -> bool {
+        std::mem::take(&mut self.phase_conditions_dirty)
+    }
+
     // ---- reads -------------------------------------------------------------
 
     /// C++ `Player::m_QuestStatus`, keyed by quest id.
@@ -80,7 +89,9 @@ impl PlayerQuestGameplayState {
     /// Mutable access to one identified quest's record, as C++ writes
     /// `itr->second` after finding it in `m_QuestStatus`.
     pub fn status_mut_like_cpp(&mut self, quest_id: u32) -> Option<&mut PlayerQuestStatusRecord> {
-        self.statuses.get_mut(&quest_id)
+        let record = self.statuses.get_mut(&quest_id)?;
+        self.phase_conditions_dirty = true;
+        Some(record)
     }
 
     /// C++ `m_QuestStatusSave`, ordered by quest ID like its `std::map` owner.
@@ -190,6 +201,7 @@ impl PlayerQuestGameplayState {
     /// C++ `Player::SetQuestStatus` (`Player.cpp:15557`) installing one record.
     pub fn insert_status_like_cpp(&mut self, quest_id: u32, record: PlayerQuestStatusRecord) {
         self.statuses.insert(quest_id, record);
+        self.phase_conditions_dirty = true;
     }
 
     /// C++ `Player::AddQuest` installs a status and marks its own save intent.
@@ -231,6 +243,7 @@ impl PlayerQuestGameplayState {
             });
         let old_status = status.status;
         status.status = status_value;
+        self.phase_conditions_dirty |= old_status != status_value;
         if mark_default {
             self.mark_status_save_like_cpp(quest_id, PlayerQuestStatusSaveTypeLikeCpp::Default);
         }
@@ -241,6 +254,7 @@ impl PlayerQuestGameplayState {
     pub fn remove_status_like_cpp(&mut self, quest_id: u32) -> Option<PlayerQuestStatusRecord> {
         let removed = self.statuses.remove(&quest_id);
         if removed.is_some() {
+            self.phase_conditions_dirty = true;
             self.mark_status_save_like_cpp(quest_id, PlayerQuestStatusSaveTypeLikeCpp::Delete);
         }
         removed
@@ -249,6 +263,7 @@ impl PlayerQuestGameplayState {
     /// Iterate every quest record for in-place progress updates, as C++ walks
     /// `m_QuestStatus` when a world event adjusts several quests at once.
     pub fn statuses_mut_like_cpp(&mut self) -> impl Iterator<Item = &mut PlayerQuestStatusRecord> {
+        self.phase_conditions_dirty |= !self.statuses.is_empty();
         self.statuses.values_mut()
     }
 
@@ -275,6 +290,7 @@ impl PlayerQuestGameplayState {
         statuses: BTreeMap<u32, PlayerQuestStatusRecord>,
         complete: bool,
     ) {
+        self.phase_conditions_dirty |= self.statuses != statuses;
         self.statuses = statuses;
         self.status_authority_complete = complete;
     }
@@ -299,14 +315,15 @@ impl PlayerQuestGameplayState {
     /// C++ `Player::m_RewardedQuests` gaining or losing one quest
     /// (`RemoveRewardedQuest`, `Player.cpp:15595`).
     pub fn set_rewarded_like_cpp(&mut self, quest_id: u32, rewarded: bool) {
-        if rewarded {
-            self.rewarded_quest_ids.insert(quest_id);
+        self.phase_conditions_dirty |= if rewarded {
+            self.rewarded_quest_ids.insert(quest_id)
         } else {
-            self.rewarded_quest_ids.remove(&quest_id);
-        }
+            self.rewarded_quest_ids.remove(&quest_id)
+        };
     }
 
     pub fn replace_rewarded_quest_ids_like_cpp(&mut self, quest_ids: BTreeSet<u32>) {
+        self.phase_conditions_dirty |= self.rewarded_quest_ids != quest_ids;
         self.rewarded_quest_ids = quest_ids;
     }
 
@@ -325,14 +342,15 @@ impl PlayerQuestGameplayState {
 
     /// C++ `Player::SetDailyQuestStatus` (`Player.cpp:24037`).
     pub fn set_daily_like_cpp(&mut self, quest_id: u32, active: bool) {
-        if active {
-            self.daily_quest_ids.insert(quest_id);
+        self.phase_conditions_dirty |= if active {
+            self.daily_quest_ids.insert(quest_id)
         } else {
-            self.daily_quest_ids.remove(&quest_id);
-        }
+            self.daily_quest_ids.remove(&quest_id)
+        };
     }
 
     pub fn replace_daily_quest_ids_like_cpp(&mut self, quest_ids: BTreeSet<u32>) {
+        self.phase_conditions_dirty |= self.daily_quest_ids != quest_ids;
         self.daily_quest_ids = quest_ids;
     }
 

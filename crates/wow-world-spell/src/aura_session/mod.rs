@@ -47,7 +47,9 @@ pub use duration::*;
 pub use mount::*;
 pub use publication::*;
 pub(super) use selected_caster::selected_caster_level;
-pub use selected_charges::selected_aura_max_charges;
+pub use selected_charges::{
+    active_aura_phase_ids_like_cpp, aura_phase_ids_like_cpp, selected_aura_max_charges,
+};
 pub(crate) use selected_charges::{
     validate_selected_aura_modifier_absence,
     validate_selected_aura_modifier_absence_from_player_auras,
@@ -56,7 +58,7 @@ pub(crate) use selected_creation::prepare_selected_aura_creation;
 pub(crate) use selected_flags::{
     SelectedAuraFlagsError, SelectedSpellMetadataFacts, SelectedSpellPolarity,
     SelectedSpellPolarityError, build_selected_aura_application_flags,
-    classify_selected_spell_polarity,
+    classify_selected_spell_polarity, single_effect_player_aura_flags_like_cpp,
 };
 pub(crate) use selected_lifetime::validate_application as validate_selected_aura_application;
 pub use selected_lifetime::*;

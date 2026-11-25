@@ -31,6 +31,7 @@ use crate::InstanceState;
 mod access_requirement;
 mod activate_taxi;
 mod admission;
+mod area_phase;
 mod area_trigger_opcode;
 mod area_triggers;
 mod create_map;
@@ -52,6 +53,7 @@ pub use admission::{
     create_map_instance_owner_guid_like_cpp, create_map_player_context_like_cpp,
     player_cannot_enter_target_map_like_cpp,
 };
+pub use area_phase::update_changed_player_phase_conditions_like_cpp;
 pub use area_trigger_opcode::{AreaTriggerHostLikeCpp, handle_area_trigger_with_catalogs_like_cpp};
 pub use area_triggers::{
     check_area_triggers_with_catalogs_like_cpp,

@@ -16,6 +16,25 @@ use wow_world::{
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp, WorldSession,
 };
 
+pub(super) fn player_area_phases_like_cpp(
+    areas: wow_data::PhaseInfoStore,
+    metadata: super::SharedCanonicalSpawnMetadataLikeCpp,
+) -> Arc<wow_world_core::phasing::PlayerAreaPhaseCatalogLikeCpp> {
+    Arc::new(wow_world_core::phasing::PlayerAreaPhaseCatalogLikeCpp::new(
+        areas,
+        move || {
+            let metadata = metadata.lock().ok()?;
+            Some(
+                metadata
+                    .game_event_active_set_like_cpp()
+                    .active_event_ids_like_cpp()
+                    .map(u32::from)
+                    .collect(),
+            )
+        },
+    ))
+}
+
 pub(super) fn load_regen_game_tables(
     data_dir: impl AsRef<std::path::Path>,
 ) -> Result<Arc<wow_data::RegenGameTablesLikeCpp>> {
@@ -273,6 +292,7 @@ pub(super) struct SessionWorldCatalogCapabilitiesLikeCpp {
     pub(super) terrain_swap_store: Arc<wow_data::TerrainSwapStore>,
     pub(super) phase_store: Arc<wow_data::PhaseStore>,
     pub(super) phase_group_store: Arc<wow_data::PhaseGroupStore>,
+    pub(super) player_area_phases: Arc<wow_world_core::phasing::PlayerAreaPhaseCatalogLikeCpp>,
 }
 
 /// Immutable quest and reputation catalogs not yet borrowed by their owning
@@ -513,6 +533,7 @@ impl SessionWorldCatalogCapabilitiesLikeCpp {
         session.set_terrain_swap_store(Arc::clone(&self.terrain_swap_store));
         session.set_phase_store(Arc::clone(&self.phase_store));
         session.set_phase_group_store(Arc::clone(&self.phase_group_store));
+        session.set_player_area_phases_like_cpp(Arc::clone(&self.player_area_phases));
     }
 }
 

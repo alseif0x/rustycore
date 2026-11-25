@@ -18,6 +18,7 @@ use wow_world::session::mailbox::{DurableCreatureRuntimeCommandsLikeCpp, Session
 fn caches() -> LoadedGridCreatureRespawnCachesLikeCpp {
     LoadedGridCreatureRespawnCachesLikeCpp {
         realm_id: 1,
+        phase_stores: Default::default(),
         template_store: Default::default(),
         sparring_store: Default::default(),
         difficulty_store: Default::default(),

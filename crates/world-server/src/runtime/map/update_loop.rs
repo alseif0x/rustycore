@@ -422,6 +422,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     &mut manager,
                     &canonical_spawn_metadata,
                     area_trigger_template_store.as_ref(),
+                    &loaded_grid_creature_respawn_caches,
                 );
                 let session_plan = canonical_map_tick_begin_like_cpp(&mut manager, diff_ms);
                 drop(canonical_spawn_metadata);
@@ -899,7 +900,9 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 );
             }
 
-            if !stop_after_tick && game_event_scheduler.update(diff_ms) {
+            let event_now = Instant::now();
+            if !stop_after_tick && game_event_scheduler.is_due(event_now) {
+                let event_due_lag = game_event_scheduler.due_lag(event_now);
                 let current_time_secs = current_unix_time_secs_like_cpp();
                 let (game_event_outcome, active_event_ids, mut db_bridge_summary) = {
                     let Ok(mut canonical_spawn_metadata) = canonical_spawn_metadata.lock() else {
@@ -913,7 +916,8 @@ pub(crate) fn spawn_canonical_map_update_loop(
                         true,
                         represented_game_event_world_conditions_met_like_cpp,
                     );
-                    game_event_scheduler.set_interval_and_reset(outcome.next_update_delay_millis);
+                    game_event_scheduler
+                        .set_interval_and_reset(event_now, outcome.next_update_delay_millis);
                     let db_bridge_summary =
                         materialize_game_event_world_event_state_db_bridge_like_cpp(
                             &outcome,
@@ -1007,6 +1011,9 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     invalid_check_outcomes = game_event_outcome.invalid_check_outcomes.len(),
                     invalid_next_check_outcomes =
                         game_event_outcome.invalid_next_check_outcomes.len(),
+                    event_evaluated_unix_secs = current_time_secs,
+                    event_due_lag_ms = event_due_lag.as_millis() as u64,
+                    event_processing_ms = event_now.elapsed().as_millis() as u64,
                     next_update_delay_millis = game_event_outcome.next_update_delay_millis,
                     side_effect_actions = side_effect_summary.actions.len(),
                     spawn_actions = side_effect_summary.spawn_actions,

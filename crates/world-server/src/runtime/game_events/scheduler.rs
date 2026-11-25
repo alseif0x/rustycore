@@ -3,42 +3,28 @@ use wow_persistence::GameEventPersistencePortLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CanonicalGameEventSchedulerLikeCpp {
-    pub(crate) timer_ms: u32,
-    pub(crate) interval_ms: u32,
+    next_check: Instant,
 }
 
 impl CanonicalGameEventSchedulerLikeCpp {
-    pub(crate) fn start_system(next_delay_ms: u64) -> Self {
-        let interval_ms = clamp_game_event_delay_ms_like_cpp(next_delay_ms).max(1);
+    pub(crate) fn start_system(now: Instant, next_delay_ms: u64) -> Self {
+        let delay_ms = clamp_game_event_delay_ms_like_cpp(next_delay_ms).max(1);
         Self {
-            timer_ms: interval_ms,
-            interval_ms,
+            next_check: now + Duration::from_millis(u64::from(delay_ms)),
         }
     }
 
-    pub(crate) fn update(&mut self, diff_ms: u32) -> bool {
-        if self.timer_ms <= diff_ms {
-            self.timer_ms = self.interval_ms;
-            true
-        } else {
-            self.timer_ms -= diff_ms;
-            false
-        }
+    // World time still elapses when the coordinator cannot admit a map tick.
+    pub(crate) fn is_due(&self, now: Instant) -> bool {
+        now >= self.next_check
     }
 
-    pub(crate) fn set_interval_and_reset(&mut self, next_delay_ms: u64) {
-        self.interval_ms = clamp_game_event_delay_ms_like_cpp(next_delay_ms).max(1);
-        self.timer_ms = self.interval_ms;
+    pub(crate) fn due_lag(&self, now: Instant) -> Duration {
+        now.saturating_duration_since(self.next_check)
     }
 
-    #[cfg(test)]
-    pub(crate) const fn timer_ms(&self) -> u32 {
-        self.timer_ms
-    }
-
-    #[cfg(test)]
-    pub(crate) const fn interval_ms(&self) -> u32 {
-        self.interval_ms
+    pub(crate) fn set_interval_and_reset(&mut self, now: Instant, next_delay_ms: u64) {
+        *self = Self::start_system(now, next_delay_ms);
     }
 }
 

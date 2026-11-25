@@ -446,11 +446,12 @@ impl SmoothPhasingLikeCpp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub struct PhaseRef {
     pub(super) id: u32,
     pub(super) flags: PhaseFlags,
     pub(super) references: i32,
+    pub(super) area_id: Option<u32>,
 }
 
 impl PhaseRef {
@@ -466,10 +467,25 @@ impl PhaseRef {
         self.references
     }
 
+    /// Area row whose phase-area conditions currently describe this phase, if any.
+    pub const fn area_id_like_cpp(&self) -> Option<u32> {
+        self.area_id
+    }
+
     pub const fn is_personal(&self) -> bool {
         self.flags.contains(PhaseFlags::PERSONAL)
     }
 }
+
+// C++ PhaseRef ordering/equality is keyed only by phase ID; area-condition
+// provenance is metadata carried by the value, not part of phase identity.
+impl PartialEq for PhaseRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for PhaseRef {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhaseShift {
@@ -521,13 +537,30 @@ impl PhaseShift {
         flags: PhaseFlags,
         references: i32,
     ) -> bool {
+        self.add_phase_with_area_id_like_cpp(phase_id, flags, references, None)
+    }
+
+    /// Add references to a phase and, when supplied, retain the concrete area
+    /// row that owns its condition list. Like C++ `PhaseShift::AddPhase`, a
+    /// phase-only addition does not clear existing condition provenance.
+    pub fn add_phase_with_area_id_like_cpp(
+        &mut self,
+        phase_id: u32,
+        flags: PhaseFlags,
+        references: i32,
+        area_id: Option<u32>,
+    ) -> bool {
         let inserted = !self.phases.contains_key(&phase_id);
         let entry = self.phases.entry(phase_id).or_insert(PhaseRef {
             id: phase_id,
             flags,
             references: 0,
+            area_id: None,
         });
         entry.references += references;
+        if let Some(area_id) = area_id {
+            entry.area_id = Some(area_id);
+        }
         let phase_ref = *entry;
         self.modify_phase_reference_counters(phase_ref, references);
         inserted

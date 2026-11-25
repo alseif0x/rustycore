@@ -50,6 +50,7 @@ pub(crate) fn consume_game_event_live_update_side_effects_like_cpp(
                 let _ = game_event_unspawn_for_event_like_cpp(
                     manager,
                     canonical_spawn_metadata,
+                    &loaded_grid_creature_respawn_caches.phase_stores.phases,
                     active_event_ids,
                     event_id,
                 );

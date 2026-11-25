@@ -32,7 +32,6 @@ mod test_support;
 mod toy_session;
 
 pub use aura_rows::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
-pub use aura_session::selected_aura_max_charges;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::update_represented_flight_flags_for_flight_aura_like_cpp;
 pub use aura_session::{
@@ -58,6 +57,9 @@ pub use aura_session::{
     represented_player_aura_state_mask_like_cpp, represented_unit_aura_state_mask_like_cpp,
 };
 pub use aura_session::{SelectedAuraRefreshPolicy, selected_aura_refresh_policy};
+pub use aura_session::{
+    active_aura_phase_ids_like_cpp, aura_phase_ids_like_cpp, selected_aura_max_charges,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::{flush_pending_selected_aura_updates, tick_auras};
 pub use aura_update_session::handle_player_aura_update;
