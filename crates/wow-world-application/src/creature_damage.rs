@@ -229,7 +229,7 @@ pub async fn apply_damage_from_caster_like_cpp<H: CreatureDamageHostLikeCpp>(
     // representation, so those fields and `HitInfo` stay zero.
     if let Some(spell_id) = spell_id {
         let damage = damage_amount.min(i32::MAX as u32) as i32;
-        host.send_packet(&wow_packet::packets::combat::SpellNonMeleeDamageLog {
+        let log = wow_packet::packets::combat::SpellNonMeleeDamageLog {
             target: target_guid,
             caster: caster_guid,
             cast_id,
@@ -248,7 +248,13 @@ pub async fn apply_damage_from_caster_like_cpp<H: CreatureDamageHostLikeCpp>(
             shield_block: 0,
             periodic: false,
             flags: 0,
-        });
+        };
+        if caster_is_session_player {
+            let (spell, mut hub) = host.split_spell_state_mut();
+            spell.publish_player_damage_log_like_cpp(&mut hub, &log);
+        } else {
+            host.send_packet(&log);
+        }
     }
     if let Some(threat_value) = threat_value {
         wow_world_spell::sync_represented_creature_threat_to_canonical_like_cpp(

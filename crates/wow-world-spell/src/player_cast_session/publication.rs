@@ -24,7 +24,8 @@ pub fn handle_player_cast_publication_like_cpp<H: SessionHubHostLikeCpp>(
         .map(u16::from_le_bytes);
     if !matches!(opcode, Some(value) if value == ServerOpcodes::SpellStart as u16
         || value == ServerOpcodes::SpellGo as u16 || value == ServerOpcodes::SpellFailure as u16
-        || value == ServerOpcodes::SpellFailedOther as u16)
+        || value == ServerOpcodes::SpellFailedOther as u16
+        || value == ServerOpcodes::SpellNonMeleeDamageLog as u16)
     {
         return;
     }

@@ -785,7 +785,7 @@ pub struct SpellLogPowerData {
 }
 
 /// C++ `SpellCastLogData`, appended only to the full combat-log packet.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellCastLogData {
     pub health: i64,
     pub attack_power: i32,
@@ -795,7 +795,7 @@ pub struct SpellCastLogData {
 }
 
 impl SpellCastLogData {
-    fn write(&self, pkt: &mut WorldPacket) {
+    pub(super) fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_int64(self.health);
         pkt.write_int32(self.attack_power);
         pkt.write_int32(self.spell_power);

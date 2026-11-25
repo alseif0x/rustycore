@@ -343,7 +343,7 @@ impl ServerPacket for SpellAbsorbLog {
 /// spell hit (`Unit.cpp:5353-5380`).
 ///
 /// C++ anchor: `WorldPackets::CombatLog::SpellNonMeleeDamageLog::Write`
-/// (`CombatLogPackets.cpp:92-124`) writes the target (`Me`), caster and cast
+/// (`CombatLogPackets.cpp:39-74`) writes the target (`Me`), caster and cast
 /// GUIDs, `int32(SpellID)`, the `SpellCastVisual` (one `SpellXSpellVisualID` in
 /// the 3.4.3 branch), `int32(Damage)`, `int32(OriginalDamage)`,
 /// `int32(Overkill)`, `uint8(SchoolMask)`, `int32(Absorbed)`,
@@ -379,6 +379,20 @@ impl ServerPacket for SpellNonMeleeDamageLog {
     const OPCODE: ServerOpcodes = ServerOpcodes::SpellNonMeleeDamageLog;
 
     fn write(&self, pkt: &mut WorldPacket) {
+        self.write_with_log_data(pkt, false);
+    }
+}
+
+impl SpellNonMeleeDamageLog {
+    /// `Unit::SendSpellNonMeleeDamageLog` leaves the full packet's SpellCastLogData
+    /// default-initialized, including its empty power list.
+    pub fn to_full_log_bytes_like_cpp(&self) -> Vec<u8> {
+        let mut pkt = WorldPacket::new_server(Self::OPCODE);
+        self.write_with_log_data(&mut pkt, true);
+        pkt.into_data()
+    }
+
+    fn write_with_log_data(&self, pkt: &mut WorldPacket, full: bool) {
         pkt.write_packed_guid(&self.target);
         pkt.write_packed_guid(&self.caster);
         pkt.write_packed_guid(&self.cast_id);
@@ -397,9 +411,12 @@ impl ServerPacket for SpellNonMeleeDamageLog {
         pkt.write_bit(self.periodic);
         pkt.write_bits(self.flags as u32, 7);
         pkt.write_bit(false); // Debug info
-        pkt.write_bit(false); // `CombatLogServerPacket::WriteLogDataBit`
+        pkt.write_bit(full);
         pkt.write_bit(false); // `ContentTuning.has_value()`
         pkt.flush_bits();
+        if full {
+            super::spell::SpellCastLogData::default().write(pkt);
+        }
     }
 }
 
@@ -1231,7 +1248,7 @@ mod tests {
             456,
             0x5678,
         );
-        let bytes = SpellNonMeleeDamageLog {
+        let log = SpellNonMeleeDamageLog {
             target,
             caster,
             cast_id,
@@ -1246,8 +1263,13 @@ mod tests {
             shield_block: 0,
             periodic: false,
             flags: 0,
-        }
-        .to_bytes();
+        };
+        let bytes = log.to_bytes();
+        let full = log.to_full_log_bytes_like_cpp();
+        let tail = bytes.len() - 1;
+        assert_eq!(&full[..tail], &bytes[..tail]);
+        assert_eq!(full[tail], 0x40, "only the full log data bit is set");
+        assert_eq!(&full[tail + 1..], &[0; 22], "default stats and power count");
 
         let mut pkt = WorldPacket::from_bytes(&bytes);
         assert_eq!(
