@@ -93,6 +93,18 @@ at `c7c9d94ce` forced the respawn-row write to fail, verified that the
 source deadline rolled back too, and recovered both records in a third
 process after a successful commit with no map acknowledgement. The parent
 test took 3.18s after compilation. The shared QA database was untouched.
+
+On 2026-11-25 the same MariaDB test passed on aarch64 at `c4465d22a`.
+Across three child processes it checked that retiring one dungeon leaves a
+paid chest on another map with the same instance ID intact. A late claim
+was rejected and the replacement generation paid once. The startup case
+preserved the exact saved map and a faction-split world chest on map 609,
+team 1. The runtime case also checked realm isolation. The parent test took
+3.07s after compilation. In the 3.4.3 source at `a5f8da2eb`,
+`MapManager::CreateMap` selects the team ID for split world maps and
+`MapManager::DestroyMap` releases reusable instance IDs. RustyCore delays
+reuse until the Characters transaction retires the destroyed map's receipts.
+
 QA spawn 9106001 uses consumable chest template 2846 (loot 2278, group
 loot enabled). The 3.4.3 C++ anchors are `GameObjectData.h:99–112,127`,
 `GameObject.cpp:1609–1651,3711–3721` and `LootHandler.cpp:142–213`.

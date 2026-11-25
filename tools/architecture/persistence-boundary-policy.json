@@ -1863,6 +1863,36 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:world-server:crate::runtime::game_events::bootstrap:crates/world-server/src/runtime/game_events/bootstrap.rs::fn load_instance_locks_and_retire_chest_sources",
+      "source_class": "production",
+      "packages": [
+        "world-server"
+      ],
+      "sources": [
+        "crates/world-server/src/runtime/game_events/bootstrap.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::runtime::game_events::bootstrap"
+      ],
+      "enclosings": [
+        "fn load_instance_locks_and_retire_chest_sources"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Startup composition for instance-lock recovery and stale world-chest source retirement currently owns the complete world-server workflow fn load_instance_locks_and_retire_chest_sources in crates/world-server/src/runtime/game_events/bootstrap.rs.",
+      "connection_affinity": "The typed instance-lock load and chest-source adapter use the configured Characters database independently; stale-head cleanup opens its own Characters transaction. MapStore and MapDifficultyStore are in-memory inputs.",
+      "current_order": "Load shared and character instance-lock rows first; derive the exact saved character (map, instance) set; retire source heads only for dungeon/battleground/arena maps whose pair is absent; then build InstanceLockMgr from the loaded rows and map-difficulty metadata. MapManager ID registration follows in app composition.",
+      "failure_and_unknown_commit": "A lock-load or chest-retirement error returns before the lock manager is published or IDs are registered. A retirement COMMIT error may be unknown; its zero-deadline updates are idempotent, and startup fails closed so cleanup can be retried before admission.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate:crates/wow-database/src/lib.rs::module",
       "source_class": "production",
       "packages": [
@@ -12684,6 +12714,96 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::fn arm_world_chest_money",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "fn arm_world_chest_money"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "MariaDB transaction for durable world-chest restock state currently owns the complete wow-database workflow fn arm_world_chest_money in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "Owns one explicit Characters transaction for the source-head lock, deadline update and optional REP_RESPAWN write.",
+      "current_order": "Lock the exact source head and validate its observed generation; set the restock deadline by generation/null-deadline CAS, optionally write the matching C++ respawn row in the same transaction, then commit once. A newer generation or retirement marker returns false and rolls back without publishing a timer.",
+      "failure_and_unknown_commit": "Pre-COMMIT errors are rolled back; a non-error stale-generation result is an acknowledged no-op. COMMIT errors are recorded as unknown and returned as errors, so the shared respawn writer retries the same generation/deadline and withholds the map acknowledgement. Cancellation yields no success acknowledgement; no separate cancellation reconciliation is claimed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::fn bind_world_chest_money",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "fn bind_world_chest_money"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "MariaDB transaction for durable world-chest generation and loot-scope binding currently owns the complete wow-database workflow fn bind_world_chest_money in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "Owns one explicit Characters transaction while resolving the source head and immutable binding for the requested shared or personal loot scope.",
+      "current_order": "Resolve or advance the exact source generation, lock and reuse its scoped binding or insert an opaque claim id and re-read it, then commit before returning the binding. A future restock deadline rolls back and returns None.",
+      "failure_and_unknown_commit": "Query, validation and decode failures roll back and propagate. A COMMIT error is an unknown result returned as an error; the chest reattach caller defers publication, and a later bind reads the committed binding if it landed. Cancellation cannot publish a binding before the transaction returns successfully.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::fn retire_world_instance_chest_money",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "fn retire_world_instance_chest_money"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "MariaDB transaction for retiring durable chest sources before instance-id reuse currently owns the complete wow-database workflow fn retire_world_instance_chest_money in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "Owns one explicit Characters transaction for every chest source head at the exact realm, map and retiring instance id.",
+      "current_order": "Set each matching head's deadline to the idempotent retirement marker and commit once; keep binding rows so late claims remain recognizable and fail closed.",
+      "failure_and_unknown_commit": "SQL failures roll back. A COMMIT error is recorded as unknown and returned as Failed to the shared respawn writer, which retries and withholds the instance-id release event until success. Cancellation emits no release acknowledgement.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::fn rolled_back_database_like_cpp",
       "source_class": "production",
       "packages": [
@@ -12769,6 +12889,36 @@
       "connection_affinity": "Composition supplies one process-wide Characters adapter before sessions are accepted.",
       "current_order": "Construction performs no query.",
       "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::retire_unregistered_instance_chest_money_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::retire_unregistered_instance_chest_money_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Startup transaction for retiring chest sources from unregistered instance maps currently owns the complete wow-database workflow impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::retire_unregistered_instance_chest_money_like_cpp in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "Uses the adapter's configured Characters pool for one explicit transaction spanning source-head enumeration and all selected retirements.",
+      "current_order": "List saved source map-instance pairs in database order, apply the caller's map-type/active-pair predicate, retire each selected pair, then commit once and return the affected-head count.",
+      "failure_and_unknown_commit": "Enumeration, predicate-selected update or count errors roll back. A COMMIT error is returned as an error with unknown durability; the startup caller fails before admission, and zero-deadline retirement is safe to repeat. Cancellation publishes no completed startup result.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -12864,6 +13014,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::bind_world_chest_money",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::bind_world_chest_money"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Typed Characters port for durable world-chest money binding currently owns the complete wow-database workflow impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::bind_world_chest_money in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "Clones the configured Characters handle and delegates the complete operation to the single-transaction bind helper; this port method opens no additional connection or transaction.",
+      "current_order": "Preserve the helper's source-head, generation and loot-scope binding order, and return a binding only after the helper's COMMIT succeeds.",
+      "failure_and_unknown_commit": "Maps adapter errors to String without claiming rollback for an unknown COMMIT. The world-loot reattach caller logs the error and defers the loot window; no SQLx error or uncommitted binding crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::reconcile_group_loot_money_like_cpp",
       "source_class": "production",
       "packages": [
@@ -12949,6 +13129,486 @@
       "connection_affinity": "The private attempt adapter uses one Characters transaction; the public wrapper retains the process-wide deadlock retry lock and delegates reconciliation to the same configured adapter.",
       "current_order": "Sort recipients by GUID, lock each Character row, derive capped outcomes, update changed balances, COMMIT once, and reconcile changed rows in proposed-outcome order when needed.",
       "failure_and_unknown_commit": "Pre-COMMIT deadlocks are definite rollback and retryable behind the adapter boundary; other failures are definite rollback, while a non-deadlock COMMIT error remains unknown until full reconciliation.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::receipt:crates/wow-database/src/group_loot_money_adapter/receipt.rs::fn read",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/receipt.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::receipt"
+      ],
+      "enclosings": [
+        "fn read"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional receipt adapter for reconciling one complete shared money claim currently owns the complete wow-database workflow fn read in crates/wow-database/src/group_loot_money_adapter/receipt.rs.",
+      "connection_affinity": "Uses the caller's Characters transaction and performs no independent connection or commit.",
+      "current_order": "Lock and read the receipt JSON for the claim id, decode every recorded recipient and balance pair in stored order, and derive each applied delta with checked subtraction.",
+      "failure_and_unknown_commit": "A missing row returns None; malformed JSON or impossible after-before balances return an error and no partial outcomes. The enclosing reconciliation transaction rolls back after reading; this helper does not classify a COMMIT.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::receipt:crates/wow-database/src/group_loot_money_adapter/receipt.rs::fn record",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/receipt.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::receipt"
+      ],
+      "enclosings": [
+        "fn record"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional receipt adapter for one complete shared money claim currently owns the complete wow-database workflow fn record in crates/wow-database/src/group_loot_money_adapter/receipt.rs.",
+      "connection_affinity": "Uses the caller's Characters payout transaction; receipt state is committed with source spent state and recipient balances.",
+      "current_order": "Serialize the complete proposed outcomes in recipient order and update the reserved claim row before the enclosing transaction commits; require exactly one affected row.",
+      "failure_and_unknown_commit": "Serialization, SQL or missing-row/affected-row errors propagate so the enclosing payout transaction rolls back. This helper has no independent commit or unknown-COMMIT result.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::receipt:crates/wow-database/src/group_loot_money_adapter/receipt.rs::fn reserve",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/receipt.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::receipt"
+      ],
+      "enclosings": [
+        "fn reserve"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional idempotency reservation for one shared money claim currently owns the complete wow-database workflow fn reserve in crates/wow-database/src/group_loot_money_adapter/receipt.rs.",
+      "connection_affinity": "Uses the caller's Characters payout transaction and holds the unique claim key through the atomic recipient updates and receipt write.",
+      "current_order": "Insert an empty reservation before recipient balance reads; on unique-key conflict, lock/read the prior receipt and classify only a nonempty committed receipt as already settled.",
+      "failure_and_unknown_commit": "A conflict with missing or empty evidence is an error and rolls back the payout; query errors also propagate. Reservation visibility is governed by the enclosing transaction, whose uncertain COMMIT is reconciled from the complete receipt.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::receipt:crates/wow-database/src/group_loot_money_adapter/receipt.rs::fn trace_id",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/receipt.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::receipt"
+      ],
+      "enclosings": [
+        "fn trace_id"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Pure SQL trace-parameter conversion for group-loot receipt keys currently owns the complete wow-database workflow fn trace_id in crates/wow-database/src/group_loot_money_adapter/receipt.rs.",
+      "connection_affinity": "Converts the opaque 16-byte claim id into trace metadata without acquiring a connection.",
+      "current_order": "Preserves the exact claim-id bytes used by the receipt SQL statements; no statement is executed here.",
+      "failure_and_unknown_commit": "No I/O or COMMIT occurs; database outcomes remain with reserve, record, read and their enclosing transaction owners.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::receipt:crates/wow-database/src/group_loot_money_adapter/receipt.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/receipt.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::receipt"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Private Characters receipt SQL for idempotent shared money claims currently owns the complete wow-database workflow module in crates/wow-database/src/group_loot_money_adapter/receipt.rs.",
+      "connection_affinity": "Receipt helpers borrow the caller's Characters transaction; module declarations and SQL constants acquire no connection.",
+      "current_order": "The payout transaction checks/marks a bound source spent, reserves the claim, locks and updates recipients in stable GUID order, writes the full receipt, then commits once; reconciliation reads the committed receipt in a separate rollback-only transaction.",
+      "failure_and_unknown_commit": "No receipt helper commits independently. A receipt is usable as proof only after the enclosing payout COMMIT; unknown payout COMMIT is classified by reading and validating the whole row set.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn arm_restock_deadline",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn arm_restock_deadline"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional source-head CAS for durable chest restock currently owns the complete wow-database workflow fn arm_restock_deadline in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Uses the caller's Characters transaction and locks one exact source head; it opens and commits no transaction itself.",
+      "current_order": "Validate source/deadline, read the head FOR UPDATE, accept only the observed generation, treat the same deadline as idempotent and retirement marker zero as stale, otherwise CAS the deadline; optionally append REP_RESPAWN in that same transaction.",
+      "failure_and_unknown_commit": "A newer generation or retired head returns false; a generation ahead of durable state, conflicting deadline, stale CAS, invalid map width or SQL failure returns an error for caller rollback. COMMIT uncertainty belongs to arm_world_chest_money.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn begin_payout",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn begin_payout"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional fence for payouts against a persistent chest generation currently owns the complete wow-database workflow fn begin_payout in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Uses the caller's Characters payout transaction; all source mutations share the head-before-binding lock order.",
+      "current_order": "Discover the claim binding without a lock, lock its source head, then lock and recheck the scoped binding and mark the exact unspent claim spent before recipient balances are processed.",
+      "failure_and_unknown_commit": "None means an ordinary non-world claim; Some(false) fails closed for invalid, retired, stale, mismatched or spent bindings. SQL errors propagate for transaction rollback; the payout transaction owns atomic commit and receipt reconciliation.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn ensure_head",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn ensure_head"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional creation of a durable world-chest source head currently owns the complete wow-database workflow fn ensure_head in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Executes on the caller's Characters transaction; no connection or transaction is acquired here.",
+      "current_order": "INSERT IGNORE creates generation zero with no deadline for the exact realm/map/instance/spawn identity before the caller locks and resolves the head.",
+      "failure_and_unknown_commit": "SQL failure propagates to the enclosing operation for rollback. This helper does not commit; a newly inserted head is visible only with the caller's transaction result.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn read_binding",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn read_binding"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Pure decoding of a locked persistent chest-scope binding currently owns the complete wow-database workflow fn read_binding in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Decodes one MySQL row already fetched by the caller's Characters transaction.",
+      "current_order": "Require a 16-byte claim id and the exact spent flag values zero or one, then return the stored generation and normalized binding.",
+      "failure_and_unknown_commit": "Malformed id, unsupported spent state or SQL column decode failure returns an error to the enclosing transaction; no I/O or COMMIT occurs.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn read_head_for_update",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn read_head_for_update"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Locking read of one durable chest source head currently owns the complete wow-database workflow fn read_head_for_update in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Uses the caller's Characters transaction and retains its FOR UPDATE lock until that transaction ends.",
+      "current_order": "Read generation, nullable restock deadline and database time for the exact realm/map/instance/spawn key; decode all three fields before returning the row.",
+      "failure_and_unknown_commit": "Missing rows return None; query or required-column decode errors propagate. The helper does not commit, and lock release follows the enclosing transaction outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn resolve_binding",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn resolve_binding"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional resolution of a durable chest generation and loot-scope claim id currently owns the complete wow-database workflow fn resolve_binding in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Runs entirely on the caller's Characters transaction; the source head and scoped binding locks remain held through the caller's commit or rollback.",
+      "current_order": "Validate the source and shared/personal scope; ensure and lock the head; advance an elapsed generation once; lock/reuse its scoped binding or insert a database-generated opaque claim id and re-read after a unique-key race.",
+      "failure_and_unknown_commit": "A future deadline returns None; invalid identities, missing/conflicting rows, failed generation CAS or SQL/decode errors return an error without a binding. Only the outer bind transaction can publish the binding after commit; commit uncertainty is retried by a later read.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn resolve_due_generation",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn resolve_due_generation"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional advancement of an elapsed chest restock generation currently owns the complete wow-database workflow fn resolve_due_generation in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Uses the caller's Characters transaction and the locking head read; no standalone transaction is opened.",
+      "current_order": "Return the current generation when no deadline exists, defer when database time is before the deadline, otherwise increment once and clear the exact observed deadline with generation/deadline CAS.",
+      "failure_and_unknown_commit": "Missing head, generation overflow, SQL failure or a CAS result other than exactly one row is an error for caller rollback. Commit and unknown-outcome handling belong to the outer bind transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn retire_instance_sources",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn retire_instance_sources"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional retirement marker for all chest sources of one instance identity currently owns the complete wow-database workflow fn retire_instance_sources in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Executes on the caller's Characters transaction for the supplied realm/map/instance; no separate connection or commit is owned here.",
+      "current_order": "Validate realm and nonzero instance identity, update matching source heads to deadline zero, and preserve binding rows so old claim ids can be rejected after reuse.",
+      "failure_and_unknown_commit": "Invalid identity or SQL failure propagates for caller rollback. Repeated updates are idempotent; COMMIT uncertainty is classified by the outer retirement adapter and handled by its retry/startup owner.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn retire_unregistered_instance_sources",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn retire_unregistered_instance_sources"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Transactional startup sweep of stale persistent chest instance heads currently owns the complete wow-database workflow fn retire_unregistered_instance_sources in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Uses the startup adapter's single Characters transaction for both the ordered head query and all selected retirement updates.",
+      "current_order": "Read distinct nonzero instance pairs ordered by map and instance, ask the caller's map-type/registered-pair predicate for each, retire selected pairs, and checked-add the updated-head counts.",
+      "failure_and_unknown_commit": "Invalid realm, SQL/decode failure or count overflow aborts the full sweep for rollback. The helper does not commit; the outer startup transaction reports unknown COMMIT and the caller fails closed for an idempotent retry.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::fn source_error",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "fn source_error"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Pure source-integrity error construction for chest persistence currently owns the complete wow-database workflow fn source_error in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "Constructs a DatabaseError without accessing the Characters connection or transaction.",
+      "current_order": "Preserves the supplied integrity reason at the source adapter boundary; no SQL operation is ordered here.",
+      "failure_and_unknown_commit": "No I/O or COMMIT occurs; callers decide whether to roll back and how to classify the operation.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter::source:crates/wow-database/src/group_loot_money_adapter/source.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter/source.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter::source"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Private Characters SQL for durable chest-source heads and scoped claim bindings currently owns the complete wow-database workflow module in crates/wow-database/src/group_loot_money_adapter/source.rs.",
+      "connection_affinity": "SQL helpers borrow the caller's Characters transaction; declarations and statement constants acquire no connection.",
+      "current_order": "Binding and payout operations lock the source head before the scoped binding; restock and instance retirement update that same canonical head, while claim receipts and recipient balances remain in the enclosing payout transaction.",
+      "failure_and_unknown_commit": "No helper commits independently. SQL/validation errors propagate to the owning adapter for rollback; the owner classifies uncertain COMMIT and uses idempotent generations, receipts or fenced retries where its caller requires them.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -24179,6 +24839,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn delete_respawn_statement",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn delete_respawn_statement"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow fn delete_respawn_statement in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Pure DEL_RESPAWN prepared-statement construction for the Characters adapter; it acquires no connection and opens no transaction.",
+      "current_order": "Bind object type, spawn id, map id and instance id in the C++ Map::DeleteRespawnInfoFromDB order; the shared world-server writer preserves latest-per-key mutation ordering.",
+      "failure_and_unknown_commit": "Statement construction performs no I/O or COMMIT. Execution errors are retried by the world-server mailbox; this helper makes no durability claim.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn load_all_statement_like_cpp",
       "source_class": "production",
       "packages": [
@@ -24239,7 +24929,7 @@
       "stable_boundary": true
     },
     {
-      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn mutation_statement_like_cpp",
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn save_respawn_statement",
       "source_class": "production",
       "packages": [
         "wow-database"
@@ -24252,7 +24942,7 @@
         "crate::respawn_persistence_adapter"
       ],
       "enclosings": [
-        "fn mutation_statement_like_cpp"
+        "fn save_respawn_statement"
       ],
       "enclosing_prefixes": [],
       "targets": [],
@@ -24260,10 +24950,10 @@
       "logical_databases": [
         "characters"
       ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow fn mutation_statement_like_cpp in crates/wow-database/src/respawn_persistence_adapter.rs.",
-      "connection_affinity": "Statement construction and row projection stay private to the Character database adapter and imply no wider transaction.",
-      "current_order": "Preserve C++ statement identity and exact parameter order; no database I/O occurs in this surface alone.",
-      "failure_and_unknown_commit": "No SQLx row, prepared statement or database error crosses the typed port.",
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow fn save_respawn_statement in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Pure REP_RESPAWN prepared-statement construction for the Characters adapter; it acquires no connection and opens no transaction.",
+      "current_order": "Bind object type, spawn id, respawn time, map id and instance id in the C++ Map::SaveRespawnInfoDB order; the shared world-server writer owns execution ordering and retry.",
+      "failure_and_unknown_commit": "Statement construction performs no I/O or COMMIT. Execution failures and uncertain outcomes are classified by the respawn port and its latest-per-key writer.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
