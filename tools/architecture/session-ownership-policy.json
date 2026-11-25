@@ -33677,6 +33677,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_player_area_phases_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_player_area_phases_like_cpp (& mut self , catalog : Arc < wow_world_core :: phasing :: PlayerAreaPhaseCatalogLikeCpp > ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_player_battleground_context_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_player_battleground_context_like_cpp (& mut self , bg_type_id : u32 , bg_map_id : u32 ,) -> bool",
@@ -46960,6 +46974,21 @@
           "name": "send_buy_error",
           "visibility": "pub",
           "signature": "fn send_buy_error (& self , result : BuyResult , creature_guid : Option < ObjectGuid > , item : u32)",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::publication::operations",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_current_player_phase_like_cpp",
+          "visibility": "pub",
+          "signature": "fn send_current_player_phase_like_cpp (& self , guid : ObjectGuid) -> bool",
           "cfg": [],
           "availability": {
             "production": true,

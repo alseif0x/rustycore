@@ -4,6 +4,7 @@
 //! unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use spawn_store_loader::CanonicalSpawnMetadataLikeCpp;
 
 #[test]
 fn game_event_spawn_non_pool_gameobject_not_spawned_by_default_is_not_added_like_cpp() {
@@ -32,7 +33,7 @@ fn game_event_spawn_non_pool_gameobject_not_spawned_by_default_is_not_added_like
         event_id,
         spawn_id,
     );
-    let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+    let mut metadata = CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_game_event_spawn_guids_like_cpp(guids)
         .with_gameobject_runtime_rows_like_cpp(BTreeMap::from([(
             spawn_id,
@@ -58,7 +59,7 @@ fn game_event_spawn_non_pool_gameobject_not_spawned_by_default_is_not_added_like
 
     let summary = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        &metadata,
+        &mut metadata,
         &caches,
         event_id,
     );

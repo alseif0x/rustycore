@@ -774,31 +774,26 @@ fn respawn_condition_scheduler_like_cpp_waits_fires_and_resets() {
     assert_eq!(scheduler.timer_ms(), 75);
 }
 #[test]
-fn game_event_scheduler_like_cpp_waits_fires_resets_and_installs_dynamic_delay() {
-    let mut scheduler = CanonicalGameEventSchedulerLikeCpp::start_system(100);
+fn game_event_scheduler_keeps_its_deadline_across_skipped_map_ticks() {
+    let start = Instant::now();
+    let mut scheduler = CanonicalGameEventSchedulerLikeCpp::start_system(start, 100);
+    assert!(!scheduler.is_due(start + Duration::from_millis(99)));
+    assert!(scheduler.is_due(start + Duration::from_millis(100)));
 
-    assert_eq!(scheduler.interval_ms(), 100);
-    assert!(!scheduler.update(40));
-    assert_eq!(scheduler.timer_ms(), 60);
-    assert!(!scheduler.update(59));
-    assert_eq!(scheduler.timer_ms(), 1);
-    assert!(scheduler.update(1));
-    assert_eq!(scheduler.timer_ms(), 100);
+    // The first admitted tick after a hold must process the overdue check.
+    let resumed = start + Duration::from_millis(400);
+    assert!(scheduler.is_due(resumed));
+    scheduler.set_interval_and_reset(resumed, 250);
+    assert!(!scheduler.is_due(resumed + Duration::from_millis(249)));
+    assert!(scheduler.is_due(resumed + Duration::from_millis(250)));
 
-    scheduler.set_interval_and_reset(250);
-    assert_eq!(scheduler.interval_ms(), 250);
-    assert_eq!(scheduler.timer_ms(), 250);
-    assert!(!scheduler.update(249));
-    assert_eq!(scheduler.timer_ms(), 1);
-    assert!(scheduler.update(1));
-    assert_eq!(scheduler.timer_ms(), 250);
-
-    scheduler.set_interval_and_reset(u64::from(u32::MAX) + 1);
-    assert_eq!(scheduler.interval_ms(), u32::MAX);
-    assert_eq!(scheduler.timer_ms(), u32::MAX);
-    scheduler.set_interval_and_reset(0);
-    assert_eq!(scheduler.interval_ms(), 1);
-    assert_eq!(scheduler.timer_ms(), 1);
+    let max_delay = u64::from(u32::MAX);
+    scheduler.set_interval_and_reset(start, max_delay + 1);
+    assert!(!scheduler.is_due(start + Duration::from_millis(max_delay - 1)));
+    assert!(scheduler.is_due(start + Duration::from_millis(max_delay)));
+    scheduler.set_interval_and_reset(start, 0);
+    assert!(!scheduler.is_due(start));
+    assert!(scheduler.is_due(start + Duration::from_millis(1)));
 }
 #[test]
 fn game_event_start_system_first_update_records_negative_spawn_then_init_update_skips_it() {
@@ -823,18 +818,18 @@ fn game_event_start_system_first_update_records_negative_spawn_then_init_update_
     let start_outcome = metadata.update_game_events_like_cpp(650, false, |_| false);
     assert_eq!(start_outcome.negative_spawn_event_ids, vec![-1]);
     assert_eq!(start_outcome.next_update_delay_millis, 51_000);
-    let mut scheduler =
-        CanonicalGameEventSchedulerLikeCpp::start_system(start_outcome.next_update_delay_millis);
-    assert_eq!(scheduler.interval_ms(), 51_000);
-
-    assert!(scheduler.update(51_000));
-    let tick_outcome = metadata.update_game_events_like_cpp(650, true, |_| false);
-    scheduler.set_interval_and_reset(tick_outcome.next_update_delay_millis);
-    assert!(tick_outcome.negative_spawn_event_ids.is_empty());
-    assert_eq!(
-        scheduler.interval_ms(),
-        tick_outcome.next_update_delay_millis as u32
+    let start = Instant::now();
+    let mut scheduler = CanonicalGameEventSchedulerLikeCpp::start_system(
+        start,
+        start_outcome.next_update_delay_millis,
     );
+    let due = start + Duration::from_secs(51);
+    assert!(scheduler.is_due(due));
+    let tick_outcome = metadata.update_game_events_like_cpp(650, true, |_| false);
+    scheduler.set_interval_and_reset(due, tick_outcome.next_update_delay_millis);
+    assert!(tick_outcome.negative_spawn_event_ids.is_empty());
+    assert!(!scheduler.is_due(due));
+    assert!(scheduler.is_due(due + Duration::from_millis(tick_outcome.next_update_delay_millis)));
 }
 #[test]
 fn game_event_db_bridge_materializes_semantic_save_with_zero_next_start_like_cpp() {

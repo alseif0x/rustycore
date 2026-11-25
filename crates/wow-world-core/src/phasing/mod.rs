@@ -142,3 +142,25 @@ pub fn party_member_phase_states_like_cpp(
 
 mod visibility;
 pub use visibility::*;
+/// Installed once at startup. Event state is read from the world coordinator
+/// at each area evaluation, alongside the immutable area condition rows.
+pub struct PlayerAreaPhaseCatalogLikeCpp {
+    pub areas: wow_data::PhaseInfoStore,
+    active_events: Box<dyn Fn() -> Option<Vec<u32>> + Send + Sync>,
+}
+
+impl PlayerAreaPhaseCatalogLikeCpp {
+    pub fn new(
+        areas: wow_data::PhaseInfoStore,
+        active_events: impl Fn() -> Option<Vec<u32>> + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            areas,
+            active_events: Box::new(active_events),
+        }
+    }
+
+    pub fn active_event_ids(&self) -> Option<Vec<u32>> {
+        (self.active_events)()
+    }
+}

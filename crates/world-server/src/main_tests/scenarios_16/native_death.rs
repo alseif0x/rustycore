@@ -321,7 +321,7 @@ fn spawn_canonical_loop_with_spell_store(
         Arc::new(std::sync::atomic::AtomicBool::new(false)),
         empty_loaded_grid_creature_respawn_caches_like_cpp(),
         Arc::new(wow_data::AreaTriggerTemplateStore::default()),
-        CanonicalGameEventSchedulerLikeCpp::start_system(3_600_000),
+        CanonicalGameEventSchedulerLikeCpp::start_system(Instant::now(), 3_600_000),
         Arc::clone(&world.registry),
         crate::CanonicalMapLifecycleOwnersLikeCpp::new(
             Arc::new(std::sync::RwLock::new(

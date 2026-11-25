@@ -138,6 +138,47 @@ fn visible_gameobjects_falls_back_to_typed_canonical_data_like_cpp() {
     );
 }
 #[test]
+fn visible_gameobjects_checks_typed_phase_without_session_projection_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+    let gameobject_guid = test_gameobject_guid(49_630, 49_630);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_lifecycle_gameobject_on_map(
+        &canonical,
+        gameobject_guid,
+        49_630,
+        Position::new(20.0, 20.0, 0.0, 0.0),
+        [0.0, 0.0, 0.0, 1.0],
+        571,
+        0,
+    );
+    *canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .unwrap()
+        .map_mut()
+        .get_typed_game_object_mut(gameobject_guid)
+        .unwrap()
+        .world_mut()
+        .phase_shift_mut() = PhaseShift::from_phases([70]);
+
+    assert!(
+        session
+            .visible_gameobjects_from_canonical_map_like_cpp(571, &player_position, 800.0)
+            .expect("canonical map")
+            .is_empty()
+    );
+    session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([70]));
+    let visible = session
+        .visible_gameobjects_from_canonical_map_like_cpp(571, &player_position, 800.0)
+        .expect("canonical map");
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].guid, gameobject_guid);
+}
+#[test]
 fn visible_gameobjects_skip_not_in_world_canonical_objects_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

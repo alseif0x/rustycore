@@ -181,6 +181,7 @@ pub(crate) fn materialize_loaded_player_grid_records_like_cpp(
                     spawn_id,
                     canonical_spawn_metadata,
                     area_trigger_template_store,
+                    loaded_grid_creature_respawn_caches,
                 )
             }
         }) else {
@@ -292,19 +293,20 @@ pub(crate) fn ensure_login_player_grid_loaded_like_cpp(
     let visible_grids =
         player_visible_grid_coords_like_cpp(position, wow_entities::VISIBILITY_RADIUS_LIKE_CPP);
 
-    let Ok(metadata) = canonical_spawn_metadata.lock() else {
-        outcome.map_unavailable = true;
-        warn!(
-            map_id = map_id_u32,
-            instance_id, "C++ login grid load skipped: canonical spawn metadata lock poisoned"
-        );
-        return outcome;
-    };
+    // Share the map-before-metadata lock order with the world event coordinator.
     let Ok(mut manager) = canonical_map_manager.lock() else {
         outcome.map_unavailable = true;
         warn!(
             map_id = map_id_u32,
             instance_id, "C++ login grid load skipped: canonical map manager lock poisoned"
+        );
+        return outcome;
+    };
+    let Ok(metadata) = canonical_spawn_metadata.lock() else {
+        outcome.map_unavailable = true;
+        warn!(
+            map_id = map_id_u32,
+            instance_id, "C++ login grid load skipped: canonical spawn metadata lock poisoned"
         );
         return outcome;
     };

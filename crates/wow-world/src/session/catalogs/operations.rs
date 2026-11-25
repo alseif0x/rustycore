@@ -121,6 +121,12 @@ impl WorldSession {
     pub fn set_terrain_swap_store(&mut self, store: Arc<wow_data::TerrainSwapStore>) {
         self.catalogs.terrain_swap_store = Some(store);
     }
+    pub fn set_player_area_phases_like_cpp(
+        &mut self,
+        catalog: Arc<wow_world_core::phasing::PlayerAreaPhaseCatalogLikeCpp>,
+    ) {
+        self.catalogs.player_area_phases = Some(catalog);
+    }
     pub fn set_trait_definition_store(&mut self, store: Arc<TraitDefinitionStore>) {
         self.catalogs.trait_definition_store = Some(store);
     }

@@ -407,43 +407,23 @@
    "src_tests": 22
   },
   {
-   "id": "raise-46-38",
+   "id": "raise-1342-38",
    "kind": "raise",
-   "issue": 46,
-   "reviewed_at": "2026-11-22",
-   "reason": "The Session owns the observed GUID ledger and decodes the actual CREATE and out-of-range packets for a stationary player. The rebind case is renamed to describe discarded results.",
-   "unit_tests_lines": 281395,
-   "unit_tests_tests": 4185,
+   "issue": 1342,
+   "reviewed_at": "2026-11-25",
+   "reason": "Account for three Session regressions covering quest and aura phase changes, area trigger lifetime, and canonical GameObject phase visibility.",
+   "unit_tests_lines": 281637,
+   "unit_tests_tests": 4187,
    "src_tests": 22
   },
   {
    "id": "raise-46-39",
    "kind": "raise",
    "issue": 46,
-   "reviewed_at": "2026-11-22",
-   "reason": "Eight lines drain both owner-range fixtures at the production move-list phase and one accepts the claim receipt in the loot port fixture. Existing test identities are unchanged.",
-   "unit_tests_lines": 281404,
-   "unit_tests_tests": 4185,
-   "src_tests": 22
-  },
-  {
-   "id": "raise-46-40",
-   "kind": "raise",
-   "issue": 46,
-   "reviewed_at": "2026-11-22",
-   "reason": "Exercise recovered personal and shared chest windows through LootResponse and resume the interrupted last-viewer release. The typed port verifies source identity and the creature lifecycle fixture rejects chest writes.",
-   "unit_tests_lines": 281518,
-   "unit_tests_tests": 4186,
-   "src_tests": 22
-  },
-  {
-   "id": "raise-46-41",
-   "kind": "raise",
-   "issue": 46,
    "reviewed_at": "2026-11-25",
-   "reason": "Two Session integration cases exercise both recipient combat-log formats and visibility across map instances. The 94 additional fixture lines bind the real player registry, attach the observers and decode the delivered damage packets.",
-   "unit_tests_lines": 281612,
-   "unit_tests_tests": 4188,
+   "reason": "Combine the reviewed #46 chest recovery, creature visibility and per-recipient combat log fixtures with the three phase regressions already integrated in #1515. The #46 branch adds a net four unit tests and 308 lines at the integration point.",
+   "unit_tests_lines": 281945,
+   "unit_tests_tests": 4191,
    "src_tests": 22
   }
  ]

@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4210,
+  "tests": 4213,
   "ignored": 1,
-  "session": 3906,
-  "shims": 3725,
+  "session": 3909,
+  "shims": 3728,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3731
+   "W": 3734
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3524
+   "W-world-logic": 3527
   },
   "by_owner": {
    "wow-world": {
@@ -58,7 +58,7 @@
    "wow-world-character": {
     "P": 36,
     "H": 21,
-    "W": 390
+    "W": 391
    },
    "wow-world-core": {
     "P": 14,
@@ -73,7 +73,7 @@
    "wow-world-entities": {
     "P": 28,
     "H": 4,
-    "W": 511
+    "W": 512
    },
    "wow-world-instances": {
     "P": 0,
@@ -128,14 +128,14 @@
    "wow-world-visibility": {
     "P": 0,
     "H": 0,
-    "W": 104
+    "W": 105
    }
   },
   "by_destination": {
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3731
+    "W": 3734
    },
    "wow-world-application": {
     "P": 27,
@@ -2430,6 +2430,8 @@
   ["unit_tests/session/tests/admission.rs::packet_spoof_ban_eviction_queues_kick_for_affected_accounts_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_player_registry"], []],
   ["unit_tests/session/tests/admission.rs::packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp", "P", "wow-world-quest", "wow-world-quest", "P-domain", false, false, false, [], []],
   ["unit_tests/session/tests/admission.rs::packet_spoof_zero_limit_opcode_is_unlimited_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["update"], []],
+  ["unit_tests/session/tests/area_trigger_visibility.rs::area_phase_uses_live_conditions_and_updates_after_quest_or_aura_changes", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "load_represented_character_auras_like_cpp", "process_represented_session_commands_like_cpp", "remove_player_visible_aura_like_cpp"], []],
+  ["unit_tests/session/tests/area_trigger_visibility.rs::area_trigger_visibility_tracks_phase_instance_and_expiry", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "force_update_visibility_like_cpp", "set_canonical_map_manager", "set_represented_player_phase_shift_like_cpp"], []],
   ["unit_tests/session/tests/aura_duration.rs::set_aura_duration_updates_packet_provenance_and_remaining_lifetime", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "apply_aura_with_effect_mask_and_provenance_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/aura_duration.rs::legacy_player_sweep_keeps_nonempty_auras_when_race_classification_is_unknown", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "apply_aura_with_effect_mask_and_provenance_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/aura_duration.rs::selected_sickness_duration_update_keeps_unit_clock_and_waits_for_recovery", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "player_aura_application_cx_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
@@ -4462,6 +4464,7 @@
   ["unit_tests/session/tests/scenarios_world_entities_6/creature_visibility.rs::stale_player_handle_does_not_fall_back_to_same_guid_incarnation", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_7.rs::visible_gameobjects_create_uses_per_player_go_state_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "record_represented_gameobject_runtime_state_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_7.rs::visible_gameobjects_falls_back_to_typed_canonical_data_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
+  ["unit_tests/session/tests/scenarios_world_entities_7.rs::visible_gameobjects_checks_typed_phase_without_session_projection_like_cpp", "W", "wow-world", "wow-world-visibility", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_represented_player_phase_shift_like_cpp"], []],
   ["unit_tests/session/tests/scenarios_world_entities_7.rs::visible_gameobjects_skip_not_in_world_canonical_objects_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_7.rs::visible_gameobjects_canonical_create_uses_viewer_dynamic_flags_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_7.rs::send_nearby_creatures_empty_map_source_without_world_db_clears_stale_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["send_nearby_creatures", "set_canonical_map_manager"], []],

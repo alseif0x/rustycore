@@ -17,9 +17,9 @@ use tracing::{info, warn};
 use wow_core::{ObjectGuid, Position};
 use wow_packet::packets::misc::{
     AccountMount, AccountMountUpdate, AllAchievementData, InitWorldStates, InitialSetup,
-    LoginSetTimeSpeed, MoveSetActiveMover, PhaseShiftChange, SendKnownSpells, SendSpellCharges,
-    SendSpellHistory, SendUnlearnSpells, SetSpellModifier, SetupCurrency, SpellChargeEntry,
-    SpellHistoryEntry, UpdateActionButtons, WorldServerInfo,
+    LoginSetTimeSpeed, MoveSetActiveMover, SendKnownSpells, SendSpellCharges, SendSpellHistory,
+    SendUnlearnSpells, SetSpellModifier, SetupCurrency, SpellChargeEntry, SpellHistoryEntry,
+    UpdateActionButtons, WorldServerInfo,
 };
 use wow_persistence::PlayerInitialWorldStateRowsLikeCpp;
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
@@ -230,7 +230,7 @@ pub async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp<
 
     // C++ Map::AddPlayerToMap sends the phase shift after
     // UpdateObjectVisibility(false), before post-add world-state packets.
-    host.send_packet(&PhaseShiftChange::default_for(guid));
+    host.core().send_current_player_phase_like_cpp(guid);
 
     // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject` after
     // `Map::AddPlayerToMap` returns and before
@@ -305,9 +305,8 @@ pub async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp<
     }
     // C++ calls PhasingHandler::OnMapChange(this) only after CUF profiles, the
     // login-effect/movement-aura work and SendAurasForTarget (Player.cpp:23600-23672).
-    // This re-sends SMSG_PHASE_SHIFT_CHANGE (the second phase-shift of login,
-    // byte-identical to the AddToMap one). #NEXT.R8.ENTITIES.1228.
-    host.send_packet(&PhaseShiftChange::default_for(guid));
+    // Retain the area phase selected since the AddToMap publication.
+    host.core().send_current_player_phase_like_cpp(guid);
     // C++ Player.cpp:23648-23650 applies destination item scaling after
     // PhasingHandler::OnMapChange, shared by login and far worldport.
     if host

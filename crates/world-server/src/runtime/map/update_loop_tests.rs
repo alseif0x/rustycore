@@ -4,6 +4,7 @@ use std::sync::Arc;
 fn empty_respawn_caches() -> LoadedGridCreatureRespawnCachesLikeCpp {
     LoadedGridCreatureRespawnCachesLikeCpp {
         realm_id: 1,
+        phase_stores: Default::default(),
         template_store: Default::default(),
         sparring_store: Default::default(),
         difficulty_store: Default::default(),

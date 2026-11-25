@@ -36,7 +36,7 @@ pub(crate) struct GameEventSpawnForEventSummaryLikeCpp {
 
 pub(crate) fn game_event_spawn_object_guid_list_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    canonical_spawn_metadata: &mut spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     object_type: wow_map::SpawnObjectType,
     spawn_ids: &[wow_map::SpawnId],
@@ -48,15 +48,17 @@ pub(crate) fn game_event_spawn_object_guid_list_for_event_like_cpp(
         let Some(spawn_data) = canonical_spawn_metadata
             .spawn_store()
             .spawn_data(object_type, spawn_id)
+            .cloned()
         else {
             summary.missing_spawn_metadata += 1;
             continue;
         };
 
-        // C++ anchor: GameEventMgr.cpp:1176-1180 and 1201-1204 add ObjectMgr
-        // grid metadata before walking already-loaded maps. RustyCore has no
-        // safe ObjectMgr grid-cell mutation in this world-server bridge, so the
-        // immutable canonical SpawnStore evidence is represented by this count.
+        // GameEventMgr::GameEventSpawn indexes the spawn before visiting loaded maps.
+        canonical_spawn_metadata.index_game_event_spawn_like_cpp(
+            &spawn_data,
+            &loaded_grid_creature_respawn_caches.phase_stores.phases,
+        );
         summary.represented_object_mgr_grid_additions += 1;
 
         let mut maps_matched_for_spawn = 0usize;
@@ -148,12 +150,13 @@ pub(crate) fn game_event_spawn_object_guid_list_for_event_like_cpp(
 
 pub(crate) fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    canonical_spawn_metadata: &mut spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_id: i16,
 ) -> GameEventCreatureGameObjectSpawnSummaryLikeCpp {
-    let Some(creature_guids) =
-        canonical_spawn_metadata.game_event_creature_guids_like_cpp(event_id)
+    let Some(creature_guids) = canonical_spawn_metadata
+        .game_event_creature_guids_like_cpp(event_id)
+        .map(<[_]>::to_vec)
     else {
         return GameEventCreatureGameObjectSpawnSummaryLikeCpp {
             event_id,
@@ -169,11 +172,12 @@ pub(crate) fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         canonical_spawn_metadata,
         loaded_grid_creature_respawn_caches,
         wow_map::SpawnObjectType::Creature,
-        creature_guids,
+        &creature_guids,
     );
 
-    let Some(gameobject_guids) =
-        canonical_spawn_metadata.game_event_gameobject_guids_like_cpp(event_id)
+    let Some(gameobject_guids) = canonical_spawn_metadata
+        .game_event_gameobject_guids_like_cpp(event_id)
+        .map(<[_]>::to_vec)
     else {
         return GameEventCreatureGameObjectSpawnSummaryLikeCpp {
             event_id,
@@ -189,7 +193,7 @@ pub(crate) fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         canonical_spawn_metadata,
         loaded_grid_creature_respawn_caches,
         wow_map::SpawnObjectType::GameObject,
-        gameobject_guids,
+        &gameobject_guids,
     );
 
     GameEventCreatureGameObjectSpawnSummaryLikeCpp {
@@ -360,7 +364,7 @@ pub(crate) fn game_event_spawn_pools_for_event_like_cpp(
 
 pub(crate) fn game_event_spawn_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
-    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    canonical_spawn_metadata: &mut spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_id: i16,
 ) -> GameEventSpawnForEventSummaryLikeCpp {

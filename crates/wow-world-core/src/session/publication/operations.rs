@@ -16,6 +16,20 @@ use wow_packet::packets::misc::{BuyFailed, SellResponse};
 mod disconnected;
 
 impl SessionCore {
+    /// Release the Player guard before publishing its current phase.
+    pub fn send_current_player_phase_like_cpp(&self, guid: ObjectGuid) -> bool {
+        let shift = self
+            .with_owned_player_like_cpp(|player| player.unit().world().phase_shift().clone())
+            .unwrap_or_default();
+        match crate::phasing::phase_shift_change_for_player_like_cpp(guid, &shift) {
+            Ok(packet) => self.send_packet(&packet),
+            Err(error) => {
+                warn!(%error, ?guid, "Cannot publish the player phase shift");
+                false
+            }
+        }
+    }
+
     pub fn represented_void_storage_item_packet_like_cpp(
         &self,
         slot: u8,

@@ -261,6 +261,7 @@ pub struct SessionCatalogs {
     pub terrain_swap_store: Option<Arc<wow_data::TerrainSwapStore>>,
     pub phase_store: Option<Arc<PhaseStore>>,
     pub phase_group_store: Option<Arc<PhaseGroupStore>>,
+    pub player_area_phases: Option<Arc<crate::phasing::PlayerAreaPhaseCatalogLikeCpp>>,
 
     pub talent_store: Option<Arc<TalentStore>>,
     pub num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
@@ -400,6 +401,7 @@ impl Default for SessionCatalogs {
             terrain_swap_store: None,
             phase_store: None,
             phase_group_store: None,
+            player_area_phases: None,
 
             talent_store: None,
             num_talents_at_level_store: None,

@@ -385,6 +385,7 @@ fn linked_respawn_guid_like_cpp(
 fn empty_loaded_grid_creature_respawn_caches_like_cpp() -> LoadedGridCreatureRespawnCachesLikeCpp {
     LoadedGridCreatureRespawnCachesLikeCpp {
         realm_id: 1,
+        phase_stores: Default::default(),
         template_store: Arc::new(wow_data::CreatureTemplateLifecycleStoreLikeCpp::default()),
         sparring_store: Arc::new(wow_data::CreatureTemplateSparringStoreLikeCpp::default()),
         difficulty_store: Arc::new(wow_data::CreatureDifficultyStoreLikeCpp::default()),
@@ -999,6 +1000,7 @@ fn variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_l
 ) -> LoadedGridCreatureRespawnCachesLikeCpp {
     LoadedGridCreatureRespawnCachesLikeCpp {
         realm_id: 1,
+        phase_stores: Default::default(),
         template_store: Arc::new(
             wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([
                 wow_data::CreatureTemplateLifecycleRecordLikeCpp {

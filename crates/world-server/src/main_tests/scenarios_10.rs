@@ -55,6 +55,7 @@ fn loaded_grid_area_trigger_record_returns_area_trigger_record_like_cpp() {
         spawn_id,
         &metadata,
         &template_store,
+        &empty_loaded_grid_creature_respawn_caches_like_cpp(),
     )
     .expect("loaded-grid AreaTrigger builder should return loaded-grid records");
     let area_trigger = record
@@ -97,7 +98,7 @@ fn loaded_grid_area_trigger_loader_materializes_loaded_map_grid_like_cpp() {
         id: create_properties_id,
         spawn_point: SpawnPosition::new(1.0, 2.0, 3.0, 1.0),
         phase_use_flags: 0,
-        phase_id: 0,
+        phase_id: 70,
         phase_group: 0,
         terrain_swap_map: -1,
         pool_id: 0,
@@ -132,7 +133,9 @@ fn loaded_grid_area_trigger_loader_materializes_loaded_map_grid_like_cpp() {
         .map_mut()
         .ensure_grid_loaded(&wow_map::map::cell_from_world(1.0, 2.0));
 
-    let summary = load_loaded_grid_area_triggers_like_cpp(&mut manager, &metadata, &template_store);
+    let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+    let summary =
+        load_loaded_grid_area_triggers_like_cpp(&mut manager, &metadata, &template_store, &caches);
 
     assert_eq!(summary.maps_evaluated, 1);
     assert_eq!(summary.loaded_grids_evaluated, 1);
@@ -152,13 +155,18 @@ fn loaded_grid_area_trigger_loader_materializes_loaded_map_grid_like_cpp() {
         vec![area_trigger.world().guid()]
     );
     assert_eq!(area_trigger.spawn_id(), spawn_id);
+    assert!(!wow_entities::PhaseShift::default().can_see(area_trigger.world().phase_shift()));
+    assert!(
+        wow_entities::PhaseShift::from_phases([70]).can_see(area_trigger.world().phase_shift())
+    );
     assert_eq!(area_trigger.template_id().unwrap().id, template_id);
     assert_eq!(
         area_trigger.world().guid().high_type(),
         wow_core::guid::HighGuid::AreaTrigger
     );
 
-    let second = load_loaded_grid_area_triggers_like_cpp(&mut manager, &metadata, &template_store);
+    let second =
+        load_loaded_grid_area_triggers_like_cpp(&mut manager, &metadata, &template_store, &caches);
     assert_eq!(second.maps_evaluated, 1);
     assert_eq!(second.loaded_grids_evaluated, 1);
     assert_eq!(second.metadata_entries, 0);
