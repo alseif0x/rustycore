@@ -1299,11 +1299,26 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             } else if super::execution_support::is_explicitly_handled_player_aura_like_cpp(effect) {
                 return Err("represented special player aura route drifted");
             } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
+                let aura_flags = {
+                    let hub = host.hub_ref();
+                    let attributes = hub.catalogs.spell_store().and_then(|store| {
+                        store.misc_attributes_for_difficulty_like_cpp(
+                            spell_id,
+                            metadata.actual_spell_difficulty_id_like_cpp.unwrap_or(0),
+                            hub.catalogs.difficulty_store().map(AsRef::as_ref),
+                        )
+                    });
+                    crate::aura_session::single_effect_player_aura_flags_like_cpp(
+                        &spell_info,
+                        attributes,
+                        aura_caster_guid == player_guid,
+                    )
+                };
                 host.apply_aura_with_effect_mask_and_provenance_like_cpp(
                     spell_id,
                     aura_caster_guid,
                     30000,
-                    0x00000001,
+                    aura_flags,
                     1u32 << effect.effect_index,
                     wow_entities::AuraCastProvenanceLikeCpp {
                         cast_id,

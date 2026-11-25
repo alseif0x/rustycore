@@ -291,6 +291,48 @@ pub(crate) fn build_selected_aura_application_flags(
         return Err(SelectedAuraFlagsError::UnknownForeignCasterRelation);
     };
 
+    let mut flags = aura_application_identity_flags(
+        is_positive,
+        is_self_cast,
+        owner_guid == target_guid,
+        attributes,
+    );
+    if attributes[8] & ATTR8_AURA_POINTS_ON_CLIENT != 0 {
+        flags |= APPLICATION_FLAG_SCALABLE;
+    }
+    Ok(flags)
+}
+
+/// Flags for a Player-owned aura represented by a single admitted effect.
+pub(crate) fn single_effect_player_aura_flags_like_cpp(
+    spell_info: &wow_data::SpellInfo,
+    attributes: Option<[u32; 15]>,
+    is_self_cast: bool,
+) -> u32 {
+    let Some(attributes) = attributes else {
+        return if is_self_cast {
+            u32::from(APPLICATION_FLAG_NO_CASTER)
+        } else {
+            0
+        };
+    };
+    let positive = attributes[0] & ATTR0_AURA_IS_DEBUFF == 0
+        && wow_data::represented_spell_is_positive_like_cpp(spell_info);
+    u32::from(aura_application_identity_flags(
+        positive,
+        is_self_cast,
+        true,
+        &attributes,
+    ))
+}
+
+// SpellAuras.cpp:110–161, AuraApplication::_InitFlags.
+fn aura_application_identity_flags(
+    is_positive: bool,
+    is_self_cast: bool,
+    owner_is_target: bool,
+    attributes: &[u32; 15],
+) -> u16 {
     let mut flags = if is_self_cast {
         APPLICATION_FLAG_NO_CASTER
     } else {
@@ -303,21 +345,14 @@ pub(crate) fn build_selected_aura_application_flags(
     };
 
     let is_passive = attributes[0] & ATTR0_PASSIVE != 0;
-    if is_positive
-        && !is_passive
-        && attributes[1] & ATTR1_NO_AURA_ICON == 0
-        && owner_guid == target_guid
-    {
+    if is_positive && !is_passive && attributes[1] & ATTR1_NO_AURA_ICON == 0 && owner_is_target {
         flags |= APPLICATION_FLAG_CANCELABLE;
-    }
-    if attributes[8] & ATTR8_AURA_POINTS_ON_CLIENT != 0 {
-        flags |= APPLICATION_FLAG_SCALABLE;
     }
     if is_passive {
         flags |= APPLICATION_FLAG_PASSIVE;
     }
 
-    Ok(flags)
+    flags
 }
 
 fn is_supported_aura(aura_type: i32) -> bool {

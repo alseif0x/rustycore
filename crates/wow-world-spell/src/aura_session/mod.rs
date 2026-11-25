@@ -58,7 +58,7 @@ pub(crate) use selected_creation::prepare_selected_aura_creation;
 pub(crate) use selected_flags::{
     SelectedAuraFlagsError, SelectedSpellMetadataFacts, SelectedSpellPolarity,
     SelectedSpellPolarityError, build_selected_aura_application_flags,
-    classify_selected_spell_polarity,
+    classify_selected_spell_polarity, single_effect_player_aura_flags_like_cpp,
 };
 pub(crate) use selected_lifetime::validate_application as validate_selected_aura_application;
 pub use selected_lifetime::*;
