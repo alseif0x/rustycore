@@ -4207,58 +4207,18 @@ async fn run_inner(
     > = Arc::new(
         wow_database::MariaDbInstanceLockPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
     );
-    let (shared_instance_lock_rows, character_instance_lock_rows) =
-        match instance_lock_persistence_port.load_all_like_cpp().await {
-            wow_persistence::InstanceLockPersistenceLoadOutcomeLikeCpp::Loaded {
-                shared_rows,
-                character_rows,
-            } => (shared_rows, character_rows),
-            wow_persistence::InstanceLockPersistenceLoadOutcomeLikeCpp::Failed { reason } => {
-                bail!("Failed to load instance locks from character database: {reason}")
-            }
-        };
     let group_loot_money_adapter =
         wow_database::group_loot_money_adapter::MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::new(
             Arc::clone(&char_db),
         );
-    {
-        let saved_instance_maps: std::collections::HashSet<_> = character_instance_lock_rows
-            .iter()
-            .map(|row| (row.map_id, row.instance_id))
-            .collect();
-        let retired_heads = group_loot_money_adapter
-            .retire_unregistered_instance_chest_money_like_cpp(realm_id, |map_id, instance_id| {
-                map_store
-                    .get(map_id)
-                    .is_some_and(|map| map.is_dungeon() || map.is_battleground_or_arena())
-                    && !saved_instance_maps.contains(&(map_id, instance_id))
-            })
-            .await
-            .context("Failed to retire chest money from unsaved instance maps")?;
-        info!(
-            retired_heads,
-            "Retired chest money from unsaved instance maps"
-        );
-    }
-    let mut loaded_instance_lock_mgr = InstanceLockMgr::default();
-    let instance_lock_load_issues = loaded_instance_lock_mgr.load_from_rows_like_cpp(
+    let loaded_instance_lock_mgr = load_instance_locks_and_retire_chest_sources(
         realm_id,
-        shared_instance_lock_rows,
-        character_instance_lock_rows,
-        |map_id, difficulty_id| {
-            map_db2_entries_from_stores(&map_store, &map_difficulty_store, map_id, difficulty_id)
-        },
-    );
-    for issue in &instance_lock_load_issues {
-        warn!("Instance lock load issue: {issue:?}");
-    }
-    let instance_lock_stats = loaded_instance_lock_mgr.statistics();
-    info!(
-        "Loaded instance locks: {} shared instances, {} players, {} issues",
-        instance_lock_stats.instance_count,
-        instance_lock_stats.player_count,
-        instance_lock_load_issues.len()
-    );
+        instance_lock_persistence_port.as_ref(),
+        &group_loot_money_adapter,
+        &map_store,
+        &map_difficulty_store,
+    )
+    .await?;
     let registered_instance_ids = loaded_instance_lock_mgr.registered_instance_ids_like_cpp_order();
     let instance_lock_mgr = Arc::new(std::sync::RwLock::new(loaded_instance_lock_mgr));
 
