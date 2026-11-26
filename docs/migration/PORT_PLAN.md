@@ -113,6 +113,28 @@ delivery installs the committed counter and sends its update before the
 money notification. The login projection covers this character criterion
 and its five visible awards.
 
+On November 26 the aarch64 debug candidate `2ac2db608` (binary SHA-256
+`4b278c6d3eb305d9ddc4a1c6f9a18aeada1a857dfa67dc349c1730d01ec840ce`)
+ran against four disposable MariaDB schemas. An authenticated 54261 protocol
+client started with criterion 4093 at 999,995 and collected 10 copper from
+chest 9106001. World PID 2928555 emitted `CoinRemoved`, `CriteriaUpdate`,
+`AchievementEarned` for 1176 and `LootMoneyNotify` in that order. The
+server stopped with the client connected. After login on PID 2930069,
+`AllAchievementData` restored 1,000,005 and the award with its original
+packed date. Reopening the chest paid zero. The Characters database
+retained one head, binding and receipt. The second player's counter stayed
+at 9 with its original date. Both protocol runs exited zero.
+
+`python3 tools/qa/verify_loot_money_restart.py <before> <after>`
+verified the actual INSTANCE payloads and order. Its JSON result had SHA-256
+`ad221b2649cc83d2dbec31a471cd80f154d3e982fc8b694a754d5bc19fc44d6c`.
+The prior capture from the build without criteria failed this verifier.
+The separate MariaDB `loot_money_restart` integration test exercised
+writing, recovery and repeated claims in three child processes, including
+saturated progress, capped balances, an unrelated existing award and a
+missing threshold. Five rolled-back QA permission queries also exercised
+ordinary eligibility, direct grants, linked defaults and denials.
+
 ## 7. Part 1 acceptance — a complete playable circuit
 
 The M0–M6 names remain milestone identifiers. Their broad exits cannot be inferred
