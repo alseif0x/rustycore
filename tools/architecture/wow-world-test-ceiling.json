@@ -465,6 +465,16 @@
    "unit_tests_lines": 281969,
    "unit_tests_tests": 4191,
    "src_tests": 22
+  },
+  {
+   "id": "raise-1339-43",
+   "kind": "raise",
+   "issue": 1339,
+   "reviewed_at": "2026-11-26",
+   "reason": "The two-recipient money bonus regression verifies frozen per-player amounts, refusal with incomplete aura data, and later delivery. Existing item, quest and persistence fixtures now supply checked aura state and the separate bonus field.",
+   "unit_tests_lines": 282209,
+   "unit_tests_tests": 4192,
+   "src_tests": 22
   }
  ]
 }

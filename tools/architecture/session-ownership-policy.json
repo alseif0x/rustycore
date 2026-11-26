@@ -11376,7 +11376,7 @@
           "kind": "method",
           "name": "loot_money_apply_durable_payout_like_cpp",
           "visibility": "private",
-          "signature": "fn loot_money_apply_durable_payout_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator , notified_amount : u64 , durable_applied_amount : u64 , sole_looter : bool , apply_money : bool , publish : bool ,) -> impl Future < Output = ApplyLootMoneyResultLikeCpp > + Send + 'a",
+          "signature": "fn loot_money_apply_durable_payout_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator , notify : wow_packet :: packets :: loot :: LootMoneyNotify , durable_applied_amount : u64 , apply_money : bool , publish : bool ,) -> impl Future < Output = ApplyLootMoneyResultLikeCpp > + Send + 'a",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12645,7 +12645,7 @@
           "kind": "method",
           "name": "persist_and_consume_stored_item_money_like_cpp",
           "visibility": "private",
-          "signature": "fn persist_and_consume_stored_item_money_like_cpp (& self , item_guid : ObjectGuid , cached_notified_amount : u64 ,) -> impl Future < Output = Option < (Arc < AtomicBool > , Arc < AtomicBool > , u64 , u64) > > + Send",
+          "signature": "fn persist_and_consume_stored_item_money_like_cpp (& self , item_guid : ObjectGuid , cached_notified_amount : u64 , money_bonus_percent : i32 ,) -> impl Future < Output = Option < (Arc < AtomicBool > , Arc < AtomicBool > , u64 , wow_world_lifecycle :: DurableItemLootMoneyNotificationLikeCpp) > > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -49413,6 +49413,13 @@
           {
             "name": "loot_owner",
             "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "money_mod",
+            "type": "u64",
             "visibility": "pub",
             "cfg": [],
             "source_class": "production"
