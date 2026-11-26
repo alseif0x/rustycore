@@ -153,6 +153,7 @@ impl Port for LostAcknowledgement {
                 before: BEFORE,
                 after: BEFORE + COINS,
                 applied_delta: COINS,
+                criteria: None,
             }];
             match self
                 .adapter
