@@ -384,6 +384,7 @@ async fn exercise_case(database: &Database, rollback: bool) -> Result<()> {
         SessionCommand::ApplyLootMoneyLikeCpp(command) => {
             assert_eq!(command.recipient, recipient);
             assert_eq!(command.amount, COINS);
+            assert_eq!(command.money_mod, 0);
             assert_eq!(
                 command.durable_applied_amount.load(Ordering::Acquire),
                 COINS
