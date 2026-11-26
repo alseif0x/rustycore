@@ -76,6 +76,7 @@ pub use map_entry::{
     ensure_canonical_player_owner_for_map_like_cpp,
     ensure_canonical_world_map_for_current_player_like_cpp, prepare_canonical_map_entry_like_cpp,
     try_attach_worldport_destination_like_cpp,
+    try_attach_worldport_destination_with_grid_load_like_cpp,
     try_attach_worldport_destination_with_publication_like_cpp,
 };
 pub use rest_flags::{
