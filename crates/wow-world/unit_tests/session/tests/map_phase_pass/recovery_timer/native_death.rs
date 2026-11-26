@@ -1,35 +1,45 @@
 use super::*;
 use crate::session::mailbox::{
-    CommittedCreatureMeleeAdmission, NativePlayerDeathAdmission, NativePlayerDeathReply,
-    RunCommittedCreatureMeleeRequest, RunNativePlayerDeathRequest, SessionPassKind,
+    CommittedCreatureMeleeAdmission, MapPhaseAdmissionLikeCpp, NativePlayerDeathAdmission,
+    NativePlayerDeathReply, RunCommittedCreatureMeleeRequest, RunNativePlayerDeathRequest,
+    SessionPassKind,
 };
 use wow_entities::{PlayerDeathOperationContext, PlayerDeathOperationPhase};
 
-#[tokio::test]
-async fn native_death_rail_preserves_earlier_nonlethal_presentation_before_lethal_prefix() {
-    use wow_packet::ServerPacket;
-    let (mut session, recovery, _peer, send) = logged_in_recovery_session();
-    crate::native_death_test_fixtures::prepare(&mut session);
+fn admit_native_death_phase(
+    session: &mut WorldSession,
+    recovery: PlayerRecoveryAdmission,
+) -> MapPhaseAdmissionLikeCpp {
+    crate::native_death_test_fixtures::prepare(session);
     assert!(session.core.admission.accept_phase_authority(
         SessionPassKind::Map,
         recovery.coordinator_id,
         recovery.tick_epoch
     ));
-    let phase = session
+    session
         .current_map_phase_admission_for_test_like_cpp(
             recovery.coordinator_id,
             recovery.tick_epoch,
             recovery.diff_ms,
         )
-        .unwrap();
-    let attacker = ObjectGuid::create_world_object(
-        wow_core::guid::HighGuid::Creature,
-        0,
-        1,
-        0,
-        0,
+        .unwrap()
+}
+
+#[tokio::test]
+async fn native_death_rail_preserves_earlier_nonlethal_presentation_before_lethal_prefix() {
+    use wow_packet::ServerPacket;
+    let (mut session, recovery, _peer, send) = logged_in_recovery_session();
+    let phase = admit_native_death_phase(&mut session, recovery);
+    let attacker =
+        ObjectGuid::create_creature_like_cpp(1, phase.map_key.map_id as u16, 9001, 91_001);
+    add_canonical_test_creature_indexed_on_map_with_level(
+        session.core.canonical_map_manager.as_ref().unwrap(),
+        attacker,
         9001,
-        91_001,
+        Position::xyz(1.0, 0.0, 0.0),
+        phase.map_key.map_id,
+        phase.map_key.instance_id,
+        1,
     );
     session.core.client_visible_guids_like_cpp.insert(attacker);
     let revision = session
@@ -168,19 +178,7 @@ fn native_request_fixture() -> (
     flume::Receiver<Vec<u8>>,
 ) {
     let (mut session, recovery, packet_tx, send) = logged_in_recovery_session();
-    crate::native_death_test_fixtures::prepare(&mut session);
-    assert!(session.core.admission.accept_phase_authority(
-        SessionPassKind::Map,
-        recovery.coordinator_id,
-        recovery.tick_epoch
-    ));
-    let phase = session
-        .current_map_phase_admission_for_test_like_cpp(
-            recovery.coordinator_id,
-            recovery.tick_epoch,
-            recovery.diff_ms,
-        )
-        .unwrap();
+    let phase = admit_native_death_phase(&mut session, recovery);
     let operation = session
         .core
         .with_owned_player_mut_like_cpp(|player| {

@@ -445,6 +445,16 @@
    "unit_tests_lines": 281967,
    "unit_tests_tests": 4191,
    "src_tests": 22
+  },
+  {
+   "id": "tighten-1342-3",
+   "kind": "tighten",
+   "issue": 1342,
+   "reviewed_at": "2026-11-26",
+   "reason": "Share map phase admission across the native death cases while exercising both the attacker and victim through spatial admission.",
+   "unit_tests_lines": 281965,
+   "unit_tests_tests": 4191,
+   "src_tests": 22
   }
  ]
 }
