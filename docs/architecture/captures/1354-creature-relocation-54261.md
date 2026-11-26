@@ -95,3 +95,15 @@ An inaccessible chase target retains its sampled position, as in
 `ChaseMovementGenerator::DoUpdate`. The corresponding regression names are
 `a_map_rebind_discards_the_result_and_restores_the_original_binding_like_cpp`
 and `chase_update_handles_blocked_lost_target_arrival_and_inaccessible_like_cpp`.
+
+## Local acceptance
+
+On aarch64, `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+passed on the clean candidate `a34693f1d` against `3961b4d26`. Its manifest
+is `20261126T165957.537681Z-2792804-final.json`. The four changed libraries
+passed 5,194 tests with two ignored. Three additional `wow-map` blocked-grid
+tests and the `wow-movement` inaccessible-target test passed. The final profile
+ran for 17m01s; the successful pass and these extra tests took 17m25s.
+Including the earlier fixture and architecture inventory corrections, the
+local acceptance campaign took 34m33s, exceeding the 10-minute target.
+The isolated runtime exercises preceded that campaign.
