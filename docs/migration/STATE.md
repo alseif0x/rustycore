@@ -140,8 +140,13 @@ run. Its local correction at `b948a6a36` passed the 24 cast lifecycle tests
 and the packet format test. On November 26 two protocol clients on integrated
 `b0b974061` received the same Fireball Start, Go and 13-damage log in order,
 disconnected, and both re-entered map 0 on fresh sessions.
-A fresh graphical-client cast remains open.
-[Two-session protocol control](../architecture/captures/1342-real-client-2026-11-24.md#two-session-protocol-control-november-26)
+A graphical 54261 mage then reproduced the same paired Fireball result.
+Melee hit packets were missing on the nearby observer's live connection.
+[Graphical combat capture](../architecture/captures/1342-real-client-2026-11-24.md#graphical-fireball-and-melee-november-26)
+
+After a cross-map Hearthstone to Durotar, the destination showed an empty
+settlement. Relogging at the saved coordinates made Kaltunk visible and
+selectable. [Far-transfer capture](../architecture/captures/1342-real-client-2026-11-24.md#durotar-visibility-after-a-far-transfer-november-26)
 
 On November 25 the project accepted the identified QA client for gameplay
 development and deferred original-client world entry. At Sentinel Hill this
