@@ -475,6 +475,16 @@
    "unit_tests_lines": 282209,
    "unit_tests_tests": 4192,
    "src_tests": 22
+  },
+  {
+   "id": "raise-1339-44",
+   "kind": "raise",
+   "issue": 1339,
+   "reviewed_at": "2026-11-26",
+   "reason": "Exercise per-recipient base share, eligibility, packet ordering and late threshold delivery on the canonical Player.",
+   "unit_tests_lines": 282345,
+   "unit_tests_tests": 4194,
+   "src_tests": 22
   }
  ]
 }

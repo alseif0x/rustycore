@@ -95,13 +95,23 @@ passed against an isolated MariaDB across three child processes. Together
 these focused checks took 108 seconds on aarch64. The chest restart with a
 54261 protocol client is recorded separately in the [November 22 QA report](../architecture/captures/46-qa-54261-2026-11-22.md).
 
-At `3961b4d26`, login hydrates completed achievement IDs and sends an empty
-`AllAchievementData` progress list. Finishing the criteria part requires
-the eligible Player's progress to survive logout and restart, its update to
-precede `LootMoneyNotify`, and achievement completion at the applicable
-thresholds. Verify the GM/RBAC gates in `CriteriaHandler::UpdateCriteria`
-and the player/account scope in `PlayerAchievementMgr::SendCriteriaUpdate`.
-Verify that a replay of the same claim preserves the recipient's counter.
+The five non-statistic thresholds for criterion 4093 in build 54261 are
+1,000,000, 10,000,000, 50,000,000, 100,000,000 and 250,000,000 copper.
+They award character achievements 1176, 1177, 1178, 1180 and 1181
+respectively. The attached statistics read the same counter. The
+reference gates progress on GM mode and RBAC permission 8
+(`CriteriaHandler::UpdateCriteria`, `RequirementsSatisfied` and
+`SetCriteriaProgress`). `PlayerAchievementMgr::SendCriteriaUpdate`,
+`CompletedAchievement` and `SendAllData` define the live and login packets.
+
+On the issue branch the existing shared and stored-item payouts advance the
+eligible character's base amount inside the Characters transaction. That
+transaction writes the criterion and any newly earned thresholds together
+with the payout. A shared claim receipt preserves its result for recovery.
+Login reads the dated awards and criterion in one database snapshot. Live
+delivery installs the committed counter and sends its update before the
+money notification. The login projection covers this character criterion
+and its five visible awards.
 
 ## 7. Part 1 acceptance — a complete playable circuit
 
