@@ -198,9 +198,11 @@ pub fn step_creature_movement_on_view_like_cpp(
                 && creature.default_movement_type() == wow_entities::MovementGeneratorType::Waypoint
                 && creature.active_waypoint_generator_like_cpp().is_none()
             {
-                creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(
-                    resolve_waypoint_path,
-                );
+                let path_id = creature.waypoint_path_id_like_cpp();
+                let path = (path_id != 0)
+                    .then(|| resolve_waypoint_path(path_id))
+                    .flatten();
+                creature.initialize_selected_waypoint_generator_like_cpp(path);
             }
             if creature.state() != wow_entities::CreatureAiState::WalkingWaypoint {
                 return None;

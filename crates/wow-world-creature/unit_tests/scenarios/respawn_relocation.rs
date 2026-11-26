@@ -87,6 +87,12 @@ fn check_relocated_patrol(current_path_id: u32, expected_first_offset: Option<f3
     assert_eq!(creature.position(), home);
     assert!(creature.active_move_spline_like_cpp().is_none());
     assert!(step(creature, initial_delay - 1).is_none());
+    assert_ne!(
+        creature.unit().subsystems().motion.default_generator.flags
+            & wow_entities::MOVEMENTGENERATOR_FLAG_INITIALIZED,
+        0,
+        "the first tick initialized the selected slot"
+    );
     let movement = step(creature, 1);
     if let Some(offset) = expected_first_offset {
         let bytes = movement.expect("relocated patrol must launch its first leg again");
