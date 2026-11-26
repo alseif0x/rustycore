@@ -13,6 +13,7 @@ use std::sync::Arc;
 use tracing::warn;
 use wow_core::Position;
 use wow_world_core::session::connection_identity::unix_now;
+use wow_world_core::session::map_admission::PlayerGridLoadResolverLikeCpp;
 
 use super::{
     InstanceSessionHostLikeCpp, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
@@ -89,11 +90,35 @@ pub fn try_attach_worldport_destination_like_cpp<H: InstanceSessionHostLikeCpp>(
     try_attach_worldport_destination_with_publication_like_cpp(host, map_id, position, true)
 }
 
+/// Attach a far-transfer Player after preparing the destination's active and
+/// visible spawn grids. C++ `Map::AddPlayerToMap` calls
+/// `EnsureGridLoadedForActiveObject` before adding the Player to the map;
+/// worldport uses the same order so the post-add visibility scan can see the
+/// destination's grid-loaded objects.
+pub fn try_attach_worldport_destination_with_grid_load_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &mut H,
+    map_id: u32,
+    position: wow_core::Position,
+    player_grid_loader: &PlayerGridLoadResolverLikeCpp,
+) -> bool {
+    attach_worldport_destination(host, map_id, position, true, Some(player_grid_loader))
+}
+
 pub fn try_attach_worldport_destination_with_publication_like_cpp<H: InstanceSessionHostLikeCpp>(
     host: &mut H,
     map_id: u32,
     position: wow_core::Position,
     publish: bool,
+) -> bool {
+    attach_worldport_destination(host, map_id, position, publish, None)
+}
+
+fn attach_worldport_destination<H: InstanceSessionHostLikeCpp>(
+    host: &mut H,
+    map_id: u32,
+    position: wow_core::Position,
+    publish: bool,
+    player_grid_loader: Option<&PlayerGridLoadResolverLikeCpp>,
 ) -> bool {
     if host
         .hub_ref()
@@ -121,6 +146,13 @@ pub fn try_attach_worldport_destination_with_publication_like_cpp<H: InstanceSes
     else {
         return false;
     };
+    if key.map_id != map_id
+        || player_grid_loader
+            .is_some_and(|load| load(map_id_u16, Some(key.instance_id), position).map_unavailable)
+    {
+        clear_pending_map_entry_like_cpp(host, key);
+        return false;
+    }
     if !host
         .hub_mut()
         .remove_current_player_from_canonical_current_map_like_cpp()

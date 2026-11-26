@@ -69,7 +69,7 @@ impl Default for AreaTriggerCatalogsLikeCpp {
 pub struct SessionHandlerCatalogsLikeCpp {
     pub object_mgr: Arc<ObjectMgrCatalogsLikeCpp>,
     pub area_triggers: Arc<AreaTriggerCatalogsLikeCpp>,
-    /// Map/runtime capability borrowed only by movement and login operations.
+    /// Map/runtime capability borrowed by movement, login and worldport entry.
     /// C++ `Map::EnsureGridLoadedForActiveObject` belongs to the Map, not to
     /// `WorldSession`; production installs one process-owned adapter here.
     pub player_grid_loader: PlayerGridLoadResolverLikeCpp,

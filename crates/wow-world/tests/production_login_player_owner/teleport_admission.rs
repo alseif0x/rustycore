@@ -1,6 +1,9 @@
 //! Player::TeleportTo validates all destination coordinates before side effects
 //! (Player.cpp:1237-1244; GridDefines.h:231-248), unlike the lower Map cell check.
 use super::*;
+use wow_world_core::session::map_admission::{
+    PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp,
+};
 
 /// Production `CMSG_SUSPEND_TOKEN_RESPONSE` path: since #1263 F5 the body lives
 /// in the application travel owner, so the only production entry is the
@@ -13,8 +16,12 @@ async fn dispatch_suspend_token_response(session: &mut WorldSession) {
     (entry.handler)(session, &catalogs, wow_packet::WorldPacket::new_empty()).await;
 }
 
+fn available_player_grid_loader_like_cpp() -> PlayerGridLoadResolverLikeCpp {
+    Arc::new(|_, _, _| PlayerGridLoadOutcomeLikeCpp::default())
+}
+
 #[tokio::test]
-async fn production_worldport_cannot_finish_with_incomplete_self_create() {
+async fn production_worldport_prepares_destination_grid_before_visibility() {
     // Login deliberately stopped before complete trait hydration. The controlled
     // port panics on unexpected auxiliary queries: worldport must not reload it.
     let (mut session, port, _, receiver) = hydrate(true, true, true).await;
@@ -57,14 +64,44 @@ async fn production_worldport_cannot_finish_with_incomplete_self_create() {
         power_types: Arc::new(PowerTypeStore::from_entries([])),
         localized_names: Arc::new(Default::default()),
     };
-    session
-        .handle_world_port_response_with_catalogs_like_cpp(
-            &catalogs,
-            &trait_tree::TraitNodeEntryStore::from_entries([]),
-            &wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1),
-            wow_packet::WorldPacket::new_empty(),
-        )
-        .await;
+    let destination = Position::new(7.0, 8.0, 9.0, 0.5);
+    let grid_loads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let observed_grid_loads = Arc::clone(&grid_loads);
+    let manager = Arc::clone(&port.manager);
+    let mut handler_catalogs = SessionHandlerCatalogsLikeCpp::default();
+    handler_catalogs.creature_spawns = Arc::new(catalogs);
+    handler_catalogs.player_grid_loader = Arc::new(move |map_id, instance_id, position| {
+        assert_eq!(map_id, 1);
+        assert_eq!(instance_id, Some(0));
+        assert_eq!(position, destination);
+        let maps = manager.lock().unwrap();
+        let admitted = maps.find_map(1, 0).expect("admitted destination");
+        assert!(
+            admitted
+                .map()
+                .get_typed_player(ObjectGuid::create_player(1, 42))
+                .is_none()
+        );
+        observed_grid_loads
+            .lock()
+            .unwrap()
+            .push((map_id, instance_id, position));
+        PlayerGridLoadOutcomeLikeCpp::default()
+    });
+    let entry = wow_world::session::registry::registered_handler_entries_like_cpp()
+        .find(|entry| entry.opcode == wow_constants::ClientOpcodes::WorldPortResponse)
+        .expect("WorldPortResponse registration");
+    (entry.handler)(
+        &mut session,
+        &handler_catalogs,
+        wow_packet::WorldPacket::new_empty(),
+    )
+    .await;
+    assert_eq!(
+        *grid_loads.lock().unwrap(),
+        vec![(1, Some(0), destination)],
+        "the admitted destination grid is prepared exactly once before visibility publication"
+    );
     assert_eq!(session.state(), SessionState::Disconnecting);
     assert!(receiver.try_iter().all(|bytes| {
         u16::from_le_bytes([bytes[0], bytes[1]])
@@ -127,9 +164,12 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
         power_types: Arc::new(PowerTypeStore::from_entries([])),
         localized_names: Arc::new(Default::default()),
     };
+    let player_grid_loader: PlayerGridLoadResolverLikeCpp =
+        Arc::new(|_, _, _| panic!("rejected destination must not load a spawn grid"));
     session
         .handle_world_port_response_with_catalogs_like_cpp(
             &catalogs,
+            &player_grid_loader,
             &trait_tree::TraitNodeEntryStore::from_entries([]),
             &wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1),
             wow_packet::WorldPacket::new_empty(),
@@ -151,6 +191,7 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
     session
         .handle_world_port_response_with_catalogs_like_cpp(
             &catalogs,
+            &available_player_grid_loader_like_cpp(),
             &trait_tree::TraitNodeEntryStore::from_entries([]),
             &wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1),
             wow_packet::WorldPacket::new_empty(),
@@ -170,11 +211,22 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
         wow_constants::ServerOpcodes::NewWorld as u16
     );
     assert!(receiver.is_empty());
-    session.set_map_store(maps(vec![]));
+    let grid_attempted = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&grid_attempted);
+    let unavailable_grid: PlayerGridLoadResolverLikeCpp = Arc::new(move |map, instance, pos| {
+        assert_eq!((map, instance), (0, Some(0)));
+        assert_eq!(pos, Position::new(100.0, 200.0, 300.0, 0.0));
+        assert!(!observed.swap(true, Ordering::SeqCst));
+        PlayerGridLoadOutcomeLikeCpp {
+            map_unavailable: true,
+            ..Default::default()
+        }
+    });
     for _ in 0..2 {
         session
             .handle_world_port_response_with_catalogs_like_cpp(
                 &catalogs,
+                &unavailable_grid,
                 &trait_tree::TraitNodeEntryStore::from_entries([]),
                 &wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1),
                 wow_packet::WorldPacket::new_empty(),
@@ -186,6 +238,7 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
             "terminal rejection cannot start another handshake"
         );
     }
+    assert!(grid_attempted.load(Ordering::SeqCst));
     dispatch_suspend_token_response(&mut session).await;
     assert!(receiver.is_empty());
     save::assert_terminal_source_save(&mut session, &port).await;
