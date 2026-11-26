@@ -146,7 +146,10 @@ Melee hit packets were missing on the nearby observer's live connection.
 
 After a cross-map Hearthstone to Durotar, the destination showed an empty
 settlement. Relogging at the saved coordinates made Kaltunk visible and
-selectable. [Far-transfer capture](../architecture/captures/1342-real-client-2026-11-24.md#durotar-visibility-after-a-far-transfer-november-26)
+selectable. Local candidate `9cba4f021` prepares the destination spawn grid
+on the worldport ACK. On a fresh world with the same 54261 graphical client,
+both Kaltunk and Gornek were selectable on first arrival and game object
+CREATEs reached the client. [Far-transfer capture](../architecture/captures/1342-real-client-2026-11-24.md#durotar-visibility-after-a-far-transfer-november-26)
 
 On November 25 the project accepted the identified QA client for gameplay
 development and deferred original-client world entry. At Sentinel Hill this
