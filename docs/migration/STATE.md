@@ -141,8 +141,9 @@ and the packet format test. On November 26 two protocol clients on integrated
 `b0b974061` received the same Fireball Start, Go and 13-damage log in order,
 disconnected, and both re-entered map 0 on fresh sessions.
 A graphical 54261 mage then reproduced the same paired Fireball result.
-Melee hit packets were missing on the nearby observer's live connection.
-[Graphical combat capture](../architecture/captures/1342-real-client-2026-11-24.md#graphical-fireball-and-melee-november-26)
+After #1519, the graphical paladin's combat log matched every damaging
+melee swing in the confirmation encounter. Both sockets received all 14
+rounds, including the zero-damage round. [Graphical melee capture](../architecture/captures/1342-real-client-2026-11-24.md#northshire-melee-seen-by-a-graphical-observer-november-26)
 
 After a cross-map Hearthstone to Durotar, the destination showed an empty
 settlement. Relogging at the saved coordinates made Kaltunk visible and
@@ -151,6 +152,11 @@ on the worldport ACK. On a fresh world with the same 54261 graphical client,
 both Kaltunk and Gornek were selectable on first arrival and game object
 CREATEs reached the client. [Far-transfer capture](../architecture/captures/1342-real-client-2026-11-24.md#durotar-visibility-after-a-far-transfer-november-26)
 
+At `70d950d3c` the graphical 54261 mage transferred and logged back in on
+the same realm connection while Kaltunk's map-owned respawn was pending.
+Gornek was selectable on both arrivals. Kaltunk's CREATE and selection
+followed the timer on the new instance connection. [Queued respawn capture](../architecture/captures/1342-real-client-2026-11-24.md#far-transfer-and-character-re-entry-with-a-pending-respawn-november-26)
+
 On November 25 the project accepted the identified QA client for gameplay
 development and deferred original-client world entry. At Sentinel Hill this
 client measured ground above the saved graveyard and two creature spawns.
@@ -158,7 +164,10 @@ For Riverpaw Bandit 275256 the server sent Z 40.7784 and the client landed
 at 66.9881 at the same XY. Correcting the disposable homebind height gave
 the mage a safe Hearthstone arrival and a subsequent jump and landing. The
 [paired positions and packet evidence](../architecture/captures/1342-real-client-2026-11-24.md#sentinel-hill-terrain-and-creature-spawns-november-25)
-bound the result to these outdoor positions. Phase and relog acceptance remain open.
+bound the result to these outdoor positions. A separate [54261 phase
+capture](../architecture/captures/1342-phase-recalculation-2026-11-25.md)
+shows creatures and game objects appearing and disappearing on a same-area
+quest change, and an area trigger following an aura change.
 
 The November 25 [spawn placement review](../architecture/captures/1342-real-client-2026-11-24.md#wrath-spawn-placement-review-november-25)
 identified shared coordinates with later game versions in TDB 343.24081.
