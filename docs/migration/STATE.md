@@ -109,8 +109,12 @@ QA spawn 9106001 uses consumable chest template 2846 (loot 2278, group
 loot enabled). The 3.4.3 C++ anchors are `GameObjectData.h:99–112,127`,
 `GameObject.cpp:1609–1651,3711–3721` and `LootHandler.cpp:142–213`.
 The [2026-11-22 live QA record](../architecture/captures/46-qa-54261-2026-11-22.md)
-shows the real chest paying once across a world-server restart. Two official
-3.4.3.54261 clients reached the online realm and disconnected during world
+shows the real chest paying once across a world-server restart. A
+[November 26 rerun](../architecture/captures/46-qa-54261-2026-11-22.md#november-26-restart-on-integrated-343)
+on integrated `b0b974061` passed both bot plans, including the expected socket
+disconnect. A second claim after relog paid zero and preserved the same single
+MariaDB receipt. In the earlier run, two official 3.4.3.54261 clients reached
+the online realm and disconnected during world
 encryption negotiation before character selection. The same disconnect
 occurred with both Battle.net and world served by the C++ reference. The
 captured client proof and persisted session key matched for a single join.
@@ -133,7 +137,11 @@ the self CREATE removed the premature VALUES seen on both original connections.
 A graphical 54261 mage completed the near-teleport ACK, and a protocol observer
 received Fireball Start/Go. The observer damage log was still missing in this
 run. Its local correction at `b948a6a36` passed the 24 cast lifecycle tests
-and the packet format test. Paired gameplay capture remains open.
+and the packet format test. On November 26 two protocol clients on integrated
+`b0b974061` received the same Fireball Start, Go and 13-damage log in order,
+disconnected, and both re-entered map 0 on fresh sessions.
+A fresh graphical-client cast remains open.
+[Two-session protocol control](../architecture/captures/1342-real-client-2026-11-24.md#two-session-protocol-control-november-26)
 
 On November 25 the project accepted the identified QA client for gameplay
 development and deferred original-client world entry. At Sentinel Hill this
