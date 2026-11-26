@@ -242,8 +242,36 @@ impl PlayerRegistry {
     pub fn prepare_loot_money_application(
         &self,
         input: PrepareLootMoneyApplicationLikeCpp,
+        expected_map: Option<wow_map::MapKey>,
+        catalogs: &crate::session::SessionCatalogs,
+        legacy_fixture: bool,
     ) -> Option<PreparedLootMoneyApplicationLikeCpp> {
+        let (generation, handle) = {
+            let entry = self.entries.get(&input.recipient)?;
+            (entry.generation, entry.player_handle)
+        };
+        let percent = match handle {
+            Some(handle) => {
+                let manager = self.canonical_map_manager.get()?.lock().ok()?;
+                if manager.player_residence_like_cpp(handle)
+                    != Some(wow_map::PlayerResidenceLikeCpp::Active(expected_map?))
+                {
+                    return None;
+                }
+                manager.with_player_like_cpp(handle, |player| {
+                    crate::session::PlayerStatAuraView::loot_money_percent(
+                        player,
+                        catalogs.player_stat_aura_catalogs(),
+                    )
+                })??
+            }
+            None if cfg!(any(test, feature = "test-fixtures")) && legacy_fixture => 0,
+            None => return None,
+        };
         let entry = self.entries.get(&input.recipient)?;
+        if entry.generation != generation || entry.player_handle != handle {
+            return None;
+        }
         Some(PreparedLootMoneyApplicationLikeCpp {
             registration: PlayerRegistration {
                 guid: input.recipient,
@@ -254,6 +282,7 @@ impl PlayerRegistry {
                 loot_owner: input.loot_owner,
                 loot_obj: input.loot_obj,
                 amount: input.amount,
+                money_mod: wow_persistence::loot_money_bonus(input.amount, percent),
                 durable_applied_amount: input.durable_applied_amount,
                 durable_persistence_tracker: Arc::clone(&entry.durable_loot_money),
                 sole_looter: input.sole_looter,

@@ -365,18 +365,16 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     fn loot_money_apply_durable_payout_like_cpp<'a>(
         &'a mut self,
         item_guid_generator: &'a wow_core::ObjectGuidGenerator,
-        notified_amount: u64,
+        notify: wow_packet::packets::loot::LootMoneyNotify,
         durable_applied_amount: u64,
-        sole_looter: bool,
         apply_money: bool,
         publish: bool,
     ) -> impl Future<Output = ApplyLootMoneyResultLikeCpp> + Send + 'a {
         wow_world_loot_ops::apply_durable_represented_loot_money_payout_like_cpp(
             self,
             item_guid_generator,
-            notified_amount,
+            notify,
             durable_applied_amount,
-            sole_looter,
             apply_money,
             publish,
         )

@@ -85,7 +85,10 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
                 player_guid,
                 item_owner_auto_release: false,
                 durable_item_money_applied_amount: Some(7),
-                durable_item_money_notified_amount: Some(7),
+                durable_item_money_notified_amount: Some(DurableItemLootMoneyNotificationLikeCpp {
+                    amount: 7,
+                    money_mod: 0,
+                }),
                 durable_item_money_balance_applied: Some(Arc::clone(&first_balance_applied)),
                 item_fanout: None,
                 runtime_inventory_applied: Arc::clone(&first_runtime_applied),
@@ -130,7 +133,10 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
                 player_guid,
                 item_owner_auto_release: false,
                 durable_item_money_applied_amount: Some(7),
-                durable_item_money_notified_amount: Some(7),
+                durable_item_money_notified_amount: Some(DurableItemLootMoneyNotificationLikeCpp {
+                    amount: 7,
+                    money_mod: 0,
+                }),
                 durable_item_money_balance_applied: Some(Arc::clone(&retry_balance_applied)),
                 item_fanout: None,
                 runtime_inventory_applied: Arc::clone(&retry_runtime_applied),
@@ -184,7 +190,10 @@ async fn cancelled_stored_item_money_after_commit_is_replayed_before_disconnect_
                 player_guid,
                 item_owner_auto_release: false,
                 durable_item_money_applied_amount: Some(7),
-                durable_item_money_notified_amount: Some(7),
+                durable_item_money_notified_amount: Some(DurableItemLootMoneyNotificationLikeCpp {
+                    amount: 7,
+                    money_mod: 0,
+                }),
                 durable_item_money_balance_applied: Some(Arc::clone(&balance_applied)),
                 item_fanout: None,
                 runtime_inventory_applied: Arc::clone(&runtime_money_applied),
@@ -216,7 +225,7 @@ async fn stored_item_money_save_reconciled_balance_still_publishes_source_once_l
     let player_guid = ObjectGuid::create_player(1, 61_848);
     let owner_guid = ObjectGuid::create_item(1, 61_849);
     install_active_item_loot_completion_fixture_like_cpp(&mut session, player_guid, owner_guid, 7);
-    session.set_player_gold_like_cpp(107);
+    session.set_player_gold_like_cpp(113);
     let balance_applied = Arc::new(AtomicBool::new(true));
     let publication_applied = Arc::new(AtomicBool::new(false));
     let mut guard = session.begin_durable_item_loot_persistence_like_cpp();
@@ -225,8 +234,11 @@ async fn stored_item_money_save_reconciled_balance_still_publishes_source_once_l
         loot_list_id: 0,
         player_guid,
         item_owner_auto_release: false,
-        durable_item_money_applied_amount: Some(7),
-        durable_item_money_notified_amount: Some(7),
+        durable_item_money_applied_amount: Some(13),
+        durable_item_money_notified_amount: Some(DurableItemLootMoneyNotificationLikeCpp {
+            amount: 7,
+            money_mod: 6,
+        }),
         durable_item_money_balance_applied: Some(Arc::clone(&balance_applied)),
         item_fanout: None,
         runtime_inventory_applied: Arc::clone(&publication_applied),
@@ -237,7 +249,7 @@ async fn stored_item_money_save_reconciled_balance_still_publishes_source_once_l
         .apply_pending_durable_item_loot_completions_like_cpp()
         .await;
 
-    assert_eq!(session.player_gold_like_cpp(), 107);
+    assert_eq!(session.player_gold_like_cpp(), 113);
     assert_eq!(
         session
             .loot
@@ -248,9 +260,26 @@ async fn stored_item_money_save_reconciled_balance_still_publishes_source_once_l
     );
     assert!(balance_applied.load(Ordering::Acquire));
     assert!(publication_applied.load(Ordering::Acquire));
+    let mut removed = WorldPacket::from_bytes(&send_rx.try_recv().unwrap());
+    assert_eq!(
+        removed.read_uint16().unwrap(),
+        wow_constants::ServerOpcodes::CoinRemoved as u16,
+        "the durable completion preserves C++ source-removal order"
+    );
+    let mut notify = WorldPacket::from_bytes(&send_rx.try_recv().unwrap());
+    assert_eq!(
+        notify.read_uint16().unwrap(),
+        wow_constants::ServerOpcodes::LootMoneyNotify as u16
+    );
+    assert_eq!(notify.read_uint64().unwrap(), 7);
+    assert_eq!(notify.read_uint64().unwrap(), 6);
+
+    session
+        .apply_pending_durable_item_loot_completions_like_cpp()
+        .await;
     assert!(
-        drain_server_opcodes_like_cpp(&send_rx)
-            .contains(&(wow_constants::ServerOpcodes::LootMoneyNotify as u16))
+        drain_server_opcodes_like_cpp(&send_rx).is_empty(),
+        "durable balance and aura publication are each applied once"
     );
 }
 #[tokio::test]
@@ -292,7 +321,12 @@ async fn stored_item_money_delete_cas_allows_exactly_one_durable_grant_like_cpp(
                         player_guid,
                         item_owner_auto_release: false,
                         durable_item_money_applied_amount: Some(7),
-                        durable_item_money_notified_amount: Some(7),
+                        durable_item_money_notified_amount: Some(
+                            DurableItemLootMoneyNotificationLikeCpp {
+                                amount: 7,
+                                money_mod: 0,
+                            },
+                        ),
                         durable_item_money_balance_applied: Some(Arc::new(AtomicBool::new(false))),
                         item_fanout: None,
                         runtime_inventory_applied: Arc::new(AtomicBool::new(false)),
@@ -364,7 +398,12 @@ async fn cancelled_zero_stored_item_money_notifies_once_and_normal_completion_do
                         player_guid,
                         item_owner_auto_release: false,
                         durable_item_money_applied_amount: Some(0),
-                        durable_item_money_notified_amount: Some(0),
+                        durable_item_money_notified_amount: Some(
+                            DurableItemLootMoneyNotificationLikeCpp {
+                                amount: 0,
+                                money_mod: 0,
+                            },
+                        ),
                         durable_item_money_balance_applied: Some(Arc::new(AtomicBool::new(false))),
                         item_fanout: None,
                         runtime_inventory_applied: Arc::new(AtomicBool::new(false)),

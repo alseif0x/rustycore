@@ -36,8 +36,9 @@ use wow_world_lifecycle::loot_delivery_contracts::{
 };
 use wow_world_lifecycle::loot_money_persistence::LootMoneyPersistenceWorkerHandleLikeCpp;
 use wow_world_lifecycle::{
-    DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp,
-    LootMoneyPersistenceErrorLikeCpp, SessionLifecycleState,
+    DurableItemLootCompletionLikeCpp, DurableItemLootMoneyNotificationLikeCpp,
+    DurableItemLootPersistenceGuardLikeCpp, LootMoneyPersistenceErrorLikeCpp,
+    SessionLifecycleState,
 };
 use wow_world_loot::LootState;
 use wow_world_quest::{
@@ -216,7 +217,15 @@ pub trait LootSessionHostLikeCpp: WorldEntitiesHostLikeCpp {
         &self,
         item_guid: ObjectGuid,
         cached_notified_amount: u64,
-    ) -> impl Future<Output = Option<(Arc<AtomicBool>, Arc<AtomicBool>, u64, u64)>> + Send;
+        money_bonus_percent: i32,
+    ) -> impl Future<
+        Output = Option<(
+            Arc<AtomicBool>,
+            Arc<AtomicBool>,
+            u64,
+            DurableItemLootMoneyNotificationLikeCpp,
+        )>,
+    > + Send;
     fn mutate_and_persist_player_gold_exclusive_like_cpp<F>(
         &mut self,
         mutation: F,

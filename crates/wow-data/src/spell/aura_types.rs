@@ -239,6 +239,7 @@ pub const SPELL_AURA_MOD_AUTOATTACK_DAMAGE: i32 = 344;
 /// shrinks the victim's armour for the caster's own attacks by
 /// `CalculatePct(armor, 100 - min(sum, 100))`.
 pub const SPELL_AURA_BYPASS_ARMOR_FOR_CASTER: i32 = 345;
+pub const SPELL_AURA_MOD_MONEY_GAIN: i32 = 348;
 pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
 pub const SPELL_AURA_MOD_MANA_REGEN_PCT: i32 = 379;
 pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;

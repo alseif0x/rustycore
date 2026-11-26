@@ -514,7 +514,7 @@ pub use group::{
     RepresentedGroupStartupGroupRowLikeCpp, RepresentedGroupStartupLoadOutcomeLikeCpp,
     RepresentedGroupStartupLoadPortLikeCpp, RepresentedGroupStartupLoadStageLikeCpp,
     RepresentedGroupStartupMemberRowLikeCpp, WorldLootMoneyBinding, WorldLootMoneySource,
-    classify_group_loot_money_reconciliation_like_cpp,
+    classify_group_loot_money_reconciliation_like_cpp, loot_money_bonus,
 };
 
 #[cfg(test)]

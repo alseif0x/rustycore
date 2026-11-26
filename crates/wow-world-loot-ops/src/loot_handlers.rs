@@ -415,7 +415,16 @@ pub trait LootHandlerHostLikeCpp<C> {
         &'a self,
         item_guid: ObjectGuid,
         cached_notified_amount: u64,
-    ) -> impl Future<Output = Option<(Arc<AtomicBool>, Arc<AtomicBool>, u64, u64)>> + Send + 'a
+        money_bonus_percent: i32,
+    ) -> impl Future<
+        Output = Option<(
+            Arc<AtomicBool>,
+            Arc<AtomicBool>,
+            u64,
+            wow_world_lifecycle::DurableItemLootMoneyNotificationLikeCpp,
+        )>,
+    > + Send
+    + 'a
     where
         Self: Sync + Sized + 'a,
         C: Sync + 'a,
@@ -438,6 +447,7 @@ pub trait LootHandlerHostLikeCpp<C> {
             command_tx,
             item_guid,
             cached_notified_amount,
+            money_bonus_percent,
         )
     }
 
@@ -462,9 +472,8 @@ pub trait LootHandlerHostLikeCpp<C> {
     fn loot_money_apply_durable_payout_like_cpp<'a>(
         &'a mut self,
         item_guid_generator: &'a wow_core::ObjectGuidGenerator,
-        notified_amount: u64,
+        notify: wow_packet::packets::loot::LootMoneyNotify,
         durable_applied_amount: u64,
-        sole_looter: bool,
         apply_money: bool,
         publish: bool,
     ) -> impl Future<Output = ApplyLootMoneyResultLikeCpp> + Send + 'a;
