@@ -21,7 +21,7 @@ use wow_handler::{
 };
 use wow_packet::packets::combat::{SAttackStop, SetSheathed};
 use wow_packet::{ClientPacket, WorldPacket};
-use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
+use wow_world_core::session::HubMut;
 
 /// Borrowed inputs of one combat handler invocation.
 pub struct CombatHandlerCxLikeCpp<'a> {
@@ -31,10 +31,6 @@ pub struct CombatHandlerCxLikeCpp<'a> {
 impl<'a> CombatHandlerCxLikeCpp<'a> {
     pub fn new(hub: HubMut<'a>) -> Self {
         Self { hub }
-    }
-
-    fn publication_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {
-        self.hub.shared().core.packet_publication_access_like_cpp()
     }
 
     /// CMSG_ATTACK_STOP — client stops attacking.
@@ -49,11 +45,15 @@ impl<'a> CombatHandlerCxLikeCpp<'a> {
         );
 
         if let Some(target) = self.hub.stop_player_attack_like_cpp() {
-            self.publication_like_cpp().send_packet(&SAttackStop {
-                attacker: player_guid,
-                victim: target,
-                now_dead: false,
-            });
+            crate::melee_publication::publish_attack_state(
+                self.hub.shared(),
+                player_guid,
+                &SAttackStop {
+                    attacker: player_guid,
+                    victim: target,
+                    now_dead: false,
+                },
+            );
         }
     }
 

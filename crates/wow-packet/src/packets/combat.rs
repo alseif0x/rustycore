@@ -232,6 +232,27 @@ impl ServerPacket for AttackerStateUpdate {
     const OPCODE: ServerOpcodes = ServerOpcodes::AttackerStateUpdate;
 
     fn write(&self, pkt: &mut WorldPacket) {
+        self.write_with_log_data(pkt, None);
+    }
+}
+
+impl AttackerStateUpdate {
+    /// Serialize the advanced combat-log variant with the source unit snapshot.
+    ///
+    /// C++ `AttackerStateUpdate::Write` writes both a basic packet with a clear
+    /// log-data bit and a full packet with `SpellCastLogData` before the
+    /// attack-round payload (`CombatLogPackets.cpp:346-407`).
+    pub fn to_full_log_bytes_like_cpp(&self, log_data: &super::spell::SpellCastLogData) -> Vec<u8> {
+        let mut pkt = WorldPacket::new_server(Self::OPCODE);
+        self.write_with_log_data(&mut pkt, Some(log_data));
+        pkt.into_data()
+    }
+
+    fn write_with_log_data(
+        &self,
+        pkt: &mut WorldPacket,
+        log_data: Option<&super::spell::SpellCastLogData>,
+    ) {
         // C++ builds attackRoundInfo in a separate ByteBuffer.
         let mut info = WorldPacket::new_empty();
         info.write_uint32(self.hit_info);
@@ -280,9 +301,15 @@ impl ServerPacket for AttackerStateUpdate {
         info.write_int32(0i32); // player_content_tuning_id
         info.write_int32(0i32); // target_content_tuning_id
 
-        // CombatLogServerPacket::WriteLogDataBit(false), FlushBits(), then attackRoundInfo.
-        pkt.write_bit(false);
+        // C++ `CombatLogServerPacket::WriteLogDataBit` puts a clear bit in the
+        // basic packet and a set bit in the full-log packet, then writes the
+        // SpellCastLogData only to the latter before attackRoundInfo.
+        let full_log = log_data.is_some();
+        pkt.write_bit(full_log);
         pkt.flush_bits();
+        if let Some(log_data) = log_data {
+            log_data.write(pkt);
+        }
         let data = info.data().to_vec();
         pkt.write_uint32(data.len() as u32);
         pkt.write_bytes(&data);
@@ -958,6 +985,97 @@ mod tests {
         assert_eq!(info.read_float().expect("unk"), 0.0);
         assert_eq!(info.read_uint8().expect("content tuning type"), 0);
         assert_eq!(info.read_uint8().expect("target level"), 0);
+    }
+
+    #[test]
+    fn attacker_state_update_full_log_writes_source_snapshot_before_attack_round_like_cpp() {
+        use crate::packets::spell::{SpellCastLogData, SpellLogPowerData};
+
+        let attacker = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            125,
+            0x1236,
+        );
+        let victim = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            126,
+            0x1237,
+        );
+        let update = AttackerStateUpdate {
+            attacker,
+            victim,
+            hit_info: HIT_INFO_AFFECTS_VICTIM,
+            damage: 70,
+            original_damage: 100,
+            over_damage: -1,
+            blocked: 0,
+            absorbed: 0,
+            victim_state: VICTIM_STATE_HIT,
+            school_mask: 1,
+        };
+        let log_data = SpellCastLogData {
+            health: 7_654,
+            attack_power: 321,
+            spell_power: -12,
+            armor: 987,
+            power_data: vec![
+                SpellLogPowerData {
+                    power_type: 0,
+                    amount: 456,
+                    cost: 0,
+                },
+                SpellLogPowerData {
+                    power_type: 3,
+                    amount: 78,
+                    cost: 9,
+                },
+            ],
+        };
+
+        let basic_bytes = update.to_bytes();
+        let mut basic = WorldPacket::from_bytes(&basic_bytes);
+        assert_eq!(
+            basic.read_uint16().expect("opcode"),
+            ServerOpcodes::AttackerStateUpdate as u16
+        );
+        assert!(!basic.read_bit().expect("basic log-data bit"));
+        let basic_round_size = basic.read_uint32().expect("basic round size") as usize;
+        let basic_round = basic
+            .read_bytes(basic_round_size)
+            .expect("basic attackRoundInfo");
+        assert!(basic.is_empty());
+
+        let full_bytes = update.to_full_log_bytes_like_cpp(&log_data);
+        let mut full = WorldPacket::from_bytes(&full_bytes);
+        assert_eq!(
+            full.read_uint16().expect("opcode"),
+            ServerOpcodes::AttackerStateUpdate as u16
+        );
+        assert!(full.read_bit().expect("full log-data bit"));
+        assert_eq!(full.read_int64().expect("log health"), 7_654);
+        assert_eq!(full.read_int32().expect("log attack power"), 321);
+        assert_eq!(full.read_int32().expect("log spell power"), -12);
+        assert_eq!(full.read_int32().expect("log armor"), 987);
+        assert_eq!(full.read_bits(9).expect("power row count"), 2);
+        for expected in [(0, 456, 0), (3, 78, 9)] {
+            assert_eq!(full.read_int32().expect("power type"), expected.0);
+            assert_eq!(full.read_int32().expect("power amount"), expected.1);
+            assert_eq!(full.read_int32().expect("power cost"), expected.2);
+        }
+        let full_round_size = full.read_uint32().expect("full round size") as usize;
+        let full_round = full
+            .read_bytes(full_round_size)
+            .expect("full attackRoundInfo");
+        assert!(full.is_empty());
+        assert_eq!(full_round, basic_round, "full log keeps basic swing bytes");
     }
 
     #[test]

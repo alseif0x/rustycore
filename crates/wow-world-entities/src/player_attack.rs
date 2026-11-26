@@ -77,7 +77,9 @@ pub fn handle_apply_player_melee_result_like_cpp_command_like_cpp<H: WorldEntiti
     // constants and field order are what make the bytes identical.
     if let Some(victim_guid) = command.victim_guid {
         for swing in &command.swings {
-            host.send_raw_packet(
+            crate::melee_publication::publish_hit(
+                host.hub_ref(),
+                (command.map_id, command.instance_id),
                 &AttackerStateUpdate {
                     attacker: command.attacker_guid,
                     victim: victim_guid,
@@ -89,8 +91,7 @@ pub fn handle_apply_player_melee_result_like_cpp_command_like_cpp<H: WorldEntiti
                     absorbed: 0,
                     victim_state: swing.victim_state,
                     school_mask: 1,
-                }
-                .to_bytes(),
+                },
             );
         }
     }
@@ -155,13 +156,14 @@ pub fn handle_apply_player_melee_result_like_cpp_command_like_cpp<H: WorldEntiti
                 .to_bytes(),
             );
         }
-        host.send_raw_packet(
+        crate::melee_publication::publish_attack_state(
+            host.hub_ref(),
+            command.attacker_guid,
             &SAttackStop {
                 attacker: command.attacker_guid,
                 victim: kill.creature_guid,
                 now_dead: true,
-            }
-            .to_bytes(),
+            },
         );
     }
 
@@ -250,7 +252,7 @@ pub async fn handle_attack_swing<H: WorldEntitiesHostLikeCpp>(
             attacker: player_guid,
             victim: swing.victim,
         };
-        host.send_packet(&start);
+        crate::melee_publication::publish_attack_state(host.hub_ref(), player_guid, &start);
     }
 }
 
