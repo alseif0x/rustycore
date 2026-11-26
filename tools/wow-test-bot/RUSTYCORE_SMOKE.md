@@ -57,6 +57,47 @@ workload and its observations. Review growth, queue deltas, native captures
 and the outer restoration report independently. Creature relocation, loot
 recovery and the other Part 1 paths retain their own acceptance.
 
+### Four-client Northshire movement and relog stability
+
+Prepare a private bot config enabling QA characters GUID 15, 16, 17 and 18, each
+on a distinct account and initially on map 0. Keep bot credentials in the existing
+private config/environment. Start the already installed candidate
+world server and provide its PID, `/proc` start-time ticks, and executable SHA-256
+through `RUSTYCORE_CAPTURE_PID`, `RUSTYCORE_CAPTURE_STARTTIME` and
+`RUSTYCORE_CAPTURE_CANDIDATE_SHA256`. At startup the runner hashes
+`/proc/<pid>/exe` against this pin and rechecks the PID/start time. The capture
+directory must be a fresh absolute mode-0700 directory. With those values and the
+private config/bot paths set, run:
+
+```bash
+RUSTYCORE_CAPTURE_DIR=/absolute/private/capture \
+RUSTYCORE_CAPTURE_PID="$WORLD_PID" \
+RUSTYCORE_CAPTURE_STARTTIME="$WORLD_STARTTIME" \
+RUSTYCORE_CAPTURE_CANDIDATE_SHA256="$WORLD_SERVER_SHA256" \
+RUSTYCORE_FOUR_CLIENT_CONFIG=/absolute/private/four-client-bots.json \
+WOW_BOT_EXEC=/absolute/path/to/wow-test-bot \
+python3 tools/qa/four_client_stability.py \
+  --duration-seconds 7200 --wave-seconds 300 --capture-limit-mib 128
+```
+
+The runner defaults to a two-hour minimum and 300-second waves (240–600 seconds
+are accepted). It launches all four build-54261 clients in parallel per wave;
+each moves through two Northshire positions, requests RaidInfo, and completes a
+normal logout. Later waves verify each `SMSG_LOGIN_VERIFY_WORLD` position against
+that character's prior logout position. Native frames verify movement delivery
+from every actor to each of the other three clients (12 directed peer streams).
+The private report includes process memory samples and command-queue deltas. Queue
+sampling uses the systemd journal by default; optionally set
+`RUSTYCORE_CAPTURE_SERVER_LOG` to the captured process's private stdout file, which
+the runner opens read-only and verifies against that process's fd 1. If the capture
+already contains earlier phases, pass `--first-sequence` at the first sequence
+owned by this run. Keep packet captures and reports private.
+
+`--preflight` runs only one 60-second startup wave and is diagnostic, not acceptance.
+This workload stays on map 0 and does not exercise cross-map transfer. The separate
+`instance-stability-soak` above supplies the Hearthstone leave-map-33 and reconnect
+scenario; report that evidence separately.
+
 ## Death lifecycle acceptance (#43, preparation)
 
 As of 2026-10-28, the login smoke does **not** exercise death/release/reclaim or

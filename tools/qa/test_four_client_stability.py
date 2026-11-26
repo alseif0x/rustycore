@@ -161,6 +161,7 @@ class FourClientStabilityTests(unittest.TestCase):
                 patch.object(stability.instance_soak, "memory_samples",
                              return_value=nullcontext(lambda: None)),
                 patch.object(stability.instance_soak, "queue_sample", side_effect=queue_sample),
+                patch.object(stability, "_verify_running_process_sha256") as verify_candidate,
                 patch.object(stability, "run_wave", side_effect=fake_wave),
                 patch.object(stability.verify_four_client_movement,
                              "verify_relogin_positions", side_effect=lambda _capture, _first,
@@ -171,6 +172,7 @@ class FourClientStabilityTests(unittest.TestCase):
                 report = stability.run(cli, env)
 
             self.assertEqual(len(report["workload"]), 2)
+            verify_candidate.assert_called_once_with(123, 456, "a" * 64)
             self.assertEqual(verify_relogin.call_count, 1)
             verify_relogin.assert_called_once_with(
                 capture, 200, 250, previous_positions,
@@ -180,6 +182,17 @@ class FourClientStabilityTests(unittest.TestCase):
     def test_raid_info_count_rejects_truncated_rows(self):
         with self.assertRaisesRegex(stability.ScenarioFailure, "count does not match"):
             stability._raid_info_count("0100000000")
+
+    def test_candidate_pin_must_match_running_process_executable(self):
+        with (
+            patch.object(stability.instance_soak, "read_memory", return_value={}) as read_memory,
+            patch.object(stability, "_sha256", return_value="b" * 64) as sha256,
+        ):
+            with self.assertRaisesRegex(stability.ScenarioFailure, "does not match the candidate"):
+                stability._verify_running_process_sha256(123, 456, "a" * 64)
+
+        sha256.assert_called_once_with(Path("/proc/123/exe"))
+        self.assertEqual(read_memory.call_count, 2)
 
     def test_capture_pruner_keeps_movement_and_relogin_streams(self):
         with tempfile.TemporaryDirectory() as root:

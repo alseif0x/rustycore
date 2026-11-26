@@ -75,6 +75,17 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _verify_running_process_sha256(pid: int, starttime: int, expected_sha256: str) -> None:
+    instance_soak.read_memory(pid, starttime)
+    try:
+        actual_sha256 = _sha256(Path(f"/proc/{pid}/exe"))
+    except OSError:
+        _fail("cannot hash the captured world process executable")
+    instance_soak.read_memory(pid, starttime)
+    if actual_sha256.lower() != expected_sha256.lower():
+        _fail("captured world process executable does not match the candidate SHA-256 pin")
+
+
 def _write_private(path: Path, value: Any, *, exclusive: bool = True) -> None:
     flags = os.O_WRONLY | os.O_CREAT | (os.O_EXCL if exclusive else os.O_TRUNC)
     descriptor = os.open(path, flags, 0o600)
@@ -673,6 +684,7 @@ def run(cli: argparse.Namespace, env: dict[str, str] | None = None) -> dict[str,
     if not re.fullmatch(r"[0-9a-fA-F]{64}", candidate_sha):
         _fail("runtime capture candidate SHA-256 is missing or invalid")
     pid, starttime = _process_identity_from_env(env)
+    _verify_running_process_sha256(pid, starttime, candidate_sha)
 
     if cli.capture_limit_mib <= 0 or cli.wave_seconds < 240 or cli.wave_seconds > 600:
         _fail("capture limit must be positive and wave duration must be 240..600 seconds")
