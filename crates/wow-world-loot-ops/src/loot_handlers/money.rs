@@ -276,6 +276,7 @@ pub(super) async fn handle_apply_loot_money_with_generator_like_cpp_command<H, C
                 sole_looter: command.sole_looter,
             },
             durable_applied_amount,
+            command.criteria.as_ref().and_then(|cell| cell.get()),
             apply_money,
             publish,
         )

@@ -319,6 +319,14 @@ impl GroupLootMoneyPersistencePortLikeCpp for GroupLootMoneyPortFixtureLikeCpp {
                     .payouts
                     .into_iter()
                     .map(|payout| GroupLootMoneyPersistenceOutcomeLikeCpp {
+                        criteria: (payout.base_looted_amount != 0).then(|| {
+                            wow_persistence::LootMoneyCriteriaProgress {
+                                counter: payout.base_looted_amount,
+                                date: 1_800_000_000,
+                                new_achievements: Vec::new(),
+                                achievement_date: None,
+                            }
+                        }),
                         recipient_guid: payout.recipient_guid,
                         before: 0,
                         after: payout.requested_delta,

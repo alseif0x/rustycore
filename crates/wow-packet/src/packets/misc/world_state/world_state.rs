@@ -185,18 +185,6 @@ impl ServerPacket for AllAccountCriteria {
 
 // ── AllAchievementData (SMSG 0x2570) ─────────────────────────────────
 
-/// Account-wide achievements. Empty for fresh accounts.
-pub struct AllAchievementData;
-
-impl ServerPacket for AllAchievementData {
-    const OPCODE: ServerOpcodes = ServerOpcodes::AllAchievementData;
-
-    fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // Earned.Count
-        pkt.write_int32(0); // Progress.Count
-    }
-}
-
 // ── DbQueryBulk (CMSG 0x35e5) ─────────────────────────────────────
 
 /// Sent after SuspendTokenResponse, before the client's WorldPortResponse.

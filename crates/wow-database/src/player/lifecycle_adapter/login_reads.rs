@@ -7,7 +7,7 @@ use crate::field_like_cpp::{FieldNumberLikeCpp, FieldRowLikeCpp, NativeFieldLike
 use crate::params::PreparedStatement;
 use crate::statements::CharStatements;
 use wow_persistence::{
-    PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterBaseLoadRowLikeCpp,
+    LOOT_MONEY_CRITERION, PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterBaseLoadRowLikeCpp,
     PlayerInventoryItemLoadPayload, PlayerInventoryItemLoadRowLikeCpp,
     PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
 };
@@ -389,10 +389,12 @@ pub(super) fn player_login_auxiliary_load_statement_like_cpp(
             statement.set_u64(0, player_guid);
             statement
         }
-        PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { player_guid } => {
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::AchievementData { player_guid } => {
             let mut statement =
-                PreparedStatement::new(CharStatements::SEL_CHARACTER_ACHIEVEMENTS.sql());
+                PreparedStatement::new(CharStatements::SEL_CHARACTER_ACHIEVEMENT_DATA.sql());
             statement.set_u64(0, player_guid);
+            statement.set_u64(1, player_guid);
+            statement.set_u32(2, LOOT_MONEY_CRITERION);
             statement
         }
         PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id } => {

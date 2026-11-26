@@ -7,6 +7,7 @@
 
 use super::*;
 
+mod achievement;
 mod battle_pet_journal;
 mod battle_pet_ops;
 mod difficulty;
@@ -14,6 +15,7 @@ mod game_object;
 mod lfg;
 mod world_state;
 
+pub use achievement::*;
 pub use battle_pet_journal::*;
 pub use battle_pet_ops::*;
 pub use difficulty::*;

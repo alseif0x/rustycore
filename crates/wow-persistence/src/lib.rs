@@ -23,6 +23,7 @@ mod character_administration;
 mod hotfix;
 mod hotfix_delivery_metadata;
 mod instance_lock;
+mod loot_money_criteria;
 mod player;
 mod player_trade;
 mod quest;
@@ -200,6 +201,9 @@ pub use instance_lock::{
     InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistenceOutcomeLikeCpp,
     InstanceLockPersistencePlanLikeCpp, InstanceLockPersistencePortLikeCpp,
     SharedInstanceLockPersistenceRowLikeCpp,
+};
+pub use loot_money_criteria::{
+    LOOT_MONEY_ACHIEVEMENTS, LOOT_MONEY_CRITERION, LootMoneyCriteriaProgress,
 };
 pub use player::{
     InventoryDestroyNodePersistenceLikeCpp, InventoryEquipPersistenceLikeCpp,
@@ -417,11 +421,13 @@ pub use session_account::{
 };
 
 pub use player::{
+    PlayerAchievementCompletionLoadRowLikeCpp, PlayerAchievementDataLoadLikeCpp,
     PlayerActionButtonLoadRowLikeCpp, PlayerBagInventoryLoadRowLikeCpp,
     PlayerBattlegroundLocationLoadRowLikeCpp, PlayerBuybackClearRequestLikeCpp,
     PlayerCharacterAuraEffectLoadRowLikeCpp, PlayerCharacterAuraLoadRowLikeCpp,
     PlayerCharacterBaseLoadOutcomeLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
-    PlayerCharacterBaseLoadRowLikeCpp, PlayerCorpseLocationLoadRow, PlayerCufProfileLoadRowLikeCpp,
+    PlayerCharacterBaseLoadRowLikeCpp, PlayerCorpseLocationLoadRow,
+    PlayerCriteriaProgressLoadRowLikeCpp, PlayerCufProfileLoadRowLikeCpp,
     PlayerCurrencyLoadRowLikeCpp, PlayerCustomizationLoadRowLikeCpp,
     PlayerEquipmentInventoryLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
     PlayerGlyphLoadRowLikeCpp, PlayerGuildMembershipLoadRowLikeCpp,

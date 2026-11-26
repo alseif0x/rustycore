@@ -42,6 +42,7 @@ async fn save_first_durable_money_completion_preserves_and_drains_money_event() 
         .session_command_tx()
         .try_send(SessionCommand::ApplyLootMoneyLikeCpp(
             ApplyLootMoneyLikeCppCommand {
+                criteria: None,
                 recipient: player_guid,
                 loot_owner: ObjectGuid::EMPTY,
                 loot_obj: ObjectGuid::EMPTY,

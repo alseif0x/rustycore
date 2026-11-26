@@ -2,9 +2,7 @@
 use std::sync::Arc;
 
 #[cfg(any(test, feature = "test-fixtures"))]
-use crate::session_policy::{
-    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
-};
+use crate::session_policy::{ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{EmotesStore, EmotesTextStore};
 
@@ -56,11 +54,6 @@ impl crate::session::state::SessionWorldConfig {
         requirements: ChatLevelRequirementsLikeCpp,
     ) {
         self.chat_level_requirements_like_cpp = requirements;
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
-        self.chat_listen_ranges_like_cpp = ranges;
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

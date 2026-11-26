@@ -64,12 +64,9 @@ pub type LootMoneyPersistenceWorkerHandleLikeCpp =
 /// only runtime publication: durable player money reloads from SQL and the
 /// already-committed authority prevents a second in-process payout.
 ///
-/// Moved verbatim from `crates/wow-world/src/session/money/operations.rs`
-/// under #1263 F4: admission, the sorted/deduplicated payouts, the
-/// per-recipient persistence guards and mutation locks, the SQL attempt with
-/// its rollback/unknown-COMMIT reconciliation, the authority commit and the
-/// delivery scheduling keep their original order, refusal semantics and
-/// durability fences.
+/// Each recipient's eligible base share is frozen at admission. The claim
+/// transaction returns absolute criterion and award data, which is attached
+/// to that recipient's delivery only after the payout is known to have committed.
 pub fn spawn_group_loot_money_persistence_like_cpp(
     lifecycle: &SessionLifecycleState,
     player_present: bool,
@@ -105,6 +102,7 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
         ObjectGuid,
         Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     >::with_capacity(payouts.len());
+    let mut criteria_shares = HashMap::new();
     for (_, command) in &deliveries {
         let SessionCommand::ApplyLootMoneyLikeCpp(command) = command else {
             continue;
@@ -117,6 +115,9 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
                 .begin_like_cpp()
                 .map_err(|_| LootMoneyPersistenceErrorLikeCpp::MissingPlayer)?;
             money_persistence_guards.insert(command.recipient, guard);
+            if command.criteria.is_some() {
+                criteria_shares.insert(command.recipient, command.amount);
+            }
             money_mutation_trackers.insert(
                 command.recipient,
                 Arc::clone(&command.durable_persistence_tracker),
@@ -179,6 +180,7 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
                             before: 0,
                             after: *amount,
                             applied_delta: *amount,
+                            criteria: None,
                         },
                     )
                 })
@@ -194,6 +196,10 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
                         |(recipient, amount)| wow_persistence::GroupLootMoneyPayoutLikeCpp {
                             recipient_guid: recipient.counter() as u64,
                             requested_delta: *amount,
+                            base_looted_amount: criteria_shares
+                                .get(recipient)
+                                .copied()
+                                .unwrap_or(0),
                         },
                     )
                     .collect(),
@@ -291,8 +297,10 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
             if let SessionCommand::ApplyLootMoneyLikeCpp(command) = command {
                 let outcome = durable_outcomes
                     .get(&(command.recipient.counter() as u64))
-                    .copied()
                     .expect("every admitted payout retains its locked DB outcome");
+                if let (Some(cell), Some(progress)) = (&command.criteria, &outcome.criteria) {
+                    let _ = cell.set(progress.clone());
+                }
                 command
                     .durable_applied_amount
                     .store(outcome.applied_delta, Ordering::Release);
@@ -412,6 +420,7 @@ pub async fn persist_and_consume_stored_item_money_like_cpp(
     item_guid: ObjectGuid,
     cached_notified_amount: u64,
     money_bonus_percent: i32,
+    criteria_eligible: bool,
 ) -> Option<(
     Arc<AtomicBool>,
     Arc<AtomicBool>,
@@ -427,6 +436,7 @@ pub async fn persist_and_consume_stored_item_money_like_cpp(
             item_guid,
             cached_notified_amount,
             money_bonus_percent,
+            criteria_eligible,
         )?;
     match worker.await {
         Ok(Ok((applied_delta, notification))) => Some((
@@ -462,6 +472,7 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
     item_guid: ObjectGuid,
     cached_notified_amount: u64,
     money_bonus_percent: i32,
+    criteria_eligible: bool,
 ) -> Option<(
     tokio::task::JoinHandle<
         Result<(u64, DurableItemLootMoneyNotificationLikeCpp), LootMoneyPersistenceErrorLikeCpp>,
@@ -518,6 +529,7 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
                 applied_delta,
                 DurableItemLootMoneyNotificationLikeCpp {
                     amount: cached_notified_amount,
+                    criteria: None,
                     money_mod,
                 },
             )
@@ -525,6 +537,7 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
             let persistence_port =
                 persistence_port.expect("production stored-money worker has a persistence port");
             let request = wow_persistence::StoredItemMoneyPersistenceRequestLikeCpp {
+                criteria_eligible,
                 player_guid: player_guid.counter() as u64,
                 item_guid: item_guid.counter() as u64,
                 cached_notified_amount,
@@ -557,7 +570,7 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
                     reason,
                     outcome,
                 } => match persistence_port
-                    .reconcile_stored_item_money_like_cpp(request, outcome)
+                    .reconcile_stored_item_money_like_cpp(request, outcome.clone())
                     .await
                 {
                     wow_persistence::StoredItemMoneyReconciliationLikeCpp::Committed => outcome,
@@ -591,6 +604,7 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
                 outcome.applied_delta,
                 DurableItemLootMoneyNotificationLikeCpp {
                     amount: outcome.notified_amount,
+                    criteria: outcome.criteria,
                     money_mod: outcome.money_mod,
                 },
             )
@@ -610,7 +624,7 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
             player_guid,
             item_owner_auto_release: false,
             durable_item_money_applied_amount: Some(applied_delta),
-            durable_item_money_notified_amount: Some(notification),
+            durable_item_money_notified_amount: Some(notification.clone()),
             durable_item_money_balance_applied: Some(Arc::clone(&worker_balance_applied)),
             item_fanout: None,
             runtime_inventory_applied: Arc::clone(&worker_publication_applied),

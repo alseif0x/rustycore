@@ -164,7 +164,7 @@ impl WorldSession {
     }
     pub(crate) async fn load_completed_achievements_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.load_completed_achievements_like_cpp(&mut hub).await
+        let _ = state.load_completed_achievements_like_cpp(&mut hub).await;
     }
     pub(crate) fn load_represented_account_item_appearances_like_cpp(
         &mut self,

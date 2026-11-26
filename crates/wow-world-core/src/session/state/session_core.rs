@@ -205,6 +205,8 @@ impl SessionCore {
                 recent_player_guid_low_like_cpp: 0,
                 mute_time_like_cpp: 0,
                 instant_logout_permission: None,
+                cannot_earn_achievements: false,
+                timezone_offset_minutes: 0,
             },
             admission: SessionAdmissionState {
                 last_packet_time: Instant::now(),

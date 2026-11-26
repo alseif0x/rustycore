@@ -20,6 +20,8 @@ pub struct PlayerDirectoryIdentityLikeCpp {
     pub class: u8,
     pub sex: u8,
     pub active_expansion: u8,
+    pub cannot_earn_achievements: bool,
+    pub timezone_offset_minutes: i32,
 }
 
 impl PlayerDirectoryIdentityLikeCpp {
@@ -62,6 +64,8 @@ impl PlayerDirectoryIdentityLikeCpp {
             player_name: player_name.into(),
             locale: locale.into(),
             player_handle,
+            cannot_earn_achievements: false,
+            timezone_offset_minutes: 0,
             account_id,
             battlenet_account_id,
             recruiter_id,
@@ -74,5 +78,12 @@ impl PlayerDirectoryIdentityLikeCpp {
 
     pub(crate) fn take_player_handle(&mut self) -> Option<PlayerHandle> {
         self.player_handle.take()
+    }
+}
+
+impl super::PlayerRegistry {
+    pub(crate) fn recipient_timezone(&self, target: super::PlayerRegistration) -> Option<i32> {
+        let entry = self.entries.get(&target.guid)?;
+        (entry.generation == target.generation).then_some(entry.identity.timezone_offset_minutes)
     }
 }

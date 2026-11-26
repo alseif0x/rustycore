@@ -335,6 +335,9 @@ pub async fn apply_pending_durable_item_loot_completions_with_objective_drain_li
                 let notification = completion
                     .durable_item_money_notified_amount
                     .expect("durable Item money completion retains notification fields");
+                if let Some(progress) = &notification.criteria {
+                    host.hub_ref().apply_loot_money_criteria(progress);
+                }
                 host.send_packet(&LootMoneyNotify {
                     money: notification.amount,
                     money_mod: notification.money_mod,

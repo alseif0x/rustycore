@@ -809,10 +809,15 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
         })
         .collect();
 
-    {
+    let achievements_loaded = {
         let (state, mut hub) = host.split_lifecycle_mut();
         state.load_completed_achievements_like_cpp(&mut hub).await
     };
+    if !achievements_loaded {
+        host.core_mut()
+            .kick("WorldSession::HandlePlayerLogin achievement hydration failed");
+        return;
+    }
     host.load_instance_time_restrictions_like_cpp().await;
     {
         let (state, mut hub) = host.split_lifecycle_mut();

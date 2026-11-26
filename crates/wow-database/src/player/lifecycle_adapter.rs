@@ -20,14 +20,16 @@ use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
-    AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerActionButtonLoadRowLikeCpp, PlayerBagInventoryLoadRowLikeCpp,
-    PlayerBankSlotPurchaseRequestLikeCpp, PlayerBattlegroundLocationLoadRowLikeCpp,
-    PlayerBuybackClearRequestLikeCpp, PlayerCharacterAuraEffectLoadRowLikeCpp,
-    PlayerCharacterAuraLoadRowLikeCpp, PlayerCharacterBaseLoadOutcomeLikeCpp,
-    PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerCorpseLocationLoadRow, PlayerCufProfileLoadRowLikeCpp,
-    PlayerCurrencyLoadRowLikeCpp, PlayerCurrencySaveRequestLikeCpp,
+    AccountToyLoadRowLikeCpp, LOOT_MONEY_CRITERION, PersistenceFutureLikeCpp,
+    PersistenceOutcomeLikeCpp, PlayerAchievementCompletionLoadRowLikeCpp,
+    PlayerAchievementDataLoadLikeCpp, PlayerActionButtonLoadRowLikeCpp,
+    PlayerBagInventoryLoadRowLikeCpp, PlayerBankSlotPurchaseRequestLikeCpp,
+    PlayerBattlegroundLocationLoadRowLikeCpp, PlayerBuybackClearRequestLikeCpp,
+    PlayerCharacterAuraEffectLoadRowLikeCpp, PlayerCharacterAuraLoadRowLikeCpp,
+    PlayerCharacterBaseLoadOutcomeLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
+    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
+    PlayerCorpseLocationLoadRow, PlayerCriteriaProgressLoadRowLikeCpp,
+    PlayerCufProfileLoadRowLikeCpp, PlayerCurrencyLoadRowLikeCpp, PlayerCurrencySaveRequestLikeCpp,
     PlayerCustomizationLoadRowLikeCpp, PlayerDurabilityRepairSaveLikeCpp,
     PlayerEquipmentInventoryLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
     PlayerGlyphLoadRowLikeCpp, PlayerGuildMembershipLoadRowLikeCpp,
@@ -862,17 +864,72 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::Customizations(rows)
                 }
-                PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { .. } => {
-                    let mut rows = Vec::new();
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::AchievementData { .. } => {
+                    let mut completed_achievements = Vec::new();
+                    let mut loot_money_criteria_progress = None;
                     if !result.is_empty() {
                         loop {
-                            rows.push(result.try_read::<u32>(0).unwrap_or(0));
+                            let Some(kind) = result.try_read::<i32>(0) else {
+                                return PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                                    reason: "achievement-data row kind is malformed".to_owned(),
+                                };
+                            };
+                            let Some(entry_id) = result.try_read::<u32>(1) else {
+                                return PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                                    reason: "achievement-data row id is malformed".to_owned(),
+                                };
+                            };
+                            let Some(counter) = result.try_read::<u64>(2) else {
+                                return PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                                    reason: "achievement-data row counter is malformed".to_owned(),
+                                };
+                            };
+                            let Some(signed_date) = result.try_read::<i64>(3) else {
+                                return PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                                    reason: "achievement-data row date is malformed".to_owned(),
+                                };
+                            };
+                            let Ok(date) = u64::try_from(signed_date) else {
+                                return PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                                    reason: "achievement-data row date is negative".to_owned(),
+                                };
+                            };
+                            match kind {
+                                0 => completed_achievements.push(
+                                    PlayerAchievementCompletionLoadRowLikeCpp {
+                                        achievement_id: entry_id,
+                                        date,
+                                    },
+                                ),
+                                1 if entry_id == LOOT_MONEY_CRITERION
+                                    && loot_money_criteria_progress.is_none() =>
+                                {
+                                    loot_money_criteria_progress =
+                                        Some(PlayerCriteriaProgressLoadRowLikeCpp {
+                                            criteria_id: entry_id,
+                                            counter,
+                                            date,
+                                        });
+                                }
+                                _ => {
+                                    return PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                                        reason:
+                                            "achievement-data row kind or criteria id is invalid"
+                                                .to_owned(),
+                                    };
+                                }
+                            }
                             if !result.next_row() {
                                 break;
                             }
                         }
                     }
-                    PlayerLoginAuxiliaryLoadedLikeCpp::CompletedAchievements(rows)
+                    PlayerLoginAuxiliaryLoadedLikeCpp::AchievementData(
+                        PlayerAchievementDataLoadLikeCpp {
+                            completed_achievements,
+                            loot_money_criteria_progress,
+                        },
+                    )
                 }
                 PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { .. } => {
                     let mut rows = Vec::new();

@@ -29,6 +29,7 @@ pub async fn apply_durable_represented_loot_money_payout_like_cpp<H: LootSession
     item_guid_generator: &wow_core::ObjectGuidGenerator,
     notify: LootMoneyNotify,
     durable_applied_amount: u64,
+    criteria: Option<&wow_persistence::LootMoneyCriteriaProgress>,
     apply_money: bool,
     publish: bool,
 ) -> ApplyLootMoneyResultLikeCpp {
@@ -60,6 +61,9 @@ pub async fn apply_durable_represented_loot_money_payout_like_cpp<H: LootSession
             );
     }
     if publish {
+        if let Some(progress) = criteria {
+            host.hub_ref().apply_loot_money_criteria(progress);
+        }
         host.send_packet(&notify);
     }
     if apply_money || publish {

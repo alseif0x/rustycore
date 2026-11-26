@@ -191,6 +191,9 @@ pub fn loot_money_bonus(base: u64, percent: i32) -> u64 {
 pub struct GroupLootMoneyPayoutLikeCpp {
     pub recipient_guid: u64,
     pub requested_delta: u64,
+    /// Base corpse-loot share before the recipient's aura bonus. Zero means
+    /// the recipient is not eligible for criterion 4093 on this claim.
+    pub base_looted_amount: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,12 +204,13 @@ pub struct GroupLootMoneyPersistenceRequestLikeCpp {
     pub max_money: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupLootMoneyPersistenceOutcomeLikeCpp {
     pub recipient_guid: u64,
     pub before: u64,
     pub after: u64,
     pub applied_delta: u64,
+    pub criteria: Option<crate::LootMoneyCriteriaProgress>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

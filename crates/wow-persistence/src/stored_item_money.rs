@@ -11,6 +11,8 @@ use crate::PersistenceFutureLikeCpp;
 /// error classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StoredItemMoneyPersistenceRequestLikeCpp {
+    /// Whether this claim may advance achievement criterion 4093.
+    pub criteria_eligible: bool,
     pub player_guid: u64,
     pub item_guid: u64,
     pub cached_notified_amount: u64,
@@ -20,7 +22,7 @@ pub struct StoredItemMoneyPersistenceRequestLikeCpp {
 
 pub const STORED_ITEM_MONEY_SOURCE_ROWS_EXPECTED_LIKE_CPP: u64 = 1;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredItemMoneyPersistenceOutcomeLikeCpp {
     pub before: u64,
     pub after: u64,
@@ -30,6 +32,7 @@ pub struct StoredItemMoneyPersistenceOutcomeLikeCpp {
     pub notified_amount: u64,
     /// Aura bonus shown in `LootMoneyNotify.MoneyMod`.
     pub money_mod: u64,
+    pub criteria: Option<crate::LootMoneyCriteriaProgress>,
 }
 
 pub fn stored_item_money_zero_without_source_outcome_like_cpp(
@@ -42,6 +45,7 @@ pub fn stored_item_money_zero_without_source_outcome_like_cpp(
         applied_delta: 0,
         notified_amount: 0,
         money_mod: 0,
+        criteria: None,
     })
 }
 

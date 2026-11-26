@@ -54,10 +54,11 @@ impl std::fmt::Debug for DurableLootItemFanoutLikeCpp {
 }
 
 /// Stored-Item `SMSG_LOOT_MONEY_NOTIFY` fields from the durable transaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DurableItemLootMoneyNotificationLikeCpp {
     pub amount: u64,
     pub money_mod: u64,
+    pub criteria: Option<wow_persistence::LootMoneyCriteriaProgress>,
 }
 
 /// Runtime publication retained by a detached durable-loot worker after its

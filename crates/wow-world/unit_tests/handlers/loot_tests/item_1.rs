@@ -12,6 +12,7 @@ use wow_world_loot_ops::LootHandlerHostLikeCpp;
 #[test]
 fn stored_item_money_commit_unknown_requires_joint_balance_and_source_evidence_like_cpp() {
     let outcome = StoredItemMoneyPersistenceOutcomeLikeCpp {
+        criteria: None,
         before: 100,
         after: 107,
         applied_delta: 7,
@@ -19,26 +20,27 @@ fn stored_item_money_commit_unknown_requires_joint_balance_and_source_evidence_l
         money_mod: 0,
     };
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, Some(7)),
+        classify_stored_item_money_reconciliation_like_cpp(outcome.clone(), 100, Some(7)),
         StoredItemMoneyReconciliationLikeCpp::RolledBack
     );
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 107, None),
+        classify_stored_item_money_reconciliation_like_cpp(outcome.clone(), 107, None),
         StoredItemMoneyReconciliationLikeCpp::Committed
     );
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, None),
+        classify_stored_item_money_reconciliation_like_cpp(outcome.clone(), 100, None),
         StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None },
         "a missing source alone cannot attribute a later consumer's commit to this attempt"
     );
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 107, Some(7)),
+        classify_stored_item_money_reconciliation_like_cpp(outcome.clone(), 107, Some(7)),
         StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None }
     );
 }
 #[test]
 fn stored_item_money_cap_noop_still_reconciles_source_consumption_like_cpp() {
     let outcome = StoredItemMoneyPersistenceOutcomeLikeCpp {
+        criteria: None,
         before: MAX_MONEY_AMOUNT - 1,
         after: MAX_MONEY_AMOUNT - 1,
         applied_delta: 0,
@@ -46,11 +48,19 @@ fn stored_item_money_cap_noop_still_reconciles_source_consumption_like_cpp() {
         money_mod: 1,
     };
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, MAX_MONEY_AMOUNT - 1, None,),
+        classify_stored_item_money_reconciliation_like_cpp(
+            outcome.clone(),
+            MAX_MONEY_AMOUNT - 1,
+            None,
+        ),
         StoredItemMoneyReconciliationLikeCpp::Committed
     );
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, MAX_MONEY_AMOUNT - 1, Some(2),),
+        classify_stored_item_money_reconciliation_like_cpp(
+            outcome.clone(),
+            MAX_MONEY_AMOUNT - 1,
+            Some(2),
+        ),
         StoredItemMoneyReconciliationLikeCpp::RolledBack
     );
 }
@@ -84,6 +94,7 @@ async fn stored_item_money_worker_requires_and_uses_the_typed_persistence_port_l
         StoredItemMoneyPortFixtureLikeCpp {
             attempt: StoredItemMoneyPersistenceAttemptLikeCpp::Applied(
                 StoredItemMoneyPersistenceOutcomeLikeCpp {
+                    criteria: None,
                     before: 100,
                     after: 118,
                     applied_delta: 18,
@@ -104,6 +115,7 @@ async fn stored_item_money_worker_requires_and_uses_the_typed_persistence_port_l
     assert_eq!(
         requests.lock().unwrap().as_slice(),
         &[StoredItemMoneyPersistenceRequestLikeCpp {
+            criteria_eligible: true,
             player_guid: player_guid.counter() as u64,
             item_guid: item_guid.counter() as u64,
             cached_notified_amount: 7,

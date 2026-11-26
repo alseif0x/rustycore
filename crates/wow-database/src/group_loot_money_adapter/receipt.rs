@@ -2,6 +2,7 @@ use super::*;
 use crate::params::SqlParam;
 use serde::{Deserialize, Serialize};
 use sqlx::{MySql, Transaction};
+use wow_persistence::LootMoneyCriteriaProgress;
 
 const INSERT: &str = "INSERT INTO loot_money_claim_receipt (claim_id, payouts) VALUES (?, '[]')";
 const WRITE: &str = "UPDATE loot_money_claim_receipt SET payouts = ? WHERE claim_id = ?";
@@ -9,10 +10,23 @@ const READ: &str =
     "SELECT CAST(payouts AS BINARY) FROM loot_money_claim_receipt WHERE claim_id = ? FOR UPDATE";
 
 #[derive(Serialize, Deserialize)]
+struct ShareCriteria {
+    counter: u64,
+    date: u64,
+    new_achievements: Vec<u32>,
+    /// Added after legacy receipts; all awards in a claim share this time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    achievement_date: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize)]
 struct Share {
     recipient: u64,
     before: u64,
     after: u64,
+    /// Missing in receipts written before durable criteria support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    criteria: Option<ShareCriteria>,
 }
 
 fn trace_id(id: &[u8; 16]) -> TracedParam {
@@ -60,6 +74,12 @@ pub(super) async fn record(
             recipient: row.recipient_guid,
             before: row.before,
             after: row.after,
+            criteria: row.criteria.as_ref().map(|criteria| ShareCriteria {
+                counter: criteria.counter,
+                date: criteria.date,
+                new_achievements: criteria.new_achievements.clone(),
+                achievement_date: criteria.achievement_date,
+            }),
         })
         .collect();
     let payload =
@@ -112,7 +132,81 @@ pub(super) async fn read(
             before: share.before,
             after: share.after,
             applied_delta,
+            criteria: share.criteria.map(|criteria| LootMoneyCriteriaProgress {
+                counter: criteria.counter,
+                date: criteria.date,
+                new_achievements: criteria.new_achievements,
+                achievement_date: criteria.achievement_date,
+            }),
         });
     }
     Ok(Some(outcomes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_receipts_without_criteria_decode_to_the_original_money_result() {
+        let legacy = br#"[{"recipient":9,"before":100,"after":105}]"#;
+        let rows: Vec<Share> = serde_json::from_slice(legacy).unwrap();
+        assert_eq!(
+            rows.into_iter()
+                .map(|row| GroupLootMoneyPersistenceOutcomeLikeCpp {
+                    recipient_guid: row.recipient,
+                    before: row.before,
+                    after: row.after,
+                    applied_delta: row.after - row.before,
+                    criteria: row.criteria.map(|criteria| LootMoneyCriteriaProgress {
+                        counter: criteria.counter,
+                        date: criteria.date,
+                        new_achievements: criteria.new_achievements,
+                        achievement_date: criteria.achievement_date,
+                    }),
+                })
+                .collect::<Vec<_>>(),
+            vec![GroupLootMoneyPersistenceOutcomeLikeCpp {
+                recipient_guid: 9,
+                before: 100,
+                after: 105,
+                applied_delta: 5,
+                criteria: None,
+            }]
+        );
+    }
+
+    #[test]
+    fn current_receipts_roundtrip_criteria_and_completion_date() {
+        let outcome = GroupLootMoneyPersistenceOutcomeLikeCpp {
+            recipient_guid: 9,
+            before: 100,
+            after: 100,
+            applied_delta: 0,
+            criteria: Some(LootMoneyCriteriaProgress {
+                counter: 1_000_000,
+                date: 1_700_000_000,
+                new_achievements: vec![1176],
+                achievement_date: Some(1_700_000_000),
+            }),
+        };
+        let json = serde_json::to_vec(&[Share {
+            recipient: outcome.recipient_guid,
+            before: outcome.before,
+            after: outcome.after,
+            criteria: outcome.criteria.as_ref().map(|criteria| ShareCriteria {
+                counter: criteria.counter,
+                date: criteria.date,
+                new_achievements: criteria.new_achievements.clone(),
+                achievement_date: criteria.achievement_date,
+            }),
+        }])
+        .unwrap();
+        let rows: Vec<Share> = serde_json::from_slice(&json).unwrap();
+        let criteria = rows[0].criteria.as_ref().unwrap();
+        assert_eq!(criteria.counter, 1_000_000);
+        assert_eq!(criteria.date, 1_700_000_000);
+        assert_eq!(criteria.new_achievements, [1176]);
+        assert_eq!(criteria.achievement_date, Some(1_700_000_000));
+    }
 }
