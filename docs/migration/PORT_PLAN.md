@@ -43,11 +43,33 @@ durability requirement for its detached persistence worker.
 The #1341 contract was reviewed and signed on 2026-11-22 before implementing
 reopening. The receipt reviewer required the complete persistent world-source
 identity and a fresh-process spent-source and restock control for acceptance.
-The existing terminal quarantine remains in effect until the recovery owner
-can fence that exact lifetime and token, drain existing waiters once, and
-prove committed, rolled-back, unreadable and later-generation cases. Release
-acceptance also requires a fresh process and real database, including a
-second claim on the spent source and a legitimate new source.
+Only a conclusive read by the recovery owner may reopen that exact money
+claim. The generation and token fence a late reply. Claims without a
+recoverable receipt retain terminal quarantine.
+
+On 2026-11-26, the production group-money worker at `2eba91633` ran both
+SQL outcomes against disposable MariaDB schemas on aarch64. The test
+replaced the acknowledgement after a real commit or trigger-induced rollback.
+The receipt table was temporarily unavailable to the production reader.
+Both pending claimants were rejected, a new claim was refused, and the
+original session received one kick and no payout command. When reads resumed,
+a committed seven-copper claim left 17 copper, one receipt and an empty pool.
+Rollback left the original ten copper and no receipt. A fresh claim then
+paid the seven copper once. The late reader never submitted another payout.
+
+The explicitly enabled `world-server --test loot_money_quarantine` passed
+in 2.03 seconds. The `wow-database --test loot_money_restart` suite passed
+across three child processes, including the spent-source and restock controls.
+All 86 `wow-loot` library tests and the `wow-world-lifecycle` late-reader
+test passed. The [54261 chest capture](../architecture/captures/46-qa-54261-2026-11-22.md#november-26-restart-on-integrated-343)
+records the separate world-process restart and relogin on spawn 9106001.
+
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+passed at the clean code candidate, with 648 world-server library tests
+passing and one ignored. The verified final manifest took 15m57s. The full
+successful campaign took 18m13s, over the ten-minute target. The first
+compilation and a fixture setup correction brought elapsed time including
+repair to 27m20s. The affected Cargo test-target check took 9m50s.
 
 ## 7. Part 1 acceptance — a complete playable circuit
 
