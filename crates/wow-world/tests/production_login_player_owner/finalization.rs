@@ -7,6 +7,9 @@ use wow_world::{
     FinalizationOutcome as Outcome, FinalizationStep as Step,
 };
 
+#[path = "creature_cast.rs"]
+mod creature_cast;
+
 pub(super) struct Probe {
     pub target: Step,
     pub result: PersistenceOutcomeLikeCpp,
