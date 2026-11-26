@@ -71,16 +71,16 @@ impl PlayerLoginModule for Probe {
     }
 }
 
-struct Fixture {
-    session: WorldSession,
-    port: Arc<LoginPort>,
-    send_rx: flume::Receiver<Vec<u8>>,
+pub(super) struct Fixture {
+    pub(super) session: WorldSession,
+    pub(super) port: Arc<LoginPort>,
+    pub(super) send_rx: flume::Receiver<Vec<u8>>,
     manager: Arc<std::sync::Mutex<wow_map::MapManager>>,
-    maps: Arc<MapStore>,
+    pub(super) maps: Arc<MapStore>,
 }
 
 /// A session ready to log character 42 in through the production login.
-fn fixture() -> Fixture {
+pub(super) fn fixture() -> Fixture {
     let (_, packet_rx) = flume::bounded(8);
     let (send_tx, send_rx) = flume::unbounded();
     let mut session = WorldSession::new(
@@ -134,7 +134,7 @@ fn fixture() -> Fixture {
 }
 
 /// Run the production login to its end.
-async fn run_login(session: &mut WorldSession, maps: &Arc<MapStore>) {
+pub(super) async fn run_login(session: &mut WorldSession, maps: &Arc<MapStore>) {
     let maps = Arc::clone(maps);
     let bootstrap = PlayerBootstrapCatalogsLikeCpp {
         create_info: Arc::new(PlayerCreateInfoStoreLikeCpp::from_rows_like_cpp(
