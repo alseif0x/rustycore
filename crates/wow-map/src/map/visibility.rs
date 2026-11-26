@@ -122,6 +122,26 @@ where
             range + source_world.combat_reach(),
         );
         let mut recipients = Vec::new();
+        let outside = |world: &WorldObject| {
+            !world.object().is_in_world()
+                || !source_world.in_same_phase(world)
+                || world.position().distance_2d_sq(&position) > range_sq
+        };
+        let shared_viewers = |unit: &wow_entities::Unit, seer| {
+            let mut viewers: Vec<_> = unit
+                .subsystems()
+                .control
+                .shared_vision_guids
+                .iter()
+                .copied()
+                .collect();
+            viewers.retain(|guid| {
+                self.get_typed_player(*guid)
+                    .is_some_and(|viewer| player_seer_guid(self, viewer) == seer)
+            });
+            viewers.sort_unstable();
+            viewers
+        };
 
         let mut players = nearby.world.players.into_iter().collect::<Vec<_>>();
         players.sort_unstable();
@@ -129,33 +149,13 @@ where
             let Some(visited) = self.get_typed_player(visited_guid) else {
                 continue;
             };
-            let visited_world = visited.unit().world();
-            if !visited_world.object().is_in_world()
-                || !source_world.in_same_phase(visited_world)
-                || visited_world.position().distance_2d_sq(&position) > range_sq
-            {
+            if outside(visited.unit().world()) {
                 continue;
             }
 
             // GridNotifiersImpl processes shared vision before the direct
             // Player route, including when the visited Player is the source.
-            let mut shared_viewers = visited
-                .unit()
-                .subsystems()
-                .control
-                .shared_vision_guids
-                .iter()
-                .copied()
-                .collect::<Vec<_>>();
-            shared_viewers.sort_unstable();
-            for viewer_guid in shared_viewers {
-                if self
-                    .get_typed_player(viewer_guid)
-                    .is_some_and(|viewer| player_seer_guid(self, viewer) == visited_guid)
-                {
-                    recipients.push(viewer_guid);
-                }
-            }
+            recipients.extend(shared_viewers(visited.unit(), visited_guid));
 
             if player_seer_guid(self, visited) == visited_guid
                 || visited.unit().subsystems().vehicle.vehicle_guid.is_some()
@@ -178,26 +178,11 @@ where
             let Some(unit) = unit else {
                 continue;
             };
-            let visited_world = unit.world();
-            if !visited_world.object().is_in_world()
-                || !source_world.in_same_phase(visited_world)
-                || visited_world.position().distance_2d_sq(&position) > range_sq
-            {
+            if outside(unit.world()) {
                 continue;
             }
 
-            let mut shared_viewers = unit
-                .subsystems()
-                .control
-                .shared_vision_guids
-                .iter()
-                .copied()
-                .collect::<Vec<_>>();
-            shared_viewers.sort_unstable();
-            recipients.extend(shared_viewers.into_iter().filter(|viewer_guid| {
-                self.get_typed_player(*viewer_guid)
-                    .is_some_and(|viewer| player_seer_guid(self, viewer) == visited_guid)
-            }));
+            recipients.extend(shared_viewers(unit, visited_guid));
         }
 
         let mut dynamic_objects = nearby.world.dynamic_objects.into_iter().collect::<Vec<_>>();
@@ -206,11 +191,7 @@ where
             let Some(dynamic) = self.get_typed_dynamic_object(visited_guid) else {
                 continue;
             };
-            let visited_world = dynamic.world();
-            if !visited_world.object().is_in_world()
-                || !source_world.in_same_phase(visited_world)
-                || visited_world.position().distance_2d_sq(&position) > range_sq
-            {
+            if outside(dynamic.world()) {
                 continue;
             }
 
