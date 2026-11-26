@@ -52,6 +52,7 @@ pub async fn send_player_self_create_for_teleport_like_cpp<H: WorldportHostLikeC
 pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostLikeCpp>(
     host: &mut H,
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    player_grid_loader: &wow_world_core::session::map_admission::PlayerGridLoadResolverLikeCpp,
     graveyards: Option<&wow_data::GraveyardStore>,
     trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -81,7 +82,12 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
     // after failed admission/add. Retain the pending transfer until the
     // same Player is attached; recovery must not save destination coordinates
     // paired with the old map or publish a false LoggedIn transition.
-    if !wow_world_instances::try_attach_worldport_destination_like_cpp(host, new_map, new_pos) {
+    if !wow_world_instances::try_attach_worldport_destination_with_grid_load_like_cpp(
+        host,
+        new_map,
+        new_pos,
+        player_grid_loader,
+    ) {
         warn!(
             account = host.core().account_id,
             "WorldPortResponse could not attach its Player; transfer remains pending"

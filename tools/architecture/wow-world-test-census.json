@@ -58,7 +58,7 @@
    "wow-world-character": {
     "P": 36,
     "H": 21,
-    "W": 391
+    "W": 392
    },
    "wow-world-core": {
     "P": 14,
@@ -73,7 +73,7 @@
    "wow-world-entities": {
     "P": 28,
     "H": 4,
-    "W": 512
+    "W": 511
    },
    "wow-world-instances": {
     "P": 0,
@@ -2319,7 +2319,7 @@
   ["unit_tests/handlers/travel/tests/travel.rs::suspend_token_response_sends_new_world_for_far_teleport_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["pending_teleport_like_cpp", "set_pending_teleport_like_cpp", "set_state"], []],
   ["unit_tests/handlers/travel/tests/travel.rs::suspend_token_response_no_op_without_far_teleport_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["set_pending_teleport_like_cpp"], []],
   ["unit_tests/handlers/travel/tests/travel.rs::far_teleport_self_create_projects_native_quest_log_and_live_self_res_spells", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "quest_log_create_entries_like_cpp", "set_canonical_map_manager"], []],
-  ["unit_tests/handlers/travel/tests/travel.rs::world_port_response_clears_far_teleport_semaphore_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "handle_world_port_response"], []],
+  ["unit_tests/handlers/travel/tests/travel.rs::world_port_response_clears_far_teleport_semaphore_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "handle_world_port_response"], []],
   ["unit_tests/handlers/travel/tests/travel.rs::world_port_response_recomputes_destination_rest_state_post_add_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_world_port_response", "set_area_table_store"], []],
   ["unit_tests/handlers/travel/tests/travel.rs::world_port_response_activates_pvp_item_levels_for_flagged_map_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_world_port_response", "represented_using_pvp_item_levels_like_cpp"], []],
   ["unit_tests/handlers/travel/tests/travel.rs::world_port_response_deactivates_pvp_item_levels_for_normal_map_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_world_port_response", "represented_using_pvp_item_levels_like_cpp"], []],
@@ -2515,7 +2515,7 @@
   ["unit_tests/session/tests/lifecycle_persistence/deferred_transfer.rs::cancelled_far_corpse_save_retains_phase_after_post_add", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "complete_player_equipment_inventory_authority_load_like_cpp", "id_generators_for_test_like_cpp", "load_represented_character_auras_like_cpp"], []],
   ["unit_tests/session/tests/lifecycle_persistence/deferred_transfer.rs::deferred_save_newer_intent_survives_an_older_transaction_receipt", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "load_represented_character_auras_like_cpp", "save_current_player_to_db_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/lifecycle_persistence/deferred_transfer.rs::cancelled_before_deferred_save_submission_retains_intent_without_quarantine", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "load_represented_character_auras_like_cpp", "save_current_player_to_db_like_cpp", "set_canonical_map_manager"], []],
-  ["unit_tests/session/tests/lifecycle_persistence/deferred_transfer/recovery_fences.rs::recovery_fences_registered_worldport_leaves_new_postsave_far_transfer_pending", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "pending_teleport_like_cpp", "session_handler_catalogs_for_test_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/session/tests/lifecycle_persistence/deferred_transfer/recovery_fences.rs::recovery_fences_registered_worldport_leaves_new_postsave_far_transfer_pending", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "pending_teleport_like_cpp", "set_canonical_map_manager", "set_map_store"], []],
   ["unit_tests/session/tests/lifecycle_persistence/deferred_transfer/recovery_fences.rs::recovery_fences_disconnect_completes_new_postsave_far_transfer_before_save_owner", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "finish_worldport_native_before_disconnect_like_cpp", "pending_teleport_like_cpp", "session_handler_catalogs_for_test_like_cpp"], []],
   ["unit_tests/session/tests/lifecycle_persistence/player_persistence.rs::uncage_item_state_read_routes_typed_ids_and_preserves_failure_distinction", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["load_represented_character_auras_like_cpp"], []],
   ["unit_tests/session/tests/lifecycle_persistence/player_persistence.rs::uncage_item_state_seam_no_longer_names_statement_or_driver_errors", "P", "wow-world-inventory", "wow-world-inventory", "P-domain", false, false, false, [], []],

@@ -111,7 +111,7 @@ fn recovery_handoff_session() -> (
 #[tokio::test]
 async fn recovery_fences_registered_worldport_leaves_new_postsave_far_transfer_pending() {
     let (mut session, _input, output) = recovery_handoff_session();
-    let catalogs = session.session_handler_catalogs_for_test_like_cpp();
+    let catalogs = session.worldport_catalogs_for_test();
     let response = crate::session::registry::get_handler(ClientOpcodes::WorldPortResponse)
         .expect("registered WorldPortResponse handler");
 

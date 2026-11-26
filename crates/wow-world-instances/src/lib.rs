@@ -104,6 +104,7 @@ pub use instance_session::{
     revalidate_represented_tavern_resting_with_catalog_like_cpp, set_player_rest_flag_like_cpp,
     take_player_deferred_rest_flag_update_dirty_like_cpp,
     try_attach_worldport_destination_like_cpp,
+    try_attach_worldport_destination_with_grid_load_like_cpp,
     try_attach_worldport_destination_with_publication_like_cpp, update_zone_represented_like_cpp,
     update_zone_represented_without_rest_update_packet_like_cpp,
     with_owned_player_mut_for_rest_like_cpp,

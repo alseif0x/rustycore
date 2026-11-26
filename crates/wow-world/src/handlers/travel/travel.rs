@@ -25,6 +25,7 @@ impl crate::session::WorldSession {
     pub async fn handle_world_port_response_with_catalogs_like_cpp(
         &mut self,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        player_grid_loader: &wow_world_core::session::map_admission::PlayerGridLoadResolverLikeCpp,
         trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         pkt: wow_packet::WorldPacket,
@@ -32,6 +33,7 @@ impl crate::session::WorldSession {
         wow_world_character::handle_world_port_response_with_catalogs_like_cpp(
             self,
             creature_spawn_catalogs,
+            player_grid_loader,
             None,
             trait_node_entries,
             item_guid_generator,
@@ -41,13 +43,35 @@ impl crate::session::WorldSession {
     }
 
     #[cfg(test)]
+    pub(crate) fn worldport_catalogs_for_test(
+        &self,
+    ) -> crate::session::SessionHandlerCatalogsLikeCpp {
+        let manager = self.core.canonical_map_manager.clone();
+        let mut catalogs = self.session_handler_catalogs_for_test_like_cpp();
+        // These fixtures install their objects directly on the admitted map.
+        catalogs.player_grid_loader = std::sync::Arc::new(move |map, instance, _| {
+            let available = manager
+                .as_ref()
+                .and_then(|m| m.lock().ok())
+                .is_some_and(|m| {
+                    instance.is_some_and(|id| m.find_map(u32::from(map), id).is_some())
+                });
+            crate::session::PlayerGridLoadOutcomeLikeCpp {
+                map_unavailable: !available,
+                ..Default::default()
+            }
+        });
+        catalogs
+    }
+
+    #[cfg(test)]
     pub(crate) async fn handle_world_port_response(&mut self, pkt: wow_packet::WorldPacket) {
-        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        let generators = self.id_generators_for_test_like_cpp();
+        let catalogs = self.worldport_catalogs_for_test();
         self.handle_world_port_response_with_catalogs_like_cpp(
-            &catalogs,
+            &catalogs.creature_spawns,
+            &catalogs.player_grid_loader,
             &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
-            generators.item.as_ref(),
+            catalogs.id_generators.item.as_ref(),
             pkt,
         )
         .await;

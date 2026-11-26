@@ -229,7 +229,7 @@ async fn exercise(
     }));
     port.save_pending
         .store(cancel, std::sync::atomic::Ordering::SeqCst);
-    let catalogs = session.session_handler_catalogs_for_test_like_cpp();
+    let catalogs = session.worldport_catalogs_for_test();
     let registration =
         crate::session::registry::get_handler(wow_constants::ClientOpcodes::WorldPortResponse)
             .unwrap();
