@@ -58,6 +58,36 @@ pub struct PlayerStatAuraView<'a> {
 }
 
 impl<'a> PlayerStatAuraView<'a> {
+    /// Read the selected Player's loot-only money modifier from active effects.
+    /// C++ Unit::GetTotalAuraModifierByMiscValue selects misc 1 for loot and
+    /// ignores the quest-money effects of the same aura type (misc 0).
+    pub fn loot_money_percent(
+        player: &wow_entities::Player,
+        catalogs: Option<PlayerStatAuraCatalogs<'_>>,
+    ) -> Option<i32> {
+        use wow_data::spell::aura_types::SPELL_AURA_MOD_MONEY_GAIN;
+        let state = &player.unit().subsystems().auras;
+        if !state.persisted_player_aura_authority_complete_like_cpp()
+            || state.spell_hit_aura_authority_tombstoned_like_cpp()
+        {
+            return None;
+        }
+        let registered = state
+            .applied_aura_types
+            .get(&SPELL_AURA_MOD_MONEY_GAIN)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let applications = state.runtime_applications_like_cpp();
+        // Unit::GetTotalAuraModifier returns zero immediately for an empty
+        // per-type list. Unrelated auras require no catalog lookup.
+        if registered.is_empty() {
+            return Some(0);
+        }
+        PlayerStatAuraView::new(applications, catalogs?)?
+            .registered_modifier(SPELL_AURA_MOD_MONEY_GAIN, Some(1), registered)
+            .map(|(amount, _)| amount)
+    }
+
     pub fn new(
         auras: &'a HashMap<u8, AuraApplicationLikeCpp>,
         catalogs: PlayerStatAuraCatalogs<'a>,
@@ -118,13 +148,20 @@ impl<'a> PlayerStatAuraView<'a> {
         &self,
         applied_effects_in_registration_order: &[AppliedAuraRef],
     ) -> Option<(i32, bool)> {
-        const FAKE_INEBRIATE: i32 = 304;
+        self.registered_modifier(304, None, applied_effects_in_registration_order)
+    }
 
+    fn registered_modifier(
+        &self,
+        aura_type: i32,
+        misc_value: Option<i32>,
+        applied_effects_in_registration_order: &[AppliedAuraRef],
+    ) -> Option<(i32, bool)> {
         let mut expected = HashSet::new();
         for (&slot, aura) in self.auras {
             for effect in self.effects_for_aura(aura) {
                 let bit = 1_u32.checked_shl(effect.effect_index)?;
-                if aura.effect_mask & bit != 0 && effect.effect_aura == FAKE_INEBRIATE {
+                if aura.effect_mask & bit != 0 && effect.effect_aura == aura_type {
                     expected.insert(AppliedAuraRef::new(
                         aura.spell_id as u32,
                         aura.caster_guid,
@@ -156,9 +193,6 @@ impl<'a> PlayerStatAuraView<'a> {
             return None;
         }
 
-        let group_store = self.catalogs.spell_group_store?;
-        let chain_store = self.catalogs.spell_chain_store?;
-        let stack_rules = self.catalogs.spell_group_stack_rule_store?;
         let mut total = 0_i32;
         let mut same_effect_group_amounts = BTreeMap::<u32, i32>::new();
 
@@ -172,8 +206,11 @@ impl<'a> PlayerStatAuraView<'a> {
                 .effects_for_aura(aura)
                 .into_iter()
                 .find(|effect| effect.effect_index == effect_index)?;
-            if effect.effect_aura != FAKE_INEBRIATE {
+            if effect.effect_aura != aura_type {
                 return None;
+            }
+            if misc_value.is_some_and(|value| effect.effect_misc_value_1 != value) {
+                continue;
             }
             let amount = aura
                 .represented_effect_amounts
@@ -181,7 +218,11 @@ impl<'a> PlayerStatAuraView<'a> {
                 .find(|represented| u32::from(represented.effect_index) == effect_index)
                 .map(|represented| represented.amount)?;
 
-            let groups = group_store
+            let chain_store = self.catalogs.spell_chain_store?;
+            let stack_rules = self.catalogs.spell_group_stack_rule_store?;
+            let groups = self
+                .catalogs
+                .spell_group_store?
                 .spell_spell_group_map_bounds_like_cpp(applied.spell_id, |lookup_spell_id| {
                     chain_store.first_spell_in_chain_like_cpp(lookup_spell_id)
                 });
@@ -189,7 +230,7 @@ impl<'a> PlayerStatAuraView<'a> {
             for group_id in groups.iter().copied() {
                 if stack_rules
                     .same_effect_stack_rule_aura_types_like_cpp(group_id)
-                    .is_some_and(|aura_types| aura_types.contains(&FAKE_INEBRIATE))
+                    .is_some_and(|aura_types| aura_types.contains(&aura_type))
                 {
                     same_effect_group = Some(group_id);
                     break;

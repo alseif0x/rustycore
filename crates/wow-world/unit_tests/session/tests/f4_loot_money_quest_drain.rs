@@ -56,6 +56,8 @@ fn loot_money_quest_session_like_cpp(
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical spell-click viewer map");
     session.set_player_gold_like_cpp(90);
+    // An ordinary login has loaded this player's empty aura set before looting.
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {

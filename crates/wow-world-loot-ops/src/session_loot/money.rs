@@ -8,12 +8,27 @@
 
 use super::*;
 
+pub(super) fn local_loot_money_percent<H: LootSessionHostLikeCpp>(host: &H) -> Option<i32> {
+    let hub = host.hub_ref();
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.represented_local_loot_fixture_allowed_like_cpp()
+        && hub.core.player_handle_like_cpp.is_none()
+    {
+        return Some(0);
+    }
+    hub.core.with_owned_player_like_cpp(|player| {
+        wow_world_core::session::PlayerStatAuraView::loot_money_percent(
+            player,
+            hub.catalogs.player_stat_aura_catalogs(),
+        )
+    })?
+}
+
 pub async fn apply_durable_represented_loot_money_payout_like_cpp<H: LootSessionHostLikeCpp>(
     host: &mut H,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
-    notified_amount: u64,
+    notify: LootMoneyNotify,
     durable_applied_amount: u64,
-    sole_looter: bool,
     apply_money: bool,
     publish: bool,
 ) -> ApplyLootMoneyResultLikeCpp {
@@ -45,11 +60,7 @@ pub async fn apply_durable_represented_loot_money_payout_like_cpp<H: LootSession
             );
     }
     if publish {
-        host.send_packet(&LootMoneyNotify {
-            money: notified_amount,
-            money_mod: 0,
-            sole_looter,
-        });
+        host.send_packet(&notify);
     }
     if apply_money || publish {
         host.drain_represented_quest_objective_progress_with_generator_like_cpp(

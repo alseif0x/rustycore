@@ -884,6 +884,8 @@ pub struct ApplyLootMoneyLikeCppCommand {
     pub loot_obj: ObjectGuid,
     /// C++ share advertised by `SMSG_LOOT_MONEY_NOTIFY`.
     pub amount: u64,
+    /// Recipient's aura bonus frozen with the share before the durable payout.
+    pub money_mod: u64,
     /// Delta that the locked character row actually accepted.  This is shared
     /// with the detached worker so command delivery order cannot make runtime
     /// gold disagree with the durable cap decision.

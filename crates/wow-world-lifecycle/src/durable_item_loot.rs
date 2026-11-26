@@ -53,6 +53,13 @@ impl std::fmt::Debug for DurableLootItemFanoutLikeCpp {
     }
 }
 
+/// Stored-Item `SMSG_LOOT_MONEY_NOTIFY` fields from the durable transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DurableItemLootMoneyNotificationLikeCpp {
+    pub amount: u64,
+    pub money_mod: u64,
+}
+
 /// Runtime publication retained by a detached durable-loot worker after its
 /// SQL transaction commits. Every detached item grant is tracked until the
 /// live Player inventory is synchronized; Item owners additionally use the
@@ -69,10 +76,10 @@ pub struct DurableItemLootCompletionLikeCpp {
     /// that deletes an Item owner's stored-money row. Keeping a delta preserves
     /// intervening local/group changes; `None` identifies an item grant.
     pub durable_item_money_applied_amount: Option<u64>,
-    /// Original C++ loot-money notification amount. This is retained instead
-    /// of reconstructing it from runtime balances, and is emitted even when it
-    /// is zero.
-    pub durable_item_money_notified_amount: Option<u64>,
+    /// Original C++ loot-money notification fields. These are retained instead
+    /// of reconstructing them from runtime balances, and are emitted even when
+    /// the base amount is zero.
+    pub durable_item_money_notified_amount: Option<DurableItemLootMoneyNotificationLikeCpp>,
     /// Exact-once gate shared with the per-character durable money tracker.
     /// A save fence may apply the balance delta before this completion gets a
     /// chance to publish source removal and client notification.

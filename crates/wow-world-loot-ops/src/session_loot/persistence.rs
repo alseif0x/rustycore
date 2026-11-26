@@ -332,11 +332,12 @@ pub async fn apply_pending_durable_item_loot_completions_with_objective_drain_li
             }
             if publish {
                 host.represented_notify_money_removed_like_cpp(completion.owner_guid);
+                let notification = completion
+                    .durable_item_money_notified_amount
+                    .expect("durable Item money completion retains notification fields");
                 host.send_packet(&LootMoneyNotify {
-                    money: completion
-                        .durable_item_money_notified_amount
-                        .expect("durable Item money completion retains notification amount"),
-                    money_mod: 0,
+                    money: notification.amount,
+                    money_mod: notification.money_mod,
                     sole_looter: true,
                 });
 

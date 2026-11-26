@@ -211,6 +211,63 @@ fn complete_empty_aura_view_proves_no_fake_inebriation_without_group_catalogs() 
 }
 
 #[test]
+fn loot_money_percent_excludes_quest_money_and_uses_the_strongest_group_effect() {
+    use wow_data::spell::aura_types::SPELL_AURA_MOD_MONEY_GAIN;
+    let caster = ObjectGuid::create_player(1, 995);
+    let mut player = wow_entities::Player::new(Some(1), false);
+    player.set_player_aura_authority_complete_like_cpp(true);
+    let mut spells = keyed_spell_store(&[101, 102, 103, 104]);
+    for (slot, spell_id, misc, amount) in [
+        (1, 101, 1, 20),
+        (2, 102, 1, 35),
+        (3, 103, 0, 80),
+        (4, 104, 1, 5),
+    ] {
+        let mut definition = spell(spell_id);
+        definition.effects[0].effect_aura = SPELL_AURA_MOD_MONEY_GAIN;
+        definition.effects[0].effect_misc_value_1 = misc;
+        spells.insert(spell_id, definition);
+        player.insert_player_visible_aura_like_cpp(aura(slot, spell_id, caster, Some(amount)));
+        player
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .register_applied_aura_effect_like_cpp(
+                AppliedAuraRef::new(spell_id as u32, caster, slot, 1),
+                SPELL_AURA_MOD_MONEY_GAIN,
+                amount,
+                misc,
+            );
+    }
+    let groups = SpellGroupStoreLikeCpp {
+        spell_entries_by_group_id: BTreeMap::from([(GROUP, vec![101, 102])]),
+        group_ids_by_spell_id: BTreeMap::from([(101, vec![GROUP]), (102, vec![GROUP])]),
+    };
+    let stack_rules = SpellGroupStackRuleStoreLikeCpp {
+        stack_rule_by_group_id: BTreeMap::from([(
+            GROUP,
+            SpellGroupStackRuleLikeCpp::ExclusiveSameEffect,
+        )]),
+        same_effect_stack_by_group_id: BTreeMap::from([(
+            GROUP,
+            BTreeSet::from([SPELL_AURA_MOD_MONEY_GAIN]),
+        )]),
+    };
+    let races = ChrRacesStore::from_entries([]);
+    let chains = SpellChainStoreLikeCpp::default();
+    let catalogs = rank_group_catalogs(&spells, &races, &groups, &chains, &stack_rules);
+    assert_eq!(
+        PlayerStatAuraView::loot_money_percent(&player, Some(catalogs)),
+        Some(40)
+    );
+    player.set_player_aura_authority_complete_like_cpp(false);
+    assert_eq!(
+        PlayerStatAuraView::loot_money_percent(&player, Some(catalogs)),
+        None
+    );
+}
+
+#[test]
 fn fake_inebriation_uses_first_rank_groups_and_native_registration_tie_order() {
     let spells = keyed_spell_store(&[101, 102]);
     let groups = SpellGroupStoreLikeCpp::from_rows_like_cpp(

@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 4213,
+  "tests": 4214,
   "ignored": 1,
-  "session": 3909,
-  "shims": 3728,
+  "session": 3910,
+  "shims": 3729,
   "by_class": {
    "P": 304,
    "H": 175,
-   "W": 3734
+   "W": 3735
   },
   "by_reason": {
    "H-host": 175,
@@ -42,7 +42,7 @@
    "W-multi-domain": 23,
    "W-unreached": 20,
    "W-world-items": 2,
-   "W-world-logic": 3527
+   "W-world-logic": 3528
   },
   "by_owner": {
    "wow-world": {
@@ -58,7 +58,7 @@
    "wow-world-character": {
     "P": 36,
     "H": 21,
-    "W": 392
+    "W": 393
    },
    "wow-world-core": {
     "P": 14,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 69,
     "H": 0,
-    "W": 3734
+    "W": 3735
    },
    "wow-world-application": {
     "P": 27,
@@ -1769,6 +1769,7 @@
   ["unit_tests/handlers/loot_tests/module_hook.rs::a_stored_direct_loot_item_raises_loot_item_once", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_loot_item", "install_module_hooks_like_cpp", "load_represented_character_auras_like_cpp", "represented_on_loot_opened_like_cpp"], []],
   ["unit_tests/handlers/loot_tests/module_hook.rs::an_item_that_could_not_be_stored_raises_no_loot_item", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["handle_loot_item", "install_module_hooks_like_cpp", "represented_on_loot_opened_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/loot_tests/module_hook.rs::looted_money_raises_loot_money_once_per_request_and_only_after_the_commit", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["handle_loot_money", "install_module_hooks_like_cpp", "player_gold_like_cpp", "represented_on_loot_opened_like_cpp"], []],
+  ["unit_tests/handlers/loot_tests/money_bonus.rs::loot_money_bonus_is_frozen_per_recipient_before_credit_and_publication", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["handle_loot_money", "player_gold_like_cpp", "process_represented_session_commands_like_cpp", "register_in_player_registry"], []],
   ["unit_tests/handlers/loot_tests/persistence.rs::cancelled_world_owner_claim_after_commit_reconciles_cache_and_forces_reload_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["begin_durable_item_loot_persistence_like_cpp", "represented_on_loot_opened_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/loot_tests/persistence.rs::local_disenchant_batch_commits_all_materials_and_original_claim_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["load_represented_character_auras_like_cpp", "represented_on_loot_opened_like_cpp", "set_canonical_map_manager", "set_item_guid_generator_like_cpp"], []],
   ["unit_tests/handlers/loot_tests/persistence.rs::remote_disenchant_batch_uses_one_command_and_commits_all_materials_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["load_represented_character_auras_like_cpp", "process_represented_session_commands_like_cpp", "represented_on_loot_opened_like_cpp", "set_canonical_map_manager"], []],

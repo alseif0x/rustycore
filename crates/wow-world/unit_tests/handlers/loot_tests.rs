@@ -121,7 +121,10 @@ use wow_persistence::{
     StoredItemMoneyPersistenceRequestLikeCpp,
 };
 use wow_world_entities::represented_gameobject_interaction_distance_like_cpp;
-use wow_world_lifecycle::loot_template_rules::ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP;
+use wow_world_lifecycle::{
+    DurableItemLootMoneyNotificationLikeCpp,
+    loot_template_rules::ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP,
+};
 use wow_world_loot_ops::direct_item_count_after_loot_release_like_cpp;
 #[path = "loot_tests/canonical_world.rs"]
 mod canonical_world;
@@ -281,6 +284,7 @@ fn creature_spell_cast_command_like_cpp(
 
 struct StoredItemMoneyPortFixtureLikeCpp {
     attempt: StoredItemMoneyPersistenceAttemptLikeCpp,
+    requests: Arc<Mutex<Vec<StoredItemMoneyPersistenceRequestLikeCpp>>>,
 }
 
 struct GroupLootMoneyPortFixtureLikeCpp {
@@ -339,8 +343,12 @@ impl GroupLootMoneyPersistencePortLikeCpp for GroupLootMoneyPortFixtureLikeCpp {
 impl StoredItemMoneyPersistencePortLikeCpp for StoredItemMoneyPortFixtureLikeCpp {
     fn attempt_stored_item_money_like_cpp(
         &self,
-        _request: StoredItemMoneyPersistenceRequestLikeCpp,
+        request: StoredItemMoneyPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'_, StoredItemMoneyPersistenceAttemptLikeCpp> {
+        self.requests
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(request);
         Box::pin(std::future::ready(self.attempt.clone()))
     }
 
@@ -938,6 +946,8 @@ mod misc_1;
 mod misc_2;
 #[path = "loot_tests/module_hook.rs"]
 mod module_hook;
+#[path = "loot_tests/money_bonus.rs"]
+mod money_bonus;
 #[path = "loot_tests/persistence.rs"]
 mod persistence;
 #[path = "loot_tests/quest.rs"]

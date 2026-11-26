@@ -5,14 +5,16 @@ use crate::PersistenceFutureLikeCpp;
 
 /// One atomic attempt to credit money stored in an Item loot container.
 ///
-/// Gameplay owns the requested amount and the money cap. The concrete adapter
-/// owns row locking, statement identity, affected-row checks and COMMIT error
-/// classification.
+/// Gameplay owns the aura modifier and the money cap. The concrete adapter
+/// reads the locked source amount, applies the modifier to that durable amount,
+/// and owns row locking, statement identity, affected-row checks and COMMIT
+/// error classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StoredItemMoneyPersistenceRequestLikeCpp {
     pub player_guid: u64,
     pub item_guid: u64,
     pub cached_notified_amount: u64,
+    pub money_bonus_percent: i32,
     pub max_money: u64,
 }
 
@@ -22,8 +24,12 @@ pub const STORED_ITEM_MONEY_SOURCE_ROWS_EXPECTED_LIKE_CPP: u64 = 1;
 pub struct StoredItemMoneyPersistenceOutcomeLikeCpp {
     pub before: u64,
     pub after: u64,
+    /// Total durable balance increase, including the aura bonus.
     pub applied_delta: u64,
+    /// Base stored amount shown in `LootMoneyNotify.Money`.
     pub notified_amount: u64,
+    /// Aura bonus shown in `LootMoneyNotify.MoneyMod`.
+    pub money_mod: u64,
 }
 
 pub fn stored_item_money_zero_without_source_outcome_like_cpp(
@@ -35,6 +41,7 @@ pub fn stored_item_money_zero_without_source_outcome_like_cpp(
         after: before,
         applied_delta: 0,
         notified_amount: 0,
+        money_mod: 0,
     })
 }
 

@@ -524,13 +524,15 @@ async fn stored_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<(
         player_guid: 1,
         item_guid: 71,
         cached_notified_amount: 10,
+        money_bonus_percent: 50,
         max_money: 1000,
     };
     let outcome = Outcome {
         before: 100,
-        after: 110,
-        applied_delta: 10,
-        notified_amount: 10,
+        after: 118,
+        applied_delta: 18,
+        notified_amount: 12,
+        money_mod: 6,
     };
     let other = Request {
         item_guid: 72,
@@ -541,15 +543,15 @@ async fn stored_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<(
             for statement in [
                 "CREATE TABLE characters (guid BIGINT UNSIGNED PRIMARY KEY, money BIGINT UNSIGNED NOT NULL) ENGINE=InnoDB",
                 "CREATE TABLE item_loot_money (container_id BIGINT UNSIGNED PRIMARY KEY, money INT UNSIGNED NOT NULL) ENGINE=InnoDB",
-                "INSERT INTO characters VALUES (1, 100)",
-                "INSERT INTO item_loot_money VALUES (71, 10), (72, 10)",
+                "INSERT INTO characters VALUES (1, 100), (2, 999)",
+                "INSERT INTO item_loot_money VALUES (71, 12), (72, 10), (73, 2)",
             ] {
                 sqlx::query(statement).execute(db.pool()).await?;
             }
             assert!(matches!(
                 adapter
                     .attempt_stored_item_money_like_cpp(Request {
-                        player_guid: 2,
+                        player_guid: 999,
                         ..other
                     })
                     .await,
@@ -562,6 +564,25 @@ async fn stored_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<(
                 adapter.attempt_stored_item_money_like_cpp(request).await,
                 Attempt::Applied(outcome)
             );
+            assert_eq!(
+                adapter
+                    .attempt_stored_item_money_like_cpp(Request {
+                        player_guid: 2,
+                        item_guid: 73,
+                        cached_notified_amount: 1,
+                        money_bonus_percent: 50,
+                        max_money: 1000,
+                    })
+                    .await,
+                Attempt::Applied(Outcome {
+                    before: 999,
+                    after: 999,
+                    applied_delta: 0,
+                    notified_amount: 2,
+                    money_mod: 1,
+                }),
+                "the base amount plus aura bonus must obey the all-or-nothing money cap"
+            );
         }
         "recover" => {
             assert_eq!(
@@ -570,6 +591,36 @@ async fn stored_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<(
                     .await,
                 Reconciliation::Committed
             );
+            let capped_request = Request {
+                player_guid: 2,
+                item_guid: 73,
+                cached_notified_amount: 1,
+                money_bonus_percent: 50,
+                max_money: 1000,
+            };
+            let capped_outcome = Outcome {
+                before: 999,
+                after: 999,
+                applied_delta: 0,
+                notified_amount: 2,
+                money_mod: 1,
+            };
+            assert_eq!(
+                adapter
+                    .reconcile_stored_item_money_like_cpp(capped_request, capped_outcome)
+                    .await,
+                Reconciliation::Committed,
+                "a capped payout still commits the source-row consumption"
+            );
+            assert!(matches!(
+                adapter
+                    .attempt_stored_item_money_like_cpp(capped_request)
+                    .await,
+                Attempt::DefinitelyRolledBack {
+                    kind: StoredItemMoneyRollbackKindLikeCpp::SourceAlreadyConsumed,
+                    ..
+                }
+            ));
             assert!(matches!(
                 adapter.attempt_stored_item_money_like_cpp(request).await,
                 Attempt::DefinitelyRolledBack {
@@ -578,8 +629,11 @@ async fn stored_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<(
                 }
             ));
             let next = Outcome {
-                before: 110,
-                after: 120,
+                before: 118,
+                after: 133,
+                applied_delta: 15,
+                notified_amount: 10,
+                money_mod: 5,
                 ..outcome
             };
             assert_eq!(
@@ -598,7 +652,7 @@ async fn stored_money_epoch(epoch: &str, db: Arc<CharacterDatabase>) -> Result<(
             let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM item_loot_money")
                 .fetch_one(db.pool())
                 .await?;
-            assert_eq!((money, remaining), (120, 0));
+            assert_eq!((money, remaining), (133, 0));
         }
         _ => anyhow::bail!("unexpected test epoch"),
     }

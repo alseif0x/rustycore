@@ -402,9 +402,17 @@ impl LootSessionHostLikeCpp for WorldSession {
         &self,
         item_guid: ObjectGuid,
         cached_notified_amount: u64,
-    ) -> impl Future<Output = Option<(Arc<AtomicBool>, Arc<AtomicBool>, u64, u64)>> + Send {
+        money_bonus_percent: i32,
+    ) -> impl Future<
+        Output = Option<(
+            Arc<AtomicBool>,
+            Arc<AtomicBool>,
+            u64,
+            wow_world_lifecycle::DurableItemLootMoneyNotificationLikeCpp,
+        )>,
+    > + Send {
         <Self as LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp>>::persist_and_consume_stored_item_money_like_cpp(
-            self, item_guid, cached_notified_amount,
+            self, item_guid, cached_notified_amount, money_bonus_percent,
         )
     }
     fn mutate_and_persist_player_gold_exclusive_like_cpp<F>(

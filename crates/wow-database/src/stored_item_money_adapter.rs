@@ -7,7 +7,7 @@ use wow_persistence::{
     StoredItemMoneyPersistenceAttemptLikeCpp, StoredItemMoneyPersistenceOutcomeLikeCpp,
     StoredItemMoneyPersistencePortLikeCpp, StoredItemMoneyPersistenceRequestLikeCpp,
     StoredItemMoneyReconciliationLikeCpp, StoredItemMoneyRollbackKindLikeCpp,
-    classify_stored_item_money_reconciliation_like_cpp,
+    classify_stored_item_money_reconciliation_like_cpp, loot_money_bonus,
     stored_item_money_zero_without_source_outcome_like_cpp,
 };
 
@@ -45,16 +45,24 @@ fn durable_outcome_like_cpp(
     before: u64,
     notified_amount: u64,
     max_money: u64,
+    money_bonus_percent: i32,
 ) -> StoredItemMoneyPersistenceOutcomeLikeCpp {
-    let (after, applied_delta) = before
-        .checked_add(notified_amount)
-        .filter(|new_money| *new_money <= max_money)
-        .map_or((before, 0), |new_money| (new_money, notified_amount));
+    let money_mod = loot_money_bonus(notified_amount, money_bonus_percent);
+    let requested_delta = notified_amount.checked_add(money_mod);
+    let (after, applied_delta) = requested_delta
+        .and_then(|delta| {
+            before
+                .checked_add(delta)
+                .map(|new_money| (new_money, delta))
+        })
+        .filter(|(new_money, _)| *new_money <= max_money)
+        .map_or((before, 0), |(new_money, delta)| (new_money, delta));
     StoredItemMoneyPersistenceOutcomeLikeCpp {
         before,
         after,
         applied_delta,
         notified_amount,
+        money_mod,
     }
 }
 
@@ -149,7 +157,12 @@ impl StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyAttemptAdap
                 };
             };
 
-            let outcome = durable_outcome_like_cpp(before, notified_amount, request.max_money);
+            let outcome = durable_outcome_like_cpp(
+                before,
+                notified_amount,
+                request.max_money,
+                request.money_bonus_percent,
+            );
             if outcome.applied_delta != 0 {
                 trace.statement_expecting(
                     || {
@@ -385,22 +398,49 @@ mod tests {
     #[test]
     fn durable_outcome_preserves_the_all_or_nothing_money_cap_like_cpp() {
         assert_eq!(
-            durable_outcome_like_cpp(100, 7, 1_000),
+            durable_outcome_like_cpp(100, 7, 1_000, 0),
             StoredItemMoneyPersistenceOutcomeLikeCpp {
                 before: 100,
                 after: 107,
                 applied_delta: 7,
                 notified_amount: 7,
+                money_mod: 0,
             }
         );
         assert_eq!(
-            durable_outcome_like_cpp(999, 7, 1_000),
+            durable_outcome_like_cpp(999, 7, 1_000, 0),
             StoredItemMoneyPersistenceOutcomeLikeCpp {
                 before: 999,
                 after: 999,
                 applied_delta: 0,
                 notified_amount: 7,
+                money_mod: 0,
             }
+        );
+    }
+
+    #[test]
+    fn aura_bonus_uses_durable_source_amount_and_the_full_delta_cap_like_cpp() {
+        assert_eq!(
+            durable_outcome_like_cpp(100, 12, 1_000, 50),
+            StoredItemMoneyPersistenceOutcomeLikeCpp {
+                before: 100,
+                after: 118,
+                applied_delta: 18,
+                notified_amount: 12,
+                money_mod: 6,
+            }
+        );
+        assert_eq!(
+            durable_outcome_like_cpp(999, 2, 1_000, 50),
+            StoredItemMoneyPersistenceOutcomeLikeCpp {
+                before: 999,
+                after: 999,
+                applied_delta: 0,
+                notified_amount: 2,
+                money_mod: 1,
+            },
+            "base plus aura bonus must fit as one ModifyMoney operation"
         );
     }
 

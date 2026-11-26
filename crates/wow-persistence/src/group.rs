@@ -180,6 +180,12 @@ pub trait RepresentedGroupStartupLoadPortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'_, RepresentedGroupStartupLoadOutcomeLikeCpp>;
 }
 
+/// LootHandler.cpp applies CalculatePct to each base share separately. The
+/// target computes in single precision and truncates the copper fraction.
+pub fn loot_money_bonus(base: u64, percent: i32) -> u64 {
+    (base as f32 * percent as f32 / 100.0) as u64
+}
+
 /// One recipient in an atomic group corpse-loot payout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GroupLootMoneyPayoutLikeCpp {

@@ -406,7 +406,12 @@ async fn full_save_publishes_pending_durable_item_loot_completion_before_capture
         player_guid,
         item_owner_auto_release: false,
         durable_item_money_applied_amount: Some(7),
-        durable_item_money_notified_amount: Some(7),
+        durable_item_money_notified_amount: Some(
+            wow_world_lifecycle::DurableItemLootMoneyNotificationLikeCpp {
+                amount: 7,
+                money_mod: 0,
+            },
+        ),
         durable_item_money_balance_applied: Some(Arc::clone(&balance_applied)),
         item_fanout: None,
         runtime_inventory_applied: Arc::new(std::sync::atomic::AtomicBool::new(true)),

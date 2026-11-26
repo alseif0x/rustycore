@@ -270,9 +270,12 @@ pub(super) async fn handle_apply_loot_money_with_generator_like_cpp_command<H, C
     let _ = host
         .loot_money_apply_durable_payout_like_cpp(
             item_guid_generator,
-            command.amount,
+            wow_packet::packets::loot::LootMoneyNotify {
+                money: command.amount,
+                money_mod: command.money_mod,
+                sole_looter: command.sole_looter,
+            },
             durable_applied_amount,
-            command.sole_looter,
             apply_money,
             publish,
         )

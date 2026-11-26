@@ -513,6 +513,7 @@ fn stored_item_money_reconciliation_requires_joint_money_and_source_evidence_lik
         after: 107,
         applied_delta: 7,
         notified_amount: 7,
+        money_mod: 0,
     };
     assert_eq!(
         classify_stored_item_money_reconciliation_like_cpp(outcome, 100, Some(7)),
@@ -537,6 +538,7 @@ fn zero_cached_stored_item_money_is_the_only_absent_source_noop_like_cpp() {
             after: 41,
             applied_delta: 0,
             notified_amount: 0,
+            money_mod: 0,
         })
     );
     assert!(stored_item_money_zero_without_source_outcome_like_cpp(41, 1).is_none());

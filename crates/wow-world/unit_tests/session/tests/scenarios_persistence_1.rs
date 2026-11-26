@@ -46,6 +46,7 @@ async fn save_first_durable_money_completion_preserves_and_drains_money_event() 
                 loot_owner: ObjectGuid::EMPTY,
                 loot_obj: ObjectGuid::EMPTY,
                 amount: 7,
+                money_mod: 0,
                 durable_applied_amount: Arc::new(AtomicU64::new(7)),
                 durable_persistence_tracker: Arc::clone(&tracker),
                 sole_looter: true,

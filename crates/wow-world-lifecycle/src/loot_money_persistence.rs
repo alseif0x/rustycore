@@ -40,7 +40,8 @@ use crate::loot_delivery_contracts::{
     loot_money_durable_outcome_like_cpp,
 };
 use crate::{
-    DurableItemLootCompletionLikeCpp, LootMoneyPersistenceErrorLikeCpp, SessionLifecycleState,
+    DurableItemLootCompletionLikeCpp, DurableItemLootMoneyNotificationLikeCpp,
+    LootMoneyPersistenceErrorLikeCpp, SessionLifecycleState,
 };
 
 /// Detached-worker handle of the shared-pool payout. The alias exists so the
@@ -410,7 +411,13 @@ pub async fn persist_and_consume_stored_item_money_like_cpp(
     command_tx: flume::Sender<SessionCommand>,
     item_guid: ObjectGuid,
     cached_notified_amount: u64,
-) -> Option<(Arc<AtomicBool>, Arc<AtomicBool>, u64, u64)> {
+    money_bonus_percent: i32,
+) -> Option<(
+    Arc<AtomicBool>,
+    Arc<AtomicBool>,
+    u64,
+    DurableItemLootMoneyNotificationLikeCpp,
+)> {
     let (worker, balance_applied, publication_applied) =
         spawn_stored_item_money_persistence_worker_like_cpp(
             lifecycle,
@@ -419,13 +426,14 @@ pub async fn persist_and_consume_stored_item_money_like_cpp(
             command_tx,
             item_guid,
             cached_notified_amount,
+            money_bonus_percent,
         )?;
     match worker.await {
-        Ok(Ok((applied_delta, notified_amount))) => Some((
+        Ok(Ok((applied_delta, notification))) => Some((
             balance_applied,
             publication_applied,
             applied_delta,
-            notified_amount,
+            notification,
         )),
         Ok(Err(error)) => {
             warn!(
@@ -453,8 +461,11 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
     command_tx: flume::Sender<SessionCommand>,
     item_guid: ObjectGuid,
     cached_notified_amount: u64,
+    money_bonus_percent: i32,
 ) -> Option<(
-    tokio::task::JoinHandle<Result<(u64, u64), LootMoneyPersistenceErrorLikeCpp>>,
+    tokio::task::JoinHandle<
+        Result<(u64, DurableItemLootMoneyNotificationLikeCpp), LootMoneyPersistenceErrorLikeCpp>,
+    >,
     Arc<AtomicBool>,
     Arc<AtomicBool>,
 )> {
@@ -489,18 +500,26 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
         let _money_mutation_lock = money_persistence_tracker
             .lock_money_mutation_like_cpp()
             .await;
-        let (before, after, applied_delta, notified_amount) = if let Some(success) = test_result {
+        let (before, after, applied_delta, notification) = if let Some(success) = test_result {
             tokio::task::yield_now().await;
             if !success {
                 return Err(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase);
             }
+            let money_mod =
+                wow_persistence::loot_money_bonus(cached_notified_amount, money_bonus_percent);
+            let requested_delta = cached_notified_amount
+                .checked_add(money_mod)
+                .unwrap_or(u64::MAX);
             let (after, applied_delta) =
-                loot_money_durable_outcome_like_cpp(test_current_money, cached_notified_amount);
+                loot_money_durable_outcome_like_cpp(test_current_money, requested_delta);
             (
                 test_current_money,
                 after,
                 applied_delta,
-                cached_notified_amount,
+                DurableItemLootMoneyNotificationLikeCpp {
+                    amount: cached_notified_amount,
+                    money_mod,
+                },
             )
         } else {
             let persistence_port =
@@ -509,6 +528,7 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
                 player_guid: player_guid.counter() as u64,
                 item_guid: item_guid.counter() as u64,
                 cached_notified_amount,
+                money_bonus_percent,
                 max_money: MAX_MONEY_AMOUNT,
             };
             let outcome = match persistence_port
@@ -569,7 +589,10 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
                 outcome.before,
                 outcome.after,
                 outcome.applied_delta,
-                outcome.notified_amount,
+                DurableItemLootMoneyNotificationLikeCpp {
+                    amount: outcome.notified_amount,
+                    money_mod: outcome.money_mod,
+                },
             )
         };
 
@@ -587,12 +610,12 @@ fn spawn_stored_item_money_persistence_worker_like_cpp(
             player_guid,
             item_owner_auto_release: false,
             durable_item_money_applied_amount: Some(applied_delta),
-            durable_item_money_notified_amount: Some(notified_amount),
+            durable_item_money_notified_amount: Some(notification),
             durable_item_money_balance_applied: Some(Arc::clone(&worker_balance_applied)),
             item_fanout: None,
             runtime_inventory_applied: Arc::clone(&worker_publication_applied),
         });
-        Ok((applied_delta, notified_amount))
+        Ok((applied_delta, notification))
     });
     Some((worker, balance_applied, publication_applied))
 }

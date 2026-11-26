@@ -159,11 +159,8 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
             let reserved_total_money = u64::from(*reserved_money);
             let money_per_player = reserved_total_money / recipients.len() as u64;
             let sole_looter = recipients.len() <= 1;
-            let payouts = recipients
-                .iter()
-                .copied()
-                .map(|recipient| (recipient, money_per_player))
-                .collect::<Vec<_>>();
+            let mut payouts = Vec::with_capacity(recipients.len());
+            let source_map = host.core().current_canonical_player_map_key_like_cpp();
             let authority_committed = Arc::new(AtomicBool::new(false));
             let mut deliveries = Vec::with_capacity(recipients.len());
             let mut local_application = None;
@@ -173,11 +170,15 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
                 let applied = Arc::new(AtomicBool::new(false));
                 let published = Arc::new(AtomicBool::new(false));
                 let (delivery, application) = if recipient == player_guid {
+                    let Some(percent) = local_loot_money_percent(host) else {
+                        break;
+                    };
                     let application = ApplyLootMoneyLikeCppCommand {
                         recipient,
                         loot_owner: *loot_guid,
                         loot_obj: *loot_obj,
                         amount: money_per_player,
+                        money_mod: wow_persistence::loot_money_bonus(money_per_player, percent),
                         durable_applied_amount,
                         durable_persistence_tracker: Arc::clone(
                             host.lifecycle()
@@ -216,6 +217,9 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
                             applied,
                             published,
                         },
+                        source_map,
+                        host.hub_ref().catalogs,
+                        host.represented_local_loot_fixture_allowed_like_cpp(),
                     ) else {
                         deliveries.clear();
                         break;
@@ -228,6 +232,7 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
                         prepared.command,
                     )
                 };
+                payouts.push((recipient, money_per_player + application.money_mod));
                 deliveries.push((delivery, SessionCommand::ApplyLootMoneyLikeCpp(application)));
             }
 
@@ -339,8 +344,17 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
 
         if loot_guid.is_item() {
             let cached_amount = u64::from(*money);
-            let Some((balance_applied, publication_applied, applied_delta, notified_amount)) = host
-                .persist_and_consume_stored_item_money_like_cpp(*loot_guid, cached_amount)
+            let Some(money_bonus_percent) =
+                crate::session_loot::money::local_loot_money_percent(host)
+            else {
+                continue;
+            };
+            let Some((balance_applied, publication_applied, applied_delta, notification)) = host
+                .persist_and_consume_stored_item_money_like_cpp(
+                    *loot_guid,
+                    cached_amount,
+                    money_bonus_percent,
+                )
                 .await
             else {
                 continue;
@@ -380,8 +394,8 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
             if publish {
                 host.represented_notify_money_removed_like_cpp(*loot_guid);
                 host.send_packet(&LootMoneyNotify {
-                    money: notified_amount,
-                    money_mod: 0,
+                    money: notification.amount,
+                    money_mod: notification.money_mod,
                     sole_looter: true,
                 });
                 if let Some(loot) = host

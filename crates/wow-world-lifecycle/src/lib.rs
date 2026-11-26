@@ -76,8 +76,9 @@ pub use rename_callbacks::RenameCallbacks;
 
 #[doc(hidden)]
 pub use durable_item_loot::{
-    DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp,
-    DurableItemLootPersistenceTrackerLikeCpp, DurableLootItemFanoutLikeCpp,
+    DurableItemLootCompletionLikeCpp, DurableItemLootMoneyNotificationLikeCpp,
+    DurableItemLootPersistenceGuardLikeCpp, DurableItemLootPersistenceTrackerLikeCpp,
+    DurableLootItemFanoutLikeCpp,
 };
 
 #[doc(hidden)]

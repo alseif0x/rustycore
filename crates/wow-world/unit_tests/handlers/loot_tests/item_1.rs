@@ -16,6 +16,7 @@ fn stored_item_money_commit_unknown_requires_joint_balance_and_source_evidence_l
         after: 107,
         applied_delta: 7,
         notified_amount: 7,
+        money_mod: 0,
     };
     assert_eq!(
         classify_stored_item_money_reconciliation_like_cpp(outcome, 100, Some(7)),
@@ -42,6 +43,7 @@ fn stored_item_money_cap_noop_still_reconciles_source_consumption_like_cpp() {
         after: MAX_MONEY_AMOUNT - 1,
         applied_delta: 0,
         notified_amount: 2,
+        money_mod: 1,
     };
     assert_eq!(
         classify_stored_item_money_reconciliation_like_cpp(outcome, MAX_MONEY_AMOUNT - 1, None,),
@@ -71,29 +73,44 @@ async fn stored_item_money_worker_requires_and_uses_the_typed_persistence_port_l
 
     assert!(
         session
-            .persist_and_consume_stored_item_money_like_cpp(item_guid, 7)
+            .persist_and_consume_stored_item_money_like_cpp(item_guid, 7, 50)
             .await
             .is_none(),
         "production-shaped stored money fails closed without its typed port"
     );
 
+    let requests = Arc::new(Mutex::new(Vec::new()));
     session.set_stored_item_money_persistence_port_like_cpp(Arc::new(
         StoredItemMoneyPortFixtureLikeCpp {
             attempt: StoredItemMoneyPersistenceAttemptLikeCpp::Applied(
                 StoredItemMoneyPersistenceOutcomeLikeCpp {
                     before: 100,
-                    after: 107,
-                    applied_delta: 7,
-                    notified_amount: 7,
+                    after: 118,
+                    applied_delta: 18,
+                    notified_amount: 12,
+                    money_mod: 6,
                 },
             ),
+            requests: Arc::clone(&requests),
         },
     ));
-    let (_, _, applied_delta, notified_amount) = session
-        .persist_and_consume_stored_item_money_like_cpp(item_guid, 7)
+    let (_, _, applied_delta, notification) = session
+        .persist_and_consume_stored_item_money_like_cpp(item_guid, 7, 50)
         .await
         .expect("typed stored-money port outcome");
-    assert_eq!((applied_delta, notified_amount), (7, 7));
+    assert_eq!(applied_delta, 18);
+    assert_eq!(notification.amount, 12);
+    assert_eq!(notification.money_mod, 6);
+    assert_eq!(
+        requests.lock().unwrap().as_slice(),
+        &[StoredItemMoneyPersistenceRequestLikeCpp {
+            player_guid: player_guid.counter() as u64,
+            item_guid: item_guid.counter() as u64,
+            cached_notified_amount: 7,
+            money_bonus_percent: 50,
+            max_money: MAX_MONEY_AMOUNT,
+        }]
+    );
 }
 #[test]
 fn stored_item_money_completion_applies_db_delta_to_divergent_runtime_base_like_cpp() {
