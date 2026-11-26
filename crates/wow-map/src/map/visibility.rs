@@ -100,7 +100,15 @@ where
         let Some(source) = self.get_typed_player(source_guid) else {
             return Vec::new();
         };
-        let source_world = source.unit().world();
+        self.message_dist_observers_like_cpp(source.unit().world())
+    }
+
+    /// C++ MessageDistDeliverer visits nearby seers using the sender's phase
+    /// and visibility range. Each receiving session checks HaveAtClient.
+    pub fn message_dist_observers_like_cpp(&self, source_world: &WorldObject) -> Vec<ObjectGuid>
+    where
+        Terrain: MapWorldObjectEnvironment,
+    {
         if !source_world.object().is_in_world() {
             return Vec::new();
         }

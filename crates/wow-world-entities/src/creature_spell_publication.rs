@@ -5,7 +5,7 @@
 //!
 //! Session-independent: moved out of `wow-world` under #1263 F5.
 
-use wow_constants::PowerType;
+use wow_constants::{Class, PowerType};
 use wow_core::{ObjectGuid, Position};
 use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent, RuntimePlan};
 
@@ -166,12 +166,98 @@ pub fn append_committed_creature_spell_packets_like_cpp(
     });
 }
 
+/// A canonical source unit that can populate C++ `SpellCastLogData`.
+#[derive(Clone, Copy)]
+pub(crate) enum CombatLogUnitSource<'a> {
+    Player(&'a wow_entities::Player),
+    Creature(&'a wow_entities::Creature),
+}
+
+#[derive(Clone, Copy)]
+struct CombatLogUnitStats {
+    health: i64,
+    attack_power: i32,
+    spell_power: i32,
+    armor: i32,
+    primary_power: PowerType,
+    current_power: i32,
+}
+
+fn combat_log_unit_stats(source: CombatLogUnitSource<'_>) -> CombatLogUnitStats {
+    let (unit, attack_power, spell_power, armor) = match source {
+        CombatLogUnitSource::Player(player) => {
+            let stats = player.effective_combat_stats_like_cpp();
+            let attack_power = if player.class_like_cpp() == Class::Hunter as u8 {
+                player.total_ranged_attack_power_like_cpp()
+            } else {
+                player.total_attack_power_like_cpp()
+            };
+            (
+                player.unit(),
+                attack_power as i32,
+                stats.spell_power,
+                stats.armor,
+            )
+        }
+        CombatLogUnitSource::Creature(creature) => {
+            let stats = creature.combat_log_stats_like_cpp();
+            (
+                creature.unit(),
+                creature.combat_log_attack_power_like_cpp(),
+                stats.spell_power,
+                stats.armor,
+            )
+        }
+    };
+    let display_power = unit.data().display_power;
+    let primary_power = if display_power < PowerType::Max as u8 {
+        <PowerType as num_traits::FromPrimitive>::from_u8(display_power).unwrap_or(PowerType::Mana)
+    } else {
+        PowerType::Mana
+    };
+
+    CombatLogUnitStats {
+        // C++'s uint64 health is assigned to the signed wire field; represented
+        // Player and Creature health fit in that field.
+        health: unit.data().health as i64,
+        attack_power,
+        spell_power,
+        armor,
+        primary_power,
+        current_power: unit.get_power(primary_power),
+    }
+}
+
+/// Snapshot the unit fields initialized by C++
+/// `SpellCastLogData::Initialize(Unit const*)`
+/// (`CombatLogPacketsCommon.cpp:30-37`).
+///
+/// Player values come from the current effective combat-stat snapshot; creature
+/// values come from the creature's represented combat-log totals. The current
+/// primary power is included even when it has no cost row, with zero cost.
+pub(crate) fn combat_log_spell_cast_data_for_unit(
+    source: CombatLogUnitSource<'_>,
+) -> wow_packet::packets::spell::SpellCastLogData {
+    let stats = combat_log_unit_stats(source);
+    wow_packet::packets::spell::SpellCastLogData {
+        health: stats.health,
+        attack_power: stats.attack_power,
+        spell_power: stats.spell_power,
+        armor: stats.armor,
+        power_data: vec![wow_packet::packets::spell::SpellLogPowerData {
+            power_type: stats.primary_power as i32,
+            amount: stats.current_power,
+            cost: 0,
+        }],
+    }
+}
+
 pub fn creature_spell_cast_log_data_like_cpp(
     caster: &wow_entities::Creature,
     spell: &wow_data::SpellInfo,
     difficulty_id: u8,
 ) -> Option<wow_packet::packets::spell::SpellCastLogData> {
-    use wow_packet::packets::spell::{SpellCastLogData, SpellLogPowerData};
+    use wow_packet::packets::spell::SpellLogPowerData;
 
     // The enclosing M2.6 cast path admits only base-difficulty spells and zero
     // effective costs. Keep the cost/aura portions independently fail-closed
@@ -215,7 +301,8 @@ pub fn creature_spell_cast_log_data_like_cpp(
         });
     }
 
-    let primary_power = caster.power_type();
+    let stats = combat_log_unit_stats(CombatLogUnitSource::Creature(caster));
+    let primary_power = stats.primary_power;
     let primary_power_type = primary_power as i32;
     if !power_data
         .iter()
@@ -225,20 +312,95 @@ pub fn creature_spell_cast_log_data_like_cpp(
             0,
             SpellLogPowerData {
                 power_type: primary_power_type,
-                amount: caster.unit().get_power(primary_power),
+                amount: stats.current_power,
                 cost: 0,
             },
         );
     }
 
-    let stats = caster.combat_log_stats_like_cpp();
-    Some(SpellCastLogData {
-        // Mirrors the C++ `uint64 GetHealth()` assignment to the signed wire
-        // field. DB-backed creature health originates in a u32 and always fits.
-        health: caster.unit().data().health as i64,
-        attack_power: caster.combat_log_attack_power_like_cpp(),
+    Some(wow_packet::packets::spell::SpellCastLogData {
+        health: stats.health,
+        attack_power: stats.attack_power,
         spell_power: stats.spell_power,
         armor: stats.armor,
         power_data,
     })
+}
+
+#[cfg(test)]
+mod combat_log_tests {
+    use super::*;
+
+    #[test]
+    fn player_snapshot_uses_effective_hunter_stats_and_zero_cost_primary_power() {
+        let mut player = wow_entities::Player::new(None, false);
+        player.unit_mut().set_class(Class::Hunter as u8);
+        player.unit_mut().set_max_health(100);
+        player.unit_mut().set_health(73);
+        player.unit_mut().set_display_power(PowerType::Focus);
+        player.unit_mut().set_power_index(PowerType::Focus, Some(0));
+        player.unit_mut().set_max_power(PowerType::Focus, 100);
+        player.unit_mut().set_power(PowerType::Focus, 41);
+        player.replace_effective_combat_stats_like_cpp(
+            wow_entities::PlayerEffectiveCombatStatsLikeCpp {
+                attack_power: 10,
+                attack_power_mod_pos: 2,
+                attack_power_mod_neg: -1,
+                attack_power_multiplier: 0.25,
+                ranged_attack_power: 100,
+                ranged_attack_power_mod_pos: 8,
+                ranged_attack_power_mod_neg: -3,
+                ranged_attack_power_multiplier: 0.5,
+                spell_power: 333,
+                armor: 987,
+                ..Default::default()
+            },
+        );
+
+        let log_data = combat_log_spell_cast_data_for_unit(CombatLogUnitSource::Player(&player));
+        assert_eq!(log_data.health, 73);
+        assert_eq!(log_data.attack_power, 157);
+        assert_eq!(log_data.spell_power, 333);
+        assert_eq!(log_data.armor, 987);
+        assert_eq!(
+            log_data.power_data,
+            vec![wow_packet::packets::spell::SpellLogPowerData {
+                power_type: PowerType::Focus as i32,
+                amount: 41,
+                cost: 0,
+            }]
+        );
+    }
+
+    #[test]
+    fn creature_snapshot_uses_represented_stats_and_zero_cost_primary_power() {
+        let mut creature = wow_entities::Creature::new(true);
+        creature.unit_mut().set_class(Class::Warrior as u8);
+        creature.unit_mut().set_max_health(200);
+        creature.unit_mut().set_health(121);
+        creature.set_power_type(PowerType::Energy);
+        creature.unit_mut().set_max_power(PowerType::Energy, 100);
+        creature.unit_mut().set_power(PowerType::Energy, 62);
+        creature.set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+            attack_power: 111,
+            ranged_attack_power: 222,
+            spell_power: 333,
+            armor: 987,
+        });
+
+        let log_data =
+            combat_log_spell_cast_data_for_unit(CombatLogUnitSource::Creature(&creature));
+        assert_eq!(log_data.health, 121);
+        assert_eq!(log_data.attack_power, 111);
+        assert_eq!(log_data.spell_power, 333);
+        assert_eq!(log_data.armor, 987);
+        assert_eq!(
+            log_data.power_data,
+            vec![wow_packet::packets::spell::SpellLogPowerData {
+                power_type: PowerType::Energy as i32,
+                amount: 62,
+                cost: 0,
+            }]
+        );
+    }
 }

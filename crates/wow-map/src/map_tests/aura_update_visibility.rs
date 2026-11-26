@@ -1,4 +1,4 @@
-//! Selected AuraUpdate observer routes for Ghost/Wisp publication.
+//! MessageDistDeliverer observer routes for auras and melee combat.
 
 use super::*;
 
@@ -21,6 +21,49 @@ fn add_indexed_player(
         .object_mut()
         .add_to_world();
     guid
+}
+
+#[test]
+fn melee_observers_follow_the_attacker_when_the_victim_cannot_see_it() {
+    let mut map = test_map();
+    let observer = add_indexed_player(&mut map, test_player_for_viewpoint(4_640_001));
+    let mut victim = test_player_for_viewpoint(4_640_002);
+    victim
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(310.0, 20.0, 30.0));
+    let victim = add_indexed_player(&mut map, victim);
+    let mut other_phase = test_player_for_viewpoint(4_640_003);
+    other_phase
+        .unit_mut()
+        .world_mut()
+        .phase_shift_mut()
+        .insert(20);
+    let other_phase = add_indexed_player(&mut map, other_phase);
+    map.get_typed_player_mut(observer)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .phase_shift_mut()
+        .insert(10);
+
+    let mut creature = Creature::new(true);
+    let source = creature.unit_mut().world_mut();
+    source
+        .object_mut()
+        .create(guid(HighGuid::Creature, 4_640_004));
+    source.object_mut().set_entry(299);
+    source.set_map(571, 7).unwrap();
+    source.relocate(Position::xyz(12.0, 20.0, 30.0));
+    source.phase_shift_mut().insert(10);
+    let attacker = creature.guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+    let source = map.get_typed_creature(attacker).unwrap().unit().world();
+    let recipients = map.message_dist_observers_like_cpp(source);
+    assert!(recipients.contains(&observer));
+    assert!(!recipients.contains(&victim));
+    assert!(!recipients.contains(&other_phase));
 }
 
 #[test]

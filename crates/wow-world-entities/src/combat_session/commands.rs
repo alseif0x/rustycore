@@ -219,14 +219,10 @@ pub fn publish_creature_melee_attacker_state_like_cpp<H: CombatSessionHostLikeCp
     command: &ApplyCreatureMeleeDamageLikeCppCommand,
 ) -> Result<(), &'static str> {
     use wow_packet::packets::combat::AttackerStateUpdate;
-    // Visibility gates only the attacker-facing combat packet, never the
-    // authoritative victim health/death reconciliation.
-    if host
-        .core()
-        .client_visible_guids_like_cpp
-        .contains(&command.attacker_guid)
-    {
-        host.send_packet(&AttackerStateUpdate {
+    crate::melee_publication::publish_hit(
+        host.hub_ref(),
+        (command.map_id, command.instance_id),
+        &AttackerStateUpdate {
             attacker: command.attacker_guid,
             victim: command.victim_guid,
             hit_info: command.hit_info,
@@ -237,8 +233,8 @@ pub fn publish_creature_melee_attacker_state_like_cpp<H: CombatSessionHostLikeCp
             absorbed: command.absorbed.min(i32::MAX as u32) as i32,
             victim_state: command.victim_state,
             school_mask: 1,
-        });
-    }
+        },
+    );
     Ok(())
 }
 

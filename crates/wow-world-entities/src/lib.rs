@@ -46,6 +46,7 @@ mod gameobject_use_pvp;
 mod gameobject_use_scripted;
 mod gameobject_use_support;
 mod gameobject_use_types;
+mod melee_publication;
 mod module_hooks;
 mod movement_acks;
 mod movement_handlers;
