@@ -185,6 +185,7 @@ async fn d3a3_executor_tick_like_cpp(
             terrain: None,
             mmap_config: &mmap_config,
             mmap_pathfinder: None,
+            resolve_waypoint_path: &|_| None,
             chase_targets: &chase_targets,
             config: &config,
             map_store: &world.map_store,

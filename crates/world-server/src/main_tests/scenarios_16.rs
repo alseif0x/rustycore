@@ -67,6 +67,7 @@ fn d3b_aggro_config_like_cpp() -> wow_world::session::CreatureAggroConfigLikeCpp
 
 fn d3b_canonical_runtime_like_cpp() -> CanonicalCreatureRuntimeLikeCpp {
     CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
+        Default::default(),
         wow_world::MMapRuntimeConfigLikeCpp {
             enabled: false,
             ..Default::default()

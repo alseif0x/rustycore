@@ -20,6 +20,8 @@ use wow_world_test_support::map_objects::*;
 
 #[path = "scenarios/f6_8d2_admitted_execution.rs"]
 mod f6_8d2_admitted_execution;
+#[path = "scenarios/respawn_relocation.rs"]
+mod respawn_relocation;
 #[path = "scenarios/scenarios_world_entities_21.rs"]
 mod scenarios_world_entities_21;
 #[path = "scenarios/scenarios_world_entities_24.rs"]
