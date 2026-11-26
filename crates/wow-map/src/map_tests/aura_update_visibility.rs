@@ -23,47 +23,39 @@ fn add_indexed_player(
     guid
 }
 
-#[test]
-fn melee_observers_follow_the_attacker_when_the_victim_cannot_see_it() {
-    let mut map = test_map();
-    let observer = add_indexed_player(&mut map, test_player_for_viewpoint(4_640_001));
-    let mut victim = test_player_for_viewpoint(4_640_002);
-    victim
-        .unit_mut()
-        .world_mut()
-        .relocate(Position::xyz(310.0, 20.0, 30.0));
-    let victim = add_indexed_player(&mut map, victim);
-    let mut other_phase = test_player_for_viewpoint(4_640_003);
-    other_phase
-        .unit_mut()
-        .world_mut()
-        .phase_shift_mut()
-        .insert(20);
-    let other_phase = add_indexed_player(&mut map, other_phase);
-    map.get_typed_player_mut(observer)
-        .unwrap()
-        .unit_mut()
-        .world_mut()
-        .phase_shift_mut()
-        .insert(10);
+fn add_phased_player_at_x(
+    map: &mut Map<RecordingTerrain, RecordingLifecycle>,
+    counter: i64,
+    x: f32,
+    phase: u32,
+) -> ObjectGuid {
+    let mut player = test_player_for_viewpoint(counter);
+    let world = player.unit_mut().world_mut();
+    world.relocate(Position::xyz(x, 20.0, 30.0));
+    world.phase_shift_mut().insert(phase);
+    add_indexed_player(map, player)
+}
 
+fn add_indexed_creature_at_x(
+    map: &mut Map<RecordingTerrain, RecordingLifecycle>,
+    counter: i64,
+    entry: u32,
+    x: f32,
+    phase: Option<u32>,
+) -> ObjectGuid {
     let mut creature = Creature::new(true);
-    let source = creature.unit_mut().world_mut();
-    source
-        .object_mut()
-        .create(guid(HighGuid::Creature, 4_640_004));
-    source.object_mut().set_entry(299);
-    source.set_map(571, 7).unwrap();
-    source.relocate(Position::xyz(12.0, 20.0, 30.0));
-    source.phase_shift_mut().insert(10);
-    let attacker = creature.guid();
+    let creature_guid = guid(HighGuid::Creature, counter);
+    let world = creature.unit_mut().world_mut();
+    world.object_mut().create(creature_guid);
+    world.object_mut().set_entry(entry);
+    world.set_map(map.map_id(), map.instance_id()).unwrap();
+    world.relocate(Position::xyz(x, 20.0, 30.0));
+    if let Some(phase) = phase {
+        world.phase_shift_mut().insert(phase);
+    }
     map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
         .unwrap();
-    let source = map.get_typed_creature(attacker).unwrap().unit().world();
-    let recipients = map.message_dist_observers_like_cpp(source);
-    assert!(recipients.contains(&observer));
-    assert!(!recipients.contains(&victim));
-    assert!(!recipients.contains(&other_phase));
+    creature_guid
 }
 
 #[test]
@@ -163,59 +155,31 @@ fn corpse_birth_selects_owner_peer_and_shared_seer_with_exact_phase_and_range() 
 #[test]
 fn selected_aura_observers_use_source_range_phase_and_body_fallback_for_invalid_farsight() {
     let mut map = test_map();
-    let mut source = test_player_for_viewpoint(4_610_001);
-    source.unit_mut().world_mut().phase_shift_mut().insert(10);
-    let source_guid = add_indexed_player(&mut map, source);
-
-    let mut nearby = test_player_for_viewpoint(4_610_002);
-    nearby.unit_mut().world_mut().phase_shift_mut().insert(10);
-    nearby
-        .unit_mut()
-        .world_mut()
-        .relocate(Position::xyz(12.0, 20.0, 30.0));
-    let nearby_guid = add_indexed_player(&mut map, nearby);
-
-    let mut invalid_farsight = test_player_for_viewpoint(4_610_003);
-    invalid_farsight
-        .unit_mut()
-        .world_mut()
-        .phase_shift_mut()
-        .insert(10);
-    invalid_farsight
-        .unit_mut()
-        .world_mut()
-        .relocate(Position::xyz(13.0, 20.0, 30.0));
-    let invalid_farsight_guid = invalid_farsight.guid();
-    invalid_farsight.set_farsight_object_like_cpp(guid(HighGuid::DynamicObject, 4_610_099));
-    add_indexed_player(&mut map, invalid_farsight);
-
-    let mut wrong_phase = test_player_for_viewpoint(4_610_004);
-    wrong_phase
-        .unit_mut()
-        .world_mut()
-        .phase_shift_mut()
-        .insert(20);
-    let wrong_phase_guid = wrong_phase.guid();
-    add_indexed_player(&mut map, wrong_phase);
-
-    let mut out_of_range = test_player_for_viewpoint(4_610_005);
-    out_of_range
-        .unit_mut()
-        .world_mut()
-        .phase_shift_mut()
-        .insert(10);
-    out_of_range
-        .unit_mut()
-        .world_mut()
-        .relocate(Position::xyz(111.0, 20.0, 30.0));
-    let out_of_range_guid = out_of_range.guid();
-    add_indexed_player(&mut map, out_of_range);
+    let source_guid = add_phased_player_at_x(&mut map, 4_610_001, 10.0, 10);
+    let nearby_guid = add_phased_player_at_x(&mut map, 4_610_002, 12.0, 10);
+    let invalid_farsight_guid = add_phased_player_at_x(&mut map, 4_610_003, 13.0, 10);
+    map.get_typed_player_mut(invalid_farsight_guid)
+        .unwrap()
+        .set_farsight_object_like_cpp(guid(HighGuid::DynamicObject, 4_610_099));
+    let wrong_phase_guid = add_phased_player_at_x(&mut map, 4_610_004, 10.0, 20);
+    let out_of_range_guid = add_phased_player_at_x(&mut map, 4_610_005, 111.0, 10);
 
     let recipients = map.selected_aura_update_observers(source_guid);
     assert!(recipients.contains(&nearby_guid));
     assert!(recipients.contains(&invalid_farsight_guid));
     assert!(!recipients.contains(&wrong_phase_guid));
     assert!(!recipients.contains(&out_of_range_guid));
+
+    let attacker_guid = add_indexed_creature_at_x(&mut map, 4_610_006, 299, 10.0, Some(10));
+    let attacker = map
+        .get_typed_creature(attacker_guid)
+        .unwrap()
+        .unit()
+        .world();
+    let melee_recipients = map.message_dist_observers_like_cpp(attacker);
+    assert!(melee_recipients.contains(&nearby_guid));
+    assert!(!melee_recipients.contains(&wrong_phase_guid));
+    assert!(!melee_recipients.contains(&out_of_range_guid));
 }
 
 #[test]
@@ -261,27 +225,14 @@ fn selected_aura_observers_cover_shared_player_creature_dynamic_and_vehicle_rout
     add_indexed_player(&mut map, shared_player_viewer);
 
     let shared_creature_viewer_guid = guid(HighGuid::Player, 4_620_004);
-    let mut creature = Creature::new(true);
-    creature
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .create(guid(HighGuid::Creature, 4_620_005));
-    creature.unit_mut().world_mut().object_mut().set_entry(42);
-    creature.unit_mut().world_mut().set_map(571, 7).unwrap();
-    creature
-        .unit_mut()
-        .world_mut()
-        .relocate(Position::xyz(14.0, 20.0, 30.0));
-    let creature_guid = creature.guid();
-    creature
+    let creature_guid = add_indexed_creature_at_x(&mut map, 4_620_005, 42, 14.0, None);
+    map.get_typed_creature_mut(creature_guid)
+        .unwrap()
         .unit_mut()
         .subsystems_mut()
         .control
         .shared_vision_guids
         .insert(shared_creature_viewer_guid);
-    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
-        .unwrap();
     let mut shared_creature_viewer = test_player_for_viewpoint(4_620_004);
     shared_creature_viewer
         .unit_mut()
