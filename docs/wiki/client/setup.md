@@ -20,7 +20,7 @@ On a fresh 54261 client, choose the language and region, then quit from the logi
 screen before entering the QA account. The first region selection can overwrite
 the configured portal. With the game closed, set `SET portal "<QA-hostname>:1119"`
 in `_classic_/WTF/Config.wtf`, using the DNS name covered by the Battle.net
-certificate, then relaunch. The [direct-launch QA run](../../architecture/captures/46-qa-54261-2026-11-22.md#direct-launch-with-a-fresh-profile)
+certificate, then relaunch. The [direct-launch QA run](https://github.com/alseif0x/rustycore/blob/3.4.3/docs/architecture/captures/46-qa-54261-2026-11-22.md#direct-launch-with-a-fresh-profile)
 records how far that configuration reached on the shared realm.
 
 The repository's integrated smoke client is documented under

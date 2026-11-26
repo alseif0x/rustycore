@@ -132,12 +132,26 @@ fn production_failed_destroy_does_not_recycle_the_occupied_instance_id() {
     for id in 1..=7 {
         manager.register_instance_id(id);
     }
+    let key = MapKey::new(489, 7);
     manager.create_map_entry(489, 7, 0, wow_map::ManagedMapKind::Battleground);
-    let handle = active_player(&mut manager, 42, MapKey::new(489, 7));
+    let handle = active_player(&mut manager, 42, key);
+    let incarnation = manager.map_incarnation_like_cpp(key).unwrap();
     assert!(!manager.destroy_map(489, 7));
+    assert!(
+        manager
+            .take_pending_instance_id_retirements_like_cpp()
+            .is_empty()
+    );
     assert_eq!(manager.generate_instance_id(), Some(8));
     manager.detach_player_like_cpp(handle).unwrap();
     assert!(manager.destroy_map(489, 7));
+    let retirements = manager.take_pending_instance_id_retirements_like_cpp();
+    let [retired] = retirements.as_slice() else {
+        panic!("expected one retirement for the destroyed battleground");
+    };
+    assert_eq!((retired.key, retired.incarnation), (key, incarnation));
+    assert_eq!(manager.generate_instance_id(), Some(9));
+    assert!(manager.complete_instance_id_retirement_like_cpp(*retired));
     assert_eq!(manager.generate_instance_id(), Some(7));
     assert_eq!(
         manager.with_player_like_cpp(handle, Player::money),
