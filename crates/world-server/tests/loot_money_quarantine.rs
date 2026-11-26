@@ -216,7 +216,7 @@ async fn exercise_case(database: &Database, rollback: bool) -> Result<()> {
     timeout(BOUND, async {
         waiter_a_started.await?;
         waiter_b_started.await?;
-        Ok::<_, oneshot::RecvError>(())
+        Ok::<_, oneshot::error::RecvError>(())
     })
     .await
     .context("both source waiters did not reach the pending reservation")?
@@ -398,7 +398,7 @@ async fn exercise_case(database: &Database, rollback: bool) -> Result<()> {
         other => anyhow::bail!("fresh legal retry published the wrong command: {other:?}"),
     }
     ensure!(
-        matches!(retry_rx.try_recv(), Err(flume::TryRecvError::Empty)),
+        retry_rx.try_recv().is_err(),
         "fresh legal retry published duplicate payout or removal commands"
     );
     assert_eq!(database.counts().await?, (BEFORE + COINS, 1));
