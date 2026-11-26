@@ -331,8 +331,9 @@ pub use world::{
     MapCorpseCustomizationLoadRowLikeCpp, MapCorpseLoadOutcomeLikeCpp, MapCorpseLoadRequestLikeCpp,
     MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp, MapCorpsePhaseLoadRowLikeCpp,
     RespawnPersistenceKeyLikeCpp, RespawnPersistenceLoadOutcomeLikeCpp,
-    RespawnPersistenceMutationLikeCpp, RespawnPersistenceMutationOutcomeLikeCpp,
-    RespawnPersistencePortLikeCpp, RespawnPersistenceRowLikeCpp,
+    RespawnPersistenceMutationKeyLikeCpp, RespawnPersistenceMutationLikeCpp,
+    RespawnPersistenceMutationOutcomeLikeCpp, RespawnPersistencePortLikeCpp,
+    RespawnPersistenceRowLikeCpp,
 };
 
 mod battle_pet;
@@ -512,7 +513,8 @@ pub use group::{
     RepresentedGroupPersistenceRequestLikeCpp, RepresentedGroupStartupCharacterLikeCpp,
     RepresentedGroupStartupGroupRowLikeCpp, RepresentedGroupStartupLoadOutcomeLikeCpp,
     RepresentedGroupStartupLoadPortLikeCpp, RepresentedGroupStartupLoadStageLikeCpp,
-    RepresentedGroupStartupMemberRowLikeCpp, classify_group_loot_money_reconciliation_like_cpp,
+    RepresentedGroupStartupMemberRowLikeCpp, WorldLootMoneyBinding, WorldLootMoneySource,
+    classify_group_loot_money_reconciliation_like_cpp,
 };
 
 #[cfg(test)]

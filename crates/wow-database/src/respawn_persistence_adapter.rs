@@ -21,26 +21,27 @@ fn load_all_statement_like_cpp() -> PreparedStatement {
     PreparedStatement::for_statement(CharStatements::SEL_ALL_RESPAWNS)
 }
 
-fn mutation_statement_like_cpp(mutation: RespawnPersistenceMutationLikeCpp) -> PreparedStatement {
-    match mutation {
-        RespawnPersistenceMutationLikeCpp::Save { key, respawn_time } => {
-            let mut statement = PreparedStatement::for_statement(CharStatements::REP_RESPAWN);
-            statement.set_u16(0, key.object_type_raw);
-            statement.set_u64(1, key.spawn_id);
-            statement.set_i64(2, respawn_time);
-            statement.set_u16(3, key.map_id);
-            statement.set_u32(4, key.instance_id);
-            statement
-        }
-        RespawnPersistenceMutationLikeCpp::Delete { key } => {
-            let mut statement = PreparedStatement::for_statement(CharStatements::DEL_RESPAWN);
-            statement.set_u16(0, key.object_type_raw);
-            statement.set_u64(1, key.spawn_id);
-            statement.set_u16(2, key.map_id);
-            statement.set_u32(3, key.instance_id);
-            statement
-        }
-    }
+fn save_respawn_statement(
+    key: wow_persistence::RespawnPersistenceKeyLikeCpp,
+    respawn_time: i64,
+) -> PreparedStatement {
+    let mut statement = PreparedStatement::for_statement(CharStatements::REP_RESPAWN);
+    statement.set_u16(0, key.object_type_raw);
+    statement.set_u64(1, key.spawn_id);
+    statement.set_i64(2, respawn_time);
+    statement.set_u16(3, key.map_id);
+    statement.set_u32(4, key.instance_id);
+    statement
+}
+fn delete_respawn_statement(
+    key: wow_persistence::RespawnPersistenceKeyLikeCpp,
+) -> PreparedStatement {
+    let mut statement = PreparedStatement::for_statement(CharStatements::DEL_RESPAWN);
+    statement.set_u16(0, key.object_type_raw);
+    statement.set_u64(1, key.spawn_id);
+    statement.set_u16(2, key.map_id);
+    statement.set_u32(3, key.instance_id);
+    statement
 }
 
 fn decode_rows_like_cpp(
@@ -142,11 +143,55 @@ impl RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp {
         mutation: RespawnPersistenceMutationLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, RespawnPersistenceMutationOutcomeLikeCpp> {
         Box::pin(async move {
-            match self
-                .character_db
-                .execute(&mutation_statement_like_cpp(mutation))
-                .await
-            {
+            let result = match mutation {
+                RespawnPersistenceMutationLikeCpp::Save { key, respawn_time } => {
+                    self.character_db
+                        .execute(&save_respawn_statement(key, respawn_time))
+                        .await
+                }
+                RespawnPersistenceMutationLikeCpp::Delete { key } => {
+                    self.character_db
+                        .execute(&delete_respawn_statement(key))
+                        .await
+                }
+                RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+                    key,
+                    realm_id,
+                    generation,
+                    deadline,
+                    persist_respawn,
+                } => {
+                    let source = wow_persistence::WorldLootMoneySource {
+                        realm_id,
+                        map_id: key.map_id.into(),
+                        instance_id: key.instance_id,
+                        spawn_id: key.spawn_id,
+                    };
+                    crate::group_loot_money_adapter::arm_world_chest_money(
+                        &self.character_db,
+                        source,
+                        generation,
+                        deadline,
+                        persist_respawn,
+                    )
+                    .await
+                    .map(u64::from)
+                }
+                RespawnPersistenceMutationLikeCpp::RetireInstanceChestMoney {
+                    realm_id,
+                    map_id,
+                    instance_id,
+                } => {
+                    crate::group_loot_money_adapter::retire_world_instance_chest_money(
+                        &self.character_db,
+                        realm_id,
+                        map_id,
+                        instance_id,
+                    )
+                    .await
+                }
+            };
+            match result {
                 Ok(affected_rows) => {
                     RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows }
                 }
@@ -184,10 +229,7 @@ mod tests {
             CharStatements::SEL_ALL_RESPAWNS.sql()
         );
 
-        let save = mutation_statement_like_cpp(RespawnPersistenceMutationLikeCpp::Save {
-            key: KEY,
-            respawn_time: 0x1020_3040_5060_7080,
-        });
+        let save = save_respawn_statement(KEY, 0x1020_3040_5060_7080);
         assert_eq!(save.sql(), CharStatements::REP_RESPAWN.sql());
         assert_eq!(
             save.params(),
@@ -200,8 +242,7 @@ mod tests {
             ]
         );
 
-        let delete =
-            mutation_statement_like_cpp(RespawnPersistenceMutationLikeCpp::Delete { key: KEY });
+        let delete = delete_respawn_statement(KEY);
         assert_eq!(delete.sql(), CharStatements::DEL_RESPAWN.sql());
         assert_eq!(
             delete.params(),

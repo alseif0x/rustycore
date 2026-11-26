@@ -916,6 +916,7 @@ pub struct PlayerCreateData {
     pub max_level: i32,
     /// ActivePlayerData::ScalingPlayerLevelDelta.
     pub scaling_player_level_delta: i32,
+    pub explored_zones: Option<Box<[u64; 240]>>,
     /// ActivePlayerData::RestInfo[REST_TYPE_XP/HONOR].
     pub rest_info: [RestInfoValuesUpdate; 2],
     /// ActivePlayerData::WatchedFactionIndex.

@@ -405,6 +405,58 @@ pub(super) async fn collect_until(
     .map(|_| ())
 }
 
+pub(super) async fn wait_for_server_disconnect(
+    deadline: tokio::time::Instant,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    controller: &mut Controller,
+) -> Result<()> {
+    let mut disconnected = None;
+    loop {
+        let packet = next_packet(
+            deadline,
+            stream,
+            crypt,
+            inflater,
+            realm,
+            None,
+            Some(&mut disconnected),
+        )
+        .await?;
+        let Some((connection, opcode, payload)) = packet else {
+            let connection = disconnected.context("timed out waiting for server disconnect")?;
+            controller.evidence.server_disconnect_connection = Some(connection);
+            controller.evidence.trace.push(TraceEntry {
+                sequence: controller.evidence.trace.len(),
+                kind: TraceKind::ServerSocketClosed,
+                action_index: None,
+                action: Some("server_disconnect_observed".to_string()),
+                connection: Some(connection),
+                connection_sequence: None,
+                opcode: None,
+                sent_packet_sequence: None,
+                event_sequence: None,
+                body_bytes: None,
+                body_redacted: false,
+                detail: Some("remote world socket reached frame-boundary EOF".to_string()),
+            });
+            return Ok(());
+        };
+        controller
+            .observe_packet(
+                connection == Connection::Instance,
+                opcode,
+                &payload,
+                stream,
+                crypt,
+                realm,
+            )
+            .await?;
+    }
+}
+
 /// WorldSession.cpp:676 sends realm LogoutComplete before :687 closes the
 /// instance socket; their independent transports can deliver the EOF first.
 pub(super) async fn collect_logout_until(
@@ -519,6 +571,7 @@ async fn collect_until_inner(
             inflater,
             realm,
             tolerate_instance_eof.then_some(&mut instance_closed),
+            None,
         )
         .await?
         else {
@@ -596,7 +649,7 @@ pub(super) async fn drain_login_streams_with_controller(
     loop {
         let read_deadline = quiet_deadline.min(deadline);
         let Some((connection, opcode, payload)) =
-            next_packet(read_deadline, stream, crypt, inflater, realm, None).await?
+            next_packet(read_deadline, stream, crypt, inflater, realm, None, None).await?
         else {
             if result.login_instance_object_update_seen {
                 result.login_stream_drained = true;
@@ -638,6 +691,7 @@ async fn next_packet(
     inflater: &mut ServerPacketInflater,
     realm: &mut Option<EncryptedWorldConnection>,
     mut instance_closed: Option<&mut bool>,
+    mut server_disconnect: Option<&mut Option<Connection>>,
 ) -> Result<Option<(Connection, u16, Vec<u8>)>> {
     const PACKET_POLL_INTERVAL: Duration = Duration::from_millis(1);
 
@@ -645,6 +699,53 @@ async fn next_packet(
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
             return Ok(None);
+        }
+        if let Some(disconnected) = server_disconnect.as_deref_mut() {
+            if let Some(realm) = realm.as_mut() {
+                match read_encrypted_packet_if_ready_for_disconnect(
+                    &mut realm.stream,
+                    &mut realm.crypt,
+                    &mut realm.inflater,
+                    remaining.min(PACKET_POLL_INTERVAL),
+                    remaining,
+                    "cast lifecycle realm packet",
+                )
+                .await?
+                {
+                    EncryptedPacketPoll::NotReady => {}
+                    EncryptedPacketPoll::CleanEof => {
+                        *disconnected = Some(Connection::Realm);
+                        return Ok(None);
+                    }
+                    EncryptedPacketPoll::Packet((opcode, payload)) => {
+                        return Ok(Some((Connection::Realm, opcode, payload)));
+                    }
+                }
+            }
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return Ok(None);
+            }
+            match read_encrypted_packet_if_ready_for_disconnect(
+                stream,
+                crypt,
+                inflater,
+                remaining.min(PACKET_POLL_INTERVAL),
+                remaining,
+                "cast lifecycle instance packet",
+            )
+            .await?
+            {
+                EncryptedPacketPoll::NotReady => {}
+                EncryptedPacketPoll::CleanEof => {
+                    *disconnected = Some(Connection::Instance);
+                    return Ok(None);
+                }
+                EncryptedPacketPoll::Packet((opcode, payload)) => {
+                    return Ok(Some((Connection::Instance, opcode, payload)));
+                }
+            }
+            continue;
         }
         if let Some(realm) = realm.as_mut() {
             if let Some((opcode, payload)) = read_encrypted_packet_if_ready(
@@ -749,12 +850,68 @@ pub(super) fn decode_event(
         SMSG_SPELL_FAILURE => parse_spell_failure(payload, &mut event, false),
         SMSG_SPELL_FAILED_OTHER => parse_spell_failure(payload, &mut event, true),
         SMSG_TIME_SYNC_REQUEST => parse_time_sync_request_sequence(payload).map(|_| ()),
+        crate::loot_race::SMSG_LOOT_RESPONSE => {
+            crate::loot_race::parse_loot_response(payload).map(|_| ())
+        }
+        crate::loot_race::SMSG_LOOT_MONEY_NOTIFY => parse_loot_money_notify(payload).map(|_| ()),
+        crate::loot_race::SMSG_COIN_REMOVED => parse_loot_coin_removed(payload).map(|_| ()),
+        SMSG_LOOT_RELEASE => parse_loot_release(payload).map(|_| ()),
         _ => Ok(()),
     };
     if let Err(error) = parsed {
         event.error = Some(error.to_string());
     }
     event
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct LootMoneyNotifyFact {
+    pub money: u64,
+    pub money_mod: u64,
+    pub sole_looter: bool,
+}
+
+pub(super) fn parse_loot_money_notify(payload: &[u8]) -> Result<LootMoneyNotifyFact> {
+    if payload.len() != 17 {
+        bail!("SMSG_LOOT_MONEY_NOTIFY must have a 17-byte body");
+    }
+    if payload[16] & 0x7F != 0 {
+        bail!("SMSG_LOOT_MONEY_NOTIFY has nonzero padding bits");
+    }
+    Ok(LootMoneyNotifyFact {
+        money: u64::from_le_bytes(payload[0..8].try_into()?),
+        money_mod: u64::from_le_bytes(payload[8..16].try_into()?),
+        sole_looter: payload[16] & 0x80 != 0,
+    })
+}
+
+pub(super) fn parse_loot_coin_removed(payload: &[u8]) -> Result<Guid> {
+    let (used, low, high) =
+        parse_packed_guid(payload).context("malformed SMSG_COIN_REMOVED GUID")?;
+    if used != payload.len() {
+        bail!("SMSG_COIN_REMOVED has unexpected trailing bytes");
+    }
+    Ok(Guid { low, high })
+}
+
+pub(super) fn parse_loot_release(payload: &[u8]) -> Result<(Guid, Guid)> {
+    let (loot_used, loot_low, loot_high) =
+        parse_packed_guid(payload).context("malformed SMSG_LOOT_RELEASE loot GUID")?;
+    let (owner_used, owner_low, owner_high) = parse_packed_guid(&payload[loot_used..])
+        .context("malformed SMSG_LOOT_RELEASE owner GUID")?;
+    if loot_used + owner_used != payload.len() {
+        bail!("SMSG_LOOT_RELEASE has unexpected trailing bytes");
+    }
+    Ok((
+        Guid {
+            low: loot_low,
+            high: loot_high,
+        },
+        Guid {
+            low: owner_low,
+            high: owner_high,
+        },
+    ))
 }
 
 fn event_kind(opcode: u16) -> &'static str {
@@ -778,6 +935,10 @@ fn event_kind(opcode: u16) -> &'static str {
         SMSG_SPELL_FAILURE => "spell_failure",
         SMSG_SPELL_FAILED_OTHER => "spell_failed_other",
         SMSG_TIME_SYNC_REQUEST => "time_sync_request",
+        crate::loot_race::SMSG_LOOT_RESPONSE => "loot_response",
+        crate::loot_race::SMSG_LOOT_MONEY_NOTIFY => "loot_money_notify",
+        crate::loot_race::SMSG_COIN_REMOVED => "coin_removed",
+        SMSG_LOOT_RELEASE => "loot_release",
         _ => "other",
     }
 }

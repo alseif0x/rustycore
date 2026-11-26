@@ -34,6 +34,8 @@ pub(super) fn evaluate(evidence: &mut Evidence) {
     let mut next_realm_sequence = None;
     let mut all_matched = evidence.failure.is_none();
     let mut matched_sequences = std::collections::HashSet::new();
+    let events = evidence.events.as_slice();
+    let game_object_selections = evidence.game_object_selections.as_slice();
     for fact in &mut evidence.expected_rules {
         let connection = match &fact.rule {
             ExpectedRule::Packet { connection, .. } => *connection,
@@ -43,11 +45,11 @@ pub(super) fn evaluate(evidence: &mut Evidence) {
             Connection::Instance => next_instance_sequence,
             Connection::Realm => next_realm_sequence,
         };
-        let found = evidence.events.iter().find(|event| {
+        let found = events.iter().find(|event| {
             event.connection == connection
                 && after.is_none_or(|sequence| event.sequence > sequence)
                 && event.error.is_none()
-                && matches_rule(&fact.rule, event)
+                && matches_rule(&fact.rule, event, events, game_object_selections)
         });
         if let Some(event) = found {
             fact.matched = true;
@@ -101,6 +103,10 @@ pub(super) fn evaluate(evidence: &mut Evidence) {
         .iter()
         .filter_map(|fact| match &fact.rule {
             ExpectedRule::Packet { opcode, .. } => Some(*opcode),
+            ExpectedRule::LootResponse { .. } => Some(crate::loot_race::SMSG_LOOT_RESPONSE),
+            ExpectedRule::LootMoneyNotify { .. } => Some(crate::loot_race::SMSG_LOOT_MONEY_NOTIFY),
+            ExpectedRule::LootCoinRemoved {} => Some(crate::loot_race::SMSG_COIN_REMOVED),
+            ExpectedRule::LootRelease {} => Some(SMSG_LOOT_RELEASE),
             _ => None,
         })
         .collect::<std::collections::HashSet<_>>();
@@ -182,7 +188,11 @@ fn event_is_plan_bound(
     identities: &HashMap<Guid, Guid>,
 ) -> bool {
     expected_rules.iter().any(|fact| match &fact.rule {
-        ExpectedRule::Packet { .. } => false,
+        ExpectedRule::Packet { .. }
+        | ExpectedRule::LootResponse { .. }
+        | ExpectedRule::LootMoneyNotify { .. }
+        | ExpectedRule::LootCoinRemoved {}
+        | ExpectedRule::LootRelease {} => false,
         ExpectedRule::Prepare {
             client_cast_id,
             server_cast_id,
@@ -236,7 +246,12 @@ fn identity_matches_either(
         || expected_server.is_some_and(|expected| event_server == Some(expected))
 }
 
-fn matches_rule(rule: &ExpectedRule, event: &ObservedEvent) -> bool {
+fn matches_rule(
+    rule: &ExpectedRule,
+    event: &ObservedEvent,
+    events: &[ObservedEvent],
+    game_object_selections: &[GameObjectSelectionFact],
+) -> bool {
     if let ExpectedRule::Packet {
         connection,
         opcode,
@@ -255,6 +270,71 @@ fn matches_rule(rule: &ExpectedRule, event: &ObservedEvent) -> bool {
     }
     match rule {
         ExpectedRule::Packet { .. } => unreachable!("packet rules handled before cast route gate"),
+        ExpectedRule::LootResponse { coins, item_entry } => {
+            if event.opcode != crate::loot_race::SMSG_LOOT_RESPONSE {
+                return false;
+            }
+            let Ok(payload) = hex::decode(&event.body_hex) else {
+                return false;
+            };
+            let Ok(response) = crate::loot_race::parse_loot_response(&payload) else {
+                return false;
+            };
+            let Some(selection) = game_object_selections.first() else {
+                return false;
+            };
+            response.failure_reason == CXX_DEFAULT_LOOT_RESPONSE_FAILURE_REASON
+                && response.acquired
+                && (response.owner_low, response.owner_high)
+                    == (selection.guid.low, selection.guid.high)
+                && crate::loot_race::validate_loot_object_guid_like_cpp(
+                    response.loot_low,
+                    response.loot_high,
+                    crate::loot_race::RACE_GAMEOBJECT_MAP_ID,
+                    realm_id(),
+                )
+                .is_ok()
+                && response.coins == *coins
+                && response.items.len() == 1
+                && response.items[0].item_entry == *item_entry
+                && response.items[0].quantity == 1
+        }
+        ExpectedRule::LootMoneyNotify { money, money_mod } => {
+            event.opcode == crate::loot_race::SMSG_LOOT_MONEY_NOTIFY
+                && hex::decode(&event.body_hex)
+                    .ok()
+                    .and_then(|payload| wire::parse_loot_money_notify(&payload).ok())
+                    .is_some_and(|notify| {
+                        notify.money == *money
+                            && notify.money_mod == *money_mod
+                            && notify.sole_looter
+                    })
+        }
+        ExpectedRule::LootCoinRemoved {} => {
+            event.opcode == crate::loot_race::SMSG_COIN_REMOVED
+                && hex::decode(&event.body_hex)
+                    .ok()
+                    .and_then(|payload| wire::parse_loot_coin_removed(&payload).ok())
+                    .is_some_and(|coin_guid| {
+                        first_loot_response_before(events, event.sequence).is_some_and(|response| {
+                            (coin_guid.low, coin_guid.high)
+                                == (response.loot_low, response.loot_high)
+                        })
+                    })
+        }
+        ExpectedRule::LootRelease {} => {
+            event.opcode == SMSG_LOOT_RELEASE
+                && hex::decode(&event.body_hex)
+                    .ok()
+                    .and_then(|payload| wire::parse_loot_release(&payload).ok())
+                    .is_some_and(|(loot_guid, owner_guid)| {
+                        first_loot_response_before(events, event.sequence).is_some_and(|response| {
+                            (loot_guid.low, loot_guid.high)
+                                == (response.owner_low, response.owner_high)
+                                && !owner_guid.empty()
+                        })
+                    })
+        }
         ExpectedRule::Prepare {
             client_cast_id,
             server_cast_id,
@@ -337,6 +417,23 @@ fn matches_rule(rule: &ExpectedRule, event: &ObservedEvent) -> bool {
                 && (*reason).is_none_or(|expected| event.reason == Some(expected as u32))
         }
     }
+}
+
+fn first_loot_response_before(
+    events: &[ObservedEvent],
+    sequence: usize,
+) -> Option<crate::loot_race::ParsedLootResponse> {
+    let event = events
+        .iter()
+        .filter(|event| {
+            event.sequence < sequence
+                && event.connection == Connection::Instance
+                && event.opcode == crate::loot_race::SMSG_LOOT_RESPONSE
+                && event.error.is_none()
+        })
+        .min_by_key(|event| event.sequence)?;
+    let payload = hex::decode(&event.body_hex).ok()?;
+    crate::loot_race::parse_loot_response(&payload).ok()
 }
 
 fn identity_matches(

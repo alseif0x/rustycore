@@ -22,8 +22,10 @@ use wow_core::ObjectGuid;
 
 use crate::LOOT_SLOT_TYPE_OWNER_LIKE_CPP;
 
+mod money_recovery;
 mod ops_1;
 mod ops_2;
+pub use money_recovery::{MoneyReceiptDecision, QuarantinedMoneyClaim};
 mod state;
 #[allow(unused_imports)]
 pub use ops_1::*;

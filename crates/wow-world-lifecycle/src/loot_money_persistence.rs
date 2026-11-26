@@ -12,16 +12,17 @@
 //! `crates/wow-world/src/handlers/loot/money.rs`; only the access path changed
 //! (the lifecycle owner is a parameter instead of a World session field).
 //!
-//! Boundary (unchanged): the shared-pool worker is an in-process guarantee, not
-//! a durable claim journal. Aborting the detached task at the database commit
-//! await boundary can still lose the continuation between durable SQL and the
-//! synchronous authority commit.
+//! A shared grant writes its receipt with the character credits. A late
+//! reconciliation may update only the original source. Relog loads durable
+//! balances and never replays the old session's notifications.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tracing::warn;
+mod receipt_recovery;
+use receipt_recovery::retry_quarantined_money_receipt;
 use wow_core::ObjectGuid;
 use wow_entities::MAX_MONEY_AMOUNT;
 use wow_loot::LootClaimLease;
@@ -58,12 +59,6 @@ pub type LootMoneyPersistenceWorkerHandleLikeCpp =
 /// window where SQL could commit after the handler was cancelled while the
 /// lease's `Drop` reopened the object pool.
 ///
-/// Boundary: this is an in-process guarantee, not a durable claim journal.
-/// Aborting this detached task (including runtime/process shutdown) at the
-/// database commit await boundary can still lose the continuation between
-/// durable SQL and the synchronous authority commit. Recovery across that
-/// boundary requires persisting claim identity in the same transaction and
-/// replaying it at startup; #106 does not yet provide such a journal.
 /// Delivery tasks may likewise outlive a target session, but they carry
 /// only runtime publication: durable player money reloads from SQL and the
 /// already-committed authority prevents a second in-process payout.
@@ -145,6 +140,9 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
     let mut persistence_guard = claim
         .begin_persistence_guard_like_cpp()
         .map_err(LootMoneyPersistenceErrorLikeCpp::Claim)?;
+    let claim_id = persistence_guard
+        .money_claim_id()
+        .map_err(LootMoneyPersistenceErrorLikeCpp::Claim)?;
     drop(claim);
 
     Ok(tokio::spawn(async move {
@@ -188,6 +186,7 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
             let persistence_port =
                 persistence_port.expect("production loot-money worker must own a persistence port");
             let request = wow_persistence::GroupLootMoneyPersistenceRequestLikeCpp {
+                claim_id,
                 payouts: payouts
                     .iter()
                     .map(
@@ -199,6 +198,10 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
                     .collect(),
                 max_money: MAX_MONEY_AMOUNT,
             };
+            persistence_guard.set_money_write_in_flight(claim_id.is_some());
+            for guard in money_persistence_guards.values_mut() {
+                guard.set_write_in_flight(claim_id.is_some());
+            }
             let durable_outcomes = match persistence_port
                 .attempt_group_loot_money_like_cpp(request)
                 .await
@@ -209,11 +212,22 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
                         .map(|outcome| (outcome.recipient_guid, outcome))
                         .collect::<HashMap<_, _>>()
                 }
+                wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::AlreadySettled => {
+                    for guard in money_persistence_guards.values_mut() {
+                        guard.set_write_in_flight(false);
+                    }
+                    persistence_guard.commit_like_cpp().map_err(LootMoneyPersistenceErrorLikeCpp::Claim)?;
+                    return Err(LootMoneyPersistenceErrorLikeCpp::AlreadySettled);
+                }
                 wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
                     kind,
                     reason,
                     ..
                 } => {
+                    persistence_guard.set_money_write_in_flight(false);
+                    for guard in money_persistence_guards.values_mut() {
+                        guard.set_write_in_flight(false);
+                    }
                     return Err(match kind {
                         wow_persistence::GroupLootMoneyRollbackKindLikeCpp::MissingPlayer { .. } => {
                             LootMoneyPersistenceErrorLikeCpp::MissingPlayer
@@ -227,10 +241,14 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
                     reason,
                     outcomes: durable_outcomes,
                 } => match persistence_port
-                    .reconcile_group_loot_money_like_cpp(durable_outcomes.clone())
+                    .reconcile_group_loot_money_like_cpp(claim_id, durable_outcomes.clone())
                     .await
                 {
                     wow_persistence::GroupLootMoneyReconciliationLikeCpp::RolledBack => {
+                        persistence_guard.set_money_write_in_flight(false);
+                        for guard in money_persistence_guards.values_mut() {
+                            guard.set_write_in_flight(false);
+                        }
                         return Err(LootMoneyPersistenceErrorLikeCpp::Persistence(
                             "loot-money COMMIT was reconciled as rolled back".to_owned(),
                         ));
@@ -239,7 +257,13 @@ pub fn spawn_group_loot_money_persistence_like_cpp(
                         for guard in money_persistence_guards.values_mut() {
                             guard.mark_indeterminate_like_cpp();
                         }
-                        let _ = persistence_guard.quarantine_commit_unknown_like_cpp();
+                        if claim_id.is_some()
+                            && let Some(fence) = persistence_guard.quarantine_money_for_receipt()
+                        {
+                            retry_quarantined_money_receipt(fence, persistence_port, claim_id, durable_outcomes);
+                        } else {
+                            let _ = persistence_guard.quarantine_commit_unknown_like_cpp();
+                        }
                         for (delivery, _) in &deliveries {
                             let kick = SessionCommand::KickLikeCpp(KickLikeCppCommand {
                                 reason: "loot-money COMMIT outcome is unknown; relog required"

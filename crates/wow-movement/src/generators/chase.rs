@@ -254,7 +254,7 @@ impl ChaseMovementGenerator {
 
         let target_changed = self
             .last_target_position
-            .is_none_or(|last| position_distance_sq(last, snapshot.target_position) > 0.0)
+            .is_none_or(|last| !same_target_position(last, snapshot.target_position))
             || snapshot.mutual_chase != self.mutual_chase;
 
         if target_changed {
@@ -271,7 +271,6 @@ impl ChaseMovementGenerator {
                 if snapshot.owner_is_creature && !snapshot.target_accessible {
                     self.cannot_reach_target = true;
                     self.stop_moving_calls = self.stop_moving_calls.saturating_add(1);
-                    self.last_target_position = None;
                     return ChaseMovementAction::CannotReachTarget;
                 }
 
@@ -446,6 +445,17 @@ fn position_distance_sq(left: Position, right: Position) -> f32 {
     let dy = left.y - right.y;
     let dz = left.z - right.z;
     dx * dx + dy * dy + dz * dz
+}
+
+// Position::operator== compares all four components with G3D::fuzzyEq.
+fn same_target_position(last: Position, current: Position) -> bool {
+    fn equal(a: f32, b: f32) -> bool {
+        a == b || (a.is_finite() && (a - b).abs() <= 0.00001 * (a.abs() + 1.0))
+    }
+    equal(last.x, current.x)
+        && equal(last.y, current.y)
+        && equal(last.z, current.z)
+        && equal(last.orientation, current.orientation)
 }
 
 #[cfg(test)]
@@ -742,6 +752,25 @@ mod tests {
             ChaseMovementAction::CannotReachTarget
         );
         assert!(chase.cannot_reach_target);
+        let stops = chase.stop_moving_calls;
+        inaccessible.target_position.x += 0.000001;
+        assert_eq!(
+            chase.update_like_cpp(true, true, 100, inaccessible),
+            ChaseMovementAction::Continue
+        );
+        assert_eq!(chase.stop_moving_calls, stops);
+        inaccessible.target_position.x += 1.0;
+        assert_eq!(
+            chase.update_like_cpp(true, true, 100, inaccessible),
+            ChaseMovementAction::CannotReachTarget
+        );
+        assert_eq!(chase.stop_moving_calls, stops + 1);
+        inaccessible.target_position.orientation += 0.5;
+        inaccessible.target_accessible = true;
+        assert!(matches!(
+            chase.update_like_cpp(true, true, 100, inaccessible),
+            ChaseMovementAction::Launch(_)
+        ));
     }
 
     #[test]

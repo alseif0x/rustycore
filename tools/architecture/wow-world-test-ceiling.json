@@ -415,6 +415,36 @@
    "unit_tests_lines": 281637,
    "unit_tests_tests": 4187,
    "src_tests": 22
+  },
+  {
+   "id": "raise-46-39",
+   "kind": "raise",
+   "issue": 46,
+   "reviewed_at": "2026-11-25",
+   "reason": "Combine the reviewed #46 chest recovery, creature visibility and per-recipient combat log fixtures with the three phase regressions already integrated in #1515. The #46 branch adds a net four unit tests and 308 lines at the integration point.",
+   "unit_tests_lines": 281945,
+   "unit_tests_tests": 4191,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-46-40",
+   "kind": "raise",
+   "issue": 46,
+   "reviewed_at": "2026-11-25",
+   "reason": "The creature lifecycle fixture explicitly rejects an instance chest retirement emitted from a creature update. The exhaustive match gains three lines and preserves the test identities and ignored set.",
+   "unit_tests_lines": 281948,
+   "unit_tests_tests": 4191,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-46-41",
+   "kind": "raise",
+   "issue": 46,
+   "reviewed_at": "2026-11-25",
+   "reason": "Exercise an eligible second viewer reopening and releasing a shared chest after the first payout is confirmed late.",
+   "unit_tests_lines": 281967,
+   "unit_tests_tests": 4191,
+   "src_tests": 22
   }
  ]
 }

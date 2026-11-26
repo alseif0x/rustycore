@@ -1036,6 +1036,13 @@ fn update_destroys_unloadable_maps_before_delayed_update() {
     assert_eq!(manager.update(1), Some(1));
 
     assert!(manager.find_map(33, 7).is_none());
+    assert_eq!(manager.next_instance_id(), 8);
+    let retirements = manager.take_pending_instance_id_retirements_like_cpp();
+    assert_eq!(retirements.len(), 1);
+    let retired = retirements[0];
+    assert_eq!(retired.key, MapKey::new(33, 7));
+    assert!(manager.complete_instance_id_retirement_like_cpp(retired));
+    assert!(!manager.complete_instance_id_retirement_like_cpp(retired));
     assert_eq!(manager.next_instance_id(), 7);
 }
 
@@ -1065,6 +1072,68 @@ fn instance_id_allocator_reuses_lowest_freed_id() {
     assert_eq!(allocator.generate_instance_id(), Some(3));
     allocator.free_instance_id(2);
     assert_eq!(allocator.generate_instance_id(), Some(2));
+}
+
+#[test]
+fn destroyed_unscheduled_instance_id_waits_for_chest_retirement_commit() {
+    let mut manager = MapManager::default();
+    manager.init_instance_ids(4);
+    manager.register_instance_id(1);
+    let instance_id = manager.generate_instance_id().expect("free instance id");
+    assert_eq!(instance_id, 2);
+    manager.create_map_entry(
+        33,
+        instance_id,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: false,
+        },
+    );
+
+    let key = MapKey::new(33, instance_id);
+    let retired = MapTickParticipantLikeCpp {
+        key,
+        incarnation: manager.map_incarnation_like_cpp(key).unwrap(),
+    };
+    assert!(manager.destroy_map(33, instance_id));
+    assert_eq!(
+        manager.take_pending_instance_id_retirements_like_cpp(),
+        [retired]
+    );
+    manager.free_instance_id(instance_id);
+    assert!(
+        manager
+            .take_pending_instance_id_retirements_like_cpp()
+            .is_empty(),
+        "duplicate free while awaiting acknowledgement does not submit twice"
+    );
+    manager.retry_instance_id_retirement_submission_like_cpp(retired);
+    assert_eq!(
+        manager.take_pending_instance_id_retirements_like_cpp(),
+        [retired],
+        "a rejected writer submission remains retryable"
+    );
+    assert_eq!(manager.generate_instance_id(), Some(3));
+    assert!(manager.complete_instance_id_retirement_like_cpp(retired));
+    assert_eq!(manager.generate_instance_id(), Some(instance_id));
+    manager.create_map_entry(
+        33,
+        instance_id,
+        1,
+        ManagedMapKind::Dungeon {
+            has_reset_schedule: false,
+        },
+    );
+    assert!(manager.destroy_map(33, instance_id));
+    let pending = manager.take_pending_instance_id_retirements_like_cpp();
+    assert_eq!(pending.len(), 1);
+    let replacement = pending[0];
+    assert_eq!(replacement.key, retired.key);
+    assert_ne!(replacement.incarnation, retired.incarnation);
+    assert!(!manager.complete_instance_id_retirement_like_cpp(retired));
+    assert_eq!(manager.generate_instance_id(), Some(4));
+    assert!(manager.complete_instance_id_retirement_like_cpp(replacement));
+    assert_eq!(manager.generate_instance_id(), Some(instance_id));
 }
 
 #[test]

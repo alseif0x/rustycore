@@ -77,6 +77,17 @@ fn logout_controller() -> Controller {
     packet_controller(plan)
 }
 
+fn server_disconnect_controller(timeout_ms: u64) -> Controller {
+    packet_controller(Plan {
+        character_guid: None,
+        observe_only: false,
+        timeout_ms: timeout_ms + 100,
+        actions: vec![Action::WaitForServerDisconnect { timeout_ms }],
+        expect: Vec::new(),
+        finish_policy: FinishPolicy::Disconnect,
+    })
+}
+
 #[tokio::test]
 async fn finish_logout_waits_for_delayed_realm_ack_after_instance_eof() {
     let mut controller = logout_controller();
@@ -718,6 +729,108 @@ async fn instance_eof_is_fatal_during_actions_even_with_a_previous_logout_marker
                 && entry.kind == TraceKind::ActionFailed));
         assert!(!controller.evidence.logout_confirmed);
     }
+}
+
+#[tokio::test]
+async fn expected_server_disconnect_accepts_boundary_eof_after_draining_packet() {
+    let mut controller = server_disconnect_controller(100);
+    let (mut stream, mut instance_peer) = tcp_pair().await;
+    let key = [0x71; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = None;
+    let mut server_crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let packet = encrypted_server_packet(&mut server_crypt, SMSG_ON_MONSTER_MOVE, &[0x2a]);
+    instance_peer.write_all(&packet).await.unwrap();
+    instance_peer.shutdown().await.unwrap();
+
+    execute(
+        &mut controller,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+    )
+    .await
+    .unwrap();
+
+    assert!(controller.evidence.failure.is_none());
+    assert_eq!(
+        controller.evidence.server_disconnect_connection,
+        Some(Connection::Instance)
+    );
+    assert_eq!(controller.evidence.events.len(), 1);
+    assert_eq!(controller.evidence.events[0].opcode, SMSG_ON_MONSTER_MOVE);
+    assert_eq!(controller.evidence.events[0].body_hex, hex::encode([0x2a]));
+    assert!(controller
+        .evidence
+        .trace
+        .iter()
+        .any(|entry| entry.kind == TraceKind::ServerSocketClosed));
+}
+
+#[tokio::test]
+async fn expected_server_disconnect_rejects_partial_and_malformed_frames() {
+    let key = [0x72; 16];
+    let mut server_crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let complete_frame = encrypted_server_packet(&mut server_crypt, SMSG_ON_MONSTER_MOVE, &[0x2a]);
+    let truncated_ciphertext = complete_frame[..complete_frame.len() - 1].to_vec();
+    for (wire, expected_error) in [
+        (vec![0x01], None),
+        (truncated_ciphertext, None),
+        (vec![0; 16], Some("Invalid encrypted packet size")),
+    ] {
+        let mut controller = server_disconnect_controller(100);
+        let (mut stream, mut instance_peer) = tcp_pair().await;
+        let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+        let mut inflater = ServerPacketInflater::default();
+        let mut realm = None;
+        instance_peer.write_all(&wire).await.unwrap();
+        instance_peer.shutdown().await.unwrap();
+
+        execute(
+            &mut controller,
+            &mut stream,
+            &mut crypt,
+            &mut inflater,
+            &mut realm,
+        )
+        .await
+        .unwrap();
+        let failure = controller.evidence.failure.as_deref().unwrap();
+        assert!(failure.starts_with("action failed:"), "{failure}");
+        if let Some(expected_error) = expected_error {
+            assert!(failure.contains(expected_error), "{failure}");
+        }
+        assert_eq!(controller.evidence.server_disconnect_connection, None);
+    }
+}
+
+#[tokio::test]
+async fn expected_server_disconnect_timeout_is_a_failure() {
+    let mut controller = server_disconnect_controller(30);
+    let (mut stream, _instance_peer) = tcp_pair().await;
+    let key = [0x73; 16];
+    let mut crypt = WorldCrypt::new_with_counters(&key, 0, 0);
+    let mut inflater = ServerPacketInflater::default();
+    let mut realm = None;
+
+    execute(
+        &mut controller,
+        &mut stream,
+        &mut crypt,
+        &mut inflater,
+        &mut realm,
+    )
+    .await
+    .unwrap();
+    assert!(controller
+        .evidence
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains("timed out waiting for server disconnect"));
+    assert_eq!(controller.evidence.server_disconnect_connection, None);
 }
 
 #[tokio::test]

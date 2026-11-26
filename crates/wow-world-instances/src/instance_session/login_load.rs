@@ -29,23 +29,16 @@ pub fn load_represented_explored_zones_like_cpp<H: InstanceSessionHostLikeCpp>(
     };
     let changed = previous != blocks;
 
-    let canonical = host
-        .core()
-        .mutate_canonical_player_like_cpp(|player| {
-            let applied = player.set_explored_zones_blocks_like_cpp(&blocks);
-            (applied > 0).then(|| player.values_update(true))
-        })
-        .flatten();
+    // LoadFromDB hydrates the Player before Map::SendInitSelf publishes its CREATE.
+    host.core().mutate_canonical_player_like_cpp(|player| {
+        player.set_explored_zones_blocks_like_cpp(&blocks);
+    });
     #[cfg(any(test, feature = "test-fixtures"))]
     if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none() {
         host.split_instances_mut()
             .0
             .replace_represented_explored_zones_for_test_like_cpp(blocks);
     }
-    if let Some(update) = canonical {
-        host.core().send_player_values_update_like_cpp(&update);
-    }
-
     if changed {
         blocks.iter().filter(|block| **block != 0).count()
     } else {

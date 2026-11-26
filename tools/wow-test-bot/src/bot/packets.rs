@@ -65,6 +65,48 @@ pub(crate) async fn read_encrypted_packet_if_ready(
     .map_err(|_| anyhow!("{context}: encrypted frame read timed out"))??;
     Ok(Some(packet))
 }
+
+/// Result of polling an encrypted connection when the caller explicitly
+/// expects the remote side to disconnect.
+pub(crate) enum EncryptedPacketPoll {
+    NotReady,
+    Packet((u16, Vec<u8>)),
+    CleanEof,
+}
+
+/// Poll one encrypted stream while distinguishing frame-boundary EOF from a
+/// truncated frame. This is only for explicit expected-disconnect actions;
+/// ordinary packet waits continue to treat EOF as an error.
+pub(crate) async fn read_encrypted_packet_if_ready_for_disconnect(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    readiness_wait: Duration,
+    frame_timeout: Duration,
+    context: &str,
+) -> Result<EncryptedPacketPoll> {
+    let mut peek = [0u8; 1];
+    match tokio::time::timeout(readiness_wait, stream.peek(&mut peek)).await {
+        Err(_) => return Ok(EncryptedPacketPoll::NotReady),
+        Ok(Ok(0)) => return Ok(EncryptedPacketPoll::CleanEof),
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => return Err(anyhow!("{context}: peek failed: {error}")),
+    }
+
+    // The peer can close after peek reports readable but before the frame
+    // reader consumes its first byte. That is still a clean frame-boundary
+    // EOF. Once any byte is consumed, a short header/body remains an error.
+    let packet = tokio::time::timeout(
+        frame_timeout,
+        read_encrypted_packet_allow_clean_eof(stream, crypt, server_inflater),
+    )
+    .await
+    .map_err(|_| anyhow!("{context}: encrypted frame read timed out"))??;
+    Ok(match packet {
+        Some(packet) => EncryptedPacketPoll::Packet(packet),
+        None => EncryptedPacketPoll::CleanEof,
+    })
+}
 pub(crate) fn handle_quest_smoke_packet(op: u16, payload: &[u8], result: &mut BotRunResult) {
     match op {
         0x2A98 => {
@@ -158,6 +200,30 @@ pub(crate) async fn read_encrypted_packet(
     let mut header = [0u8; 16];
     stream.read_exact(&mut header).await?;
 
+    read_encrypted_packet_from_header(stream, crypt, server_inflater, header).await
+}
+
+async fn read_encrypted_packet_allow_clean_eof(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+) -> Result<Option<(u16, Vec<u8>)>> {
+    let mut header = [0u8; 16];
+    if stream.read(&mut header[..1]).await? == 0 {
+        return Ok(None);
+    }
+    stream.read_exact(&mut header[1..]).await?;
+    read_encrypted_packet_from_header(stream, crypt, server_inflater, header)
+        .await
+        .map(Some)
+}
+
+async fn read_encrypted_packet_from_header(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    header: [u8; 16],
+) -> Result<(u16, Vec<u8>)> {
     let size = u32::from_le_bytes([header[0], header[1], header[2], header[3]]) as usize;
     const MAX_ENCRYPTED_PACKET_SIZE: usize = 8 * 1024 * 1024;
     if size == 0 || size > MAX_ENCRYPTED_PACKET_SIZE {

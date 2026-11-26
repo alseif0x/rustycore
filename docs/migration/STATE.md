@@ -63,6 +63,119 @@ multi-hour evidence. Creature visibility and relocation (#1342/#1354), loot
 recovery (#1339/#1341) and the #47 save-under-load campaign retain their
 separate acceptance.
 
+### Creature relocation and money recovery on the #46 branch
+
+On 2026-11-22 the local candidate based on `d17febe40` restored the
+3.4.3 move-list phase for creature cell changes. Same-cell movement updates
+immediately. A blocked relocation tries the spawn grid, clears combat and
+motion, and queues removal when that grid is unavailable. Stationary players
+at the origin and destination receive visibility updates from the physical
+move. The source anchors at `a5f8da2eb` are `Unit::UpdatePosition`,
+`Map::CreatureRelocation`, `MoveAllCreaturesInMoveList`,
+`CreatureRespawnRelocation` and `ChaseMovementGenerator::Update`.
+At `52933ae7d` the stationary-observer, blocked-respawn and player-owned
+grid tests passed. A Session aggro fixture still sampled its owner before
+the queued move. At `fbe495202` both owner-range cases passed with
+`cargo test --locked -p wow-world --lib creature_aggro_creature_owned_creature`.
+The resulting test binary passed all 4,206 active cases (one ignored).
+The earlier six-library campaign spent 11m16s in its library step and
+failed the old aggro fixture. It exceeded the ten-minute warm budget.
+
+The Characters adapter at `32ea0410e` passed
+`cargo test --locked -p wow-database --test loot_money_restart -- --exact money_claims_survive_process_restart --ignored --nocapture`
+using a disposable MariaDB socket. Separate claim and recovery processes
+verified stored-Item money, shared payouts with a capped recipient, a
+rolled-back transaction and unrelated spending. A fresh process recovered
+the spent chest using realm, map, instance, persistent spawn and loot scope.
+It refused a stale personal grant and a stale deadline, and credited the
+next generation once after the stored deadline elapsed. The expanded case
+at `c7c9d94ce` forced the respawn-row write to fail, verified that the
+source deadline rolled back too, and recovered both records in a third
+process after a successful commit with no map acknowledgement. The parent
+test took 3.18s after compilation. The shared QA database was untouched.
+
+On 2026-11-25 the same MariaDB test passed on aarch64 at `c4465d22a`.
+Across three child processes it checked that retiring one dungeon leaves a
+paid chest on another map with the same instance ID intact. A late claim
+was rejected and the replacement generation paid once. The startup case
+preserved the exact saved map and a faction-split world chest on map 609,
+team 1. The runtime case also checked realm isolation. The parent test took
+3.07s after compilation. In the 3.4.3 source at `a5f8da2eb`,
+`MapManager::CreateMap` selects the team ID for split world maps and
+`MapManager::DestroyMap` releases reusable instance IDs. RustyCore delays
+reuse until the Characters transaction retires the destroyed map's receipts.
+
+QA spawn 9106001 uses consumable chest template 2846 (loot 2278, group
+loot enabled). The 3.4.3 C++ anchors are `GameObjectData.h:99–112,127`,
+`GameObject.cpp:1609–1651,3711–3721` and `LootHandler.cpp:142–213`.
+The [2026-11-22 live QA record](../architecture/captures/46-qa-54261-2026-11-22.md)
+shows the real chest paying once across a world-server restart. Two official
+3.4.3.54261 clients reached the online realm and disconnected during world
+encryption negotiation before character selection. The same disconnect
+occurred with both Battle.net and world served by the C++ reference. The
+captured client proof and persisted session key matched for a single join.
+After the public address and Battle.net certificate were corrected, the
+client authenticated on the shared world endpoint and still disconnected
+before character enumeration. Rebuilt June 26 Rust services reproduced
+reason 24 in the isolated comparison. On November 24 a temporary isolated
+backend sent a correctly signed `EnterEncryptedMode(enabled=false)`. The stock
+client still answered reason 24; its pinned Ed25519 public key differs from the
+TrinityCore identity, and the captured signature verified only under the latter.
+The experiment was reverted and its runtime/database fixtures removed. A
+backend-only direct launch cannot satisfy the stock client's signature check
+without the corresponding private key. A disposable client with the matching
+public keys then entered the world. The [November 24 #1342 campaign](../architecture/captures/1342-real-client-2026-11-24.md)
+matched creature chase/home return and range-driven visibility. It found observer
+spell-publication and near-transfer mismatches, and did not accept the phase
+scenario. The common finalization now clears `player_logout` after disconnect,
+with a production-linked regression. At `503f27eb1`, loading exploration into
+the self CREATE removed the premature VALUES seen on both original connections.
+A graphical 54261 mage completed the near-teleport ACK, and a protocol observer
+received Fireball Start/Go. The observer damage log was still missing in this
+run. Its local correction at `b948a6a36` passed the 24 cast lifecycle tests
+and the packet format test. Paired gameplay capture remains open.
+
+On November 25 the project accepted the identified QA client for gameplay
+development and deferred original-client world entry. At Sentinel Hill this
+client measured ground above the saved graveyard and two creature spawns.
+For Riverpaw Bandit 275256 the server sent Z 40.7784 and the client landed
+at 66.9881 at the same XY. Correcting the disposable homebind height gave
+the mage a safe Hearthstone arrival and a subsequent jump and landing. The
+[paired positions and packet evidence](../architecture/captures/1342-real-client-2026-11-24.md#sentinel-hill-terrain-and-creature-spawns-november-25)
+bound the result to these outdoor positions. Phase and relog acceptance remain open.
+
+The November 25 [spawn placement review](../architecture/captures/1342-real-client-2026-11-24.md#wrath-spawn-placement-review-november-25)
+identified shared coordinates with later game versions in TDB 343.24081.
+The local world migration restores 18 independently checked Wrath heights
+and excludes 22 retail Stormwind event spawns from map 0. The original
+Wrath positions of the Stormwind rabbit and Sentinel Hill bandit remain open.
+
+At `d33ce0635`, the final profile passed all 15 steps in 7m07s with 8,216
+active tests and 13 ignored. The verified manifest is
+`20261124T160457.303898Z-2026186-final.json`. The separate production-linked
+logout regression also passed with one test and 42 filtered out. The first
+acceptance attempt reached its executor limit; the second failed with `ENOSPC`.
+The successful run followed inspection and removal of 380 older incremental
+sessions (about 22 GiB), not a reduction of the required checks.
+
+On the native aarch64 host, clean commit `6d2b7dbae` passed
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+against `d17febe40`. The verified final manifest is
+`20261122T193904.796478Z-1600866-final.json`. The 11 affected libraries
+passed 7,709 active tests (12 ignored), including stationary-observer
+visibility, interrupted chest release, replacement of a chest during a
+pending save, and the map waiting for durable respawn confirmation.
+The architecture checker passed 465 tests and the SQL compositor passed
+its 11 fixture tests. The three-process MariaDB test above also passed
+on that commit in 3.18s (13.98s including compilation, startup and shutdown).
+
+The final profile took 34m18s. Its main costs were checking 40 packages
+(12m57s), compiling and testing the 11 libraries (11m49s), and the SQL
+compositor (5m03s). From the start of this green profile through the
+database test, wall time was 34m50s. Including the preceding failed
+profile at `697edffb0` and its runtime-dependency correction, the interval
+was 37m41s (19:36:14–20:13:55 UTC). This exceeded the ten-minute budget.
+
 ## Instance enter/leave and reconnect (#45)
 
 [PR #1511](https://github.com/alseif0x/rustycore/pull/1511) integrated manual

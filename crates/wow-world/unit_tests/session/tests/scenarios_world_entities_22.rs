@@ -458,6 +458,12 @@ fn creature_aggro_player_owned_creature_wrong_map_owner_is_unrepresented_like_cp
     assert_eq!(outcome.aggro_starts, 0);
     assert!(outcome.commands.is_empty());
 }
+fn finish_aggro_owner_move(manager: &SharedCanonicalMapManager) {
+    let mut manager = manager.lock().unwrap();
+    let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+    assert_eq!(map.move_all_creatures_in_move_list_like_cpp().relocated, 1);
+}
+
 #[test]
 fn creature_aggro_creature_owned_creature_uses_owner_position_like_cpp() {
     let manager = shared_map_manager();
@@ -505,6 +511,7 @@ fn creature_aggro_creature_owned_creature_uses_owner_position_like_cpp() {
         })
         .unwrap();
 
+    finish_aggro_owner_move(&manager);
     let victim = ObjectGuid::create_player(1, 91_124);
     let mut victim_candidate =
         aggro_candidate_like_cpp(victim, Position::new(301.5, 10.0, 0.0, 0.0));
@@ -570,6 +577,7 @@ fn creature_aggro_creature_owned_creature_rejects_beyond_owner_position_like_cpp
         })
         .unwrap();
 
+    finish_aggro_owner_move(&manager);
     let victim = ObjectGuid::create_player(1, 91_127);
     let mut victim_candidate =
         aggro_candidate_like_cpp(victim, Position::new(303.5, 10.0, 0.0, 0.0));

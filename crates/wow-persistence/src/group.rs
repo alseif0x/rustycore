@@ -189,6 +189,8 @@ pub struct GroupLootMoneyPayoutLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupLootMoneyPersistenceRequestLikeCpp {
+    /// Absent only for a zero-coin observation of an already empty pool.
+    pub claim_id: Option<[u8; 16]>,
     pub payouts: Vec<GroupLootMoneyPayoutLikeCpp>,
     pub max_money: u64,
 }
@@ -210,6 +212,7 @@ pub enum GroupLootMoneyRollbackKindLikeCpp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupLootMoneyPersistenceAttemptLikeCpp {
     Applied(Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>),
+    AlreadySettled,
     DefinitelyRolledBack {
         kind: GroupLootMoneyRollbackKindLikeCpp,
         reason: String,
@@ -230,40 +233,45 @@ pub enum GroupLootMoneyReconciliationLikeCpp {
 
 pub fn classify_group_loot_money_reconciliation_like_cpp(
     outcomes: &[GroupLootMoneyPersistenceOutcomeLikeCpp],
-    observed: &[(u64, Option<u64>)],
+    receipt: Option<&[GroupLootMoneyPersistenceOutcomeLikeCpp]>,
 ) -> GroupLootMoneyReconciliationLikeCpp {
-    let changed = outcomes
-        .iter()
-        .filter(|outcome| outcome.before != outcome.after)
-        .collect::<Vec<_>>();
-    if changed.is_empty() {
-        return GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop;
-    }
-    if changed.len() != observed.len() {
-        return GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None };
-    }
-
-    let mut all_before = true;
-    let mut all_after = true;
-    for outcome in changed {
-        let Some((_, Some(current))) = observed
-            .iter()
-            .find(|(recipient_guid, _)| *recipient_guid == outcome.recipient_guid)
-        else {
-            return GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None };
-        };
-        all_before &= *current == outcome.before;
-        all_after &= *current == outcome.after;
-    }
-    match (all_before, all_after) {
-        (true, false) => GroupLootMoneyReconciliationLikeCpp::RolledBack,
-        (false, true) => GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop,
-        _ => GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None },
+    match receipt {
+        None => GroupLootMoneyReconciliationLikeCpp::RolledBack,
+        Some(recorded) if !recorded.is_empty() && recorded == outcomes => {
+            GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop
+        }
+        Some(_) => GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None },
     }
 }
 
-/// SQLx-free Characters-database capability for one group loot-money payout.
+/// Persistent GameObject spawn identity across world-server processes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct WorldLootMoneySource {
+    pub realm_id: u16,
+    pub map_id: u32,
+    pub instance_id: u32,
+    pub spawn_id: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorldLootMoneyBinding {
+    pub generation: u64,
+    pub claim_id: [u8; 16],
+    pub spent: bool,
+}
+
+/// Characters-database capability for group money payouts and their receipts.
 pub trait GroupLootMoneyPersistencePortLikeCpp: Send + Sync {
+    /// None means this source has not reached its persisted restock deadline.
+    fn bind_world_chest_money(
+        &self,
+        _source: WorldLootMoneySource,
+        _personal_owner: u64,
+    ) -> PersistenceFutureLikeCpp<'_, Result<Option<WorldLootMoneyBinding>, String>> {
+        Box::pin(std::future::ready(Err(
+            "world chest money persistence unavailable".into(),
+        )))
+    }
     fn attempt_group_loot_money_like_cpp(
         &self,
         request: GroupLootMoneyPersistenceRequestLikeCpp,
@@ -271,6 +279,7 @@ pub trait GroupLootMoneyPersistencePortLikeCpp: Send + Sync {
 
     fn reconcile_group_loot_money_like_cpp(
         &self,
+        claim_id: Option<[u8; 16]>,
         outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
     ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyReconciliationLikeCpp>;
 }

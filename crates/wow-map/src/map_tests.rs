@@ -860,6 +860,8 @@ fn test_scene_object_for_update(
 
 #[path = "map_tests/aura_update_visibility.rs"]
 mod aura_update_visibility;
+#[path = "map_tests/chest_money.rs"]
+mod chest_money;
 #[path = "map_tests/combat.rs"]
 mod combat;
 #[path = "map_tests/creature_1.rs"]
@@ -870,6 +872,8 @@ mod creature_2;
 mod creature_3;
 #[path = "map_tests/creature_4.rs"]
 mod creature_4;
+#[path = "map_tests/creature_respawn_relocation.rs"]
+mod creature_respawn_relocation;
 #[path = "map_tests/derived_stats.rs"]
 mod derived_stats;
 #[path = "map_tests/durability_updates.rs"]

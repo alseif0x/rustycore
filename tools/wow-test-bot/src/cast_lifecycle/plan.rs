@@ -185,6 +185,18 @@ pub(crate) enum Action {
         accept: bool,
     },
     LeaveGroup {},
+    /// Open the guarded chest from its fresh, map-local ObjectGuid.
+    OpenLootRecoveryChest {},
+    /// Claim only the money from the currently open recovery chest.
+    ClaimLootRecoveryMoney {
+        expected_coins: u32,
+    },
+    /// Release the chest loot view after the post-restart zero-coin retry.
+    ReleaseLootRecoveryChest {},
+    /// Keep the pre-restart client connected until the parent restarts the server.
+    WaitForServerDisconnect {
+        timeout_ms: u64,
+    },
     /// One finite client movement packet. The opcode comes from the closed
     /// `MovementKind` set; control flags remain owned by the live controller.
     Movement {
@@ -252,6 +264,16 @@ pub(crate) enum ExpectedRule {
         opcode: u16,
         body_hex: String,
     },
+    LootResponse {
+        coins: u32,
+        item_entry: u32,
+    },
+    LootMoneyNotify {
+        money: u64,
+        money_mod: u64,
+    },
+    LootCoinRemoved {},
+    LootRelease {},
     Prepare {
         client_cast_id: Guid,
         #[serde(default)]
@@ -352,6 +374,8 @@ pub(crate) struct Evidence {
     pub events: Vec<ObservedEvent>,
     #[serde(default)]
     pub target_selections: Vec<TargetSelectionFact>,
+    #[serde(default)]
+    pub game_object_selections: Vec<GameObjectSelectionFact>,
     pub sent_packets: Vec<SentPacket>,
     pub trace: Vec<TraceEntry>,
     pub packet_payload_encoding: String,
@@ -363,6 +387,8 @@ pub(crate) struct Evidence {
     pub logout_route: Option<String>,
     pub local_disconnect_recorded: bool,
     pub finish_completed: bool,
+    #[serde(default)]
+    pub server_disconnect_connection: Option<Connection>,
     pub failure: Option<String>,
     pub movement_state: Option<MovementStateFact>,
     #[serde(skip)]
@@ -380,6 +406,7 @@ impl Default for Evidence {
             expected_rules: Vec::new(),
             events: Vec::new(),
             target_selections: Vec::new(),
+            game_object_selections: Vec::new(),
             sent_packets: Vec::new(),
             trace: Vec::new(),
             packet_payload_encoding: "logical_decrypted_uncompressed".to_string(),
@@ -391,6 +418,7 @@ impl Default for Evidence {
             logout_route: None,
             local_disconnect_recorded: false,
             finish_completed: false,
+            server_disconnect_connection: None,
             failure: None,
             movement_state: None,
             connection_sequences: ConnectionSequences::default(),
@@ -501,6 +529,7 @@ pub(crate) enum TraceKind {
     ActionCompleted,
     ActionFailed,
     LocalSocketClosed,
+    ServerSocketClosed,
 }
 
 /// Timeline index shared by actions, writes and packet observations. Packet
@@ -529,6 +558,21 @@ pub(crate) struct TargetSelectionFact {
     pub action_index: usize,
     pub action: String,
     pub selector: ObservedCreatureSelector,
+    pub guid: Guid,
+    pub source_event_sequence: usize,
+    pub source_connection: Connection,
+    pub source_connection_sequence: usize,
+    pub source_event_opcode: u16,
+    pub source_event_sha256: String,
+}
+
+/// Exact recovery chest target and live GUID provenance for one run.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct GameObjectSelectionFact {
+    pub action_index: usize,
+    pub spawn_guid: u64,
+    pub entry: u32,
+    pub map_id: u16,
     pub guid: Guid,
     pub source_event_sequence: usize,
     pub source_connection: Connection,
@@ -717,6 +761,21 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
                     );
                 }
             }
+            Action::ClaimLootRecoveryMoney { expected_coins }
+                if !matches!(*expected_coins, 0 | crate::loot_race::RACE_GAMEOBJECT_MONEY) =>
+            {
+                bail!(
+                    "recovery chest expected_coins must be 0 or {}, got {expected_coins}",
+                    crate::loot_race::RACE_GAMEOBJECT_MONEY
+                );
+            }
+            Action::WaitForServerDisconnect { timeout_ms }
+                if *timeout_ms == 0 || *timeout_ms > MAX_WAIT_MS =>
+            {
+                bail!(
+                    "wait_for_server_disconnect timeout_ms must be in 1..={MAX_WAIT_MS}, got {timeout_ms}"
+                );
+            }
             Action::SelfRes { spell_id } if *spell_id <= 0 => {
                 bail!("self_res action requires a positive int32 spell_id");
             }
@@ -779,7 +838,11 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             | Action::SetDifficultyId { .. }
             | Action::SetDungeonDifficulty { .. }
             | Action::PartyInviteResponse { .. }
-            | Action::LeaveGroup {} => {}
+            | Action::LeaveGroup {}
+            | Action::OpenLootRecoveryChest {}
+            | Action::ClaimLootRecoveryMoney { .. }
+            | Action::ReleaseLootRecoveryChest {}
+            | Action::WaitForServerDisconnect { .. } => {}
         }
     }
     for rule in &plan.expect {
@@ -796,6 +859,9 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             continue;
         }
         match rule {
+            ExpectedRule::LootResponse { item_entry, .. } if *item_entry == 0 => {
+                bail!("loot_response expect rule requires a positive item_entry");
+            }
             ExpectedRule::Prepare { client_cast_id, .. } if (*client_cast_id).empty() => {
                 bail!("prepare expect rule requires a non-empty client_cast_id");
             }
@@ -842,6 +908,78 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             }
             _ => {}
         }
+    }
+    validate_loot_recovery_plan(plan)?;
+    Ok(())
+}
+
+fn validate_loot_recovery_plan(plan: &Plan) -> Result<()> {
+    let has_recovery_action = plan.actions.iter().any(|action| {
+        matches!(
+            action,
+            Action::OpenLootRecoveryChest {}
+                | Action::ClaimLootRecoveryMoney { .. }
+                | Action::ReleaseLootRecoveryChest {}
+                | Action::WaitForServerDisconnect { .. }
+        )
+    });
+    let has_recovery_rule = plan.expect.iter().any(|rule| {
+        matches!(
+            rule,
+            ExpectedRule::LootResponse { .. }
+                | ExpectedRule::LootMoneyNotify { .. }
+                | ExpectedRule::LootCoinRemoved {}
+                | ExpectedRule::LootRelease {}
+        )
+    });
+    if !has_recovery_action && !has_recovery_rule {
+        return Ok(());
+    }
+    if !has_recovery_action || !has_recovery_rule {
+        bail!("recovery chest plans require both the complete typed action sequence and matching loot expectations");
+    }
+    if plan.finish_policy != FinishPolicy::Disconnect {
+        bail!("recovery chest plans require finish_policy=disconnect");
+    }
+    if plan.actions.len() != 3 {
+        bail!("recovery chest plans require exactly three ordered actions");
+    }
+    if !matches!(&plan.actions[0], Action::OpenLootRecoveryChest {}) {
+        bail!("recovery chest plan must open the chest first");
+    }
+    let Action::ClaimLootRecoveryMoney { expected_coins } = &plan.actions[1] else {
+        bail!("recovery chest plan must claim money second");
+    };
+    let expected_coins = *expected_coins;
+    let pre_restart = expected_coins == crate::loot_race::RACE_GAMEOBJECT_MONEY;
+    match (&plan.actions[2], pre_restart) {
+        (Action::WaitForServerDisconnect { .. }, true) => {}
+        (Action::ReleaseLootRecoveryChest {}, false) => {}
+        _ => bail!(
+            "10-coin plans must hold for server disconnect; zero-coin plans must release the chest"
+        ),
+    }
+    let expected_rules_match = match plan.expect.as_slice() {
+        [ExpectedRule::LootResponse { coins, item_entry }, ExpectedRule::LootCoinRemoved {}, ExpectedRule::LootMoneyNotify { money, money_mod }]
+            if pre_restart =>
+        {
+            *coins == expected_coins
+                && *item_entry == crate::loot_race::DEFAULT_ITEM_ENTRY
+                && *money == u64::from(expected_coins)
+                && *money_mod == 0
+        }
+        [ExpectedRule::LootResponse { coins, item_entry }, ExpectedRule::LootCoinRemoved {}, ExpectedRule::LootMoneyNotify { money, money_mod }, ExpectedRule::LootRelease {}]
+            if !pre_restart =>
+        {
+            *coins == expected_coins
+                && *item_entry == crate::loot_race::DEFAULT_ITEM_ENTRY
+                && *money == u64::from(expected_coins)
+                && *money_mod == 0
+        }
+        _ => false,
+    };
+    if !expected_rules_match {
+        bail!("recovery chest expectations must be ordered LootResponse, CoinRemoved, LootMoneyNotify, plus LootRelease only after the zero-coin retry, with exact fixture values");
     }
     Ok(())
 }
@@ -912,6 +1050,10 @@ pub(super) fn supported_exact_packet_opcode(opcode: u16) -> bool {
             | SMSG_PARTY_INVITE
             | SMSG_PARTY_UPDATE
             | crate::loot_race::SMSG_PARTY_COMMAND_RESULT
+            | crate::loot_race::SMSG_LOOT_RESPONSE
+            | crate::loot_race::SMSG_LOOT_MONEY_NOTIFY
+            | crate::loot_race::SMSG_COIN_REMOVED
+            | SMSG_LOOT_RELEASE
     )
 }
 

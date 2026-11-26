@@ -92,19 +92,19 @@ fn a_panicking_mutation_leaves_the_incarnation_in_its_map_and_cell_like_cpp() {
 }
 
 #[test]
-fn a_mutation_that_rebinds_the_map_is_refused_and_the_incarnation_restored_like_cpp() {
+fn a_map_rebind_discards_the_result_and_restores_the_original_binding_like_cpp() {
     let guid = test_creature_guid(97_301);
     let (mut session, _manager, canonical) = d3b3_session_like_cpp(guid);
     let origin = d3b3_creature_like_cpp(&canonical, guid, |creature| creature.position()).unwrap();
 
     // `WorldObject::world_relocate` rebinds the object's map: the record it
     // left can no longer take it back (`MapObjectStoreError::WrongMap`).
-    let refused = session.mutate_world_creature(guid, |creature| {
+    let result = session.mutate_world_creature(guid, |creature| {
         creature.unit_mut().set_health(9);
         creature.unit_mut().world_mut().world_relocate(1, origin);
     });
 
-    assert_eq!(refused, None, "the rebinding mutation is refused loudly");
+    assert_eq!(result, None, "the root discarded the mutation result");
     let (map_id, health, has_map) = d3b3_creature_like_cpp(&canonical, guid, |creature| {
         let world = creature.unit().world();
         (
@@ -138,6 +138,12 @@ fn a_position_change_through_the_root_relocates_the_creature_cell_like_cpp() {
             .mutate_world_creature(guid, |creature| creature.set_ai_position(moved))
             .is_some()
     );
+    {
+        let mut manager = canonical.lock().unwrap();
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        assert_eq!(map.get_typed_creature(guid).unwrap().position(), origin);
+        assert_eq!(map.move_all_creatures_in_move_list_like_cpp().relocated, 1);
+    }
 
     assert_eq!(
         d3b3_creature_like_cpp(&canonical, guid, |creature| creature.position()),
@@ -192,11 +198,11 @@ fn a_creature_moved_in_place_follows_into_its_new_cell_like_cpp() {
             .is_none(),
         "no move relative to the position it is at"
     );
-    let outcome = map
-        .relocate_creature_moved_in_place_like_cpp(guid, origin)
+    map.relocate_creature_moved_in_place_like_cpp(guid, origin)
         .expect("moved")
         .expect("valid position");
-    assert!(outcome.relocated && outcome.moved_between_cells);
+    assert_eq!(map.get_typed_creature(guid).unwrap().position(), origin);
+    assert_eq!(map.move_all_creatures_in_move_list_like_cpp().relocated, 1);
     assert_eq!(map.get_typed_creature(guid).unwrap().position(), moved);
     drop(guard);
     assert!(d3b3_cell_holds_like_cpp(&canonical, guid, moved));

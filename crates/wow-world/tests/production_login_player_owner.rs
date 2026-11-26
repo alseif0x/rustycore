@@ -266,7 +266,7 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
                 chosen_title: None,
                 health: Some(100),
                 powers: [None; 10],
-                explored_zones: String::new(),
+                explored_zones: "305419896 3735928559 2596069104 16909060".into(),
                 known_titles: None,
                 raid_difficulty: None,
                 legacy_raid_difficulty: None,

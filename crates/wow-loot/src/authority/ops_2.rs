@@ -52,9 +52,15 @@ impl OwnedLootAuthority {
         expected_generation: Option<u64>,
     ) -> Result<LootClaimLease, LootClaimError> {
         let mut changed = self.inner.changed.subscribe();
+        let mut admitted = None;
         loop {
             let attempt = {
                 let mut state = self.lock_state();
+                if *admitted.get_or_insert(state.last_quarantine_token)
+                    != state.last_quarantine_token
+                {
+                    return Err(LootClaimError::Retired);
+                }
                 reserve_item_once(&mut state, player, loot_list_id, mode, expected_generation)
             };
             match attempt {
@@ -104,9 +110,15 @@ impl OwnedLootAuthority {
         expected_generation: Option<u64>,
     ) -> Result<LootClaimLease, LootClaimError> {
         let mut changed = self.inner.changed.subscribe();
+        let mut admitted = None;
         loop {
             let attempt = {
                 let mut state = self.lock_state();
+                if *admitted.get_or_insert(state.last_quarantine_token)
+                    != state.last_quarantine_token
+                {
+                    return Err(LootClaimError::Retired);
+                }
                 reserve_money_once(&mut state, player, expected_generation)
             };
             match attempt {
@@ -218,6 +230,8 @@ impl OwnedLootAuthority {
             lease.status.store(LEASE_QUARANTINED, Ordering::Release);
             state.retired = true;
             state.quarantined = true;
+            state.last_quarantine_token = lease.token;
+            state.money_recovery.clear();
             finalize_closed_state_if_drained(&mut state);
             true
         };
@@ -293,11 +307,9 @@ impl OwnedLootAuthority {
                                 lease.player,
                             )
                         }),
-                    ReservationKey::Money(scope) => loot_for_scope_mut(&mut state, scope)
-                        .is_some_and(|loot| {
-                            loot.coins = 0;
-                            true
-                        }),
+                    ReservationKey::Money(scope) => {
+                        super::money_recovery::consume_pool_money(&mut state, scope)
+                    }
                 };
 
                 // Capture the exact post-mutation pool while still holding

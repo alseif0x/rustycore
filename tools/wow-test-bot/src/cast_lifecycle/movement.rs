@@ -146,6 +146,10 @@ impl Controller {
         controller
     }
 
+    pub(super) fn mover_guid(&self) -> Guid {
+        self.mover
+    }
+
     /// Process every encrypted login/drain/action observation through this
     /// single controller. `instance` names the socket that received the packet.
     pub(crate) async fn observe_packet(

@@ -65,6 +65,52 @@ fn tick_inputs() -> (
 }
 
 #[test]
+fn canonical_map_tick_exports_retired_instance_ids_before_allocator_reuse() {
+    let mut manager = wow_map::MapManager::new(wow_map::MIN_GRID_DELAY_MS, 1);
+    manager.init_instance_ids(3);
+    manager.register_instance_id(1);
+    manager.register_instance_id(2);
+    manager.create_map_entry(
+        33,
+        2,
+        1,
+        wow_map::ManagedMapKind::Dungeon {
+            has_reset_schedule: false,
+        },
+    );
+    manager
+        .find_map_mut(33, 2)
+        .expect("unscheduled dungeon")
+        .set_can_unload(true);
+
+    let plan = canonical_map_tick_begin_like_cpp(&mut manager, 1)
+        .expect("map tick begins for unloadable dungeon");
+    assert!(
+        plan.instance_ids_to_retire.is_empty(),
+        "the old map still exists at admission"
+    );
+    assert_eq!(manager.generate_instance_id(), Some(3));
+    manager.abandon_tick_like_cpp(plan.plan);
+    assert!(
+        manager
+            .take_pending_instance_id_retirements_like_cpp()
+            .is_empty()
+    );
+    assert!(manager.find_map(33, 2).is_some());
+    manager
+        .update(1)
+        .expect("next tick finishes removing the old map");
+    assert!(manager.find_map(33, 2).is_none());
+
+    let next = canonical_map_tick_begin_like_cpp(&mut manager, 1).unwrap();
+    assert_eq!(next.instance_ids_to_retire.len(), 1);
+    let retired = next.instance_ids_to_retire[0];
+    assert_eq!(retired.key, wow_map::MapKey::new(33, 2));
+    assert!(manager.complete_instance_id_retirement_like_cpp(retired));
+    assert_eq!(manager.generate_instance_id(), Some(2));
+}
+
+#[test]
 fn map_tick_keeps_session_owned_death_timer_unchanged() {
     let (mut manager, handle) = manager_with_player(8_420_007);
     manager

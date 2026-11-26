@@ -318,6 +318,18 @@ async fn production_login_create_projects_ordered_self_res_spells() {
                     .any(|window| window == SELF_RES_VALUES)
         })
         .expect("login self CREATE carries the canonical self-res list");
+    let explored = [0xDEAD_BEEF_1234_5678_u64, 0x0102_0304_9ABC_DEF0]
+        .into_iter()
+        .flat_map(u64::to_le_bytes)
+        .collect::<Vec<_>>();
+    assert!(self_create.windows(explored.len()).any(|w| w == explored));
+    assert_eq!(
+        packets.iter().find(|packet| {
+            packet.starts_with(&(wow_constants::ServerOpcodes::UpdateObject as u16).to_le_bytes())
+        }),
+        Some(self_create),
+        "loading persisted exploration must not send player VALUES before Map::SendInitSelf"
+    );
     assert!(
         self_create
             .windows(SELF_RES_SIZES.len())

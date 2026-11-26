@@ -44,6 +44,28 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
 
 ## Later verified open findings
 
+- **2026-11-25, #1342 self update ordering repaired; failed self-update handling and Sentinel Hill spawn data open.**
+  Real 54261 clients repeatedly sent `CMSG_OBJECT_UPDATE_FAILED` for their own
+  player during login against the isolated Rust candidate. The paired C++
+  `a5f8da2eb` control accepted the same clients without that error. In C++
+  `MiscHandler.cpp:1083–1095`, a self failure calls `LogoutPlayer(true)`; Rust
+  `wow-world-lifecycle/src/support.rs:243–265` only sets `player_logout=true`
+  without that finalization. A subsequent Hearthstone reaches the near-teleport
+  gate but emits no `MoveTeleport` or ACK. Freshly created characters and the
+  older fixtures both reproduced the failure before the repair. Sequence analysis
+  isolated the explored-zone VALUES before the ActivePlayer CREATE. At
+  `503f27eb1`, the graphical mage's first update was its CREATE, and its
+  Hearthstone ACK arrived. The saved Sentinel Hill homebind was 3.54 units
+  below the client's measured outdoor surface. The client landed safely when
+  only the disposable homebind height changed. The same client measured ground
+  26.21 units above the published Riverpaw Bandit spawn 275256. The intended
+  Wrath positions of that bandit and Stormwind rabbit 9006772, phase/relogin
+  and the handling of an actual failed self update remain open. A local
+  [world data correction](../architecture/captures/1342-real-client-2026-11-24.md#wrath-spawn-placement-review-november-25)
+  covers 18 corroborated heights and 22 retail Stormwind event spawns.
+  Selected evidence: `/tmp/rc46-creature-qa/packets` and
+  [the dated #1342 record](../architecture/captures/1342-real-client-2026-11-24.md).
+
 - **2026-10-28, #43 fixture admission — ItemSparse class-mask field,
   locally repaired; final acceptance pending.** At `8eb73d12a`,
   `crates/wow-data/src/item/stats/store.rs` captures `allowable_class_offset`

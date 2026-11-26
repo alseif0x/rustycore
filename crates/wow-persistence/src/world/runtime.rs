@@ -23,6 +23,19 @@ pub struct RespawnPersistenceKeyLikeCpp {
     pub instance_id: u32,
 }
 
+/// Coalescing identity for one respawn persistence mutation. Instance chest
+/// retirement is keyed by the globally reusable instance id rather than a
+/// single map/spawn row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RespawnPersistenceMutationKeyLikeCpp {
+    Respawn(RespawnPersistenceKeyLikeCpp),
+    RetireInstanceChestMoney {
+        realm_id: u16,
+        map_id: u32,
+        instance_id: u32,
+    },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RespawnPersistenceMutationLikeCpp {
     Save {
@@ -32,12 +45,37 @@ pub enum RespawnPersistenceMutationLikeCpp {
     Delete {
         key: RespawnPersistenceKeyLikeCpp,
     },
+    ArmChestMoney {
+        key: RespawnPersistenceKeyLikeCpp,
+        realm_id: u16,
+        generation: u64,
+        deadline: i64,
+        persist_respawn: bool,
+    },
+    /// Invalidate chest money heads before a reusable instance id is returned
+    /// to the allocator. Old binding rows remain so their claim ids fail closed.
+    RetireInstanceChestMoney {
+        realm_id: u16,
+        map_id: u32,
+        instance_id: u32,
+    },
 }
 
 impl RespawnPersistenceMutationLikeCpp {
-    pub const fn key(self) -> RespawnPersistenceKeyLikeCpp {
+    pub const fn key(self) -> RespawnPersistenceMutationKeyLikeCpp {
         match self {
-            Self::Save { key, .. } | Self::Delete { key } => key,
+            Self::Save { key, .. } | Self::Delete { key } | Self::ArmChestMoney { key, .. } => {
+                RespawnPersistenceMutationKeyLikeCpp::Respawn(key)
+            }
+            Self::RetireInstanceChestMoney {
+                realm_id,
+                map_id,
+                instance_id,
+            } => RespawnPersistenceMutationKeyLikeCpp::RetireInstanceChestMoney {
+                realm_id,
+                map_id,
+                instance_id,
+            },
         }
     }
 }

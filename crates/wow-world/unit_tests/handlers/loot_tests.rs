@@ -285,9 +285,25 @@ struct StoredItemMoneyPortFixtureLikeCpp {
 
 struct GroupLootMoneyPortFixtureLikeCpp {
     calls: Arc<AtomicUsize>,
+    chest: Option<(
+        wow_persistence::WorldLootMoneySource,
+        u64,
+        wow_persistence::WorldLootMoneyBinding,
+    )>,
 }
 
 impl GroupLootMoneyPersistencePortLikeCpp for GroupLootMoneyPortFixtureLikeCpp {
+    fn bind_world_chest_money(
+        &self,
+        source: wow_persistence::WorldLootMoneySource,
+        owner: u64,
+    ) -> PersistenceFutureLikeCpp<'_, Result<Option<wow_persistence::WorldLootMoneyBinding>, String>>
+    {
+        let (expected_source, expected_owner, binding) = self.chest.expect("expected a chest read");
+        assert_eq!((source, owner), (expected_source, expected_owner));
+        Box::pin(std::future::ready(Ok(Some(binding))))
+    }
+
     fn attempt_group_loot_money_like_cpp(
         &self,
         request: GroupLootMoneyPersistenceRequestLikeCpp,
@@ -311,6 +327,7 @@ impl GroupLootMoneyPersistencePortLikeCpp for GroupLootMoneyPortFixtureLikeCpp {
 
     fn reconcile_group_loot_money_like_cpp(
         &self,
+        _claim_id: Option<[u8; 16]>,
         _outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
     ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyReconciliationLikeCpp> {
         Box::pin(std::future::ready(

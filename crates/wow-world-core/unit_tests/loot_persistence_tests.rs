@@ -96,6 +96,18 @@ fn durable_money_completion_uses_one_shared_exact_once_gate() {
 }
 
 #[test]
+fn cancelled_money_worker_blocks_absolute_saves_only_after_submission() {
+    for in_flight in [false, true] {
+        let tracker = Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+        let mut guard = tracker.begin_like_cpp().unwrap();
+        guard.set_write_in_flight(in_flight);
+        drop(guard);
+        assert_eq!(tracker.is_indeterminate_like_cpp(), in_flight);
+        assert_eq!(tracker.begin_like_cpp().is_err(), in_flight);
+    }
+}
+
+#[test]
 fn indeterminate_money_outcome_permanently_closes_admission_until_relogin() {
     let tracker = Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
     let fence = tracker.close_admission_for_save_like_cpp();

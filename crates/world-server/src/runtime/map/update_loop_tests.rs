@@ -1,5 +1,6 @@
 use super::*;
 use std::sync::Arc;
+use wow_persistence::RespawnPersistenceMutationKeyLikeCpp::Respawn;
 
 fn empty_respawn_caches() -> LoadedGridCreatureRespawnCachesLikeCpp {
     LoadedGridCreatureRespawnCachesLikeCpp {
@@ -392,8 +393,13 @@ fn map_session_pass_player_recovery_prelude_db_intents_survive_abandon_without_r
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     assert_eq!(state.queue.pending_len(), 2);
-    assert!(state.queue.pending.contains_key(&save_key));
-    assert!(state.queue.pending.contains_key(&delete_key));
+    assert!(state.queue.pending.contains_key(&(Respawn(save_key), None)));
+    assert!(
+        state
+            .queue
+            .pending
+            .contains_key(&(Respawn(delete_key), None))
+    );
     assert_eq!(
         manager.tick_coordination_like_cpp(),
         wow_map::MapTickCoordinationStateLikeCpp::Idle

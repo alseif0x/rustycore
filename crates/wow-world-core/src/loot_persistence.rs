@@ -90,6 +90,7 @@ impl DurableLootMoneyPersistenceTrackerLikeCpp {
         Ok(DurableLootMoneyPersistenceGuardLikeCpp {
             tracker: Arc::clone(self),
             resolved: false,
+            write_in_flight: false,
         })
     }
 
@@ -255,9 +256,13 @@ impl Drop for DurableLootMoneySaveFenceLikeCpp {
 pub struct DurableLootMoneyPersistenceGuardLikeCpp {
     tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     resolved: bool,
+    write_in_flight: bool,
 }
 
 impl DurableLootMoneyPersistenceGuardLikeCpp {
+    pub fn set_write_in_flight(&mut self, in_flight: bool) {
+        self.write_in_flight = in_flight;
+    }
     pub fn commit_like_cpp(&mut self, completion: DurableLootMoneyCompletionLikeCpp) {
         if self.resolved {
             return;
@@ -280,7 +285,7 @@ impl DurableLootMoneyPersistenceGuardLikeCpp {
 impl Drop for DurableLootMoneyPersistenceGuardLikeCpp {
     fn drop(&mut self) {
         if !self.resolved {
-            self.tracker.finish_like_cpp(None, false);
+            self.tracker.finish_like_cpp(None, self.write_in_flight);
             self.resolved = true;
         }
     }

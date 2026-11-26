@@ -750,7 +750,13 @@ fn respawn_db_mailbox_coalesces_before_writer_poll_like_cpp() {
         .expect("respawn DB mailbox lock");
     assert_eq!(state.queue.pending_len(), 1);
     assert_rep_respawn_params_like_cpp(
-        &state.queue.pending[&respawn_persistence_key_fixture_like_cpp(18)].mutation,
+        &state.queue.pending[&(
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(
+                respawn_persistence_key_fixture_like_cpp(18),
+            ),
+            None,
+        )]
+            .mutation,
         0,
         18,
         99_999,
@@ -776,7 +782,13 @@ fn respawn_db_mailbox_keeps_latest_rep_del_order_and_rejects_after_close_like_cp
             .expect("respawn DB mailbox lock");
         assert_eq!(state.queue.pending_len(), 1);
         assert!(matches!(
-            state.queue.pending[&respawn_persistence_key_fixture_like_cpp(19)].mutation,
+            state.queue.pending[&(
+                RespawnPersistenceMutationKeyLikeCpp::Respawn(
+                    respawn_persistence_key_fixture_like_cpp(19),
+                ),
+                None,
+            )]
+                .mutation,
             RespawnPersistenceMutationLikeCpp::Delete { .. }
         ));
     }
@@ -869,7 +881,10 @@ fn respawn_db_retry_queue_does_not_delay_fresh_unrelated_key() {
     let fresh = queue
         .take_due(fresh_at)
         .expect("unrelated fresh key remains immediately eligible");
-    assert_eq!(fresh.key.spawn_id, 14);
+    assert_eq!(
+        fresh.key,
+        RespawnPersistenceMutationKeyLikeCpp::Respawn(respawn_persistence_key_fixture_like_cpp(14))
+    );
     assert!(queue.take_due(fresh_at).is_none());
     assert!(queue.take_due(start + Duration::from_secs(1)).is_some());
 }

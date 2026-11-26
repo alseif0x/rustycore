@@ -1188,163 +1188,6 @@ where
         outcome
     }
 
-    pub fn relocate_map_object_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        new_position: Position,
-    ) -> Result<MapObjectRelocationOutcome, MapObjectRelocationError> {
-        if !is_valid_map_coord_2d(new_position.x, new_position.y) {
-            return Err(MapObjectRelocationError::InvalidCoordinates {
-                guid,
-                x: new_position.x,
-                y: new_position.y,
-            });
-        }
-
-        let record = self
-            .map_object_record(guid)
-            .ok_or(MapObjectRelocationError::ObjectNotFound { guid })?;
-        let kind = record.kind();
-        let old_position = record.object().position();
-        let old_cell = Cell::from_world(old_position.x, old_position.y);
-        let new_cell = Cell::from_world(new_position.x, new_position.y);
-        let old_grid = GridCoord::new(old_cell.grid_x(), old_cell.grid_y());
-        let new_grid = GridCoord::new(new_cell.grid_x(), new_cell.grid_y());
-        let diff_cell = old_cell.diff_cell(&new_cell);
-        let diff_grid = old_cell.diff_grid(&new_cell);
-
-        if !diff_cell && !diff_grid {
-            let mut record = self
-                .remove_map_object(guid)
-                .expect("record was just observed");
-            record.object_mut().relocate(new_position);
-            self.insert_map_object_record(record)
-                .map_err(MapObjectRelocationError::Store)?;
-            return Ok(MapObjectRelocationOutcome {
-                guid,
-                old_cell: old_cell.cell_coord(),
-                new_cell: new_cell.cell_coord(),
-                old_grid,
-                new_grid,
-                moved_between_cells: false,
-                loaded_grid: false,
-                created_grid: false,
-                relocated: true,
-                blocked_by_unloaded_grid: false,
-            });
-        }
-
-        let active_object = is_active_object_like_cpp(kind, record.object());
-        let loaded_grid = if diff_grid && active_object {
-            self.ensure_grid_loaded_for_active_object(&new_cell, kind.into())
-        } else {
-            false
-        };
-        let created_grid = if diff_grid && !active_object {
-            if !self.is_grid_loaded(new_grid) {
-                return Ok(MapObjectRelocationOutcome {
-                    guid,
-                    old_cell: old_cell.cell_coord(),
-                    new_cell: new_cell.cell_coord(),
-                    old_grid,
-                    new_grid,
-                    moved_between_cells: false,
-                    loaded_grid: false,
-                    created_grid: false,
-                    relocated: false,
-                    blocked_by_unloaded_grid: true,
-                });
-            }
-            self.ensure_grid_created(new_grid)
-        } else {
-            false
-        };
-
-        if self.get_ngrid(new_grid).is_none() {
-            return Ok(MapObjectRelocationOutcome {
-                guid,
-                old_cell: old_cell.cell_coord(),
-                new_cell: new_cell.cell_coord(),
-                old_grid,
-                new_grid,
-                moved_between_cells: false,
-                loaded_grid,
-                created_grid: false,
-                relocated: false,
-                blocked_by_unloaded_grid: true,
-            });
-        }
-
-        let mut record = self
-            .remove_map_object(guid)
-            .expect("record was just observed");
-        let object_is_world_object = record.object().is_world_object();
-        let removed = remove_object_guid_from_cell_like_cpp(
-            self,
-            old_grid,
-            &old_cell,
-            kind,
-            object_is_world_object,
-            guid,
-        );
-        let _removed_from_old_cell = removed;
-        {
-            let Some(ngrid) = self.get_ngrid_mut(new_grid) else {
-                self.insert_map_object_record(record)
-                    .map_err(MapObjectRelocationError::Store)?;
-                return Ok(MapObjectRelocationOutcome {
-                    guid,
-                    old_cell: old_cell.cell_coord(),
-                    new_cell: new_cell.cell_coord(),
-                    old_grid,
-                    new_grid,
-                    moved_between_cells: false,
-                    loaded_grid,
-                    created_grid,
-                    relocated: false,
-                    blocked_by_unloaded_grid: true,
-                });
-            };
-            let Some(local_cell) = ngrid.get_grid_type_mut(new_cell.cell_x(), new_cell.cell_y())
-            else {
-                self.insert_map_object_record(record)
-                    .map_err(MapObjectRelocationError::Store)?;
-                return Ok(MapObjectRelocationOutcome {
-                    guid,
-                    old_cell: old_cell.cell_coord(),
-                    new_cell: new_cell.cell_coord(),
-                    old_grid,
-                    new_grid,
-                    moved_between_cells: false,
-                    loaded_grid,
-                    created_grid,
-                    relocated: false,
-                    blocked_by_unloaded_grid: true,
-                });
-            };
-            insert_object_guid_in_cell_like_cpp(local_cell, kind, object_is_world_object, guid);
-        }
-        record.object_mut().relocate(new_position);
-        record
-            .object_mut()
-            .set_current_cell(new_cell.cell_x(), new_cell.cell_y());
-        self.insert_map_object_record(record)
-            .map_err(MapObjectRelocationError::Store)?;
-
-        Ok(MapObjectRelocationOutcome {
-            guid,
-            old_cell: old_cell.cell_coord(),
-            new_cell: new_cell.cell_coord(),
-            old_grid,
-            new_grid,
-            moved_between_cells: true,
-            loaded_grid,
-            created_grid,
-            relocated: true,
-            blocked_by_unloaded_grid: false,
-        })
-    }
-
     /// Live represented C++ `Map::Update` source selection for
     /// `ProcessRelocationNotifies(t_diff)` (`Map.cpp:692-717,797-805,830-905`).
     ///
@@ -2150,12 +1993,14 @@ where
                 Ok(outcome) if outcome.relocated => summary.relocated += 1,
                 Ok(outcome) if outcome.blocked_by_unloaded_grid => {
                     summary.blocked_by_unloaded_grid += 1;
-                    if matches!(
-                        family,
-                        MapObjectMoveListFamilyLikeCpp::Creature
-                            | MapObjectMoveListFamilyLikeCpp::GameObject
-                    ) {
-                        summary.respawn_relocation_unsupported += 1;
+                    match family {
+                        MapObjectMoveListFamilyLikeCpp::Creature => {
+                            self.relocate_blocked_creature(guid, &mut summary)
+                        }
+                        MapObjectMoveListFamilyLikeCpp::GameObject => {
+                            summary.respawn_relocation_unsupported += 1
+                        }
+                        _ => {}
                     }
                 }
                 Ok(_) => summary.blocked_by_unloaded_grid += 1,

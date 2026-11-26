@@ -83,9 +83,44 @@ impl SessionSpellState {
         metadata: SpellCastMetadata,
         bytes: Vec<u8>,
     ) {
+        self.publish_player_spell_frame(hub, metadata.prepared_residence_revision, bytes, None);
+    }
+
+    /// Direct Player spell damage uses the caster's visible set, with the
+    /// basic or full combat log chosen independently for each receiver.
+    pub fn publish_player_damage_log_like_cpp(
+        &self,
+        hub: &mut HubMut<'_>,
+        log: &wow_packet::packets::combat::SpellNonMeleeDamageLog,
+    ) {
+        use wow_packet::ServerPacket;
+        let revision = self.current_player_residence_revision_like_cpp(hub.shared());
+        self.publish_player_spell_frame(
+            hub,
+            revision,
+            log.to_bytes(),
+            Some(log.to_full_log_bytes_like_cpp()),
+        );
+    }
+
+    fn publish_player_spell_frame(
+        &self,
+        hub: &mut HubMut<'_>,
+        expected_revision: Option<u64>,
+        bytes: Vec<u8>,
+        full_log: Option<Vec<u8>>,
+    ) {
+        let for_receiver = |advanced| match &full_log {
+            Some(full) if advanced => full,
+            _ => &bytes,
+        };
+        let own_bytes = for_receiver(
+            hub.shared()
+                .represented_advanced_combat_logging_enabled_like_cpp(),
+        );
         #[cfg(any(test, feature = "test-fixtures"))]
         if hub.core.player_handle_like_cpp.is_none() {
-            hub.core.send_raw_packet(&bytes);
+            hub.core.send_raw_packet(own_bytes);
             return;
         }
         let Some(handle) = hub.core.player_handle_like_cpp else {
@@ -94,37 +129,32 @@ impl SessionSpellState {
         let source = (|| {
             let manager = hub.core.canonical_map_manager.as_ref()?.lock().ok()?;
             let (key, revision) = manager.player_active_residence_revision_like_cpp(handle)?;
-            if Some(revision) != metadata.prepared_residence_revision {
+            if Some(revision) != expected_revision {
                 return None;
             }
             let map = manager.find_map(key.map_id, key.instance_id)?.map();
-            let player = map.get_typed_player(handle.guid())?;
-            Some((
-                key,
-                player.unit().world().position(),
-                player.unit().world().get_visibility_range(map),
-            ))
+            Some((key, map.selected_aura_update_observers(handle.guid())))
         })();
-        let Some((key, position, range)) = source else {
+        let Some((key, observers)) = source else {
             return;
         };
         // Canonical map guard ended above. No packet delivery under it.
-        hub.core.send_raw_packet(&bytes);
+        hub.core.send_raw_packet(own_bytes);
         let Some(registry) = hub.core.player_registry() else {
             return;
         };
-        for recipient in registry.runtime_recipients() {
-            if recipient.guid == handle.guid()
-                || !recipient.is_in_world
+        for guid in observers {
+            if guid == handle.guid() {
+                continue;
+            }
+            let Some(recipient) = registry.runtime_recipient(guid) else {
+                continue;
+            };
+            if !recipient.is_in_world
                 || u32::from(recipient.map_id) != key.map_id
                 || recipient.instance_id != key.instance_id
                 || !recipient.committed_visibility.contains(&handle.guid())
             {
-                continue;
-            }
-            let dx = recipient.position.x - position.x;
-            let dy = recipient.position.y - position.y;
-            if dx * dx + dy * dy > range * range {
                 continue;
             }
             let _ = registry.publish_current_player_spell_if_visible(
@@ -132,7 +162,7 @@ impl SessionSpellState {
                 SendPlayerSpellIfVisibleLikeCppCommand {
                     map_id: recipient.map_id,
                     instance_id: key.instance_id,
-                    packet_bytes: bytes.clone(),
+                    packet_bytes: for_receiver(recipient.advanced_combat_logging).clone(),
                     committed_visibility_like_cpp: recipient.committed_visibility,
                 },
             );

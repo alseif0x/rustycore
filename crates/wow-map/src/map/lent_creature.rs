@@ -16,10 +16,26 @@
 //! - a position the borrower changed is then applied through the map's own
 //!   relocation, which is C++ `Unit::UpdatePosition` → `Map::CreatureRelocation`
 //!   (`Map.cpp:1042-1072`): same cell, the position is updated in place;
-//!   another cell, the GUID moves cells; an unloaded target grid, nothing moves
-//!   (`if (!respawnRelocationOnFail && !getNGrid(...)) return;`).
+//!   another cell, the move is queued for `MoveAllCreaturesInMoveList`
+//!   before relocation notifiers (Map.cpp:797–805, 1239–1290).
 
 use super::*;
+
+/// Unit::AttackStop output captured before the creature changes cells.
+#[derive(Debug, Clone)]
+pub struct RelocationAttackStop {
+    pub attacker: ObjectGuid,
+    pub victim: ObjectGuid,
+    pub position: Position,
+    pub range: f32,
+    pub victim_dead: bool,
+}
+
+#[derive(Default, Debug)]
+pub struct RelocationCombat {
+    pub stops: Vec<RelocationAttackStop>,
+    pub player_exits: Vec<(ObjectGuid, ObjectGuid)>,
+}
 
 /// Where a lent creature came from: what it must return to.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -38,10 +54,9 @@ pub enum LentCreatureReturnLikeCpp {
         /// The borrower rebound or unbound the creature's map, and the binding
         /// it left with was put back so the record could return.
         binding_restored: bool,
-        /// The relocation to the borrower's position, when the borrower moved
-        /// the creature. A blocked or refused relocation leaves the creature at
-        /// its origin, in the cell that holds its GUID.
-        relocation: Option<Result<MapObjectRelocationOutcome, MapObjectRelocationError>>,
+        /// Admission of the borrower's position change. Cross-cell movement
+        /// finishes during the map's move-list phase.
+        relocation: Option<Result<(), MapObjectRelocationError>>,
     },
     /// The record could not be rebuilt; the creature is gone. Unreachable while
     /// a creature's GUID cannot be changed, and reported loudly by the caller.
@@ -53,6 +68,76 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
+    /// Map::CreatureRespawnRelocation(false), called from the map's move-list drain.
+    pub(super) fn relocate_blocked_creature(
+        &mut self,
+        guid: ObjectGuid,
+        summary: &mut MoveListDrainSummaryLikeCpp,
+    ) {
+        let Some(creature) = self.get_typed_creature(guid) else {
+            summary.respawn_relocation_unsupported += 1;
+            return;
+        };
+        let spawn = creature.lifecycle_metadata();
+        let destination = if spawn.spawn_id != 0 {
+            spawn.spawn_position
+        } else {
+            creature.home_position()
+        };
+        let combat = self
+            .stop_map_unit_combat(guid, false)
+            .expect("canonical creature has a Unit");
+        self.relocation_combat.player_exits.extend(
+            combat
+                .exited_combat
+                .into_iter()
+                .filter(ObjectGuid::is_player)
+                .map(|player| (guid, player)),
+        );
+        for (attacker, victim) in combat.attacks_stopped {
+            let Some(record) = self.map_object_record(attacker) else {
+                continue;
+            };
+            let position = record.object().position();
+            let range = record
+                .creature()
+                .map_or(self.visibility_range(), |c| c.visibility_range_like_cpp());
+            let victim_dead = self
+                .map_object_record(victim)
+                .and_then(crate::map_rules::map_record_unit_like_cpp)
+                .is_some_and(|unit| !unit.is_alive());
+            self.relocation_combat.stops.push(RelocationAttackStop {
+                attacker,
+                victim,
+                position,
+                range,
+                victim_dead,
+            });
+        }
+        self.get_typed_creature_mut(guid)
+            .unwrap()
+            .clear_motion_for_respawn_relocation();
+        if self
+            .relocate_map_object_like_cpp(guid, destination)
+            .is_ok_and(|move_result| move_result.relocated)
+        {
+            let creature = self.get_typed_creature_mut(guid).unwrap();
+            creature.initialize_motion_after_respawn_relocation();
+            creature
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);
+            summary.respawn_relocated += 1;
+        } else if self.add_object_to_remove_list_like_cpp(guid).queued {
+            summary.remove_list_queued += 1;
+        }
+    }
+
+    pub fn take_relocation_combat(&mut self) -> RelocationCombat {
+        std::mem::take(&mut self.relocation_combat)
+    }
+
     /// Take the canonical creature `guid` out of its map record, by value.
     ///
     /// The GUID stays in its grid cell: the caller must give the creature back
@@ -111,7 +196,7 @@ where
             return LentCreatureReturnLikeCpp::Lost { error };
         }
         let relocation = (moved_to != origin.position)
-            .then(|| self.relocate_map_object_like_cpp(origin.guid, moved_to));
+            .then(|| self.update_creature_position(origin.guid, origin.position, moved_to));
         LentCreatureReturnLikeCpp::Returned {
             binding_restored,
             relocation,
@@ -129,13 +214,51 @@ where
         &mut self,
         guid: ObjectGuid,
         from: Position,
-    ) -> Option<Result<MapObjectRelocationOutcome, MapObjectRelocationError>> {
+    ) -> Option<Result<(), MapObjectRelocationError>> {
         let world = self.get_typed_creature_mut(guid)?.unit_mut().world_mut();
         let moved_to = world.position();
         if moved_to == from {
             return None;
         }
         world.relocate(from);
-        Some(self.relocate_map_object_like_cpp(guid, moved_to))
+        Some(self.update_creature_position(guid, from, moved_to))
+    }
+
+    fn update_creature_position(
+        &mut self,
+        guid: ObjectGuid,
+        from: Position,
+        to: Position,
+    ) -> Result<(), MapObjectRelocationError> {
+        if !crate::coords::is_valid_map_coord_4d(to.x, to.y, to.z, to.orientation) {
+            return Err(MapObjectRelocationError::InvalidCoordinates {
+                guid,
+                x: to.x,
+                y: to.y,
+            });
+        }
+        let relocated = (from.x - to.x).abs() > 0.001
+            || (from.y - to.y).abs() > 0.001
+            || (from.z - to.z).abs() > 0.001;
+        // Unit.cpp:12259–12284. Updating orientation alone leaves a queued
+        // cross-cell move intact.
+        if !relocated {
+            if let Some(creature) = self.get_typed_creature_mut(guid) {
+                creature.unit_mut().world_mut().relocate(Position {
+                    orientation: to.orientation,
+                    ..from
+                });
+            }
+            return Ok(());
+        }
+        let old_cell = Cell::from_world(from.x, from.y);
+        let new_cell = Cell::from_world(to.x, to.y);
+        if old_cell.diff_cell(&new_cell) || old_cell.diff_grid(&new_cell) {
+            self.add_creature_to_move_list_like_cpp(guid, to);
+        } else {
+            self.relocate_map_object_like_cpp(guid, to)?;
+            self.remove_creature_from_move_list_like_cpp(guid);
+        }
+        Ok(())
     }
 }

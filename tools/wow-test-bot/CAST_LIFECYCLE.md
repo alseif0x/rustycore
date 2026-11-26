@@ -79,6 +79,90 @@ wrong map or missing observation fails before that target packet is written.
 Existing literal GUID plans keep their original packed wire bytes, including
 zero GUIDs used for negative cases.
 
+## Restarted chest money recovery probe
+
+The cast lifecycle runner also supports a narrowly guarded two-process probe
+for the existing disposable Tattered Chest fixture: SQL spawn `9106001`, GO
+entry `2846`, map `0`, one item `38`, and ten copper. The fixture wrapper or
+parent-owned preflight must first prove that exact SQL spawn and the unique
+entry/map match are installed. The bot does not read or write fixture tables.
+Each invocation discovers the fresh map-runtime GUID from this session's
+post-login `SMSG_UPDATE_OBJECT` stream; reports keep it distinct from SQL spawn
+identity.
+
+Both actions use the normal 3.4.3 packets. `open_loot_recovery_chest` sends
+`CMSG_GAME_OBJ_USE` with the discovered GUID. `claim_loot_recovery_money`
+checks the complete `SMSG_LOOT_RESPONSE` (including the untouched item-38 row)
+before sending only `CMSG_LOOT_MONEY [0]`; it then verifies the matching
+`SMSG_COIN_REMOVED` and `SMSG_LOOT_MONEY_NOTIFY`. It never sends
+`CMSG_LOOT_ITEM`. The pre-restart plan remains connected until the parent stops
+the server. After restart, a fresh process opens the chest again, requires zero
+coins, attempts the money request, and releases the loot view with
+`CMSG_LOOT_RELEASE`. Keep the fixture and characters under the parent’s
+disposable-data and recovery journal; these actions do not restore database
+state themselves. The one-session probe accepts C++'s no-group
+`FREE_FOR_ALL` loot method (`0`) or the paired race's `PERSONAL_LOOT` method
+(`5`). C++ chooses the chest money path by loot type, so the one requester
+receives the whole pool in either method.
+
+Pre-restart plan:
+
+```json
+{
+  "timeout_ms": 600000,
+  "actions": [
+    { "action": "open_loot_recovery_chest" },
+    { "action": "claim_loot_recovery_money", "expected_coins": 10 },
+    { "action": "wait_for_server_disconnect", "timeout_ms": 300000 }
+  ],
+  "expect": [
+    { "event": "loot_response", "coins": 10, "item_entry": 38 },
+    { "event": "loot_coin_removed" },
+    { "event": "loot_money_notify", "money": 10, "money_mod": 0 }
+  ],
+  "finish_policy": "disconnect"
+}
+```
+
+Post-restart plan:
+
+```json
+{
+  "timeout_ms": 30000,
+  "actions": [
+    { "action": "open_loot_recovery_chest" },
+    { "action": "claim_loot_recovery_money", "expected_coins": 0 },
+    { "action": "release_loot_recovery_chest" }
+  ],
+  "expect": [
+    { "event": "loot_response", "coins": 0, "item_entry": 38 },
+    { "event": "loot_coin_removed" },
+    { "event": "loot_money_notify", "money": 0, "money_mod": 0 },
+    { "event": "loot_release" }
+  ],
+  "finish_policy": "disconnect"
+}
+```
+
+Run these as separate sessions, preferably with the same disposable character
+so the parent can verify its persisted money delta across the restart. Use a
+distinct plan and report path for each process:
+
+```sh
+tools/wow-test-bot/target/debug/wow-test-bot --single "$RECOVERY_BOT" \
+  --cast-lifecycle --cast-lifecycle-plan "$PRE_PLAN" --report "$PRE_REPORT"
+# The parent stops and restarts the server after the first bot observes EOF.
+tools/wow-test-bot/target/debug/wow-test-bot --single "$RECOVERY_BOT" \
+  --cast-lifecycle --cast-lifecycle-plan "$POST_PLAN" --report "$POST_REPORT"
+```
+
+`tools/qa-runtime.sh`'s existing `loot-race` path remains the guarded fixture
+setup/cleanup runbook, but its full two-client workflow does not contain this
+between-claim-and-retry restart boundary. Do not call the two bot commands a
+complete recovery acceptance unless the parent has installed the fixture under
+its journal, restarted the target server, checked the committed money delta,
+and run or recorded the fixture restoration path.
+
 An optional top-level `character_guid` in the plan selects a character counter
 in memory. It must be a nonzero 40-bit value and requires cast-lifecycle mode
 with exactly one account selected by `--single`. The override does not rewrite

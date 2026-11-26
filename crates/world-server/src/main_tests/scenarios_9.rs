@@ -75,7 +75,13 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
     );
     assert_eq!(queue.pending_len(), 2);
     assert_rep_respawn_params_like_cpp(
-        &queue.pending[&respawn_persistence_key_fixture_like_cpp(15)].mutation,
+        &queue.pending[&(
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(
+                respawn_persistence_key_fixture_like_cpp(15),
+            ),
+            None,
+        )]
+            .mutation,
         0,
         15,
         300,
@@ -83,7 +89,13 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
         0,
     );
     assert_rep_respawn_params_like_cpp(
-        &queue.pending[&respawn_persistence_key_fixture_like_cpp(16)].mutation,
+        &queue.pending[&(
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(
+                respawn_persistence_key_fixture_like_cpp(16),
+            ),
+            None,
+        )]
+            .mutation,
         0,
         16,
         400,
@@ -91,6 +103,122 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
         0,
     );
 }
+#[test]
+fn chest_restock_survives_a_later_respawn_delete_and_generation() {
+    let now = Instant::now();
+    let key = respawn_persistence_key_fixture_like_cpp(15);
+    let mut queue = RespawnDbRetryQueueLikeCpp::default();
+    let arm = |generation| RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+        key,
+        realm_id: 1,
+        generation,
+        deadline: 100,
+        persist_respawn: false,
+    };
+    for mutation in [
+        arm(0),
+        respawn_db_delete_mutation_fixture_like_cpp(15),
+        arm(1),
+    ] {
+        queue.enqueue_latest(mutation, now);
+    }
+    assert_eq!(queue.pending_len(), 3);
+    assert_eq!(
+        queue.pending[&(
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(key),
+            Some((1, 0, 100, false)),
+        )]
+            .mutation,
+        arm(0)
+    );
+    assert_eq!(
+        queue.pending[&(
+            RespawnPersistenceMutationKeyLikeCpp::Respawn(key),
+            Some((1, 1, 100, false)),
+        )]
+            .mutation,
+        arm(1)
+    );
+    assert!(matches!(
+        queue.pending[&(RespawnPersistenceMutationKeyLikeCpp::Respawn(key), None,)].mutation,
+        RespawnPersistenceMutationLikeCpp::Delete { .. }
+    ));
+}
+
+#[tokio::test]
+async fn respawn_db_writer_releases_instance_retirement_only_after_commit_like_cpp() {
+    let port = FakeRespawnPersistencePortLikeCpp::default();
+    port.fail_mutations
+        .store(true, std::sync::atomic::Ordering::Release);
+    let mailbox = RespawnDbMailboxLikeCpp::default();
+    let (completion_tx, mut completion_rx) = tokio::sync::mpsc::unbounded_channel();
+    let retired = wow_map::MapTickParticipantLikeCpp {
+        key: wow_map::MapKey::new(33, 77),
+        incarnation: 4,
+    };
+    let mutation = RespawnPersistenceMutationLikeCpp::RetireInstanceChestMoney {
+        realm_id: 2,
+        map_id: 33,
+        instance_id: 77,
+    };
+    {
+        let mut state = mailbox.state.lock().unwrap();
+        state.queue.enqueue_with_ack(
+            mutation,
+            Instant::now(),
+            crate::RespawnDbMutationAckLikeCpp::RetireInstanceChestMoney {
+                retired,
+                completion_tx,
+            },
+        );
+    }
+    assert_eq!(
+        mailbox.state.lock().unwrap().queue.pending_len(),
+        1,
+        "instance retirement has its own realm and map mailbox key"
+    );
+
+    let first = mailbox
+        .state
+        .lock()
+        .unwrap()
+        .queue
+        .take_due(Instant::now())
+        .expect("retirement is due");
+    assert_eq!(
+        first.key,
+        RespawnPersistenceMutationKeyLikeCpp::RetireInstanceChestMoney {
+            realm_id: 2,
+            map_id: 33,
+            instance_id: 77,
+        }
+    );
+    execute_respawn_db_attempt_like_cpp(first, &mailbox, &port).await;
+    assert_eq!(
+        completion_rx.try_recv(),
+        Err(tokio::sync::mpsc::error::TryRecvError::Empty),
+        "failed SQL emits no release event and keeps the id fenced"
+    );
+
+    port.fail_mutations
+        .store(false, std::sync::atomic::Ordering::Release);
+    let second = {
+        let mut state = mailbox.state.lock().unwrap();
+        state.queue.make_all_due(Instant::now());
+        state
+            .queue
+            .take_due(Instant::now())
+            .expect("failed retirement remains retryable")
+    };
+    execute_respawn_db_attempt_like_cpp(second, &mailbox, &port).await;
+    assert_eq!(
+        completion_rx.try_recv(),
+        Ok(retired),
+        "only successful commit emits the id release event"
+    );
+    assert_eq!(mailbox.state.lock().unwrap().queue.pending_len(), 0);
+}
+
 #[test]
 fn respawn_db_retry_queue_shutdown_makes_existing_backoff_immediately_due() {
     let start = std::time::Instant::now();
@@ -106,9 +234,8 @@ fn respawn_db_retry_queue_shutdown_makes_existing_backoff_immediately_due() {
         queue
             .take_due(shutdown_at)
             .expect("shutdown drain must bypass stale retry deadline")
-            .key
-            .spawn_id,
-        17
+            .key,
+        RespawnPersistenceMutationKeyLikeCpp::Respawn(respawn_persistence_key_fixture_like_cpp(17))
     );
 }
 #[tokio::test]
@@ -117,10 +244,21 @@ async fn respawn_db_writer_retries_failed_typed_mutation_then_applies_once_like_
     port.fail_mutations
         .store(true, std::sync::atomic::Ordering::Release);
     let mailbox = RespawnDbMailboxLikeCpp::default();
-    let mutation = respawn_db_save_mutation_fixture_like_cpp(21, 500);
+    let ack = std::sync::Arc::new(std::sync::OnceLock::new());
+    let mutation = RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+        key: respawn_persistence_key_fixture_like_cpp(21),
+        realm_id: 1,
+        generation: 2,
+        deadline: 500,
+        persist_respawn: true,
+    };
     {
         let mut state = mailbox.state.lock().unwrap();
-        state.queue.enqueue_latest(mutation, Instant::now());
+        state.queue.enqueue_with_ack(
+            mutation,
+            Instant::now(),
+            crate::RespawnDbMutationAckLikeCpp::ChestRestock(ack.clone()),
+        );
     }
 
     let first = mailbox
@@ -131,6 +269,7 @@ async fn respawn_db_writer_retries_failed_typed_mutation_then_applies_once_like_
         .take_due(Instant::now())
         .expect("fresh typed mutation is due");
     execute_respawn_db_attempt_like_cpp(first, &mailbox, &port).await;
+    assert!(ack.get().is_none());
     assert_eq!(mailbox.state.lock().unwrap().queue.pending_len(), 1);
 
     port.fail_mutations
@@ -144,6 +283,7 @@ async fn respawn_db_writer_retries_failed_typed_mutation_then_applies_once_like_
             .expect("failed mutation remains retryable")
     };
     execute_respawn_db_attempt_like_cpp(second, &mailbox, &port).await;
+    assert_eq!(ack.get(), Some(&true));
 
     assert_eq!(mailbox.state.lock().unwrap().queue.pending_len(), 0);
     assert_eq!(
@@ -289,6 +429,14 @@ fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_
             .map_mut()
             .get_typed_game_object_mut(guid)
             .expect("test GameObject");
+        gameobject.set_go_type(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
+        gameobject.set_represented_chest_loot_source_like_cpp(Some(
+            wow_entities::GameObjectLootSource {
+                chest_consumable: true,
+                ..Default::default()
+            },
+        ));
+        assert!(gameobject.bind_chest_money_generation(1, 12, |_| true));
         gameobject.set_represented_gameobject_data_present_like_cpp(true);
         gameobject.set_respawn_compatibility_mode(false);
         gameobject.set_respawn_delay_time(30);
@@ -339,7 +487,34 @@ fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_
         &canonical_test_map_store_like_cpp(),
         &empty_loaded_grid_creature_respawn_caches_like_cpp(),
     )
-    .expect("replaced GameObject timer must surface a DB save without waiting 100ms");
+    .expect("chest retirement must surface the durable intent before clearing loot");
+    assert!(summary.respawn_db_saves.is_empty());
+    let [(arm, ack)] = summary.chest_money_restocks.as_slice() else {
+        panic!("expected one retirement");
+    };
+    let RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+        key,
+        deadline,
+        generation: 12,
+        realm_id: 1,
+        persist_respawn: true,
+    } = *arm
+    else {
+        panic!("incorrect retirement");
+    };
+    assert_eq!(key.spawn_id, spawn_id);
+    assert!(ack.get().is_none());
+    ack.set(true).unwrap();
+    let summary = canonical_map_update_tick_set_inactive_like_cpp(
+        &mut manager,
+        1,
+        &mut scheduler,
+        &metadata,
+        &condition_store,
+        &canonical_test_map_store_like_cpp(),
+        &empty_loaded_grid_creature_respawn_caches_like_cpp(),
+    )
+    .expect("confirmed retirement applies the map's respawn timer");
 
     assert_eq!(summary.maps_evaluated, 0);
     assert_eq!(summary.respawn_db_save_queued, 1);
@@ -350,6 +525,8 @@ fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_
     assert!(save.respawn_time > 0);
     assert_ne!(save.respawn_time, i64::MAX);
     assert_rep_respawn_params_like_cpp(&save.mutation, 1, spawn_id, save.respawn_time, 571, 0);
+    assert!(summary.chest_money_restocks.is_empty());
+    assert_eq!(save.respawn_time, deadline);
     assert_eq!(
         manager
             .find_map(571, 0)

@@ -32,6 +32,9 @@ pub(crate) struct CanonicalMapSessionPassPlanLikeCpp {
     pub(crate) plan: wow_map::MapTickPlanLikeCpp,
     /// Per admitted map, its in-world players in `m_mapRefManager` order.
     pub(crate) participants: Vec<CanonicalMapSessionPassMapLikeCpp>,
+    /// Reusable ids retired by this tick. Their chest-source generations must
+    /// commit before the map manager releases them to a new map.
+    pub(crate) instance_ids_to_retire: Vec<wow_map::MapTickParticipantLikeCpp>,
 }
 
 /// One admitted map and the sessions its tick drives, with the identities
@@ -132,6 +135,7 @@ pub(crate) fn canonical_map_tick_begin_like_cpp(
     diff_ms: u32,
 ) -> Option<CanonicalMapSessionPassPlanLikeCpp> {
     let plan = manager.begin_tick_like_cpp(diff_ms).into_started()?;
+    let instance_ids_to_retire = manager.take_pending_instance_id_retirements_like_cpp();
     let participants = plan
         .updated_maps_like_cpp()
         .iter()
@@ -141,7 +145,11 @@ pub(crate) fn canonical_map_tick_begin_like_cpp(
             participants: manager.map_session_pass_participants_like_cpp(participant.key),
         })
         .collect();
-    Some(CanonicalMapSessionPassPlanLikeCpp { plan, participants })
+    Some(CanonicalMapSessionPassPlanLikeCpp {
+        plan,
+        participants,
+        instance_ids_to_retire,
+    })
 }
 
 /// The rest of the same canonical tick, resumed with the diff saved at the
@@ -594,6 +602,32 @@ fn canonical_map_tick_tail_like_cpp(
                 }),
         );
         append_map_object_values_updates_like_cpp(&mut summary, managed_map);
+        collect_relocation_combat(&mut summary, managed_map);
+        if let Ok(map_id) = u16::try_from(map_id) {
+            summary.chest_money_restocks.extend(
+                managed_map
+                    .map_mut()
+                    .take_chest_money_restocks()
+                    .into_iter()
+                    .map(|r| {
+                        (
+                            wow_persistence::RespawnPersistenceMutationLikeCpp::ArmChestMoney {
+                                key: wow_persistence::RespawnPersistenceKeyLikeCpp {
+                                    object_type_raw: wow_map::SpawnObjectType::GameObject as u16,
+                                    spawn_id: r.spawn_id,
+                                    map_id,
+                                    instance_id,
+                                },
+                                realm_id: r.realm_id,
+                                generation: r.generation,
+                                deadline: r.deadline,
+                                persist_respawn: r.persist_respawn,
+                            },
+                            r.acknowledged,
+                        )
+                    }),
+            );
+        }
         summary.expired_pvp_combat_refs.extend(
             managed_map
                 .last_expired_pvp_combat_refs_like_cpp()
@@ -641,6 +675,9 @@ fn canonical_map_tick_tail_like_cpp(
         }
     });
     let has_work = !summary.respawn_db_saves.is_empty()
+        || !summary.relocation_combat.events.is_empty()
+        || !summary.relocation_exits.is_empty()
+        || !summary.chest_money_restocks.is_empty()
         || !summary.expired_pvp_combat_refs.is_empty()
         || !summary.player_visibility_refresh_intents.is_empty()
         || !summary.object_values_updates.is_empty()
@@ -648,6 +685,56 @@ fn canonical_map_tick_tail_like_cpp(
         || !summary.respawn_db_deletes.is_empty()
         || summary.maps_evaluated > 0;
     has_work.then_some(summary)
+}
+
+fn collect_relocation_combat(
+    summary: &mut CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+    map: &mut wow_map::ManagedMap,
+) {
+    use wow_packet::{ServerPacket, packets::combat::SAttackStop};
+    use wow_world::runtime_plan::{RecipientRule, RuntimeEvent};
+    let Ok(map_id) = u16::try_from(map.map_id()) else {
+        return;
+    };
+    let instance_id = map.instance_id();
+    let combat = map.map_mut().take_relocation_combat();
+    summary
+        .relocation_combat
+        .events
+        .extend(combat.stops.into_iter().map(|stop| {
+            RuntimeEvent {
+                source_guid: stop.attacker,
+                recipients: RecipientRule::NearbyVisibleDurable {
+                    source_guid: stop.attacker,
+                    map_id,
+                    instance_id,
+                    source_position: stop.position,
+                    range: stop.range,
+                    required_3d: false,
+                },
+                packet_bytes: SAttackStop {
+                    attacker: stop.attacker,
+                    victim: stop.victim,
+                    now_dead: stop.victim_dead,
+                }
+                .to_bytes(),
+            }
+        }));
+    summary
+        .relocation_exits
+        .extend(
+            combat
+                .player_exits
+                .into_iter()
+                .map(|(attacker_guid, victim_guid)| {
+                    wow_world::session::mailbox::CreatureAttackStopLikeCppCommand {
+                        attacker_guid,
+                        victim_guid,
+                        map_id,
+                        instance_id,
+                    }
+                }),
+        );
 }
 
 /// Convert the typed snapshots captured by `Map::SendObjectUpdates` while the

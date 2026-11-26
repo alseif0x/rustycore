@@ -30,6 +30,8 @@ pub(crate) struct CanonicalObjectVisibilityDestroyLikeCpp {
 
 #[derive(Debug, Default)]
 pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
+    pub(crate) relocation_combat: wow_world::runtime_plan::RuntimePlan,
+    pub(crate) relocation_exits: Vec<wow_world::session::mailbox::CreatureAttackStopLikeCppCommand>,
     pub(crate) player_visibility_refresh_intents:
         Vec<wow_map::PlayerVisibilityRefreshIntentLikeCpp>,
     pub(crate) object_values_updates: Vec<CanonicalMapObjectValuesUpdateLikeCpp>,
@@ -88,4 +90,8 @@ pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     pub(crate) respawn_db_save_skipped_instanceable_map: usize,
     pub(crate) respawn_db_save_skipped_invalid_map_id: usize,
     pub(crate) respawn_db_saves: Vec<RespawnDbSaveLikeCpp>,
+    pub(crate) chest_money_restocks: Vec<(
+        wow_persistence::RespawnPersistenceMutationLikeCpp,
+        crate::respawn_retry::ChestRestockAck,
+    )>,
 }

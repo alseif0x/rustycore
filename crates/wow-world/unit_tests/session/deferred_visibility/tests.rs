@@ -24,6 +24,9 @@ use wow_packet::{WorldPacket, packets::update::UpdateType};
 
 const KEY: MapKey = MapKey::new(571, 0);
 
+#[path = "creature_relocation.rs"]
+mod creature_relocation;
+
 struct Fixture {
     session: WorldSession,
     canonical: SharedCanonicalMapManager,
