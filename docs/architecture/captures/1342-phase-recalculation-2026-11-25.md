@@ -59,3 +59,36 @@ phase implementation and its regressions onto `3.4.3`. The capture
 applies to the tested development revisions above. Terrain swaps, personal
 spawn materialization, stock client login, and the remaining #1342
 scenarios retain their own acceptance.
+
+## Paired quest phase on November 26
+
+**Match.** The graphical 54261 mage entered Northshire after a stationary
+paladin had already logged in through the 54261 protocol client. Both
+entered map 0 at `(-8948, -80, 88.78)`, facing the same direction.
+The isolated debug world ran `6cc5c230a`, SHA-256
+`02677f4c89ebfbf4819193a45806e6e64fab1fffb81c2400f4fbaa628de91091`.
+The graphical executable was the prepared QA copy identified in the
+[creature acceptance record](1342-real-client-2026-11-24.md#november-24-results-and-boundaries).
+
+| Action | Mage 16 | Paladin 15 |
+| --- | --- | --- |
+| Enter Northshire | World entry 655. Empty phases at 687/692. The unphased GameObject and Phase Guide appear at 688/725. | World entry 37. Empty phases at 69/74. The same controls appear at 70/78. |
+| Accept *Phase Test* from the guide | Request 1406. Phase 198 at 1410. Frame 1411 creates the creature Calendar Witness and the restricted GameObject and removes the unphased controls. | Keeps the original controls and receives neither restricted GUID. |
+| Abandon the quest in the quest log | Request 1593. Phase clears at 1594. Frame 1595 removes the same restricted GUIDs and restores the original controls. | Keeps the original controls and receives neither restricted GUID. |
+| Wave after restoring visibility | Sends the emote at 1902 and receives it at 1904. | Receives the same emote at 1907 on its original instance socket. |
+
+The two instance sockets were distinguished by their peer addresses. Both
+characters were online in the disposable Characters database after the
+two quest actions. The SHA-256 hashes of the mage's two object updates
+were `dcc35794c3a6b9e49f546dd7afbbcf42b722bcc5e250af270990e85cd29b19b6`
+and `6918762bdffbb3ea0f928b3793dbbc5d89d90f56602cab55136fd3bce0e11314`.
+
+Replay with `python3 tools/qa/verify_paired_quest_phase.py "$PACKET_DIR"`.
+The paladin used the bot's five-minute `observe_only` mode. That mode saves
+traffic and returns an unsuccessful assertion result by design because it has
+zero expectation rules. The verdict above comes from the paired packet replay
+and graphical observations. Both isolated servers stopped, the temporary
+schemas and database user were removed, and both shared service PIDs stayed live.
+
+[Calendar Witness visible after acceptance](1342-paired-phase-granted-54261.jpg).
+[Phase Guide restored after abandonment](1342-paired-phase-cleared-54261.jpg).
