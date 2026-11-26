@@ -73,8 +73,8 @@ The graphical executable was the prepared QA copy identified in the
 | Action | Mage 16 | Paladin 15 |
 | --- | --- | --- |
 | Enter Northshire | World entry 655. Empty phases at 687/692. The unphased GameObject and Phase Guide appear at 688/725. | World entry 37. Empty phases at 69/74. The same controls appear at 70/78. |
-| Accept *Phase Test* from the guide | Request 1406. Phase 198 at 1410. Frame 1411 creates Calendar Witness and the restricted GameObject and removes the unphased controls. | Retains the unphased view. |
-| Abandon the quest in the quest log | Request 1593. Phase clears at 1594. Frame 1595 removes the same restricted GUIDs and restores the original controls. | Retains the unphased view. |
+| Accept *Phase Test* from the guide | Request 1406. Phase 198 at 1410. Frame 1411 creates the creature Calendar Witness and the restricted GameObject and removes the unphased controls. | Keeps the original controls and receives neither restricted GUID. |
+| Abandon the quest in the quest log | Request 1593. Phase clears at 1594. Frame 1595 removes the same restricted GUIDs and restores the original controls. | Keeps the original controls and receives neither restricted GUID. |
 | Wave after restoring visibility | Sends the emote at 1902 and receives it at 1904. | Receives the same emote at 1907 on its original instance socket. |
 
 The two instance sockets were distinguished by their peer addresses. Both
