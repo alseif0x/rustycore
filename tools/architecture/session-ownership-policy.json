@@ -56440,6 +56440,32 @@
         },
         {
           "package": "wow-world-entities",
+          "module": "crate::melee_publication",
+          "source": "crates/wow-world-entities/src/melee_publication.rs",
+          "enclosing": "fn publish",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::melee_publication",
+          "source": "crates/wow-world-entities/src/melee_publication.rs",
+          "enclosing": "fn publish",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
           "module": "crate::movement_opcodes",
           "source": "crates/wow-world-entities/src/movement_opcodes.rs",
           "enclosing": "fn handle_movement_info_with_catalogs_like_cpp",

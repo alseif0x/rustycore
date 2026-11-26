@@ -42,13 +42,14 @@ pub(crate) fn install_canonical_player_owner_for_test(
         .world_mut()
         .set_map(map_id, instance_id)
         .unwrap();
-    player.unit_mut().world_mut().object_mut().add_to_world();
     canonical
         .lock()
         .unwrap()
         .create_world_map(map_id, instance_id)
         .map_mut()
-        .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+        .add_map_object_record_to_map_like_cpp(
+            wow_entities::MapObjectRecord::new_player(player).unwrap(),
+        )
         .unwrap();
     session.set_canonical_map_manager(canonical);
     assert!(
