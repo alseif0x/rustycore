@@ -39,6 +39,7 @@ pub struct AdmittedCreatureCombatPhaseInputsLikeCpp<'a> {
     /// The movement phase's pathfinding seam.
     pub mmap_config: &'a MMapRuntimeConfigLikeCpp,
     pub mmap_pathfinder: Option<&'a wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    pub resolve_waypoint_path: &'a (dyn Fn(u32) -> Option<wow_movement::WaypointPath> + Sync),
     /// The player chase victims snapshotted from the registry.
     pub chase_targets: &'a HashMap<
         (u16, u32, ObjectGuid),
@@ -192,6 +193,7 @@ pub fn run_admitted_creature_combat_phases_on_locked_manager_like_cpp(
         inputs.terrain,
         inputs.mmap_config,
         inputs.mmap_pathfinder,
+        inputs.resolve_waypoint_path,
         inputs.chase_targets,
         admission.diff_ms,
         &mut outcome.movement,
@@ -330,6 +332,7 @@ pub fn run_creature_movement_phase_on_manager_like_cpp(
     terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    resolve_waypoint_path: &(dyn Fn(u32) -> Option<wow_movement::WaypointPath> + Sync),
     chase_targets: &HashMap<
         (u16, u32, ObjectGuid),
         wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp,
@@ -362,6 +365,7 @@ pub fn run_creature_movement_phase_on_manager_like_cpp(
         terrain,
         mmap_config,
         mmap_pathfinder,
+        resolve_waypoint_path,
         chase_targets,
         diff_ms,
         outcome,

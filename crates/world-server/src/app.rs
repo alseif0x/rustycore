@@ -1954,6 +1954,7 @@ async fn run_inner(
         persisted_respawn_report.unsupported_area_trigger,
         persisted_respawn_report.missing_spawn_metadata,
     );
+    let waypoint_paths = canonical_spawn_metadata.waypoint_paths_like_cpp().clone();
     let canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp =
         Arc::new(Mutex::new(canonical_spawn_metadata));
     let world_state_startup: Arc<dyn wow_persistence::WorldStateStartupPersistencePortLikeCpp> =
@@ -5452,6 +5453,7 @@ async fn run_inner(
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),
         Some(CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
+            waypoint_paths,
             mmap_runtime_config.clone(),
             mmap_pathfinder.clone(),
             creature_aggro_config.clone(),

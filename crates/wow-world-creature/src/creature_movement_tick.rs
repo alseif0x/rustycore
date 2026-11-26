@@ -11,14 +11,15 @@ use wow_world_core::creature_movement::CreatureMovementQueriesLikeCpp as _;
 /// waypoint and chase generators — written once over a borrowed canonical
 /// creature (#1263 F6-8D3a-2).
 ///
-/// This is a pure function of `creature`, `guid`, and the two mmap resources;
-/// it does NOT touch any `WorldSession` state.
+/// The admitted map tick supplies terrain, pathfinding, waypoint data and the
+/// chase target. Only the borrowed creature owns movement progress.
 #[allow(clippy::too_many_arguments)]
 pub fn step_creature_movement_on_view_like_cpp(
     creature: &mut wow_world_core::creature_movement::CreatureMovementLikeCpp<'_>,
     guid: wow_core::ObjectGuid,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    resolve_waypoint_path: &(dyn Fn(u32) -> Option<wow_movement::WaypointPath> + Sync),
     terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
     chase_target: Option<wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp>,
     diff_ms: u32,
@@ -190,9 +191,22 @@ pub fn step_creature_movement_on_view_like_cpp(
                 return Some(bytes);
             }
         }
-        Some(wow_movement::MovementGeneratorType::Waypoint)
-            if creature.state() == wow_entities::CreatureAiState::WalkingWaypoint =>
-        {
+        Some(wow_movement::MovementGeneratorType::Waypoint) => {
+            // MotionMaster::Update initializes the newly selected default on its
+            // first tick after CreatureRespawnRelocation. Look up the current PathId.
+            if creature.state() == wow_entities::CreatureAiState::Idle
+                && creature.default_movement_type() == wow_entities::MovementGeneratorType::Waypoint
+                && creature.active_waypoint_generator_like_cpp().is_none()
+            {
+                let path_id = creature.waypoint_path_id_like_cpp();
+                let path = (path_id != 0)
+                    .then(|| resolve_waypoint_path(path_id))
+                    .flatten();
+                creature.initialize_selected_waypoint_generator_like_cpp(path);
+            }
+            if creature.state() != wow_entities::CreatureAiState::WalkingWaypoint {
+                return None;
+            }
             // C++ `WaypointMovementGenerator<Creature>::DoUpdate` advances the
             // generator from the map-owned creature update and `StartMove`
             // launches `MoveSplineInit::MoveTo(..., _generatePath)`, which
@@ -362,6 +376,7 @@ pub(crate) fn run_creature_movement_phase_on_store_like_cpp(
     terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    resolve_waypoint_path: &(dyn Fn(u32) -> Option<wow_movement::WaypointPath> + Sync),
     chase_targets: &HashMap<
         (u16, u32, ObjectGuid),
         wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp,
@@ -411,6 +426,7 @@ pub(crate) fn run_creature_movement_phase_on_store_like_cpp(
                 guid,
                 mmap_config,
                 mmap_pathfinder,
+                resolve_waypoint_path,
                 terrain,
                 chase_target,
                 diff_ms,

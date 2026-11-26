@@ -44,6 +44,7 @@ pub(crate) struct CanonicalCreatureRuntimeProbeLikeCpp {
 /// the shared terrain, the single-owner lease and the per-map player melee
 /// accumulator the loop task owns.
 pub(crate) struct CanonicalCreatureRuntimeLikeCpp {
+    waypoint_paths: spawn_store_loader::WaypointPathStoreLikeCpp,
     pub(crate) mmap_config: MMapRuntimeConfigLikeCpp,
     pub(crate) mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
     pub(crate) aggro_config: wow_world::session::CreatureAggroConfigLikeCpp,
@@ -156,6 +157,7 @@ impl CanonicalCreatureRuntimeLikeCpp {
                 player_melee_phase_state: &mut self.player_melee_phase_state,
                 aggro_candidates: &inputs.aggro_candidates,
                 terrain: inputs.terrain.as_deref(),
+                resolve_waypoint_path: &|id| self.waypoint_paths.get(id).cloned(),
                 mmap_config: &self.mmap_config,
                 mmap_pathfinder: self.mmap_pathfinder.as_deref(),
                 chase_targets: &inputs.chase_targets,
@@ -181,6 +183,7 @@ impl CanonicalCreatureRuntimeLikeCpp {
 
     #[must_use]
     pub(crate) fn new_like_cpp(
+        waypoint_paths: spawn_store_loader::WaypointPathStoreLikeCpp,
         mmap_config: MMapRuntimeConfigLikeCpp,
         mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
         aggro_config: wow_world::session::CreatureAggroConfigLikeCpp,
@@ -188,6 +191,7 @@ impl CanonicalCreatureRuntimeLikeCpp {
         terrain: Option<Arc<wow_world::terrain::LiveTerrainHeights>>,
     ) -> Self {
         Self {
+            waypoint_paths,
             mmap_config,
             mmap_pathfinder,
             aggro_config,

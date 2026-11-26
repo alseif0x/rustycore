@@ -14,7 +14,7 @@ pub struct WaypointPathLoadReportLikeCpp {
 }
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct WaypointPathStoreLikeCpp {
-    paths: BTreeMap<u32, wow_movement::WaypointPath>,
+    paths: std::sync::Arc<BTreeMap<u32, wow_movement::WaypointPath>>,
 }
 impl WaypointPathStoreLikeCpp {
     pub fn from_rows_like_cpp(
@@ -77,7 +77,12 @@ impl WaypointPathStoreLikeCpp {
             }
         }
 
-        (Self { paths }, report)
+        (
+            Self {
+                paths: paths.into(),
+            },
+            report,
+        )
     }
 
     pub fn get(&self, path_id: u32) -> Option<&wow_movement::WaypointPath> {

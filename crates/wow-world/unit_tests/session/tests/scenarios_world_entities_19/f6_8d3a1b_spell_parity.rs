@@ -190,6 +190,7 @@ fn d3a1b_executor_tick_like_cpp(
             terrain: None,
             mmap_config: &mmap_config,
             mmap_pathfinder: None,
+            resolve_waypoint_path: &|_| None,
             chase_targets: &chase_targets,
             config: &config,
             map_store: &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),

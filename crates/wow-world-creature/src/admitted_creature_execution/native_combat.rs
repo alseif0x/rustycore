@@ -365,6 +365,7 @@ pub async fn run_admitted_creature_combat_phases_with_native_death(
             inputs.terrain,
             inputs.mmap_config,
             inputs.mmap_pathfinder,
+            inputs.resolve_waypoint_path,
             inputs.chase_targets,
             admission.diff_ms,
             &mut outcome.movement,

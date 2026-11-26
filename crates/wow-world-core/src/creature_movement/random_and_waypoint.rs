@@ -14,6 +14,15 @@ impl CreatureMovementLikeCpp<'_> {
     ) -> WaypointMovementAction {
         self.creature
             .set_default_movement_type_runtime_like_cpp(MovementGeneratorType::Waypoint);
+        self.initialize_selected_waypoint_generator_like_cpp(loaded_path)
+    }
+
+    /// WaypointMovementGenerator::DoInitialize on the default already selected
+    /// by MotionMaster. Keep the current slot's initialization and pause state.
+    pub fn initialize_selected_waypoint_generator_like_cpp(
+        &mut self,
+        loaded_path: Option<WaypointPath>,
+    ) -> WaypointMovementAction {
         let mut generator = WaypointMovementGenerator::from_db_path_id(0, true);
         let action = generator.initialize_like_cpp(
             true,
