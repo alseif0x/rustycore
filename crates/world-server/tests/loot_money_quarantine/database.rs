@@ -61,10 +61,14 @@ impl Database {
         db.direct_execute("CREATE TABLE characters (guid BIGINT UNSIGNED PRIMARY KEY, money BIGINT UNSIGNED NOT NULL) ENGINE=InnoDB").await?;
         db.direct_execute("INSERT INTO characters (guid, money) VALUES (54, 10)")
             .await?;
-        let migration = include_str!(
+        let ddl = include_str!(
             "../../../../sql/updates/characters/wotlk_classic/2026_11_22_00_characters.sql"
-        );
-        for statement in migration.split(';').filter(|s| !s.trim().is_empty()) {
+        )
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("--"))
+        .collect::<Vec<_>>()
+        .join("\n");
+        for statement in ddl.split(';').filter(|s| !s.trim().is_empty()) {
             db.direct_execute(statement).await?;
         }
         if rollback {
