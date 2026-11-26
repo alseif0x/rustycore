@@ -244,7 +244,7 @@ async fn recovery_fences_reclaim_deferred_save_resumes_on_registered_worldport_a
     crate::session::install_worldport_ack_inputs(&mut session);
     session.set_state(crate::session::SessionState::Transfer);
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
-    let catalogs = session.session_handler_catalogs_for_test_like_cpp();
+    let catalogs = session.worldport_catalogs_for_test();
     let response = crate::session::registry::get_handler(ClientOpcodes::WorldPortResponse)
         .expect("registered WorldPortResponse handler");
     (response.handler)(&mut session, &catalogs, WorldPacket::new_empty()).await;
