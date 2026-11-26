@@ -72,6 +72,7 @@ fn apply_money_command(
         loot_owner,
         loot_obj,
         amount: COINS,
+        money_mod: 0,
         durable_applied_amount: Arc::new(AtomicU64::new(0)),
         durable_persistence_tracker: tracker,
         sole_looter: true,
