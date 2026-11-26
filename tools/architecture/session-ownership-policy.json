@@ -12645,7 +12645,7 @@
           "kind": "method",
           "name": "persist_and_consume_stored_item_money_like_cpp",
           "visibility": "private",
-          "signature": "fn persist_and_consume_stored_item_money_like_cpp (& self , item_guid : ObjectGuid , cached_notified_amount : u64 , money_bonus_percent : i32 ,) -> impl Future < Output = Option < (Arc < AtomicBool > , Arc < AtomicBool > , u64 , wow_world_lifecycle :: DurableItemLootMoneyNotificationLikeCpp) > > + Send",
+          "signature": "fn persist_and_consume_stored_item_money_like_cpp (& self , item_guid : ObjectGuid , cached_notified_amount : u64 , money_bonus_percent : i32 ,) -> impl Future < Output = Option < (Arc < AtomicBool > , Arc < AtomicBool > , u64 , wow_world_lifecycle :: DurableItemLootMoneyNotificationLikeCpp ,) > , > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
