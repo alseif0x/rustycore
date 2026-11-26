@@ -138,11 +138,10 @@ impl WorldSession {
             self.spell_state
                 .clear_spell_acquisition_post_commit_actions_for_test_like_cpp();
             if previous_player_guid.is_some() {
+                // C++ destroys Player::m_clientGUIDs with the Player. Queued
+                // casts retain that Player's set until their delivery check.
+                self.core.client_visible_guids_like_cpp = Default::default();
                 let _ = wow_world_spell::clear_represented_fallback_spell_rows_like_cpp(self);
-            }
-            // `_SaveSkills` tombstones belong to the current C++ Player's
-            // update-field slots, not to the authenticated WorldSession.
-            if previous_player_guid.is_some() {
                 self.clear_player_skill_tombstones_like_cpp();
             }
         }
