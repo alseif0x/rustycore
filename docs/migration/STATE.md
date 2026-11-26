@@ -81,6 +81,11 @@ The resulting test binary passed all 4,206 active cases (one ignored).
 The earlier six-library campaign spent 11m16s in its library step and
 failed the old aggro fixture. It exceeded the ten-minute warm budget.
 
+The [#1354 relocation capture](../architecture/captures/1354-creature-relocation-54261.md)
+identifies a wild wolf leaving and re-entering the stationary graphical client's
+view and an independent Den Grunt patrol on the merged branch. It also records
+the unloaded-grid regression where a patrol returned home but stopped there.
+
 The Characters adapter at `32ea0410e` passed
 `cargo test --locked -p wow-database --test loot_money_restart -- --exact money_claims_survive_process_restart --ignored --nocapture`
 using a disposable MariaDB socket. Separate claim and recovery processes
