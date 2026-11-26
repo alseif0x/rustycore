@@ -2,19 +2,9 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! World-side construction of the travel handler context (#1263 F5).
-//!
-//! The entities crate owns the handlers and their context; the session
-//! splits its lifecycle state from the hub, so no session reference crosses
-//! into the handler.
-//!
-//! `#1263 F5 remaining families`: the adapter also lends the three travel and
-//! transfer entries (`CMSG_ACTIVATE_TAXI`, `CMSG_AREA_TRIGGER`,
-//! `CMSG_WORLD_PORT_RESPONSE`) that moved off the legacy inventory path in
-//! `crates/wow-world/src/handlers/travel/travel.rs`, delegating to the same
-//! `WorldSession` operations with the same catalog destructuring the legacy
-//! closures used. The area-trigger and taxi bodies themselves moved to
-//! `wow_world_instances` (#1363 slice 4d).
+//! Adapts the session and its catalogs to the travel handlers. Taxi and area
+//! triggers use the instances domain. The character domain handles worldport
+//! acknowledgements and receives the grid loader for destination visibility.
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
