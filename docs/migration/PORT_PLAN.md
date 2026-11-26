@@ -87,6 +87,14 @@ spell effects and the QA hotfix rows inspected on November 26 contain no
 loot-money aura. A controlled aura fixture can prove payout handling.
 The ordinary chest restart proves durable collection with a zero bonus.
 
+At `e2fb75f4c`, `cargo test -p wow-world --lib money` passed 94 tests,
+including two recipients with different bonuses, missing aura data and
+delivery after the recipient's aura changed. The `wow-world-core` aura-view
+suite passed all seven tests. The `wow-database` `loot_money_restart` test
+passed against an isolated MariaDB across three child processes. Together
+these focused checks took 108 seconds on aarch64. The chest restart with a
+54261 protocol client is recorded separately in the [November 22 QA report](../architecture/captures/46-qa-54261-2026-11-22.md).
+
 At `3961b4d26`, login hydrates completed achievement IDs and sends an empty
 `AllAchievementData` progress list. Finishing the criteria part requires
 the eligible Player's progress to survive logout and restart, its update to
