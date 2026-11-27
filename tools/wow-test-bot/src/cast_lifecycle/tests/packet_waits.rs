@@ -1142,3 +1142,5 @@ async fn packet_wait_times_out_despite_historical_match_and_fails_on_early_logou
         entry.action.as_deref() == Some("wait_for_packet") && entry.kind == TraceKind::ActionFailed
     }));
 }
+
+mod frame_deadlines;
