@@ -8,8 +8,8 @@ are integrated through [#1484](https://github.com/alseif0x/rustycore/pull/1484) 
 Instance enter/leave and reconnect/logout integrity [#45](https://github.com/alseif0x/rustycore/issues/45)
 closed after [#1512](https://github.com/alseif0x/rustycore/pull/1512) merged at
 `ad58236ad` and the [branch audit](https://github.com/alseif0x/rustycore/actions/runs/45020876206) passed.
-The next stability work exercises those instance scenarios with multiple clients over time
-under [#46](https://github.com/alseif0x/rustycore/issues/46). Save and recovery under load
+The two-client instance and four-client movement workloads below record the completed
+stability runs under [#46](https://github.com/alseif0x/rustycore/issues/46). Save and recovery under load
 remain with [#47](https://github.com/alseif0x/rustycore/issues/47).
 Use the [master index](https://github.com/alseif0x/rustycore/issues/49) for the remaining dependencies.
 
@@ -19,6 +19,51 @@ auction packet layouts and house selection (#1494). The [inspect](../audits/insp
 and [auction](../audits/auction-packets-54261.md) audits record the client build and limits of
 those results. Auction transactions, the full quest lifecycle and real-client creature acceptance
 have separate open issues (#39, #41, #1342).
+
+## Four-client movement and relogin stability (#46), 2026-11-27
+
+Four authenticated build-54261 protocol clients ran on a single aarch64 debug
+world process for 7,307.491 seconds. Each of 22 Northshire cycles logged in four
+distinct characters, moved each between two positions, queried instance saves
+and logged out. Native frames showed 704 movement heartbeats and 2,112 ordered
+deliveries across all 12 actor/observer pairs. All 88 raid queries received
+replies and all 88 logouts were confirmed. Each of the 84 subsequent logins
+restored the position from that character’s previous logout. The 3.4.3
+reference is `WorldSession::HandleMovementOpcodes` at `a5f8da2eb`, which
+updates the mover and publishes `MoveUpdate` to the other observers.
+
+The isolated realm used server commit `2ac2db608`, executable SHA-256
+`4b278c6d3eb305d9ddc4a1c6f9a18aeada1a857dfa67dc349c1730d01ec840ce`, and
+PID 2930069 throughout. The bot came from `f877725b1`, executable SHA-256
+`96e1f8d41376ced25681df714c8d125c6e3884e3da3762221b7b002e4d4ba2bf`.
+The [reproduction command](../../tools/wow-test-bot/RUSTYCORE_SMOKE.md#four-client-northshire-movement-and-relog-stability)
+used `--northshire-origin -8949.95 -132.493 83.5312`. An earlier, separate
+transfer on this server took character 18 from map 530 to map 0. The client
+acknowledged `NewWorld` with `WorldPortResponse` and saved its destination.
+The four-client cycles then exercised movement on map 0.
+
+Across 23 queue samples, full, disconnected, stale and retry-full counters
+had zero deltas. Across 489 process samples, RSS rose from 935,064 to 943,828
+KiB, including 812 KiB in the last 30 minutes. These measurements cover the
+two instrumented command paths and this run’s duration. Of 731 database
+samples, 670 showed all four characters online. Each character’s stored
+position changed 44 times between consecutive samples that showed it online.
+Criterion 4093 remained 1,000,005 for the paid character and 9 for its control.
+A final database read verified one chest source head, one binding and one
+receipt. The isolated services stopped and the four cloned schemas were removed.
+The private scenario report SHA-256 is
+`7cdd85d69fd1a6d998bb2e6a689183d5e461a7f0c27e08469bba997fe43fe4b8`.
+
+The first run stopped after 3,637.413 seconds in cycle 11. An ordinary bot
+wait expired during an encrypted instance frame. A controlled split frame
+reproduced the same failure on `d37dca1b1` and passed on the corrected
+reader. The reader now finishes an admitted frame within the plan and transport
+deadlines. Explicit packet waits still enforce their own deadline. The
+successful workload started again from zero on the same server process.
+
+Final acceptance at clean commit `e4d1bb46a` passed all 281 bot tests and
+16 Python driver and verifier tests. Including the `validation-v2 final`
+profile (17.606 seconds), these local checks took 55 seconds on aarch64.
 
 ## Two-client instance stability (#46), 2026-11-22
 
