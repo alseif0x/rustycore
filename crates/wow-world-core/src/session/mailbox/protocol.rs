@@ -886,6 +886,8 @@ pub struct ApplyLootMoneyLikeCppCommand {
     pub amount: u64,
     /// Recipient's aura bonus frozen with the share before the durable payout.
     pub money_mod: u64,
+    /// Eligible recipients share this one-shot transaction result with the worker.
+    pub criteria: Option<Arc<std::sync::OnceLock<wow_persistence::LootMoneyCriteriaProgress>>>,
     /// Delta that the locked character row actually accepted.  This is shared
     /// with the detached worker so command delivery order cannot make runtime
     /// gold disagree with the durable cap decision.

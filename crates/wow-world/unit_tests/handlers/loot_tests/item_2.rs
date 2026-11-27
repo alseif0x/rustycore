@@ -86,6 +86,7 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
                 item_owner_auto_release: false,
                 durable_item_money_applied_amount: Some(7),
                 durable_item_money_notified_amount: Some(DurableItemLootMoneyNotificationLikeCpp {
+                    criteria: None,
                     amount: 7,
                     money_mod: 0,
                 }),
@@ -134,6 +135,7 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
                 item_owner_auto_release: false,
                 durable_item_money_applied_amount: Some(7),
                 durable_item_money_notified_amount: Some(DurableItemLootMoneyNotificationLikeCpp {
+                    criteria: None,
                     amount: 7,
                     money_mod: 0,
                 }),
@@ -191,6 +193,7 @@ async fn cancelled_stored_item_money_after_commit_is_replayed_before_disconnect_
                 item_owner_auto_release: false,
                 durable_item_money_applied_amount: Some(7),
                 durable_item_money_notified_amount: Some(DurableItemLootMoneyNotificationLikeCpp {
+                    criteria: None,
                     amount: 7,
                     money_mod: 0,
                 }),
@@ -236,6 +239,7 @@ async fn stored_item_money_save_reconciled_balance_still_publishes_source_once_l
         item_owner_auto_release: false,
         durable_item_money_applied_amount: Some(13),
         durable_item_money_notified_amount: Some(DurableItemLootMoneyNotificationLikeCpp {
+            criteria: None,
             amount: 7,
             money_mod: 6,
         }),
@@ -323,6 +327,7 @@ async fn stored_item_money_delete_cas_allows_exactly_one_durable_grant_like_cpp(
                         durable_item_money_applied_amount: Some(7),
                         durable_item_money_notified_amount: Some(
                             DurableItemLootMoneyNotificationLikeCpp {
+                                criteria: None,
                                 amount: 7,
                                 money_mod: 0,
                             },
@@ -400,6 +405,7 @@ async fn cancelled_zero_stored_item_money_notifies_once_and_normal_completion_do
                         durable_item_money_applied_amount: Some(0),
                         durable_item_money_notified_amount: Some(
                             DurableItemLootMoneyNotificationLikeCpp {
+                                criteria: None,
                                 amount: 0,
                                 money_mod: 0,
                             },

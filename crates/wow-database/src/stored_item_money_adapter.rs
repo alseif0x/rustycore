@@ -13,6 +13,7 @@ use wow_persistence::{
 
 use crate::{
     CharStatements, CharacterDatabase, DatabaseError, StatementDef, is_database_deadlock_like_cpp,
+    loot_money_criteria,
     persistence_trace::{
         CommitOutcome, ExplicitTransactionTrace, LogicalDatabase, TracedParam,
         record_batch_not_started,
@@ -63,6 +64,7 @@ fn durable_outcome_like_cpp(
         applied_delta,
         notified_amount,
         money_mod,
+        criteria: None,
     }
 }
 
@@ -157,7 +159,7 @@ impl StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyAttemptAdap
                 };
             };
 
-            let outcome = durable_outcome_like_cpp(
+            let mut outcome = durable_outcome_like_cpp(
                 before,
                 notified_amount,
                 request.max_money,
@@ -196,6 +198,20 @@ impl StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyAttemptAdap
                         "stored Item money update affected {} rows; expected exactly 1",
                         update.rows_affected()
                     )));
+                }
+            }
+
+            if request.criteria_eligible {
+                match loot_money_criteria::advance(
+                    &mut transaction,
+                    &trace,
+                    request.player_guid,
+                    outcome.notified_amount,
+                )
+                .await
+                {
+                    Ok(criteria) => outcome.criteria = criteria,
+                    Err(error) => return rolled_back_database_like_cpp(error),
                 }
             }
 
@@ -405,6 +421,7 @@ mod tests {
                 applied_delta: 7,
                 notified_amount: 7,
                 money_mod: 0,
+                criteria: None,
             }
         );
         assert_eq!(
@@ -415,6 +432,7 @@ mod tests {
                 applied_delta: 0,
                 notified_amount: 7,
                 money_mod: 0,
+                criteria: None,
             }
         );
     }
@@ -429,6 +447,7 @@ mod tests {
                 applied_delta: 18,
                 notified_amount: 12,
                 money_mod: 6,
+                criteria: None,
             }
         );
         assert_eq!(
@@ -439,6 +458,7 @@ mod tests {
                 applied_delta: 0,
                 notified_amount: 2,
                 money_mod: 1,
+                criteria: None,
             },
             "base plus aura bonus must fit as one ModifyMoney operation"
         );

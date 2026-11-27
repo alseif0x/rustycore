@@ -192,6 +192,14 @@ fn utc_wow_time_fields_like_cpp(secs: i64) -> WowTimeFieldsLikeCpp {
     }
 }
 
+/// C++ WowTime::SetUtcTimeFromUnixTime followed by the session's timezone offset.
+pub fn pack_session_wow_time(unix_seconds: i64, offset_minutes: i32) -> u32 {
+    let mut fields =
+        utc_wow_time_fields_like_cpp(unix_seconds.saturating_add(i64::from(offset_minutes) * 60));
+    fields.flags = 3;
+    pack_wow_time_fields_like_cpp(fields)
+}
+
 fn civil_from_days_like_cpp(days_since_unix_epoch: i64) -> (i32, u32, u32) {
     let z = days_since_unix_epoch + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
@@ -325,6 +333,19 @@ mod tests {
         assert_eq!((packed >> 20) & 0x0F, 4);
         assert_eq!((packed >> 24) & 0x1F, 24);
         assert_eq!((packed >> 29) & 0x03, 0);
+    }
+
+    #[test]
+    fn achievement_time_uses_receiver_offset_across_year_boundary() {
+        // 2025-01-01 00:00 UTC, Wednesday; both dates use zero-based months and days.
+        let stamp = 1_735_689_600;
+        let west = pack_session_wow_time(stamp, -30);
+        let east = pack_session_wow_time(stamp, 60);
+        assert_eq!(
+            west,
+            (3 << 29) | (24 << 24) | (11 << 20) | (30 << 14) | (2 << 11) | (23 << 6) | 30
+        );
+        assert_eq!(east, (3 << 29) | (25 << 24) | (3 << 11) | (1 << 6));
     }
 
     #[test]

@@ -29,10 +29,6 @@ impl crate::session::WorldSession {
             .set_chat_level_requirements_like_cpp(requirements)
     }
     #[cfg(test)]
-    pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
-        self.config.set_chat_listen_ranges_like_cpp(ranges)
-    }
-    #[cfg(test)]
     pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
         self.config.set_chat_flood_config_like_cpp(config)
     }

@@ -6,10 +6,10 @@
 use crate::session::MMapRuntimeConfigLikeCpp;
 use crate::session::creature_aggro_contracts::CreatureAggroConfigLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
+use crate::session_policy::{ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp};
 use crate::session_policy::{
-    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
+    ChatListenRangesLikeCpp, LootDropRatesLikeCpp, ReputationRatesLikeCpp,
 };
-use crate::session_policy::{LootDropRatesLikeCpp, ReputationRatesLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::CreatureClassificationHealthRatesLikeCpp;
 use wow_data::StatsLimitsLikeCpp;
@@ -146,7 +146,6 @@ pub struct SessionWorldConfig {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
     /// C++ `CONFIG_LISTEN_RANGE_*` represented nearby-chat ranges.
-    #[cfg(any(test, feature = "test-fixtures"))]
     pub chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp,
     /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -212,7 +211,6 @@ impl Default for SessionWorldConfig {
             chat_strict_link_checking_kick_like_cpp: false,
             #[cfg(any(test, feature = "test-fixtures"))]
             chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp::default(),
-            #[cfg(any(test, feature = "test-fixtures"))]
             chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp::default(),
             #[cfg(any(test, feature = "test-fixtures"))]
             chat_flood_config_like_cpp: ChatFloodConfigLikeCpp::default(),

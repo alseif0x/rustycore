@@ -263,7 +263,7 @@ fn character_base_load_names_the_characters_database_like_cpp() {
 fn every_player_login_auxiliary_load_names_the_characters_database_like_cpp() {
     for request in [
         PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { player_guid: 1 },
-        PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { player_guid: 1 },
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::AchievementData { player_guid: 1 },
         PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id: 2 },
         PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCooldowns { player_guid: 1 },
         PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCharges { player_guid: 1 },
@@ -514,18 +514,34 @@ fn stored_item_money_reconciliation_requires_joint_money_and_source_evidence_lik
         applied_delta: 7,
         notified_amount: 7,
         money_mod: 0,
+        criteria: None,
     };
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, Some(7)),
+        classify_stored_item_money_reconciliation_like_cpp(outcome.clone(), 100, Some(7)),
         StoredItemMoneyReconciliationLikeCpp::RolledBack
     );
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 107, None),
+        classify_stored_item_money_reconciliation_like_cpp(outcome.clone(), 107, None),
         StoredItemMoneyReconciliationLikeCpp::Committed
     );
     assert_eq!(
         classify_stored_item_money_reconciliation_like_cpp(outcome, 100, None),
         StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None }
+    );
+}
+
+#[test]
+fn loot_money_criteria_uses_the_installed_343_threshold_set() {
+    assert_eq!(LOOT_MONEY_CRITERION, 4093);
+    assert_eq!(
+        LOOT_MONEY_ACHIEVEMENTS,
+        [
+            (1176, 1_000_000),
+            (1177, 10_000_000),
+            (1178, 50_000_000),
+            (1180, 100_000_000),
+            (1181, 250_000_000),
+        ]
     );
 }
 
@@ -539,6 +555,7 @@ fn zero_cached_stored_item_money_is_the_only_absent_source_noop_like_cpp() {
             applied_delta: 0,
             notified_amount: 0,
             money_mod: 0,
+            criteria: None,
         })
     );
     assert!(stored_item_money_zero_without_source_outcome_like_cpp(41, 1).is_none());
@@ -552,12 +569,14 @@ fn group_loot_money_reconciliation_requires_one_coherent_side_like_cpp() {
             before: 10,
             after: 15,
             applied_delta: 5,
+            criteria: None,
         },
         GroupLootMoneyPersistenceOutcomeLikeCpp {
             recipient_guid: 2,
             before: 20,
             after: 27,
             applied_delta: 7,
+            criteria: None,
         },
     ];
     assert_eq!(
@@ -581,6 +600,7 @@ fn group_loot_money_cap_only_still_requires_receipt_for_source_consumption() {
         before: 100,
         after: 100,
         applied_delta: 0,
+        criteria: None,
     }];
     assert_eq!(
         classify_group_loot_money_reconciliation_like_cpp(&outcomes, None),

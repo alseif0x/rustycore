@@ -145,12 +145,58 @@ fn all_account_criteria_empty() {
 
 #[test]
 fn all_achievement_data_empty() {
-    let pkt = AllAchievementData;
+    let pkt = AllAchievementData::default();
     let bytes = pkt.to_bytes();
     // opcode(2) + i32(4) + i32(4) = 10
     assert_eq!(bytes.len(), 10);
     let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
     assert_eq!(opcode, 0x2570);
+}
+
+#[test]
+fn achievement_progress_survives_the_login_packet_layout() {
+    let guid = ObjectGuid::create_player(1, 42);
+    let progress = AchievementProgress {
+        id: 4093,
+        player: guid,
+        quantity: 1_000_007,
+        packed_date: 0x7a62_1930,
+    };
+    let award = EarnedAchievement {
+        id: 1176,
+        owner: guid,
+        realm: 0x0102_0001,
+        packed_date: progress.packed_date,
+    };
+    let live = CriteriaUpdate(progress).to_bytes();
+    let login = AllAchievementData {
+        earned: vec![award],
+        progress: vec![progress],
+    }
+    .to_bytes();
+    let mut snapshot = WorldPacket::from_bytes(&login[2..]);
+    assert_eq!(snapshot.read_uint32().unwrap(), 1);
+    assert_eq!(snapshot.read_uint32().unwrap(), 1);
+    assert_eq!(snapshot.read_uint32().unwrap(), award.id);
+    assert_eq!(snapshot.read_uint32().unwrap(), award.packed_date);
+    assert_eq!(snapshot.read_packed_guid().unwrap(), guid);
+    assert_eq!(snapshot.read_uint32().unwrap(), award.realm);
+    assert_eq!(snapshot.read_uint32().unwrap(), award.realm);
+    // Untimed 54261 CriteriaUpdate and the login progress record both have
+    // two 64-bit time fields and a final, absent RAF acceptance ID bit.
+    for mut packet in [snapshot, WorldPacket::from_bytes(&live[2..])] {
+        assert_eq!(packet.read_uint32().unwrap(), progress.id);
+        assert_eq!(packet.read_uint64().unwrap(), progress.quantity);
+        assert_eq!(packet.read_packed_guid().unwrap(), guid);
+        assert_eq!(packet.read_uint32().unwrap(), 0);
+        assert_eq!(packet.read_uint32().unwrap(), 0);
+        assert_eq!(packet.read_uint32().unwrap(), progress.packed_date);
+        assert_eq!(packet.read_uint64().unwrap(), 0);
+        assert_eq!(packet.read_uint64().unwrap(), 0);
+        assert_eq!(packet.read_uint8().unwrap(), 0);
+        assert_eq!(packet.remaining(), 0);
+    }
+    assert_eq!(&live[..2], &0x26e1u16.to_le_bytes());
 }
 
 #[test]

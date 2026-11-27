@@ -262,6 +262,9 @@ pub enum CharStatements {
     /// SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = ?
     SEL_CHARACTER_CRITERIAPROGRESS,
 
+    /// One-snapshot UNION of all dated achievements and one selected criteria-progress row.
+    SEL_CHARACTER_ACHIEVEMENT_DATA,
+
     /// SELECT character equipment sets.
     SEL_CHARACTER_EQUIPMENTSETS,
 

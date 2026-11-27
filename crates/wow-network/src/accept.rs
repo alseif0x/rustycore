@@ -512,6 +512,7 @@ mod tests {
             battlenet_account_id: 314,
             security: 3,
             instant_logout_permission: true,
+            cannot_earn_achievements: true,
             is_banned_bnet: false,
             is_banned_account: true,
             win64_auth_seed: [0xA5; 16],

@@ -68,6 +68,7 @@ fn apply_money_command(
     authority_committed: Arc<AtomicBool>,
 ) -> ApplyLootMoneyLikeCppCommand {
     ApplyLootMoneyLikeCppCommand {
+        criteria: None,
         recipient,
         loot_owner,
         loot_obj,

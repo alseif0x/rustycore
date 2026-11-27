@@ -17,17 +17,30 @@ impl crate::session::HubMut<'_> {
                 completed_at: None,
             })
             .collect::<Vec<_>>();
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.hydrate_completed_achievements_like_cpp(achievements);
-            })
-            .is_some();
+        self.replace_achievement_data(achievements, Vec::new())
+    }
+
+    pub fn replace_achievement_data(
+        &mut self,
+        achievements: Vec<wow_entities::PlayerAchievementRecord>,
+        criteria: Vec<wow_entities::PlayerAchievementCriteriaRecord>,
+    ) -> bool {
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures
                 .collections
-                .represented_completed_achievements_like_cpp = achievement_ids;
+                .represented_completed_achievements_like_cpp =
+                achievements.iter().map(|row| row.achievement_id).collect();
+        }
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.hydrate_completed_achievements_like_cpp(achievements);
+                player.gameplay_state_mut().achievement_criteria = criteria;
+            })
+            .is_some();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.core.player_handle_like_cpp.is_none() {
             return true;
         }
         canonical

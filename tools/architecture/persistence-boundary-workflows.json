@@ -3,6 +3,32 @@
   "workflows": [
     {
       "package": "wow-database",
+      "module": "crate::loot_money_criteria",
+      "source": "crates/wow-database/src/loot_money_criteria.rs",
+      "enclosing": "fn advance",
+      "logical_databases": ["characters"],
+      "boundary": "Criterion 4093 and its five character awards in the loot-money transaction (#1339).",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The caller lends the active Characters writer transaction after locking the character row.",
+      "current_order": "Lock criterion and award rows, accumulate the eligible base share with saturation, write changed progress, insert missing reached awards and return the absolute result.",
+      "failure_and_unknown_commit": "An error aborts the caller's payout transaction. The caller reconciles an unknown commit by its existing receipt or consumed item source before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::loot_money_criteria",
+      "source": "crates/wow-database/src/loot_money_criteria.rs",
+      "enclosing": "module",
+      "logical_databases": ["characters"],
+      "boundary": "Shared criterion operation for stored-item and group loot-money adapters (#1339).",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All statements use the transaction that owns the payout.",
+      "current_order": "The character lock precedes criterion mutation. Receipt settlement and packet delivery follow at the caller.",
+      "failure_and_unknown_commit": "This helper cannot commit independently. Character balance, source consumption and achievement changes share the same commit or rollback."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::hotfix::condition_presence_adapter",
       "source": "crates/wow-database/src/hotfix/condition_presence_adapter.rs",
       "enclosing": "fn condition_id",

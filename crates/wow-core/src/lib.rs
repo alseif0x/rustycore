@@ -39,4 +39,5 @@ pub use string::{
 };
 pub use time::{
     GameTime, IntervalTimer, ServerTime, pack_local_wow_time_from_unix_seconds_like_cpp,
+    pack_session_wow_time,
 };

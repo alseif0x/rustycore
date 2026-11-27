@@ -109,6 +109,7 @@ mod tests {
             reader.clone(),
             id,
             vec![GroupLootMoneyPersistenceOutcomeLikeCpp {
+                criteria: None,
                 recipient_guid: 54,
                 before: 10,
                 after: 17,

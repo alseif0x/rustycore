@@ -197,6 +197,8 @@ pub struct SessionAccountState {
     pub recent_player_guid_low_like_cpp: u64,
     pub mute_time_like_cpp: i64,
     pub instant_logout_permission: Option<bool>,
+    pub cannot_earn_achievements: bool,
+    pub timezone_offset_minutes: i32,
 }
 
 /// Cross-thread session flags shared with the services that publish for this

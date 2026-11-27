@@ -367,6 +367,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         item_guid_generator: &'a wow_core::ObjectGuidGenerator,
         notify: wow_packet::packets::loot::LootMoneyNotify,
         durable_applied_amount: u64,
+        criteria: Option<&'a wow_persistence::LootMoneyCriteriaProgress>,
         apply_money: bool,
         publish: bool,
     ) -> impl Future<Output = ApplyLootMoneyResultLikeCpp> + Send + 'a {
@@ -375,6 +376,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
             item_guid_generator,
             notify,
             durable_applied_amount,
+            criteria,
             apply_money,
             publish,
         )

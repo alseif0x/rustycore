@@ -83,6 +83,7 @@ pub enum LoginStatements {
     INS_FALP_IP_LOGGING,
     SEL_ACCOUNT_ACCESS_BY_ID,
     SEL_RBAC_ACCOUNT_PERMISSIONS,
+    SEL_CANNOT_EARN_ACHIEVEMENTS,
     INS_RBAC_ACCOUNT_PERMISSION,
     DEL_RBAC_ACCOUNT_PERMISSION,
     INS_ACCOUNT_MUTE,
@@ -330,6 +331,23 @@ impl StatementDef for LoginStatements {
             }
             Self::SEL_ACCOUNT_ACCESS_BY_ID => {
                 "SELECT SecurityLevel, RealmID FROM account_access WHERE AccountID = ? and (RealmID = ? OR RealmID = -1) ORDER BY SecurityLevel desc"
+            }
+            Self::SEL_CANNOT_EARN_ACHIEVEMENTS => {
+                // RBACData::LoadFromDBCallback applies the first explicit row for an ID,
+                // then adds defaults. CalculateNewPermissions expands both sets and subtracts denies.
+                "WITH RECURSIVE ancestors(id) AS (
+                     SELECT id FROM rbac_permissions WHERE id = 8
+                     UNION DISTINCT
+                     SELECT link.id FROM rbac_linked_permissions link JOIN ancestors a ON a.id = link.linkedId
+                 ), explicit_perms AS (
+                     SELECT permissionId, granted, ROW_NUMBER() OVER (PARTITION BY permissionId ORDER BY realmId) AS precedence
+                     FROM rbac_account_permissions WHERE accountId = ? AND realmId IN (-1, ?)
+                 ), roots AS (
+                     SELECT e.permissionId, e.granted FROM explicit_perms e WHERE precedence = 1
+                     UNION ALL SELECT permissionId, 1 FROM rbac_default_permissions WHERE secId = ? AND realmId IN (-1, ?)
+                 )
+                 SELECT CAST(COALESCE(MAX(roots.granted), 0) = 1 AND COALESCE(MIN(roots.granted), 1) = 1 AS UNSIGNED)
+                 FROM roots JOIN ancestors ON roots.permissionId = ancestors.id"
             }
             Self::SEL_RBAC_ACCOUNT_PERMISSIONS => {
                 "SELECT permissionId, granted FROM rbac_account_permissions WHERE accountId = ? AND (realmId = ? OR realmId = -1) ORDER BY permissionId, realmId"

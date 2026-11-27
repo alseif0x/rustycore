@@ -3,6 +3,96 @@ use wow_data::spell::aura_types::SPELL_AURA_MOD_MONEY_GAIN;
 
 const BONUS_SPELL: i32 = 61001;
 
+#[tokio::test]
+async fn loot_money_late_threshold_keeps_newer_progress_and_original_award_date() {
+    use wow_persistence::LootMoneyCriteriaProgress;
+    let (mut first, rx, _, _, _, _, _) = two_sessions_with_authoritative_creature_loot_like_cpp(
+        authoritative_test_loot_like_cpp(10, false),
+    );
+    register_looter(&mut first, &Arc::new(PlayerRegistry::default()), 0);
+    drain_server_opcodes_like_cpp(&rx);
+    let newest = LootMoneyCriteriaProgress {
+        counter: 10_000_007,
+        date: 1_800_000_120,
+        new_achievements: vec![1177],
+        achievement_date: Some(1_800_000_120),
+    };
+    let earlier = LootMoneyCriteriaProgress {
+        counter: 1_000_000,
+        date: 1_800_000_000,
+        new_achievements: vec![1176],
+        achievement_date: Some(1_800_000_000),
+    };
+    let hub = crate::session::hub_ref(&first);
+    hub.apply_loot_money_criteria(&newest);
+    drain_server_opcodes_like_cpp(&rx);
+    hub.apply_loot_money_criteria(&earlier);
+    hub.apply_loot_money_criteria(&earlier);
+    assert_eq!(
+        drain_server_opcodes_like_cpp(&rx),
+        [wow_constants::ServerOpcodes::AchievementEarned as u16]
+    );
+    let result = hub.loot_achievement_login_data();
+    assert_eq!(result.progress[0].quantity, newest.counter);
+    assert_eq!(result.earned.len(), 2);
+    assert_eq!(result.earned[1].id, 1176);
+    assert_eq!(
+        result.earned[1].packed_date,
+        wow_core::pack_session_wow_time(1_800_000_000, 0)
+    );
+}
+
+#[tokio::test]
+async fn loot_money_criteria_gate_and_base_share_belong_to_each_recipient() {
+    for restricted_local in [false, true] {
+        let (mut first, first_rx, mut second, second_rx, _, first_guid, second_guid) =
+            two_sessions_with_authoritative_creature_loot_like_cpp(
+                authoritative_test_loot_like_cpp(23, false),
+            );
+        let registry = Arc::new(PlayerRegistry::default());
+        install_bonus_catalog(&mut first);
+        second.core.account_state.cannot_earn_achievements = !restricted_local;
+        register_looter(&mut first, &registry, 20);
+        register_looter(&mut second, &registry, 50);
+        first
+            .core
+            .with_owned_player_mut_like_cpp(|p| p.set_game_master_like_cpp(restricted_local))
+            .unwrap();
+        install_group_loot_group(&mut first, first_guid, second_guid);
+        first.clear_loot_money_persistence_test_result_like_cpp();
+        first.set_group_loot_money_persistence_port_like_cpp(Arc::new(
+            GroupLootMoneyPortFixtureLikeCpp {
+                calls: Arc::new(AtomicUsize::new(0)),
+                chest: None,
+            },
+        ));
+        first.handle_loot_money(loot_money_packet()).await;
+        second.process_represented_session_commands_like_cpp().await;
+        for (session, rx, eligible) in [
+            (&first, &first_rx, !restricted_local),
+            (&second, &second_rx, restricted_local),
+        ] {
+            let ops = drain_server_opcodes_like_cpp(rx);
+            let payout = ops
+                .iter()
+                .position(|op| *op == ServerOpcodes::LootMoneyNotify as u16)
+                .unwrap();
+            let criterion = ops
+                .iter()
+                .position(|op| *op == ServerOpcodes::CriteriaUpdate as u16);
+            assert_eq!(criterion.is_some(), eligible);
+            if let Some(position) = criterion {
+                assert!(position < payout);
+            }
+            let snapshot = crate::session::hub_ref(session).loot_achievement_login_data();
+            assert_eq!(
+                snapshot.progress.first().map(|row| row.quantity),
+                eligible.then_some(11)
+            );
+        }
+    }
+}
+
 fn install_bonus_catalog(session: &mut WorldSession) {
     let mut store =
         crate::selected_spell_fixtures::canonical_spell_store([(BONUS_SPELL as u32, 0)]);
