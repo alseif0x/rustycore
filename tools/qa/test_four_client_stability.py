@@ -126,7 +126,8 @@ class FourClientStabilityTests(unittest.TestCase):
             bot.write_bytes(b"offline-test-binary")
             bot.chmod(0o700)
             clock = {"now": 0.0}
-            queue_values = iter((0, 1, 2))
+            queue_values = iter((0, 1, 2, 3))
+            queue_sample_times = []
             previous_positions = {
                 guid: [float(guid), float(guid + 1), float(guid + 2)]
                 for guid in stability.CHARACTERS
@@ -134,7 +135,7 @@ class FourClientStabilityTests(unittest.TestCase):
 
             def fake_wave(**kwargs):
                 wave = kwargs["wave"]
-                clock["now"] += 240 if wave == 1 else 7_200
+                clock["now"] += 6_960 if wave == 1 else 1
                 return {
                     "wave": wave,
                     "start_sequence": wave * 100,
@@ -147,7 +148,11 @@ class FourClientStabilityTests(unittest.TestCase):
 
             def queue_sample(_pid, _starttime):
                 value = next(queue_values)
+                queue_sample_times.append(clock["now"])
                 return {name: value for name in stability.QUEUE_FIELDS}
+
+            def fake_sleep(seconds):
+                clock["now"] += seconds
 
             cli = stability._parse_args([
                 "--capture-dir", str(capture), "--config", str(config),
@@ -167,7 +172,7 @@ class FourClientStabilityTests(unittest.TestCase):
                              "verify_relogin_positions", side_effect=lambda _capture, _first,
                              _last, expected: expected) as verify_relogin,
                 patch.object(stability.time, "monotonic", side_effect=lambda: clock["now"]),
-                patch.object(stability.time, "sleep"),
+                patch.object(stability.time, "sleep", side_effect=fake_sleep),
             ):
                 report = stability.run(cli, env)
 
@@ -178,6 +183,9 @@ class FourClientStabilityTests(unittest.TestCase):
                 capture, 200, 250, previous_positions,
             )
             self.assertEqual(report["workload"][1]["reloaded_positions"], previous_positions)
+            self.assertEqual(queue_sample_times, [0.0, 6_960.0, 6_961.0, 7_200.0])
+            self.assertTrue(report["command_queue_samples"][-1]["campaign_end"])
+            self.assertEqual(report["command_queue_samples"][-1]["command_full"], 3)
 
     def test_raid_info_count_rejects_truncated_rows(self):
         with self.assertRaisesRegex(stability.ScenarioFailure, "count does not match"):
@@ -264,12 +272,21 @@ class FourClientStabilityTests(unittest.TestCase):
             "command_stale": 4, "retry_full": 0,
         })
 
-    def test_process_stdout_sampler_reads_appended_same_inode_log_read_only(self):
+    def test_process_stdout_sampler_discards_backlog_and_reads_fresh_same_inode_line(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "world.stdout"
-            path.touch(mode=0o600)
+            backlog = (b"INFO Instance soak command queue totals command_full=1 "
+                       b"command_disconnected=1 command_stale=1 retry_full=1\n")
+            path.write_bytes(backlog)
+            path.chmod(0o600)
             pid = 12345
             real_stat = os.stat
+            fresh = (b"INFO Instance soak command queue totals command_full=2 "
+                     b"command_disconnected=3 command_stale=4 retry_full=5\n")
+
+            def append_fresh(_seconds):
+                with path.open("ab") as stream:
+                    stream.write(fresh)
 
             def same_server_stdout(candidate, *args, **kwargs):
                 if os.fspath(candidate) == f"/proc/{pid}/fd/1":
@@ -277,22 +294,106 @@ class FourClientStabilityTests(unittest.TestCase):
                 return real_stat(candidate, *args, **kwargs)
 
             with (patch.object(stability.os, "stat", side_effect=same_server_stdout),
-                  patch.object(stability.instance_soak, "read_memory", return_value={})):
+                  patch.object(stability.instance_soak, "read_memory", return_value={}),
+                  patch.object(stability.time, "sleep", side_effect=append_fresh)):
                 sampler = stability.ProcessStdoutQueueSampler(path, pid, 456)
                 try:
                     access = fcntl.fcntl(sampler.fd, fcntl.F_GETFL) & os.O_ACCMODE
                     self.assertEqual(access, os.O_RDONLY)
-                    with path.open("ab") as stream:
-                        stream.write(
-                            b"INFO Instance soak command queue totals command_full=2 "
-                            b"command_disconnected=1 command_stale=4 retry_full=0\n"
-                        )
                     sample = sampler.sample()
                 finally:
                     sampler.close()
         self.assertEqual({name: sample[name] for name in stability.QUEUE_FIELDS}, {
-            "command_full": 2, "command_disconnected": 1,
-            "command_stale": 4, "retry_full": 0,
+            "command_full": 2, "command_disconnected": 3,
+            "command_stale": 4, "retry_full": 5,
+        })
+
+    def test_process_stdout_sampler_discards_a_prior_sample_partial_line(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "world.stdout"
+            path.touch(mode=0o600)
+            pid = 12345
+            real_stat = os.stat
+            complete = (b"INFO Instance soak command queue totals command_full=1 "
+                        b"command_disconnected=1 command_stale=1 retry_full=1\n")
+            partial = b"INFO Instance soak command queue totals command_full=2 "
+            continuation = b"command_disconnected=2 command_stale=2 retry_full=2\n"
+            sleep_calls = 0
+            clock = {"now": 0}
+
+            def same_server_stdout(candidate, *args, **kwargs):
+                if os.fspath(candidate) == f"/proc/{pid}/fd/1":
+                    return real_stat(path)
+                return real_stat(candidate, *args, **kwargs)
+
+            def append_wave_lines(_seconds):
+                nonlocal sleep_calls
+                sleep_calls += 1
+                if sleep_calls == 1:
+                    with path.open("ab") as stream:
+                        stream.write(complete + partial)
+                elif sleep_calls == 2:
+                    with path.open("ab") as stream:
+                        stream.write(continuation)
+
+            def monotonic():
+                value = clock["now"]
+                clock["now"] += 1
+                return value
+
+            with (patch.object(stability.os, "stat", side_effect=same_server_stdout),
+                  patch.object(stability.instance_soak, "read_memory", return_value={}),
+                  patch.object(stability.time, "sleep", side_effect=append_wave_lines),
+                  patch.object(stability.time, "monotonic", side_effect=monotonic)):
+                sampler = stability.ProcessStdoutQueueSampler(path, pid, 456)
+                try:
+                    first = sampler.sample()
+                    self.assertEqual(first["command_full"], 1)
+                    with self.assertRaisesRegex(
+                            stability.ScenarioFailure, "no fresh queue counters"):
+                        sampler.sample()
+                finally:
+                    sampler.close()
+
+    def test_process_stdout_sampler_buffers_a_fresh_line_split_across_reads(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "world.stdout"
+            path.touch(mode=0o600)
+            pid = 12345
+            real_stat = os.stat
+            line = (b"INFO Instance soak command queue totals command_full=6 "
+                    b"command_disconnected=7 command_stale=8 retry_full=9\n")
+            pieces = iter((line[:41], line[41:]))
+
+            def same_server_stdout(candidate, *args, **kwargs):
+                if os.fspath(candidate) == f"/proc/{pid}/fd/1":
+                    return real_stat(path)
+                return real_stat(candidate, *args, **kwargs)
+
+            def append_next_piece(_seconds):
+                with path.open("ab") as stream:
+                    stream.write(next(pieces))
+
+            clock = {"now": 0}
+
+            def monotonic():
+                value = clock["now"]
+                clock["now"] += 1
+                return value
+
+            with (patch.object(stability.os, "stat", side_effect=same_server_stdout),
+                  patch.object(stability.instance_soak, "read_memory", return_value={}),
+                  patch.object(stability.time, "sleep", side_effect=append_next_piece),
+                  patch.object(stability.time, "monotonic", side_effect=monotonic)):
+                sampler = stability.ProcessStdoutQueueSampler(path, pid, 456)
+                try:
+                    sample = sampler.sample()
+                finally:
+                    sampler.close()
+
+        self.assertEqual({name: sample[name] for name in stability.QUEUE_FIELDS}, {
+            "command_full": 6, "command_disconnected": 7,
+            "command_stale": 8, "retry_full": 9,
         })
 
 

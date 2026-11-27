@@ -42,10 +42,15 @@ transfer on this server took character 18 from map 530 to map 0. The client
 acknowledged `NewWorld` with `WorldPortResponse` and saved its destination.
 The four-client cycles then exercised movement on map 0.
 
-Across 23 queue samples, full, disconnected, stale and retry-full counters
-had zero deltas. Across 489 process samples, RSS rose from 935,064 to 943,828
-KiB, including 812 KiB in the last 30 minutes. These measurements cover the
-two instrumented command paths and this run’s duration. Of 731 database
+The original runner could read buffered queue counters at a wave boundary.
+The retained server log contains 243 timestamped counter lines between the
+baseline and campaign end. All four counters on the two instrumented command
+paths were zero through 02:17:44.478 UTC. The last wave ended nine seconds
+later, and the server stopped before emitting another sample. The queue
+counters for those final nine seconds are unverified.
+
+Across 489 process samples, RSS rose from 935,064 to 943,828 KiB, including
+812 KiB in the last 30 minutes. Of 731 database
 samples, 670 showed all four characters online. Each character’s stored
 position changed 44 times between consecutive samples that showed it online.
 Criterion 4093 remained 1,000,005 for the paid character and 9 for its control.

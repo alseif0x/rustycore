@@ -291,6 +291,22 @@ class ProcessStdoutQueueSampler:
         return {name: fields[name] for name in QUEUE_FIELDS}
 
     def sample(self) -> dict[str, Any]:
+        boundary = os.fstat(self.fd).st_size
+        if boundary < self.offset:
+            self._check_identity()
+            _fail("server stdout log was truncated or replaced during sampling")
+        discard_partial_line = False
+        if boundary:
+            tail = os.pread(self.fd, 1, boundary - 1)
+            if not tail:
+                self._check_identity()
+                _fail("server stdout log was truncated or replaced during sampling")
+            discard_partial_line = tail not in (b"\n", b"\r")
+        # A sample belongs to a queue line completed after this call begins.
+        # Ignore both already-written backlog and any line whose prefix was
+        # present at the boundary, even if its terminator arrives later.
+        self.offset = boundary
+        self.pending = b""
         deadline = time.monotonic() + 75
         while time.monotonic() < deadline:
             self._check_identity()
@@ -302,13 +318,20 @@ class ProcessStdoutQueueSampler:
                 self.offset += len(data)
                 chunks = (self.pending + data).splitlines(keepends=True)
                 self.pending = b""
+                trailing = None
                 if chunks and not chunks[-1].endswith((b"\n", b"\r")):
-                    self.pending = chunks.pop()
+                    trailing = chunks.pop()
                 latest = None
                 for line in chunks:
+                    if discard_partial_line:
+                        if line.endswith((b"\n", b"\r")):
+                            discard_partial_line = False
+                        continue
                     counters = self._decode_queue_line(line)
                     if counters is not None:
                         latest = counters
+                if trailing is not None and not discard_partial_line:
+                    self.pending = trailing
                 if latest is not None:
                     return {**latest, "monotonic_us": time.monotonic_ns() // 1000}
             time.sleep(1)
@@ -779,6 +802,8 @@ def run(cli: argparse.Namespace, env: dict[str, str] | None = None) -> dict[str,
             check_samples()
             if end is None or baseline is None:
                 _fail("four-client run completed without queue counter samples")
+            end = queue_sample()
+            queue_samples.append({"wave": len(waves), "campaign_end": True, **end})
             _write_private(run_dir / "queue-after.json", end)
         deltas = {name: end[name] - baseline[name] for name in QUEUE_FIELDS}
         if any(delta < 0 for delta in deltas.values()):
@@ -813,7 +838,7 @@ def run(cli: argparse.Namespace, env: dict[str, str] | None = None) -> dict[str,
                       "instance": f"{INSTANCE_HOST}:{INSTANCE_PORT}"},
         "command_queue_deltas": deltas,
         "command_queue_samples": queue_samples,
-        "queue_sample_interval": "baseline and after every completed wave",
+        "queue_sample_interval": "baseline, after completed waves, and at campaign end",
         "queue_source": "captured_server_stdout_fd1" if queue_sampler else "systemd_journal",
         "queue_before": "four-client-stability/queue-before.json",
         "queue_after": "four-client-stability/queue-after.json",
