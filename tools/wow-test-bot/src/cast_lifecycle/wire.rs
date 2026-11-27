@@ -392,6 +392,7 @@ pub(super) fn logout_complete_route(
 
 pub(super) async fn collect_until(
     deadline: tokio::time::Instant,
+    plan_deadline: tokio::time::Instant,
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     inflater: &mut ServerPacketInflater,
@@ -399,7 +400,15 @@ pub(super) async fn collect_until(
     controller: &mut Controller,
 ) -> Result<()> {
     collect_until_inner(
-        deadline, stream, crypt, inflater, realm, controller, None, false,
+        deadline,
+        stream,
+        crypt,
+        inflater,
+        realm,
+        controller,
+        None,
+        false,
+        Some(plan_deadline),
     )
     .await
     .map(|_| ())
@@ -423,6 +432,7 @@ pub(super) async fn wait_for_server_disconnect(
             realm,
             None,
             Some(&mut disconnected),
+            None,
         )
         .await?;
         let Some((connection, opcode, payload)) = packet else {
@@ -471,7 +481,7 @@ pub(super) async fn collect_logout_until(
         bail!("logout observation requires a completed request and a realm connection");
     }
     if collect_until_inner(
-        deadline, stream, crypt, inflater, realm, controller, None, true,
+        deadline, stream, crypt, inflater, realm, controller, None, true, None,
     )
     .await?
     {
@@ -535,6 +545,7 @@ pub(super) async fn wait_for_packet(
         controller,
         Some((connection, opcode)),
         finishing_logout,
+        None,
     )
     .await?
     {
@@ -558,6 +569,7 @@ async fn collect_until_inner(
     controller: &mut Controller,
     match_packet: Option<(Connection, u16)>,
     finishing_logout: bool,
+    frame_completion_limit: Option<tokio::time::Instant>,
 ) -> Result<bool> {
     let mut instance_closed = false;
     while tokio::time::Instant::now() < deadline {
@@ -572,6 +584,7 @@ async fn collect_until_inner(
             realm,
             tolerate_instance_eof.then_some(&mut instance_closed),
             None,
+            frame_completion_limit,
         )
         .await?
         else {
@@ -648,8 +661,17 @@ pub(super) async fn drain_login_streams_with_controller(
     let mut quiet_deadline = tokio::time::Instant::now() + Duration::from_secs(1);
     loop {
         let read_deadline = quiet_deadline.min(deadline);
-        let Some((connection, opcode, payload)) =
-            next_packet(read_deadline, stream, crypt, inflater, realm, None, None).await?
+        let Some((connection, opcode, payload)) = next_packet(
+            read_deadline,
+            stream,
+            crypt,
+            inflater,
+            realm,
+            None,
+            None,
+            Some(deadline),
+        )
+        .await?
         else {
             if result.login_instance_object_update_seen {
                 result.login_stream_drained = true;
@@ -692,6 +714,7 @@ async fn next_packet(
     realm: &mut Option<EncryptedWorldConnection>,
     mut instance_closed: Option<&mut bool>,
     mut server_disconnect: Option<&mut Option<Connection>>,
+    frame_completion_limit: Option<tokio::time::Instant>,
 ) -> Result<Option<(Connection, u16, Vec<u8>)>> {
     const PACKET_POLL_INTERVAL: Duration = Duration::from_millis(1);
 
@@ -748,12 +771,12 @@ async fn next_packet(
             continue;
         }
         if let Some(realm) = realm.as_mut() {
-            if let Some((opcode, payload)) = read_encrypted_packet_if_ready(
+            if let Some((opcode, payload)) = read_lifecycle_frame(
                 &mut realm.stream,
                 &mut realm.crypt,
                 &mut realm.inflater,
-                remaining.min(PACKET_POLL_INTERVAL),
-                remaining,
+                deadline,
+                frame_completion_limit,
                 "cast lifecycle realm packet",
             )
             .await?
@@ -784,12 +807,12 @@ async fn next_packet(
                 Ok(Err(error)) => bail!("cast lifecycle instance packet: peek failed: {error}"),
             }
         }
-        if let Some((opcode, payload)) = read_encrypted_packet_if_ready(
+        if let Some((opcode, payload)) = read_lifecycle_frame(
             stream,
             crypt,
             inflater,
-            remaining.min(PACKET_POLL_INTERVAL),
-            remaining,
+            deadline,
+            frame_completion_limit,
             "cast lifecycle instance packet",
         )
         .await?
@@ -797,6 +820,40 @@ async fn next_packet(
             return Ok(Some((Connection::Instance, opcode, payload)));
         }
     }
+}
+
+async fn read_lifecycle_frame(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    admission_deadline: tokio::time::Instant,
+    completion_limit: Option<tokio::time::Instant>,
+    context: &str,
+) -> Result<Option<(u16, Vec<u8>)>> {
+    let poll_until = admission_deadline.min(tokio::time::Instant::now() + Duration::from_millis(1));
+    let mut peek = [0u8; 1];
+    match tokio::time::timeout_at(poll_until, stream.peek(&mut peek)).await {
+        Err(_) => return Ok(None),
+        Ok(Ok(0)) => bail!("{context}: connection closed"),
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => return Err(anyhow!("{context}: peek failed: {error}")),
+    }
+    let now = tokio::time::Instant::now();
+    if now >= admission_deadline {
+        return Ok(None);
+    }
+    // An ordinary wait or login quiet period can end between TCP fragments.
+    // Once admitted, finish the frame within the transport and plan deadlines.
+    let frame_deadline = completion_limit.map_or(admission_deadline, |hard_deadline| {
+        hard_deadline.min(now + Duration::from_secs(5))
+    });
+    let packet = tokio::time::timeout_at(
+        frame_deadline,
+        read_encrypted_packet(stream, crypt, inflater),
+    )
+    .await
+    .map_err(|_| anyhow!("{context}: encrypted frame read timed out"))??;
+    Ok(Some(packet))
 }
 
 pub(super) fn decode_event(
