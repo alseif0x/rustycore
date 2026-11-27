@@ -212,6 +212,7 @@ async fn cancelled_money_waiter_cannot_reopen_a_durable_claim_like_cpp() {
     let authority_generation = claim.generation_like_cpp();
     let authority_committed = Arc::new(AtomicBool::new(false));
     let application = ApplyLootMoneyLikeCppCommand {
+        criteria: None,
         recipient: second_guid,
         loot_owner: owner,
         loot_obj: represented_loot_object_guid_like_cpp(owner),
@@ -318,6 +319,7 @@ async fn money_viewer_opened_during_persistence_receives_coin_removed_like_cpp()
     let authority_generation = claim.generation_like_cpp();
     let authority_committed = Arc::new(AtomicBool::new(false));
     let application = ApplyLootMoneyLikeCppCommand {
+        criteria: None,
         recipient: first_guid,
         loot_owner: owner,
         loot_obj: represented_loot_object_guid_like_cpp(owner),

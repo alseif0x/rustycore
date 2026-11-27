@@ -19,15 +19,14 @@ impl SessionLifecycleState {
         let _ = hub.replace_completed_achievement_ids_like_cpp(rows);
     }
 
-    pub async fn load_completed_achievements_like_cpp(&mut self, hub: &mut HubMut<'_>) {
-        let _ = hub.replace_completed_achievement_ids_like_cpp([]);
-
+    pub async fn load_completed_achievements_like_cpp(&mut self, hub: &mut HubMut<'_>) -> bool {
+        hub.replace_achievement_data(Vec::new(), Vec::new());
         let Some(player_guid) = hub.core.player_guid() else {
             warn!(
                 account = hub.core.account_id,
                 "LoadCompletedAchievements skipped: player guid unavailable"
             );
-            return;
+            return false;
         };
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             warn!(
@@ -35,27 +34,27 @@ impl SessionLifecycleState {
                 guid = player_guid.counter(),
                 "LoadCompletedAchievements skipped: Player lifecycle port unavailable"
             );
-            return;
+            return false;
         };
 
-        let rows = match port
+        let data = match port
             .load_login_auxiliary_like_cpp(
-                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements {
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::AchievementData {
                     player_guid: player_guid.counter() as u64,
                 },
             )
             .await
         {
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
-                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::CompletedAchievements(rows),
-            ) => rows,
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::AchievementData(data),
+            ) => data,
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = hub.core.account_id,
                     guid = player_guid.counter(),
                     "LoadCompletedAchievements query failed: {reason}"
                 );
-                return;
+                return false;
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
                 warn!(
@@ -63,11 +62,30 @@ impl SessionLifecycleState {
                     guid = player_guid.counter(),
                     "Player lifecycle port returned the wrong auxiliary login data for completed achievements"
                 );
-                return;
+                return false;
             }
         };
 
-        let _ = hub.replace_completed_achievement_ids_like_cpp(rows);
+        let mut seen = std::collections::HashSet::new();
+        let achievements = data
+            .completed_achievements
+            .into_iter()
+            .filter(|row| row.achievement_id != 0 && seen.insert(row.achievement_id))
+            .map(|row| wow_entities::PlayerAchievementRecord {
+                achievement_id: row.achievement_id,
+                completed_at: Some(row.date),
+            })
+            .collect();
+        let criteria = data
+            .loot_money_criteria_progress
+            .into_iter()
+            .map(|row| wow_entities::PlayerAchievementCriteriaRecord {
+                criteria_id: row.criteria_id,
+                counter: row.counter,
+                completed_at: Some(row.date),
+            })
+            .collect();
+        hub.replace_achievement_data(achievements, criteria)
     }
 
     pub async fn load_account_toys_like_cpp(&mut self, hub: &mut HubMut<'_>) {

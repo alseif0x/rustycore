@@ -95,13 +95,55 @@ passed against an isolated MariaDB across three child processes. Together
 these focused checks took 108 seconds on aarch64. The chest restart with a
 54261 protocol client is recorded separately in the [November 22 QA report](../architecture/captures/46-qa-54261-2026-11-22.md).
 
-At `3961b4d26`, login hydrates completed achievement IDs and sends an empty
-`AllAchievementData` progress list. Finishing the criteria part requires
-the eligible Player's progress to survive logout and restart, its update to
-precede `LootMoneyNotify`, and achievement completion at the applicable
-thresholds. Verify the GM/RBAC gates in `CriteriaHandler::UpdateCriteria`
-and the player/account scope in `PlayerAchievementMgr::SendCriteriaUpdate`.
-Verify that a replay of the same claim preserves the recipient's counter.
+The five non-statistic thresholds for criterion 4093 in build 54261 are
+1,000,000, 10,000,000, 50,000,000, 100,000,000 and 250,000,000 copper.
+They award character achievements 1176, 1177, 1178, 1180 and 1181
+respectively. The attached statistics read the same counter. The
+reference gates progress on GM mode and RBAC permission 8
+(`CriteriaHandler::UpdateCriteria`, `RequirementsSatisfied` and
+`SetCriteriaProgress`). `PlayerAchievementMgr::SendCriteriaUpdate`,
+`CompletedAchievement` and `SendAllData` define the live and login packets.
+
+On the issue branch the existing shared and stored-item payouts advance the
+eligible character's base amount inside the Characters transaction. That
+transaction writes the criterion and any newly earned thresholds together
+with the payout. A shared claim receipt preserves its result for recovery.
+Login reads the dated awards and criterion in one database snapshot. Live
+delivery installs the committed counter and sends its update before the
+money notification. The login projection covers this character criterion
+and its five visible awards.
+
+On November 26 the aarch64 debug candidate `2ac2db608` (binary SHA-256
+`4b278c6d3eb305d9ddc4a1c6f9a18aeada1a857dfa67dc349c1730d01ec840ce`)
+ran against four disposable MariaDB schemas. An authenticated 54261 protocol
+client started with criterion 4093 at 999,995 and collected 10 copper from
+chest 9106001. World PID 2928555 emitted `CoinRemoved`, `CriteriaUpdate`,
+`AchievementEarned` for 1176 and `LootMoneyNotify` in that order. The
+server stopped with the client connected. After login on PID 2930069,
+`AllAchievementData` restored 1,000,005 and the award with its original
+packed date. Reopening the chest paid zero. The Characters database
+retained one head, binding and receipt. The second player's counter stayed
+at 9 with its original date. Both protocol runs exited zero.
+
+`python3 tools/qa/verify_loot_money_restart.py <before> <after>`
+verified the actual INSTANCE payloads and order. Its JSON result had SHA-256
+`ad221b2649cc83d2dbec31a471cd80f154d3e982fc8b694a754d5bc19fc44d6c`.
+The prior capture from the build without criteria failed this verifier.
+The separate MariaDB `loot_money_restart` integration test exercised
+writing, recovery and repeated claims in three child processes, including
+saturated progress, capped balances, an unrelated existing award and a
+missing threshold. Five rolled-back QA permission queries also exercised
+ordinary eligibility, direct grants, linked defaults and denials.
+
+The final local run at clean commit `41d92fde6` used
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings --keep-going`.
+It passed 6,589 library tests across 12 packages, with 11 ignored, and both
+architecture checks. The verified manifest took 20m41s on aarch64, exceeding
+the ten-minute budget. At the same commit the two changed integration targets,
+`production_login_player_owner` and `loot_money_quarantine`, passed all 45
+tests with `--include-ignored` against an isolated MariaDB socket. Compiling
+those targets took another 4m47s. Only documentation and test fixtures
+changed between the live server build and this final code candidate.
 
 ## 7. Part 1 acceptance — a complete playable circuit
 

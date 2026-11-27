@@ -179,6 +179,10 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
                         loot_obj: *loot_obj,
                         amount: money_per_player,
                         money_mod: wow_persistence::loot_money_bonus(money_per_player, percent),
+                        criteria: host
+                            .hub_ref()
+                            .can_earn_loot_money_criteria()
+                            .then(Default::default),
                         durable_applied_amount,
                         durable_persistence_tracker: Arc::clone(
                             host.lifecycle()
@@ -393,6 +397,9 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
             }
             if publish {
                 host.represented_notify_money_removed_like_cpp(*loot_guid);
+                if let Some(progress) = &notification.criteria {
+                    host.hub_ref().apply_loot_money_criteria(progress);
+                }
                 host.send_packet(&LootMoneyNotify {
                     money: notification.amount,
                     money_mod: notification.money_mod,

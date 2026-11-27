@@ -250,7 +250,7 @@ impl PlayerRegistry {
             let entry = self.entries.get(&input.recipient)?;
             (entry.generation, entry.player_handle)
         };
-        let percent = match handle {
+        let (percent, gm_mode) = match handle {
             Some(handle) => {
                 let manager = self.canonical_map_manager.get()?.lock().ok()?;
                 if manager.player_residence_like_cpp(handle)
@@ -263,9 +263,10 @@ impl PlayerRegistry {
                         player,
                         catalogs.player_stat_aura_catalogs(),
                     )
+                    .map(|percent| (percent, player.is_game_master_like_cpp()))
                 })??
             }
-            None if cfg!(any(test, feature = "test-fixtures")) && legacy_fixture => 0,
+            None if cfg!(any(test, feature = "test-fixtures")) && legacy_fixture => (0, false),
             None => return None,
         };
         let entry = self.entries.get(&input.recipient)?;
@@ -283,6 +284,8 @@ impl PlayerRegistry {
                 loot_obj: input.loot_obj,
                 amount: input.amount,
                 money_mod: wow_persistence::loot_money_bonus(input.amount, percent),
+                criteria: (!gm_mode && !entry.identity.cannot_earn_achievements)
+                    .then(Default::default),
                 durable_applied_amount: input.durable_applied_amount,
                 durable_persistence_tracker: Arc::clone(&entry.durable_loot_money),
                 sole_looter: input.sole_looter,

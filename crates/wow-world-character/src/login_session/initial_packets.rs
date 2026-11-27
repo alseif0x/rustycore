@@ -16,10 +16,10 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use wow_core::{ObjectGuid, Position};
 use wow_packet::packets::misc::{
-    AccountMount, AccountMountUpdate, AllAchievementData, InitWorldStates, InitialSetup,
-    LoginSetTimeSpeed, MoveSetActiveMover, SendKnownSpells, SendSpellCharges, SendSpellHistory,
-    SendUnlearnSpells, SetSpellModifier, SetupCurrency, SpellChargeEntry, SpellHistoryEntry,
-    UpdateActionButtons, WorldServerInfo,
+    AccountMount, AccountMountUpdate, InitWorldStates, InitialSetup, LoginSetTimeSpeed,
+    MoveSetActiveMover, SendKnownSpells, SendSpellCharges, SendSpellHistory, SendUnlearnSpells,
+    SetSpellModifier, SetupCurrency, SpellChargeEntry, SpellHistoryEntry, UpdateActionButtons,
+    WorldServerInfo,
 };
 use wow_persistence::PlayerInitialWorldStateRowsLikeCpp;
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
@@ -156,7 +156,7 @@ pub async fn send_initial_packets_before_add_to_map<H: CharacterLoginHostLikeCpp
     // `QuestObjectiveCriteriaMgr::SendAllData` does not emit
     // `AllAccountCriteria` in the traced 3.4.3 login when there is no
     // progress; do not synthesize an empty packet here.
-    host.send_packet(&AllAchievementData);
+    host.send_packet(&host.hub_ref().loot_achievement_login_data());
 
     // 20. LoginSetTimeSpeed
     host.send_packet(&LoginSetTimeSpeed::now());

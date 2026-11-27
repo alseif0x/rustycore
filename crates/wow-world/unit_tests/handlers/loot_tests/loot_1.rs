@@ -653,6 +653,7 @@ async fn durable_money_delta_is_order_independent_near_gold_cap_like_cpp() {
     let committed = Arc::new(AtomicBool::new(false));
     let command_authority = OwnedLootAuthority::new();
     let command = |durable_delta| ApplyLootMoneyLikeCppCommand {
+        criteria: None,
         recipient: player_guid,
         loot_owner: test_creature_guid(19_510),
         loot_obj: represented_loot_object_guid_like_cpp(test_creature_guid(19_510)),
@@ -708,6 +709,7 @@ async fn durable_old_generation_payout_does_not_touch_replacement_loot_like_cpp(
 
     first
         .handle_apply_loot_money_like_cpp_command(ApplyLootMoneyLikeCppCommand {
+            criteria: None,
             recipient: first_guid,
             loot_owner: owner,
             loot_obj: represented_loot_object_guid_like_cpp(owner),

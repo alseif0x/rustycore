@@ -146,6 +146,21 @@ impl AccountLookup for DbAccountLookup {
                     &account_permissions,
                 );
 
+            let mut achievement_permission = self
+                .login_db
+                .prepare(LoginStatements::SEL_CANNOT_EARN_ACHIEVEMENTS);
+            achievement_permission.set_u32(0, account_id);
+            achievement_permission.set_i32(1, i32::from(realm_id));
+            achievement_permission.set_u8(2, security);
+            achievement_permission.set_i32(3, i32::from(realm_id));
+            let cannot_earn_achievements = match self.login_db.query(&achievement_permission).await
+            {
+                Ok(row) => row.try_read::<u64>(0)? != 0,
+                Err(error) => {
+                    tracing::warn!(%error, account_id, "Cannot resolve achievement eligibility");
+                    return None;
+                }
+            };
             Some(AccountInfo {
                 id: account_id,
                 session_key_hex,
@@ -162,6 +177,7 @@ impl AccountLookup for DbAccountLookup {
                 battlenet_account_id: bnet_id,
                 security,
                 instant_logout_permission,
+                cannot_earn_achievements,
                 is_banned_bnet: is_banned_bnet != 0,
                 is_banned_account: is_banned_account != 0,
                 win64_auth_seed: self.win64_auth_seed,

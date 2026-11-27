@@ -54,21 +54,24 @@ impl WorldSession {
         let active_loot_rolls = self
             .loot
             .represented_loot_roll_command_identities_snapshot_like_cpp();
+        let mut identity = crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+            name.clone(),
+            self.core.account_id,
+            self.battlenet_account_id(),
+            self.core.account_state.recruiter_id_like_cpp,
+            race,
+            class,
+            gender,
+            self.core.expansion,
+            self.core.locale.clone(),
+            self.core.player_handle_like_cpp,
+        );
+        identity.cannot_earn_achievements = self.core.account_state.cannot_earn_achievements;
+        identity.timezone_offset_minutes = self.core.account_state.timezone_offset_minutes;
         reg.register_or_replace(
             guid,
             PlayerSessionRegistrationLikeCpp {
-                identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
-                    name.clone(),
-                    self.core.account_id,
-                    self.battlenet_account_id(),
-                    self.core.account_state.recruiter_id_like_cpp,
-                    race,
-                    class,
-                    gender,
-                    self.core.expansion,
-                    self.core.locale.clone(),
-                    self.core.player_handle_like_cpp,
-                ),
+                identity,
                 placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
                     map_id,
                     instance_id,

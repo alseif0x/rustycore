@@ -16,7 +16,12 @@ pub(super) fn empty_auxiliary_load(
     let loaded = match request {
         Request::Mail { .. } => Loaded::Mail(vec![]),
         Request::Customizations { .. } => Loaded::Customizations(vec![]),
-        Request::CompletedAchievements { .. } => Loaded::CompletedAchievements(vec![]),
+        Request::AchievementData { .. } => {
+            Loaded::AchievementData(wow_persistence::PlayerAchievementDataLoadLikeCpp {
+                completed_achievements: Vec::new(),
+                loot_money_criteria_progress: None,
+            })
+        }
         Request::InstanceTimeRestrictions { .. } => Loaded::InstanceTimeRestrictions(vec![]),
         Request::SpellCooldowns { .. } => Loaded::SpellCooldowns(vec![]),
         Request::SpellCharges { .. } => Loaded::SpellCharges(vec![]),

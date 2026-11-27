@@ -448,6 +448,8 @@ pub trait LootHandlerHostLikeCpp<C> {
             item_guid,
             cached_notified_amount,
             money_bonus_percent,
+            self.loot_unit_hub_ref_like_cpp()
+                .can_earn_loot_money_criteria(),
         )
     }
 
@@ -474,6 +476,7 @@ pub trait LootHandlerHostLikeCpp<C> {
         item_guid_generator: &'a wow_core::ObjectGuidGenerator,
         notify: wow_packet::packets::loot::LootMoneyNotify,
         durable_applied_amount: u64,
+        criteria: Option<&'a wow_persistence::LootMoneyCriteriaProgress>,
         apply_money: bool,
         publish: bool,
     ) -> impl Future<Output = ApplyLootMoneyResultLikeCpp> + Send + 'a;

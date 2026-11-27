@@ -8,8 +8,9 @@ use crate::params::PreparedStatement;
 use crate::statements::StatementDef;
 use crate::statements::{CharStatements, LoginStatements};
 use wow_persistence::{
-    AccountCollectionLoadRequestLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
-    PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    AccountCollectionLoadRequestLikeCpp, LOOT_MONEY_CRITERION,
+    PlayerCharacterBaseLoadRequestLikeCpp, PlayerLoginAdmissionLoadRequestLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp,
 };
 
 #[test]
@@ -81,9 +82,13 @@ fn player_login_auxiliary_requests_map_to_exact_character_statements_like_cpp() 
             vec![crate::SqlParam::U64(77)],
         ),
         (
-            PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { player_guid: 77 },
-            CharStatements::SEL_CHARACTER_ACHIEVEMENTS.sql(),
-            vec![crate::SqlParam::U64(77)],
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::AchievementData { player_guid: 77 },
+            CharStatements::SEL_CHARACTER_ACHIEVEMENT_DATA.sql(),
+            vec![
+                crate::SqlParam::U64(77),
+                crate::SqlParam::U64(77),
+                crate::SqlParam::U32(LOOT_MONEY_CRITERION),
+            ],
         ),
         (
             PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id: 88 },

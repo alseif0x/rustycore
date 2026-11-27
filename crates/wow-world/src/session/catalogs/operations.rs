@@ -6,6 +6,13 @@
 use super::*;
 
 impl WorldSession {
+    pub fn set_chat_listen_ranges_like_cpp(
+        &mut self,
+        ranges: crate::session_policy::ChatListenRangesLikeCpp,
+    ) {
+        self.config.chat_listen_ranges_like_cpp = ranges;
+    }
+
     pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {
         self.catalogs.trainer_store_like_cpp = Some(store);
     }

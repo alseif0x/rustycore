@@ -15,6 +15,7 @@ use wow_persistence::{
 
 use crate::{
     CharStatements, CharacterDatabase, DatabaseError, StatementDef, is_database_deadlock_like_cpp,
+    loot_money_criteria,
     persistence_trace::{
         CommitOutcome, ExplicitTransactionTrace, LogicalDatabase, TracedParam,
         record_batch_not_started,
@@ -180,6 +181,7 @@ fn durable_outcome_like_cpp(
         before,
         after,
         applied_delta,
+        criteria: None,
     }
 }
 
@@ -202,7 +204,13 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyAttemptAdapte
         Box::pin(async move {
             let payouts = payouts_in_stable_lock_order_like_cpp(request.payouts);
             if payouts.is_empty()
-                || (request.claim_id.is_none() && payouts.iter().any(|p| p.requested_delta != 0))
+                || (request.claim_id.is_none()
+                    && payouts
+                        .iter()
+                        .any(|p| p.requested_delta != 0 || p.base_looted_amount != 0))
+                || payouts
+                    .windows(2)
+                    .any(|pair| pair[0].recipient_guid == pair[1].recipient_guid)
             {
                 return rolled_back_database_like_cpp(DatabaseError::Transaction(
                     "invalid shared money claim".into(),
@@ -262,7 +270,7 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyAttemptAdapte
                     Err(error) => return rolled_back_database_like_cpp(error),
                 };
 
-                let outcome = durable_outcome_like_cpp(
+                let mut outcome = durable_outcome_like_cpp(
                     payout.recipient_guid,
                     before,
                     payout.requested_delta,
@@ -303,6 +311,17 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyAttemptAdapte
                             update.rows_affected()
                         )));
                     }
+                }
+                match loot_money_criteria::advance(
+                    &mut transaction,
+                    &trace,
+                    payout.recipient_guid,
+                    payout.base_looted_amount,
+                )
+                .await
+                {
+                    Ok(criteria) => outcome.criteria = criteria,
+                    Err(error) => return rolled_back_database_like_cpp(error),
                 }
                 outcomes.push(outcome);
             }
@@ -498,6 +517,7 @@ mod tests {
                 before: 100,
                 after: 105,
                 applied_delta: 5,
+                criteria: None,
             }
         );
         assert_eq!(durable_outcome_like_cpp(7, 999, 5, 1_000).applied_delta, 0);
@@ -520,10 +540,12 @@ mod tests {
             wow_persistence::GroupLootMoneyPayoutLikeCpp {
                 recipient_guid: 9,
                 requested_delta: 2,
+                base_looted_amount: 0,
             },
             wow_persistence::GroupLootMoneyPayoutLikeCpp {
                 recipient_guid: 3,
                 requested_delta: 4,
+                base_looted_amount: 0,
             },
         ]);
         assert_eq!(

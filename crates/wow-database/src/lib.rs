@@ -46,6 +46,7 @@ pub mod hotfix;
 pub mod hotfix_delivery_metadata_adapter;
 pub mod instance_lock_persistence_adapter;
 pub mod loader;
+mod loot_money_criteria;
 pub mod map_corpse_adapter;
 pub mod migration;
 pub mod packet_spoof_ban_adapter;

@@ -347,9 +347,11 @@ pub(super) async fn create_session(
         send_tx,
         Arc::clone(&resources.core.packet_handlers),
     );
-    wow_world_core::session::SessionHubHostLikeCpp::core_mut(&mut session)
-        .account_state
-        .instant_logout_permission = Some(account.instant_logout_permission);
+    let account_state =
+        &mut wow_world_core::session::SessionHubHostLikeCpp::core_mut(&mut session).account_state;
+    account_state.instant_logout_permission = Some(account.instant_logout_permission);
+    account_state.cannot_earn_achievements = account.cannot_earn_achievements;
+    account_state.timezone_offset_minutes = account.timezone_offset;
     session.set_send_write_fence_like_cpp(send_write_fence_like_cpp);
     let Some((active_session_id, session_cancellation, ready_for_phases_like_cpp)) =
         active_session_registry.try_register(
@@ -420,6 +422,8 @@ pub(super) async fn create_session(
     // #1445: the hook ports dispatch to the compositor's immutable module
     // registry, the same `Arc` the dispatch catalogs carry.
     session.install_module_hooks_like_cpp(Arc::clone(&resources.core.handler_catalogs.modules));
+    session
+        .set_chat_listen_ranges_like_cpp(resources.core.handler_catalogs.chat_policy.listen_ranges);
 
     // Select the correct realm IP for ConnectTo based on client address.
     // C++ delegates to Trinity::Net::SelectAddressForClient after scanning

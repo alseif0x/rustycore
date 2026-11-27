@@ -16,7 +16,20 @@ async fn auxiliary_login_reads_preserve_cpp_row_and_publication_rules() {
             ]),
         ),
         PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
-            PlayerLoginAuxiliaryLoadedLikeCpp::CompletedAchievements(vec![9001, 9001, 0, 9002]),
+            PlayerLoginAuxiliaryLoadedLikeCpp::AchievementData(
+                wow_persistence::PlayerAchievementDataLoadLikeCpp {
+                    completed_achievements: [9001, 9001, 0, 9002]
+                        .into_iter()
+                        .map(|achievement_id| {
+                            wow_persistence::PlayerAchievementCompletionLoadRowLikeCpp {
+                                achievement_id,
+                                date: 100,
+                            }
+                        })
+                        .collect(),
+                    loot_money_criteria_progress: None,
+                },
+            ),
         ),
         PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
             PlayerLoginAuxiliaryLoadedLikeCpp::InstanceTimeRestrictions(vec![
@@ -76,7 +89,7 @@ async fn auxiliary_login_reads_preserve_cpp_row_and_publication_rules() {
         port.requests(),
         vec![
             PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { player_guid: 42 },
-            PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { player_guid: 42 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::AchievementData { player_guid: 42 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id: 1 },
         ]
     );
@@ -89,7 +102,12 @@ async fn empty_auxiliary_login_rows_clear_stale_represented_state() {
             PlayerLoginAuxiliaryLoadedLikeCpp::Customizations(Vec::new()),
         ),
         PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
-            PlayerLoginAuxiliaryLoadedLikeCpp::CompletedAchievements(Vec::new()),
+            PlayerLoginAuxiliaryLoadedLikeCpp::AchievementData(
+                wow_persistence::PlayerAchievementDataLoadLikeCpp {
+                    completed_achievements: Vec::new(),
+                    loot_money_criteria_progress: None,
+                },
+            ),
         ),
         PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
             PlayerLoginAuxiliaryLoadedLikeCpp::InstanceTimeRestrictions(Vec::new()),

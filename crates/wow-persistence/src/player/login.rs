@@ -16,7 +16,7 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     Customizations {
         player_guid: u64,
     },
-    CompletedAchievements {
+    AchievementData {
         player_guid: u64,
     },
     InstanceTimeRestrictions {
@@ -325,6 +325,28 @@ impl PlayerLoginAuxiliaryLoadRequestLikeCpp {
 pub struct PlayerCustomizationLoadRowLikeCpp {
     pub option_id: u32,
     pub choice_id: u32,
+}
+
+/// One dated `character_achievement` row loaded for the canonical Player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerAchievementCompletionLoadRowLikeCpp {
+    pub achievement_id: u32,
+    pub date: u64,
+}
+
+/// One `character_achievement_progress` row loaded for the canonical Player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerCriteriaProgressLoadRowLikeCpp {
+    pub criteria_id: u32,
+    pub counter: u64,
+    pub date: u64,
+}
+
+/// One atomic login projection of dated achievements and loot-money progress.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerAchievementDataLoadLikeCpp {
+    pub completed_achievements: Vec<PlayerAchievementCompletionLoadRowLikeCpp>,
+    pub loot_money_criteria_progress: Option<PlayerCriteriaProgressLoadRowLikeCpp>,
 }
 
 /// C++ `CHAR_SEL_MAIL` projection installed into the canonical Player during
@@ -699,7 +721,7 @@ pub struct PlayerTraitConfigLoadRowLikeCpp {
 pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     Mail(Vec<PlayerMailLoadRowLikeCpp>),
     Customizations(Vec<PlayerCustomizationLoadRowLikeCpp>),
-    CompletedAchievements(Vec<u32>),
+    AchievementData(PlayerAchievementDataLoadLikeCpp),
     InstanceTimeRestrictions(Vec<PlayerInstanceTimeRestrictionLoadRowLikeCpp>),
     SpellCooldowns(Vec<PlayerSpellCooldownLoadRowLikeCpp>),
     SpellCharges(Vec<PlayerSpellChargeLoadRowLikeCpp>),

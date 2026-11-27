@@ -309,6 +309,9 @@ impl StatementDef for CharStatements {
             Self::SEL_CHARACTER_CRITERIAPROGRESS => {
                 "SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = ?"
             }
+            Self::SEL_CHARACTER_ACHIEVEMENT_DATA => {
+                "SELECT 0 AS kind, achievement AS entry_id, CAST(0 AS UNSIGNED) AS counter, date FROM character_achievement WHERE guid = ? UNION ALL SELECT 1, criteria, counter, date FROM character_achievement_progress WHERE guid = ? AND criteria = ? ORDER BY kind, entry_id"
+            }
             Self::SEL_CHARACTER_EQUIPMENTSETS => {
                 "SELECT setguid, setindex, name, iconname, ignore_mask, AssignedSpecIndex, item0, item1, item2, item3, item4, item5, item6, item7, item8, item9, item10, item11, item12, item13, item14, item15, item16, item17, item18 FROM character_equipmentsets WHERE guid = ? ORDER BY setindex"
             }
