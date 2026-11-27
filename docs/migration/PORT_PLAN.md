@@ -135,6 +135,16 @@ saturated progress, capped balances, an unrelated existing award and a
 missing threshold. Five rolled-back QA permission queries also exercised
 ordinary eligibility, direct grants, linked defaults and denials.
 
+The final local run at clean commit `41d92fde6` used
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings --keep-going`.
+It passed 6,589 library tests across 12 packages, with 11 ignored, and both
+architecture checks. The verified manifest took 20m41s on aarch64, exceeding
+the ten-minute budget. At the same commit the two changed integration targets,
+`production_login_player_owner` and `loot_money_quarantine`, passed all 45
+tests with `--include-ignored` against an isolated MariaDB socket. Compiling
+those targets took another 4m47s. Only documentation and test fixtures
+changed between the live server build and this final code candidate.
+
 ## 7. Part 1 acceptance — a complete playable circuit
 
 The M0–M6 names remain milestone identifiers. Their broad exits cannot be inferred
