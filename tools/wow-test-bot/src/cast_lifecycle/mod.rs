@@ -333,7 +333,16 @@ pub(super) async fn execute(
                 let wait_deadline = (tokio::time::Instant::now()
                     + Duration::from_millis(*milliseconds))
                 .min(deadline);
-                collect_until(wait_deadline, stream, crypt, inflater, realm, controller).await
+                collect_until(
+                    wait_deadline,
+                    deadline,
+                    stream,
+                    crypt,
+                    inflater,
+                    realm,
+                    controller,
+                )
+                .await
             }
             Action::WaitForPacket {
                 connection,
@@ -380,8 +389,10 @@ pub(super) async fn execute(
         && !controller.evidence.logout_confirmed
         && controller.evidence.server_disconnect_connection.is_none()
     {
-        if let Err(error) =
-            collect_until(deadline, stream, crypt, inflater, realm, controller).await
+        if let Err(error) = collect_until(
+            deadline, deadline, stream, crypt, inflater, realm, controller,
+        )
+        .await
         {
             controller.evidence.failure = Some(format!("observer failed: {error}"));
         }
